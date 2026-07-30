@@ -18,10 +18,18 @@ public class CommandRetryPolicyUnitTests
         return (policy ?? RetryPolicy.Default).CanRetry(in fault);
     }
 
+    // As above, but for an *ambiguous* fault: a timeout on a request we know was sent. We have no idea
+    // whether the server applied it, so this is the case the retry-category exists to price.
+    private static RetryResult CanRetryAmbiguous(CommandFlags flags, RetryPolicy? policy = null)
+    {
+        var fault = new FaultContext(new RedisTimeoutException(flags, "timeout", CommandStatus.Sent));
+        return (policy ?? RetryPolicy.Default).CanRetry(in fault);
+    }
+
     // The command's retry-category is checked against the policy's max category: the default max is
     // CommandRetryWriteLastWins, so anything at-or-below that is in-range, and anything with more
-    // side-effects is not. Using a transient LOADING fault so the error-kind check permits a retry
-    // whenever the category is in-range - isolating the category logic.
+    // side-effects is not. Using an ambiguous (timeout-after-send) fault, since that is where the
+    // category actually bites - see CanRetry_NotAppliedBypassesCategory for the other half.
     [Theory]
     [InlineData(CommandFlags.CommandRetryAlways, true)]
     [InlineData(CommandFlags.CommandRetryConnection, true)]
@@ -31,11 +39,49 @@ public class CommandRetryPolicyUnitTests
     [InlineData(CommandFlags.CommandRetryWriteAccumulating, false)] // beyond default max
     [InlineData(CommandFlags.CommandRetryServerAdmin, false)]
     [InlineData(CommandFlags.CommandRetryNever, false)]
-    [InlineData(CommandFlags.None, false)] // unspecified => assume worst (accumulating) => beyond default max
+    [InlineData(CommandFlags.None, false)] // unspecified => assume the worst => not retried
     public void CanRetry_CategoryVersusDefaultMax(CommandFlags category, bool expectRetry)
     {
+        var result = CanRetryAmbiguous(category);
+        Assert.Equal(expectRetry, result != RetryResult.None);
+    }
+
+    // When the fault proves the operation never took effect (here: the server was still LOADING, so it
+    // rejected the command outright), a replay is a first attempt rather than a repeat - it cannot
+    // double-apply anything, so the side-effect category is irrelevant and the cap is bypassed. An
+    // explicit CommandRetryNever is still an absolute veto, as is an unspecified category.
+    [Theory]
+    [InlineData(CommandFlags.CommandRetryWriteAccumulating, true)] // beyond the default cap, but safe here
+    [InlineData(CommandFlags.CommandRetryServerAdmin, true)]
+    [InlineData(CommandFlags.CommandRetryNever, false)] // never means never
+    [InlineData(CommandFlags.None, false)] // we don't know what it is; don't guess
+    public void CanRetry_NotAppliedBypassesCategory(CommandFlags category, bool expectRetry)
+    {
+        // sanity: the same category against an ambiguous fault of the same "retryability" is refused
+        if (expectRetry) Assert.Equal(RetryResult.None, CanRetryAmbiguous(category));
+
         var result = CanRetry(RedisErrorKind.Loading, category);
         Assert.Equal(expectRetry, result != RetryResult.None);
+    }
+
+    // The other source of certainty: the client knows it never wrote the message. Same conclusion, even
+    // though the fault itself (a connection failure) is otherwise ambiguous.
+    [Theory]
+    [InlineData(CommandStatus.WaitingToBeSent, true)]
+    [InlineData(CommandStatus.WaitingInBacklog, true)]
+    [InlineData(CommandStatus.Sent, false)] // may or may not have been applied
+    [InlineData(CommandStatus.Unknown, false)]
+    public void CanRetry_UnsentMessageBypassesCategory(CommandStatus status, bool expectRetry)
+    {
+        var fault = new FaultContext(new RedisConnectionException(
+            ConnectionFailureType.SocketFailure,
+            CommandFlags.CommandRetryWriteAccumulating, // beyond the default cap
+            "boom",
+            innerException: null,
+            commandStatus: status));
+
+        Assert.Equal(expectRetry, fault.NotApplied);
+        Assert.Equal(expectRetry, RetryPolicy.Default.CanRetry(in fault) != RetryResult.None);
     }
 
     // With an in-range category (== default max), the outcome is decided purely by whether the error
@@ -86,8 +132,8 @@ public class CommandRetryPolicyUnitTests
     [InlineData(CommandFlags.CommandRetryServerAdmin, false)] // beyond default max
     public void CanRetry_ServerSpecificDoesNotAffectRange(CommandFlags category, bool expectRetry)
     {
-        var withoutFlag = CanRetry(RedisErrorKind.Loading, category);
-        var withFlag = CanRetry(RedisErrorKind.Loading, category | Message.CommandServerSpecific);
+        var withoutFlag = CanRetryAmbiguous(category);
+        var withFlag = CanRetryAmbiguous(category | Message.CommandServerSpecific);
 
         Assert.Equal(expectRetry, withoutFlag != RetryResult.None);
         Assert.Equal(expectRetry, withFlag != RetryResult.None);

@@ -21,6 +21,13 @@ internal interface IInternalDatabaseAsync : IDatabaseAsync
 {
     DatabaseFeatureFlags GetFeatures(out string name);
     CancellationToken GetNextFailover();
+
+    /// <summary>
+    /// The async-state that this database stamps onto the tasks it hands out, if any; wrappers that
+    /// cannot preserve it (see <c>RetryDatabase</c>) need to know when one is present rather than
+    /// dropping it silently.
+    /// </summary>
+    object? AsyncState { get; }
 }
 
 /// <summary>
@@ -66,6 +73,9 @@ internal static class InternalDatabaseExtension
         static void Throw(DatabaseFeatureFlags overlap) => throw new InvalidOperationException(
             $"This operation is not compatible with feature(s): {overlap}");
     }
+
+    internal static object? GetAsyncState(this IDatabaseAsync database)
+        => database is IInternalDatabaseAsync ida ? ida.AsyncState : null;
 
     internal static CancellationToken GetNextFailover(this IDatabaseAsync database)
     {

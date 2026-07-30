@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Availability;
 using StackExchange.Redis.Server;
@@ -43,6 +44,99 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Equal("hello", value); // retries rode out the LOADING responses
         Assert.Equal(0, server.LoadingOps); // both LOADING responses were consumed
         Assert.Equal(3, server.GetOpsReceived); // 2 x LOADING + 1 x success
+    }
+
+    // Retries are bounded: once MaxAttempts is used up the original server fault is surfaced to the
+    // caller unchanged (not wrapped, not swallowed), and the server saw exactly MaxAttempts requests.
+    [Fact]
+    public async Task WithRetry_WhenAttemptsExhausted_ThrowsOriginalFault()
+    {
+        using var server = new LoadingServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:exhaust";
+        Assert.True(await db.StringSetAsync(key, "hello"));
+
+        server.LoadingOps = 100; // more than we will ever attempt
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.WithRetry(policy).StringGetAsync(key));
+
+        Assert.Equal(RedisErrorKind.Loading, ex.Kind);
+        Assert.Equal(3, server.GetOpsReceived); // tried exactly MaxAttempts times
+    }
+
+    // A fault that will not fix itself is not worth repeating: WRONGTYPE is an application error, so it
+    // surfaces on the first attempt regardless of how many attempts the policy allows.
+    [Fact]
+    public async Task WithRetry_NonTransientFault_IsNotRetried()
+    {
+        using var server = new LoadingServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:wrongtype";
+        Assert.True(await db.StringSetAsync(key, "hello"));
+
+        server.LoadingOps = 100;
+        server.ErrorText = "WRONGTYPE Operation against a key holding the wrong kind of value";
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.WithRetry(policy).StringGetAsync(key));
+
+        Assert.Equal(RedisErrorKind.WrongType, ex.Kind);
+        Assert.Equal(1, server.GetOpsReceived); // gave up immediately
+    }
+
+    // An ad-hoc command whose *name* is recognised gets that command's category for free, so a plain
+    // Execute("get", ...) is retried like any other read - the caller does not have to say anything.
+    [Fact]
+    public async Task WithRetry_AdHocCommand_InheritsKnownCommandCategory()
+    {
+        using var server = new LoadingServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:adhoc:known";
+        Assert.True(await db.StringSetAsync(key, "hello"));
+
+        server.LoadingOps = 2;
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var result = await db.WithRetry(policy).ExecuteAsync("get", [key]);
+
+        Assert.Equal("hello", result.AsString());
+        Assert.Equal(3, server.GetOpsReceived); // recognised as GET, i.e. read-only, so retried
+    }
+
+    // A command the library does *not* recognise could do anything, so it is treated pessimistically and
+    // never retried; a caller who knows better can say so via the flags.
+    [Theory]
+    [InlineData(CommandFlags.None, 1)] // unrecognised: assume the worst, do not retry
+    [InlineData(CommandFlags.CommandRetryReadOnly, 3)] // caller asserts it is a pure read
+    public async Task WithRetry_UnrecognisedCommand_RespectsSuppliedCategory(CommandFlags flags, int expectedAttempts)
+    {
+        using var server = new LoadingServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        server.LoadingOps = 2; // the third attempt would succeed, if we are allowed a third
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var retryDb = db.WithRetry(policy);
+
+        if (expectedAttempts == 1)
+        {
+            await Assert.ThrowsAsync<RedisServerException>(async () => await retryDb.ExecuteAsync("notarealcommand", [], flags));
+        }
+        else
+        {
+            var result = await retryDb.ExecuteAsync("notarealcommand", [], flags);
+            Assert.Equal("made-up-ok", result.AsString());
+        }
+
+        Assert.Equal(expectedAttempts, server.UnknownOpsReceived);
     }
 
     // Multi-group + WithRetry: two backends hold *different* values for the same key. The group is weighted
@@ -125,6 +219,62 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Same(members[1], conn.ActiveMember); // we really did move to B
     }
 
+    // The unhappy path of the failover threshold: the attempt count says "wait for a failover now", but no
+    // failover ever comes (the member stays nominally healthy - a couple of LOADING replies are not enough
+    // to trip the default breaker). We wait out FailoverDelay and then carry on retrying the original
+    // member rather than giving up, and the group never moves.
+    [Fact]
+    public async Task WithRetry_WhenFailoverNeverArrives_KeepsRetryingSameMember()
+    {
+        EndPoint alpha = new DnsEndPoint("alpha", 6379);
+        EndPoint bravo = new DnsEndPoint("bravo", 6379);
+        using var serverA = new LoadingServer(Output, endpoint: alpha);
+        using var serverB = new InProcessTestServer(Output, endpoint: bravo);
+
+        RedisKey key = "retry:nofailover";
+        await using (var seedA = await serverA.ConnectAsync())
+        {
+            Assert.True(await seedA.GetDatabase().StringSetAsync(key, "from-A"));
+        }
+
+        ConnectionGroupMember[] members =
+        [
+            new(serverA.GetClientConfig(), "A") { Weight = 9 }, // highest weight -> active, and stays active
+            new(serverB.GetClientConfig(), "B") { Weight = 1 },
+        ];
+
+        MultiGroupOptions options = new MultiGroupOptions.Builder
+        {
+            HealthCheckInterval = TimeSpan.FromMinutes(30),
+            HealthCheck = new HealthCheck.Builder
+            {
+                Probe = new ControllableProbe(), // never marked down
+                ProbeCount = 1,
+                ProbeTimeout = TimeSpan.FromSeconds(5),
+            },
+        };
+
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+        Assert.Same(members[0], conn.ActiveMember);
+
+        // failover is armed after the first attempt, but nothing will ever trigger it; keep the wait short
+        RetryPolicy policy = new RetryPolicy.Builder
+        {
+            MaxAttempts = 5,
+            MaxAttemptsBeforeFailover = 1,
+            FailoverDelay = TimeSpan.FromMilliseconds(200),
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+        };
+        var db = conn.GetDatabase().WithRetry(policy);
+
+        serverA.LoadingOps = 2; // two transient faults, then A answers normally
+
+        Assert.Equal("from-A", await db.StringGetAsync(key));
+        Assert.Equal(3, serverA.GetOpsReceived); // 2 x LOADING + 1 x success, all on A
+        Assert.Same(members[0], conn.ActiveMember); // never moved to B
+    }
+
     // End-to-end for a retryable transaction: a server that fails the first EXEC with a transient LOADING
     // error (discarding that attempt's queued commands), then commits the second. A transaction created via
     // the retrying database should ride this out: the per-operation tasks handed out at build time resolve
@@ -164,13 +314,14 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Equal(2, server.ExecOpsReceived); // 1 x LOADING + 1 x commit
     }
 
-    // The transaction's effective retry category is the most side-effecting of its operations. An INCR makes
-    // the whole transaction "accumulating", which the default policy (capped at write-last-wins) refuses to
-    // retry - so a transient EXEC failure surfaces and the per-op proxy faults rather than hanging. Raising
-    // the cap to allow accumulating writes lets the same transaction ride the failure out; and because the
-    // failed attempt is discarded server-side, the INCR applies exactly once (no double-count).
+    // A transaction's effective retry category is the most side-effecting of its operations, so an INCR
+    // makes the whole thing "accumulating" - beyond what the default policy (capped at write-last-wins)
+    // would normally repeat. But a LOADING reply to EXEC *proves* the server discarded the transaction
+    // wholesale, so replaying it cannot double-count: the category cap does not apply, and even the
+    // default policy rides it out. Without that distinction, most interesting transactions (i.e. the ones
+    // that mutate something) would never be retryable at all.
     [Fact]
-    public async Task WithRetry_Transaction_AccumulatingOp_RespectsCategoryGate()
+    public async Task WithRetry_Transaction_RejectedExec_RetriesRegardlessOfCategory()
     {
         using var server = new ExecFailServer(Output);
         await using var conn = await server.ConnectAsync(log: Writer);
@@ -179,30 +330,52 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         var db = conn.GetDatabase();
         RedisKey key = "retry:tran:incr";
 
-        // default cap = write-last-wins; an INCR makes the aggregate accumulating -> NOT retried
-        RetryPolicy conservative = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
-        server.FailExecOps = 1;
-        var tran1 = db.WithRetry(conservative).CreateTransaction();
-        var incr1 = tran1.StringIncrementAsync(key);
-        await Assert.ThrowsAsync<RedisServerException>(async () => await tran1.ExecuteAsync());
-        await Assert.ThrowsAsync<RedisServerException>(async () => await incr1); // proxy faulted, not left hanging
-        Assert.Equal(1, server.ExecOpsReceived); // gave up immediately, no retry
-        Assert.Equal(0, server.FailExecOps);
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, policy.MaxCommandRetryCategory); // i.e. the default
 
-        // raise the cap to allow accumulating writes: the same transaction now rides out the transient failure
-        RetryPolicy permissive = new RetryPolicy.Builder
+        server.FailExecOps = 1;
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var incr = tran.StringIncrementAsync(key);
+
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal(1, await incr); // the discarded attempt applied nothing -> incremented exactly once
+        Assert.Equal(2, server.ExecOpsReceived); // 1 x LOADING + 1 x commit
+    }
+
+    // The other half of that story: when the outcome is genuinely *ambiguous*, the category still bites.
+    // OOM is deliberately *not* treated as "known not applied": a Lua script can hit the memory limit
+    // part-way through, having already written something, and it reports the inner error verbatim - so from
+    // the client's side an OOM reply proves nothing about whether the command took effect. Here the server
+    // models exactly that: it applies the INCR and *then* reports OOM. Under the default cap the fault
+    // surfaces after one attempt; raising the cap opts into replaying it, and the value shows the
+    // triple-count that the cap exists to prevent.
+    [Theory]
+    [InlineData(false, 1)] // default cap: not repeated
+    [InlineData(true, 3)] // caller opted in: repeated, and every attempt landed
+    public async Task WithRetry_AmbiguousFault_IsStillGatedByCategory(bool allowAccumulating, int expectedValue)
+    {
+        using var server = new AppliedThenFailedServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:ambiguous:incr";
+
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 3,
             RetryDelay = TimeSpan.Zero,
             JitterMax = TimeSpan.Zero,
-            MaxCommandRetryCategory = CommandFlags.CommandRetryWriteAccumulating,
+            MaxCommandRetryCategory = allowAccumulating
+                ? CommandFlags.CommandRetryWriteAccumulating
+                : RetryPolicy.Default.MaxCommandRetryCategory,
         };
-        server.FailExecOps = 1;
-        var tran2 = db.WithRetry(permissive).CreateTransaction();
-        var incr2 = tran2.StringIncrementAsync(key);
-        Assert.True(await tran2.ExecuteAsync());
-        Assert.Equal(1, await incr2); // discarded attempt did NOT apply -> incremented exactly once
-        Assert.Equal(3, server.ExecOpsReceived); // 1 (first block) + 2 (LOADING + commit)
+
+        var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.WithRetry(policy).StringIncrementAsync(key));
+        Assert.Equal(RedisErrorKind.OutOfMemory, ex.Kind);
+
+        Assert.Equal(expectedValue, server.IncrOpsReceived);
+        server.FailIncr = false;
+        Assert.Equal(expectedValue, (long)await db.StringGetAsync(key)); // and each one really did apply
     }
 
     // A WATCH constraint is replayed on every attempt. Here the condition is satisfied, and the first EXEC
@@ -372,13 +545,240 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Equal("committed-on-B", await checkB.GetDatabase().StringGetAsync(key));
     }
 
+    // Replay has to be repeatable, not just possible once: two transient EXEC failures in a row, with a
+    // mixed bag of operations, and every proxy still resolves from the third (winning) attempt.
+    [Fact]
+    public async Task WithRetry_Transaction_ReplaysRepeatedly()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:repeat", counter = "retry:tran:repeat:count", list = "retry:tran:repeat:list";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        server.FailExecOps = 2; // fail twice; the third EXEC commits
+
+        RetryPolicy policy = new RetryPolicy.Builder
+        {
+            MaxAttempts = 4,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+            MaxCommandRetryCategory = CommandFlags.CommandRetryWriteAccumulating, // INCR/LPUSH are accumulating
+        };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "seed"));
+        var set = tran.StringSetAsync(key, "committed");
+        var incr = tran.StringIncrementAsync(counter);
+        var push = tran.ListLeftPushAsync(list, "item");
+        var get = tran.StringGetAsync(key);
+
+        Assert.True(await tran.ExecuteAsync());
+
+        Assert.True(cond.WasSatisfied);
+        Assert.True(await set);
+        Assert.Equal(1, await incr); // the two discarded attempts applied nothing
+        Assert.Equal(1, await push);
+        Assert.Equal("committed", await get);
+        Assert.Equal(3, server.ExecOpsReceived); // 2 x LOADING + 1 x commit
+    }
+
+    // When a transaction runs out of attempts, the failure must reach *every* per-operation proxy as well
+    // as the ExecuteAsync caller; a proxy left unresolved would hang the caller forever.
+    [Fact]
+    public async Task WithRetry_Transaction_WhenAttemptsExhausted_FaultsEveryProxy()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:exhaust";
+
+        server.FailExecOps = 100; // never succeeds
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 2, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var set = tran.StringSetAsync(key, "never");
+        var get = tran.StringGetAsync(key);
+
+        var fault = await Assert.ThrowsAsync<RedisServerException>(async () => await tran.ExecuteAsync());
+        Assert.Equal(RedisErrorKind.Loading, fault.Kind);
+
+        // both proxies carry the same terminal fault rather than being left pending
+        Assert.Same(fault, await Assert.ThrowsAsync<RedisServerException>(async () => await set));
+        Assert.Same(fault, await Assert.ThrowsAsync<RedisServerException>(async () => await get));
+        Assert.Equal(2, server.ExecOpsReceived); // exactly MaxAttempts
+    }
+
+    // WATCH drift under retry: the condition holds, so EXEC really is issued, but the server refuses it
+    // because a watched key moved. Nothing was applied and nothing faulted - we simply lost a race - so
+    // the transaction is re-attempted (re-reading the condition), and the second attempt commits. This is
+    // contention, not a fault, so the fault budget is untouched and the side-effect category is irrelevant.
+    [Fact]
+    public async Task WithRetry_Transaction_WatchDrift_IsReattempted()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+        Assert.True(conn.IsConnected);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:drift";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        server.DriftKey = key;
+        server.DriftOps = 1; // the next EXEC observes a concurrent write to the watched key
+
+        // MaxAttempts = 1: no *fault* retries at all, proving the watch budget is separate
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 1, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "seed"));
+        var setTask = tran.StringSetAsync(key, "committed");
+
+        var execute = tran.ExecuteAsync();
+        if (await Task.WhenAny(execute, Task.Delay(5000)) != execute)
+        {
+            Assert.Fail("ExecuteAsync never completed");
+        }
+
+        Assert.True(await execute); // rode out the lost race
+        Assert.True(cond.WasSatisfied);
+        Assert.True(await setTask);
+        Assert.False(tran.WasWatchConflict); // reports the *final* attempt: we got there in the end
+        Assert.Equal(2, server.ExecOpsReceived); // 1 x watch conflict + 1 x commit
+        Assert.Equal("committed", await db.StringGetAsync(key));
+    }
+
+    // Watch contention is bounded, and the bound is opt-out-able: with MaxAttemptsOnWatchConflict = 1 a
+    // conflict aborts exactly as it did before. ExecuteAsync reports false with every condition satisfied
+    // (which is what distinguishes drift from an elective abort), and the per-operation proxies are
+    // cancelled rather than left dangling - the case that used to hang the caller outright.
+    [Fact]
+    public async Task WithRetry_Transaction_WatchDrift_CanBeDisabled()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:drift:off";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        server.DriftKey = key;
+        server.DriftOps = 1;
+
+        RetryPolicy policy = new RetryPolicy.Builder
+        {
+            MaxAttempts = 3,
+            MaxAttemptsOnWatchConflict = 1, // i.e. do not re-attempt on contention
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+        };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "seed"));
+        var setTask = tran.StringSetAsync(key, "committed");
+
+        var execute = tran.ExecuteAsync();
+        if (await Task.WhenAny(execute, Task.Delay(5000)) != execute)
+        {
+            Assert.Fail("ExecuteAsync never completed");
+        }
+
+        Assert.False(await execute);
+        Assert.True(cond.WasSatisfied); // the condition held; the server-side WATCH is what killed it
+        Assert.True(tran.WasWatchConflict); // ...and the caller can see exactly that
+        Assert.Equal(1, server.ExecOpsReceived);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await setTask);
+        Assert.Equal("seed", await db.StringGetAsync(key)); // nothing was applied
+    }
+
+    // Contention that never clears must not loop forever: the server conflicts on every EXEC, so we give
+    // up after MaxAttemptsOnWatchConflict attempts and report the ordinary "did not commit" outcome.
+    [Fact]
+    public async Task WithRetry_Transaction_PersistentWatchDrift_GivesUp()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:drift:forever";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        server.DriftKey = key;
+        server.DriftOps = int.MaxValue; // every EXEC loses the race
+
+        RetryPolicy policy = new RetryPolicy.Builder
+        {
+            MaxAttempts = 3,
+            MaxAttemptsOnWatchConflict = 4,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+        };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "seed"));
+        var setTask = tran.StringSetAsync(key, "committed");
+
+        Assert.False(await tran.ExecuteAsync());
+        Assert.True(cond.WasSatisfied);
+        Assert.True(tran.WasWatchConflict); // still losing the race when we ran out of attempts
+        Assert.Equal(4, server.ExecOpsReceived); // bounded by MaxAttemptsOnWatchConflict
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await setTask);
+        Assert.Equal("seed", await db.StringGetAsync(key));
+    }
+
+    // A transaction with no conditions has no WATCH, so it can never lose a watch race; the watch budget
+    // must not be spent on the ordinary "aborted" path. (Belt and braces: the aggregate outcome here is a
+    // clean commit, so this mostly guards against the budget logic firing on a false positive.)
+    [Fact]
+    public async Task WithRetry_Transaction_WithoutConditions_IgnoresWatchBudget()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:nocond";
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 1, MaxAttemptsOnWatchConflict = 5, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var set = tran.StringSetAsync(key, "committed");
+
+        Assert.True(await tran.ExecuteAsync());
+        Assert.True(await set);
+        Assert.Equal(1, server.ExecOpsReceived);
+    }
+
+    // An in-proc server that *applies* each INCR and then reports OOM: the write happened, but the client
+    // has no way to know that. Counts the applications so a test can tell "the client gave up" from "the
+    // client repeated a write it could not account for".
+    private sealed class AppliedThenFailedServer(ITestOutputHelper? log) : InProcessTestServer(log)
+    {
+        private int _incrOpsReceived;
+
+        public int IncrOpsReceived => Volatile.Read(ref _incrOpsReceived);
+
+        public bool FailIncr { get; set; } = true;
+
+        protected override TypedRedisValue Incr(RedisClient client, in RedisRequest request)
+        {
+            var applied = base.Incr(client, in request);
+            if (!FailIncr) return applied;
+
+            Interlocked.Increment(ref _incrOpsReceived);
+            return TypedRedisValue.Error("OOM command not allowed when used memory > 'maxmemory'");
+        }
+    }
+
     // An in-proc server that fails the first FailExecOps EXEC operations with a transient LOADING error,
-    // discarding that attempt's queued commands so nothing is applied, then commits normally.
+    // discarding that attempt's queued commands so nothing is applied, then commits normally. It can
+    // also simulate WATCH drift (a concurrent write to DriftKey immediately before EXEC is processed),
+    // which is a clean server-side rejection rather than a fault.
     private sealed class ExecFailServer(ITestOutputHelper? log, EndPoint? endpoint = null) : InProcessTestServer(log, endpoint)
     {
         public int ExecOpsReceived { get; private set; }
 
         public int FailExecOps { get; set; }
+
+        public int DriftOps { get; set; }
+
+        public RedisKey DriftKey { get; set; }
 
         protected override TypedRedisValue Exec(RedisClient client, in RedisRequest request)
         {
@@ -391,6 +791,12 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
                 return TypedRedisValue.Error("LOADING Redis is loading the dataset in memory");
             }
 
+            if (DriftOps > 0)
+            {
+                DriftOps--;
+                client.Touch(client.Database, DriftKey); // as if another connection wrote the watched key
+            }
+
             return base.Exec(client, in request);
         }
     }
@@ -398,13 +804,34 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
     // An in-proc server that fails the first LoadingOps GET operations with a transient LOADING error
     // (decrementing the counter each time), then serves normally. Every GET bumps GetOpsReceived so the
     // test can confirm how many attempts actually reached the server.
-    private sealed class LoadingServer(ITestOutputHelper? log) : InProcessTestServer(log)
+    private sealed class LoadingServer(ITestOutputHelper? log, EndPoint? endpoint = null) : InProcessTestServer(log, endpoint)
     {
         // the server core processes operations under a lock (single-threaded, like Redis), so plain fields
         // are fine here
         public int GetOpsReceived { get; private set; }
 
         public int LoadingOps { get; set; }
+
+        // the error to reply with; transient by default, but overridable so the same harness can present
+        // a fault that is *not* worth retrying
+        public string ErrorText { get; set; } = "LOADING Redis is loading the dataset in memory";
+
+        public int UnknownOpsReceived { get; private set; }
+
+        // a command the *client* cannot categorise; answered from the same LoadingOps budget so the retry
+        // decision is isolated to the category, not the error kind
+        public override TypedRedisValue OnUnknownCommand(RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
+        {
+            UnknownOpsReceived++;
+
+            if (LoadingOps > 0)
+            {
+                LoadingOps--;
+                return TypedRedisValue.Error(ErrorText);
+            }
+
+            return TypedRedisValue.SimpleString("made-up-ok");
+        }
 
         protected override TypedRedisValue Get(RedisClient client, in RedisRequest request)
         {
@@ -414,7 +841,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
             if (LoadingOps > 0)
             {
                 LoadingOps--;
-                return TypedRedisValue.Error("LOADING Redis is loading the dataset in memory");
+                return TypedRedisValue.Error(ErrorText);
             }
 
             return base.Get(client, in request);

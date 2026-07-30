@@ -35,6 +35,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         CancellationToken IInternalDatabaseAsync.GetNextFailover() => Inner.GetNextFailover();
 
+        // this wrapper does not stamp its own async-state; it inherits whatever the inner database uses
+        object? IInternalDatabaseAsync.AsyncState => Inner.GetAsyncState();
+
         // the flags contributed by this wrapper itself (on top of the inner database); the batch and
         // transaction subclasses override to fold in their own flag, mirroring RedisDatabase/RedisBatch/
         // RedisTransaction rather than relying on the inner instance to carry it.

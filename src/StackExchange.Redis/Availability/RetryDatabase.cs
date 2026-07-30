@@ -16,6 +16,9 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
         => _inner.GetFeatures(out name) | DatabaseFeatureFlags.Retry;
 
+    // never: we refuse to wrap a database that carries one (see Validate)
+    object? IInternalDatabaseAsync.AsyncState => null;
+
     /// <inheritdoc/>
     public override string ToString() => this.BuildString();
 
@@ -28,10 +31,24 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
         => _controller.TracksFailover ? _inner.GetNextFailover() : CancellationToken.None;
 
     public RetryDatabase(IDatabaseAsync inner, RetryPolicy policy)
-        // cannot nest retry, and cannot issue retries *inside* a batch/transaction
-        : this(inner, policy, inner.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction | DatabaseFeatureFlags.Retry))
+        : this(inner, policy, Validate(inner))
     {
     }
+
+    private static DatabaseFeatureFlags Validate(IDatabaseAsync inner)
+    {
+        // cannot nest retry, and cannot issue retries *inside* a batch/transaction
+        var features = inner.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction | DatabaseFeatureFlags.Retry);
+
+        // async-state is stamped onto the task that a *single* attempt produces; a retrying database hands
+        // back its own durable task that spans however many attempts it takes, so it cannot preserve the
+        // state. Refuse rather than dropping it silently. See also CreateTransaction, below.
+        if (inner.GetAsyncState() is not null) ThrowAsyncState();
+        return features;
+    }
+
+    internal static void ThrowAsyncState() => throw new InvalidOperationException(
+        "Retrying databases do not support asyncState; the tasks they hand back are not the tasks that were sent to the server.");
 
     // test-only: supply the inner database's feature set directly (in particular whether failover is
     // available), instead of probing a live inner - so that failover behaviour can be exercised over a
@@ -43,8 +60,14 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     }
 
     ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState)
+    {
+        // as per the constructor: the per-operation tasks handed out at build time are durable proxies
+        // that outlive any single attempt, so they cannot carry a per-attempt async-state
+        if (asyncState is not null) ThrowAsyncState();
+
         // the inner database creates the "real" (one-shot) transactions we replay against each attempt
-        => new RetryTransaction(_inner, _controller, asyncState);
+        return new RetryTransaction(_inner, _controller);
+    }
 
     public int Database => _inner.Database;
 

@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Availability;
 /// </summary>
 internal sealed class RetryController
 {
-    private readonly int _maxBeforeFailover, _maxAttempts, _delayMillis, _jitterMillis, _failoverMillis;
+    private readonly int _maxBeforeFailover, _maxAttempts, _delayMillis, _jitterMillis, _failoverMillis, _maxWatchAttempts;
     private readonly RetryPolicy _policy;
 
     public RetryController(RetryPolicy policy, DatabaseFeatureFlags features)
@@ -29,9 +29,11 @@ internal sealed class RetryController
         _delayMillis = ToMilliseconds(policy.RetryDelay);
         _failoverMillis = ToMilliseconds(policy.FailoverDelay);
         _jitterMillis = ToMilliseconds(policy.JitterMax);
+        _maxWatchAttempts = policy.MaxAttemptsOnWatchConflict;
 
         Debug.Assert(_maxAttempts >= 1 && _maxBeforeFailover >= 1, "attempt counts should be validated by RetryPolicy");
         Debug.Assert(_delayMillis >= 0 && _jitterMillis >= 0 && _failoverMillis >= 0, "delays should be validated by RetryPolicy");
+        Debug.Assert(_maxWatchAttempts >= 1, "watch-conflict attempts should be validated by RetryPolicy");
 
         static int ToMilliseconds(TimeSpan value) => (int)(value.Ticks / TimeSpan.TicksPerMillisecond);
     }
@@ -40,6 +42,21 @@ internal sealed class RetryController
     /// The policy this controller is applying; exposed for tests, which assert how a policy was resolved.
     /// </summary>
     public RetryPolicy Policy => _policy;
+
+    /// <summary>
+    /// How many times a conditional transaction may be attempted when the server keeps rejecting the
+    /// <c>EXEC</c> due to watch contention; see <see cref="RetryPolicy.MaxAttemptsOnWatchConflict"/>.
+    /// </summary>
+    public int MaxWatchConflictAttempts => _maxWatchAttempts;
+
+    /// <summary>
+    /// The pause before re-attempting a transaction that lost a <c>WATCH</c> race. Contention, not a fault:
+    /// no backoff, just jitter to avoid two callers colliding again in lock-step.
+    /// </summary>
+    public Task WatchConflictDelayAsync()
+        => _jitterMillis is 0
+            ? Task.CompletedTask
+            : Task.Delay(ServerSelectionStrategy.SharedRandom.Next(_jitterMillis), CancellationToken.None);
 
     /// <summary>
     /// Whether it is ever worth capturing the next-failover token: only when there is more than one

@@ -27,6 +27,7 @@ StackExchange.Redis.IDatabaseAsync.Database.get -> int
 [SER007]StackExchange.Redis.Availability.RetryPolicy.JitterMax.get -> System.TimeSpan
 [SER007]StackExchange.Redis.Availability.RetryPolicy.MaxAttempts.get -> int
 [SER007]StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.get -> int
+[SER007]StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsOnWatchConflict.get -> int
 [SER007]StackExchange.Redis.Availability.RetryPolicy.MaxCommandRetryCategory.get -> StackExchange.Redis.CommandFlags
 [SER007]StackExchange.Redis.Availability.RetryPolicy.RetryDelay.get -> System.TimeSpan
 [SER007]StackExchange.Redis.Availability.RetryPolicy.RetryPolicy() -> void
@@ -37,6 +38,7 @@ StackExchange.Redis.Availability.DatabaseExtensions
 StackExchange.Redis.ITransactionAsync
 StackExchange.Redis.ITransactionAsync.AddCondition(StackExchange.Redis.Condition! condition) -> StackExchange.Redis.ConditionResult!
 StackExchange.Redis.ITransactionAsync.ExecuteAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.ITransactionAsync.WasWatchConflict.get -> bool
 [SER007]StackExchange.Redis.Availability.CircuitBreaker
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Accumulator
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Accumulator() -> void
@@ -114,6 +116,7 @@ StackExchange.Redis.ITransactionAsync.ExecuteAsync(StackExchange.Redis.CommandFl
 [SER007]StackExchange.Redis.Availability.FaultContext.FaultContext(System.Exception! fault) -> void
 [SER007]StackExchange.Redis.Availability.FaultContext.Flags.get -> StackExchange.Redis.CommandFlags
 [SER007]StackExchange.Redis.Availability.FaultContext.IsFault.get -> bool
+[SER007]StackExchange.Redis.Availability.FaultContext.NotApplied.get -> bool
 [SER007]StackExchange.Redis.RedisErrorKind.Ask = 15 -> StackExchange.Redis.RedisErrorKind
 [SER007]StackExchange.Redis.RedisErrorKind.Busy = 12 -> StackExchange.Redis.RedisErrorKind
 [SER007]StackExchange.Redis.RedisErrorKind.ClusterDown = 6 -> StackExchange.Redis.RedisErrorKind
@@ -239,6 +242,8 @@ StackExchange.Redis.RedisTimeoutException.RedisTimeoutException(StackExchange.Re
 [SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.JitterMax.set -> void
 [SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.MaxAttemptsBeforeFailover.get -> int
 [SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.MaxAttemptsBeforeFailover.set -> void
+[SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.MaxAttemptsOnWatchConflict.get -> int
+[SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.MaxAttemptsOnWatchConflict.set -> void
 [SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.MaxAttempts.get -> int
 [SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.MaxAttempts.set -> void
 [SER007]StackExchange.Redis.Availability.RetryPolicy.Builder.MaxCommandRetryCategory.get -> StackExchange.Redis.CommandFlags

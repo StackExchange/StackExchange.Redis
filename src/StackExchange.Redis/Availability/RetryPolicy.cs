@@ -17,6 +17,7 @@ public class RetryPolicy
 {
     internal const int DefaultMaxAttempts = 3;
     internal const int DefaultMaxAttemptsBeforeFailover = 1;
+    internal const int DefaultMaxAttemptsOnWatchConflict = 3;
     internal const CommandFlags DefaultMaxCommandRetryCategory = CommandFlags.CommandRetryWriteLastWins;
     internal static readonly TimeSpan DefaultRetryDelay = TimeSpan.FromSeconds(1);
     internal static readonly TimeSpan DefaultJitterMax = TimeSpan.FromMilliseconds(500);
@@ -40,7 +41,7 @@ public class RetryPolicy
     /// <see cref="CanRetry"/> - use <see cref="Default"/> to obtain the standard policy.
     /// </summary>
     protected RetryPolicy()
-        : this(DefaultMaxAttempts, DefaultMaxAttemptsBeforeFailover, DefaultRetryDelay, DefaultJitterMax, DefaultFailoverDelay, DefaultMaxCommandRetryCategory)
+        : this(DefaultMaxAttempts, DefaultMaxAttemptsBeforeFailover, DefaultMaxAttemptsOnWatchConflict, DefaultRetryDelay, DefaultJitterMax, DefaultFailoverDelay, DefaultMaxCommandRetryCategory)
     {
     }
 
@@ -52,6 +53,7 @@ public class RetryPolicy
         : this(
             Validate(builder).MaxAttempts,
             builder.MaxAttemptsBeforeFailover,
+            builder.MaxAttemptsOnWatchConflict,
             builder.RetryDelay,
             builder.JitterMax,
             builder.FailoverDelay,
@@ -62,6 +64,7 @@ public class RetryPolicy
     private RetryPolicy(
         int maxAttempts,
         int maxAttemptsBeforeFailover,
+        int maxAttemptsOnWatchConflict,
         TimeSpan retryDelay,
         TimeSpan jitterMax,
         TimeSpan failoverDelay,
@@ -69,6 +72,7 @@ public class RetryPolicy
     {
         MaxAttempts = maxAttempts;
         MaxAttemptsBeforeFailover = maxAttemptsBeforeFailover;
+        MaxAttemptsOnWatchConflict = maxAttemptsOnWatchConflict;
         RetryDelay = retryDelay;
         JitterMax = jitterMax;
         FailoverDelay = failoverDelay;
@@ -89,6 +93,23 @@ public class RetryPolicy
     /// Defaults to 1.
     /// </summary>
     public int MaxAttemptsBeforeFailover { get; }
+
+    /// <summary>
+    /// The maximum number of times a *conditional* transaction may be attempted when the only problem is
+    /// that the server rejected the <c>EXEC</c> because a watched key changed underneath it. Defaults to 3;
+    /// a value of 1 disables re-attempting such transactions.
+    /// </summary>
+    /// <remarks>
+    /// <para>This is deliberately separate from <see cref="MaxAttempts"/>: a watch conflict is contention,
+    /// not a fault. Nothing was applied, nothing is broken, and the right response is to re-read the
+    /// conditions and try again immediately - so no <see cref="RetryDelay"/> is applied (only
+    /// <see cref="JitterMax"/>), no failover is attempted, and <see cref="MaxCommandRetryCategory"/> does
+    /// not apply. Each re-attempt re-issues the <c>WATCH</c> constraints, so a transaction whose condition
+    /// has genuinely stopped holding converges on an ordinary elective abort rather than looping.</para>
+    /// <para>Only transactions with conditions can be affected: without a condition there is no
+    /// <c>WATCH</c>, so there is nothing to conflict.</para>
+    /// </remarks>
+    public int MaxAttemptsOnWatchConflict { get; }
 
     /// <summary>
     /// Gets the time to wait between retries that are *not* dependent on a failover happening. Defaults to 1 second.
@@ -120,7 +141,7 @@ public class RetryPolicy
     public virtual RetryResult CanRetry(in FaultContext fault)
     {
         var actual = fault.Flags & Message.MaskRetryCategory;
-        if (actual is 0) actual = CommandFlags.CommandRetryWriteAccumulating; // if not set, assume similar to INCR
+        if (actual is 0) actual = CommandFlags.CommandRetryNever; // if not set, assume the worst (as FaultContext does)
 
         if (actual is CommandFlags.CommandRetryNever)
         {
@@ -128,7 +149,10 @@ public class RetryPolicy
             return RetryResult.None;
         }
 
-        if (actual > MaxCommandRetryCategory) // note this also covers CommandRetryAlways
+        // the category exists to price the *ambiguity* of a replay: if we know the operation never took
+        // effect, re-issuing it is a first attempt rather than a repeat, so it cannot double-apply and the
+        // side-effect scale is irrelevant. (CommandRetryNever above is still an absolute veto.)
+        if (actual > MaxCommandRetryCategory && !fault.NotApplied)
         {
             // side-effects are beyond what the policy allows
             return RetryResult.None;
@@ -155,6 +179,11 @@ public class RetryPolicy
         // values < 1 can never be hit by the attempt counter (which starts at 1), so they would *silently*
         // disable failover rather than erroring
         if (builder.MaxAttemptsBeforeFailover < 1) throw new ArgumentOutOfRangeException(nameof(builder.MaxAttemptsBeforeFailover), builder.MaxAttemptsBeforeFailover, "At least one attempt is required before failover.");
+
+        // this one counts *attempts*, so 1 means "try once, do not re-attempt"; zero or negative is
+        // meaningless rather than a way to say "never execute"
+        if (builder.MaxAttemptsOnWatchConflict < 1) throw new ArgumentOutOfRangeException(nameof(builder.MaxAttemptsOnWatchConflict), builder.MaxAttemptsOnWatchConflict, "At least one attempt is required; use 1 to disable re-attempting on watch conflicts.");
+
         if (builder.RetryDelay < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(builder.RetryDelay), builder.RetryDelay, "A non-negative retry delay is required.");
         if (builder.JitterMax < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(builder.JitterMax), builder.JitterMax, "A non-negative jitter bound is required.");
         if (builder.FailoverDelay < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(builder.FailoverDelay), builder.FailoverDelay, "A non-negative failover delay is required.");
@@ -195,6 +224,7 @@ public class RetryPolicy
         {
             MaxAttempts = policy.MaxAttempts;
             MaxAttemptsBeforeFailover = policy.MaxAttemptsBeforeFailover;
+            MaxAttemptsOnWatchConflict = policy.MaxAttemptsOnWatchConflict;
             RetryDelay = policy.RetryDelay;
             JitterMax = policy.JitterMax;
             FailoverDelay = policy.FailoverDelay;
@@ -210,6 +240,9 @@ public class RetryPolicy
         /// The maximum number of times to retry an operation before waiting for failover.
         /// </summary>
         public int MaxAttemptsBeforeFailover { get; set; } = DefaultMaxAttemptsBeforeFailover;
+
+        /// <inheritdoc cref="RetryPolicy.MaxAttemptsOnWatchConflict"/>
+        public int MaxAttemptsOnWatchConflict { get; set; } = DefaultMaxAttemptsOnWatchConflict;
 
         /// <summary>
         /// The time to wait between retries that are *not* dependent on a failover happening.
@@ -241,6 +274,7 @@ public class RetryPolicy
             // prefer the shared default instance when nothing has been customized
             if (MaxAttempts == DefaultMaxAttempts
                 && MaxAttemptsBeforeFailover == DefaultMaxAttemptsBeforeFailover
+                && MaxAttemptsOnWatchConflict == DefaultMaxAttemptsOnWatchConflict
                 && RetryDelay == DefaultRetryDelay
                 && JitterMax == DefaultJitterMax
                 && FailoverDelay == DefaultFailoverDelay
@@ -249,7 +283,7 @@ public class RetryPolicy
                 return DefaultInstance;
             }
 
-            return new RetryPolicy(MaxAttempts, MaxAttemptsBeforeFailover, RetryDelay, JitterMax, FailoverDelay, MaxCommandRetryCategory);
+            return new RetryPolicy(MaxAttempts, MaxAttemptsBeforeFailover, MaxAttemptsOnWatchConflict, RetryDelay, JitterMax, FailoverDelay, MaxCommandRetryCategory);
         }
 
         /// <summary>
@@ -261,7 +295,12 @@ public class RetryPolicy
     private sealed class NoRetryPolicy : RetryPolicy
     {
         public static readonly NoRetryPolicy Instance = new();
-        private NoRetryPolicy() { }
+
+        // "never retries anything" has to include watch contention: that path does not consult CanRetry
+        // (nothing was applied, so there is no fault to judge), it is bounded purely by the attempt count
+        private NoRetryPolicy() : base(new Builder { MaxAttemptsOnWatchConflict = 1 })
+        {
+        }
 
         public override RetryResult CanRetry(in FaultContext fault) => RetryResult.None;
     }
