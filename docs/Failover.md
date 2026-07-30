@@ -4,7 +4,7 @@
 > your workload, using health checks, circuit breakers and retries to decide when to move. Nothing in it is tied to a particular server topology, which is why
 > the naming here is about the *behaviour* (failover between redundant endpoints) rather than about any specific deployment.
 >
-> The deployment it is **designed** for is **Active:Active** (geo-distributed, bidirectionally-replicated) Redis - Redis Software / Redis Cloud Active-Active
+> The deployment it is **designed** for is **Active-Active** (geo-distributed, bidirectionally-replicated) Redis - Redis Software / Redis Cloud Active-Active
 > databases, or any other topology where the same logical dataset is reachable through more than one independent endpoint. That is where failover is closest to
 > transparent: because the members replicate to each other, an operation that lands on the new endpoint still sees what you wrote to the old one.
 >
