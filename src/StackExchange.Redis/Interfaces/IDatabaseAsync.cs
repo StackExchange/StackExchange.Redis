@@ -24,7 +24,7 @@ namespace StackExchange.Redis
         /// <remarks>Unlike <see cref="IDatabase.CreateTransaction(object?)"/>, this offers no synchronous
         /// execution, so it is usable from async-only databases such as one created via
         /// <see cref="Availability.DatabaseExtensions.WithRetry"/>.</remarks>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         ITransactionAsync CreateTransaction(object? asyncState = null);
 
         /// <summary>

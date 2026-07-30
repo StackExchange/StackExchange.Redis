@@ -1,15 +1,35 @@
-# Active:Active
+# Geo-Redundant Failover
+
+> **What this is, and what it is called elsewhere.** This feature does one thing: it moves traffic between several independent endpoints that can each serve
+> your workload, using health checks, circuit breakers and retries to decide when to move. Nothing in it is tied to a particular server topology, which is why
+> the naming here is about the *behaviour* (failover between redundant endpoints) rather than about any specific deployment.
+>
+> The deployment it is **designed** for is **Active:Active** (geo-distributed, bidirectionally-replicated) Redis - Redis Software / Redis Cloud Active-Active
+> databases, or any other topology where the same logical dataset is reachable through more than one independent endpoint. That is where failover is closest to
+> transparent: because the members replicate to each other, an operation that lands on the new endpoint still sees what you wrote to the old one.
+>
+> It works just as well across endpoints that are *not* replicated to each other - separate OSS servers or clusters, instances in different regions with no link
+> between them - provided you accept what that means for your data. With no replication between members, each endpoint holds only what was written to it: a
+> failover moves you to a *different* dataset, writes made before the failover are not visible after it, and the two do not converge afterwards. That is
+> perfectly reasonable for a cache you are content to re-populate, or where the data is reconstructible from a system of record; it is not reasonable if you are
+> treating the group as a single durable store. Only you can make that call - the library has no way to know which situation it is in.
+>
+> The shape will be familiar if you have used the **"multi-DB client"** concept in other Redis client libraries: Jedis'
+> [`MultiDbClient`](https://redis.io/docs/latest/develop/clients/jedis/failover/) and redis-py's
+> [`MultiDBClient`](https://redis.readthedocs.io/en/stable/multi_database.html) (see also Redis' overview of
+> [client-side geographic failover for Active-Active](https://redis.io/blog/client-side-geographic-failover-for-redis-active-active/)) - a weighted set of
+> endpoints, one active at a time, with health checks, circuit breakers and retries deciding when to move.
 
 ## Overview
 
-The Active:Active feature provides automatic failover and intelligent routing across multiple Redis deployments. It is built from several cooperating pieces:
+Geo-redundant failover provides automatic failover and intelligent routing across multiple Redis deployments. It is built from several cooperating pieces:
 
 1. **Connecting to multiple servers or regions at once**, giving a deployment redundant endpoints to fall back on.
 2. **Health checks** that *actively* probe each endpoint on a timer to monitor its availability.
 3. **Circuit breakers** that *passively* monitor availability from the observed success and failure of the traffic already flowing.
 4. **Automatic retries** that let straightforward operations ride out a possibly-unstable connection — including silently transitioning to another endpoint during a failover, with no change to your calling code.
 
-The features for Active:Active are available in the `Availability` sub-namespace:
+These features are available in the `Availability` sub-namespace:
 
 ``` csharp
 using StackExchange.Redis;
@@ -78,7 +98,7 @@ This enables scenarios such as:
 
 ### Connecting to Multiple Groups
 
-To create an Active:Active connection, use `ConnectionMultiplexer.ConnectGroupAsync()` with an array of `ConnectionGroupMember` instances:
+To create a geo-redundant connection, use `ConnectionMultiplexer.ConnectGroupAsync()` with an array of `ConnectionGroupMember` instances:
 
 ```csharp
 // Define your Redis endpoints
@@ -148,7 +168,7 @@ members[2].Weight = 10; // Increase preference for remote DC
 
 ## Working with IDatabase
 
-The `IDatabase` interface works transparently with Active:Active connections. All operations are automatically routed to the currently selected endpoint:
+The `IDatabase` interface works transparently with connection groups. All operations are automatically routed to the currently selected endpoint:
 
 ```csharp
 var db = conn.GetDatabase();
@@ -256,7 +276,7 @@ These are the same instances that were passed into `ConnectGroupAsync`.
 
 ## Health Checks
 
-The Active:Active feature includes configurable health checking to monitor the health of all endpoints and automatically route traffic away from unhealthy instances.
+Configurable health checking monitors the health of all endpoints and automatically routes traffic away from unhealthy instances.
 
 ### Basic Health Check Configuration
 
@@ -464,8 +484,8 @@ Where health checks *actively* probe each member on a timer, a **circuit breaker
 - A **health check** answers *"is this member reachable?"* by sending its own probes every `Interval`.
 - A **circuit breaker** answers *"is the traffic I'm already sending actually succeeding?"* with no extra round-trips, reacting the instant real commands start failing.
 
-When a circuit breaker trips, it shuts the underlying physical connection down with `ConnectionFailureType.CircuitBreaker`. The connection then reconnects as usual, and — in an Active:Active group — the health check and member-selection logic route traffic to other members until the affected member recovers. A circuit breaker is evaluated **per connection**, so
-its state is scoped to exactly the connection whose health it is measuring; a reconnect starts from a clean slate - but breaking the connection is sufficient for Active:Active to notice non-availability.
+When a circuit breaker trips, it shuts the underlying physical connection down with `ConnectionFailureType.CircuitBreaker`. The connection then reconnects as usual, and - in a connection group - the health check and member-selection logic route traffic to other members until the affected member recovers. A circuit breaker is evaluated **per connection**, so
+its state is scoped to exactly the connection whose health it is measuring; a reconnect starts from a clean slate - but breaking the connection is sufficient for the group to notice non-availability.
 
 ### Configuring a Circuit Breaker for a Group
 
@@ -537,7 +557,7 @@ MultiGroupOptions options = new MultiGroupOptions.Builder
 
 ## Automatic Retries
 
-Health checks and circuit breakers keep the *group* pointed at a healthy member; **automatic retries** deal with the *individual operation* that was in flight when something went wrong. Wrapping a database with `WithRetry(...)` returns a database that transparently re-issues failed operations according to a `RetryPolicy` — riding out transient faults, and (in an Active:Active group) following a failover across to another member, without the caller having to catch-and-retry by hand.
+Health checks and circuit breakers keep the *group* pointed at a healthy member; **automatic retries** deal with the *individual operation* that was in flight when something went wrong. Wrapping a database with `WithRetry(...)` returns a database that transparently re-issues failed operations according to a `RetryPolicy` — riding out transient faults, and (in a connection group) following a failover across to another member, without the caller having to catch-and-retry by hand.
 
 ```csharp
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
@@ -555,7 +575,7 @@ var value = await db.StringGetAsync("mykey");
 
 > **`asyncState` is not respected.** A database's `asyncState` is stamped onto the task produced by a single dispatch, but a retrying database hands back its own task spanning however many attempts the operation takes, and the per-operation tasks from `retryDb.CreateTransaction()` are durable proxies that outlive any single attempt. Neither can carry it. Rather than dropping the state silently, both refuse it: `conn.GetDatabase(0, asyncState).WithRetry(policy)` throws `InvalidOperationException`, as does `retryDb.CreateTransaction(asyncState)`. Wrap a database obtained without an `asyncState` - note that a key-prefixed view of a state-carrying database is refused too, since it inherits the inner state.
 
-A retrying database can still *create* a transaction: `retryDb.CreateTransaction()` returns an `ITransactionAsync` whose `ExecuteAsync` is retried as a single unit. Each attempt replays the queued operations (and any `WATCH` constraints) against a fresh `MULTI`/`EXEC` - and, in an Active:Active group, onto whichever member is active at the time - so a transaction can ride out a failover just like a single command; the per-operation tasks handed back at build time resolve from the winning attempt. The retry-category gate (below) applies to the transaction as a whole, using the *most* side-effecting operation in it: a transaction containing an `INCR` counts as `CommandRetryWriteAccumulating`. In practice that gate rarely blocks a transaction, because the faults that a transaction is most likely to hit - a `MULTI`/`EXEC` the server *rejected* wholesale - are known not to have applied anything, and the category is not consulted in that case (see [Known-not-applied faults](#known-not-applied-faults)).
+A retrying database can still *create* a transaction: `retryDb.CreateTransaction()` returns an `ITransactionAsync` whose `ExecuteAsync` is retried as a single unit. Each attempt replays the queued operations (and any `WATCH` constraints) against a fresh `MULTI`/`EXEC` - and, in a connection group, onto whichever member is active at the time - so a transaction can ride out a failover just like a single command; the per-operation tasks handed back at build time resolve from the winning attempt. The retry-category gate (below) applies to the transaction as a whole, using the *most* side-effecting operation in it: a transaction containing an `INCR` counts as `CommandRetryWriteAccumulating`. In practice that gate rarely blocks a transaction, because the faults that a transaction is most likely to hit - a `MULTI`/`EXEC` the server *rejected* wholesale - are known not to have applied anything, and the category is not consulted in that case (see [Known-not-applied faults](#known-not-applied-faults)).
 
 #### Losing a `WATCH` race
 

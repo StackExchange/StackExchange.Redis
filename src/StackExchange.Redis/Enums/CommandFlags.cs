@@ -134,53 +134,53 @@ namespace StackExchange.Redis
         /// <summary>
         /// The command is always safe to retry, regardless of connection or server state.
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryAlways = 1 << 13, // pre-shift value 1
 
         /// <summary>
         /// The command relates to the connection or to safe metadata (for example <c>CLIENT SETNAME</c>,
         /// <c>COMMAND</c>, or <c>CONFIG GET</c>) and can be retried at the connection level.
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryConnection = 4 << 13, // pre-shift value 4
 
         /// <summary>
         /// The command only reads data (for example <c>GET</c>) and can be safely retried.
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryReadOnly = 8 << 13, // pre-shift value 8
 
         /// <summary>
         /// The command writes data conditionally (for example <c>SETNX</c> or <c>SET ... IFEQ</c>), so a retry
         /// is checked against server state.
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryWriteChecked = 12 << 13, // pre-shift value 12
 
         /// <summary>
         /// The command writes data such that a retry simply overwrites (last-writer-wins, for example <c>SET</c>).
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryWriteLastWins = 16 << 13, // pre-shift value 16
 
         /// <summary>
         /// The command writes data cumulatively (for example <c>INCR</c> or <c>LPOP</c>), so a retry can
         /// double-apply and change the result.
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryWriteAccumulating = 20 << 13, // pre-shift value 20
 
         /// <summary>
         /// The command performs server administration (for example <c>REPLICAOF</c> or <c>CONFIG SET</c>); these
         /// are commonly also endpoint-specific (the internal server-specific flag).
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryServerAdmin = 24 << 13, // pre-shift value 24
 
         /// <summary>
         /// The command should never be retried.
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CommandRetryNever = 31 << 13, // pre-shift value 31 (the full retry-category region)
 
         // 262144 (bit 18): "server specific" - the command is tied to a specific endpoint and must never be

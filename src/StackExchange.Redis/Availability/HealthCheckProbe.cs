@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Describes an operation to perform as part of a health check.
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public abstract partial class HealthCheckProbe
 {
     /// <summary>
@@ -37,7 +37,7 @@ public abstract partial class HealthCheckProbe
 /// <summary>
 /// Describes a key-based (write) operation to perform as part of a health check.
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public abstract class KeyWriteHealthCheckProbe : HealthCheckProbe
 {
     /// <inheritdoc/>

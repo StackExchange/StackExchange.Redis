@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Availability;
 /// Indicates the result of a <see cref="RetryPolicy"/> query.
 /// </summary>
 [Flags]
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public enum RetryResult
 {
     /// <summary>

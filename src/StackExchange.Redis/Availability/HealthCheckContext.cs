@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Availability;
 /// This is passed by value rather than by <c>in</c>, because probe implementations are
 /// typically <c>async</c>, and async methods cannot take by-ref parameters.
 /// </remarks>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public readonly struct HealthCheckContext(IServer server, TimeSpan probeTimeout)
 {
     /// <inheritdoc/>

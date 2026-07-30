@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Represents the context of a health check probe.
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public readonly struct HealthCheckProbeContext(HealthCheckResult result, int success, int failure, int remaining, TimeSpan probeInterval)
 {
     /// <inheritdoc/>

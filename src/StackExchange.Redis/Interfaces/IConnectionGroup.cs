@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Availability;
 /// servers, routing traffic based on the availability of the servers and their
 /// relative <see cref="ConnectionGroupMember.Weight"/>.
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public interface IConnectionGroup : IConnectionMultiplexer
 {
     /// <summary>
@@ -61,7 +61,7 @@ public interface IConnectionGroup : IConnectionMultiplexer
 /// <summary>
 /// Represents a change to a connection group.
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public class GroupConnectionChangedEventArgs(GroupConnectionChangedEventArgs.ChangeType type, ConnectionGroupMember group, ConnectionGroupMember? previousGroup = null) : EventArgs, ICompletable
 {
     /// <summary>

@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Reports connection health by responding to observed success and failure conditions of processed messages.
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public abstract class CircuitBreaker
 {
     internal const double DefaultFailureRateThreshold = 10;
@@ -42,7 +42,7 @@ public abstract class CircuitBreaker
     /// <summary>
     /// Allows configuration of the default <see cref="CircuitBreaker"/> implementation.
     /// </summary>
-    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+    [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
     public sealed class Builder
     {
         /// <summary>

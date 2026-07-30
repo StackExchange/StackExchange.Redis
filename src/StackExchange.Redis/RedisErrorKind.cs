@@ -12,7 +12,7 @@ namespace StackExchange.Redis;
 /// message text). Used to classify faults consistently - in particular to decide whether a fault is
 /// transient (worth retrying / awaiting failover) or permanent (retrying will never help).
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public enum RedisErrorKind
 {
     /// <summary>

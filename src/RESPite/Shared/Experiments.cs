@@ -18,7 +18,7 @@
         // ReSharper disable InconsistentNaming
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
-        public const string ActiveActive = "SER007";
+        public const string GeoRedundantFailover = "SER007";
         public const string Server_8_10 = "SER008";
 
         // ReSharper restore InconsistentNaming

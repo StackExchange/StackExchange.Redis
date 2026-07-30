@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Attempt to evaluate the outcome of a series of health check operations.
 /// </summary>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public abstract class HealthCheckProbePolicy
 {
     /// <summary>

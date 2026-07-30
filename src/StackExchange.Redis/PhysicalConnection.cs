@@ -1228,7 +1228,7 @@ namespace StackExchange.Redis
         // Actuates a pending circuit-breaker teardown at most once. Called from both the trip worker and
         // the heartbeat backstop; whoever wins the tripped->actuated transition does the work. Routing via
         // RecordConnectionFailed (not a bare Shutdown) is what surfaces the failure as a ConnectionFailed
-        // event, which is what Active:Active reacts to when re-routing away from this member.
+        // event, which is what a connection group reacts to when re-routing away from this member.
         private void CheckCircuitBreakerTrip()
         {
             if (Interlocked.CompareExchange(ref _circuitBreakerState, CircuitBreakerActuated, CircuitBreakerTripped) is CircuitBreakerTripped)

@@ -24,7 +24,7 @@ namespace StackExchange.Redis
         /// <param name="options">Additional options for configuring this group.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
 #pragma warning disable RS0026
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         public static Task<IConnectionGroup> ConnectGroupAsync(
             ConnectionGroupMember[] members,
             MultiGroupOptions? options = null,
@@ -44,7 +44,7 @@ namespace StackExchange.Redis
         /// <param name="member1">An additional initial configuration to connect to.</param>
         /// <param name="options">Additional options for configuring this group.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0026
         public static Task<IConnectionGroup> ConnectGroupAsync(
             ConnectionGroupMember member0,
@@ -64,7 +64,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// A configured member of a <see cref="MultiGroupMultiplexer"/>.
         /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0016, RS0026
         public sealed partial class ConnectionGroupMember(ConfigurationOptions configuration, string name = "")
 #pragma warning restore RS0016, RS0026

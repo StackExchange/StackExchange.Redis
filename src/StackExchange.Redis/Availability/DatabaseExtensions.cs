@@ -32,7 +32,7 @@ public static class DatabaseExtensions
     /// </remarks>
     /// <exception cref="System.InvalidOperationException">If <paramref name="database"/> is a batch, a
     /// transaction, already retrying, or carries an <c>asyncState</c>.</exception>
-    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+    [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
     public static IDatabaseAsync WithRetry(this IDatabaseAsync database, RetryPolicy? retryPolicy = null)
         => new RetryDatabase(database, retryPolicy ?? ResolveRetryPolicy(database));
 
