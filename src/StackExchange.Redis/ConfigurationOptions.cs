@@ -964,7 +964,7 @@ namespace StackExchange.Redis
             user = user,
             sentinelUser = sentinelUser,
             password = password,
-            SentinelPassword = sentinelPassword,
+            sentinelPassword = sentinelPassword,
             tieBreaker = tieBreaker,
             sslHost = sslHost,
             configChannel = configChannel,
