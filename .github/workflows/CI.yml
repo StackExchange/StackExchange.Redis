@@ -57,6 +57,16 @@ jobs:
           chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/redis.list
           apt-get update
+          # Don't let dpkg start the packaged redis-server service: we start our own
+          # instances below, and the packaged unit would otherwise race them for
+          # 127.0.0.1:6379 on any run where WSL came up with systemd.
+          # This also sidesteps an install hang we hit with the 8.10.0 package, whose
+          # redis.conf lost "supervised auto" - redis then never sd_notify()s, so the
+          # Type=notify unit never leaves "activating" and the postinst's
+          # "systemctl start" blocks. That one's an upstream packaging slip being
+          # fixed there, but the guard above is worth keeping either way.
+          printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+          chmod +x /usr/sbin/policy-rc.d
           apt-get install -y redis
           mkdir redis
       - name: Run redis-server
