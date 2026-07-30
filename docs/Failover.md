@@ -1,4 +1,4 @@
-# Geo-Redundant Failover
+# Client-side geographic failover
 
 > **What this is, and what it is called elsewhere.** This feature does one thing: it moves traffic between several independent endpoints that can each serve
 > your workload, using health checks, circuit breakers and retries to decide when to move. Nothing in it is tied to a particular server topology, which is why
@@ -22,7 +22,7 @@
 
 ## Overview
 
-Geo-redundant failover provides automatic failover and intelligent routing across multiple Redis deployments. It is built from several cooperating pieces:
+Client-side geographic failover provides automatic failover, failback, and intelligent routing across multiple Redis deployments. It is built from several cooperating pieces:
 
 1. **Connecting to multiple servers or regions at once**, giving a deployment redundant endpoints to fall back on.
 2. **Health checks** that *actively* probe each endpoint on a timer to monitor its availability.
@@ -98,7 +98,7 @@ This enables scenarios such as:
 
 ### Connecting to Multiple Groups
 
-To create a geo-redundant connection, use `ConnectionMultiplexer.ConnectGroupAsync()` with an array of `ConnectionGroupMember` instances:
+To create a failover-capable connection, use `ConnectionMultiplexer.ConnectGroupAsync()` with an array of `ConnectionGroupMember` instances:
 
 ```csharp
 // Define your Redis endpoints

@@ -139,9 +139,9 @@ Additional code-only options:
 - ResponseBufferPool (`MemoryPool<byte>`) - Default: `null`
   - The buffer pool to use when buffering responses (and for allocating `Lease<byte>` results); when `null`, a shared default pool is used
 - CircuitBreaker (`CircuitBreaker`) - Default: `null`
-  - **[Experimental](exp/SER007)** (geo-redundant failover). A per-connection circuit breaker that *passively* observes the outcome of normal traffic and tears the connection down when it becomes unstable. When the connection is a member of a connection group, this flows in from `MultiGroupOptions.CircuitBreaker` if not set explicitly. See [Geo-Redundant Failover](GeoRedundantFailover)
+  - **[Experimental](exp/SER007)** (client-side geographic failover). A per-connection circuit breaker that *passively* observes the outcome of normal traffic and tears the connection down when it becomes unstable. When the connection is a member of a connection group, this flows in from `MultiGroupOptions.CircuitBreaker` if not set explicitly. See [Client-side geographic failover](Failover)
 - HealthCheck (`HealthCheck`) - Default: `null`
-  - **[Experimental](exp/SER007)** (geo-redundant failover). An *active* health check used when the connection is a member of a connection group; when `null`, the group-level `MultiGroupOptions.HealthCheck` is used. See [Geo-Redundant Failover](GeoRedundantFailover)
+  - **[Experimental](exp/SER007)** (client-side geographic failover). An *active* health check used when the connection is a member of a connection group; when `null`, the group-level `MultiGroupOptions.HealthCheck` is used. See [Client-side geographic failover](Failover)
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.

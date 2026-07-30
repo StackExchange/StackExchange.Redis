@@ -35,7 +35,7 @@ Documentation
 - [Basic Usage](Basics) - getting started and basic usage
 - [Async Timeouts](AsyncTimeouts) - async timeouts and cancellation
 - [Configuration](Configuration) - options available when connecting to redis
-- [Geo-Redundant Failover](GeoRedundantFailover) (Active:Active / "multi-DB client") - connecting to multiple redundant Redis endpoints for high availability
+- [Client-side geographic failover](Failover) (Active:Active / "multi-DB client") - connecting to multiple redundant Redis endpoints for high availability
 - [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?
 - [Keys, Values and Channels](KeysValues) - discusses the data-types used on the API
 - [Transactions](Transactions) - how atomic transactions work in redis
