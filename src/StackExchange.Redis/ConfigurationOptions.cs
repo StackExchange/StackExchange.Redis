@@ -962,7 +962,7 @@ namespace StackExchange.Redis
             defaultVersion = defaultVersion,
             connectTimeout = connectTimeout,
             user = user,
-            SentinelUser = sentinelUser,
+            sentinelUser = sentinelUser,
             password = password,
             SentinelPassword = sentinelPassword,
             tieBreaker = tieBreaker,
