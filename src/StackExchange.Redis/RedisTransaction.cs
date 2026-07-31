@@ -5,17 +5,48 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
-    internal sealed class RedisTransaction : RedisDatabase, ITransaction
+    internal sealed class RedisTransaction : RedisDatabase, ITransaction, IInternalTransaction
     {
         private List<ConditionResult>? _conditions;
         private List<QueuedMessage>? _pending;
+        private TransactionMessage? _lastMessage;
         private object SyncLock => this;
+
+        /// <inheritdoc/>
+        // set by TransactionProcessor when the server answers EXEC with a null array
+        public bool WasWatchConflict => _lastMessage?.WasWatchConflict == true;
+
+        // combine the retry categories of all queued operations, taking the most side-effecting (numerically
+        // highest) - this is what a replay of the whole transaction would do. WATCH constraints are *not*
+        // included: they live in _conditions, not _pending, and re-issuing them is what makes replay safe.
+        CommandFlags IInternalTransaction.GetAggregateRetryCategory()
+        {
+            var result = CommandFlags.None;
+            lock (SyncLock)
+            {
+                var list = _pending;
+                if (list != null)
+                {
+                    foreach (var q in list)
+                    {
+                        var cat = q.Wrapped.Flags & Message.MaskRetryCategory;
+                        if (cat > result) result = cat;
+                    }
+                }
+            }
+            return result;
+        }
+
+        private protected override DatabaseFeatureFlags GetDatabaseFeatures()
+            => base.GetDatabaseFeatures() | DatabaseFeatureFlags.Transaction;
 
         public RedisTransaction(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
         {
+            wrapped.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
             // need to check we can reliably do this...
             var commandMap = multiplexer.CommandMap;
             commandMap.AssertAvailable(RedisCommand.MULTI);
@@ -169,7 +200,7 @@ namespace StackExchange.Redis
             }
             processor = TransactionProcessor.Default;
 
-            return new TransactionMessage(Database, flags, cond, work);
+            return _lastMessage = new TransactionMessage(Database, flags, cond, work);
         }
 
         private sealed class QueuedMessage : Message
@@ -237,20 +268,31 @@ namespace StackExchange.Redis
                 this.conditions = (conditions?.Count > 0) ? conditions.ToArray() : Array.Empty<ConditionResult>();
             }
 
-            internal override void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
+            internal override void SetExceptionAndComplete(Exception exception, PhysicalConnection? connection)
             {
                 var inner = InnerOperations;
-                if (inner != null)
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                if (inner is not null)
                 {
                     for (int i = 0; i < inner.Length; i++)
                     {
-                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge);
+                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, connection);
                     }
                 }
-                base.SetExceptionAndComplete(exception, bridge);
+                base.SetExceptionAndComplete(exception, connection);
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;
+
+            // the server rejected an EXEC we really did issue, because a watched key moved; volatile
+            // because it is written on the read loop and observed by whoever awaited the transaction
+            public bool WasWatchConflict
+            {
+                get => Volatile.Read(ref _watchConflict);
+                set => Volatile.Write(ref _watchConflict, value);
+            }
+
+            private bool _watchConflict;
 
             public override void AppendStormLog(StringBuilder sb)
             {
@@ -432,7 +474,7 @@ namespace StackExchange.Redis
                         {
                             var inner = op.Wrapped;
                             inner.Cancel();
-                            inner.Complete();
+                            inner.Complete(connection);
                         }
                     }
                     connection.Trace("End of transaction: " + Command);
@@ -479,12 +521,13 @@ namespace StackExchange.Redis
                 reader.MovePastBof();
                 if (reader.IsError && message is TransactionMessage tran)
                 {
+                    var errorKind = RedisErrorKindMetadata.Classify(reader);
                     string error = reader.ReadString()!;
                     foreach (var op in tran.InnerOperations)
                     {
                         var inner = op.Wrapped;
-                        ServerFail(inner, error);
-                        inner.Complete();
+                        ServerFail(inner, errorKind, error);
+                        inner.Complete(connection);
                     }
                 }
                 return base.SetResult(connection, message, ref copy);
@@ -500,16 +543,23 @@ namespace StackExchange.Redis
 
                     if (reader.IsNull) // EXEC returned with a NULL
                     {
-                        if (tran.IsAborted)
+                        // the server refused to apply the transaction because a watched key changed
+                        // ("WATCH drift"); nothing was applied, so every queued operation must be
+                        // brought to a terminal state - otherwise the caller's tasks hang forever.
+                        // (in the electively-aborted case they were already cancelled in GetMessages;
+                        // Cancel/Complete are idempotent, so doing it again is harmless)
+                        muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                        connection.Trace("Server aborted due to failed WATCH");
+
+                        // distinguish "the server refused an EXEC we issued" from "we chose not to issue
+                        // one"; only the former is worth re-attempting (see IInternalTransaction)
+                        tran.WasWatchConflict = !tran.IsAborted;
+
+                        foreach (var op in wrapped)
                         {
-                            muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
-                            connection.Trace("Server aborted due to failed WATCH");
-                            foreach (var op in wrapped)
-                            {
-                                var inner = op.Wrapped;
-                                inner.Cancel();
-                                inner.Complete();
-                            }
+                            var inner = op.Wrapped;
+                            inner.Cancel();
+                            inner.Complete(connection);
                         }
                         SetResult(message, false);
                         return true;
@@ -539,7 +589,7 @@ namespace StackExchange.Redis
                                 muxer?.OnTransactionLog($"> got {iter.Value.GetOverview()} for {inner.CommandAndKey}");
                                 if (inner.ComputeResult(connection, ref iter.Value))
                                 {
-                                    inner.Complete();
+                                    inner.Complete(connection);
                                 }
                             }
 
@@ -553,10 +603,10 @@ namespace StackExchange.Redis
                     // the pending tasks
                     foreach (var op in wrapped)
                     {
-                        if (op?.Wrapped is Message inner)
+                        if (op?.Wrapped is { } inner)
                         {
                             inner.Fail(ConnectionFailureType.ProtocolFailure, null, "Transaction failure", muxer);
-                            inner.Complete();
+                            inner.Complete(connection);
                         }
                     }
                 }

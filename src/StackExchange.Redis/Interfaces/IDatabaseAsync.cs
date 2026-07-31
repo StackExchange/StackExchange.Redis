@@ -14,6 +14,19 @@ namespace StackExchange.Redis
     /// </summary>
     public partial interface IDatabaseAsync : IRedisAsync
     {
+        /// <inheritdoc cref="IDatabase.Database" />
+        int Database { get; }
+
+        /// <summary>
+        /// Creates a transaction exposing only asynchronous completion; see <see cref="ITransactionAsync"/>.
+        /// </summary>
+        /// <param name="asyncState">The async state to set on the created transaction.</param>
+        /// <remarks>Unlike <see cref="IDatabase.CreateTransaction(object?)"/>, this offers no synchronous
+        /// execution, so it is usable from async-only databases such as one created via
+        /// <see cref="Availability.DatabaseExtensions.WithRetry"/>.</remarks>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+        ITransactionAsync CreateTransaction(object? asyncState = null);
+
         /// <summary>
         /// Indicates whether the instance can communicate with the server (resolved using the supplied key and optional flags).
         /// </summary>

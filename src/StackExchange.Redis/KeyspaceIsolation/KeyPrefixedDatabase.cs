@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
@@ -10,13 +11,22 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
         }
 
-        public IBatch CreateBatch(object? asyncState = null) =>
-            new KeyPrefixedBatch(Inner.CreateBatch(asyncState), Prefix);
+        public IBatch CreateBatch(object? asyncState = null)
+        {
+            // reject nesting based on *this* database (the thing being wrapped), not the freshly
+            // created inner batch - which trivially carries the Batch flag and would always trip
+            this.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
+            return new KeyPrefixedBatch(Inner.CreateBatch(asyncState), Prefix);
+        }
 
-        public ITransaction CreateTransaction(object? asyncState = null) =>
-            new KeyPrefixedTransaction(Inner.CreateTransaction(asyncState), Prefix);
+        public ITransaction CreateTransaction(object? asyncState = null)
+        {
+            this.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
+            return new KeyPrefixedTransaction(Inner.CreateTransaction(asyncState), Prefix);
+        }
 
-        public int Database => Inner.Database;
+        // reimplement the async-only IDatabaseAsync slot (the base throws); we prefix a real transaction
+        ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
 
         public RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.DebugObject(ToInner(key), flags);

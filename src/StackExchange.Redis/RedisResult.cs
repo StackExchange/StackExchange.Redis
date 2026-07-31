@@ -558,7 +558,10 @@ namespace StackExchange.Redis
         private sealed class ErrorRedisResult : RedisResult
         {
             private readonly string value;
+            private RedisErrorKind kind; // lazily parsed from the value
+            private RedisErrorKind Kind => kind is RedisErrorKind.None ? GetKind() : kind;
 
+            private RedisErrorKind GetKind() => kind = RedisErrorKindMetadata.Classify(value);
             public ErrorRedisResult(string? value, ResultType type) : base(type)
             {
                 this.value = value ?? throw new ArgumentNullException(nameof(value));
@@ -570,30 +573,30 @@ namespace StackExchange.Redis
                 type = null;
                 return value;
             }
-            internal override bool AsBoolean() => throw new RedisServerException(value);
-            internal override bool[] AsBooleanArray() => throw new RedisServerException(value);
-            internal override byte[] AsByteArray() => throw new RedisServerException(value);
-            internal override byte[][] AsByteArrayArray() => throw new RedisServerException(value);
-            internal override double AsDouble() => throw new RedisServerException(value);
-            internal override double[] AsDoubleArray() => throw new RedisServerException(value);
-            internal override int AsInt32() => throw new RedisServerException(value);
-            internal override int[] AsInt32Array() => throw new RedisServerException(value);
-            internal override long AsInt64() => throw new RedisServerException(value);
-            internal override ulong AsUInt64() => throw new RedisServerException(value);
-            internal override long[] AsInt64Array() => throw new RedisServerException(value);
-            internal override ulong[] AsUInt64Array() => throw new RedisServerException(value);
-            internal override bool? AsNullableBoolean() => throw new RedisServerException(value);
-            internal override double? AsNullableDouble() => throw new RedisServerException(value);
-            internal override int? AsNullableInt32() => throw new RedisServerException(value);
-            internal override long? AsNullableInt64() => throw new RedisServerException(value);
-            internal override ulong? AsNullableUInt64() => throw new RedisServerException(value);
-            internal override RedisKey AsRedisKey() => throw new RedisServerException(value);
-            internal override RedisKey[] AsRedisKeyArray() => throw new RedisServerException(value);
-            internal override RedisResult[] AsRedisResultArray() => throw new RedisServerException(value);
-            internal override RedisValue AsRedisValue() => throw new RedisServerException(value);
-            internal override RedisValue[] AsRedisValueArray() => throw new RedisServerException(value);
-            internal override string? AsString() => throw new RedisServerException(value);
-            internal override string?[]? AsStringArray() => throw new RedisServerException(value);
+            internal override bool AsBoolean() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override bool[] AsBooleanArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override byte[] AsByteArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override byte[][] AsByteArrayArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override double AsDouble() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override double[] AsDoubleArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override int AsInt32() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override int[] AsInt32Array() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override long AsInt64() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override ulong AsUInt64() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override long[] AsInt64Array() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override ulong[] AsUInt64Array() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override bool? AsNullableBoolean() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override double? AsNullableDouble() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override int? AsNullableInt32() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override long? AsNullableInt64() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override ulong? AsNullableUInt64() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override RedisKey AsRedisKey() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override RedisKey[] AsRedisKeyArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override RedisResult[] AsRedisResultArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override RedisValue AsRedisValue() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override RedisValue[] AsRedisValueArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override string? AsString() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
+            internal override string?[]? AsStringArray() => throw new RedisServerException(Kind, CommandFlags.CommandRetryNever, value);
         }
 
         private sealed class SingleRedisResult : RedisResult, IConvertible

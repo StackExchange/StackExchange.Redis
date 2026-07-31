@@ -14,7 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-
+using StackExchange.Redis.Availability;
 using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
@@ -118,6 +118,9 @@ namespace StackExchange.Redis
                 _inputCancel = new();
                 _outputCancel = new();
             }
+            // grab a per-connection accumulator from the configured breaker (null when none is configured);
+            // for a connection-group member this resolves the group's default too - see EffectiveCircuitBreaker
+            circuitBreaker = bridge.Multiplexer.EffectiveCircuitBreaker?.CreateAccumulator();
             OnCreateEcho();
         }
 
@@ -488,7 +491,7 @@ namespace StackExchange.Redis
 
                     AddData("Version", "v", Utils.GetLibVersion());
 
-                    outerException = new RedisConnectionException(failureType, exMessage.ToString(), innerException);
+                    outerException = new RedisConnectionException(failureType, CommandFlags.None, exMessage.ToString(), innerException);
 
                     foreach (var kv in data)
                     {
@@ -510,12 +513,12 @@ namespace StackExchange.Redis
             nextMessage = Interlocked.Exchange(ref _awaitingToken, null);
             if (nextMessage is not null)
             {
-                RecordMessageFailed(nextMessage, ex, origin, bridge);
+                RecordMessageFailed(nextMessage, ex, origin, this);
             }
 
             while (TryDequeueLocked(_writtenAwaitingResponse, out nextMessage))
             {
-                RecordMessageFailed(nextMessage, ex, origin, bridge);
+                RecordMessageFailed(nextMessage, ex, origin, this);
             }
 
             // burn the socket
@@ -530,21 +533,26 @@ namespace StackExchange.Redis
             }
         }
 
-        private void RecordMessageFailed(Message next, Exception? ex, string? origin, PhysicalBridge? bridge)
+        private void RecordMessageFailed(Message next, Exception? ex, string? origin, PhysicalConnection? connection)
         {
             if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
             {
                 // fine, death of a socket is close enough
-                next.Complete();
+                next.Complete(this);
             }
             else
             {
-                if (bridge != null)
+                // the connection-level exception is shared across every message being failed here; give this
+                // one its own, carrying *its* flags and sent-status so retry policy can reason about it
+                if (ex is not null) ex = ExceptionFactory.PerMessage(ex, next);
+
+                var bridge = connection?.BridgeCouldBeNull;
+                if (bridge is not null)
                 {
                     bridge.Trace("Failing: " + next);
                     bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                 }
-                next.SetExceptionAndComplete(ex!, bridge);
+                next.SetExceptionAndComplete(ex!, connection);
             }
         }
 
@@ -599,7 +607,7 @@ namespace StackExchange.Redis
                 // we can still process it to avoid making things worse/more complex,
                 // but: we can't reliably assume this works, so: shout now!
                 next.Cancel();
-                next.Complete();
+                next.Complete(null);
             }
 
             bool wasEmpty;
@@ -754,7 +762,7 @@ namespace StackExchange.Redis
 
             lock (_writtenAwaitingResponse)
             {
-                if (_writtenAwaitingResponse.Count != 0 && BridgeCouldBeNull is PhysicalBridge bridge)
+                if (_writtenAwaitingResponse.Count != 0 && BridgeCouldBeNull is { } bridge)
                 {
                     var server = bridge.ServerEndPoint;
                     var multiplexer = bridge.Multiplexer;
@@ -773,7 +781,7 @@ namespace StackExchange.Redis
                                     : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)";
                                 var timeoutEx = ExceptionFactory.Timeout(multiplexer, baseErrorMessage, msg, server);
                                 multiplexer.OnMessageFaulted(msg, timeoutEx);
-                                msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
+                                msg.SetExceptionAndComplete(timeoutEx, this); // tell the message that it is doomed
                                 multiplexer.OnAsyncTimeout();
                                 asyncTimeoutDetected++;
                             }
@@ -802,6 +810,14 @@ namespace StackExchange.Redis
                         // perspective, and set a flag on the message so we don't keep doing it
                     }
                 }
+            }
+
+            // backstop for a tripped circuit-breaker: normally the trip worker actuates the teardown, but
+            // if it hasn't been scheduled yet (and the connection has gone quiet) the heartbeat does it.
+            // Must be outside the lock above - RecordConnectionFailed takes that same lock.
+            if (Volatile.Read(ref _circuitBreakerState) is CircuitBreakerTripped)
+            {
+                CheckCircuitBreakerTrip();
             }
         }
 
@@ -1110,7 +1126,7 @@ namespace StackExchange.Redis
             var bridge = BridgeCouldBeNull;
             if (bridge == null || !bridge.Multiplexer.AllowConnect)
             {
-                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "Aborting (AllowConnect: False)");
+                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, CommandFlags.None, "Aborting (AllowConnect: False)");
             }
         }
 
@@ -1178,6 +1194,53 @@ namespace StackExchange.Redis
                 if (lockTaken) Monitor.Exit(_writtenAwaitingResponse);
             }
         }
+
+        public void ObserveMessageResult(Exception? fault)
+        {
+            // Hot path - runs per completed message. Let the breaker observe the outcome (ObserveResult
+            // returns true while healthy); if it trips and we're the *first* to notice, hand off the
+            // teardown rather than doing it inline: RecordConnectionFailed can fail the whole backlog and
+            // build a detailed exception, which we don't want to pay for on the completion thread.
+            if (circuitBreaker is { } cb && cb.Trip(fault)
+                && Interlocked.CompareExchange(ref _circuitBreakerState, CircuitBreakerTripped, CircuitBreakerHealthy) is CircuitBreakerHealthy)
+            {
+                // hand off to a worker; the heartbeat (see OnBridgeHeartbeat) is a backstop in case the
+                // pool is slow to schedule us and the connection then goes quiet - either way the actual
+                // teardown happens exactly once, via CheckCircuitBreakerTrip. A cached static callback with
+                // the connection as state avoids any per-trip delegate/closure allocation.
+                ThreadPool.QueueUserWorkItem(s_CheckCircuitBreakerTrip, this);
+            }
+        }
+
+        private static readonly WaitCallback s_CheckCircuitBreakerTrip = static state =>
+        {
+            var connection = (PhysicalConnection)state!;
+            try
+            {
+                connection.CheckCircuitBreakerTrip();
+            }
+            catch (Exception ex)
+            {
+                connection.OnInternalError(ex);
+            }
+        };
+
+        // Actuates a pending circuit-breaker teardown at most once. Called from both the trip worker and
+        // the heartbeat backstop; whoever wins the tripped->actuated transition does the work. Routing via
+        // RecordConnectionFailed (not a bare Shutdown) is what surfaces the failure as a ConnectionFailed
+        // event, which is what a connection group reacts to when re-routing away from this member.
+        private void CheckCircuitBreakerTrip()
+        {
+            if (Interlocked.CompareExchange(ref _circuitBreakerState, CircuitBreakerActuated, CircuitBreakerTripped) is CircuitBreakerTripped)
+            {
+                RecordConnectionFailed(ConnectionFailureType.CircuitBreaker);
+            }
+        }
+
+        private CircuitBreaker.Accumulator? circuitBreaker;
+
+        private int _circuitBreakerState; // transitions strictly Healthy -> Tripped -> Actuated
+        private const int CircuitBreakerHealthy = 0, CircuitBreakerTripped = 1, CircuitBreakerActuated = 2;
     }
 
     internal sealed class DummyHighIntegrityMessage : Message

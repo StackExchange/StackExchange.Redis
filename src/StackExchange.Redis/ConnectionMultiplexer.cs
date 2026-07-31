@@ -47,6 +47,21 @@ namespace StackExchange.Redis
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
         internal ConfigurationOptions RawConfig { get; }
+
+        /// <summary>
+        /// When this multiplexer is a member of a connection group, the group resolves the effective
+        /// circuit-breaker (member override, else this member's own configuration, else the group default)
+        /// and supplies it here. This deliberately does *not* write back into <see cref="RawConfig"/>: callers
+        /// may legitimately reuse a single <see cref="ConfigurationOptions"/> across multiple connections,
+        /// and a group default must not leak into an unrelated one.
+        /// </summary>
+        internal Availability.CircuitBreaker? GroupCircuitBreaker { get; private set; }
+
+        /// <summary>
+        /// The circuit-breaker that physical connections for this multiplexer should use, if any.
+        /// </summary>
+        internal Availability.CircuitBreaker? EffectiveCircuitBreaker => GroupCircuitBreaker ?? RawConfig.CircuitBreaker;
+
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
         ServerSelectionStrategy IInternalConnectionMultiplexer.ServerSelectionStrategy => ServerSelectionStrategy;
         ConnectionMultiplexer IInternalConnectionMultiplexer.UnderlyingMultiplexer => this;
@@ -70,7 +85,7 @@ namespace StackExchange.Redis
             unchecked(Environment.TickCount - Volatile.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
         /// <inheritdoc cref="ConfigurationOptions.IncludeDetailInExceptions"/>
-        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludeDetailInExceptions
         {
@@ -79,7 +94,7 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc cref="ConfigurationOptions.IncludePerformanceCountersInExceptions"/>
-        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.0.")]
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludePerformanceCountersInExceptions
         {
@@ -125,10 +140,11 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
         {
             Interlocked.Increment(ref s_MuxerCreateCount);
 
+            GroupCircuitBreaker = groupCircuitBreaker;
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
@@ -156,9 +172,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
         {
-            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints);
+            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints, groupCircuitBreaker);
             connectHandler = null;
             if (log is not null)
             {
@@ -575,7 +591,35 @@ namespace StackExchange.Redis
                 : ConnectImplAsync(configuration, log);
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null)
+        /// <summary>
+        /// Connect a multiplexer that is a member of a connection group, applying the group's resolved
+        /// circuit-breaker without writing it back into the caller's <see cref="ConfigurationOptions"/>
+        /// (which the caller may legitimately reuse for other connections).
+        /// </summary>
+        internal static Task<ConnectionMultiplexer> ConnectGroupMemberAsync(ConfigurationOptions configuration, TextWriter? log, Availability.CircuitBreaker? groupCircuitBreaker)
+        {
+            Dependencies.Assert();
+            Validate(configuration);
+
+            if (configuration.IsSentinel)
+            {
+                // the sentinel path builds the primary connection internally, so we cannot pass the breaker
+                // down into construction; apply it afterwards - it is picked up by subsequent physical
+                // connections, and an explicit ConfigurationOptions.CircuitBreaker still applies throughout
+                return ApplyAfterConnectAsync(SentinelPrimaryConnectAsync(configuration, log), groupCircuitBreaker);
+            }
+
+            return ConnectImplAsync(configuration, log, groupCircuitBreaker: groupCircuitBreaker);
+
+            static async Task<ConnectionMultiplexer> ApplyAfterConnectAsync(Task<ConnectionMultiplexer> pending, Availability.CircuitBreaker? groupCircuitBreaker)
+            {
+                var muxer = await pending.ForAwait();
+                muxer.GroupCircuitBreaker = groupCircuitBreaker;
+                return muxer;
+            }
+        }
+
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
         {
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
@@ -587,7 +631,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 log?.LogInformationConnectingAsync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
 
-                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler);
+                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, log, null, "connect").ObserveErrors().ForAwait();
@@ -1036,7 +1080,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void OnHeartbeat()
+        internal void OnHeartbeat()
         {
             try
             {
@@ -1129,7 +1173,7 @@ namespace StackExchange.Redis
         }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
-        private const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
+        internal const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
         // Side note: "databases 16" is the default in redis.conf; happy to store one extra to get nice alignment etc
         private IDatabase? dbCacheZero;
         private IDatabase[]? dbCacheLow;
@@ -1282,6 +1326,8 @@ namespace StackExchange.Redis
             }
         }
 
+        internal uint LatencyTicks { get; private set; } = uint.MaxValue;
+
         // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
         // (we deal with channels far less frequently, so pay the encoding cost up-front)
         internal byte[] ChannelPrefix => ((byte[]?)RawConfig.ChannelPrefix) ?? [];
@@ -1360,9 +1406,9 @@ namespace StackExchange.Redis
                 log.LogInformationServerSummary(server.Summary(), server.GetCounters(), server.GetProfile());
             }
             log.LogInformationTimeoutsSummary(
-                Interlocked.Read(ref syncTimeouts),
-                Interlocked.Read(ref asyncTimeouts),
-                Interlocked.Read(ref fireAndForgets),
+                Volatile.Read(ref syncTimeouts),
+                Volatile.Read(ref asyncTimeouts),
+                Volatile.Read(ref fireAndForgets),
                 LastHeartbeatSecondsAgo);
         }
 
@@ -2034,7 +2080,7 @@ namespace StackExchange.Redis
             WriteResult.Success => throw new ArgumentOutOfRangeException(nameof(result), "Be sure to check result isn't successful before calling GetException."),
             WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
             WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, null, message, server, result, bridge),
-            _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
+            _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, message.Flags, "An unknown error occurred when writing the message", server),
         };
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]
@@ -2362,5 +2408,35 @@ namespace StackExchange.Redis
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
             => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+
+        internal uint UpdateLatency()
+        {
+            // Per-server latency is captured passively during the critical handshake (see
+            // ServerEndPoint.SetLatency), so the values read here are kept current without us issuing
+            // any extra traffic. We aggregate to the *worst* (max) connected server, so a group is only
+            // rated as fast as its slowest endpoint. Note that uint.MaxValue doubles as the "not yet
+            // measured" sentinel: if no connected server has a real measurement we leave the previously
+            // published value untouched rather than reporting a spurious MaxValue.
+            var snapshot = GetServerSnapshot();
+            uint max = uint.MaxValue;
+            foreach (var server in snapshot)
+            {
+                if (server.IsConnected)
+                {
+                    var latency = server.LatencyTicks;
+                    if (max is uint.MaxValue || latency > max)
+                    {
+                        max = latency;
+                    }
+                }
+            }
+
+            if (max != uint.MaxValue)
+            {
+                LatencyTicks = max;
+            }
+
+            return LatencyTicks;
+        }
     }
 }

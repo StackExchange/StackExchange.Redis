@@ -60,4 +60,19 @@
   <ItemGroup>
     <ProjectReference Include="..\RESPite\RESPite.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Availability/MultiGroupDatabase.*.cs">
+      <DependentUpon>MultiGroupDatabase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/HealthCheck.*.cs">
+      <DependentUpon>HealthCheck.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/HealthCheckProbe.*.cs">
+      <DependentUpon>HealthCheckProbe.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/MultiGroupSubscriber.*.cs">
+      <DependentUpon>MultiGroupSubscriber.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

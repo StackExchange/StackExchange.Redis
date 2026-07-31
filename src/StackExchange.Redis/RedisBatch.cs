@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
@@ -8,7 +9,14 @@ namespace StackExchange.Redis
     {
         private List<Message>? pending;
 
-        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) { }
+        public RedisBatch(RedisDatabase wrapped, object? asyncState)
+            : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
+        {
+            wrapped.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
+        }
+
+        private protected override DatabaseFeatureFlags GetDatabaseFeatures()
+            => base.GetDatabaseFeatures() | DatabaseFeatureFlags.Batch;
 
         public void Execute()
         {
@@ -123,13 +131,13 @@ namespace StackExchange.Redis
         internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
             => throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
 
-        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message> messages)
+        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message>? messages)
         {
-            if (messages == null) return;
+            if (messages is null) return;
             foreach (var msg in messages)
             {
                 msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null, "unable to write batch", muxer);
-                msg.Complete();
+                msg.Complete(null);
             }
         }
     }

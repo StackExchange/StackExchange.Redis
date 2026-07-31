@@ -114,7 +114,6 @@
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.AggregateEnumerator() -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.AggregateEnumerator(scoped in RESPite.Messages.RespReader reader) -> void
-[SER004]RESPite.Messages.RespReader.AggregateEnumerator.Current.get -> RESPite.Messages.RespReader
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.DemandNext() -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TFirst, TSecond, TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TFirst>! first, RESPite.Messages.RespReader.Projection<TSecond>! second, System.Func<TFirst, TSecond, TResult>! combine) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.GetEnumerator() -> RESPite.Messages.RespReader.AggregateEnumerator

@@ -215,7 +215,7 @@ public class BufferedStreamWriterTests
         private TaskCompletionSource<bool>? _blockedFlush, _allowFlush;
 
         public Exception? WriteException { get; set; }
-        public long BytesWritten => Interlocked.Read(ref _bytesWritten);
+        public long BytesWritten => Volatile.Read(ref _bytesWritten);
         public int SyncWriteCount => Volatile.Read(ref _syncWriteCount);
         public int AsyncWriteCount => Volatile.Read(ref _asyncWriteCount);
         public byte[] WrittenBytes

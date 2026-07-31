@@ -234,13 +234,6 @@ internal static class RespReaderExtensions
         }
     }
 
-#if !NET
-    extension(Task task)
-    {
-        public bool IsCompletedSuccessfully => task.Status is TaskStatus.RanToCompletion;
-    }
-#endif
-
     private static readonly int MaxCanonicalLength = Math.Max(Format.MaxInt64TextLen, Format.MaxDoubleTextLen);
 
     // Recognizes the canonical decimal text of an integer (signed Int64 or, for non-negative values up to

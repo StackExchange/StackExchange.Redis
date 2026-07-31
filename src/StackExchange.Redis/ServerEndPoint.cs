@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Availability;
 using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
@@ -1143,6 +1144,20 @@ namespace StackExchange.Redis
             if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
         }
+
+        public void SetLatency(DateTime startTime)
+        {
+            try
+            {
+                LatencyTicks = ConnectionGroupMember.ToLatencyTicks(DateTime.UtcNow - startTime);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+        }
+
+        internal uint LatencyTicks { get; private set; } = uint.MaxValue;
 
         private ProductVariant _productVariant = ProductVariant.Redis;
         private string _productVersion = "";

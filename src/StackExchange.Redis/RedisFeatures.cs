@@ -245,7 +245,7 @@ namespace StackExchange.Redis
         public bool ScriptingDatabaseSafe => Version.IsAtLeast(v2_8_12);
 
         /// <inheritdoc cref="HyperLogLogCountReplicaSafe"/>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(HyperLogLogCountReplicaSafe) + " instead, this will be removed in 3.0.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(HyperLogLogCountReplicaSafe) + " instead, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool HyperLogLogCountSlaveSafe => HyperLogLogCountReplicaSafe;
 
