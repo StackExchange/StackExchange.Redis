@@ -8,6 +8,20 @@ namespace StackExchange.Redis
     /// <summary>
     /// Behaviour markers associated with a given command.
     /// </summary>
+    /*
+     WARNING: the *declaration order* of the members below is load-bearing, and is not the obvious/natural order.
+
+     This enum has duplicate values (the obsolete "slave" aliases, and PreferMaster which is zero like None) and
+     multi-bit values (PreferReplica/DemandReplica occupy a 2-bit region), both of which [Flags] formatting handles
+     badly. Which of two same-valued names ToString() picks depends on where they land in the *sorted* name/value
+     arrays that the runtime builds, and that sort is unstable - so it is a function of declaration order, member
+     count, and runtime. The order here was determined empirically to give sane output on both .NET Framework and
+     modern .NET (see FormatTests.CommandFlagsFormatting for the expectations).
+
+     Consequence: adding or removing members can silently perturb ToString() for *existing* values. If
+     CommandFlagsFormatting starts failing after such a change, juggling the declaration order (in particular the
+     positions of the obsolete PreferSlave/DemandSlave aliases) is the fix, not a change to the values.
+    */
     [Flags]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
     public enum CommandFlags
@@ -20,7 +34,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// From 2.0, this flag is not used.
         /// </summary>
-        [Obsolete("From 2.0, this flag is not used, this will be removed in 3.0.", false)]
+        [Obsolete("From 2.0, this flag is not used, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         HighPriority = 1,
 
@@ -30,36 +44,34 @@ namespace StackExchange.Redis
         /// </summary>
         FireAndForget = 2,
 
+        // note: the two obsolete aliases below are declared *before* their replacements, deliberately; see the
+        // warning above the enum - this is what makes ToString() prefer the "replica" names over the legacy ones
+
+        /// <summary>
+        /// This operation should be performed on the replica if it is available, but will be performed on
+        /// a primary if no replicas are available. Suitable for read operations only.
+        /// </summary>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.2.", error: true)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        PreferSlave = 8,
+
+        /// <summary>
+        /// This operation should only be performed on a replica. Suitable for read operations only.
+        /// </summary>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.2.", error: true)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        DemandSlave = 12,
+
         /// <summary>
         /// This operation should be performed on the primary if it is available, but read operations may
         /// be performed on a replica if no primary is available. This is the default option.
         /// </summary>
         PreferMaster = 0,
 
-#if NET8_0_OR_GREATER
-        /// <summary>
-        /// This operation should be performed on the replica if it is available, but will be performed on
-        /// a primary if no replicas are available. Suitable for read operations only.
-        /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        PreferSlave = 8,
-#endif
-
         /// <summary>
         /// This operation should only be performed on the primary.
         /// </summary>
         DemandMaster = 4,
-
-#if !NET8_0_OR_GREATER
-        /// <summary>
-        /// This operation should be performed on the replica if it is available, but will be performed on
-        /// a primary if no replicas are available. Suitable for read operations only.
-        /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        PreferSlave = 8,
-#endif
 
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
@@ -67,28 +79,10 @@ namespace StackExchange.Redis
         /// </summary>
         PreferReplica = 8, // note: we're using a 2-bit set here, which [Flags] formatting hates; position is doing the best we can for reasonable outcomes here
 
-#if NET8_0_OR_GREATER
-        /// <summary>
-        /// This operation should only be performed on a replica. Suitable for read operations only.
-        /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.0.")]
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        DemandSlave = 12,
-#endif
-
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
         DemandReplica = 12, // note: we're using a 2-bit set here, which [Flags] formatting hates; position is doing the best we can for reasonable outcomes here
-
-#if !NET8_0_OR_GREATER
-        /// <summary>
-        /// This operation should only be performed on a replica. Suitable for read operations only.
-        /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.0.")]
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        DemandSlave = 12,
-#endif
 
         // 16: reserved for additional "demand/prefer" options
 
