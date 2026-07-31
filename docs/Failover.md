@@ -16,7 +16,7 @@
 >
 > The shape will be familiar if you have used the **"multi-DB client"** concept in other Redis client libraries: Jedis'
 > [`MultiDbClient`](https://redis.io/docs/latest/develop/clients/jedis/failover/) and redis-py's
-> [`MultiDBClient`](https://redis.readthedocs.io/en/stable/multi_database.html) (see also Redis' overview of
+> [`MultiDBClient`](https://redis.io/docs/latest/develop/clients/redis-py/failover/) (see also Redis' overview of
 > [client-side geographic failover for Active-Active](https://redis.io/blog/client-side-geographic-failover-for-redis-active-active/)) - a weighted set of
 > endpoints, one active at a time, with health checks, circuit breakers and retries deciding when to move.
 
