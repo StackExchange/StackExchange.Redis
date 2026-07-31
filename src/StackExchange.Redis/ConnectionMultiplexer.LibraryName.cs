@@ -14,6 +14,8 @@ public partial class ConnectionMultiplexer
     /// <inheritdoc cref="IConnectionMultiplexer.AddLibraryNameSuffix(string)" />
     public void AddLibraryNameSuffix(string suffix)
     {
+        if (!RawConfig.SetClientLibrary) return; // disabled
+
         if (string.IsNullOrWhiteSpace(suffix)) return; // trivial
 
         // sanitize and re-check
@@ -28,7 +30,7 @@ public partial class ConnectionMultiplexer
         }
 
         // if we get here, we *actually changed something*; we can retroactively fixup the connections
-        var libName = GetFullLibraryName(); // note this also checks SetClientLibrary
+        var libName = GetFullLibraryName();
         if (string.IsNullOrWhiteSpace(libName) || !CommandMap.IsAvailable(RedisCommand.CLIENT)) return; // disabled on no lib name
 
         // note that during initial handshake we use raw Message; this is low frequency - no
@@ -56,18 +58,9 @@ public partial class ConnectionMultiplexer
 
     internal string GetFullLibraryName()
     {
-        var config = RawConfig;
-        if (!config.SetClientLibrary) return ""; // disabled
-
-        var libName = config.LibraryName;
-        if (string.IsNullOrWhiteSpace(libName))
-        {
-            // defer to provider if missing (note re null vs blank; if caller wants to disable
-            // it, they should set SetClientLibrary to false, not set the name to empty string)
-            libName = config.Defaults.LibraryName;
-        }
-
+        var libName = RawConfig.LibraryName;
         libName = ServerEndPoint.ClientInfoSanitize(libName);
+
         // if no primary name, return nothing, even if suffixes exist
         if (string.IsNullOrWhiteSpace(libName)) return "";
 

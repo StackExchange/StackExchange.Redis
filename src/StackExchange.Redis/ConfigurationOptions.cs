@@ -123,7 +123,9 @@ namespace StackExchange.Redis
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
                 HighIntegrity = "highIntegrity",
-                TcpKeepAlive = "tcpKeepAlive";
+                TcpKeepAlive = "tcpKeepAlive",
+                LibraryName = "libraryName",
+                LibraryVersion = "libraryVersion";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -159,6 +161,8 @@ namespace StackExchange.Redis
                 Protocol,
                 HighIntegrity,
                 TcpKeepAlive,
+                LibraryName,
+                LibraryVersion,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -216,7 +220,7 @@ namespace StackExchange.Redis
 
         private OptionFlags optionFlags;
 
-        private string? tieBreaker, sslHost, configChannel, user, password;
+        private string? tieBreaker, sslHost, configChannel, user, password, libraryName, libraryVersion;
 
         private TimeSpan heartbeatInterval;
 
@@ -375,7 +379,22 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>If the value is null, empty or whitespace, then the value from the options-provider is used;
         /// to disable the library name feature, use <see cref="SetClientLibrary"/> instead.</remarks>
-        public string? LibraryName { get; set; }
+        public string? LibraryName
+        {
+            get => libraryName ?? Defaults.LibraryName;
+            set => libraryName = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the library version to use for CLIENT SETINFO lib-ver calls to Redis during handshake.
+        /// Defaults to the StackExchange.Redis version, but can be overridden by extensions or for other purposes.
+        /// </summary>
+        /// <remarks>To disable the library version feature, use <see cref="SetClientLibrary"/> instead.</remarks>
+        public string? LibraryVersion
+        {
+            get => libraryVersion ?? Defaults.LibraryVersion;
+            set => libraryVersion = value;
+        }
 
         /// <summary>
         /// Automatically encodes and decodes channels.
@@ -975,7 +994,8 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Tunnel = Tunnel,
-            LibraryName = LibraryName,
+            libraryName = libraryName,
+            libraryVersion = libraryVersion,
             _protocol = _protocol,
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
@@ -1073,6 +1093,8 @@ namespace StackExchange.Redis
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
             }
+            Append(sb, OptionKeys.LibraryName, libraryName);
+            Append(sb, OptionKeys.LibraryVersion, libraryVersion);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
 
@@ -1174,7 +1196,8 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             BeforeSocketConnect = null;
             ChannelPrefix = default;
-            LibraryName = null;
+            libraryName = null;
+            libraryVersion = null;
 #pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = null;
 #pragma warning restore CS0618 // Type or member is obsolete

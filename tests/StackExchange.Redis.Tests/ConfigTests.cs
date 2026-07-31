@@ -82,7 +82,8 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "EndPoints",
                 "heartbeatInterval",
                 "keepAlive",
-                "LibraryName",
+                "libraryName",
+                "libraryVersion",
                 "loggerFactory",
                 "optionFlags",
 #if DEBUG

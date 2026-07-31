@@ -1057,7 +1057,7 @@ namespace StackExchange.Redis
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
 
-                    var version = ClientInfoSanitize(Utils.GetLibVersion());
+                    var version = ClientInfoSanitize(config.LibraryVersion);
                     if (!string.IsNullOrWhiteSpace(version))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version.AsRedisValue());
