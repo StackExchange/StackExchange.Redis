@@ -26,7 +26,16 @@ namespace RESPite.Proxy;
 /// ~64 GCHandle pins per 256 KB response), and this uses the default pool. The pinned pool lives in the
 /// SocketSet.AspNetCore package, not referenced here on purpose.
 /// </summary>
-internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions options) : SocketSet(options)
+/// <param name="level2">
+/// false = LEVEL 1: bridge through two Pipes into the existing RunClientAsync(IDuplexPipe) seam. Same
+/// application code as the Kestrel path, deliberately NOT the fast path -- it pays a pipe write, a
+/// ThreadPool hop, a Stream wrapper, a second pipe and a pump task PER REQUEST.
+/// true  = LEVEL 2: frame with RespReader directly off the receive callback on the loop thread; no pipe,
+/// no pump, no hop. See <see cref="SocketSetProxyClient"/>.
+/// The DIFFERENCE between the two is the pipe-bridge tax measured somewhere nobody can blame Kestrel.
+/// </param>
+internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions options, bool level2)
+    : SocketSet(options)
 {
     /// <summary>Per-connection state, reachable from the loop thread via <c>Connection.UserToken</c> —
     /// the same bookkeeping the ASP.NET bridge does, and for the same reason: <c>OnClosed</c> is handed a
@@ -43,6 +52,14 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
 
     protected override void OnAccept(ref AcceptContext ctx)
     {
+        if (level2)
+        {
+            // No pipes, no pump, no UsePipe: the connection stays on the callback path and we frame in
+            // OnReceive. UserToken carries the client so the receive/close callbacks can find it.
+            ctx.Connection.UserToken = proxy.RunClient(ctx.Connection);
+            return;
+        }
+
         // Two pipes, mirroring SocketSetConnection in the ASP.NET bridge:
         //   inbound  — the transport WRITES received bytes,  the proxy READS them
         //   outbound — the proxy WRITES replies,             the transport READS and sends them
@@ -68,7 +85,25 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
     /// </summary>
     protected override void OnClosed(Connection connection)
     {
-        if (connection.UserToken is ClientState s) s.Inbound.Writer.Complete();
+        switch (connection.UserToken)
+        {
+            case ClientState s: s.Inbound.Writer.Complete(); break;
+            case SocketSetProxyClient c: c.Close(); break;
+        }
+    }
+
+    /// <summary>Level 2 only: frame the bytes that just arrived, on this loop thread. Level 1 never gets
+    /// here — its connection is in pipe mode, so the transport drives the pipe instead of this callback.
+    /// </summary>
+    protected override void OnReceive(ref ReceiveContext ctx)
+    {
+        if (ctx.Connection.UserToken is SocketSetProxyClient c && !c.Feed(ctx.Payload))
+        {
+            // The client is torn down (protocol fault or close). Abortive close is right: a faulted RESP
+            // stream has no reply worth preserving, and leaving it open is what made a parse error present
+            // as a client HANG rather than an error.
+            ctx.Connection.Close();
+        }
     }
 
     private async Task RunAsync(IDuplexPipe app, ClientState state)

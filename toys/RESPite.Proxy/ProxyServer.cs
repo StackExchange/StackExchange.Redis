@@ -195,9 +195,27 @@ internal sealed class ProxyServer
             server.RegisterClient(client);
             client.StartReading();
         }
+
+#if SOCKETSET
+        // The third transport entry point, alongside RunClient(Socket) and RunClientAsync(IDuplexPipe).
+        // Level 2: no pipes and no pump -- the caller feeds received bytes straight in from the transport
+        // loop thread. Registration is identical to the SAEA path, so /stats and client-id allocation
+        // behave the same across transports and the legs stay comparable.
+        public SocketSetProxyClient RunClient(SocketSets.Connection conn)
+        {
+            var client = new SocketSetProxyClient(this, conn);
+            server.RegisterClient(client);
+            return client;
+        }
+#endif
     }
 
     public void RunClient(Socket socket) => GetNextLeg().RunClient(socket);
+
+#if SOCKETSET
+    /// <summary>Level-2 entry: hand the transport connection a client that frames on the loop thread.</summary>
+    public SocketSetProxyClient RunClient(SocketSets.Connection conn) => GetNextLeg().RunClient(conn);
+#endif
 }
 
 [AsciiHash("+OK\r\n")]

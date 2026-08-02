@@ -6,15 +6,18 @@ using RESPite.Streams;
 
 // --- transport selection, so the SAME proxy core can be measured on either socket layer -------------
 // usage: resp-proxy [--transport worker|socketset] [--backend io-uring|epoll|managed] [--shards N]
-//                   [--port N] [--upstream-port N] [--upstream-connections N]
+//                   [--port N] [--upstream-port N] [--upstream-connections N] [--l2]
+// --l2 selects the LEVEL-2 client: RESP framing on the transport loop thread, no pipes/pump/hop.
 string transport = "worker", backend = "io-uring";
 int shards = 12, listenPort = 6380, upstreamPort = 6379, upstreamConns = 5;
+bool level2 = false;   // --l2: frame on the loop thread (no pipes, no pump, no hop)
 for (int i = 0; i < args.Length; i++)
 {
     switch (args[i])
     {
         case "--transport" when i + 1 < args.Length: transport = args[++i]; break;
         case "--backend" when i + 1 < args.Length: backend = args[++i]; break;
+        case "--l2": level2 = true; break;
         case "--shards" when i + 1 < args.Length && int.TryParse(args[i + 1], out var s): shards = s; i++; break;
         case "--port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var p): listenPort = p; i++; break;
         case "--upstream-port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var up): upstreamPort = up; i++; break;
@@ -47,14 +50,18 @@ switch (transport)
             "managed" => SocketSets.SocketSetFactory.Managed,
             _ => throw new ArgumentException($"unknown backend '{backend}'"),
         };
-        var ss = new SocketSetProxyServer(proxy, new SocketSets.SocketSetOptions
+        var ssOptions = new SocketSets.SocketSetOptions
         {
             Factory = ssFactory,
             Shards = shards,
-        });
+        };
+        var ss = new SocketSetProxyServer(proxy, ssOptions, level2);
         ss.Listen(new IPEndPoint(IPAddress.Loopback, listenPort));
         listener = ss;
-        Console.WriteLine($"[resp-proxy] transport=socketset/{backend} shards={shards} bridge=pipe " +
+        // The bridge mode is part of the banner because it is the whole experiment: a rig must be able to
+        // tell a level-2 run from a level-1 one without trusting the flag it passed.
+        Console.WriteLine($"[resp-proxy] transport=socketset/{backend} shards={shards} " +
+                          $"bridge={(level2 ? "direct" : "pipe")} " +
                           $"port={listenPort} upstream={upstreamPort} legs={upstreamConns}");
         break;
 #endif
