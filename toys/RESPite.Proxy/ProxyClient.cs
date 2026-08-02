@@ -382,9 +382,18 @@ internal abstract class ProxyClient(ProxyServer.InnerLeg upstream) : RespStream
                     localResponse = CannedResponses.UnknownCommandUsage;
                     break;
                 case KnownCommands.Auth:
-                case KnownCommands.Hello:
-                    // not yet implemented
+                    // not yet implemented (NB: forwarding AUTH would authenticate the SHARED upstream
+                    // leg, so when it is implemented it must be per-client, like SELECT)
                     command = KnownCommands.Unknown;
+                    break;
+                case KnownCommands.Hello:
+                    // Always LOCAL, never forwarded: HELLO on a shared multiplexed leg would flip the
+                    // protocol for every client on it. -NOPROTO is the protocol-correct refusal (it is
+                    // what Envoy 1.39 and RESP2-era Redis say), and clients treat any HELLO error as
+                    // "RESP2 server" and downgrade gracefully — so this is the COMPATIBLE answer, not
+                    // just the strict one. Per-client RESP3 (answer HELLO 3 locally, translate on the
+                    // shared leg) is the unbuilt differentiator; see TODO.
+                    localResponse = CannedResponses.NoProto;
                     break;
 #pragma warning disable CS0618
                 case KnownCommands.Ping when reader.TryReadNext():
@@ -567,6 +576,7 @@ internal abstract class ProxyClient(ProxyServer.InnerLeg upstream) : RespStream
     private static class CannedResponses
     {
         public static readonly ReadOnlyMemory<byte> OK = "+OK\r\n"u8.ToArray();
+        public static readonly ReadOnlyMemory<byte> NoProto = "-NOPROTO unsupported protocol version\r\n"u8.ToArray();
         public static readonly ReadOnlyMemory<byte> Pong = "+PONG\r\n"u8.ToArray();
         public static readonly ReadOnlyMemory<byte> InvalidDatabase = "-ERR invalid database\r\n"u8.ToArray();
         public static readonly ReadOnlyMemory<byte> InvalidRequest = "-ERR invalid request\r\n"u8.ToArray();
