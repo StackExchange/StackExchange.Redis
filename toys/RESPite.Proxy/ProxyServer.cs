@@ -21,7 +21,7 @@ internal sealed class ProxyServer
     private readonly InnerLeg[] _inner;
     private int _roundRobin = -1;
 
-    public ProxyServer(ProxyServerOptions options, WorkerPool pool, IHostApplicationLifetime? applicationLifetime)
+    public ProxyServer(ProxyServerOptions options, WorkerPool pool, IHostApplicationLifetime? applicationLifetime, bool deferUpstream = false)
     {
         _options = options;
         _pool = pool;
@@ -29,6 +29,15 @@ internal sealed class ProxyServer
 
         var count = Math.Max(1, options.UpstreamConnectionCount);
         _inner = new InnerLeg[count];
+        if (deferUpstream)
+        {
+            // The upstream legs will be INSTALLED later (InstallLeg) by a transport that has to exist
+            // first -- SocketSet upstream connections need the SocketSet instance, which needs this
+            // ProxyServer, so eager construction here would be circular. The caller MUST install all
+            // legs before accepting clients: GetNextLeg does not tolerate holes.
+            return;
+        }
+
         for (int i = 0; i < count; i++)
         {
             var stream = Connect();
@@ -37,6 +46,12 @@ internal sealed class ProxyServer
             _inner[i] = leg;
         }
     }
+
+    internal int UpstreamLegCount => _inner.Length;
+
+    internal InnerLeg CreateLeg(Stream tail) => new(this, tail);
+
+    internal void InstallLeg(int index, InnerLeg leg) => _inner[index] = leg;
 
     // establishes an upstream connection to the backing server; the resulting stream routes its
     // socket completions through the worker pool.
@@ -195,6 +210,32 @@ internal sealed class ProxyServer
             server.RegisterClient(client);
             client.StartReading();
         }
+
+#if SOCKETSET
+        // Push-feed surface for a SocketSet upstream connection: replies are framed from the transport
+        // loop thread via the same GetReceiveBuffer/OnAfterReceive seam the level-2 CLIENT uses, instead
+        // of a parked reader thread being pulsed per completion. This removes the park/pulse hop chain on
+        // the reply path, which the PING-vs-GET discriminator located as where the residual Envoy gap
+        // lives (our upstream adds +96us/request against Envoy's +56us).
+        public void InitTransportRead() => InitRead();
+
+        public bool Feed(ReadOnlySpan<byte> data)
+        {
+            while (!data.IsEmpty)
+            {
+                var dest = GetReceiveBuffer();
+                if (dest.IsEmpty) return false;
+                int take = Math.Min(dest.Length, data.Length);
+                data.Slice(0, take).CopyTo(dest.Span);
+                if (!OnAfterReceive(take, inline: true)) return false;
+                data = data.Slice(take);
+            }
+            return true;
+        }
+
+        public void CloseFromTransport(Exception? fault = null)
+            => OnReceiveCleanup(fault is null ? SocketError.Success : SocketError.Fault, fault);
+#endif
 
 #if SOCKETSET
         // The third transport entry point, alongside RunClient(Socket) and RunClientAsync(IDuplexPipe).

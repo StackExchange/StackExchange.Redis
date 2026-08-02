@@ -1,5 +1,6 @@
 #if SOCKETSET
 using System.IO.Pipelines;
+using System.Net;
 using SocketSets;
 
 namespace RESPite.Proxy;
@@ -50,6 +51,43 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
         public bool ClaimTeardown() => Interlocked.Exchange(ref _tornDown, 1) == 0;
     }
 
+    private sealed class LegSlot(int index)
+    {
+        public int Index { get; } = index;
+    }
+
+    private CountdownEvent? _legGate;
+
+    /// <summary>
+    /// Establish the upstream legs as SOCKETSET OUTBOUND connections, replacing the
+    /// <see cref="WorkerNetworkStream"/> + blocking-reader-thread model. Replies are then framed on a
+    /// transport loop thread (no park/pulse chain), and outbound pages go through
+    /// <see cref="ConnectionStream"/> → <c>Connection.Send</c>. Blocks until every leg is connected,
+    /// because <c>GetNextLeg</c> does not tolerate holes — call BEFORE <c>Listen</c>.
+    /// </summary>
+    public void ConnectUpstream(EndPoint upstream, TimeSpan timeout)
+    {
+        int count = proxy.UpstreamLegCount;
+        _legGate = new CountdownEvent(count);
+        for (int i = 0; i < count; i++) Connect(upstream, new LegSlot(i));
+        if (!_legGate.Wait(timeout))
+            throw new TimeoutException($"only {count - _legGate.CurrentCount}/{count} upstream legs connected within {timeout}");
+    }
+
+    protected override void OnConnect(ref ConnectContext ctx)
+    {
+        if (ctx.Connection.UserToken is LegSlot slot)
+        {
+            var leg = proxy.CreateLeg(new ConnectionStream(ctx.Connection));
+            leg.InitTransportRead();
+            // Swap the token BEFORE signalling: OnReceive routes on it, and upstream bytes can arrive the
+            // moment the first command is forwarded.
+            ctx.Connection.UserToken = leg;
+            proxy.InstallLeg(slot.Index, leg);
+            _legGate?.Signal();
+        }
+    }
+
     protected override void OnAccept(ref AcceptContext ctx)
     {
         if (level2)
@@ -89,6 +127,9 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
         {
             case ClientState s: s.Inbound.Writer.Complete(); break;
             case SocketSetProxyClient c: c.Close(); break;
+            // An upstream leg died. Per the design note on RunClientAsync, losing ~1/N of clients is
+            // accepted; the leg cleanup fails its in-flight owners. It is NOT re-established (spike).
+            case ProxyServer.InnerLeg leg: leg.CloseFromTransport(); break;
         }
     }
 
@@ -97,6 +138,11 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
     /// </summary>
     protected override void OnReceive(ref ReceiveContext ctx)
     {
+        if (ctx.Connection.UserToken is ProxyServer.InnerLeg leg)
+        {
+            if (!leg.Feed(ctx.Payload)) ctx.Connection.Close();
+            return;
+        }
         if (ctx.Connection.UserToken is SocketSetProxyClient c && !c.Feed(ctx.Payload))
         {
             // The client is torn down (protocol fault or close). Abortive close is right: a faulted RESP
