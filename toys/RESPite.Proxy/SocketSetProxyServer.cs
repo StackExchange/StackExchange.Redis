@@ -38,6 +38,42 @@ namespace RESPite.Proxy;
 internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions options, bool level2)
     : SocketSet(options)
 {
+    /// <summary>Something that staged output during the current receive callback and wants one flush at
+    /// the END of it, instead of a flush per frame.</summary>
+    internal interface IDeferredFlush
+    {
+        void FlushDeferred();
+    }
+
+    // CALLBACK-GRANULARITY FLUSHING. At -P 16 a single receive callback frames up to 16 commands, and a
+    // per-frame stage+flush turns that into 16 sends on the loop thread -- measured as the level-2/3
+    // collapse at depth (L3 1.12M vs L1 2.46M GET) while level 1's pumps coalesce. So while a callback is
+    // running on THIS thread, writers stage and register here, and the callback flushes each registrant
+    // once on the way out -- the same event-loop-iteration batching Envoy does. Thread-static is correct
+    // because deferral is only ever claimed and drained by the loop thread the callback runs on; any
+    // OTHER thread (a worker-upstream reply, for instance) sees Deferring==false and sends immediately,
+    // exactly as before.
+    [ThreadStatic]
+    private static List<IDeferredFlush>? t_pending;
+    [ThreadStatic]
+    private static bool t_deferring;
+
+    internal static bool Deferring => t_deferring;
+
+    internal static void RegisterDeferred(IDeferredFlush target)
+    {
+        var list = t_pending ??= new List<IDeferredFlush>(8);
+        // O(n) contains on a tiny list beats allocating a set; a callback touches a handful of targets.
+        if (!list.Contains(target)) list.Add(target);
+    }
+
+    private static void DrainDeferred()
+    {
+        var list = t_pending;
+        if (list is null || list.Count == 0) return;
+        foreach (var target in list) target.FlushDeferred();
+        list.Clear();
+    }
     /// <summary>Per-connection state, reachable from the loop thread via <c>Connection.UserToken</c> —
     /// the same bookkeeping the ASP.NET bridge does, and for the same reason: <c>OnClosed</c> is handed a
     /// bare <see cref="Connection"/> and has to find the pipes belonging to it.</summary>
@@ -154,17 +190,29 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
     /// </summary>
     protected override void OnReceive(ref ReceiveContext ctx)
     {
-        if (ctx.Connection.UserToken is ProxyServer.InnerLeg leg)
+        // Everything staged during this callback -- replies from commands framed here, and the upstream
+        // leg's forwarded requests -- is flushed ONCE on the way out. The finally matters: a torn-down
+        // client mid-callback must not strand earlier clients' staged bytes.
+        t_deferring = true;
+        try
         {
-            if (!leg.Feed(ctx.Payload)) ctx.Connection.Close();
-            return;
+            if (ctx.Connection.UserToken is ProxyServer.InnerLeg leg)
+            {
+                if (!leg.Feed(ctx.Payload)) ctx.Connection.Close();
+                return;
+            }
+            if (ctx.Connection.UserToken is SocketSetProxyClient c && !c.Feed(ctx.Payload))
+            {
+                // The client is torn down (protocol fault or close). Abortive close is right: a faulted
+                // RESP stream has no reply worth preserving, and leaving it open is what made a parse
+                // error present as a client HANG rather than an error.
+                ctx.Connection.Close();
+            }
         }
-        if (ctx.Connection.UserToken is SocketSetProxyClient c && !c.Feed(ctx.Payload))
+        finally
         {
-            // The client is torn down (protocol fault or close). Abortive close is right: a faulted RESP
-            // stream has no reply worth preserving, and leaving it open is what made a parse error present
-            // as a client HANG rather than an error.
-            ctx.Connection.Close();
+            t_deferring = false;
+            DrainDeferred();
         }
     }
 

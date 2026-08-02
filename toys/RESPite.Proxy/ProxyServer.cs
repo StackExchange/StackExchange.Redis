@@ -124,7 +124,11 @@ internal sealed class ProxyServer
     }
     private ulong _opCountFromDeadConnections;
 
+#if SOCKETSET
+    internal sealed class InnerLeg(ProxyServer server, Stream tail) : RespStream, SocketSetProxyServer.IDeferredFlush
+#else
     internal sealed class InnerLeg(ProxyServer server, Stream tail) : RespStream
+#endif
     {
         private readonly BufferedStreamWriter _outBuffer =
             BufferedStreamWriter.Create(true, tail, server.Options.BufferPool);
@@ -178,9 +182,31 @@ internal sealed class ProxyServer
 
                 _inFlightOwners.Enqueue(client.Id);
                 _outBuffer.Write(frame);
+#if SOCKETSET
+                // Inside a receive callback on a loop thread, defer the flush to callback end: a -P 16
+                // chunk forwards up to 16 commands, and per-command flushing is 16 upstream drains where
+                // one would do. Off-callback callers keep the immediate flush below, unchanged.
+                if (SocketSetProxyServer.Deferring)
+                {
+                    SocketSetProxyServer.RegisterDeferred(this);
+                    return;
+                }
+#endif
                 _outBuffer.Flush();
             }
         }
+
+#if SOCKETSET
+        void SocketSetProxyServer.IDeferredFlush.FlushDeferred()
+        {
+            // Same lock the per-command path flushes under, so the drain cannot interleave with a
+            // concurrent staging writer mid-frame.
+            lock (_inFlightOwners)
+            {
+                _outBuffer.Flush();
+            }
+        }
+#endif
 
         private void WriteSelectInsideLock(int db)
         {

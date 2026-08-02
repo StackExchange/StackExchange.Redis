@@ -31,7 +31,7 @@ namespace RESPite.Proxy;
 /// spanning reads, the CycleBuffer carry-over and OnReadFrame dispatch are all reused unchanged. This
 /// class is a transport adapter, not a new parser.
 /// </summary>
-internal sealed class SocketSetProxyClient : ProxyClient
+internal sealed class SocketSetProxyClient : ProxyClient, SocketSetProxyServer.IDeferredFlush
 {
     private readonly Connection _conn;
 
@@ -79,7 +79,34 @@ internal sealed class SocketSetProxyClient : ProxyClient
     protected override void SendRawSynchronized(ReadOnlySpan<byte> frame)
     {
         DebugAssertLock();
-        _conn.Send(frame);
+        if (SocketSetProxyServer.Deferring)
+        {
+            // Inside a receive callback on this loop thread: STAGE only, and flush once at callback end
+            // (see the server's DrainDeferred). At -P 16 this is the difference between 16 sends per
+            // callback and one. Staging under the client write lock keeps frame order against any
+            // off-thread writer, whose immediate Send (below) flushes everything staged so far -- order
+            // is preserved either way because both paths hold this lock.
+            Stage(frame);
+            SocketSetProxyServer.RegisterDeferred(this);
+        }
+        else
+        {
+            _conn.Send(frame);
+        }
     }
+
+    private void Stage(ReadOnlySpan<byte> frame)
+    {
+        while (!frame.IsEmpty)
+        {
+            var span = _conn.GetSpan(frame.Length);
+            int take = Math.Min(span.Length, frame.Length);
+            frame.Slice(0, take).CopyTo(span);
+            _conn.Advance(take);
+            frame = frame.Slice(take);
+        }
+    }
+
+    void SocketSetProxyServer.IDeferredFlush.FlushDeferred() => _conn.Flush();
 }
 #endif
