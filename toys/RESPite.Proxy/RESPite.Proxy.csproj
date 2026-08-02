@@ -17,4 +17,24 @@
     <ProjectReference Include="../../src/RESPite/RESPite.csproj"/>
   </ItemGroup>
 
+  <!--
+    SocketSet (io_uring / epoll / IOCP / RIO / managed) as an alternative transport, for A/B against the
+    hand-rolled WorkerPool path. net10.0 only: SocketSet does not target net8.0.
+
+    SIBLING-CHECKOUT ASSUMPTION, stated rather than implied: this expects SocketSet cloned next to this
+    repo (../../../SocketSet). It is a spike reference, not something to publish — if this graduates,
+    SocketSet becomes a real PackageReference. The Exists() guard means the net8.0 build, and any machine
+    without that checkout, still builds cleanly with SOCKETSET undefined and the transport unavailable —
+    rather than failing with a missing-project error that looks like a broken repo.
+  -->
+  <PropertyGroup>
+    <_HasSocketSet Condition="'$(TargetFramework)' == 'net10.0' AND Exists('$(MSBuildThisFileDirectory)../../../SocketSet/src/SocketSet/SocketSet.csproj')">true</_HasSocketSet>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(_HasSocketSet)' == 'true'">
+    <ProjectReference Include="../../../SocketSet/src/SocketSet/SocketSet.csproj"/>
+  </ItemGroup>
+  <PropertyGroup Condition="'$(_HasSocketSet)' == 'true'">
+    <DefineConstants>$(DefineConstants);SOCKETSET</DefineConstants>
+  </PropertyGroup>
+
 </Project>

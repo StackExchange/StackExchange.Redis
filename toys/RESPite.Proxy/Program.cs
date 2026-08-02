@@ -4,16 +4,74 @@ using System.Net.Sockets;
 using RESPite.Proxy;
 using RESPite.Streams;
 
+// --- transport selection, so the SAME proxy core can be measured on either socket layer -------------
+// usage: resp-proxy [--transport worker|socketset] [--backend io-uring|epoll|managed] [--shards N]
+//                   [--port N] [--upstream-port N] [--upstream-connections N]
+string transport = "worker", backend = "io-uring";
+int shards = 12, listenPort = 6380, upstreamPort = 6379, upstreamConns = 5;
+for (int i = 0; i < args.Length; i++)
+{
+    switch (args[i])
+    {
+        case "--transport" when i + 1 < args.Length: transport = args[++i]; break;
+        case "--backend" when i + 1 < args.Length: backend = args[++i]; break;
+        case "--shards" when i + 1 < args.Length && int.TryParse(args[i + 1], out var s): shards = s; i++; break;
+        case "--port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var p): listenPort = p; i++; break;
+        case "--upstream-port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var up): upstreamPort = up; i++; break;
+        case "--upstream-connections" when i + 1 < args.Length && int.TryParse(args[i + 1], out var uc): upstreamConns = uc; i++; break;
+        default: Console.Error.WriteLine($"unknown argument: {args[i]}"); return 1;
+    }
+}
+
 var proxyOptions = new ProxyServerOptions
 {
     Password = "letmein",
-    UpstreamConnectionCount = 5,
+    UpstreamConnectionCount = upstreamConns,
+    ServerEndpoint = new IPEndPoint(IPAddress.Loopback, upstreamPort),
 };
 using var pool = new WorkerPool(workers: 0); // use CPU count
-pool.AddDebugLog(Console.WriteLine);
 var proxy = new ProxyServer(proxyOptions, pool, applicationLifetime: null);
-using var socket = new ProxySocketServer(proxy, pool);
-socket.Start(new IPEndPoint(IPAddress.Loopback, 6380));
+
+// TRUST THE BANNER, NOT THE FLAG. A rig that gates on the flag it passed cannot tell a transport that
+// took from one that silently fell back — and a fallback measures as a perfectly plausible result. This
+// line is what a benchmark harness should read before scoring anything.
+IDisposable listener;
+switch (transport)
+{
+#if SOCKETSET
+    case "socketset":
+        var ssFactory = backend switch
+        {
+            "io-uring" => SocketSets.SocketSetFactory.IoUring,
+            "epoll" => SocketSets.SocketSetFactory.Epoll,
+            "managed" => SocketSets.SocketSetFactory.Managed,
+            _ => throw new ArgumentException($"unknown backend '{backend}'"),
+        };
+        var ss = new SocketSetProxyServer(proxy, new SocketSets.SocketSetOptions
+        {
+            Factory = ssFactory,
+            Shards = shards,
+        });
+        ss.Listen(new IPEndPoint(IPAddress.Loopback, listenPort));
+        listener = ss;
+        Console.WriteLine($"[resp-proxy] transport=socketset/{backend} shards={shards} bridge=pipe " +
+                          $"port={listenPort} upstream={upstreamPort} legs={upstreamConns}");
+        break;
+#endif
+    case "worker":
+        pool.AddDebugLog(Console.WriteLine);
+        var ws = new ProxySocketServer(proxy, pool);
+        ws.Start(new IPEndPoint(IPAddress.Loopback, listenPort));
+        listener = ws;
+        Console.WriteLine($"[resp-proxy] transport=worker-saea port={listenPort} " +
+                          $"upstream={upstreamPort} legs={upstreamConns}");
+        break;
+    default:
+        Console.Error.WriteLine($"unknown/unavailable transport '{transport}' " +
+                                "(was the SocketSet sibling checkout present at build time?)");
+        return 1;
+}
+using var _listener = listener;
 
 ulong lastOpCount = 0;
 int lastActiveClients = 0;
