@@ -57,6 +57,7 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
     }
 
     private CountdownEvent? _legGate;
+    private bool _affine;
 
     /// <summary>
     /// Establish the upstream legs as SOCKETSET OUTBOUND connections, replacing the
@@ -65,11 +66,19 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
     /// <see cref="ConnectionStream"/> → <c>Connection.Send</c>. Blocks until every leg is connected,
     /// because <c>GetNextLeg</c> does not tolerate holes — call BEFORE <c>Listen</c>.
     /// </summary>
-    public void ConnectUpstream(EndPoint upstream, TimeSpan timeout)
+    public void ConnectUpstream(EndPoint upstream, TimeSpan timeout, bool affine = false)
     {
         int count = proxy.UpstreamLegCount;
+        _affine = affine;
         _legGate = new CountdownEvent(count);
-        for (int i = 0; i < count; i++) Connect(upstream, new LegSlot(i));
+        for (int i = 0; i < count; i++)
+        {
+            // Affine: leg i is PLACED ON SHARD i (the caller sized the leg array to the shard count), so
+            // OnAccept can route each client to the leg sharing its loop thread — the Envoy shape: forward
+            // and reply both stay on one thread. Non-affine: ordinary placement, legs land wherever.
+            if (affine) ConnectShard(i, upstream, new LegSlot(i));
+            else Connect(upstream, new LegSlot(i));
+        }
         if (!_legGate.Wait(timeout))
             throw new TimeoutException($"only {count - _legGate.CurrentCount}/{count} upstream legs connected within {timeout}");
     }
@@ -94,7 +103,14 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
         {
             // No pipes, no pump, no UsePipe: the connection stays on the callback path and we frame in
             // OnReceive. UserToken carries the client so the receive/close callbacks can find it.
-            ctx.Connection.UserToken = proxy.RunClient(ctx.Connection);
+            // Affine mode: OnAccept runs ON the owning shard's loop thread for the loop-driven backends,
+            // so CurrentShardIndex names the shard this client lives on — route it to the leg on the SAME
+            // shard. -1 means "no affinity available here" (callback-driven backend); fall back rather
+            // than fail, but that path is round-robin and loses the whole point, so the banner says which.
+            int shardIdx;
+            ctx.Connection.UserToken = _affine && (shardIdx = SocketSetShard.CurrentShardIndex) >= 0
+                ? proxy.RunClient(ctx.Connection, shardIdx)
+                : proxy.RunClient(ctx.Connection);
             return;
         }
 

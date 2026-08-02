@@ -53,6 +53,8 @@ internal sealed class ProxyServer
 
     internal void InstallLeg(int index, InnerLeg leg) => _inner[index] = leg;
 
+    internal InnerLeg GetLeg(int index) => _inner[index];
+
     // establishes an upstream connection to the backing server; the resulting stream routes its
     // socket completions through the worker pool.
     private Stream Connect()
@@ -256,6 +258,10 @@ internal sealed class ProxyServer
 #if SOCKETSET
     /// <summary>Level-2 entry: hand the transport connection a client that frames on the loop thread.</summary>
     public SocketSetProxyClient RunClient(SocketSets.Connection conn) => GetNextLeg().RunClient(conn);
+
+    /// <summary>Shard-AFFINE level-2 entry: the caller (on a loop thread) picked the leg living on its
+    /// own shard, so forward and reply for this client never cross threads.</summary>
+    public SocketSetProxyClient RunClient(SocketSets.Connection conn, int legIndex) => GetLeg(legIndex).RunClient(conn);
 #endif
 }
 

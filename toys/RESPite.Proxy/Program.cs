@@ -12,6 +12,7 @@ string transport = "worker", backend = "io-uring";
 int shards = 12, listenPort = 6380, upstreamPort = 6379, upstreamConns = 5;
 bool level2 = false;   // --l2: frame on the loop thread (no pipes, no pump, no hop)
 bool ssUpstream = false; // --ss-upstream: upstream legs as SocketSet outbound connections (no parked reader)
+bool affinity = false;   // --affinity: one upstream leg PER SHARD, clients routed to their own shard's leg
 for (int i = 0; i < args.Length; i++)
 {
     switch (args[i])
@@ -20,6 +21,7 @@ for (int i = 0; i < args.Length; i++)
         case "--backend" when i + 1 < args.Length: backend = args[++i]; break;
         case "--l2": level2 = true; break;
         case "--ss-upstream": ssUpstream = true; break;
+        case "--affinity": ssUpstream = true; affinity = true; break;
         case "--shards" when i + 1 < args.Length && int.TryParse(args[i + 1], out var s): shards = s; i++; break;
         case "--port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var p): listenPort = p; i++; break;
         case "--upstream-port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var up): upstreamPort = up; i++; break;
@@ -27,6 +29,10 @@ for (int i = 0; i < args.Length; i++)
         default: Console.Error.WriteLine($"unknown argument: {args[i]}"); return 1;
     }
 }
+
+// Affinity means exactly one leg per shard, by construction — an explicit --upstream-connections would
+// either be redundant or wrong, so it is overridden rather than reconciled.
+if (affinity) upstreamConns = shards;
 
 var proxyOptions = new ProxyServerOptions
 {
@@ -60,14 +66,14 @@ switch (transport)
         };
         var ss = new SocketSetProxyServer(proxy, ssOptions, level2);
         // Legs BEFORE Listen: GetNextLeg does not tolerate holes, and a client could arrive immediately.
-        if (ssUpstream) ss.ConnectUpstream(new IPEndPoint(IPAddress.Loopback, upstreamPort), TimeSpan.FromSeconds(10));
+        if (ssUpstream) ss.ConnectUpstream(new IPEndPoint(IPAddress.Loopback, upstreamPort), TimeSpan.FromSeconds(10), affinity);
         ss.Listen(new IPEndPoint(IPAddress.Loopback, listenPort));
         listener = ss;
         // The bridge mode is part of the banner because it is the whole experiment: a rig must be able to
         // tell a level-2 run from a level-1 one without trusting the flag it passed.
         Console.WriteLine($"[resp-proxy] transport=socketset/{backend} shards={shards} " +
                           $"bridge={(level2 ? "direct" : "pipe")} " +
-                          $"upstream={(ssUpstream ? "socketset" : "worker-stream")} " +
+                          $"upstream={(affinity ? "socketset-affine" : ssUpstream ? "socketset" : "worker-stream")} " +
                           $"port={listenPort} upstream-port={upstreamPort} legs={upstreamConns}");
         break;
 #endif
