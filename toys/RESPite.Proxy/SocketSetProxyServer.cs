@@ -1,6 +1,5 @@
 #if SOCKETSET
 using System.IO.Pipelines;
-using System.Net;
 using SocketSets;
 
 namespace RESPite.Proxy;
@@ -18,20 +17,30 @@ namespace RESPite.Proxy;
 /// It is deliberately NOT the fast path. Bridging through two <see cref="Pipe"/>s is exactly the shape
 /// that costs 24-40% in the ASP.NET bridge (SocketSet's AspNetDemo/RESULTS.md), and the whole argument for
 /// hosting a proxy on this transport is that we own the flow end to end and can therefore frame ON the
-/// loop thread with no pipe and no hop. That is the LEVEL-2 client, and it is not this file.
-///
-/// So the intended use is to measure BOTH: level 1 gives the honest "same seam, different transport"
-/// comparison, and level 2 minus level 1 is the pipe-bridge tax measured somewhere nobody can blame
-/// Kestrel for it. Do not quote level 1 as what this transport can do.
+/// loop thread with no pipe and no hop (RespReader inline in OnReceive). That is the LEVEL-2 client, and
+/// it is not this file. Measuring both is the point: level2 - level1 is the pipe-bridge tax measured
+/// somewhere nobody can blame Kestrel for it.
 ///
 /// KNOWN GAP vs the ASP.NET bridge, stated because it is worth a few percent and would otherwise look
 /// like a transport result: that bridge defaults to a PINNED pipe pool (a measured win — unpinned cost
-/// ~64 GCHandle pins per 256 KB response), and this uses <see cref="MemoryPool{T}.Shared"/>. The pinned
-/// pool lives in the SocketSet.AspNetCore package, which is not referenced here on purpose (it would drag
-/// in ASP.NET for a proxy that does not use it). Revisit before quoting any number.
+/// ~64 GCHandle pins per 256 KB response), and this uses the default pool. The pinned pool lives in the
+/// SocketSet.AspNetCore package, not referenced here on purpose.
 /// </summary>
 internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions options) : SocketSet(options)
 {
+    /// <summary>Per-connection state, reachable from the loop thread via <c>Connection.UserToken</c> —
+    /// the same bookkeeping the ASP.NET bridge does, and for the same reason: <c>OnClosed</c> is handed a
+    /// bare <see cref="Connection"/> and has to find the pipes belonging to it.</summary>
+    private sealed class ClientState(Pipe inbound, Pipe outbound, Connection conn)
+    {
+        public Pipe Inbound { get; } = inbound;
+        public Pipe Outbound { get; } = outbound;
+        public Connection Conn { get; } = conn;
+
+        private int _tornDown;
+        public bool ClaimTeardown() => Interlocked.Exchange(ref _tornDown, 1) == 0;
+    }
+
     protected override void OnAccept(ref AcceptContext ctx)
     {
         // Two pipes, mirroring SocketSetConnection in the ASP.NET bridge:
@@ -39,30 +48,64 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
         //   outbound — the proxy WRITES replies,             the transport READS and sends them
         var inbound = new Pipe();
         var outbound = new Pipe();
+        var state = new ClientState(inbound, outbound, ctx.Connection);
+        ctx.Connection.UserToken = state;
 
-        // The TRANSPORT side: we hand the transport the ends IT drives. Getting these two the wrong way
-        // round deadlocks silently rather than failing, so they are named rather than positional.
+        // The TRANSPORT side: the ends the transport itself drives. Getting these the wrong way round
+        // deadlocks silently rather than failing, so they are passed by name.
         ctx.UsePipe(new DuplexPipe(input: outbound.Reader, output: inbound.Writer));
 
-        // The APPLICATION side, which is what RunClientAsync expects (it writes to .Output and reads from
+        // The APPLICATION side, which is what RunClientAsync expects (writes to .Output, reads from
         // .Input) — the same view Kestrel hands ProxyHandler.
-        var app = new DuplexPipe(input: inbound.Reader, output: outbound.Writer);
-
-        // Fire and forget: ProxyClient owns its own lifetime and teardown (RecordConnectionFailed is
-        // idempotent). We still observe the task, because an unobserved faulted Task here would surface
-        // as a process-level UnobservedTaskException far from the cause.
-        _ = RunAsync(app);
+        _ = RunAsync(new DuplexPipe(input: inbound.Reader, output: outbound.Writer), state);
     }
 
-    private async Task RunAsync(IDuplexPipe app)
+    /// <summary>
+    /// The peer went away. THIS IS NOT OPTIONAL: <c>PipeIoBridge</c> does NOT complete the pipe for you —
+    /// the ASP.NET bridge completes its inbound writer explicitly in its own <c>OnClosed</c>, and without
+    /// the equivalent here the proxy's read loop never terminates, so every disconnected client leaks a
+    /// task and two pipes. A keep-alive benchmark would never surface it; connection churn would.
+    /// </summary>
+    protected override void OnClosed(Connection connection)
+    {
+        if (connection.UserToken is ClientState s) s.Inbound.Writer.Complete();
+    }
+
+    private async Task RunAsync(IDuplexPipe app, ClientState state)
     {
         try
         {
             await proxy.RunClientAsync(app).ConfigureAwait(false);
+            Teardown(state, fault: null);
         }
         catch (Exception ex)
         {
+            // A protocol fault (e.g. an INLINE command, which RespReader does not accept — it rejects the
+            // 'P' of a literal "PING\r\n") lands here. Before this teardown existed, the socket was simply
+            // LEFT OPEN: the client waited forever for a reply, so a parse error presented as a client
+            // HANG rather than an error, and every faulted connection leaked. Fail loudly and close.
             Console.Error.WriteLine($"[socketset-proxy] client faulted: {ex.GetType().Name}: {ex.Message}");
+            Teardown(state, fault: ex);
+        }
+    }
+
+    private static void Teardown(ClientState state, Exception? fault)
+    {
+        if (!state.ClaimTeardown()) return;
+
+        // Complete the ends WE own: the proxy is finished reading, and finished producing replies.
+        // Completing the outbound writer is what lets the transport's pump drain and finish.
+        try { state.Outbound.Writer.Complete(fault); } catch { }
+        try { state.Inbound.Reader.Complete(fault); } catch { }
+
+        if (fault is not null)
+        {
+            // Abortive close is CORRECT here and only here. SocketSet's Close() cancels queued sends, so
+            // calling it on a NORMAL exit can discard a reply that has not gone out yet — which is why the
+            // ASP.NET bridge deliberately does not Close() on its pump's normal path and only does so from
+            // Abort(). A protocol fault has no reply worth preserving.
+            try { state.Inbound.Writer.Complete(fault); } catch { }
+            try { state.Conn.Close(); } catch { }
         }
     }
 
