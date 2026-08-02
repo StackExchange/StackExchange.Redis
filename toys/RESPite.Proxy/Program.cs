@@ -13,6 +13,8 @@ int shards = 12, listenPort = 6380, upstreamPort = 6379, upstreamConns = 5;
 bool level2 = false;   // --l2: frame on the loop thread (no pipes, no pump, no hop)
 bool ssUpstream = false; // --ss-upstream: upstream legs as SocketSet outbound connections (no parked reader)
 bool affinity = false;   // --affinity: one upstream leg PER SHARD, clients routed to their own shard's leg
+bool pin = true;         // --no-pin: let loop threads migrate (tail experiment: a pinned shard stuck behind
+                         // its SMT sibling has nowhere to go; an unpinned one can move)
 for (int i = 0; i < args.Length; i++)
 {
     switch (args[i])
@@ -22,6 +24,7 @@ for (int i = 0; i < args.Length; i++)
         case "--l2": level2 = true; break;
         case "--ss-upstream": ssUpstream = true; break;
         case "--affinity": ssUpstream = true; affinity = true; break;
+        case "--no-pin": pin = false; break;
         case "--shards" when i + 1 < args.Length && int.TryParse(args[i + 1], out var s): shards = s; i++; break;
         case "--port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var p): listenPort = p; i++; break;
         case "--upstream-port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var up): upstreamPort = up; i++; break;
@@ -63,6 +66,7 @@ switch (transport)
         {
             Factory = ssFactory,
             Shards = shards,
+            PinWorkerThreads = pin,
         };
         var ss = new SocketSetProxyServer(proxy, ssOptions, level2);
         // Legs BEFORE Listen: GetNextLeg does not tolerate holes, and a client could arrive immediately.
@@ -74,6 +78,7 @@ switch (transport)
         Console.WriteLine($"[resp-proxy] transport=socketset/{backend} shards={shards} " +
                           $"bridge={(level2 ? "direct" : "pipe")} " +
                           $"upstream={(affinity ? "socketset-affine" : ssUpstream ? "socketset" : "worker-stream")} " +
+                          $"pin={(pin ? 1 : 0)} " +
                           $"port={listenPort} upstream-port={upstreamPort} legs={upstreamConns}");
         break;
 #endif
