@@ -745,6 +745,170 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Equal(1, server.ExecOpsReceived);
     }
 
+    // ---- the synchronous ITransaction surface --------------------------------------------------------
+    // A transaction built from a retrying database is an ITransaction, not just an ITransactionAsync, so code
+    // written against the long-standing interface - including its *synchronous* Execute - can move onto a
+    // retrying database unchanged. The static type of CreateTransaction is still ITransactionAsync (that is
+    // what IDatabaseAsync declares), so a down-level caller reaches it with a cast.
+    [Fact]
+    public async Task WithRetry_Transaction_IsAnITransaction()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:sync";
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        ITransaction tran = Assert.IsAssignableFrom<ITransaction>(db.WithRetry(policy).CreateTransaction());
+
+        var set = tran.StringSetAsync(key, "committed");
+        var get = tran.StringGetAsync(key);
+
+        Assert.True(tran.Execute()); // sync-over-async; note this binds to ITransaction's bool overload
+
+        Assert.True(await set); // the durable proxies resolve exactly as on the async path
+        Assert.Equal("committed", await get);
+        Assert.Equal("committed", await db.StringGetAsync(key));
+        Assert.Equal(1, server.ExecOpsReceived);
+    }
+
+    // The point of the exercise: retries (and therefore the delays between them) happen *inside* the blocking
+    // Execute, so a down-level caller gets the retry behaviour without touching their code.
+    [Fact]
+    public async Task WithRetry_Transaction_SyncExecute_RidesOutTransientExec()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:sync:transient";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        server.FailExecOps = 1; // fail the first EXEC; the second should commit
+
+        // a real (if small) delay between attempts, so the blocking wait genuinely has to outlast it
+        RetryPolicy policy = new RetryPolicy.Builder
+        {
+            MaxAttempts = 3,
+            RetryDelay = TimeSpan.FromMilliseconds(50),
+            JitterMax = TimeSpan.Zero,
+        };
+        ITransaction tran = (ITransaction)db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "seed"));
+        var set = tran.StringSetAsync(key, "committed");
+
+        Assert.True(tran.Execute());
+
+        Assert.True(cond.WasSatisfied); // the WATCH constraint was replayed onto the winning attempt
+        Assert.True(await set);
+        Assert.Equal("committed", await db.StringGetAsync(key));
+        Assert.Equal(2, server.ExecOpsReceived); // 1 x LOADING + 1 x commit, all within Execute()
+    }
+
+    // A transaction that does not commit reports false from the sync Execute, just as it does from
+    // ExecuteAsync - and WasWatchConflict still distinguishes an elective abort from a lost race.
+    [Fact]
+    public async Task WithRetry_Transaction_SyncExecute_UnsatisfiedCondition_ReturnsFalse()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:sync:cond";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        ITransaction tran = (ITransaction)db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "different")); // NOT satisfied
+        var set = tran.StringSetAsync(key, "committed");
+
+        Assert.False(tran.Execute());
+
+        Assert.False(cond.WasSatisfied);
+        Assert.False(tran.WasWatchConflict); // an elective abort, not a lost race
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await set);
+        Assert.Equal("seed", await db.StringGetAsync(key));
+        Assert.Equal(0, server.ExecOpsReceived); // never EXEC'd
+    }
+
+    // When the attempts run out, the sync Execute surfaces the *original* server fault - not an
+    // AggregateException wrapping it (which is what a naive Task.Wait would have produced).
+    [Fact]
+    public async Task WithRetry_Transaction_SyncExecute_WhenAttemptsExhausted_ThrowsOriginalFault()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:sync:exhaust";
+
+        server.FailExecOps = 100; // never succeeds
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 2, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        ITransaction tran = (ITransaction)db.WithRetry(policy).CreateTransaction();
+        var set = tran.StringSetAsync(key, "never");
+
+        var fault = Assert.Throws<RedisServerException>(() => tran.Execute());
+        Assert.Equal(RedisErrorKind.Loading, fault.Kind);
+
+        Assert.Same(fault, await Assert.ThrowsAsync<RedisServerException>(async () => await set)); // proxy faulted too
+        Assert.Equal(2, server.ExecOpsReceived); // exactly MaxAttempts
+    }
+
+    // IBatch.Execute() is the "enqueue and don't ask" shape, which RedisTransaction maps onto fire-and-forget;
+    // a retrying transaction does the same. Fire-and-forget requests no reply for the EXEC, so there is
+    // nothing for the retry machinery to observe and it collapses to a single attempt - but the queued
+    // operations were not themselves fire-and-forget, so their proxies still resolve when the replies land.
+    [Fact]
+    public async Task WithRetry_Transaction_BatchExecute_IsFireAndForget()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:sync:ff";
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var tran = (ITransaction)db.WithRetry(policy).CreateTransaction();
+        var set = tran.StringSetAsync(key, "committed");
+
+        ((IBatch)tran).Execute(); // the void overload: no outcome is reported
+
+        Assert.True(await set); // ...but the per-operation proxy still resolves
+        Assert.Equal("committed", await db.StringGetAsync(key));
+        Assert.Equal(1, server.ExecOpsReceived);
+    }
+
+    // ...and it must not *wait* for the outcome either. A replied EXEC populates the queued operations'
+    // results before its own task completes, so the retry machinery can normally read each attempt's outcome
+    // inline; a fire-and-forget EXEC completes as soon as it has been written, with the replies still in
+    // flight. Forwarding must therefore be deferred rather than blocking for a round-trip the caller
+    // explicitly declined - exactly what a plain transaction does. The server here holds the EXEC reply back,
+    // so "did we wait for it?" is directly observable.
+    [Fact]
+    public async Task WithRetry_Transaction_BatchExecute_DoesNotWaitForReplies()
+    {
+        using var server = new SlowExecServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:sync:ff:nowait";
+
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var tran = (ITransaction)db.WithRetry(policy).CreateTransaction();
+        var set = tran.StringSetAsync(key, "committed");
+
+        ((IBatch)tran).Execute();
+
+        // the server is still sitting on the EXEC reply, so this proves we returned without waiting for it
+        Assert.False(set.IsCompleted);
+
+        // ...and the proxy is still resolved once the reply does land
+        Assert.True(await set);
+        Assert.Equal("committed", await db.StringGetAsync(key));
+    }
+
     // An in-proc server that *applies* each INCR and then reports OOM: the write happened, but the client
     // has no way to know that. Counts the applications so a test can tell "the client gave up" from "the
     // client repeated a write it could not account for".
@@ -797,6 +961,17 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
                 client.Touch(client.Database, DriftKey); // as if another connection wrote the watched key
             }
 
+            return base.Exec(client, in request);
+        }
+    }
+
+    // An in-proc server that holds each EXEC reply back for a while, so a test can tell whether the client
+    // waited for it. (The server core is single-threaded, so sleeping here delays only this connection.)
+    private sealed class SlowExecServer(ITestOutputHelper? log, EndPoint? endpoint = null) : InProcessTestServer(log, endpoint)
+    {
+        protected override TypedRedisValue Exec(RedisClient client, in RedisRequest request)
+        {
+            Thread.Sleep(500);
             return base.Exec(client, in request);
         }
     }

@@ -14,10 +14,16 @@ namespace StackExchange.Redis.Availability;
 // so a retry after failover lands on the new member), replays every recorded operation and constraint onto
 // it, and awaits it. On a clean execution the per-attempt results are forwarded onto the durable proxies; on
 // a transient fault the whole attempt is discarded and replayed; on terminal failure the proxies are faulted.
+//
+// ITransaction (rather than just ITransactionAsync) so that callers written against the long-standing
+// interface can move to a retrying database without rewriting their transaction code; the synchronous
+// Execute is sync-over-async (see below). Note that ITransaction : IBatch : IDatabaseAsync, so the only
+// members this adds over ITransactionAsync are the two Execute overloads.
 [AutoDatabase]
-internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsync
+internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 {
-    // Note: async-only, exactly like RetryDatabase - retrying is inherently delay-ish.
+    // Note: the *command* surface is async-only, exactly like RetryDatabase - retrying is inherently
+    // delay-ish; only the terminal Execute is offered synchronously.
     private readonly IDatabaseAsync _source;
     private readonly RetryController _controller;
 
@@ -156,6 +162,32 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         }
     }
 
+    // ---- the synchronous ITransaction surface -------------------------------------------------------
+    // Both are explicit implementations: they exist purely so that callers written against ITransaction can
+    // move onto a retrying database, so they should be reachable only *through* that interface - internal
+    // code (which has ExecuteAsync) has no business blocking, and this also keeps Execute() and
+    // Execute(flags) from competing in overload resolution on the concrete type.
+
+    /// <inheritdoc/>
+    // The IBatch shape: enqueue, and don't ask about the outcome. Mirrors RedisTransaction by mapping onto
+    // fire-and-forget - which for a *retrying* transaction means there is nothing for the retry machinery to
+    // observe (no reply is requested, so no fault is ever reported) and it collapses to a single attempt:
+    // the trade-off fire-and-forget always makes, here extending to the retries as well.
+    void IBatch.Execute() => ((ITransaction)this).Execute(CommandFlags.FireAndForget);
+
+    /// <inheritdoc/>
+    // Sync-over-async, deliberately: retrying is inherently delay-ish, which is why the *command* surface
+    // here is async-only - but a caller written against ITransaction has no async alternative for the
+    // terminal Execute, and refusing it would mean such code cannot adopt a retrying database at all.
+    // Blocking here is safe against a captured synchronization context: every await in ExecuteAsync (and in
+    // RetryController) is ConfigureAwait(false), and the per-operation proxies complete asynchronously.
+    //
+    // The wait is *not* bounded by the multiplexer's SyncTimeout - the whole point of a retry is to outlast
+    // the fault, so the delays between attempts are expected to exceed it. Each individual attempt is still
+    // bounded by the inner connection's own timeout, so the total remains bounded by the attempt budget.
+    // GetResult (rather than Wait) so the original exception surfaces, not an AggregateException wrapping it.
+    bool ITransaction.Execute(CommandFlags flags) => ExecuteAsync(flags).GetAwaiter().GetResult();
+
     private void CheckNotExecuted()
     {
         if (Volatile.Read(ref _executed) != 0)
@@ -168,6 +200,13 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     private interface IRecordedOp
     {
         void Replay(IDatabaseAsync inner);
+
+        // Copy this attempt's outcome onto the durable proxy. A *replied* EXEC populates every queued
+        // operation's result before its own task completes (TransactionProcessor does both while processing
+        // that one reply), so the outcome is normally available inline. A fire-and-forget EXEC is the
+        // exception: it completes as soon as it has been written, with the replies still in flight - so
+        // forwarding must be deferred rather than blocking for a round-trip the caller explicitly declined
+        // (which is what F+F means, and what a plain RedisTransaction does in the same situation).
         void ForwardSuccess();
         void Fault(Exception ex);
         void Observe();
@@ -194,6 +233,26 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         public void ForwardSuccess()
         {
             var attempt = _attempt!;
+            if (attempt.IsCompleted)
+            {
+                Forward(attempt);
+            }
+            else
+            {
+                // fire-and-forget EXEC: see the note on ForwardLater
+                ForwardLater(attempt);
+            }
+        }
+
+        private void ForwardLater(Task<TResult> attempt) => attempt.ContinueWith(
+            static (completed, state) => ((RecordedOp<TState, TResult>)state!).Forward(completed),
+            this,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+        private void Forward(Task<TResult> attempt)
+        {
             if (attempt.IsCanceled) _proxy.TrySetCanceled();
             else if (attempt.IsFaulted) _proxy.TrySetException(attempt.Exception!.InnerExceptions);
             else _proxy.TrySetResult(attempt.GetAwaiter().GetResult());
@@ -231,6 +290,26 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         public void ForwardSuccess()
         {
             var attempt = _attempt!;
+            if (attempt.IsCompleted)
+            {
+                Forward(attempt);
+            }
+            else
+            {
+                // fire-and-forget EXEC: see the note on ForwardLater
+                ForwardLater(attempt);
+            }
+        }
+
+        private void ForwardLater(Task attempt) => attempt.ContinueWith(
+            static (completed, state) => ((RecordedVoidOp<TState>)state!).Forward(completed),
+            this,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+        private void Forward(Task attempt)
+        {
             if (attempt.IsCanceled) _proxy.TrySetCanceled();
             else if (attempt.IsFaulted) _proxy.TrySetException(attempt.Exception!.InnerExceptions);
             else _proxy.TrySetResult(true);
@@ -263,6 +342,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
 
         public void Replay(ITransactionAsync inner) => _attempt = inner.AddCondition(_condition);
 
+        // Unlike the operations, this needs no deferral for a fire-and-forget EXEC: a conditional transaction
+        // has to know whether its constraints held before it can decide between EXEC and DISCARD, so the
+        // condition replies are resolved as part of writing it - even when the EXEC itself wants no reply.
         public void ForwardSuccess()
         {
             if (_attempt is not null) Result.SetSatisfied(_attempt.WasSatisfied);
