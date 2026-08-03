@@ -16,13 +16,26 @@ namespace RESPite.Transports;
 /// measured), push delivery (pull adapters over a push transport measured 24-40% overhead), and a
 /// batch-end notification (coalescing responses produced during a delivery burst into one flush
 /// eliminated a measured 3x send amplification).
+///
+/// The transport IS the outbound <see cref="IBufferWriter{T}"/> — there is no separate output object.
+/// Staging is callable from any thread (single logical writer at a time); bytes are owned by the
+/// transport once <see cref="Advance"/> returns; <see cref="Flush"/> hands the staged bytes to the
+/// wire. Passing the transport AS <see cref="IBufferWriter{T}"/> deliberately grants stage-only
+/// access: the holder composes, the owner flushes at its batch boundary.
 /// </summary>
 [Experimental(Experiments.Transport, UrlFormat = Experiments.UrlFormat)]
-public abstract class DuplexTransport : IAsyncDisposable
+public abstract class DuplexTransport : IBufferWriter<byte>, IAsyncDisposable
 {
-    /// <summary>Stage outbound bytes. Callable from any thread; bytes are copied during the call, so
-    /// caller buffers need not survive it.</summary>
-    public abstract IBufferWriter<byte> Output { get; }
+    /// <summary>Request writable space to stage outbound bytes (see <see cref="IBufferWriter{T}"/>).</summary>
+    public abstract Memory<byte> GetMemory(int sizeHint = 0);
+
+    /// <inheritdoc cref="GetMemory"/>
+    public abstract Span<byte> GetSpan(int sizeHint = 0);
+
+    /// <summary>Commit <paramref name="count"/> bytes obtained via <see cref="GetMemory"/> or
+    /// <see cref="GetSpan"/>; the transport owns them when this returns, so caller state need not
+    /// survive it.</summary>
+    public abstract void Advance(int count);
 
     /// <summary>Hand everything staged since the last flush to the wire, as one send where the
     /// transport allows. Returns false if the transport is closed (staged bytes are dropped).</summary>
