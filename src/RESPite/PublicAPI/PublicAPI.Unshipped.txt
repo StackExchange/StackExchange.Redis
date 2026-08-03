@@ -5,7 +5,7 @@
 [SER009]abstract RESPite.Transports.DuplexTransport.DisposeAsync() -> System.Threading.Tasks.ValueTask
 [SER009]abstract RESPite.Transports.DuplexTransport.Flush() -> bool
 [SER009]abstract RESPite.Transports.DuplexTransport.GetMemory(int sizeHint = 0) -> System.Memory<byte>
-[SER009]abstract RESPite.Transports.DuplexTransport.GetSpan(int sizeHint = 0) -> System.Span<byte>
+[SER009]virtual RESPite.Transports.DuplexTransport.GetSpan(int sizeHint = 0) -> System.Span<byte>
 [SER009]abstract RESPite.Transports.DuplexTransport.Start(RESPite.Transports.TransportReceiver! receiver) -> void
 [SER009]RESPite.Transports.TransportReceiver
 [SER009]RESPite.Transports.TransportReceiver.TransportReceiver() -> void

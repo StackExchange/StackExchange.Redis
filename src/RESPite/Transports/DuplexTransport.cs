@@ -30,7 +30,9 @@ public abstract class DuplexTransport : IBufferWriter<byte>, IAsyncDisposable
     public abstract Memory<byte> GetMemory(int sizeHint = 0);
 
     /// <inheritdoc cref="GetMemory"/>
-    public abstract Span<byte> GetSpan(int sizeHint = 0);
+    /// <remarks>Defaults to <c>GetMemory(sizeHint).Span</c>; override when the transport has a cheaper
+    /// span path than a <see cref="Memory{T}"/> round-trip.</remarks>
+    public virtual Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
 
     /// <summary>Commit <paramref name="count"/> bytes obtained via <see cref="GetMemory"/> or
     /// <see cref="GetSpan"/>; the transport owns them when this returns, so caller state need not
