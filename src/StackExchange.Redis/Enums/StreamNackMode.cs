@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Determines how a stream message is negatively acknowledged back to the consumer group.
 /// </summary>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public enum StreamNackMode
 {
     /// <summary>

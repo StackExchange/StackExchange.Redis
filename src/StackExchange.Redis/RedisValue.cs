@@ -11,6 +11,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using RESPite;
 
 namespace StackExchange.Redis
 {
@@ -780,17 +781,17 @@ namespace StackExchange.Redis
             switch (obj)
             {
                 case null: return Null;
-                case string v: return v;
+                case string v: return new(v);
                 case int v: return v;
                 case uint v: return v;
-                case double v: return v;
-                case byte[] v: return v;
+                case double v: return new(v);
+                case byte[] v: return new(v);
                 case bool v: return v;
                 case long v: return v;
                 case ulong v: return v;
-                case float v: return v;
-                case ReadOnlyMemory<byte> v: return v;
-                case Memory<byte> v: return v;
+                case float v: return new(v);
+                case ReadOnlyMemory<byte> v: return new(v);
+                case Memory<byte> v: return new(v);
                 case RedisValue v: return v;
                 default:
                     valid = false;
@@ -894,7 +895,13 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from an <see cref="string"/>.
         /// </summary>
         /// <param name="value">The <see cref="string"/> to convert to a <see cref="RedisValue"/>.</param>
+#if DEBUG
+        // if you're here to ask "why is my compiler warning me": go read StringToRedisValue.md
+        [Experimental(Experiments.StringToRedisValue, UrlFormat = Experiments.UrlFormat)]
+#endif
+#pragma warning disable RS0016
         public static implicit operator RedisValue(string? value) => value is null ? Null : new(value);
+#pragma warning restore RS0016
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:byte[]"/>.

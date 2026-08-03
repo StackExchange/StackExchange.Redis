@@ -724,6 +724,29 @@ public ref partial struct RespReader
         return TryGetSpan(out var span) ? parser(span, out value) : TryParseSlow(parser, out value);
     }
 
+    // same thing as ^^^, but as a utility method for text values, paying UTF8 encode
+    internal static unsafe bool TryParseScalar<T>(
+        ReadOnlySpan<char> source,
+        delegate* managed<ReadOnlySpan<byte>, out T, bool> parser,
+        out T value)
+    {
+        const int MAX_STACK = 128;
+        byte[]? lease = null;
+        int maxLen = RespConstants.UTF8.GetMaxByteCount(source.Length);
+        Span<byte> buffer = maxLen <= MAX_STACK
+            ? stackalloc byte[MAX_STACK] // prefer fixed size for perf
+            : (lease = ArrayPool<byte>.Shared.Rent(maxLen));
+        try
+        {
+            var len = RespConstants.UTF8.GetBytes(source, buffer);
+            return parser(buffer.Slice(0, len), out value);
+        }
+        finally
+        {
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private readonly unsafe bool TryParseSlow<T>(
         delegate* managed<ReadOnlySpan<byte>, out T, bool> parser,

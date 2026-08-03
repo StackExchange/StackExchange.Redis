@@ -43,6 +43,8 @@
   <ItemGroup>
     <!-- APIs for all target frameworks -->
     <AdditionalFiles Include="PublicAPI/PublicAPI.*.txt" />
+    <!-- conditional symbol entries (debug hacks) -->
+    <AdditionalFiles Include="PublicAPI/$(Configuration)/PublicAPI.txt" />
     <!-- progressively additive APIs in later frameworks; each folder is effectively NET_X_Y_OR_GREATER -->
     <AdditionalFiles Include="PublicAPI/net6.0/PublicAPI.*.txt" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))" />
     <!-- for example... -->
@@ -57,5 +59,20 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RESPite\RESPite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Availability/MultiGroupDatabase.*.cs">
+      <DependentUpon>MultiGroupDatabase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/HealthCheck.*.cs">
+      <DependentUpon>HealthCheck.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/HealthCheckProbe.*.cs">
+      <DependentUpon>HealthCheckProbe.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/MultiGroupSubscriber.*.cs">
+      <DependentUpon>MultiGroupSubscriber.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 </Project>

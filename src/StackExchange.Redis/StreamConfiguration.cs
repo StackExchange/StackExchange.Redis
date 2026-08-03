@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Configuration parameters for a stream, for example idempotent producer (IDMP) duration and maxsize.
 /// </summary>
-[Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
 public sealed class StreamConfiguration
 {
     /// <summary>

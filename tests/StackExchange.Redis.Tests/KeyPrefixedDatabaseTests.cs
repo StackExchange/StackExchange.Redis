@@ -65,13 +65,6 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
-    public void Get_Database()
-    {
-        mock.Database.Returns(123);
-        Assert.Equal(123, prefixed.Database);
-    }
-
-    [Fact]
     public void HashDecrement_1()
     {
         prefixed.HashDecrement("key", "hashField", 123, CommandFlags.None);
@@ -677,6 +670,13 @@ public sealed class KeyPrefixedDatabaseTests
     {
         prefixed.SetIntersectionLength(["key1", "key2"]);
         mock.Received().SetIntersectionLength(IsKeys(["prefix:key1", "prefix:key2"]), 0, CommandFlags.None);
+    }
+
+    [Fact]
+    public void SetCombineLength()
+    {
+        prefixed.SetCombineLength(SetOperation.Union, ["key1", "key2"]);
+        mock.Received().SetCombineLength(SetOperation.Union, IsKeys(["prefix:key1", "prefix:key2"]), 0, false, CommandFlags.None);
     }
 
     [Fact]

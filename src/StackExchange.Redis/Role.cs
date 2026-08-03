@@ -8,6 +8,8 @@ namespace StackExchange.Redis
     /// <remarks><seealso href="https://redis.io/commands/role"/></remarks>
     public abstract class Role
     {
+        internal const string LabelForMaster = "master";
+
         internal static Unknown Null { get; } = new Unknown("");
 
         /// <summary>
@@ -67,7 +69,7 @@ namespace StackExchange.Redis
                 public override string ToString() => $"{Ip}:{Port} - {ReplicationOffset}";
             }
 
-            internal Master(long offset, ICollection<Replica> replicas) : base(RedisLiterals.master!)
+            internal Master(long offset, ICollection<Replica> replicas) : base(LabelForMaster)
             {
                 ReplicationOffset = offset;
                 Replicas = replicas;

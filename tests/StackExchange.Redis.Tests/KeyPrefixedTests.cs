@@ -633,6 +633,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SetCombineLengthAsync()
+        {
+            await prefixed.SetCombineLengthAsync(SetOperation.Union, ["key1", "key2"]);
+            await mock.Received().SetCombineLengthAsync(SetOperation.Union, IsKeys("prefix:key1", "prefix:key2"), 0, false, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task SetLengthAsync()
         {
             await prefixed.SetLengthAsync("key", CommandFlags.None);

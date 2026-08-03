@@ -26,7 +26,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// The number of combined element scores is used.
         /// </summary>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         Count,
     }
 }

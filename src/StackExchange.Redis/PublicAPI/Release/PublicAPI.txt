@@ -1,0 +1,2 @@
+#nullable enable
+static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(string? value) -> StackExchange.Redis.RedisValue

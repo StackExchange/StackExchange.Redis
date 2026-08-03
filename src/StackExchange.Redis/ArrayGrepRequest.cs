@@ -9,7 +9,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Describes an array grep operation.
 /// </summary>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public class ArrayGrepRequest
 {
     [Flags]
@@ -249,7 +248,6 @@ public class ArrayGrepRequest
     /// <summary>
     /// Describes a predicate used by an array grep operation.
     /// </summary>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     public abstract class Predicate
     {
         internal virtual int ArgCount => 2;
@@ -367,7 +365,7 @@ public class ArrayGrepRequest
         protected override void WriteImpl(in MessageWriter writer)
         {
             writer.WriteHeader(Command, ArgCount);
-            writer.WriteBulkString(key);
+            writer.Write(key);
             if (request.IsReversed)
             {
                 AddIndex(writer, request.End, "$1\r\n+\r\n"u8);

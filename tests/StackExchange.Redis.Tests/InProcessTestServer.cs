@@ -196,10 +196,10 @@ public class InProcessTestServer : MemoryCacheRedisServer
     }
     */
 
-    public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
+    public override TypedRedisValue OnUnknownCommand(RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
     {
         _log?.WriteLine($"[{client}] unknown command: {Encoding.ASCII.GetString(command)}");
-        return base.OnUnknownCommand(in client, in request, command);
+        return base.OnUnknownCommand(client, in request, command);
     }
 
     public override void OnClientConnected(RedisClient client, object state)
@@ -403,4 +403,20 @@ public class InProcessTestServer : MemoryCacheRedisServer
         if (disposing) _server.Dispose();
     }
     */
+    // written by the test thread, read by the server's own thread(s): store as ticks so the read/write can
+    // be made explicitly visible (a plain TimeSpan field can be missed indefinitely)
+    public void SetLatency(TimeSpan latency) => Volatile.Write(ref _latencyTicks, latency.Ticks);
+
+    private long _latencyTicks;
+
+    protected override ValueTask ClientPauseAsync(RedisClient client, in RedisRequest request)
+    {
+        var latency = TimeSpan.FromTicks(Volatile.Read(ref _latencyTicks));
+        if (latency > TimeSpan.Zero & request.KnownCommand != RedisCommand.QUIT)
+        {
+            Log($"[{client}] holding {request.Command} response by {latency.TotalMilliseconds}ms");
+            return new(Task.Delay(latency));
+        }
+        return base.ClientPauseAsync(client, request);
+    }
 }

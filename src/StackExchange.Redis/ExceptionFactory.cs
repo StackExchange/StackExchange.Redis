@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Security.Authentication;
 using System.Text;
@@ -30,9 +31,12 @@ namespace StackExchange.Redis
         internal static Exception TooManyArgs(string command, int argCount)
             => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {MessageWriter.REDIS_MAX_ARGS}): {command}");
 
-        internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint? server)
+        internal static Exception CommandHasWhitespace(string command)
+            => new RedisCommandException($"The command '{command}' contains whitespace and would be sent as a single unknown token; pass each word as a separate argument, for example Execute(\"ACL\", \"SETUSER\", \"x\") rather than Execute(\"ACL SETUSER x\").");
+
+        internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, CommandFlags flags, string message, ServerEndPoint? server)
         {
-            var ex = new RedisConnectionException(failureType, message);
+            var ex = new RedisConnectionException(failureType, flags, message);
             if (includeDetail) AddExceptionDetail(ex, null, server, null);
             return ex;
         }
@@ -151,13 +155,44 @@ namespace StackExchange.Redis
                 data = new List<Tuple<string, string>>();
                 AddCommonDetail(data, sb, message, multiplexer, server);
             }
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, sb.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, message?.Flags ?? CommandFlags.None, sb.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
             if (multiplexer.RawConfig.IncludeDetailInExceptions)
             {
                 CopyDataToException(data, ex);
                 sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary());
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
+            return ex;
+        }
+
+        /// <summary>
+        /// A connection failure produces a single exception describing the *connection*, which is then handed
+        /// to every message that was in flight. Sharing one instance across many unrelated callers is dubious
+        /// in itself (<see cref="Exception.Data"/> is mutable, so each caller sees the others' additions), and
+        /// it discards the per-message detail the retry machinery needs: the command's retry category, and
+        /// whether this particular message had actually been written. Give each message its own.
+        /// </summary>
+        internal static Exception PerMessage(Exception shared, Message message)
+        {
+            // only connection failures get shared like this; anything else already describes one operation
+            if (shared is not RedisConnectionException conn
+                || (conn.Flags == message.Flags && conn.CommandStatus == message.Status))
+            {
+                return shared;
+            }
+
+            var ex = new RedisConnectionException(
+                conn.FailureType,
+                message.Flags,
+                conn.Message,
+                conn.InnerException,
+                message.Status);
+            foreach (DictionaryEntry entry in conn.Data)
+            {
+                ex.Data[entry.Key] = entry.Value;
+            }
+            ex.Data[DataSentStatusKey] = message.Status; // ...and correct this one for *this* message
+            if (conn.HelpLink is not null) ex.HelpLink = conn.HelpLink;
             return ex;
         }
 
@@ -280,12 +315,13 @@ namespace StackExchange.Redis
 
             // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
             // and we have a more direct cause: we had no connection to send it on.
+            var msgFlags = message?.Flags ?? CommandFlags.CommandRetryNever;
             Exception ex = logConnectionException && lastConnectionException is not null
-                ? new RedisConnectionException(lastConnectionException.FailureType, sb.ToString(), lastConnectionException, message?.Status ?? CommandStatus.Unknown)
+                ? new RedisConnectionException(lastConnectionException.FailureType, msgFlags, sb.ToString(), lastConnectionException, message?.Status ?? CommandStatus.Unknown)
                 {
                     HelpLink = TimeoutHelpLink,
                 }
-                : new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
+                : new RedisTimeoutException(msgFlags, sb.ToString(), message?.Status ?? CommandStatus.Unknown)
                 {
                     HelpLink = TimeoutHelpLink,
                 };
@@ -445,7 +481,7 @@ namespace StackExchange.Redis
                 sb.Append(' ').Append(failureMessage.Trim());
             }
 
-            return new RedisConnectionException(failureType, sb.ToString(), inner);
+            return new RedisConnectionException(failureType, CommandFlags.None, sb.ToString(), inner);
         }
     }
 }

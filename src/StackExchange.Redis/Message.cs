@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using RESPite;
 using RESPite.Internal;
 using RESPite.Messages;
 using StackExchange.Redis.Profiling;
@@ -58,7 +59,10 @@ namespace StackExchange.Redis
 
         internal const CommandFlags
             InternalCallFlag = (CommandFlags)128,
-            NoFlushFlag = (CommandFlags)1024;
+            NoFlushFlag = (CommandFlags)1024,
+            // "server specific" (bit 18): tied to a specific endpoint, never retry elsewhere. Not (yet) a
+            // public CommandFlags member - see the note on the hidden bit-18 value in CommandFlags.cs.
+            CommandServerSpecific = (CommandFlags)(1 << 18);
 
         protected RedisCommand command;
 
@@ -72,17 +76,22 @@ namespace StackExchange.Redis
                                                                  | CommandFlags.PreferMaster
                                                                  | CommandFlags.PreferReplica;
 
-        private const CommandFlags UserSelectableFlags = CommandFlags.None
+        // the 5-bit retry-category severity region (bits 13-17); numerically equal to CommandRetryNever.
+        // deliberately excludes CommandServerSpecific (bit 18), which is an orthogonal flag, not part of
+        // the <=-comparable severity ladder.
+        internal const CommandFlags MaskRetryCategory = CommandFlags.CommandRetryNever;
+
+        internal const CommandFlags UserSelectableFlags = CommandFlags.None
                                                          | CommandFlags.DemandMaster
                                                          | CommandFlags.DemandReplica
                                                          | CommandFlags.PreferMaster
                                                          | CommandFlags.PreferReplica
-#pragma warning disable CS0618 // Type or member is obsolete
-                                                         | CommandFlags.HighPriority
-#pragma warning restore CS0618
+                                                         | (CommandFlags)1 // CommandFlags.HighPriority; obsolete-as-error, but still tolerated from callers
                                                          | CommandFlags.FireAndForget
                                                          | CommandFlags.NoRedirect
                                                          | CommandFlags.NoScriptCache
+                                                         | MaskRetryCategory // caller may override the retry category...
+                                                         | CommandServerSpecific // ...and the server-specific flag
                                                          | NoFlushFlag; // we'll allow this one even though not advertised
 
         private IResultBox? resultBox;
@@ -119,7 +128,9 @@ namespace StackExchange.Redis
             bool primaryOnly = command.IsPrimaryOnly();
             Db = db;
             this.command = command;
-            Flags = flags & UserSelectableFlags;
+            // apply the user-selectable flags, then fill in the default retry-category for this command
+            // (WithDefaultCategory is a no-op if the caller already specified a CommandRetry* category)
+            Flags = (flags & UserSelectableFlags).WithDefaultCategory(command);
             if (primaryOnly) SetPrimaryOnly();
 
             CreatedDateTime = DateTime.UtcNow;
@@ -171,6 +182,29 @@ namespace StackExchange.Redis
         public RedisCommand Command => command;
         public virtual string CommandAndKey => Command.ToString();
 
+        [AsciiHash(nameof(SubCommandMetadata))]
+        internal enum SubCommand
+        {
+            [AsciiHash("")]
+            Unknown = 0,
+            [AsciiHash("GETNAME")]
+            GetName,
+            [AsciiHash("ID")]
+            Id,
+            [AsciiHash("INFO")]
+            Info,
+            [AsciiHash("SETINFO")]
+            SetInfo,
+            [AsciiHash("SETNAME")]
+            SetName,
+        }
+
+        protected virtual bool TryGetSubCommand(out SubCommand subCommand)
+        {
+            subCommand = SubCommand.Unknown;
+            return false;
+        }
+
         /// <summary>
         /// Things with the potential to cause harm, or to reveal configuration information.
         /// </summary>
@@ -180,6 +214,21 @@ namespace StackExchange.Redis
             {
                 switch (Command)
                 {
+                    case RedisCommand.CLIENT when TryGetSubCommand(out var subCommand):
+                        switch (subCommand)
+                        {
+                            case SubCommand.GetName:
+                            case SubCommand.SetName:
+                            case SubCommand.Id:
+                            case SubCommand.Info:
+                            case SubCommand.SetInfo:
+                                return false;
+                        }
+                        return true;
+                    /* possible? reasonable?
+                    case RedisCommand.CONFIG when TryGetSubCommand(out var subCommand):
+                        // allow .Get?
+                    */
                     case RedisCommand.BGREWRITEAOF:
                     case RedisCommand.BGSAVE:
                     case RedisCommand.CLIENT:
@@ -483,18 +532,21 @@ namespace StackExchange.Redis
 
         bool ICompletable.TryComplete(bool isAsync)
         {
-            Complete();
+            Complete(null);
             return true;
         }
 
-        public void Complete()
+        public void Complete(PhysicalConnection? connection)
         {
             // Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
 
             // set the completion/performance data
             performance?.SetCompleted();
-
+            if (currBox is not null)
+            {
+                connection?.ObserveMessageResult(currBox.Fault);
+            }
             currBox?.ActivateContinuations();
         }
 
@@ -596,6 +648,12 @@ namespace StackExchange.Redis
             return flags & MaskPrimaryServerPreference;
         }
 
+        internal static CommandFlags GetRetryCategory(CommandFlags flags)
+        {
+            // isolate the retry-category region; 0 here means "not specified" (resolved downstream)
+            return flags & MaskRetryCategory;
+        }
+
         internal static bool RequiresDatabase(RedisCommand command)
         {
             switch (command)
@@ -691,7 +749,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                connection.OnDetailLog($"{ex.GetType().Name}: {ex.Message}");
+                connection?.OnDetailLog($"{ex.GetType().Name}: {ex.Message}");
                 ex.Data.Add("got", prefix.ToString());
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
@@ -706,10 +764,10 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation, muxer);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalConnection? connection)
         {
             resultBox?.SetException(exception);
-            Complete();
+            Complete(connection);
         }
 
         internal bool TrySetResult<T>(T value)
@@ -2017,5 +2075,40 @@ namespace StackExchange.Redis
         }
 
         public void SetNoFlush() => Flags |= NoFlushFlag;
+
+        internal static partial class SubCommandMetadata
+        {
+            [AsciiHash(CaseSensitive = false)]
+            internal static partial bool TryParse(ReadOnlySpan<byte> value, out SubCommand subCommand);
+
+            [AsciiHash(CaseSensitive = false)]
+            internal static partial bool TryParse(ReadOnlySpan<char> value, out SubCommand subCommand);
+
+            internal static bool TryGetSubCommand(in RedisValue value, out SubCommand subCommand)
+            {
+                switch (value.Type)
+                {
+                    case RedisValue.StorageType.ByteArray:
+                    case RedisValue.StorageType.MemoryManager:
+                    case RedisValue.StorageType.ShortBlob:
+                        // all three contiguous byte-blob kinds expose their bytes directly
+                        // (the discard here *must* be stack-local; that's the "Unsafe" in this API)
+                        return TryParse(value.UnsafeRawSpan(out _), out subCommand);
+                    case RedisValue.StorageType.String:
+                        // char-backed: parse the chars directly, no UTF8 round-trip
+                        return TryParse(value.RawString().AsSpan(), out subCommand);
+                    case RedisValue.StorageType.Sequence when value.GetByteCount() <= BufferBytes:
+                        // non-contiguous: normalize into a small stack buffer
+                        // (sub-commands are short, so anything longer cannot match)
+                        Span<byte> tmp = stackalloc byte[BufferBytes];
+                        var len = value.CopyTo(tmp);
+                        return TryParse(tmp.Slice(0, len), out subCommand);
+                    // numeric / null / unknown are never a sub-command (e.g. it is never `123`);
+                    // if that ever changes, revisit
+                }
+                subCommand = SubCommand.Unknown;
+                return false;
+            }
+        }
     }
 }

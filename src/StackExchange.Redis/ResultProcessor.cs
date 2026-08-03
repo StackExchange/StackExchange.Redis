@@ -210,15 +210,15 @@ namespace StackExchange.Redis
                 sb.Append(", ");
                 sb.Append(annotation);
             }
-            var ex = new RedisConnectionException(fail, sb.ToString(), innerException);
+            var ex = new RedisConnectionException(fail, message?.Flags ?? CommandFlags.None, sb.ToString(), innerException);
             SetException(message, ex);
         }
 
         public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage) =>
-            SetException(message, new RedisConnectionException(fail, errorMessage));
+            SetException(message, new RedisConnectionException(fail, message.Flags, errorMessage));
 
-        public static void ServerFail(Message message, string errorMessage) =>
-            SetException(message, new RedisServerException(errorMessage));
+        public static void ServerFail(Message message, RedisErrorKind kind, string errorMessage) =>
+            SetException(message, new RedisServerException(kind, message.Flags, errorMessage));
 
         public static void SetException(Message? message, Exception ex)
         {
@@ -263,22 +263,24 @@ namespace StackExchange.Redis
         {
             connection.OnDetailLog($"applying common error-handling: {reader.GetOverview()}");
             var bridge = connection.BridgeCouldBeNull;
-            if (reader.StartsWith(Literals.NOAUTH.U8))
+            var errorKind = RedisErrorKindMetadata.Classify(reader);
+            switch (errorKind)
             {
-                bridge?.Multiplexer.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
-            }
-            else if (reader.StartsWith(Literals.WRONGPASS.U8))
-            {
-                bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(reader.GetOverview()));
+                case RedisErrorKind.NoAuth:
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, message.Flags, "NOAUTH Returned - connection has not yet authenticated"));
+                    break;
+                case RedisErrorKind.WrongPass:
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, message.Flags, reader.GetOverview()));
+                    break;
             }
 
             var server = bridge?.ServerEndPoint;
             bool log = !message.IsInternalCall;
-            bool isMoved = reader.StartsWith(Literals.MOVED.U8);
+            bool isMoved = errorKind == RedisErrorKind.Moved;
             bool wasNoRedirect = (message.Flags & CommandFlags.NoRedirect) != 0;
             string? err = string.Empty;
             bool unableToConnectError = false;
-            if (isMoved || reader.StartsWith(Literals.ASK.U8))
+            if (isMoved || errorKind == RedisErrorKind.Ask)
             {
                 connection.OnDetailLog($"redirect via {(isMoved ? "MOVED" : "ASK")} to '{reader.ReadString()}'");
                 message.SetResponseReceived();
@@ -361,7 +363,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                ServerFail(message, err);
+                ServerFail(message, errorKind, err);
             }
 
             return true;
@@ -852,7 +854,7 @@ namespace StackExchange.Redis
             {
                 var copy = reader;
                 reader.MovePastBof();
-                if (reader.IsError && reader.StartsWith(Literals.READONLY.U8))
+                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.ReadOnly)
                 {
                     var bridge = connection.BridgeCouldBeNull;
                     if (bridge != null)
@@ -1901,7 +1903,7 @@ namespace StackExchange.Redis
                 if (options == GeoRadiusOptions.None)
                 {
                     // Without any WITH option specified, the command just returns a linear array like ["New York","Milan","Paris"].
-                    return new GeoRadiusResult(reader.ReadString(), null, null, null);
+                    return new GeoRadiusResult(reader.ReadRedisValue(), null, null, null);
                 }
 
                 // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
@@ -1913,12 +1915,12 @@ namespace StackExchange.Redis
                 reader.MoveNext(); // Move to first element in the sub-array
 
                 // the first item in the sub-array is always the name of the returned item.
-                var member = reader.ReadString();
+                var member = reader.ReadRedisValue();
 
                 /*  The other information is returned in the following order as successive elements of the sub-array.
 The distance from the center as a floating point number, in the same unit specified in the radius.
 The geohash integer.
-The coordinates as a two items x,y array (longitude,latitude).
+The coordinates as an array of two items x,y (longitude,latitude).
                  */
                 double? distance = null;
                 GeoPosition? position = null;
@@ -2249,7 +2251,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
                 var copy = reader;
                 reader.MovePastBof();
-                if (reader.IsError && reader.StartsWith(Literals.NOSCRIPT.U8))
+                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.NoScript)
                 { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
                     connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                     message.SetScriptUnavailable();
@@ -3152,38 +3154,33 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class TracerProcessor : ResultProcessor<bool>
+        private sealed class TracerProcessor(bool establishConnection) : ResultProcessor<bool>
         {
-            private readonly bool establishConnection;
-
-            public TracerProcessor(bool establishConnection)
-            {
-                this.establishConnection = establishConnection;
-            }
-
             public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 reader.MovePastBof();
                 bool isError = reader.IsError;
                 var copy = reader;
 
+                connection.BridgeCouldBeNull?.ServerEndPoint?.SetLatency(message.CreatedDateTime);
                 connection.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{reader.Prefix}' for '{message.CommandAndKey}' on '{connection}'");
                 var final = base.SetResult(connection, message, ref reader);
 
                 if (isError)
                 {
                     reader = copy; // rewind and re-parse
-                    if (reader.StartsWith(Literals.ERR_not_permitted.U8) || reader.StartsWith(Literals.NOAUTH.U8))
+                    var errorKind = RedisErrorKindMetadata.Classify(reader);
+                    if (errorKind is RedisErrorKind.NotPermitted or RedisErrorKind.NoAuth)
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(reader.GetOverview() + " Verify if the Redis password provided is correct. Attempted command: " + message.Command));
                     }
-                    else if (reader.StartsWith(Literals.LOADING.U8))
+                    else if (errorKind == RedisErrorKind.Loading)
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.Loading);
                     }
                     else
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(reader.GetOverview()));
+                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(RedisErrorKind.ConnectionFault, message.Flags, reader.GetOverview()));
                     }
                 }
 

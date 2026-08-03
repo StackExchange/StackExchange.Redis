@@ -5,15 +5,27 @@
     // where SomeFeature has the next label, for example "SER042", and /docs/exp/SER042.md exists
     internal static class Experiments
     {
-        public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/";
+        // note: {0} is substituted with the DiagnosticId by the analyzer, e.g. .../exp/SER002
+        public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/{0}";
+
+        // Retired experiments: these server features are now stable and no longer gated.
+        // The DiagnosticIds remain reserved (do NOT reuse them) so old callers' suppressions
+        // and the /docs/exp pages stay meaningful:
+        //   SER002 = Server_8_4  (Redis 8.4 features)
+        //   SER003 = Server_8_6  (Redis 8.6 features)
+        //   SER006 = Server_8_8  (Redis 8.8 features)
 
         // ReSharper disable InconsistentNaming
-        public const string Server_8_4 = "SER002";
-        public const string Server_8_6 = "SER003";
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
-        public const string Server_8_8 = "SER006";
+        public const string GeoRedundantFailover = "SER007";
+        public const string Server_8_10 = "SER008";
+
         // ReSharper restore InconsistentNaming
+
+        // this one is not a real experiment; it exists to help me
+        // spot bad API uses, via a DEBUG symbol
+        public const string StringToRedisValue = "StringToRedisValue";
     }
 }
 

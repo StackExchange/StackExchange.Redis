@@ -48,6 +48,26 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         }
     }
 
+    [Theory(Timeout = 1000)]
+    [InlineData("ACL SETUSER x")]
+    [InlineData("get key")]
+    public void CommandWithWhitespaceThrows(string command)
+    {
+        object[] args = [];
+        var ex = Assert.Throws<RedisCommandException>(
+            () => new RedisDatabase.ExecuteMessage(CommandMap.Default, -1, CommandFlags.None, command, args));
+        Assert.Contains("whitespace", ex.Message);
+    }
+
+    [Fact(Timeout = 1000)]
+    public void SingleTokenCommandDoesNotThrow()
+    {
+        // the correct token-per-argument form must still be accepted unchanged
+        object[] args = ["SETUSER", "x"];
+        var msg = new RedisDatabase.ExecuteMessage(CommandMap.Default, -1, CommandFlags.None, "ACL", args);
+        Assert.Equal("ACL", msg.CommandString);
+    }
+
     private static CommandMap? GetMap(MapMode mode) => mode switch
     {
         MapMode.Null => null,

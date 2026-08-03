@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal partial class KeyPrefixed<TInner> : IDatabaseAsync where TInner : IDatabaseAsync
+    internal partial class KeyPrefixed<TInner> : IDatabaseAsync, IInternalDatabaseAsync where TInner : IDatabaseAsync
     {
         internal KeyPrefixed(TInner inner, byte[] keyPrefix)
         {
@@ -17,9 +19,32 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public IConnectionMultiplexer Multiplexer => Inner.Multiplexer;
 
+        public int Database => Inner.Database;
+
+        // default: this wrapper is not a full database (it is the base for the batch/transaction wrappers too),
+        // so it cannot start a transaction; KeyPrefixedDatabase reimplements this to prefix a real one
+        ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState)
+            => throw new NotSupportedException("Transactions cannot be created here");
+
         internal TInner Inner { get; }
 
         internal byte[] Prefix { get; }
+
+        DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
+            => Inner.GetFeatures(out name) | GetDatabaseFeatures();
+
+        CancellationToken IInternalDatabaseAsync.GetNextFailover() => Inner.GetNextFailover();
+
+        // this wrapper does not stamp its own async-state; it inherits whatever the inner database uses
+        object? IInternalDatabaseAsync.AsyncState => Inner.GetAsyncState();
+
+        // the flags contributed by this wrapper itself (on top of the inner database); the batch and
+        // transaction subclasses override to fold in their own flag, mirroring RedisDatabase/RedisBatch/
+        // RedisTransaction rather than relying on the inner instance to carry it.
+        private protected virtual DatabaseFeatureFlags GetDatabaseFeatures()
+            => DatabaseFeatureFlags.KeyPrefix;
+
+        public override string ToString() => this.BuildString();
 
         public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.DebugObjectAsync(ToInner(key), flags);
@@ -183,6 +208,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashStringLengthAsync(ToInner(key), hashField, flags);
 
+        public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashImportAsync(ToInner(key), fieldSet, values, flags);
+
         public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSetAsync(ToInner(key), hashFields, flags);
 
@@ -321,6 +349,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None) =>
             Inner.ListMoveAsync(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide);
 
+        public Task<RedisValue[]?> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListMoveAsync(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide, count, mode, order, flags);
+
         public Task<RedisValue[]> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.ListRangeAsync(ToInner(key), start, stop, flags);
 
@@ -434,6 +465,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SetIntersectionLengthAsync(ToInner(keys), limit, flags);
+
+        public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetCombineLengthAsync(operation, ToInner(keys), limit, approximate, flags);
 
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLengthAsync(ToInner(key), flags);
@@ -699,8 +733,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamReadAsync(ToInner(key), position, count, flags);
 
-        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None) =>
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags) =>
             Inner.StreamReadAsync(streamPositions, countPerStream, flags);
+
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamReadAsync(streamPositions, countPerStream, maxCount, maxSize, flags);
 
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags) =>
             Inner.StreamReadGroupAsync(ToInner(key), groupName, consumerName, position, count, flags);
@@ -717,8 +754,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, flags);
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None) =>
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
             Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, flags);
+
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags);
 
         public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamTrimAsync(ToInner(key), maxLength, useApproximateMaxLength, flags);
@@ -938,10 +978,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             RedisKey.ConcatenateBytes(Prefix, null, (byte[]?)outer);
 
         protected RedisValue SortByToInner(RedisValue outer) =>
-            (outer == "nosort") ? outer : ToInner(outer);
+            (outer == RedisLiterals.nosort) ? outer : ToInner(outer);
 
         protected RedisValue SortGetToInner(RedisValue outer) =>
-            (outer == "#") ? outer : ToInner(outer);
+            (outer == RedisLiterals.HashSymbol) ? outer : ToInner(outer);
 
         [return: NotNullIfNotNull("outer")]
         protected RedisValue[]? SortGetToInner(RedisValue[]? outer)

@@ -59,7 +59,9 @@ internal enum RedisCommand
     ECHO,
     EVAL,
     EVALSHA,
+    [AsciiHash("EVAL_RO")]
     EVAL_RO,
+    [AsciiHash("EVALSHA_RO")]
     EVALSHA_RO,
     EXEC,
     EXISTS,
@@ -96,6 +98,7 @@ internal enum RedisCommand
     HGETEX,
     HGETDEL,
     HGETALL,
+    HIMPORT,
     HINCRBY,
     HINCRBYFLOAT,
     HKEYS,
@@ -131,6 +134,7 @@ internal enum RedisCommand
     LINSERT,
     LLEN,
     LMOVE,
+    LMOVEM,
     LMPOP,
     LPOP,
     LPOS,
@@ -189,6 +193,7 @@ internal enum RedisCommand
     SCARD,
     SCRIPT,
     SDIFF,
+    SDIFFCARD,
     SDIFFSTORE,
     SELECT,
     SENTINEL,
@@ -208,6 +213,7 @@ internal enum RedisCommand
     SMISMEMBER,
     SMOVE,
     SORT,
+    [AsciiHash("SORT_RO")]
     SORT_RO,
     SPOP,
     SPUBLISH,
@@ -216,6 +222,7 @@ internal enum RedisCommand
     STRLEN,
     SUBSCRIBE,
     SUNION,
+    SUNIONCARD,
     SUNIONSTORE,
     SSCAN,
     SSUBSCRIBE,
@@ -310,6 +317,9 @@ internal static partial class RedisCommandMetadata
 
     [AsciiHash(CaseSensitive = false)]
     public static partial bool TryParseCI(ReadOnlySpan<char> command, out RedisCommand value);
+
+    [AsciiHash]
+    public static partial bool TryFormat(RedisCommand command, out string format);
 }
 
 // ReSharper restore InconsistentNaming
@@ -360,6 +370,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.HEXPIREAT:
             case RedisCommand.HGETDEL:
             case RedisCommand.HGETEX:
+            case RedisCommand.HIMPORT:
             case RedisCommand.HINCRBY:
             case RedisCommand.HINCRBYFLOAT:
             case RedisCommand.HMSET:
@@ -375,6 +386,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.INCREX:
             case RedisCommand.LINSERT:
             case RedisCommand.LMOVE:
+            case RedisCommand.LMOVEM:
             case RedisCommand.LMPOP:
             case RedisCommand.LPOP:
             case RedisCommand.LPUSH:
@@ -526,6 +538,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SCARD:
             case RedisCommand.SCRIPT:
             case RedisCommand.SDIFF:
+            case RedisCommand.SDIFFCARD:
             case RedisCommand.SELECT:
             case RedisCommand.SENTINEL:
             case RedisCommand.SHUTDOWN:
@@ -543,6 +556,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.STRLEN:
             case RedisCommand.SUBSCRIBE:
             case RedisCommand.SUNION:
+            case RedisCommand.SUNIONCARD:
             case RedisCommand.SUNSUBSCRIBE:
             case RedisCommand.SSCAN:
             case RedisCommand.SYNC:

@@ -720,16 +720,16 @@ public abstract class PubSubTestBase(
         await Task.WhenAll(tA, tB).ForAwait();
         Assert.Equal(2, pub.Publish(channel, "message"));
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
-        Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-        Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+        Assert.Equal(1, Volatile.Read(ref gotA));
+        Assert.Equal(1, Volatile.Read(ref gotB));
 
         // and unsubscribe...
         tA = listenA.UnsubscribeAsync(channel);
         await tA;
         Assert.Equal(1, pub.Publish(channel, "message"));
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
-        Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-        Assert.Equal(2, Interlocked.CompareExchange(ref gotB, 0, 0));
+        Assert.Equal(1, Volatile.Read(ref gotA));
+        Assert.Equal(2, Volatile.Read(ref gotB));
     }
 
     [Fact]
@@ -762,7 +762,7 @@ public abstract class PubSubTestBase(
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
 
         Assert.Equal(6, total); // sent
-        Assert.Equal(6, Interlocked.CompareExchange(ref count, 0, 0)); // received
+        Assert.Equal(6, Volatile.Read(ref count)); // received
     }
 
     internal static Task AllowReasonableTimeToPublishAndProcess() => Task.Delay(500);
@@ -787,8 +787,8 @@ public abstract class PubSubTestBase(
         Assert.Equal(2, pub.Publish(prefix + "channel", "message"));
 #pragma warning restore CS0618
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
-        Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-        Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+        Assert.Equal(1, Volatile.Read(ref gotA));
+        Assert.Equal(1, Volatile.Read(ref gotB));
 
         // and unsubscibe...
 #pragma warning disable CS0618
@@ -797,8 +797,8 @@ public abstract class PubSubTestBase(
         Assert.Equal(1, pub.Publish(prefix + "channel", "message"));
 #pragma warning restore CS0618
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
-        Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
-        Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+        Assert.Equal(2, Volatile.Read(ref gotA));
+        Assert.Equal(1, Volatile.Read(ref gotB));
     }
 
     [Fact]

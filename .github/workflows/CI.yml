@@ -29,9 +29,11 @@ jobs:
           client-libs-test-image-tag: "${{ github.event.inputs.client-libs-test-image-tag }}"
 
   windows:
-    name: StackExchange.Redis (Windows Server 2022)
+    name: StackExchange.Redis (Windows Server 2025)
     if: github.event.inputs.client-libs-test-image-tag == ''
-    runs-on: windows-2022
+    # Note: must not be windows-2022; setup-wsl runs `wsl --update` only on that image
+    # (ImageOS == win22), and that download intermittently 403s from Microsoft, failing the job.
+    runs-on: windows-2025
     env:
       NUGET_CERT_REVOCATION_MODE: offline # Disabling signing because of massive perf hit, see https://github.com/NuGet/Home/issues/11548
       DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Note this doesn't work yet for Windows - see https://github.com/dotnet/runtime/issues/68340
@@ -42,7 +44,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the full history
-      - uses: Vampire/setup-wsl@v6
+      - uses: Vampire/setup-wsl@v7 # v7 is the first version running on Node 24
         with:
           distribution: Ubuntu-22.04
       - name: Install Redis
@@ -55,6 +57,16 @@ jobs:
           chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/redis.list
           apt-get update
+          # Don't let dpkg start the packaged redis-server service: we start our own
+          # instances below, and the packaged unit would otherwise race them for
+          # 127.0.0.1:6379 on any run where WSL came up with systemd.
+          # This also sidesteps an install hang we hit with the 8.10.0 package, whose
+          # redis.conf lost "supervised auto" - redis then never sd_notify()s, so the
+          # Type=notify unit never leaves "activating" and the postinst's
+          # "systemctl start" blocks. That one's an upstream packaging slip being
+          # fixed there, but the guard above is worth keeping either way.
+          printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+          chmod +x /usr/sbin/policy-rc.d
           apt-get install -y redis
           mkdir redis
       - name: Run redis-server
@@ -132,7 +144,7 @@ jobs:
         continue-on-error: true
         if: success() || failure()
         with:
-          name: Tests Results - Windows Server 2022
+          name: Tests Results - Windows Server 2025
           path: 'test-results/*.trx'
           reporter: dotnet-trx
       # Package and upload to MyGet only on pushes to main/v3, not on PRs

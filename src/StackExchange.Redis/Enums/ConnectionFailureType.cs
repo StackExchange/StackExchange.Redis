@@ -1,4 +1,7 @@
-﻿namespace StackExchange.Redis
+﻿using System.Diagnostics.CodeAnalysis;
+using RESPite;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// The known types of connection failure.
@@ -59,5 +62,11 @@
         /// High-integrity mode was enabled, and a failure was detected.
         /// </summary>
         ResponseIntegrityFailure,
+
+        /// <summary>
+        /// The <see cref="CircuitBreaker"/> associated with this connection detected instability.
+        /// </summary>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+        CircuitBreaker,
     }
 }

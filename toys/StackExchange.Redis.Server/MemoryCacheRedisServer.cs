@@ -145,16 +145,26 @@ namespace StackExchange.Redis.Server
             return RedisValue.Unbox(val);
         }
 
-        protected override void Set(int database, in RedisKey key, in RedisValue value)
-            => GetDb(database)[key] = value.Box();
-
-        protected override void SetEx(int database, in RedisKey key, TimeSpan expiration, in RedisValue value)
+        protected override bool Set(int database, in RedisKey key, in RedisValue value, TimeSpan? expiration = null, SetFlags flags = SetFlags.None)
         {
             var db = GetDb(database);
+            switch (flags & (SetFlags.NX | SetFlags.XX))
+            {
+                case SetFlags.NX when Exists(database, key): return false;
+                case SetFlags.XX when !Exists(database, key): return false;
+                case SetFlags.NX | SetFlags.XX: throw new ArgumentOutOfRangeException(nameof(flags));
+            }
+
+            if (expiration is null)
+            {
+                db[key] = value.Box();
+                return true;
+            }
             var now = Time();
-            var absolute = now + expiration;
+            var absolute = now + expiration.Value;
             if (absolute <= now) db.Remove(key);
             else db[key] = new ExpiringValue(value.Box(), absolute);
+            return true;
         }
 
         protected override bool Del(int database, in RedisKey key)

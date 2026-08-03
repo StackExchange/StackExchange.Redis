@@ -26,6 +26,11 @@ namespace StackExchange.Redis
         }
 
 #if !NET
+        extension(Task task)
+        {
+            public bool IsCompletedSuccessfully => task.Status is TaskStatus.RanToCompletion;
+        }
+
         // suboptimal polyfill version of the .NET 6+ API, but reasonable for light use
         internal static Task<T> WaitAsync<T>(this Task<T> task, CancellationToken cancellationToken)
         {

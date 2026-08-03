@@ -11,7 +11,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class RetryPolicyUnitTests(ITestOutputHelper log)
+public class ReconnectRetryPolicyUnitTests(ITestOutputHelper log)
 {
     [Theory]
     [InlineData(FailureMode.Success)]

@@ -80,12 +80,29 @@ internal readonly ref struct MessageWriter
     internal void WriteBulkString(in RedisValue value)
         => WriteBulkString(value, _writer);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void WriteBulkString(string? value)
+    {
+        if (value is null)
+        {
+            WriteRaw(NullBulkString);
+        }
+        else if (value.Length is 0)
+        {
+            WriteRaw(EmptyBulkString);
+        }
+        else
+        {
+            WriteUnifiedPrefixedString(_writer, null, value);
+        }
+    }
+
     internal static void WriteBulkString(in RedisValue value, IBufferWriter<byte> writer)
     {
         switch (value.Type)
         {
             case RedisValue.StorageType.Null:
-                WriteUnifiedBlob(writer, (byte[]?)null);
+                writer.Write(NullBulkString);
                 break;
             case RedisValue.StorageType.Int64:
                 WriteUnifiedInt64(writer, value.OverlappedValueInt64);

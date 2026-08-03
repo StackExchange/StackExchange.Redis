@@ -46,7 +46,7 @@ public class ResultBoxTests
         Assert.Equal(0, Volatile.Read(ref activated));
 
         // check that complete signals continuation
-        msg.Complete();
+        msg.Complete(null);
         Thread.Sleep(100);
         Assert.Equal(1, Volatile.Read(ref activated));
 
@@ -81,7 +81,7 @@ public class ResultBoxTests
         Assert.False(tcs.Task.IsCompleted);
 
         // check that complete signals continuation
-        msg.Complete();
+        msg.Complete(null);
         Thread.Sleep(100);
         Assert.True(tcs.Task.IsCompleted);
 
