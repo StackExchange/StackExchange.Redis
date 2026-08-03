@@ -44,6 +44,12 @@ for (int i = 0; i < args.Length; i++)
 // either be redundant or wrong, so it is overridden rather than reconciled.
 if (affinity) upstreamConns = shards;
 
+#if !SOCKETSET
+// These flags only act on the SocketSet transport; without the sibling checkout they parse and are
+// deliberately inert (CS0219 otherwise fails the net8.0 leg, where SOCKETSET is undefined).
+_ = level2; _ = pin; _ = upstreamTls; _ = tlsTrust; _ = affinity; _ = listenUds;
+#endif
+
 var proxyOptions = new ProxyServerOptions
 {
     Password = "letmein",
