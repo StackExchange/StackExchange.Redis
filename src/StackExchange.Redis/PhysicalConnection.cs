@@ -180,7 +180,21 @@ namespace StackExchange.Redis
             var connectTo = endpoint;
             if (tunnel is not null)
             {
-                connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, CancellationToken.None).ForAwait();
+#pragma warning disable SER009 // experimental transport contract: this is the consuming call site
+                // A transport tunnel replaces the socket outright (the widest form of the existing
+                // connectTo=null no-socket pattern): connect and TLS belong to the tunnel, and the
+                // stream/SslStream machinery below never runs.
+                var transport = await tunnel.ConnectTransportAsync(endpoint, bridge.ConnectionType, CancellationToken.None).ForAwait();
+#pragma warning restore SER009
+                if (transport is not null)
+                {
+                    _transport = transport;
+                    connectTo = null;
+                }
+                else
+                {
+                    connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, CancellationToken.None).ForAwait();
+                }
             }
             if (connectTo is not null)
             {
@@ -314,6 +328,7 @@ namespace StackExchange.Redis
         {
             var output = Interlocked.Exchange(ref _output, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
+            var transport = Interlocked.Exchange(ref _transport, null);
 
             if (output != null)
             {
@@ -328,11 +343,16 @@ namespace StackExchange.Redis
                 try { socket.Close(); } catch { }
                 try { socket.Dispose(); } catch { }
             }
+
+            if (transport != null)
+            {
+                try { transport.DisposeAsync().AsTask().RedisFireAndForget(); } catch { }
+            }
         }
 
         public void Dispose()
         {
-            bool markDisposed = VolatileSocket != null;
+            bool markDisposed = VolatileSocket != null || _transport != null;
             Shutdown();
             if (markDisposed)
             {
@@ -1013,6 +1033,21 @@ namespace StackExchange.Redis
                 // non-TLS: [Socket]<==[SocketConnection:IDuplexPipe]
                 // TLS:     [Socket]<==[NetworkStream]<==[SslStream]<==[StreamConnection:IDuplexPipe]
                 var config = bridge.Multiplexer.RawConfig;
+
+                if (_transport is { } transport)
+                {
+                    // Transport mode: no socket, no stream, no SslStream. TLS is the tunnel's job; a
+                    // config that ALSO asks for stream-level TLS is a contradiction, and it fails loud
+                    // rather than silently double-encrypting or silently skipping.
+                    if (config.Ssl)
+                    {
+                        throw new NotSupportedException("With a transport-returning Tunnel, TLS belongs to the tunnel; do not also set Ssl=true.");
+                    }
+                    InitTransportOutput(transport);
+                    log?.LogInformationConnected(bridge.Name);
+                    await bridge.OnConnectedAsync(this, log).ForAwait();
+                    return true;
+                }
 
                 var tunnel = config.Tunnel;
                 if (tunnel is not null)
