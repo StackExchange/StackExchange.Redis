@@ -14,7 +14,10 @@ string? listenUds = null;  // --listen-uds /path or @abstract (SocketSet maps a 
 bool level2 = false;   // --l2: frame on the loop thread (no pipes, no pump, no hop)
 bool ssUpstream = false; // --ss-upstream: upstream legs as SocketSet outbound connections (no parked reader)
 bool affinity = false;   // --affinity: one upstream leg PER SHARD, clients routed to their own shard's leg
-bool pin = true;         // --no-pin: let loop threads migrate (tail experiment: a pinned shard stuck behind
+bool pin = true;
+bool upstreamTls = false; // --upstream-tls: TLS-ORIGINATING sidecar (plaintext downstream, TLS upstream)
+                          // via SocketSet TlsMode.Connect -- accepts stay plaintext BY CONSTRUCTION.
+string tlsTrust = "/home/marc/code/SocketSet/bench/.tools/tls-demo/cert.pem";         // --no-pin: let loop threads migrate (tail experiment: a pinned shard stuck behind
                          // its SMT sibling has nowhere to go; an unpinned one can move)
 for (int i = 0; i < args.Length; i++)
 {
@@ -26,6 +29,8 @@ for (int i = 0; i < args.Length; i++)
         case "--ss-upstream": ssUpstream = true; break;
         case "--affinity": ssUpstream = true; affinity = true; break;
         case "--no-pin": pin = false; break;
+        case "--upstream-tls": upstreamTls = true; break;
+        case "--tls-trust" when i + 1 < args.Length: tlsTrust = args[++i]; break;
         case "--shards" when i + 1 < args.Length && int.TryParse(args[i + 1], out var s): shards = s; i++; break;
         case "--port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var p): listenPort = p; i++; break;
         case "--listen-uds" when i + 1 < args.Length: listenUds = args[++i]; break;
@@ -70,6 +75,15 @@ switch (transport)
             Shards = shards,
             PinWorkerThreads = pin,
         };
+        if (upstreamTls)
+        {
+            // Client-side TLS with the upstream's cert PINNED as trust (it is self-signed); verification
+            // stays ON, so this is the honest shape rather than a verify-nothing shortcut. TlsMode.Connect
+            // means downstream accepts are plaintext exactly as if no provider were configured.
+            ssOptions.Tls = new SocketSets.Tls.OpenSsl.OpenSslTlsProvider(
+                trustCertPem: File.ReadAllText(tlsTrust));
+            ssOptions.TlsMode = SocketSets.TlsMode.Connect;
+        }
         var ss = new SocketSetProxyServer(proxy, ssOptions, level2);
         // Legs BEFORE Listen: GetNextLeg does not tolerate holes, and a client could arrive immediately.
         if (ssUpstream) ss.ConnectUpstream(new IPEndPoint(IPAddress.Loopback, upstreamPort), TimeSpan.FromSeconds(10), affinity);
@@ -90,7 +104,7 @@ switch (transport)
         Console.WriteLine($"[resp-proxy] transport=socketset/{backend} shards={shards} " +
                           $"bridge={(level2 ? "direct" : "pipe")} " +
                           $"upstream={(affinity ? "socketset-affine" : ssUpstream ? "socketset" : "worker-stream")} " +
-                          $"pin={(pin ? 1 : 0)} " +
+                          $"pin={(pin ? 1 : 0)} upstream-tls={(upstreamTls ? "openssl" : "off")} " +
                           $"listen={listenUds ?? listenPort.ToString()} upstream-port={upstreamPort} legs={upstreamConns}");
         break;
 #endif
