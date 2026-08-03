@@ -17,6 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- in-box from net10.0; needed by Streams/BufferedStreamWriter.Pipe.cs elsewhere -->
+    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))" Include="System.IO.Pipelines"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="RESPite.Tests"/>
     <InternalsVisibleTo Include="RESPite.Proxy"/>
     <None Include="readme.md" Pack="true" PackagePath="/"/>

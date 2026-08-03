@@ -12,6 +12,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Streams;
 using StackExchange.Redis.Configuration;
 using StackExchange.Redis.Server;
 using Xunit;

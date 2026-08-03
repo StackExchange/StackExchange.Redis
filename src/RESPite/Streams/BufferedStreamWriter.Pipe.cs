@@ -1,12 +1,10 @@
-﻿/*
-using System;
+﻿using System;
 using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RESPite.Streams;
-
 
 internal sealed class PipeStreamWriter : BufferedStreamWriter
 {
@@ -66,4 +64,3 @@ internal sealed class PipeStreamWriter : BufferedStreamWriter
 
     public override void Complete(Exception? exception = null) => _writer.Complete(exception);
 }
-*/

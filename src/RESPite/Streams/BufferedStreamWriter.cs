@@ -1,8 +1,12 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using RESPite.Buffers;
 
 namespace RESPite.Streams;
@@ -45,21 +49,23 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public enum WriteMode
     {
+        Default,
         Sync,
         Async,
-        // Pipe,
+        Pipe,
     }
 
     public virtual bool IsSync => false;
 
-    public static BufferedStreamWriter Create(
-        bool sync,
-        Stream target,
-        MemoryPool<byte>? bufferPool = null,
-        CancellationToken cancellationToken = default)
-    {
-        return new SwitchableBufferedStreamWriter(bufferPool, target, cancellationToken, initiallySync: sync);
-    }
+    public static BufferedStreamWriter Create(WriteMode mode, Stream target, MemoryPool<byte>? bufferPool, CancellationToken cancellationToken)
+        => mode switch
+        {
+            WriteMode.Sync => new SwitchableBufferedStreamWriter(bufferPool, target, cancellationToken, initiallySync: true),
+            // sync-mode targets latency; the safe default is async
+            WriteMode.Default or WriteMode.Async => new SwitchableBufferedStreamWriter(bufferPool, target, cancellationToken, initiallySync: false),
+            WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+        };
 
     // ReSharper disable once ReplaceWithFieldKeyword
     private readonly CancellationToken _cancellationToken = cancellationToken;

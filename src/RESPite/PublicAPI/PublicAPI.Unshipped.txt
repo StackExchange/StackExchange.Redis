@@ -13,3 +13,16 @@ virtual RESPite.Streams.RespStream.ReaderBufferPool.get -> System.Buffers.Memory
 virtual RESPite.Streams.RespStream.ShouldTransitionToAsync() -> bool
 virtual RESPite.Streams.RespStream.UpdateBufferStats(int lastFrameBytes, long bufferBytes) -> void
 virtual RESPite.Streams.RespStream.UpdateLastReadTime() -> void
+[SER009]RESPite.Transports.DuplexTransport
+[SER009]RESPite.Transports.DuplexTransport.DuplexTransport() -> void
+[SER009]abstract RESPite.Transports.DuplexTransport.Advance(int count) -> void
+[SER009]abstract RESPite.Transports.DuplexTransport.DisposeAsync() -> System.Threading.Tasks.ValueTask
+[SER009]abstract RESPite.Transports.DuplexTransport.Flush() -> bool
+[SER009]abstract RESPite.Transports.DuplexTransport.GetMemory(int sizeHint = 0) -> System.Memory<byte>
+[SER009]virtual RESPite.Transports.DuplexTransport.GetSpan(int sizeHint = 0) -> System.Span<byte>
+[SER009]abstract RESPite.Transports.DuplexTransport.Start(RESPite.Transports.TransportReceiver! receiver) -> void
+[SER009]RESPite.Transports.TransportReceiver
+[SER009]RESPite.Transports.TransportReceiver.TransportReceiver() -> void
+[SER009]abstract RESPite.Transports.TransportReceiver.OnReceived(System.ReadOnlySpan<byte> payload) -> bool
+[SER009]virtual RESPite.Transports.TransportReceiver.OnBatchEnd() -> void
+[SER009]virtual RESPite.Transports.TransportReceiver.OnClosed(System.Exception? fault) -> void

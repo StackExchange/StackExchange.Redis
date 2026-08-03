@@ -131,7 +131,7 @@ internal sealed class ProxyServer
 #endif
     {
         private readonly BufferedStreamWriter _outBuffer =
-            BufferedStreamWriter.Create(true, tail, server.Options.BufferPool);
+            BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, tail, server.Options.BufferPool, default);
 
         public ProxyServer Server => server;
         public CancellationToken Lifetime => server.Lifetime;
