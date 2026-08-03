@@ -190,30 +190,33 @@ internal sealed class SocketSetProxyServer(ProxyServer proxy, SocketSetOptions o
     /// </summary>
     protected override void OnReceive(ref ReceiveContext ctx)
     {
-        // Everything staged during this callback -- replies from commands framed here, and the upstream
-        // leg's forwarded requests -- is flushed ONCE on the way out. The finally matters: a torn-down
-        // client mid-callback must not strand earlier clients' staged bytes.
+        // Staging stays ARMED for the whole loop BATCH: the drain moved from per-callback (a finally
+        // here) to OnLoopDrain, which the transport fires once per event batch. Per-callback draining
+        // was measured to AMPLIFY peer segmentation 3x under a per-record-writing TLS upstream -- each
+        // of the peer's segments became a callback, and each callback became its own send. Batch
+        // granularity is what event-loop servers do, and the -P 1 latency envelope is unchanged: a
+        // batch containing one event drains immediately after this callback returns.
         t_deferring = true;
-        try
+        if (ctx.Connection.UserToken is ProxyServer.InnerLeg leg)
         {
-            if (ctx.Connection.UserToken is ProxyServer.InnerLeg leg)
-            {
-                if (!leg.Feed(ctx.Payload)) ctx.Connection.Close();
-                return;
-            }
-            if (ctx.Connection.UserToken is SocketSetProxyClient c && !c.Feed(ctx.Payload))
-            {
-                // The client is torn down (protocol fault or close). Abortive close is right: a faulted
-                // RESP stream has no reply worth preserving, and leaving it open is what made a parse
-                // error present as a client HANG rather than an error.
-                ctx.Connection.Close();
-            }
+            if (!leg.Feed(ctx.Payload)) ctx.Connection.Close();
+            return;
         }
-        finally
+        if (ctx.Connection.UserToken is SocketSetProxyClient c && !c.Feed(ctx.Payload))
         {
-            t_deferring = false;
-            DrainDeferred();
+            // The client is torn down (protocol fault or close). Abortive close is right: a faulted
+            // RESP stream has no reply worth preserving, and leaving it open is what made a parse
+            // error present as a client HANG rather than an error. Its staged siblings still drain at
+            // batch end -- teardown of one client must not strand the others.
+            ctx.Connection.Close();
         }
+    }
+
+    /// <summary>The transport's batch-end hook: one flush per registrant per LOOP ITERATION.</summary>
+    protected override void OnLoopDrain()
+    {
+        t_deferring = false;
+        DrainDeferred();
     }
 
     private async Task RunAsync(IDuplexPipe app, ClientState state)
