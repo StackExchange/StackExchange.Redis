@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.IO;
 using System.Threading.Tasks;
+using RESPite.Streams;
 
 namespace StackExchange.Redis;
 
@@ -23,7 +24,10 @@ internal partial class PhysicalConnection
         if (stream is null) return;
         _ioStream = stream;
         var config = BridgeCouldBeNull?.Multiplexer?.RawConfig;
-        _output = BufferedStreamWriter.Create(WriteMode, connectionType, stream, config, OutputCancel);
+
+        // Redis policy over the generic writer: sync-mode targets latency, which pub/sub never needs.
+        var mode = connectionType is ConnectionType.Subscription ? BufferedStreamWriter.WriteMode.Async : WriteMode;
+        _output = BufferedStreamWriter.Create(mode, stream, config?.RequestBufferPool, OutputCancel);
 
         // Nothing awaits WriteComplete in production (it is mostly a test affordance); observe it so a
         // teardown-time (or any other) write fault never becomes an UnobservedTaskException. Applies to

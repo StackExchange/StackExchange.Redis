@@ -14,6 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RESPite.Streams;
 using StackExchange.Redis.Availability;
 using static StackExchange.Redis.Message;
 

@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RESPite;
 using RESPite.Buffers;
+using RESPite.Streams;
 using StackExchange.Redis.Availability;
 using StackExchange.Redis.Configuration;
 
