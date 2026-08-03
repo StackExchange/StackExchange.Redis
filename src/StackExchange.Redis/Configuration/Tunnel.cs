@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -34,6 +35,16 @@ namespace StackExchange.Redis.Configuration
         /// the entire data flow can be intercepted, providing entire custom transports.
         /// </summary>
         public virtual ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => default;
+
+        /// <summary>
+        /// Optionally supply the ENTIRE transport for this connection — the same hijack as
+        /// <see cref="BeforeAuthenticateAsync"/> one level deeper: instead of yielding a
+        /// <see cref="Stream"/> over a socket the library owns, yield a
+        /// <see cref="RESPite.Transports.DuplexTransport"/> the tunnel owns, and no socket is created at
+        /// all. Return null (the default for every existing tunnel) for the standard socket path.
+        /// </summary>
+        [Experimental(RESPite.Experiments.Transport, UrlFormat = RESPite.Experiments.UrlFormat)]
+        public virtual ValueTask<RESPite.Transports.DuplexTransport?> ConnectTransportAsync(EndPoint endpoint, ConnectionType connectionType, CancellationToken cancellationToken) => default;
 
         private sealed class HttpProxyTunnel : Tunnel
         {
