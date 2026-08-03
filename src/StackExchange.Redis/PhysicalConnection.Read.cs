@@ -11,6 +11,7 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Internal;
 using RESPite.Messages;
+using RESPite.Streams;
 
 namespace StackExchange.Redis;
 

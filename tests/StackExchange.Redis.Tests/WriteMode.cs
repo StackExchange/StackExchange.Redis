@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis.Tests;
+﻿using RESPite.Streams;
+
+namespace StackExchange.Redis.Tests;
 
 public enum WriteMode
 {
