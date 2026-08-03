@@ -1,1 +1,5 @@
 #nullable enable
+[SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(string! configuration, StackExchange.Redis.Availability.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.IConnectionGroup!>!
+[SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroup(string! configuration, StackExchange.Redis.Availability.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> StackExchange.Redis.Availability.IConnectionGroup!
+[SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectAny(string! configuration, System.IO.TextWriter? log = null) -> StackExchange.Redis.IConnectionMultiplexer!
+[SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectAnyAsync(string! configuration, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionMultiplexer!>!

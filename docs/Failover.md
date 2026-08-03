@@ -144,6 +144,41 @@ ConnectionGroupMember[] members = [
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
 ```
 
+### Connecting from a configuration string
+
+Where your infrastructure already hands StackExchange.Redis a single connection string, you can express a whole multi-group topology in that one string, rather than building `ConnectionGroupMember` instances in code. Each group is written exactly like an ordinary [configuration string](Configuration), and groups are separated by a **bare `|` token** - i.e. a `|` on its own between commas (`,|,`):
+
+```csharp
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(
+    "east-1.example.com,east-2.example.com,password=pA,weight=10,member=US East" +
+    ",|," +
+    "west-1.example.com,password=pB,weight=5,member=US West");
+```
+
+Two additional per-member keys are recognised inside each group:
+
+| Key | Maps to | Notes |
+|-----|---------|-------|
+| `weight={number}` | `ConnectionGroupMember.Weight` | Relative preference; higher is preferred. Floating-point; defaults to `1`. |
+| `member={name}` | `ConnectionGroupMember.Name` | A display name for the member, used in logging/diagnostics. |
+
+All the usual per-connection keys (`password`, `ssl`, `user`, `defaultDatabase`, command maps, ...) apply **per group**, so each region can have its own password, TLS settings, and so on.
+
+> **Why `,|,` and not `...|...`?** The `|` is only treated as a group separator when it stands alone as a comma-delimited token. A `|` that is glued to other text, or that appears *inside* a value (for example a password containing `|`, or `sslProtocols=Tls12|Tls13`), is **never** a separator. This is deliberate: it means the multi-group syntax does not change the existing value-escaping rules at all. (As always, a value cannot contain a comma.) A leading `,|,`/`|` is allowed as an explicit "this is multi-group" marker and does not create an empty group.
+
+`ConnectGroup(string, ...)` is the synchronous companion (sync-over-async over the connect, consistent with `Connect`).
+
+#### Transparent single-or-multi: `ConnectAny`
+
+`ConnectGroupAsync`/`ConnectGroup` return an `IConnectionGroup`; the ordinary `Connect`/`ConnectAsync` return a `ConnectionMultiplexer`. If you have a single code path that is handed a connection string and does not know up front whether it describes one server or a multi-group topology, use `ConnectAny`/`ConnectAnyAsync`. It inspects the string, dispatches to the group path when it finds a `|` separator (and to an ordinary connection otherwise), and returns the shared `IConnectionMultiplexer` abstraction in both cases:
+
+```csharp
+// works for BOTH "host:6379,password=..." and "east,...|west,..."
+IConnectionMultiplexer conn = await ConnectionMultiplexer.ConnectAnyAsync(configurationString);
+```
+
+Passing a multi-group string to the single-connection `Connect`/`ConnectAsync` (or to `ConfigurationOptions.Parse`) throws, rather than silently merging every group's endpoints into one pool - use `ConnectGroupAsync`/`ConnectAny` for those.
+
 ## Configuring Weights
 
 Weights allow you to express preference for specific endpoints. Higher weights are preferred when multiple endpoints are available:

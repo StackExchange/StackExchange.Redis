@@ -55,6 +55,93 @@ namespace StackExchange.Redis
         {
             return MultiGroupMultiplexer.ConnectAsync([member0, member1], options ?? MultiGroupOptions.Default, log);
         }
+
+        /// <summary>
+        /// Creates a new <see cref="IConnectionMultiplexer"/> instance that manages connections to multiple
+        /// redundant configurations parsed from a single multi-group connection string. Groups are separated by a
+        /// bare <c>|</c> token; per-member <c>weight=</c> and <c>member=</c> (name) may be specified within each group,
+        /// for example: <c>east:6379,password=a,weight=10,member=US East|west:6379,password=b,weight=5,member=US West</c>.
+        /// </summary>
+        /// <param name="configuration">The multi-group configuration string to parse.</param>
+        /// <param name="options">Additional options for configuring this group.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+#pragma warning disable RS0026
+        public static Task<IConnectionGroup> ConnectGroupAsync(
+            string configuration,
+            MultiGroupOptions? options = null,
+            TextWriter? log = null)
+#pragma warning restore RS0026
+            => ConnectGroupAsync(ParseGroupMembers(configuration), options, log);
+
+        /// <summary>
+        /// Creates a new <see cref="IConnectionMultiplexer"/> instance that manages connections to multiple
+        /// redundant configurations parsed from a single multi-group connection string; see
+        /// <see cref="ConnectGroupAsync(string, MultiGroupOptions?, TextWriter?)"/>. This is a synchronous wrapper
+        /// (sync-over-async) over the connect, consistent with <see cref="Connect(string, TextWriter?)"/>.
+        /// </summary>
+        /// <param name="configuration">The multi-group configuration string to parse.</param>
+        /// <param name="options">Additional options for configuring this group.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+#pragma warning disable RS0026
+        public static IConnectionGroup ConnectGroup(
+            string configuration,
+            MultiGroupOptions? options = null,
+            TextWriter? log = null)
+#pragma warning restore RS0026
+            => ConnectGroupAsync(configuration, options, log).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Connect to either a single server/configuration or a multi-group (Active-Active) configuration, choosing
+        /// automatically based on whether <paramref name="configuration"/> contains a group delimiter ('|'). The
+        /// common <see cref="IConnectionMultiplexer"/> abstraction is returned in both cases, so callers whose
+        /// infrastructure supplies a single connection string can opt into multi-group transparently, without
+        /// knowing up front which form the string takes.
+        /// </summary>
+        /// <param name="configuration">The (single- or multi-group) configuration string to parse.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+        public static async Task<IConnectionMultiplexer> ConnectAnyAsync(string configuration, TextWriter? log = null)
+            => ConfigurationOptions.IsMultiGroup(configuration)
+                ? await ConnectGroupAsync(configuration, log: log).ForAwait()
+                : await ConnectAsync(configuration, log).ForAwait();
+
+        /// <summary>
+        /// Connect to either a single server/configuration or a multi-group (Active-Active) configuration; the
+        /// synchronous companion to <see cref="ConnectAnyAsync(string, TextWriter?)"/> (the multi-group path uses
+        /// sync-over-async, consistent with <see cref="Connect(string, TextWriter?)"/>).
+        /// </summary>
+        /// <param name="configuration">The (single- or multi-group) configuration string to parse.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+        public static IConnectionMultiplexer ConnectAny(string configuration, TextWriter? log = null)
+        {
+            if (ConfigurationOptions.IsMultiGroup(configuration))
+            {
+                return ConnectGroup(configuration, log: log);
+            }
+            return Connect(configuration, log);
+        }
+
+        // parse a multi-group connection string into its members, applying per-member weight/name
+        private static ConnectionGroupMember[] ParseGroupMembers(string configuration)
+        {
+            var groups = ConfigurationOptions.SplitGroups(configuration)
+                ?? throw new ArgumentException(
+                    $"The configuration does not define multiple groups; a group delimiter ('{ConfigurationOptions.GroupDelimiter}') is required. For a single connection, use Connect/ConnectAsync instead.",
+                    nameof(configuration));
+
+            var members = new ConnectionGroupMember[groups.Count];
+            for (int i = 0; i < groups.Count; i++)
+            {
+                var config = groups[i];
+                var member = new ConnectionGroupMember(config, config.MemberName ?? "");
+                if (config.MemberWeight is double weight) member.Weight = weight;
+                members[i] = member;
+            }
+            return members;
+        }
     }
 
 #pragma warning disable SA1403
