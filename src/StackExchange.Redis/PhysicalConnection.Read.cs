@@ -428,10 +428,17 @@ internal sealed partial class PhysicalConnection
             case RespPrefix.Array when (_protocol is RedisProtocol.Resp2 & connectionType is ConnectionType.Subscription)
                                        && !IsArrayPong(frame): // could be a RESP2 pub/sub payload
                 // out-of-band; pub/sub etc
-                if (OnOutOfBand(frame, ref memoryOwner))
+                switch (OnOutOfBand(frame, ref memoryOwner))
                 {
-                    OnDetailLog($"out-of-band message, not dequeuing: {prefix}");
-                    return;
+                    case OutOfBandResult.Handled:
+                        OnDetailLog($"out-of-band message, not dequeuing: {prefix}");
+                        return;
+                    case OutOfBandResult.NotRecognized when prefix is RespPrefix.Push:
+                        // a RESP3 push frame is out-of-band *by definition*; if we don't recognize it
+                        // (newer server, or a feature we don't implement) we drop it - matching it to a
+                        // pending command would desynchronize the entire response stream
+                        OnDetailLog($"unrecognized out-of-band message, dropped: {prefix}");
+                        return;
                 }
                 break;
         }
@@ -492,6 +499,28 @@ internal sealed partial class PhysicalConnection
         internal static partial bool TryParse(ReadOnlySpan<byte> value, out PushKind result);
     }
 
+    /// <summary>
+    /// The outcome of inspecting a possible out-of-band frame.
+    /// </summary>
+    private enum OutOfBandResult
+    {
+        /// <summary>
+        /// We could not identify the frame; for a RESP3 push frame this means "drop it".
+        /// </summary>
+        NotRecognized,
+
+        /// <summary>
+        /// Consumed as an out-of-band message; nothing further to do.
+        /// </summary>
+        Handled,
+
+        /// <summary>
+        /// Recognized, but it is the reply to a command we sent (subscribe/unsubscribe confirmations
+        /// arrive as push frames in RESP3), so normal request/response matching must complete it.
+        /// </summary>
+        MatchToCommand,
+    }
+
     internal static ReadOnlySpan<byte> StackCopyLengthChecked(scoped in RespReader reader, Span<byte> buffer)
     {
         var len = reader.CopyTo(buffer);
@@ -499,10 +528,10 @@ internal sealed partial class PhysicalConnection
         return buffer.Slice(0, len);
     }
 
-    private bool OnOutOfBand(ReadOnlySpan<byte> payload, ref IMemoryOwner<byte>? memoryOwner)
+    private OutOfBandResult OnOutOfBand(ReadOnlySpan<byte> payload, ref IMemoryOwner<byte>? memoryOwner)
     {
         var muxer = BridgeCouldBeNull?.Multiplexer;
-        if (muxer is null) return true; // consume it blindly
+        if (muxer is null) return OutOfBandResult.Handled; // consume it blindly
 
         var reader = new RespReader(payload);
 
@@ -528,7 +557,7 @@ internal sealed partial class PhysicalConnection
                 => reader.SafeTryMoveNext() & reader.IsInlineScalar &
                    reader.Prefix is RespPrefix.BulkString or RespPrefix.SimpleString;
 
-            if (kind is PushKind.None || !TryMoveNextString(ref reader)) return false;
+            if (kind is PushKind.None || !TryMoveNextString(ref reader)) return OutOfBandResult.NotRecognized;
 
             // the channel is always the second element
             var subscriptionChannel = AsRedisChannel(reader, channelOptions);
@@ -568,7 +597,7 @@ internal sealed partial class PhysicalConnection
                         OnMessage(muxer, subscriptionChannel, subscriptionChannel, in reader);
                     }
 
-                    return true;
+                    return OutOfBandResult.Handled;
                 case PushKind.PMessage when TryMoveNextString(ref reader):
                     _readStatus = ReadStatus.PubSubPMessage;
 
@@ -579,7 +608,7 @@ internal sealed partial class PhysicalConnection
                         OnMessage(muxer, subscriptionChannel, messageChannel, in reader);
                     }
 
-                    return true;
+                    return OutOfBandResult.Handled;
                 case PushKind.SUnsubscribe when !PeekChannelMessage(RedisCommand.SUNSUBSCRIBE, subscriptionChannel):
                     // then it was *unsolicited* - this probably means the slot was migrated
                     // (otherwise, we'll let the command-processor deal with it)
@@ -593,10 +622,16 @@ internal sealed partial class PhysicalConnection
                         // knows, but *we don't know who that is*, and other nodes: aren't guaranteed to know (yet)
                         muxer.DefaultSubscriber.ResubscribeToServer(subscription, subscriptionChannel, server, cause: "sunsubscribe");
                     }
-                    return true;
+                    return OutOfBandResult.Handled;
+
+                case PushKind.Subscribe or PushKind.PSubscribe or PushKind.SSubscribe
+                    or PushKind.Unsubscribe or PushKind.PUnsubscribe or PushKind.SUnsubscribe:
+                    // recognized, but these are confirmations of commands *we* sent (in RESP3 they
+                    // arrive as push frames), so the normal request/response matching completes them
+                    return OutOfBandResult.MatchToCommand;
             }
         }
-        return false;
+        return OutOfBandResult.NotRecognized;
     }
 
     private void OnMessage(
