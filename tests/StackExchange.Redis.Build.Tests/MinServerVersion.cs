@@ -102,6 +102,6 @@ public class MinServerVersion : Verifier<TransactionAnalyzer>
         Diagnostic("SER301").WithLocation(0).WithArguments(
             "Condition.StringEqual",
             "StringSetAsync",
-            "StringSet(key, value, ValueCondition.Equal(expected))",
+            "StringSet[Async](key, value, ValueCondition.Equal(expected))",
             "8.4"));
 }

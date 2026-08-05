@@ -238,7 +238,7 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.KeyNotExists",
             "StringSetAsync",
-            "StringSet(key, value, When.NotExists)"));
+            "StringSet[Async](key, value, When.NotExists)"));
 
     [Fact]
     // two independent transactions in one method must be tracked separately, not pooled into one set of counts
@@ -265,10 +265,10 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.KeyNotExists",
             "StringSetAsync",
-            "StringSet(key, value, When.NotExists)"),
+            "StringSet[Async](key, value, When.NotExists)"),
         Diagnostic("SER301").WithLocation(1).WithArguments(
             "Condition.StringEqual",
             "StringSetAsync",
-            "StringSet(key, value, ValueCondition.Equal(expected))",
+            "StringSet[Async](key, value, ValueCondition.Equal(expected))",
             "8.4"));
 }

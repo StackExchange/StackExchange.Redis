@@ -28,7 +28,7 @@ public class SER300 : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.KeyNotExists",
             "StringSetAsync",
-            "StringSet(key, value, When.NotExists)"));
+            "StringSet[Async](key, value, When.NotExists)"));
 
     [Fact]
     public Task KeyExistsGuardingStringSet_IsFlagged() => VerifyAsync(
@@ -49,7 +49,7 @@ public class SER300 : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.KeyExists",
             "StringSetAsync",
-            "StringSet(key, value, When.Exists)"));
+            "StringSet[Async](key, value, When.Exists)"));
 
     [Fact]
     public Task HashNotExistsGuardingHashSet_IsFlagged() => VerifyAsync(
@@ -70,7 +70,7 @@ public class SER300 : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.HashNotExists",
             "HashSetAsync",
-            "HashSet(key, field, value, When.NotExists)"));
+            "HashSet[Async](key, field, value, When.NotExists)"));
 
     [Fact]
     public Task SortedSetNotContainsGuardingSortedSetAdd_IsFlagged() => VerifyAsync(
@@ -91,7 +91,7 @@ public class SER300 : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.SortedSetNotContains",
             "SortedSetAddAsync",
-            "SortedSetAdd(key, member, score, SortedSetWhen.NotExists)"));
+            "SortedSetAdd[Async](key, member, score, SortedSetWhen.NotExists)"));
 
     [Fact]
     public Task SortedSetContainsGuardingSortedSetAdd_IsFlagged() => VerifyAsync(
@@ -112,7 +112,7 @@ public class SER300 : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.SortedSetContains",
             "SortedSetAddAsync",
-            "SortedSetAdd(key, member, score, SortedSetWhen.Exists)"));
+            "SortedSetAdd[Async](key, member, score, SortedSetWhen.Exists)"));
 
     [Fact]
     // the condition is on the *destination*, which is KeyRename's first argument's counterpart - so this is
@@ -135,7 +135,7 @@ public class SER300 : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.KeyNotExists",
             "KeyRenameAsync",
-            "KeyRename(key, newKey, When.NotExists)"));
+            "KeyRename[Async](key, newKey, When.NotExists)"));
 
     [Fact]
     // synchronous surface: ITransaction is both IDatabaseAsync and the sync-shaped queueing API, and the
@@ -157,7 +157,34 @@ public class SER300 : Verifier<TransactionAnalyzer>
         Diagnostic("SER300").WithLocation(0).WithArguments(
             "Condition.KeyNotExists",
             "StringSetAsync",
-            "StringSet(key, value, When.NotExists)"));
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // ITransactionAsync, not ITransaction: IDatabase hides IDatabaseAsync.CreateTransaction to refine the
+    // return type, so code written against IDatabaseAsync gets the async-only interface. Both are resolved by
+    // the analyzer, and this is what proves the second one is actually wired rather than just mentioned.
+    public Task AsyncOnlyTransactionInterface_IsFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        // IDatabaseAsync.CreateTransaction is itself [Experimental] (SER007); opted in here rather than in the
+        // shared harness, so the gate keeps working for every other case
+        #pragma warning disable SER007
+        class C
+        {
+            public async Task M(IDatabaseAsync db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value");
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
 
     [Fact]
     // family A needs the same field too, not just the same key: a condition about field "a" does not guard a

@@ -570,23 +570,23 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             => operation switch
             {
                 // one key, many values
-                "SetAdd" => ("SetAdd(key, values)", false, true, ServerVersion.Any),
-                "SetRemove" => ("SetRemove(key, values)", false, true, ServerVersion.Any),
-                "SortedSetAdd" => ("SortedSetAdd(key, entries)", false, true, ServerVersion.Any),
-                "SortedSetRemove" => ("SortedSetRemove(key, members)", false, true, ServerVersion.Any),
-                "HashSet" => ("HashSet(key, entries)", false, true, ServerVersion.Any),
-                "HashDelete" => ("HashDelete(key, fields)", false, true, ServerVersion.Any),
-                "ListLeftPush" => ("ListLeftPush(key, values)", false, true, ServerVersion.Any),
-                "ListRightPush" => ("ListRightPush(key, values)", false, true, ServerVersion.Any),
+                "SetAdd" => ("SetAdd[Async](key, values)", false, true, ServerVersion.Any),
+                "SetRemove" => ("SetRemove[Async](key, values)", false, true, ServerVersion.Any),
+                "SortedSetAdd" => ("SortedSetAdd[Async](key, entries)", false, true, ServerVersion.Any),
+                "SortedSetRemove" => ("SortedSetRemove[Async](key, members)", false, true, ServerVersion.Any),
+                "HashSet" => ("HashSet[Async](key, entries)", false, true, ServerVersion.Any),
+                "HashDelete" => ("HashDelete[Async](key, fields)", false, true, ServerVersion.Any),
+                "ListLeftPush" => ("ListLeftPush[Async](key, values)", false, true, ServerVersion.Any),
+                "ListRightPush" => ("ListRightPush[Async](key, values)", false, true, ServerVersion.Any),
 
                 // SMISMEMBER, which unlike the rest of these is recent; it has no RedisFeatures gate to cite
-                "SetContains" => ("SetContains(key, values), which returns a bool per value", false, true, new ServerVersion(6, 2)),
+                "SetContains" => ("SetContains[Async](key, values), which returns a bool per value", false, true, new ServerVersion(6, 2)),
 
                 // many keys
-                "KeyDelete" => ("KeyDelete(keys)", true, false, ServerVersion.Any),
-                "KeyExists" => ("KeyExists(keys), which returns how many exist", true, false, ServerVersion.Any),
-                "StringGet" => ("StringGet(keys)", true, false, ServerVersion.Any),
-                "StringSet" => ("StringSet(KeyValuePair<RedisKey, RedisValue>[])", true, false, ServerVersion.Any),
+                "KeyDelete" => ("KeyDelete[Async](keys)", true, false, ServerVersion.Any),
+                "KeyExists" => ("KeyExists[Async](keys), which returns how many exist", true, false, ServerVersion.Any),
+                "StringGet" => ("StringGet[Async](keys)", true, false, ServerVersion.Any),
+                "StringSet" => ("StringSet[Async](KeyValuePair<RedisKey, RedisValue>[])", true, false, ServerVersion.Any),
 
                 _ => null,
             };
@@ -606,32 +606,32 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             return (condition, op) switch
             {
                 // -- family A: the command already takes this condition as an argument; any server version --
-                ("KeyNotExists", "StringSet") => (Rule.ConditionalArgument, "StringSet(key, value, When.NotExists)", ServerVersion.Any, false),
-                ("KeyExists", "StringSet") => (Rule.ConditionalArgument, "StringSet(key, value, When.Exists)", ServerVersion.Any, false),
-                ("HashNotExists", "HashSet") => (Rule.ConditionalArgument, "HashSet(key, field, value, When.NotExists)", ServerVersion.Any, true),
+                ("KeyNotExists", "StringSet") => (Rule.ConditionalArgument, "StringSet[Async](key, value, When.NotExists)", ServerVersion.Any, false),
+                ("KeyExists", "StringSet") => (Rule.ConditionalArgument, "StringSet[Async](key, value, When.Exists)", ServerVersion.Any, false),
+                ("HashNotExists", "HashSet") => (Rule.ConditionalArgument, "HashSet[Async](key, field, value, When.NotExists)", ServerVersion.Any, true),
                 // SortedSetWhen, not When: the When overload is [EditorBrowsable(Never)] and the SortedSetWhen
                 // one is the canonical spelling, so suggesting When would push callers at a hidden overload
-                ("SortedSetNotContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd(key, member, score, SortedSetWhen.NotExists)", ServerVersion.Any, true),
-                ("SortedSetContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd(key, member, score, SortedSetWhen.Exists)", ServerVersion.Any, true),
-                ("KeyNotExists", "KeyRename") => (Rule.ConditionalArgument, "KeyRename(key, newKey, When.NotExists)", ServerVersion.Any, false),
+                ("SortedSetNotContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd[Async](key, member, score, SortedSetWhen.NotExists)", ServerVersion.Any, true),
+                ("SortedSetContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd[Async](key, member, score, SortedSetWhen.Exists)", ServerVersion.Any, true),
+                ("KeyNotExists", "KeyRename") => (Rule.ConditionalArgument, "KeyRename[Async](key, newKey, When.NotExists)", ServerVersion.Any, false),
 
                 // -- family B: a newer single command subsumes condition and write --
                 // 8.4: SET IFEQ/IFNE and DELIFEQ; see RedisFeatures.SetWithValueCheck / DeleteWithValueCheck
-                ("StringEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet(key, value, ValueCondition.Equal(expected))", new ServerVersion(8, 4), false),
-                ("StringNotEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet(key, value, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
-                ("StringEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete(key, ValueCondition.Equal(expected)), or LockRelease", new ServerVersion(8, 4), false),
-                ("StringNotEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete(key, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
+                ("StringEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet[Async](key, value, ValueCondition.Equal(expected))", new ServerVersion(8, 4), false),
+                ("StringNotEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet[Async](key, value, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
+                ("StringEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete[Async](key, ValueCondition.Equal(expected)), or LockRelease[Async]", new ServerVersion(8, 4), false),
+                ("StringNotEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete[Async](key, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
 
                 // -- family C: the write already reports what the condition was checking --
                 // These have always worked this way, so no version applies. The fix deletes the transaction
                 // rather than moving an argument, and what the caller observes changes: Execute() returning
                 // false ("the guard failed") becomes the command itself returning false ("I did nothing").
-                ("SetNotContains", "SetAdd") => (Rule.RedundantCondition, "SetAdd(key, value), which returns false if the member was already there", ServerVersion.Any, true),
-                ("SetContains", "SetRemove") => (Rule.RedundantCondition, "SetRemove(key, value), which returns false if the member was not there", ServerVersion.Any, true),
-                ("SortedSetContains", "SortedSetRemove") => (Rule.RedundantCondition, "SortedSetRemove(key, member), which returns false if the member was not there", ServerVersion.Any, true),
-                ("HashExists", "HashDelete") => (Rule.RedundantCondition, "HashDelete(key, field), which returns false if the field was not there", ServerVersion.Any, true),
-                ("KeyExists", "KeyDelete") => (Rule.RedundantCondition, "KeyDelete(key), which returns false if the key did not exist", ServerVersion.Any, false),
-                ("KeyExists", "KeyExpire") => (Rule.RedundantCondition, "KeyExpire(key, expiry), which returns false if the key did not exist", ServerVersion.Any, false),
+                ("SetNotContains", "SetAdd") => (Rule.RedundantCondition, "SetAdd[Async](key, value), which returns false if the member was already there", ServerVersion.Any, true),
+                ("SetContains", "SetRemove") => (Rule.RedundantCondition, "SetRemove[Async](key, value), which returns false if the member was not there", ServerVersion.Any, true),
+                ("SortedSetContains", "SortedSetRemove") => (Rule.RedundantCondition, "SortedSetRemove[Async](key, member), which returns false if the member was not there", ServerVersion.Any, true),
+                ("HashExists", "HashDelete") => (Rule.RedundantCondition, "HashDelete[Async](key, field), which returns false if the field was not there", ServerVersion.Any, true),
+                ("KeyExists", "KeyDelete") => (Rule.RedundantCondition, "KeyDelete[Async](key), which returns false if the key did not exist", ServerVersion.Any, false),
+                ("KeyExists", "KeyExpire") => (Rule.RedundantCondition, "KeyExpire[Async](key, expiry), which returns false if the key did not exist", ServerVersion.Any, false),
 
                 // Deliberately absent from family C: ListIndexExists + ListSetByIndex. LSET reports an
                 // out-of-range index by failing, not by returning false (ListSetByIndex returns Task, not
@@ -676,17 +676,17 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 switch (first.Name, second.Name)
                 {
                     case ("StringGet", "KeyDelete"):
-                        return ("StringGetDelete(key)", v6_2);
+                        return ("StringGetDelete[Async](key)", v6_2);
                     case ("StringGet", "KeyExpire"):
-                        return ("StringGetSetExpiry(key, expiry)", v6_2);
+                        return ("StringGetSetExpiry[Async](key, expiry)", v6_2);
                     case ("StringGet", "KeyPersist"):
-                        return ("StringGetSetExpiry(key, null)", v6_2);
+                        return ("StringGetSetExpiry[Async](key, null)", v6_2);
                     case ("StringGet", "StringSet"):
-                        return ("StringSetAndGet(key, value)", v6_2);
+                        return ("StringSetAndGet[Async](key, value)", v6_2);
 
                     // HGETDEL is 8.0; it has no RedisFeatures gate to point at
                     case ("HashGet", "HashDelete") when SameMember(first, second):
-                        return ("HashFieldGetAndDelete(key, field)", new ServerVersion(8, 0));
+                        return ("HashFieldGetAndDelete[Async](key, field)", new ServerVersion(8, 0));
                 }
 
                 return null;
@@ -698,7 +698,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 && ((first.Name == "SetRemove" && second.Name == "SetAdd")
                     || (first.Name == "SetAdd" && second.Name == "SetRemove")))
             {
-                return ("SetMove(source, destination, value)", ServerVersion.Any);
+                return ("SetMove[Async](source, destination, value)", ServerVersion.Any);
             }
 
             return null;

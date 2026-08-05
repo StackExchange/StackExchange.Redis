@@ -27,7 +27,7 @@ public class SER302 : Verifier<TransactionAnalyzer>
         Diagnostic("SER302").WithLocation(0).WithArguments(
             "Condition.SetNotContains",
             "SetAddAsync",
-            "SetAdd(key, value), which returns false if the member was already there"));
+            "SetAdd[Async](key, value), which returns false if the member was already there"));
 
     [Fact]
     public Task SetContainsGuardingSetRemove_IsFlagged() => VerifyAsync(
@@ -48,7 +48,7 @@ public class SER302 : Verifier<TransactionAnalyzer>
         Diagnostic("SER302").WithLocation(0).WithArguments(
             "Condition.SetContains",
             "SetRemoveAsync",
-            "SetRemove(key, value), which returns false if the member was not there"));
+            "SetRemove[Async](key, value), which returns false if the member was not there"));
 
     [Fact]
     public Task SortedSetContainsGuardingSortedSetRemove_IsFlagged() => VerifyAsync(
@@ -69,7 +69,7 @@ public class SER302 : Verifier<TransactionAnalyzer>
         Diagnostic("SER302").WithLocation(0).WithArguments(
             "Condition.SortedSetContains",
             "SortedSetRemoveAsync",
-            "SortedSetRemove(key, member), which returns false if the member was not there"));
+            "SortedSetRemove[Async](key, member), which returns false if the member was not there"));
 
     [Fact]
     public Task HashExistsGuardingHashDelete_IsFlagged() => VerifyAsync(
@@ -90,7 +90,7 @@ public class SER302 : Verifier<TransactionAnalyzer>
         Diagnostic("SER302").WithLocation(0).WithArguments(
             "Condition.HashExists",
             "HashDeleteAsync",
-            "HashDelete(key, field), which returns false if the field was not there"));
+            "HashDelete[Async](key, field), which returns false if the field was not there"));
 
     [Fact]
     public Task KeyExistsGuardingKeyDelete_IsFlagged() => VerifyAsync(
@@ -111,7 +111,7 @@ public class SER302 : Verifier<TransactionAnalyzer>
         Diagnostic("SER302").WithLocation(0).WithArguments(
             "Condition.KeyExists",
             "KeyDeleteAsync",
-            "KeyDelete(key), which returns false if the key did not exist"));
+            "KeyDelete[Async](key), which returns false if the key did not exist"));
 
     [Fact]
     public Task KeyExistsGuardingKeyExpire_IsFlagged() => VerifyAsync(
@@ -133,7 +133,7 @@ public class SER302 : Verifier<TransactionAnalyzer>
         Diagnostic("SER302").WithLocation(0).WithArguments(
             "Condition.KeyExists",
             "KeyExpireAsync",
-            "KeyExpire(key, expiry), which returns false if the key did not exist"));
+            "KeyExpire[Async](key, expiry), which returns false if the key did not exist"));
 
     [Fact]
     // LSET reports an out-of-range index by throwing, not by returning false - ListSetByIndex returns Task,

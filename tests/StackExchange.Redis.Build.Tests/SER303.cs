@@ -28,7 +28,7 @@ public class SER303 : Verifier<TransactionAnalyzer>
         Diagnostic("SER303").WithLocation(0).WithArguments(
             "StringGetAsync",
             "KeyDeleteAsync",
-            "StringGetDelete(key)",
+            "StringGetDelete[Async](key)",
             " (requires server 6.2 or later)"));
 
     [Fact]
@@ -51,7 +51,7 @@ public class SER303 : Verifier<TransactionAnalyzer>
         Diagnostic("SER303").WithLocation(0).WithArguments(
             "StringGetAsync",
             "KeyExpireAsync",
-            "StringGetSetExpiry(key, expiry)",
+            "StringGetSetExpiry[Async](key, expiry)",
             " (requires server 6.2 or later)"));
 
     [Fact]
@@ -73,7 +73,7 @@ public class SER303 : Verifier<TransactionAnalyzer>
         Diagnostic("SER303").WithLocation(0).WithArguments(
             "StringGetAsync",
             "StringSetAsync",
-            "StringSetAndGet(key, value)",
+            "StringSetAndGet[Async](key, value)",
             " (requires server 6.2 or later)"));
 
     [Fact]
@@ -95,7 +95,7 @@ public class SER303 : Verifier<TransactionAnalyzer>
         Diagnostic("SER303").WithLocation(0).WithArguments(
             "HashGetAsync",
             "HashDeleteAsync",
-            "HashFieldGetAndDelete(key, field)",
+            "HashFieldGetAndDelete[Async](key, field)",
             " (requires server 8.0 or later)"));
 
     [Fact]
@@ -119,7 +119,7 @@ public class SER303 : Verifier<TransactionAnalyzer>
         Diagnostic("SER303").WithLocation(0).WithArguments(
             "SetRemoveAsync",
             "SetAddAsync",
-            "SetMove(source, destination, value)",
+            "SetMove[Async](source, destination, value)",
             ""));
 
     [Fact]
@@ -142,7 +142,7 @@ public class SER303 : Verifier<TransactionAnalyzer>
         Diagnostic("SER303").WithLocation(0).WithArguments(
             "SetAddAsync",
             "SetRemoveAsync",
-            "SetMove(source, destination, value)",
+            "SetMove[Async](source, destination, value)",
             ""));
 
     [Fact]

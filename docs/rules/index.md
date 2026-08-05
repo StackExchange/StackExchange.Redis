@@ -14,6 +14,20 @@ separately:
 Note that `SER0xx` is a different thing entirely: those are the [`[Experimental]` API gates](../exp/SER004),
 which mean "this API is preview", not "consider changing this code".
 
+## Reading the suggestions
+
+Messages name the replacement as `StringSet[Async](...)`, following the convention used elsewhere in these docs:
+there is a `StringSet` and a `StringSetAsync`, and you want whichever matches the code around it. The `[Async]`
+is not something to type.
+
+Which one that is depends on how you were finishing the transaction, not on the call being replaced - commands
+queued on an `ITransaction` are always the `...Async` ones, because that is the only surface it offers. If you
+were writing `await tran.ExecuteAsync()`, you want `StringSetAsync`; if you were writing `tran.Execute()`, you
+want `StringSet`. Reach for the async form in new code.
+
+Argument names in the suggestion (`key`, `value`, `entries`) are a sketch of the shape, not literal text -
+substitute your own expressions.
+
 ## Usage
 
 - [SER300](SER300) - transaction can be replaced by a conditional argument (any server version)

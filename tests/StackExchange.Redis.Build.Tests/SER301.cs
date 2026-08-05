@@ -28,7 +28,7 @@ public class SER301 : Verifier<TransactionAnalyzer>
         Diagnostic("SER301").WithLocation(0).WithArguments(
             "Condition.StringEqual",
             "StringSetAsync",
-            "StringSet(key, value, ValueCondition.Equal(expected))",
+            "StringSet[Async](key, value, ValueCondition.Equal(expected))",
             "8.4"));
 
     [Fact]
@@ -50,7 +50,7 @@ public class SER301 : Verifier<TransactionAnalyzer>
         Diagnostic("SER301").WithLocation(0).WithArguments(
             "Condition.StringNotEqual",
             "StringSetAsync",
-            "StringSet(key, value, ValueCondition.NotEqual(expected))",
+            "StringSet[Async](key, value, ValueCondition.NotEqual(expected))",
             "8.4"));
 
     [Fact]
@@ -73,7 +73,7 @@ public class SER301 : Verifier<TransactionAnalyzer>
         Diagnostic("SER301").WithLocation(0).WithArguments(
             "Condition.StringEqual",
             "KeyDeleteAsync",
-            "StringDelete(key, ValueCondition.Equal(expected)), or LockRelease",
+            "StringDelete[Async](key, ValueCondition.Equal(expected)), or LockRelease[Async]",
             "8.4"));
 
     [Fact]
@@ -95,7 +95,7 @@ public class SER301 : Verifier<TransactionAnalyzer>
         Diagnostic("SER301").WithLocation(0).WithArguments(
             "Condition.StringNotEqual",
             "KeyDeleteAsync",
-            "StringDelete(key, ValueCondition.NotEqual(expected))",
+            "StringDelete[Async](key, ValueCondition.NotEqual(expected))",
             "8.4"));
 
     [Fact]

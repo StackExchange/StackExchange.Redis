@@ -27,7 +27,7 @@ public class SER304 : Verifier<TransactionAnalyzer>
         Diagnostic("SER304").WithLocation(0).WithArguments(
             "SetAddAsync",
             "2",
-            "SetAdd(key, values)",
+            "SetAdd[Async](key, values)",
             ""));
 
     [Fact]
@@ -51,7 +51,7 @@ public class SER304 : Verifier<TransactionAnalyzer>
         Diagnostic("SER304").WithLocation(0).WithArguments(
             "HashSetAsync",
             "3",
-            "HashSet(key, entries)",
+            "HashSet[Async](key, entries)",
             ""));
 
     [Fact]
@@ -73,7 +73,7 @@ public class SER304 : Verifier<TransactionAnalyzer>
         Diagnostic("SER304").WithLocation(0).WithArguments(
             "ListRightPushAsync",
             "2",
-            "ListRightPush(key, values)",
+            "ListRightPush[Async](key, values)",
             ""));
 
     [Fact]
@@ -96,7 +96,7 @@ public class SER304 : Verifier<TransactionAnalyzer>
         Diagnostic("SER304").WithLocation(0).WithArguments(
             "SetContainsAsync",
             "2",
-            "SetContains(key, values), which returns a bool per value",
+            "SetContains[Async](key, values), which returns a bool per value",
             " (requires server 6.2 or later)"));
 
     [Fact]
@@ -119,7 +119,7 @@ public class SER304 : Verifier<TransactionAnalyzer>
         Diagnostic("SER304").WithLocation(0).WithArguments(
             "StringSetAsync",
             "2",
-            "StringSet(KeyValuePair<RedisKey, RedisValue>[])",
+            "StringSet[Async](KeyValuePair<RedisKey, RedisValue>[])",
             ""));
 
     [Fact]
@@ -141,7 +141,7 @@ public class SER304 : Verifier<TransactionAnalyzer>
         Diagnostic("SER304").WithLocation(0).WithArguments(
             "StringGetAsync",
             "2",
-            "StringGet(keys)",
+            "StringGet[Async](keys)",
             ""));
 
     [Fact]
@@ -163,7 +163,7 @@ public class SER304 : Verifier<TransactionAnalyzer>
         Diagnostic("SER304").WithLocation(0).WithArguments(
             "KeyDeleteAsync",
             "2",
-            "KeyDelete(keys)",
+            "KeyDelete[Async](keys)",
             ""));
 
     [Fact]
