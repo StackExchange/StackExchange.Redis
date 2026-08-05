@@ -77,6 +77,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// The data-type was not recognised by the client library.
         /// </summary>
+        /// <remarks>This is a client-side value, not a server token, so it is not parsable.</remarks>
+        [AsciiHash("")]
         Unknown,
 
         /// <summary>
@@ -98,7 +100,8 @@ namespace StackExchange.Redis
     /// </summary>
     internal static partial class RedisTypeMetadata
     {
-        [AsciiHash]
+        // TYPE replies are lower-case, but this is not a hot path, and v2 parsed case-insensitively
+        [AsciiHash(CaseSensitive = false)]
         internal static partial bool TryParse(ReadOnlySpan<byte> value, out RedisType redisType);
     }
 }
