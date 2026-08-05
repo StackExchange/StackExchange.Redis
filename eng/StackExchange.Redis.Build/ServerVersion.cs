@@ -57,7 +57,9 @@ internal readonly struct ServerVersion
                 return version;
             }
 
-            if (global.TryGetValue("build_property.Redis_MinServerVersion", out value) && TryParse(value, out version))
+            // the MSBuild <RedisMinServerVersion> property, surfaced by the CompilerVisibleProperty declared in
+            // the build/ props we ship; the build_property. prefix is how MSBuild properties arrive here
+            if (global.TryGetValue("build_property.RedisMinServerVersion", out value) && TryParse(value, out version))
             {
                 return version;
             }

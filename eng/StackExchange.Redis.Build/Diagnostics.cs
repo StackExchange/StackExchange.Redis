@@ -66,7 +66,7 @@ internal static class Diagnostics
     /// also why the library's own compatibility fallbacks suppress it rather than being rewritten.
     /// <para>
     /// The required version is per-mapping data rather than part of the rule (see <c>ServerVersion</c>), so the
-    /// message can name it and a project that declares its own floor - <c>Redis_MinServerVersion</c>, or
+    /// message can name it and a project that declares its own floor - <c>&lt;RedisMinServerVersion&gt;</c>, or
     /// <c>redis.min_server_version</c> in <c>.editorconfig</c> - gets only the suggestions it can act on.
     /// </para>
     /// </remarks>

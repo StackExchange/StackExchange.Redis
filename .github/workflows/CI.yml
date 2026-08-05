@@ -130,6 +130,28 @@ jobs:
 
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
+      # The analyzer and the props that configures it reach consumers only through the package, and a
+      # packaging regression is silent: no diagnostics, ever, for anybody, with a build that still succeeds.
+      # The real pack below runs only on pushes to main/v3, so check it here where PRs will see it too.
+      - name: Verify package contents
+        run: |
+          $out = "${env:GITHUB_WORKSPACE}\.packcheck"
+          dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:PackageOutputPath=$out /p:CI=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $nupkg = Get-ChildItem "$out\StackExchange.Redis.*.nupkg" | Select-Object -First 1
+          if (-not $nupkg) { Write-Error "no package was produced"; exit 1 }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($nupkg.FullName)
+          try { $names = @($zip.Entries | ForEach-Object { $_.FullName }) } finally { $zip.Dispose() }
+          $missing = @()
+          foreach ($required in @("analyzers/dotnet/cs/StackExchange.Redis.Build.dll", "build/StackExchange.Redis.props")) {
+            if ($names -contains $required) { Write-Host "ok: $required" } else { $missing += $required }
+          }
+          if ($missing.Count) {
+            Write-Error "$($nupkg.Name) is missing: $($missing -join ', ')"
+            Write-Host "package contained:"; $names | Sort-Object | ForEach-Object { Write-Host "  $_" }
+            exit 1
+          }
       - name: StackExchange.Redis.Tests
         run: |
           $exitCode = 0

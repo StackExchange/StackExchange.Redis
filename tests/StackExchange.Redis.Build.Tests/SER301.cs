@@ -25,7 +25,11 @@ public class SER301 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER301").WithLocation(0));
+        Diagnostic("SER301").WithLocation(0).WithArguments(
+            "Condition.StringEqual",
+            "StringSetAsync",
+            "StringSet(key, value, ValueCondition.Equal(expected))",
+            "8.4"));
 
     [Fact]
     public Task StringNotEqualGuardingStringSet_IsFlagged() => VerifyAsync(
@@ -43,7 +47,11 @@ public class SER301 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER301").WithLocation(0));
+        Diagnostic("SER301").WithLocation(0).WithArguments(
+            "Condition.StringNotEqual",
+            "StringSetAsync",
+            "StringSet(key, value, ValueCondition.NotEqual(expected))",
+            "8.4"));
 
     [Fact]
     // the canonical lock-release, and the highest-frequency real-world hit in this family
@@ -62,7 +70,11 @@ public class SER301 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER301").WithLocation(0));
+        Diagnostic("SER301").WithLocation(0).WithArguments(
+            "Condition.StringEqual",
+            "KeyDeleteAsync",
+            "StringDelete(key, ValueCondition.Equal(expected)), or LockRelease",
+            "8.4"));
 
     [Fact]
     public Task StringNotEqualGuardingKeyDelete_IsFlagged() => VerifyAsync(
@@ -80,7 +92,11 @@ public class SER301 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER301").WithLocation(0));
+        Diagnostic("SER301").WithLocation(0).WithArguments(
+            "Condition.StringNotEqual",
+            "KeyDeleteAsync",
+            "StringDelete(key, ValueCondition.NotEqual(expected))",
+            "8.4"));
 
     [Fact]
     // cross-key compare-and-set genuinely needs the transaction; must never fire

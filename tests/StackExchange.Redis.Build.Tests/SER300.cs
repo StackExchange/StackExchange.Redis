@@ -25,7 +25,10 @@ public class SER300 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER300").WithLocation(0));
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet(key, value, When.NotExists)"));
 
     [Fact]
     public Task KeyExistsGuardingStringSet_IsFlagged() => VerifyAsync(
@@ -43,7 +46,10 @@ public class SER300 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER300").WithLocation(0));
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyExists",
+            "StringSetAsync",
+            "StringSet(key, value, When.Exists)"));
 
     [Fact]
     public Task HashNotExistsGuardingHashSet_IsFlagged() => VerifyAsync(
@@ -61,7 +67,10 @@ public class SER300 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER300").WithLocation(0));
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.HashNotExists",
+            "HashSetAsync",
+            "HashSet(key, field, value, When.NotExists)"));
 
     [Fact]
     public Task SortedSetNotContainsGuardingSortedSetAdd_IsFlagged() => VerifyAsync(
@@ -79,7 +88,10 @@ public class SER300 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER300").WithLocation(0));
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.SortedSetNotContains",
+            "SortedSetAddAsync",
+            "SortedSetAdd(key, member, score, SortedSetWhen.NotExists)"));
 
     [Fact]
     public Task SortedSetContainsGuardingSortedSetAdd_IsFlagged() => VerifyAsync(
@@ -97,7 +109,10 @@ public class SER300 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER300").WithLocation(0));
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.SortedSetContains",
+            "SortedSetAddAsync",
+            "SortedSetAdd(key, member, score, SortedSetWhen.Exists)"));
 
     [Fact]
     // the condition is on the *destination*, which is KeyRename's first argument's counterpart - so this is
@@ -117,7 +132,10 @@ public class SER300 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER300").WithLocation(0));
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "KeyRenameAsync",
+            "KeyRename(key, newKey, When.NotExists)"));
 
     [Fact]
     // synchronous surface: ITransaction is both IDatabaseAsync and the sync-shaped queueing API, and the
@@ -136,7 +154,10 @@ public class SER300 : Verifier<TransactionAnalyzer>
             }
         }
         """,
-        Diagnostic("SER300").WithLocation(0));
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet(key, value, When.NotExists)"));
 
     [Fact]
     // HashExists + HashSet has no HSETXX to collapse into; the nearest thing is a different method entirely
