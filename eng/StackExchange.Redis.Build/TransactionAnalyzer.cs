@@ -555,9 +555,10 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Versions are <see cref="ServerVersion.Any"/> for all but one: the variadic forms arrived in 2.4, which
-        /// predates anything anyone is running and well predates the oldest server this library supports, so
-        /// saying so would be noise. SMISMEMBER is the exception at 6.2 - recent enough to matter.
+        /// Versions are <see cref="ServerVersion.Any"/> for all but one. The variadic forms are old - 2.4 for the
+        /// one-key-many-values group, 3.0.3 for multi-key EXISTS, 1.0 for MSET/MGET/DEL - and all of it predates
+        /// anything realistically in service, so naming a version would be noise rather than information.
+        /// SMISMEMBER is the exception at 6.2, recent enough that somebody might actually be below it.
         /// </para>
         /// <para>
         /// Deliberately absent: N x <c>ListLeftPop</c> across keys is *not* LMPOP. LMPOP pops from the first
