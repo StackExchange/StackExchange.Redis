@@ -157,6 +157,10 @@ public class BasicScalars(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("+set\r\n", Redis.RedisType.Set)]
     [InlineData("+list\r\n", Redis.RedisType.List)]
     [InlineData("+stream\r\n", Redis.RedisType.Stream)]
+    [InlineData("+vectorset\r\n", Redis.RedisType.VectorSet)]
+    [InlineData("+array\r\n", Redis.RedisType.Array)]
+    [InlineData("+none\r\n", Redis.RedisType.None)] // TYPE reply for a key that does not exist; see #3156
+    [InlineData("$4\r\nnone\r\n", Redis.RedisType.None)]
     [InlineData("+blah\r\n", Redis.RedisType.Unknown)]
     [InlineData("$-1\r\n", Redis.RedisType.None)]
     [InlineData("_\r\n", Redis.RedisType.None)]

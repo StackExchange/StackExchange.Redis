@@ -13,7 +13,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// The specified key does not exist.
         /// </summary>
-        [AsciiHash("")]
+        /// <remarks><c>none</c> is the literal reply from <c>TYPE</c> for a key that does not exist,
+        /// so this member has a real token (unlike <see cref="Unknown"/>).</remarks>
+        [AsciiHash("none")]
         None,
 
         /// <summary>
