@@ -78,17 +78,31 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
             foreach (var operation in block.Descendants())
             {
-                if (operation is not IInvocationOperation invocation) continue;
+                // the transaction is identified by the local it was assigned to; anything else (a field, a
+                // fluent chain) is out of scope by design. Walking local *references* rather than invocations
+                // is what lets us see the uses that are not calls at all - see the escape check below.
+                if (operation is not ILocalReferenceOperation { Local: { } local }) continue;
                 context.CancellationToken.ThrowIfCancellationRequested();
 
-                // the transaction is identified by the local it was assigned to; anything else (a field, a
-                // fluent chain, a transaction passed between methods) is out of scope by design
-                if (invocation.Instance is not ILocalReferenceOperation { Local: { } local }) continue;
                 if (!known.IsTransaction(local.Type)) continue;
 
                 usages ??= new Dictionary<ISymbol, Usage>(SymbolEqualityComparer.Default);
                 if (!usages.TryGetValue(local, out var usage)) usages[local] = usage = new Usage();
-                usage.Add(invocation, known);
+
+                if (operation.Parent is IInvocationOperation invocation
+                    && invocation.Instance is ILocalReferenceOperation { Local: { } instanceLocal }
+                    && SymbolEqualityComparer.Default.Equals(instanceLocal, local))
+                {
+                    // tran.Something(...) - a queued command, a condition, or the terminator
+                    usage.Add(invocation, known, insideLoop: IsInsideLoop(invocation, block));
+                }
+                else
+                {
+                    // The transaction is used as a value: passed to a helper, stored, captured, returned. We
+                    // cannot see what that other code queues, so our counts are no longer the whole story and
+                    // any suggestion would be based on a partial view. Give up on this local entirely.
+                    usage.Disqualify();
+                }
             }
 
             if (usages is null) continue;
@@ -109,6 +123,24 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
+    /// Is this call inside a loop, and so potentially queueing many commands from one call site?
+    /// </summary>
+    /// <remarks>
+    /// Counting call sites is a syntactic approximation, and a loop is where it breaks: one
+    /// <c>tran.StringSetAsync(key, value)</c> in a <c>foreach</c> is one call site but N queued commands, which
+    /// is emphatically not collapsible into a single command. Cheap to check and it removes the whole class.
+    /// </remarks>
+    private static bool IsInsideLoop(IOperation operation, IOperation block)
+    {
+        for (var node = operation; node is not null && node != block; node = node.Parent)
+        {
+            if (node is ILoopOperation) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// What we saw done with one transaction local.
     /// </summary>
     private sealed class Usage
@@ -116,11 +148,23 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         private int _conditionCount, _operationCount;
         private string? _conditionFactory, _conditionKey;
         private string? _operationName, _operationKey;
+        private bool _disqualified;
 
         public Location? ReportAt { get; private set; }
 
-        public void Add(IInvocationOperation invocation, KnownSymbols known)
+        /// <summary>
+        /// Something about this usage puts it beyond what we can reason about; stay silent regardless of counts.
+        /// </summary>
+        public void Disqualify() => _disqualified = true;
+
+        public void Add(IInvocationOperation invocation, KnownSymbols known, bool insideLoop)
         {
+            if (insideLoop)
+            {
+                Disqualify();
+                return;
+            }
+
             switch (invocation.TargetMethod.Name)
             {
                 case "AddCondition":
@@ -158,6 +202,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             conditionName = operationName = suggestion = "";
             needsNewerServer = false;
 
+            if (_disqualified) return false;
+
             // only the unambiguous shape: one guard, one operation, and the same key in both
             if (_conditionCount != 1 || _operationCount != 1) return false;
             if (_conditionFactory is null || _operationName is null) return false;
@@ -183,8 +229,10 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 ("KeyNotExists", "StringSet") => ("StringSet(key, value, When.NotExists)", false),
                 ("KeyExists", "StringSet") => ("StringSet(key, value, When.Exists)", false),
                 ("HashNotExists", "HashSet") => ("HashSet(key, field, value, When.NotExists)", false),
-                ("SortedSetNotContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, When.NotExists)", false),
-                ("SortedSetContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, When.Exists)", false),
+                // SortedSetWhen, not When: the When overload is [EditorBrowsable(Never)] and the SortedSetWhen
+                // one is the canonical spelling, so suggesting When would push callers at a hidden overload
+                ("SortedSetNotContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.NotExists)", false),
+                ("SortedSetContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.Exists)", false),
                 ("KeyNotExists", "KeyRename") => ("KeyRename(key, newKey, When.NotExists)", false),
 
                 // -- family B: a newer single command subsumes condition and write (compare-and-set, 8.4+) --

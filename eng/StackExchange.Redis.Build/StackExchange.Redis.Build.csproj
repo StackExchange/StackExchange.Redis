@@ -8,13 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- This assembly ships inside the StackExchange.Redis package as an analyzer, and an analyzer cannot load
-         in a Roslyn host older than the version it was built against. The rest of the repo tracks current
-         Roslyn, but pinning *this* project low keeps the shipped analyzer loadable on older SDKs; forward
-         compatibility means it still loads fine in the newer host we build with. ForAttributeWithMetadataName
-         (which the generators rely on to stay cheap on consumer code) needs 4.3, so 4.8 leaves headroom (and RefKind.RefReadOnlyParameter, used below, needs 4.8).
-         Raising this floor drops support for older consumer tooling - do it deliberately. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" VersionOverride="4.8.0" />
+    <!-- No VersionOverride: this is the shipped analyzer, so it builds at the low floor pinned in
+         Directory.Packages.props. Anything newer Roslyn offers goes in RoslynShims.cs. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <!-- build-time only; overrides the 3.3.3 the above brings transitively (see Directory.Packages.props) -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

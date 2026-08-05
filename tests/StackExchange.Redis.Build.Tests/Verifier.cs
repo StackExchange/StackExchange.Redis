@@ -34,6 +34,20 @@ public abstract class Verifier<TAnalyzer>
 
     /// <summary>Verify that <paramref name="source"/> produces exactly <paramref name="expected"/>.</summary>
     protected static Task VerifyAsync(string source, params DiagnosticResult[] expected)
+        => RunAsync(source, referenceLibrary: true, expected);
+
+    /// <summary>
+    /// As <see cref="VerifyAsync"/>, but with no reference to StackExchange.Redis at all.
+    /// </summary>
+    /// <remarks>
+    /// For asserting the no-op path: the analyzer resolves its types by metadata name and does nothing when
+    /// they are absent, and that has to keep working (and not throw) in the overwhelming majority of
+    /// compilations, which have never heard of this library.
+    /// </remarks>
+    protected static Task VerifyWithoutLibraryAsync(string source)
+        => RunAsync(source, referenceLibrary: false);
+
+    private static Task RunAsync(string source, bool referenceLibrary, params DiagnosticResult[] expected)
     {
         // Test sources use string literals for keys/values, which trips the library's own [Experimental]
         // gate on the implicit string -> RedisValue conversion. That is unrelated to what we are testing, and
@@ -45,10 +59,14 @@ public abstract class Verifier<TAnalyzer>
         };
 
         // The analyzer resolves StackExchange.Redis.Condition by metadata name and does nothing at all if it
-        // is absent - so without this reference every test would trivially "pass" by finding no diagnostics.
-        // NoDiagnosticsWhenLibraryAbsent covers the other side of that.
-        test.TestState.AdditionalReferences.Add(
-            MetadataReference.CreateFromFile(typeof(StackExchange.Redis.ConnectionMultiplexer).Assembly.Location));
+        // is absent - so without this reference the positive cases would fail to compile rather than silently
+        // pass, but the *negative* cases would trivially "pass" by finding no diagnostics. Hence both this and
+        // NoLibrary.cs, which asserts the absent case deliberately rather than by accident.
+        if (referenceLibrary)
+        {
+            test.TestState.AdditionalReferences.Add(
+                MetadataReference.CreateFromFile(typeof(StackExchange.Redis.ConnectionMultiplexer).Assembly.Location));
+        }
 
         test.ExpectedDiagnostics.AddRange(expected);
         return test.RunAsync(TestContext.Current.CancellationToken);

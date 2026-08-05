@@ -27,6 +27,17 @@ internal static class Diagnostics
     private const string UsageCategory = "Usage", BuildCategory = "Build";
 
     /// <summary>
+    /// Where the docs for a rule live; <c>docs/rules/{id}.md</c> on the published site.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the <c>exp/</c> pages used by the <c>[Experimental]</c> gates, which mean something else
+    /// entirely ("this API is preview"). Every ID below must have a page, because the message can only carry a
+    /// sketch of the rewrite - the caveats that actually catch people out (the result changes meaning, the
+    /// queued task disappears, CommandFlags has to be carried over) only fit in prose.
+    /// </remarks>
+    private const string HelpLinkFormat = "https://stackexchange.github.io/StackExchange.Redis/rules/{0}";
+
+    /// <summary>
     /// Family A: the condition duplicates a <c>when:</c> argument that already exists on the queued command.
     /// </summary>
     /// <remarks>
@@ -41,7 +52,8 @@ internal static class Diagnostics
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "A transaction whose only purpose is to make one operation conditional can be replaced by the command's own conditional argument, which is a single round-trip and cannot abort under contention.");
+        description: "A transaction whose only purpose is to make one operation conditional can be replaced by the command's own conditional argument, which is a single round-trip and cannot abort under contention.",
+        helpLinkUri: HelpLink("SER300"));
 
     /// <summary>
     /// Family B: a newer single command subsumes both the condition and the write.
@@ -60,7 +72,8 @@ internal static class Diagnostics
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "A transaction implementing compare-and-set can be replaced by the equivalent conditional command on servers that support it, which is a single round-trip and cannot abort under contention.");
+        description: "A transaction implementing compare-and-set can be replaced by the equivalent conditional command on servers that support it, which is a single round-trip and cannot abort under contention.",
+        helpLinkUri: HelpLink("SER301"));
 
     /// <summary>
     /// The generated code cannot be compiled at the language version in effect, so nothing was generated.
@@ -78,5 +91,8 @@ internal static class Diagnostics
         messageFormat: "'{0}' requires C# {1} or later, but this project uses C# {2}; no code was generated. Raise <LangVersion> to use this feature.",
         category: BuildCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: HelpLink("SER350"));
+
+    private static string HelpLink(string id) => string.Format(HelpLinkFormat, id);
 }

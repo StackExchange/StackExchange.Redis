@@ -22,6 +22,11 @@
          4.3 is where ForAttributeWithMetadataName arrives, and the generators need that to stay cheap on
          consumer code, so going lower is not useful. Raising it drops consumer tooling; do so deliberately. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" />
+    <!-- The release-tracking analyzer (RS2002 etc), which the above would otherwise pull in transitively at
+         3.3.3 - a version that cannot see descriptors declared outside the analyzer type, as ours are in
+         Diagnostics.cs. Pinned separately because it is a build-time analyzer we never ship: unlike the
+         reference above, its version has nothing to do with the host floor, so upgrade at will. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="3.0.2" />

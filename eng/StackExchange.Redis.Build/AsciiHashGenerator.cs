@@ -15,7 +15,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
     /// <summary>
     /// The emitted code uses UTF-8 string literals, which are C# 11.
     /// </summary>
-    private const LanguageVersion MinimumLanguageVersion = LanguageVersion.CSharp11;
+    private const LanguageVersion MinimumLanguageVersion = LanguageVersions.CSharp11;
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {

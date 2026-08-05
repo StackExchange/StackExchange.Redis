@@ -3,6 +3,10 @@ using Xunit;
 
 namespace StackExchange.Redis.Build.Tests;
 
+/// <summary>
+/// Family B: compare-and-set, where a newer single command subsumes both the condition and the write. Separate
+/// from SER300 because these need an 8.4+ server and SER300 does not.
+/// </summary>
 public class SER301 : Verifier<TransactionAnalyzer>
 {
     [Fact]
@@ -17,6 +21,61 @@ public class SER301 : Verifier<TransactionAnalyzer>
                 var tran = db.CreateTransaction();
                 {|#0:tran.AddCondition(Condition.StringEqual(key, "old"))|};
                 _ = tran.StringSetAsync(key, "new");
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER301").WithLocation(0));
+
+    [Fact]
+    public Task StringNotEqualGuardingStringSet_IsFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.StringNotEqual(key, "old"))|};
+                _ = tran.StringSetAsync(key, "new");
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER301").WithLocation(0));
+
+    [Fact]
+    // the canonical lock-release, and the highest-frequency real-world hit in this family
+    public Task StringEqualGuardingKeyDelete_IsFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.StringEqual(key, "token"))|};
+                _ = tran.KeyDeleteAsync(key);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER301").WithLocation(0));
+
+    [Fact]
+    public Task StringNotEqualGuardingKeyDelete_IsFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.StringNotEqual(key, "token"))|};
+                _ = tran.KeyDeleteAsync(key);
                 await tran.ExecuteAsync();
             }
         }

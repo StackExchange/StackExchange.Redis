@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace StackExchange.Redis.Build;
 
@@ -16,4 +17,18 @@ internal static class RefKinds
 {
     /// <summary><c>ref readonly</c> parameters (C# 12); <see cref="RefKind"/> gained this in Roslyn 4.8.</summary>
     public const RefKind RefReadOnlyParameter = (RefKind)4;
+}
+
+/// <summary>
+/// Language versions that post-date the Roslyn we compile against; see <see cref="RefKinds"/> for why.
+/// </summary>
+internal static class LanguageVersions
+{
+    /// <summary>C# 11; <see cref="LanguageVersion"/> gained this in Roslyn 4.4.</summary>
+    /// <remarks>
+    /// Only ever compared against a version the host reports, so the numeric value is what matters. Note that
+    /// anything lower than this is a version our Roslyn already knows about, which is what keeps
+    /// <c>ToDisplayString()</c> on the failure path safe.
+    /// </remarks>
+    public const LanguageVersion CSharp11 = (LanguageVersion)1100;
 }
