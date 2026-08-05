@@ -146,14 +146,16 @@ namespace StackExchange.Redis
         public KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
         {
             if (pattern.IsNullOrEmpty) pattern = RedisLiterals.Wildcard;
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, pattern);
+            // CONFIG as a whole is server-admin, but CONFIG GET is safe metadata
+            var msg = Message.Create(-1, flags.WithCategory(CommandFlags.CommandRetryConnection | Message.CommandServerSpecific), RedisCommand.CONFIG, RedisLiterals.GET, pattern);
             return ExecuteSync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
         public Task<KeyValuePair<string, string>[]> ConfigGetAsync(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
         {
             if (pattern.IsNullOrEmpty) pattern = RedisLiterals.Wildcard;
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, pattern);
+            // CONFIG as a whole is server-admin, but CONFIG GET is safe metadata
+            var msg = Message.Create(-1, flags.WithCategory(CommandFlags.CommandRetryConnection | Message.CommandServerSpecific), RedisCommand.CONFIG, RedisLiterals.GET, pattern);
             return ExecuteAsync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
@@ -876,6 +878,7 @@ namespace StackExchange.Redis
 
             private protected override Message CreateMessage(in RedisValue cursor)
             {
+                var flags = this.flags.WithScanCursorCategory(cursor);
                 if (CursorUtils.IsNil(pattern))
                 {
                     if (pageSize == CursorUtils.DefaultRedisPageSize)

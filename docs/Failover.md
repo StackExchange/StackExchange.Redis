@@ -641,6 +641,40 @@ Retrying is not free of consequence: replaying `INCR` after an ambiguous failure
 
 For the built-in typed methods (`StringGet`, `StringSet`, `HashSet`, ...) the library assigns the appropriate category automatically, so retries "just work" within the default policy.
 
+#### Categories can depend on the arguments, not just the command
+
+A number of commands change their side-effect profile according to how they are called, and the typed methods take that into account rather than using one category for the whole command:
+
+| Call | Category | Why |
+|------|----------|-----|
+| `SET key val` | last wins | unconditional overwrite |
+| `SET key val` + `NX`/`XX`, or a `ValueCondition` (`IFEQ`/`IFNE`/`IFDEQ`/`IFDNE`) | checked | conditional: a replay no-ops or fails |
+| `EXPIRE`/`HEXPIRE` + `NX`/`XX`/`GT`/`LT` | checked | conditional; `GT`/`LT` are monotone |
+| `ZADD` | last wins | overwrites the score |
+| `ZADD` + `NX`/`XX`/`GT`/`LT` | checked | conditional or monotone |
+| `SortedSetIncrement` (`ZINCRBY`, or `ZADD ... XX INCR`) | accumulating | compounds per call |
+| `SortedSetIncrement` with `NotExists` (`ZADD ... NX INCR`) | checked | a replay finds the member present |
+| `SORT` | read-only | pure query |
+| `SORT ... STORE` | last wins | writes the destination key |
+| `GETEX`/`HGETEX` with no expiry operand | read-only | pure read |
+| `GETEX`/`HGETEX` + `EX`/`PX`/`EXAT`/`PXAT`/`PERSIST` | last wins | mutates the TTL |
+| `COPY` | checked | fails if the destination exists |
+| `COPY ... REPLACE` | last wins | unconditional overwrite |
+| `GeoRadius`/`GeoSearch` (no store) | read-only | pure query |
+| `XADD` with `*` | accumulating | a replay appends a second entry |
+| `XADD` with an explicit id, or `IDMP`/`IDMPAUTO` | checked | a replay is rejected or deduplicated |
+| `XCLAIM`/`XAUTOCLAIM` + `JUSTID` | checked | does not bump the delivery counter |
+| `XREADGROUP ... >` | never | consumes, and advances last-delivered-id |
+| `XREADGROUP` with an explicit id | read-only | re-reads this consumer's own pending list |
+| `SCAN`/`HSCAN`/`SSCAN`/`ZSCAN` from cursor `0` | read-only | a fresh iteration can start on any node |
+| the same, resuming a non-zero cursor | read-only, node-affine | the cursor only means something on the node that issued it |
+
+`XADD` with an idempotency token is worth calling out: `IDMP producer id` (your token) and `IDMPAUTO producer` (token derived from the entry content) both exist so that at-most-once production survives a retry, so they are categorized on that basis rather than as blind appends.
+
+Two things this does *not* try to model. First, the `GET` operand on `SET` (and `GETSET`, and `GETDEL`) makes the *reply* non-repeatable - a replay hands back the value you just wrote rather than the true prior value - and likewise a `SET ... IFEQ` replay after an ambiguous success reports "not set" even though the write landed. The keyspace still converges, which is what the category describes, but code branching on the returned value should be aware of it. Second, `XCLAIM`/`XAUTOCLAIM` without `JUSTID` do bump the entry's delivery counter on each call; that is consumer-group bookkeeping rather than caller data, so it is not treated as accumulating.
+
+Commands issued through `Execute`/`ExecuteAsync` get no such treatment, because the arguments are opaque to us: they take the pessimistic whole-command default, and the caller should supply a category explicitly (see below).
+
 #### Known-not-applied faults
 
 The category prices the *ambiguity* of a replay, not the write itself. If we know the operation never took effect, re-issuing it is a first attempt rather than a repeat: it cannot double-apply anything, so the category is not consulted at all and even an `INCR` is retried under the default policy. Two things give us that certainty:
