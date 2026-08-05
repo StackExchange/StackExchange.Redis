@@ -160,6 +160,43 @@ public class SER300 : Verifier<TransactionAnalyzer>
             "StringSet(key, value, When.NotExists)"));
 
     [Fact]
+    // family A needs the same field too, not just the same key: a condition about field "a" does not guard a
+    // write to field "b", so the transaction is doing real work
+    public Task DifferentHashField_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.HashNotExists(key, "a"));
+                _ = tran.HashSetAsync(key, "b", "value");
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // likewise a sorted-set member
+    public Task DifferentSortedSetMember_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.SortedSetNotContains(key, "a"));
+                _ = tran.SortedSetAddAsync(key, "b", 1.0);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
     // HashExists + HashSet has no HSETXX to collapse into; the nearest thing is a different method entirely
     // (HashFieldSet with ValueCondition.Exists), so this deliberately stays quiet rather than mis-suggesting
     public Task HashExistsGuardingHashSet_IsNotFlagged() => VerifyAsync(

@@ -20,7 +20,11 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; }
-        = ImmutableArray.Create(Diagnostics.PreferConditionalArgument, Diagnostics.PreferNewerAtomicOperation);
+        = ImmutableArray.Create(
+            Diagnostics.PreferConditionalArgument,
+            Diagnostics.PreferNewerAtomicOperation,
+            Diagnostics.RedundantCondition,
+            Diagnostics.PreferCompoundCommand);
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -118,20 +122,41 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 // server - so if the project has told us its floor, respect it. Unset shows everything.
                 if (!found.MinVersion.IsSatisfiedBy(declaredMinVersion)) continue;
 
-                context.ReportDiagnostic(found.NeedsNewerServer
-                    ? Diagnostic.Create(
+                var location = pair.Value.LocationFor(found.Rule);
+                context.ReportDiagnostic(found.Rule switch
+                {
+                    Rule.NewerAtomicOperation => Diagnostic.Create(
                         Diagnostics.PreferNewerAtomicOperation,
-                        pair.Value.ReportAt,
-                        found.ConditionName,
-                        found.OperationName,
+                        location,
+                        found.First,
+                        found.Second,
                         found.Suggestion,
-                        found.MinVersion.ToString())
-                    : Diagnostic.Create(
+                        found.MinVersion.ToString()),
+
+                    Rule.RedundantCondition => Diagnostic.Create(
+                        Diagnostics.RedundantCondition,
+                        location,
+                        found.First,
+                        found.Second,
+                        found.Suggestion),
+
+                    // family D's versions vary from "any" (SMOVE) to 8.0 (HGETDEL), so the clause is built
+                    // rather than baked into the format - see Diagnostics.PreferCompoundCommand
+                    Rule.CompoundCommand => Diagnostic.Create(
+                        Diagnostics.PreferCompoundCommand,
+                        location,
+                        found.First,
+                        found.Second,
+                        found.Suggestion,
+                        found.MinVersion.IsSpecified ? " (requires server " + found.MinVersion + " or later)" : ""),
+
+                    _ => Diagnostic.Create(
                         Diagnostics.PreferConditionalArgument,
-                        pair.Value.ReportAt,
-                        found.ConditionName,
-                        found.OperationName,
-                        found.Suggestion));
+                        location,
+                        found.First,
+                        found.Second,
+                        found.Suggestion),
+                });
             }
         }
     }
@@ -155,34 +180,93 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
+    /// Which kind of rewrite this is, and so which diagnostic ID reports it.
+    /// </summary>
+    /// <remarks>
+    /// Kept distinct from <see cref="Rewrite.MinVersion"/> on purpose. The ID is about the *kind* of fix, which
+    /// is what a consumer configures severity on and what they read a doc page about; the version is data about
+    /// one mapping and moves as servers ship.
+    /// </remarks>
+    private enum Rule
+    {
+        /// <summary>SER300 - the command already takes this condition as an argument.</summary>
+        ConditionalArgument,
+
+        /// <summary>SER301 - a newer single command subsumes the condition and the write.</summary>
+        NewerAtomicOperation,
+
+        /// <summary>SER302 - the condition tells the caller nothing the write does not already report.</summary>
+        RedundantCondition,
+
+        /// <summary>SER303 - no condition at all; two queued operations that are one command.</summary>
+        CompoundCommand,
+    }
+
+    /// <summary>
     /// A rewrite we are prepared to suggest, and what it needs.
     /// </summary>
     private readonly struct Rewrite
     {
-        public Rewrite(string conditionName, string operationName, string suggestion, bool needsNewerServer, ServerVersion minVersion)
+        public Rewrite(Rule rule, string first, string second, string suggestion, ServerVersion minVersion)
         {
-            ConditionName = conditionName;
-            OperationName = operationName;
+            Rule = rule;
+            First = first;
+            Second = second;
             Suggestion = suggestion;
-            NeedsNewerServer = needsNewerServer;
             MinVersion = minVersion;
         }
 
-        public string ConditionName { get; }
-        public string OperationName { get; }
+        public Rule Rule { get; }
+
+        /// <summary>The condition, or for <see cref="Rule.CompoundCommand"/> the first queued operation.</summary>
+        public string First { get; }
+
+        /// <summary>The queued operation, or for <see cref="Rule.CompoundCommand"/> the second one.</summary>
+        public string Second { get; }
 
         /// <summary>The suggested call, as shown to the user.</summary>
         public string Suggestion { get; }
 
-        /// <summary>Which rule this is: the version-dependent one, or the version-free one.</summary>
-        /// <remarks>
-        /// Kept distinct from <see cref="MinVersion"/> on purpose. This picks the diagnostic ID, and the ID is
-        /// about the *kind* of fix (move an argument vs adopt a newer command), which is what a consumer
-        /// configures severity on. The version is data about one mapping and may change as servers ship.
-        /// </remarks>
-        public bool NeedsNewerServer { get; }
-
         public ServerVersion MinVersion { get; }
+    }
+
+    /// <summary>
+    /// The method name as the mapping tables spell it: the sync name, since the tables describe commands rather
+    /// than overloads and both surfaces map to the same suggestion.
+    /// </summary>
+    private static string Trim(string name)
+        => name.EndsWith("Async", StringComparison.Ordinal) ? name.Substring(0, name.Length - 5) : name;
+
+    /// <summary>
+    /// One command queued on the transaction, reduced to what the mappings need to match on.
+    /// </summary>
+    private readonly struct QueuedOperation
+    {
+        public QueuedOperation(string name, string? key, string? member)
+        {
+            DisplayName = name;
+            Name = Trim(name);
+            Key = key;
+            Member = member;
+        }
+
+        /// <summary>The method name with any <c>Async</c> suffix removed, for matching against the tables.</summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// The method name as written, for the message.
+        /// </summary>
+        /// <remarks>
+        /// The suffix matters here even though it does not for matching: the reader is looking for this call in
+        /// their own code, so naming <c>StringSetAsync</c> when that is what they wrote saves them a beat.
+        /// </remarks>
+        public string DisplayName { get; }
+
+        /// <summary>Source text of the first argument - the key, for every command we map.</summary>
+        public string? Key { get; }
+
+        /// <summary>Source text of the second argument: a hash field, or a set member, where there is one.</summary>
+        public string? Member { get; }
     }
 
     /// <summary>
@@ -190,12 +274,24 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private sealed class Usage
     {
-        private int _conditionCount, _operationCount;
-        private string? _conditionFactory, _conditionKey;
-        private string? _operationName, _operationKey;
-        private bool _disqualified;
+        /// <summary>
+        /// Beyond this many queued commands nothing here can apply, so stop recording and stay quiet.
+        /// </summary>
+        /// <remarks>The largest shape we map is family D's pair; a third command rules everything out.</remarks>
+        private const int MaxInterestingOperations = 3;
 
-        public Location? ReportAt { get; private set; }
+        private readonly List<QueuedOperation> _operations = new(MaxInterestingOperations);
+        private int _conditionCount;
+        private string? _conditionFactory, _conditionKey, _conditionMember;
+        private bool _disqualified;
+        private Location? _condition, _firstOperation;
+
+        /// <summary>
+        /// Where to report, which depends on the rule: the condition is the thing to remove for most of them,
+        /// but family D has no condition at all, so its report goes on the first queued command.
+        /// </summary>
+        public Location? LocationFor(Rule rule)
+            => rule == Rule.CompoundCommand ? _firstOperation : _condition;
 
         /// <summary>
         /// Something about this usage puts it beyond what we can reason about; stay silent regardless of counts.
@@ -214,7 +310,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             {
                 case "AddCondition":
                     _conditionCount++;
-                    ReportAt ??= invocation.Syntax.GetLocation();
+                    _condition ??= invocation.Syntax.GetLocation();
 
                     // the argument is expected to be a Condition.Xxx(...) factory call; if it is anything else
                     // (a variable, a helper method) we cannot know what it tests, so leave the names null and
@@ -224,7 +320,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                         && SymbolEqualityComparer.Default.Equals(factory.TargetMethod.ContainingType, known.Condition))
                     {
                         _conditionFactory = factory.TargetMethod.Name;
-                        _conditionKey = FirstArgumentText(factory);
+                        _conditionKey = ArgumentText(factory, 0);
+                        _conditionMember = ArgumentText(factory, 1);
                     }
 
                     break;
@@ -235,9 +332,19 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
                 default:
                     // everything else queued on the transaction is a redis operation
-                    _operationCount++;
-                    _operationName = invocation.TargetMethod.Name;
-                    _operationKey = FirstArgumentText(invocation);
+                    _firstOperation ??= invocation.Syntax.GetLocation();
+                    if (_operations.Count < MaxInterestingOperations)
+                    {
+                        _operations.Add(new QueuedOperation(
+                            invocation.TargetMethod.Name,
+                            ArgumentText(invocation, 0),
+                            ArgumentText(invocation, 1)));
+                    }
+                    else
+                    {
+                        Disqualify();
+                    }
+
                     break;
             }
         }
@@ -246,19 +353,48 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         {
             if (_disqualified) return null;
 
-            // only the unambiguous shape: one guard, one operation, and the same key in both
-            if (_conditionCount != 1 || _operationCount != 1) return null;
-            if (_conditionFactory is null || _operationName is null) return null;
-            if (_conditionKey is null || _operationKey is null || _conditionKey != _operationKey) return null;
+            return _conditionCount switch
+            {
+                // families A, B and C: one guard over one command
+                1 when _operations.Count == 1 => TryGuardedOperation(_operations[0]),
 
-            if (Map(_conditionFactory, _operationName) is not { } mapped) return null;
+                // family D: no guard at all, just two commands queued for atomicity
+                0 when _operations.Count == 2 => TryCommandPair(_operations[0], _operations[1]),
+
+                _ => null,
+            };
+        }
+
+        private Rewrite? TryGuardedOperation(QueuedOperation operation)
+        {
+            if (_conditionFactory is null) return null;
+
+            // the same key expression in both; see ArgumentText for why this is syntactic
+            if (_conditionKey is null || operation.Key is null || _conditionKey != operation.Key) return null;
+
+            if (Map(_conditionFactory, operation.Name) is not { } mapped) return null;
+
+            // Where the condition names a hash field or a set member, it has to be the *same* one the command
+            // touches: a condition about member "a" says nothing about removing member "b", and collapsing the
+            // two would silently drop a real guard. Only some mappings have a member at all, hence the flag.
+            if (mapped.SameMember
+                && (_conditionMember is null || operation.Member is null || _conditionMember != operation.Member))
+            {
+                return null;
+            }
 
             return new Rewrite(
+                mapped.Rule,
                 "Condition." + _conditionFactory,
-                _operationName,
+                operation.DisplayName,
                 mapped.Suggestion,
-                mapped.NeedsNewerServer,
                 mapped.MinVersion);
+        }
+
+        private static Rewrite? TryCommandPair(QueuedOperation first, QueuedOperation second)
+        {
+            if (MapPair(first, second) is not { } mapped) return null;
+            return new Rewrite(Rule.CompoundCommand, first.DisplayName, second.DisplayName, mapped.Suggestion, mapped.MinVersion);
         }
 
         /// <summary>
@@ -270,27 +406,43 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// (and where it has not quite - ZADD NX arrived in 3.0.2 - it predates the oldest server this library
         /// supports, so saying so would be noise).
         /// </remarks>
-        private static (string Suggestion, bool NeedsNewerServer, ServerVersion MinVersion)? Map(string condition, string operation)
+        private static (Rule Rule, string Suggestion, ServerVersion MinVersion, bool SameMember)? Map(string condition, string operation)
         {
             var op = Trim(operation);
             return (condition, op) switch
             {
                 // -- family A: the command already takes this condition as an argument; any server version --
-                ("KeyNotExists", "StringSet") => ("StringSet(key, value, When.NotExists)", false, ServerVersion.Any),
-                ("KeyExists", "StringSet") => ("StringSet(key, value, When.Exists)", false, ServerVersion.Any),
-                ("HashNotExists", "HashSet") => ("HashSet(key, field, value, When.NotExists)", false, ServerVersion.Any),
+                ("KeyNotExists", "StringSet") => (Rule.ConditionalArgument, "StringSet(key, value, When.NotExists)", ServerVersion.Any, false),
+                ("KeyExists", "StringSet") => (Rule.ConditionalArgument, "StringSet(key, value, When.Exists)", ServerVersion.Any, false),
+                ("HashNotExists", "HashSet") => (Rule.ConditionalArgument, "HashSet(key, field, value, When.NotExists)", ServerVersion.Any, true),
                 // SortedSetWhen, not When: the When overload is [EditorBrowsable(Never)] and the SortedSetWhen
                 // one is the canonical spelling, so suggesting When would push callers at a hidden overload
-                ("SortedSetNotContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.NotExists)", false, ServerVersion.Any),
-                ("SortedSetContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.Exists)", false, ServerVersion.Any),
-                ("KeyNotExists", "KeyRename") => ("KeyRename(key, newKey, When.NotExists)", false, ServerVersion.Any),
+                ("SortedSetNotContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd(key, member, score, SortedSetWhen.NotExists)", ServerVersion.Any, true),
+                ("SortedSetContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd(key, member, score, SortedSetWhen.Exists)", ServerVersion.Any, true),
+                ("KeyNotExists", "KeyRename") => (Rule.ConditionalArgument, "KeyRename(key, newKey, When.NotExists)", ServerVersion.Any, false),
 
                 // -- family B: a newer single command subsumes condition and write --
                 // 8.4: SET IFEQ/IFNE and DELIFEQ; see RedisFeatures.SetWithValueCheck / DeleteWithValueCheck
-                ("StringEqual", "StringSet") => ("StringSet(key, value, ValueCondition.Equal(expected))", true, new ServerVersion(8, 4)),
-                ("StringNotEqual", "StringSet") => ("StringSet(key, value, ValueCondition.NotEqual(expected))", true, new ServerVersion(8, 4)),
-                ("StringEqual", "KeyDelete") => ("StringDelete(key, ValueCondition.Equal(expected)), or LockRelease", true, new ServerVersion(8, 4)),
-                ("StringNotEqual", "KeyDelete") => ("StringDelete(key, ValueCondition.NotEqual(expected))", true, new ServerVersion(8, 4)),
+                ("StringEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet(key, value, ValueCondition.Equal(expected))", new ServerVersion(8, 4), false),
+                ("StringNotEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet(key, value, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
+                ("StringEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete(key, ValueCondition.Equal(expected)), or LockRelease", new ServerVersion(8, 4), false),
+                ("StringNotEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete(key, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
+
+                // -- family C: the write already reports what the condition was checking --
+                // These have always worked this way, so no version applies. The fix deletes the transaction
+                // rather than moving an argument, and what the caller observes changes: Execute() returning
+                // false ("the guard failed") becomes the command itself returning false ("I did nothing").
+                ("SetNotContains", "SetAdd") => (Rule.RedundantCondition, "SetAdd(key, value), which returns false if the member was already there", ServerVersion.Any, true),
+                ("SetContains", "SetRemove") => (Rule.RedundantCondition, "SetRemove(key, value), which returns false if the member was not there", ServerVersion.Any, true),
+                ("SortedSetContains", "SortedSetRemove") => (Rule.RedundantCondition, "SortedSetRemove(key, member), which returns false if the member was not there", ServerVersion.Any, true),
+                ("HashExists", "HashDelete") => (Rule.RedundantCondition, "HashDelete(key, field), which returns false if the field was not there", ServerVersion.Any, true),
+                ("KeyExists", "KeyDelete") => (Rule.RedundantCondition, "KeyDelete(key), which returns false if the key did not exist", ServerVersion.Any, false),
+                ("KeyExists", "KeyExpire") => (Rule.RedundantCondition, "KeyExpire(key, expiry), which returns false if the key did not exist", ServerVersion.Any, false),
+
+                // Deliberately absent from family C: ListIndexExists + ListSetByIndex. LSET reports an
+                // out-of-range index by failing, not by returning false (ListSetByIndex returns Task, not
+                // Task<bool>), so dropping the condition turns an aborted transaction into an exception -
+                // a change of behaviour, not a simplification.
 
                 // Deliberately absent, because no atomic equivalent exists and suggesting one would be wrong:
                 //   HashExists + HashSet      - there is no HSETXX; the nearest thing is a different method
@@ -301,12 +453,71 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 _ => null,
             };
 
-            static string Trim(string name)
-                => name.EndsWith("Async", StringComparison.Ordinal) ? name.Substring(0, name.Length - 5) : name;
         }
 
         /// <summary>
-        /// The source text of the first argument, used as a cheap "same key?" test.
+        /// Family D: two queued commands, no condition, that are one compound command between them.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Order matters here in a way it did not for the guarded families, because these commands return a
+        /// value: <c>SET ... GET</c> hands back the value from *before* the write, so it matches a queued get
+        /// followed by a set, and not the other way round.
+        /// </para>
+        /// <para>
+        /// A read whose result feeds the write is impossible to express here at all - inside a transaction the
+        /// read's result is an unresolved <c>Task</c>, so the caller cannot use it. That rules out the pairing
+        /// that looks most tempting, <c>ListRightPop</c> + <c>ListLeftPush</c> = <c>LMOVE</c>: whatever value is
+        /// being pushed, it is not the one that was popped, so LMOVE would not do the same thing. SMOVE below is
+        /// fine by contrast, because the member is a value the caller already has and passes to both calls.
+        /// </para>
+        /// </remarks>
+        private static (string Suggestion, ServerVersion MinVersion)? MapPair(QueuedOperation first, QueuedOperation second)
+        {
+            // 6.2: GETDEL / GETEX / SET ... GET; see RedisFeatures.GetDelete and SetAndGet
+            var v6_2 = new ServerVersion(6, 2);
+
+            if (SameKey(first, second))
+            {
+                switch (first.Name, second.Name)
+                {
+                    case ("StringGet", "KeyDelete"):
+                        return ("StringGetDelete(key)", v6_2);
+                    case ("StringGet", "KeyExpire"):
+                        return ("StringGetSetExpiry(key, expiry)", v6_2);
+                    case ("StringGet", "KeyPersist"):
+                        return ("StringGetSetExpiry(key, null)", v6_2);
+                    case ("StringGet", "StringSet"):
+                        return ("StringSetAndGet(key, value)", v6_2);
+
+                    // HGETDEL is 8.0; it has no RedisFeatures gate to point at
+                    case ("HashGet", "HashDelete") when SameMember(first, second):
+                        return ("HashFieldGetAndDelete(key, field)", new ServerVersion(8, 0));
+                }
+
+                return null;
+            }
+
+            // SMOVE, which is as old as sets themselves. Two different keys by definition - and the same member
+            // in both calls, or it is not one move. Either order queues the same pair of effects.
+            if (SameMember(first, second)
+                && ((first.Name == "SetRemove" && second.Name == "SetAdd")
+                    || (first.Name == "SetAdd" && second.Name == "SetRemove")))
+            {
+                return ("SetMove(source, destination, value)", ServerVersion.Any);
+            }
+
+            return null;
+
+            static bool SameKey(QueuedOperation a, QueuedOperation b)
+                => a.Key is not null && b.Key is not null && a.Key == b.Key;
+
+            static bool SameMember(QueuedOperation a, QueuedOperation b)
+                => a.Member is not null && b.Member is not null && a.Member == b.Member;
+        }
+
+        /// <summary>
+        /// The source text of an argument, used as a cheap "same key?" / "same member?" test.
         /// </summary>
         /// <remarks>
         /// Deliberately syntactic. Comparing keys semantically is not possible in general (they are values,
@@ -314,8 +525,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// of missing cases where the same key is spelled two different ways. That trade is the right way
         /// round for a shipped analyzer.
         /// </remarks>
-        private static string? FirstArgumentText(IInvocationOperation invocation)
-            => invocation.Arguments.Length == 0 ? null : invocation.Arguments[0].Value.Syntax.ToString();
+        private static string? ArgumentText(IInvocationOperation invocation, int index)
+            => invocation.Arguments.Length <= index ? null : invocation.Arguments[index].Value.Syntax.ToString();
 
         private static IOperation Unwrap(IOperation operation)
         {

@@ -81,6 +81,44 @@ internal static class Diagnostics
         helpLinkUri: HelpLink("SER301"));
 
     /// <summary>
+    /// Family C: the condition asks what the queued command already answers.
+    /// </summary>
+    /// <remarks>
+    /// Its own ID rather than sharing <see cref="PreferConditionalArgument"/> because the fix is a different
+    /// shape: it deletes the transaction instead of moving an argument into the command, and what the caller
+    /// observes changes meaning - <c>Execute()</c> returning <c>false</c> ("the guard failed, nothing ran")
+    /// becomes the command's own <c>false</c> ("it ran and had no effect"). Those coincide in intent but a
+    /// caller distinguishing them wants to notice. Version-free: these return values have always been there.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor RedundantCondition = new(
+        id: "SER302",
+        title: "Transaction condition is redundant",
+        messageFormat: "This transaction ({0} guarding {1}) is redundant - use {2}",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A condition that checks what the queued command already reports through its return value buys nothing: the transaction costs an extra round-trip and can abort, and the command alone says whether it acted.",
+        helpLinkUri: HelpLink("SER302"));
+
+    /// <summary>
+    /// Family D: no condition at all - two queued commands that are one compound command.
+    /// </summary>
+    /// <remarks>
+    /// The message assembles its own version clause (argument 3) rather than baking one into the format,
+    /// because unlike <see cref="PreferNewerAtomicOperation"/> the requirement genuinely varies across this
+    /// family - SMOVE is as old as sets, HGETDEL is 8.0 - and "requires server 1.0 or later" would be noise.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor PreferCompoundCommand = new(
+        id: "SER303",
+        title: "Transaction can be replaced by a single compound command",
+        messageFormat: "These two queued operations ({0} then {1}) are one command: use {2}{3}",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A transaction used only to make two operations atomic can be replaced by the single command that does both, which is one round-trip and cannot abort.",
+        helpLinkUri: HelpLink("SER303"));
+
+    /// <summary>
     /// The generated code cannot be compiled at the language version in effect, so nothing was generated.
     /// </summary>
     /// <remarks>
