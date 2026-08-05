@@ -3,13 +3,6 @@
 ; This is the analyzer equivalent of PublicAPI.Unshipped.txt: a diagnostic ID is a public contract once
 ; released, because consumers put them in NoWarn and .editorconfig. See Diagnostics.cs for the SER3xx map.
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
-
-### New Rules
-
-Rule ID | Category | Severity | Notes
---------|----------|----------|-------
-SER300  | Usage    | Info     | TransactionAnalyzer: transaction can be replaced by a conditional argument (any server)
-SER301  | Usage    | Info     | TransactionAnalyzer: transaction can be replaced by a single atomic operation (newer server)
-SER302  | Usage    | Info     | TransactionAnalyzer: condition is redundant; the queued command already reports whether it acted
-SER303  | Usage    | Info     | TransactionAnalyzer: two queued operations are a single compound command
-SER350  | Build    | Warning  | AsciiHashGenerator: generated code requires a newer C# language version, so nothing was generated
+;
+; Empty: the initial set is recorded directly in AnalyzerReleases.Shipped.md under 3.1. New rules added after
+; that release go here first, under a "### New Rules" table, and move across when they ship.
