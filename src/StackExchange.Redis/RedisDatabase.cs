@@ -5791,9 +5791,21 @@ namespace StackExchange.Redis
         {
             internal readonly string Script;
             public ScriptLoadMessage(CommandFlags flags, string script)
-                // SCRIPT as a whole is server-admin, but LOAD is an idempotent write to that node's script
-                // cache - re-issuing it yields the same SHA - and it sits on the normal EVALSHA path
-                : base(-1, flags.WithCategory(CommandFlags.CommandRetryConnection | Message.CommandServerSpecific), RedisCommand.SCRIPT)
+                // SCRIPT as a whole is server-admin, but LOAD is an idempotent write to a node's script cache -
+                // re-issuing it yields the same SHA - and it sits on the normal EVALSHA path. Deliberately NOT
+                // server-specific, unlike the rest of SCRIPT: the SHA is a pure function of the script, so a
+                // replay on a *different* node returns the same answer, and the bookkeeping follows it - the
+                // hash is recorded against whichever endpoint actually replied (see ResultProcessor.ScriptLoad
+                // -> ServerEndPoint.AddScript), not against the one we aimed at. Nothing here touches the
+                // keyspace, so there is no data outcome to get wrong; the worst case is that the node we
+                // *meant* to warm is still cold, and a later EVALSHA there gets NOSCRIPT and falls back to EVAL,
+                // which is an already-handled path (see IsScriptUnavailable).
+                //
+                // Note this is currently about stated intent rather than live behaviour: the only caller that
+                // could be retried across endpoints is IServer.ScriptLoad, and WithRetry wraps IDatabaseAsync
+                // only. The internal load-then-EVALSHA pairing in ScriptEvalMessage.GetMessages is written to
+                // one connection as a unit and so is never independently re-routed.
+                : base(-1, flags.WithCategory(CommandFlags.CommandRetryConnection), RedisCommand.SCRIPT)
             {
                 Script = script ?? throw new ArgumentNullException(nameof(script));
             }

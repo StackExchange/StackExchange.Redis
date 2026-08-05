@@ -317,15 +317,23 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     }
 
     /// <summary>
-    /// SCRIPT as a whole is server-admin, but LOAD is an idempotent write to one node's script cache that sits on
-    /// the normal EVALSHA path.
+    /// SCRIPT as a whole is server-admin *and* node-scoped; LOAD is neither. It has no keyspace effect, and the SHA
+    /// it returns is a pure function of the script, so the same answer comes back from any node - and the hash is
+    /// recorded against whichever endpoint actually replied. The absent node-scoped bit is the load-bearing half
+    /// here: it is what separates LOAD from every other SCRIPT subcommand, and asserting the category alone would
+    /// not see it.
     /// </summary>
     [Fact]
-    public void ScriptLoad_IsConnectionLevelAndNodeScoped()
+    public void ScriptLoad_IsConnectionLevelAndNotNodeScoped()
     {
         var msg = new RedisDatabase.ScriptLoadMessage(CommandFlags.None, "return 1");
         AssertCategory(CommandFlags.CommandRetryConnection, msg, "SCRIPT LOAD");
-        Assert.True((msg.Flags & Message.CommandServerSpecific) != 0, "SCRIPT LOAD targets one node's cache");
+        Assert.False((msg.Flags & Message.CommandServerSpecific) != 0, "SCRIPT LOAD returns the same SHA from any node");
+
+        // the control: the whole-command default it is departing from differs on *both* axes
+        var fallback = CommandFlags.None.WithDefaultCategory(RedisCommand.SCRIPT);
+        Assert.Equal(CommandFlags.CommandRetryServerAdmin, Message.GetRetryCategory(fallback));
+        Assert.True((fallback & Message.CommandServerSpecific) != 0, "bare SCRIPT stays node-scoped");
     }
 
     /// <summary>
