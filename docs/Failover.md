@@ -641,11 +641,11 @@ Retrying is not free of consequence: replaying `INCR` after an ambiguous failure
 
 For the built-in typed methods (`StringGet`, `StringSet`, `HashSet`, ...) the library assigns the appropriate category automatically, so retries "just work" within the default policy.
 
-The category can depend on a command's *arguments*, not just its name, and the typed methods take that into account: a plain `SET` is an unconditional overwrite ("last wins"), whereas `SET ... IFEQ` (or `NX`/`XX`) is a conditional write, because a replay either no-ops or fails rather than clobbering someone else's value. The same applies to the server commands that pack several verbs behind one name, so `CONFIG GET` is not priced as though it were `CONFIG SET`.
+The category can depend on a command's *arguments*, not just its name, and the typed methods take that into account: a plain `SET` is an unconditional overwrite ("last wins"), whereas `SET ... IFEQ` (or `NX`/`XX`) is a conditional write, since a replay either has no effect or fails rather than replacing a value written by someone else. The same applies to the server commands that cover several distinct operations under one name, so `CONFIG GET` is not categorized as though it were `CONFIG SET`.
 
-Commands issued through `Execute`/`ExecuteAsync` get no such treatment, because the arguments are opaque to us: they take the pessimistic whole-command default, and the caller should supply a category explicitly (see below).
+Commands issued through `Execute`/`ExecuteAsync` receive no such treatment, because their arguments are opaque to the library: they take the pessimistic whole-command default, and the caller should supply a category explicitly (see below).
 
-Note that the category describes the effect on the *keyspace*, not on the reply. A `SET ... IFEQ` that is replayed after an ambiguous success reports "not set" even though the write landed, and the `GET` operand on `SET` hands back the value you just wrote rather than the true prior value; the end state is still correct, but code branching on the returned value should be aware of it.
+Note that the category describes the effect on the *keyspace*, not on the reply. A `SET ... IFEQ` that is replayed after an ambiguous success reports "not set" even though the write was applied, and the `GET` operand on `SET` returns the value just written rather than the true prior value. The end state is still correct, but callers branching on the returned value should be aware of this.
 
 #### Known-not-applied faults
 
