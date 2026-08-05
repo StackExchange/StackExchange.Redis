@@ -8,7 +8,7 @@ separately:
 
 | Range | Meaning |
 |---|---|
-| `SER300`-`SER349` | usage guidance about your code (reported as *information*; never fails a build) |
+| `SER300`-`SER349` | usage guidance about your code |
 | `SER350`-`SER399` | build-level problems from the source generators |
 
 Note that `SER0xx` is a different thing entirely: those are the [`[Experimental]` API gates](../exp/SER004),
@@ -46,13 +46,34 @@ redis.min_server_version = 7.4
 Unset shows everything, which is the default: a suggestion you cannot use yet is still worth knowing about. Each
 rule's message names the version it needs, so you can tell at a glance whether it applies to you.
 
-## Why these are only information
+## Severity, and turning it down
 
-The code these rules flag is correct - it works, and it will keep working. They point at a form that is a single
-round-trip instead of two and cannot abort under contention. Shipping them as warnings would break every
-consumer building with `TreatWarningsAsErrors`, so they are informational by default; raise the severity in
-`.editorconfig` if you want them enforced:
+These are **warnings** by default. The code they flag is correct - it works, and it will keep working - so a
+warning is arguably strong; they are warnings anyway because information-level diagnostics are not printed by
+`dotnet build`, which means outside an IDE they are invisible, and a suggestion nobody ever sees is not worth
+shipping.
+
+The consequence worth knowing before you upgrade: if you build with `TreatWarningsAsErrors`, these **will fail
+your build** on code that previously compiled. Nothing is broken - you have a choice of acting on them or
+turning them down.
+
+Per rule, in `.editorconfig`:
 
 ```ini
-dotnet_diagnostic.SER300.severity = warning
+dotnet_diagnostic.SER300.severity = suggestion   # or none, silent, warning, error
 ```
+
+Or for the whole family, in your project file:
+
+```xml
+<NoWarn>$(NoWarn);SER300;SER301;SER302;SER303;SER304</NoWarn>
+```
+
+Or at a single site, where the transaction is deliberate:
+
+```c#
+#pragma warning disable SER301 // deliberate fallback for older servers
+```
+
+If you want the old behaviour everywhere, `suggestion` is the severity that matches what these shipped as
+before: visible in the IDE, absent from the build log.

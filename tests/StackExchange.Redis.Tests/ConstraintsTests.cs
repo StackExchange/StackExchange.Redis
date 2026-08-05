@@ -35,8 +35,14 @@ public class ConstraintsTests(ITestOutputHelper output, SharedConnectionFixture 
         var newVal = (oldVal ?? 0) + 1;
         var tran = connection.CreateTransaction();
         { // check hasn't changed
+            // Deliberately the long way round: this exercises the optimistic-concurrency path (read, compare,
+            // conditional write, observe the abort), which is the thing under test. StringIncrement would be
+            // the right answer in real code, and a single compare-and-set write would remove the abort we
+            // are here to provoke.
+#pragma warning disable SER301 // Transaction can be replaced by a single atomic operation
             tran.AddCondition(Condition.StringEqual(key, oldVal));
             _ = tran.StringSetAsync(key, newVal);
+#pragma warning restore SER301
             if (!await tran.ExecuteAsync().ForAwait()) return null; // aborted
             return newVal;
         }

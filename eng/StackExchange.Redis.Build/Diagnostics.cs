@@ -17,9 +17,17 @@ namespace StackExchange.Redis.Build;
 /// </list>
 /// <para>
 /// These are a public contract: once shipped, an ID cannot be reused or re-pointed, because consumers put
-/// them in <c>NoWarn</c> and <c>.editorconfig</c>. Analyzer rules default to <see
-/// cref="DiagnosticSeverity.Info"/> - the code they flag is correct, just not optimal, and a shipped warning
-/// would break builds that set <c>TreatWarningsAsErrors</c>.
+/// them in <c>NoWarn</c> and <c>.editorconfig</c>.
+/// </para>
+/// <para>
+/// Everything here defaults to <see cref="DiagnosticSeverity.Warning"/>, including the usage rules, whose code
+/// is correct rather than broken. That is a deliberate change from an earlier <see
+/// cref="DiagnosticSeverity.Info"/> default: information-level diagnostics are not printed by <c>dotnet
+/// build</c> at all, so outside an IDE the rules simply did not exist, and a suggestion nobody sees is not
+/// worth shipping. The cost is real and should be understood rather than discovered: a consumer building with
+/// <c>TreatWarningsAsErrors</c> gets a *failing build* on upgrade, on code that works. They can turn any of
+/// these down per-rule in <c>.editorconfig</c> or <c>NoWarn</c>, and the help pages say how - but the first
+/// experience is a broken build, and that is the trade being made on purpose.
 /// </para>
 /// </remarks>
 internal static class Diagnostics
@@ -50,7 +58,7 @@ internal static class Diagnostics
         title: "Transaction can be replaced by a conditional argument",
         messageFormat: "This transaction ({0} guarding {1}) can be expressed as {2} - the condition duplicates an argument the command already has",
         category: UsageCategory,
-        defaultSeverity: DiagnosticSeverity.Info,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "A transaction whose only purpose is to make one operation conditional can be replaced by the command's own conditional argument, which is a single round-trip and cannot abort under contention.",
         helpLinkUri: HelpLink("SER300"));
@@ -75,7 +83,7 @@ internal static class Diagnostics
         title: "Transaction can be replaced by a single atomic operation",
         messageFormat: "This transaction ({0} guarding {1}) can be expressed as {2}, which is atomic on the server and needs no WATCH (requires server {3} or later)",
         category: UsageCategory,
-        defaultSeverity: DiagnosticSeverity.Info,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "A transaction implementing compare-and-set can be replaced by the equivalent conditional command on servers that support it, which is a single round-trip and cannot abort under contention.",
         helpLinkUri: HelpLink("SER301"));
@@ -95,7 +103,7 @@ internal static class Diagnostics
         title: "Transaction condition is redundant",
         messageFormat: "This transaction ({0} guarding {1}) is redundant - use {2}",
         category: UsageCategory,
-        defaultSeverity: DiagnosticSeverity.Info,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "A condition that checks what the queued command already reports through its return value buys nothing: the transaction costs an extra round-trip and can abort, and the command alone says whether it acted.",
         helpLinkUri: HelpLink("SER302"));
@@ -113,7 +121,7 @@ internal static class Diagnostics
         title: "Transaction can be replaced by a single compound command",
         messageFormat: "These two queued operations ({0} then {1}) are one command: use {2}{3}",
         category: UsageCategory,
-        defaultSeverity: DiagnosticSeverity.Info,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "A transaction used only to make two operations atomic can be replaced by the single command that does both, which is one round-trip and cannot abort.",
         helpLinkUri: HelpLink("SER303"));
@@ -132,7 +140,7 @@ internal static class Diagnostics
         title: "Repeated queued operations can use the variadic overload",
         messageFormat: "These {1} queued {0} calls are one command: use {2}{3}",
         category: UsageCategory,
-        defaultSeverity: DiagnosticSeverity.Info,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "The same command queued several times over can be a single variadic call, which is one round-trip and needs no transaction to be atomic.",
         helpLinkUri: HelpLink("SER304"));

@@ -9,9 +9,9 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-SER300  | Usage    | Info     | TransactionAnalyzer: transaction can be replaced by a conditional argument (any server)
-SER301  | Usage    | Info     | TransactionAnalyzer: transaction can be replaced by a single atomic operation (newer server)
-SER302  | Usage    | Info     | TransactionAnalyzer: condition is redundant; the queued command already reports whether it acted
-SER303  | Usage    | Info     | TransactionAnalyzer: two queued operations are a single compound command
-SER304  | Usage    | Info     | TransactionAnalyzer: repeated queued operations can use the variadic overload
+SER300  | Usage    | Warning  | TransactionAnalyzer: transaction can be replaced by a conditional argument (any server)
+SER301  | Usage    | Warning  | TransactionAnalyzer: transaction can be replaced by a single atomic operation (newer server)
+SER302  | Usage    | Warning  | TransactionAnalyzer: condition is redundant; the queued command already reports whether it acted
+SER303  | Usage    | Warning  | TransactionAnalyzer: two queued operations are a single compound command
+SER304  | Usage    | Warning  | TransactionAnalyzer: repeated queued operations can use the variadic overload
 SER350  | Build    | Warning  | AsciiHashGenerator: generated code requires a newer C# language version, so nothing was generated

@@ -6,6 +6,11 @@ using StackExchange.Redis.Availability;
 using StackExchange.Redis.Server;
 using Xunit;
 
+// The whole point of this file is what a WATCH-based transaction does when EXEC is retried, so the analyzer's
+// advice to collapse these into a single atomic command is exactly what must not happen here: there would be no
+// WATCH left to retry, and nothing to test. Suppressed file-wide rather than per-site for that reason.
+#pragma warning disable SER301 // Transaction can be replaced by a single atomic operation
+
 namespace StackExchange.Redis.Tests.RetryTests;
 
 [RunPerProtocol]

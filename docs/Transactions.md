@@ -136,8 +136,7 @@ if (await tran.ExecuteAsync()) { /* ... */ }
 if (await db.StringSetAsync(key, value, when: When.NotExists)) { /* ... */ }
 ```
 
-Since 3.1 the package ships a Roslyn analyzer that points these out in your own build, as suggestions
-(information severity - they never fail a build). It covers conditions that duplicate a `when:` argument,
+Since 3.1 the package ships a Roslyn analyzer that points these out in your own build, as warnings. It covers conditions that duplicate a `when:` argument,
 compare-and-set that a newer server does in one command, conditions that ask what the command already reports,
 and pairs or repetitions of commands that collapse into one call.
 

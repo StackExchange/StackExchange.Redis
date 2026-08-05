@@ -31,7 +31,11 @@ public abstract class Verifier<TAnalyzer>
         Path.Combine("ref", "net10.0"));
 
     /// <summary>Expect a diagnostic with this id at the marked location.</summary>
-    protected static DiagnosticResult Diagnostic(string id, DiagnosticSeverity severity = DiagnosticSeverity.Info)
+    /// <remarks>
+    /// Defaults to <see cref="DiagnosticSeverity.Warning"/> because that is what the rules ship as; the harness
+    /// checks severity, so this is also what stops the default being changed without anyone noticing.
+    /// </remarks>
+    protected static DiagnosticResult Diagnostic(string id, DiagnosticSeverity severity = DiagnosticSeverity.Warning)
         => new(id, severity);
 
     /// <summary>Verify that <paramref name="source"/> produces exactly <paramref name="expected"/>.</summary>
