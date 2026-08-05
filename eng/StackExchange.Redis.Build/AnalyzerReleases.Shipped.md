@@ -13,4 +13,5 @@ SER300  | Usage    | Info     | TransactionAnalyzer: transaction can be replaced
 SER301  | Usage    | Info     | TransactionAnalyzer: transaction can be replaced by a single atomic operation (newer server)
 SER302  | Usage    | Info     | TransactionAnalyzer: condition is redundant; the queued command already reports whether it acted
 SER303  | Usage    | Info     | TransactionAnalyzer: two queued operations are a single compound command
+SER304  | Usage    | Info     | TransactionAnalyzer: repeated queued operations can use the variadic overload
 SER350  | Build    | Warning  | AsciiHashGenerator: generated code requires a newer C# language version, so nothing was generated

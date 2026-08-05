@@ -174,6 +174,73 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
         """);
 
     [Fact]
+    // The same unsoundness as SER304's reassignment case, on the guarded shape: the condition names key "a" and
+    // the write lands on "b", so the transaction is a real guard and collapsing it would change behaviour.
+    public Task ConditionKeyReassignedBeforeOperation_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db)
+            {
+                RedisKey key = "a";
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.KeyNotExists(key));
+                key = "b";
+                _ = tran.StringSetAsync(key, "value");
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // and on the compound-pair shape
+    public Task PairKeyReassignedBetweenOperations_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db)
+            {
+                RedisKey key = "a";
+                var tran = db.CreateTransaction();
+                _ = tran.StringGetAsync(key);
+                key = "b";
+                _ = tran.KeyDeleteAsync(key);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // A local that is reassigned but plays no part in any key or member expression must not suppress anything -
+    // ordinary methods are full of counters and accumulators.
+    public Task UnrelatedLocalReassigned_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task<int> M(IDatabase db, RedisKey key)
+            {
+                var count = 0;
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value");
+                count = 1;
+                await tran.ExecuteAsync();
+                return count;
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet(key, value, When.NotExists)"));
+
+    [Fact]
     // two independent transactions in one method must be tracked separately, not pooled into one set of counts
     public Task TwoIndependentTransactions_AreFlaggedIndependently() => VerifyAsync(
         """

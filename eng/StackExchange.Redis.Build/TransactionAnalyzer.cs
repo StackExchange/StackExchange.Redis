@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
@@ -9,11 +10,17 @@ namespace StackExchange.Redis.Build;
 /// Spots <c>ITransaction</c>/<c>ITransactionAsync</c> usage that a single conditional command does better.
 /// </summary>
 /// <remarks>
-/// Deliberately conservative. It only fires on the unambiguous shape - exactly one condition guarding exactly
-/// one queued operation, on a syntactically identical key - because this ships to every consumer of the
-/// package, and a false positive on correct code is worse than staying quiet. Anything cleverer (several
-/// operations, a condition on a different key, a transaction whose result feeds back into control flow) is
-/// left alone on purpose: partial inference that works inconsistently would be more confusing than none.
+/// <para>
+/// Three shapes, all of them unambiguous by construction: one condition guarding one command on a
+/// syntactically identical key (SER300-SER302), two commands that one compound command covers (SER303), and the
+/// same command queued repeatedly where a variadic overload covers it (SER304).
+/// </para>
+/// <para>
+/// Deliberately conservative, because this ships to every consumer of the package and a false positive on
+/// correct code is worse than staying quiet. Anything cleverer - a condition on a different key, a transaction
+/// whose result feeds back into control flow, commands queued in a loop, a transaction handed to another method
+/// - is left alone on purpose: partial inference that works inconsistently would be more confusing than none.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class TransactionAnalyzer : DiagnosticAnalyzer
@@ -24,7 +31,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             Diagnostics.PreferConditionalArgument,
             Diagnostics.PreferNewerAtomicOperation,
             Diagnostics.RedundantCondition,
-            Diagnostics.PreferCompoundCommand);
+            Diagnostics.PreferCompoundCommand,
+            Diagnostics.PreferVariadicOverload);
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -83,6 +91,20 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             // one pass, gathering per-transaction-local usage; most blocks contain nothing and fall straight out
             Dictionary<ISymbol, Usage>? usages = null;
 
+            // Locals that are written somewhere in this block, which is what makes comparing key expressions by
+            // text unsound: "key" and "key" are the same text but not the same key if it was reassigned in
+            // between. Declarations do not count - only later writes - so the common case stays clean.
+            HashSet<ISymbol>? reassignedLocals = null;
+
+            foreach (var operation in block.Descendants())
+            {
+                if (LocalWrittenBy(operation) is { } written)
+                {
+                    reassignedLocals ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+                    reassignedLocals.Add(written);
+                }
+            }
+
             foreach (var operation in block.Descendants())
             {
                 // the transaction is identified by the local it was assigned to; anything else (a field, a
@@ -116,7 +138,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
             foreach (var pair in usages)
             {
-                if (pair.Value.TryGetSuggestion() is not { } found) continue;
+                if (pair.Value.TryGetSuggestion(reassignedLocals) is not { } found) continue;
 
                 // The suggestion is only actionable on a server that has the command, and we cannot see the
                 // server - so if the project has told us its floor, respect it. Unset shows everything.
@@ -142,13 +164,21 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
                     // family D's versions vary from "any" (SMOVE) to 8.0 (HGETDEL), so the clause is built
                     // rather than baked into the format - see Diagnostics.PreferCompoundCommand
+                    Rule.VariadicOverload => Diagnostic.Create(
+                        Diagnostics.PreferVariadicOverload,
+                        location,
+                        found.First,
+                        found.Second,
+                        found.Suggestion,
+                        VersionClause(found.MinVersion)),
+
                     Rule.CompoundCommand => Diagnostic.Create(
                         Diagnostics.PreferCompoundCommand,
                         location,
                         found.First,
                         found.Second,
                         found.Suggestion,
-                        found.MinVersion.IsSpecified ? " (requires server " + found.MinVersion + " or later)" : ""),
+                        VersionClause(found.MinVersion)),
 
                     _ => Diagnostic.Create(
                         Diagnostics.PreferConditionalArgument,
@@ -160,6 +190,33 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             }
         }
     }
+
+    /// <summary>
+    /// The local this operation writes to, if it writes to one.
+    /// </summary>
+    /// <remarks>
+    /// A variable *declaration* is not a write for this purpose - the interesting case is a local that held one
+    /// key when a command was queued and a different one by the time the next was, which only a later assignment
+    /// can produce. <c>ref</c>/<c>out</c> arguments count, because the callee may do exactly that.
+    /// </remarks>
+    private static ISymbol? LocalWrittenBy(IOperation operation) => operation switch
+    {
+        ISimpleAssignmentOperation { Target: ILocalReferenceOperation { Local: { } local } } => local,
+        ICompoundAssignmentOperation { Target: ILocalReferenceOperation { Local: { } local } } => local,
+        IIncrementOrDecrementOperation { Target: ILocalReferenceOperation { Local: { } local } } => local,
+        IArgumentOperation
+        {
+            Parameter.RefKind: RefKind.Ref or RefKind.Out,
+            Value: ILocalReferenceOperation { Local: { } local },
+        } => local,
+        _ => null,
+    };
+
+    /// <summary>
+    /// The trailing " (requires server x.y or later)", or nothing where the suggestion needs no particular one.
+    /// </summary>
+    private static string VersionClause(ServerVersion version)
+        => version.IsSpecified ? " (requires server " + version + " or later)" : "";
 
     /// <summary>
     /// Is this call inside a loop, and so potentially queueing many commands from one call site?
@@ -200,6 +257,9 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
         /// <summary>SER303 - no condition at all; two queued operations that are one command.</summary>
         CompoundCommand,
+
+        /// <summary>SER304 - the same command queued repeatedly, where one variadic call does the lot.</summary>
+        VariadicOverload,
     }
 
     /// <summary>
@@ -218,10 +278,16 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
         public Rule Rule { get; }
 
-        /// <summary>The condition, or for <see cref="Rule.CompoundCommand"/> the first queued operation.</summary>
+        /// <summary>
+        /// The condition; for <see cref="Rule.CompoundCommand"/> the first queued operation, and for
+        /// <see cref="Rule.VariadicOverload"/> the operation that was repeated.
+        /// </summary>
         public string First { get; }
 
-        /// <summary>The queued operation, or for <see cref="Rule.CompoundCommand"/> the second one.</summary>
+        /// <summary>
+        /// The queued operation; for <see cref="Rule.CompoundCommand"/> the second one, and for
+        /// <see cref="Rule.VariadicOverload"/> how many times it was queued.
+        /// </summary>
         public string Second { get; }
 
         /// <summary>The suggested call, as shown to the user.</summary>
@@ -242,12 +308,13 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private readonly struct QueuedOperation
     {
-        public QueuedOperation(string name, string? key, string? member)
+        public QueuedOperation(string name, string? key, string? member, List<ISymbol>? reads)
         {
             DisplayName = name;
             Name = Trim(name);
             Key = key;
             Member = member;
+            Reads = reads;
         }
 
         /// <summary>The method name with any <c>Async</c> suffix removed, for matching against the tables.</summary>
@@ -267,6 +334,11 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
         /// <summary>Source text of the second argument: a hash field, or a set member, where there is one.</summary>
         public string? Member { get; }
+
+        /// <summary>
+        /// Locals read by the key/member expressions, so we can tell whether comparing them by text is sound.
+        /// </summary>
+        public List<ISymbol>? Reads { get; }
     }
 
     /// <summary>
@@ -275,14 +347,20 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     private sealed class Usage
     {
         /// <summary>
-        /// Beyond this many queued commands nothing here can apply, so stop recording and stay quiet.
+        /// Beyond this many queued commands, stop recording and stay quiet.
         /// </summary>
-        /// <remarks>The largest shape we map is family D's pair; a third command rules everything out.</remarks>
-        private const int MaxInterestingOperations = 3;
+        /// <remarks>
+        /// A backstop rather than a meaningful limit: the variadic shape is unbounded in principle, so this
+        /// exists only to keep one pathological method from holding an arbitrarily long list. Exceeding it costs
+        /// a missed suggestion, never a wrong one, and 32 queued commands in a single hand-written transaction
+        /// is already well past what this rule is for.
+        /// </remarks>
+        private const int MaxInterestingOperations = 32;
 
-        private readonly List<QueuedOperation> _operations = new(MaxInterestingOperations);
+        private readonly List<QueuedOperation> _operations = new();
         private int _conditionCount;
         private string? _conditionFactory, _conditionKey, _conditionMember;
+        private List<ISymbol>? _conditionReads;
         private bool _disqualified;
         private Location? _condition, _firstOperation;
 
@@ -291,7 +369,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// but family D has no condition at all, so its report goes on the first queued command.
         /// </summary>
         public Location? LocationFor(Rule rule)
-            => rule == Rule.CompoundCommand ? _firstOperation : _condition;
+            => rule is Rule.CompoundCommand or Rule.VariadicOverload ? _firstOperation : _condition;
 
         /// <summary>
         /// Something about this usage puts it beyond what we can reason about; stay silent regardless of counts.
@@ -322,6 +400,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                         _conditionFactory = factory.TargetMethod.Name;
                         _conditionKey = ArgumentText(factory, 0);
                         _conditionMember = ArgumentText(factory, 1);
+                        _conditionReads = LocalsRead(factory);
                     }
 
                     break;
@@ -338,7 +417,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                         _operations.Add(new QueuedOperation(
                             invocation.TargetMethod.Name,
                             ArgumentText(invocation, 0),
-                            ArgumentText(invocation, 1)));
+                            ArgumentText(invocation, 1),
+                            LocalsRead(invocation)));
                     }
                     else
                     {
@@ -349,20 +429,50 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        public Rewrite? TryGetSuggestion()
+        public Rewrite? TryGetSuggestion(HashSet<ISymbol>? reassignedLocals)
         {
             if (_disqualified) return null;
 
-            return _conditionCount switch
+            // Every shape below decides by comparing key/member expressions as text. That is only sound while
+            // the locals involved hold the same value throughout: if one was reassigned between the two calls,
+            // identical text means two different keys, and the suggestion would silently change behaviour.
+            if (reassignedLocals is not null && ReadsAny(reassignedLocals)) return null;
+
+            if (_conditionCount == 1 && _operations.Count == 1)
             {
                 // families A, B and C: one guard over one command
-                1 when _operations.Count == 1 => TryGuardedOperation(_operations[0]),
+                return TryGuardedOperation(_operations[0]);
+            }
 
-                // family D: no guard at all, just two commands queued for atomicity
-                0 when _operations.Count == 2 => TryCommandPair(_operations[0], _operations[1]),
+            if (_conditionCount != 0 || _operations.Count < 2) return null;
 
-                _ => null,
-            };
+            // family D, two flavours. A pair of *different* commands that one compound command covers, or the
+            // same command repeated, which the variadic overload covers. They cannot both match, because one
+            // wants the names to differ and the other wants them identical.
+            return (_operations.Count == 2 ? TryCommandPair(_operations[0], _operations[1]) : null)
+                   ?? TryVariadic();
+        }
+
+        private bool ReadsAny(HashSet<ISymbol> reassignedLocals)
+        {
+            if (Contains(_conditionReads, reassignedLocals)) return true;
+            foreach (var operation in _operations)
+            {
+                if (Contains(operation.Reads, reassignedLocals)) return true;
+            }
+
+            return false;
+
+            static bool Contains(List<ISymbol>? reads, HashSet<ISymbol> reassigned)
+            {
+                if (reads is null) return false;
+                foreach (var read in reads)
+                {
+                    if (reassigned.Contains(read)) return true;
+                }
+
+                return false;
+            }
         }
 
         private Rewrite? TryGuardedOperation(QueuedOperation operation)
@@ -396,6 +506,89 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             if (MapPair(first, second) is not { } mapped) return null;
             return new Rewrite(Rule.CompoundCommand, first.DisplayName, second.DisplayName, mapped.Suggestion, mapped.MinVersion);
         }
+
+        /// <summary>
+        /// The same command queued several times over, where one variadic call does the lot.
+        /// </summary>
+        private Rewrite? TryVariadic()
+        {
+            var first = _operations[0];
+            for (var i = 1; i < _operations.Count; i++)
+            {
+                if (_operations[i].Name != first.Name) return null;
+            }
+
+            if (MapVariadic(first.Name) is not { } mapped) return null;
+
+            // Which keys the variadic form takes is the whole distinction here. SADD and friends take one key
+            // and many values, so every call has to be on the *same* key - N calls across different keys have no
+            // single-command form. MSET/MGET/DEL take many keys, so those must be different keys, which also
+            // avoids arguing about what a repeated key would mean.
+            for (var i = 0; i < _operations.Count; i++)
+            {
+                if (_operations[i].Key is null) return null;
+                if (mapped.ManyKeys)
+                {
+                    if (mapped.RequiresMember && _operations[i].Member is null) return null;
+                    for (var j = i + 1; j < _operations.Count; j++)
+                    {
+                        if (_operations[i].Key == _operations[j].Key) return null;
+                    }
+                }
+                else
+                {
+                    if (_operations[i].Key != first.Key) return null;
+                    if (mapped.RequiresMember && _operations[i].Member is null) return null;
+                }
+            }
+
+            return new Rewrite(
+                Rule.VariadicOverload,
+                first.DisplayName,
+                _operations.Count.ToString(CultureInfo.InvariantCulture),
+                mapped.Suggestion,
+                mapped.MinVersion);
+        }
+
+        /// <summary>
+        /// Commands with a variadic overload that subsumes N separate calls.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Versions are <see cref="ServerVersion.Any"/> for all but one: the variadic forms arrived in 2.4, which
+        /// predates anything anyone is running and well predates the oldest server this library supports, so
+        /// saying so would be noise. SMISMEMBER is the exception at 6.2 - recent enough to matter.
+        /// </para>
+        /// <para>
+        /// Deliberately absent: N x <c>ListLeftPop</c> across keys is *not* LMPOP. LMPOP pops from the first
+        /// non-empty key of those given, not from each of them, so it is a different operation however similar
+        /// the argument lists look. Same for ZMPOP.
+        /// </para>
+        /// </remarks>
+        private static (string Suggestion, bool ManyKeys, bool RequiresMember, ServerVersion MinVersion)? MapVariadic(string operation)
+            => operation switch
+            {
+                // one key, many values
+                "SetAdd" => ("SetAdd(key, values)", false, true, ServerVersion.Any),
+                "SetRemove" => ("SetRemove(key, values)", false, true, ServerVersion.Any),
+                "SortedSetAdd" => ("SortedSetAdd(key, entries)", false, true, ServerVersion.Any),
+                "SortedSetRemove" => ("SortedSetRemove(key, members)", false, true, ServerVersion.Any),
+                "HashSet" => ("HashSet(key, entries)", false, true, ServerVersion.Any),
+                "HashDelete" => ("HashDelete(key, fields)", false, true, ServerVersion.Any),
+                "ListLeftPush" => ("ListLeftPush(key, values)", false, true, ServerVersion.Any),
+                "ListRightPush" => ("ListRightPush(key, values)", false, true, ServerVersion.Any),
+
+                // SMISMEMBER, which unlike the rest of these is recent; it has no RedisFeatures gate to cite
+                "SetContains" => ("SetContains(key, values), which returns a bool per value", false, true, new ServerVersion(6, 2)),
+
+                // many keys
+                "KeyDelete" => ("KeyDelete(keys)", true, false, ServerVersion.Any),
+                "KeyExists" => ("KeyExists(keys), which returns how many exist", true, false, ServerVersion.Any),
+                "StringGet" => ("StringGet(keys)", true, false, ServerVersion.Any),
+                "StringSet" => ("StringSet(KeyValuePair<RedisKey, RedisValue>[])", true, false, ServerVersion.Any),
+
+                _ => null,
+            };
 
         /// <summary>
         /// The condition/operation pairs that have an exact single-command equivalent.
@@ -525,6 +718,23 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// of missing cases where the same key is spelled two different ways. That trade is the right way
         /// round for a shipped analyzer.
         /// </remarks>
+        private static List<ISymbol>? LocalsRead(IInvocationOperation invocation)
+        {
+            List<ISymbol>? locals = null;
+            for (var i = 0; i < 2 && i < invocation.Arguments.Length; i++)
+            {
+                foreach (var node in invocation.Arguments[i].Value.DescendantsAndSelf())
+                {
+                    if (node is ILocalReferenceOperation { Local: { } local })
+                    {
+                        (locals ??= new List<ISymbol>()).Add(local);
+                    }
+                }
+            }
+
+            return locals;
+        }
+
         private static string? ArgumentText(IInvocationOperation invocation, int index)
             => invocation.Arguments.Length <= index ? null : invocation.Arguments[index].Value.Syntax.ToString();
 

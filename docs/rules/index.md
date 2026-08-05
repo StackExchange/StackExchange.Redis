@@ -20,6 +20,7 @@ which mean "this API is preview", not "consider changing this code".
 - [SER301](SER301) - transaction can be replaced by a single atomic operation (needs a newer server)
 - [SER302](SER302) - condition is redundant; the command already reports whether it acted (any server version)
 - [SER303](SER303) - two queued operations are a single compound command (varies by pair)
+- [SER304](SER304) - the same operation queued repeatedly can use the variadic overload (mostly any server)
 
 ## Build
 

@@ -119,6 +119,25 @@ internal static class Diagnostics
         helpLinkUri: HelpLink("SER303"));
 
     /// <summary>
+    /// Family D, second flavour: the same command queued repeatedly, where one variadic call does the lot.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="PreferCompoundCommand"/> because the result changes *shape* rather than just
+    /// meaning: N calls each returning <c>bool</c> become one returning a count, and N returning a value become
+    /// one returning an array. Somebody happy to adopt GETDEL may well not want to rework how they read results,
+    /// and a shared ID would not let them separate the two.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor PreferVariadicOverload = new(
+        id: "SER304",
+        title: "Repeated queued operations can use the variadic overload",
+        messageFormat: "These {1} queued {0} calls are one command: use {2}{3}",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "The same command queued several times over can be a single variadic call, which is one round-trip and needs no transaction to be atomic.",
+        helpLinkUri: HelpLink("SER304"));
+
+    /// <summary>
     /// The generated code cannot be compiled at the language version in effect, so nothing was generated.
     /// </summary>
     /// <remarks>
