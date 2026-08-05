@@ -641,59 +641,11 @@ Retrying is not free of consequence: replaying `INCR` after an ambiguous failure
 
 For the built-in typed methods (`StringGet`, `StringSet`, `HashSet`, ...) the library assigns the appropriate category automatically, so retries "just work" within the default policy.
 
-#### Categories can depend on the arguments, not just the command
-
-A number of commands change their side-effect profile according to how they are called, and the typed methods take that into account rather than using one category for the whole command:
-
-| Call | Category | Why |
-|------|----------|-----|
-| `SET key val` | last wins | unconditional overwrite |
-| `SET key val` + `NX`/`XX`, or a `ValueCondition` (`IFEQ`/`IFNE`/`IFDEQ`/`IFDNE`) | checked | conditional: a replay no-ops or fails |
-| `EXPIRE`/`HEXPIRE` + `NX`/`XX`/`GT`/`LT` | checked | conditional; `GT`/`LT` are monotone |
-| `ZADD` | last wins | overwrites the score |
-| `ZADD` + `NX`/`XX`/`GT`/`LT` | checked | conditional or monotone |
-| `SortedSetIncrement` (`ZINCRBY`, or `ZADD ... XX INCR`) | accumulating | compounds per call |
-| `SortedSetIncrement` with `NotExists` (`ZADD ... NX INCR`) | checked | a replay finds the member present |
-| `SORT` | read-only | pure query |
-| `SORT ... STORE` | last wins | writes the destination key |
-| `GETEX`/`HGETEX` with no expiry operand | read-only | pure read |
-| `GETEX`/`HGETEX` + `EX`/`PX`/`EXAT`/`PXAT`/`PERSIST` | last wins | mutates the TTL |
-| `COPY` | checked | fails if the destination exists |
-| `COPY ... REPLACE` | last wins | unconditional overwrite |
-| `GeoRadius`/`GeoSearch` (no store) | read-only | pure query |
-| `XADD` with `*` | accumulating | a replay appends a second entry |
-| `XADD` with an explicit id, or `IDMP`/`IDMPAUTO` | checked | a replay is rejected or deduplicated |
-| `XCLAIM`/`XAUTOCLAIM` + `JUSTID` | checked | does not bump the delivery counter |
-| `XREADGROUP ... >` | never | consumes, and advances last-delivered-id |
-| `XREADGROUP` with an explicit id | read-only | re-reads this consumer's own pending list |
-| `SCAN`/`HSCAN`/`SSCAN`/`ZSCAN` from cursor `0` | read-only | a fresh iteration can start on any node |
-| the same, resuming a non-zero cursor | read-only, node-affine | the cursor only means something on the node that issued it |
-
-`XADD` with an idempotency token is worth calling out: `IDMP producer id` (your token) and `IDMPAUTO producer` (token derived from the entry content) both exist so that at-most-once production survives a retry, so they are categorized on that basis rather than as blind appends.
-
-Two things this does *not* try to model. First, the `GET` operand on `SET` (and `GETSET`, and `GETDEL`) makes the *reply* non-repeatable - a replay hands back the value you just wrote rather than the true prior value - and likewise a `SET ... IFEQ` replay after an ambiguous success reports "not set" even though the write landed. The keyspace still converges, which is what the category describes, but code branching on the returned value should be aware of it. Second, `XCLAIM`/`XAUTOCLAIM` without `JUSTID` do bump the entry's delivery counter on each call; that is consumer-group bookkeeping rather than caller data, so it is not treated as accumulating.
+The category can depend on a command's *arguments*, not just its name, and the typed methods take that into account: a plain `SET` is an unconditional overwrite ("last wins"), whereas `SET ... IFEQ` (or `NX`/`XX`) is a conditional write, because a replay either no-ops or fails rather than clobbering someone else's value. The same applies to the server commands that pack several verbs behind one name, so `CONFIG GET` is not priced as though it were `CONFIG SET`.
 
 Commands issued through `Execute`/`ExecuteAsync` get no such treatment, because the arguments are opaque to us: they take the pessimistic whole-command default, and the caller should supply a category explicitly (see below).
 
-#### Server commands are categorized per subcommand
-
-`CLIENT`, `CLUSTER`, `CONFIG`, `SCRIPT`, `SLOWLOG`, `LATENCY`, `MEMORY` and `SENTINEL` are each a *single* command spanning very different verbs, so a per-command default has to assume the most side-effecting one. The `IServer` methods know which subcommand they are issuing, so they categorize accordingly:
-
-| Call | Category |
-|------|----------|
-| `ConfigGet` (`CONFIG GET`) | connection |
-| `ScriptExists` (`SCRIPT EXISTS`), `ScriptLoad` (`SCRIPT LOAD`) | read-only / connection |
-| `ClusterNodes` (`CLUSTER NODES`) | read-only |
-| `SlowlogGet` (`SLOWLOG GET`) | read-only |
-| `LatencyDoctor`/`LatencyHistory`/`LatencyLatest` | read-only |
-| `MemoryDoctor`/`MemoryStats`/`MemoryAllocatorStats` | read-only |
-| `SentinelMaster`/`SentinelMasters`/`SentinelReplicas`/`SentinelSentinels`/`SentinelGetMasterAddressByName` | read-only |
-| `MemoryPurge` (`MEMORY PURGE`) | server admin |
-| `ClientKill` | server admin |
-| `SentinelFailover` (`SENTINEL FAILOVER`) | server admin |
-| `ConfigSet`, `SlowlogReset`, `LatencyReset`, `ScriptFlush`, and the mutating `CLUSTER` verbs | server admin |
-
-All of these are also flagged node-affine, because the answer (or the effect) belongs to the specific server that was asked. Note the direction of two of them: `MEMORY` as a whole is read-only, so `MEMORY PURGE` has to be *raised*, while `CLIENT` is connection-level, so `CLIENT KILL` has to be raised too.
+Note that the category describes the effect on the *keyspace*, not on the reply. A `SET ... IFEQ` that is replayed after an ambiguous success reports "not set" even though the write landed, and the `GET` operand on `SET` hands back the value you just wrote rather than the true prior value; the end state is still correct, but code branching on the returned value should be aware of it.
 
 #### Known-not-applied faults
 
