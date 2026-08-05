@@ -240,7 +240,7 @@ namespace StackExchange.Redis
                 : Message.Create(Database, flags, RedisCommand.GEOSEARCHSTORE, destinationKey, sourceKey, redisValues.ToArray());
         }
 
-        private Message GetGeoRadiusMessage(in RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        internal Message GetGeoRadiusMessage(in RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             var redisValues = new List<RedisValue>(10);
             RedisCommand command;
@@ -439,11 +439,18 @@ namespace StackExchange.Redis
         }
 
         private T HashFieldExpireExecute<T, TProcessor>(RedisKey key, long milliseconds, ExpireWhen when, Func<bool, RedisCommand> getCmd, CustomExecutor<T, TProcessor> executor, TProcessor processor, CommandFlags flags, params RedisValue[] hashFields)
+            => executor(GetHashFieldExpireMessage(key, milliseconds, when, getCmd, flags, hashFields), processor);
+
+        internal Message GetHashFieldExpireMessage(RedisKey key, long milliseconds, ExpireWhen when, Func<bool, RedisCommand> getCmd, CommandFlags flags, params RedisValue[] hashFields)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
             var useSeconds = milliseconds % 1000 == 0;
             var cmd = getCmd(useSeconds);
             long expiry = useSeconds ? (milliseconds / 1000) : milliseconds;
+
+            // H[P]EXPIRE[AT] ... NX/XX/GT/LT is a conditional write, exactly as for the key-level EXPIRE;
+            // a bare one keeps the last-wins default
+            flags = flags.WithCategory(when.AsRetryCategory());
 
             var values = when switch
             {
@@ -451,8 +458,7 @@ namespace StackExchange.Redis
                 _ => new List<RedisValue> { expiry, when.ToLiteral(), RedisLiterals.FIELDS, hashFields.Length },
             };
             values.AddRange(hashFields);
-            var msg = Message.Create(Database, flags, cmd, key, values.ToArray());
-            return executor(msg, processor);
+            return Message.Create(Database, flags, cmd, key, values.ToArray());
         }
 
         private static RedisCommand PickExpireCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.HEXPIRE : RedisCommand.HPEXPIRE;
@@ -513,7 +519,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        private Message HashFieldGetAndSetExpiryMessage(in RedisKey key, in RedisValue hashField, Expiration expiry, CommandFlags flags)
+        internal Message HashFieldGetAndSetExpiryMessage(in RedisKey key, in RedisValue hashField, Expiration expiry, CommandFlags flags)
         {
             var tokens = expiry.GetTokenCount(allowEnx: false);
             flags = WithGetExCategory(flags, tokens);
@@ -4150,7 +4156,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        private Message GetCopyMessage(in RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase, bool replace, CommandFlags flags)
+        internal Message GetCopyMessage(in RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase, bool replace, CommandFlags flags)
         {
             // without REPLACE, COPY fails if the destination exists, so a replay is a no-op (the per-command
             // default); with REPLACE it becomes an unconditional overwrite of the destination.
@@ -4166,7 +4172,7 @@ namespace StackExchange.Redis
             };
         }
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, ExpireWhen when, out ServerEndPoint? server)
+        internal Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, ExpireWhen when, out ServerEndPoint? server)
         {
             if (expiry is null || expiry.Value == TimeSpan.MaxValue)
             {
@@ -4182,7 +4188,7 @@ namespace StackExchange.Redis
             return GetExpiryMessage(key, RedisCommand.PEXPIRE, RedisCommand.EXPIRE, milliseconds, when, flags, out server);
         }
 
-        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, ExpireWhen when, out ServerEndPoint? server)
+        internal Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, ExpireWhen when, out ServerEndPoint? server)
         {
             if (expiry is null || expiry == DateTime.MaxValue)
             {
@@ -4394,7 +4400,7 @@ namespace StackExchange.Redis
             private readonly TimeSpan? claimMinIdleTime;
 
             public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, int? maxCount = null, int? maxSize = null)
-                : base(db, flags.WithCategory(GetStreamReadGroupCategory(streamPositions)), RedisCommand.XREADGROUP)
+                : base(db, flags.WithCategory(GetStreamReadGroupCategory(streamPositions, claimMinIdleTime)), RedisCommand.XREADGROUP)
             {
                 if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
                 if (streamPositions.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPositions), "streamOffsetPairs must contain at least one item.");
@@ -4949,15 +4955,43 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// XADD accumulates when the server picks the ID ("*"), but two arg shapes make a replay a guaranteed no-op:
-        /// an explicit entry ID (a second attempt is rejected as "equal or smaller"), and either idempotency form -
-        /// <c>IDMP producer id</c> or <c>IDMPAUTO producer</c> (which derives the id from the entry content).
+        /// XADD accumulates when the server picks the ID, but two arg shapes make a replay a guaranteed no-op:
+        /// a *fully* explicit entry ID (a second attempt is rejected as "equal or smaller"), and either idempotency
+        /// form - <c>IDMP producer id</c> or <c>IDMPAUTO producer</c> (which derives the id from the entry content).
         /// The latter exists precisely to make at-most-once production survive a retry.
         /// </summary>
+        /// <remarks>
+        /// "Fully" is the load-bearing word: <c>&lt;ms&gt;-*</c> asks the server to pick the *sequence*, so a replay
+        /// appends a second entry (5-0, then 5-1) rather than being rejected. Testing only against the bare
+        /// <c>*</c> would therefore let a double-append through under the default policy.
+        /// </remarks>
         private static CommandFlags GetStreamAddCategory(CommandFlags flags, in RedisValue messageId, in StreamIdempotentId idempotentId)
-            => (idempotentId.ArgCount != 0 || messageId != StreamConstants.AutoGeneratedId)
+            => (idempotentId.ArgCount != 0 || !IsServerAssignedId(in messageId))
                 ? flags.WithCategory(CommandFlags.CommandRetryWriteChecked)
                 : flags;
+
+        // "18446744073709551615-18446744073709551615" is 41 bytes; anything longer is not an id we recognise
+        private const int MaxStreamIdBytes = 64;
+
+        /// <summary>
+        /// Whether the server assigns any part of a stream entry id, i.e. it ends in <c>*</c> - either the bare
+        /// <c>*</c> (server picks both halves) or the <c>&lt;ms&gt;-*</c> auto-sequence form (server picks the
+        /// sequence). Anything else is fully caller-specified, and so cannot be appended twice.
+        /// </summary>
+        internal static bool IsServerAssignedId(in RedisValue messageId)
+        {
+            var length = messageId.Length();
+            if (length is <= 0 or > MaxStreamIdBytes)
+            {
+                // empty, or too long to be an id: not something we can reason about, so treat it as
+                // caller-specified and let the server reject it (deterministically, on every attempt)
+                return false;
+            }
+
+            Span<byte> buffer = stackalloc byte[MaxStreamIdBytes];
+            var written = messageId.CopyTo(buffer);
+            return written > 0 && buffer[written - 1] == (byte)'*';
+        }
 
         /// <summary>
         /// Gets message for <see href="https://redis.io/commands/xadd"/>.
@@ -5021,7 +5055,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, GetStreamAddCategory(flags, entryId, in idempotentId), RedisCommand.XADD, key, values);
         }
 
-        private Message GetStreamAutoClaimMessage(RedisKey key, RedisValue consumerGroup, RedisValue assignToConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count, bool idsOnly, CommandFlags flags)
+        internal Message GetStreamAutoClaimMessage(RedisKey key, RedisValue consumerGroup, RedisValue assignToConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count, bool idsOnly, CommandFlags flags)
         {
             // XAUTOCLAIM <key> <group> <consumer> <min-idle-time> <start> [COUNT count] [JUSTID]
             var values = new RedisValue[4 + (count is null ? 0 : 2) + (idsOnly ? 1 : 0)];
@@ -5047,7 +5081,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, WithJustIdCategory(flags, idsOnly), RedisCommand.XAUTOCLAIM, key, values);
         }
 
-        private Message GetStreamClaimMessage(RedisKey key, RedisValue consumerGroup, RedisValue assignToConsumer, long minIdleTimeInMs, RedisValue[] messageIds, bool returnJustIds, CommandFlags flags)
+        internal Message GetStreamClaimMessage(RedisKey key, RedisValue consumerGroup, RedisValue assignToConsumer, long minIdleTimeInMs, RedisValue[] messageIds, bool returnJustIds, CommandFlags flags)
         {
             if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
@@ -5188,7 +5222,7 @@ namespace StackExchange.Redis
                 values);
         }
 
-        private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
+        internal Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
             new SingleStreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck, claimMinIdleTime);
 
         /// <summary>
@@ -5196,15 +5230,22 @@ namespace StackExchange.Redis
         /// last-delivered-id, so a replay silently skips messages. Any *explicit* id instead re-reads this
         /// consumer's own pending list, which is a pure read and fully repeatable.
         /// </summary>
-        private static CommandFlags GetStreamReadGroupCategory(in RedisValue afterId)
-            => afterId == StreamConstants.UndeliveredMessages
+        /// <remarks>
+        /// CLAIM is emitted independently of the position, and takes entries from *other* consumers' pending lists
+        /// (bumping delivery counts, as XCLAIM does without JUSTID). That is an ownership mutation, not a read, so
+        /// it suppresses the demotion regardless of the ids asked for.
+        /// </remarks>
+        private static CommandFlags GetStreamReadGroupCategory(in RedisValue afterId, TimeSpan? claimMinIdleTime)
+            => claimMinIdleTime is not null || afterId == StreamConstants.UndeliveredMessages
                 ? CommandFlags.None
                 : CommandFlags.CommandRetryReadOnly;
 
-        /// <inheritdoc cref="GetStreamReadGroupCategory(in RedisValue)"/>
+        /// <inheritdoc cref="GetStreamReadGroupCategory(in RedisValue, TimeSpan?)"/>
         /// <remarks>For the multi-stream form, a single ">" anywhere consumes, so all of them must be explicit.</remarks>
-        private static CommandFlags GetStreamReadGroupCategory(StreamPosition[] streamPositions)
+        private static CommandFlags GetStreamReadGroupCategory(StreamPosition[] streamPositions, TimeSpan? claimMinIdleTime)
         {
+            if (claimMinIdleTime is not null) return CommandFlags.None;
+
             // note: called from a base-ctor argument, so this runs before the null/empty validation below
             if (streamPositions is null || streamPositions.Length == 0) return CommandFlags.None;
 
@@ -5227,7 +5268,7 @@ namespace StackExchange.Redis
             private readonly TimeSpan? claimMinIdleTime;
 
             public SingleStreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, TimeSpan? claimMinIdleTime)
-                : base(db, flags.WithCategory(GetStreamReadGroupCategory(afterId)), RedisCommand.XREADGROUP, key)
+                : base(db, flags.WithCategory(GetStreamReadGroupCategory(afterId, claimMinIdleTime)), RedisCommand.XREADGROUP, key)
             {
                 if (count.HasValue && count <= 0)
                 {
@@ -5404,7 +5445,7 @@ namespace StackExchange.Redis
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
 
-        private Message GetStringGetExMessage(in RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
+        internal Message GetStringGetExMessage(in RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
         {
             var tokens = expiry.GetTokenCount(allowEnx: false);
             flags = WithGetExCategory(flags, tokens);

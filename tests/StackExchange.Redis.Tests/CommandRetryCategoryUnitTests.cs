@@ -14,7 +14,8 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     private const CommandFlags ReadOnly = CommandFlags.CommandRetryReadOnly,
                                Checked = CommandFlags.CommandRetryWriteChecked,
                                LastWins = CommandFlags.CommandRetryWriteLastWins,
-                               Accumulating = CommandFlags.CommandRetryWriteAccumulating;
+                               Accumulating = CommandFlags.CommandRetryWriteAccumulating,
+                               Never = CommandFlags.CommandRetryNever;
 
     /// <summary>A caller-supplied category that is deliberately absurd for every command tested here.</summary>
     private const CommandFlags CallerOverride = CommandFlags.CommandRetryAlways;
@@ -142,6 +143,189 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
             Checked,
             db.GetStreamAddMessage(key, "*", in idmpAuto, null, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
             "XADD IDMPAUTO");
+    }
+
+    /// <summary>
+    /// The discriminating case for the "explicit id" rule: <c>&lt;ms&gt;-*</c> is only *partly* explicit - the server
+    /// still picks the sequence, so a replay appends 5-1 after 5-0 instead of being rejected. Testing the id against
+    /// the bare "*" alone reads it as explicit, which would let a double-append through under the default policy
+    /// (Checked is retried; Accumulating is not).
+    /// </summary>
+    [Fact]
+    public async Task StreamAdd_PartialAutoIdStillAccumulates()
+    {
+        var db = await GetDatabaseAsync();
+        RedisKey key = "k";
+        var pair = new NameValueEntry("f", "v");
+        var noId = default(StreamIdempotentId);
+
+        Message Add(RedisValue id) => db.GetStreamAddMessage(key, id, in noId, null, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None);
+
+        // anything the server completes accumulates...
+        AssertCategory(Accumulating, Add("*"), "XADD *");
+        AssertCategory(Accumulating, Add("5-*"), "XADD <ms>-* (server picks the sequence)");
+        AssertCategory(Accumulating, Add("1526919030474-*"), "XADD <ms>-* (realistic ms)");
+
+        // ...and only a *fully* specified id cannot be appended twice
+        AssertCategory(Checked, Add("5-5"), "XADD with a fully explicit id");
+        AssertCategory(Checked, Add("1526919030474-0"), "XADD with a fully explicit id (realistic ms)");
+    }
+
+    /// <summary>
+    /// XREADGROUP is demoted to a read when every position is an explicit id (re-reading this consumer's own PEL),
+    /// but CLAIM is emitted regardless of the position and takes entries from *other* consumers - an ownership
+    /// mutation, and the same delivery-count bump that keeps XCLAIM off the read rung. So CLAIM must suppress the
+    /// demotion; without that, `position: "0-0", claimMinIdleTime: 30s` reads as a pure read.
+    /// </summary>
+    [Fact]
+    public async Task StreamReadGroup_ClaimSuppressesTheDemotion()
+    {
+        var db = await GetDatabaseAsync();
+        RedisKey key = "k";
+        var idle = TimeSpan.FromSeconds(30);
+
+        Message Single(RedisValue position, TimeSpan? claim) =>
+            db.GetStreamReadGroupMessage(key, "g", "c", position, count: null, noAck: false, claimMinIdleTime: claim, CommandFlags.None);
+
+        // ">" consumes undelivered entries and advances the group cursor: never retry
+        AssertCategory(Never, Single(">", null), "XREADGROUP >");
+
+        // an explicit id re-reads our own pending list
+        AssertCategory(ReadOnly, Single("0-0", null), "XREADGROUP with explicit id");
+
+        // ...unless CLAIM is also asked for
+        AssertCategory(Never, Single("0-0", idle), "XREADGROUP with explicit id + CLAIM");
+        AssertCategory(Never, Single(">", idle), "XREADGROUP > + CLAIM");
+
+        // and the same for the multi-stream form
+        Message Multi(RedisValue[] positions, TimeSpan? claim) => new RedisDatabase.MultiStreamReadGroupCommandMessage(
+            0,
+            CommandFlags.None,
+            Array.ConvertAll(positions, p => new StreamPosition(key, p)),
+            "g",
+            "c",
+            countPerStream: null,
+            noAck: false,
+            claimMinIdleTime: claim);
+
+        AssertCategory(ReadOnly, Multi(["0-0", "0-0"], null), "XREADGROUP multi, all explicit");
+        AssertCategory(Never, Multi([">", "0-0"], null), "XREADGROUP multi, one \">\" anywhere");
+        AssertCategory(Never, Multi(["0-0", "0-0"], idle), "XREADGROUP multi, all explicit + CLAIM");
+    }
+
+    /// <summary>
+    /// The hash-field TTL commands take the same NX/XX/GT/LT conditions as the key-level ones, so they get the same
+    /// rule; without this, HEXPIRE ... NX is categorized as a blind overwrite while EXPIRE ... NX is not.
+    /// </summary>
+    [Fact]
+    public async Task Expire_CategoryFollowsCondition()
+    {
+        var db = await GetDatabaseAsync();
+        RedisKey key = "k";
+        var ttl = TimeSpan.FromMinutes(5);
+        var deadline = new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        // a bare EXPIRE/EXPIREAT is an unconditional overwrite of the TTL
+        AssertCategory(LastWins, db.GetExpiryMessage(key, CommandFlags.None, ttl, ExpireWhen.Always, out _), "EXPIRE");
+        AssertCategory(LastWins, db.GetExpiryMessage(key, CommandFlags.None, deadline, ExpireWhen.Always, out _), "EXPIREAT");
+
+        // NX/XX are conditional; GT/LT are monotone, so re-applying converges on the same deadline
+        foreach (var when in new[] { ExpireWhen.HasNoExpiry, ExpireWhen.HasExpiry, ExpireWhen.GreaterThanCurrentExpiry, ExpireWhen.LessThanCurrentExpiry })
+        {
+            AssertCategory(Checked, db.GetExpiryMessage(key, CommandFlags.None, ttl, when, out _), $"EXPIRE {when.ToLiteral()}");
+            AssertCategory(Checked, db.GetExpiryMessage(key, CommandFlags.None, deadline, when, out _), $"EXPIREAT {when.ToLiteral()}");
+        }
+
+        // and the hash-field forms follow the same rule
+        static RedisCommand PickHashExpire(bool useSeconds) => useSeconds ? RedisCommand.HEXPIRE : RedisCommand.HPEXPIRE;
+        long ms = (long)ttl.TotalMilliseconds;
+
+        AssertCategory(LastWins, db.GetHashFieldExpireMessage(key, ms, ExpireWhen.Always, PickHashExpire, CommandFlags.None, "f"), "HEXPIRE");
+        foreach (var when in new[] { ExpireWhen.HasNoExpiry, ExpireWhen.HasExpiry, ExpireWhen.GreaterThanCurrentExpiry, ExpireWhen.LessThanCurrentExpiry })
+        {
+            AssertCategory(Checked, db.GetHashFieldExpireMessage(key, ms, when, PickHashExpire, CommandFlags.None, "f"), $"HEXPIRE {when.ToLiteral()}");
+        }
+    }
+
+    /// <summary>
+    /// GETEX/HGETEX read like a GET until any of EX/PX/EXAT/PXAT/PERSIST is supplied, at which point they mutate
+    /// the TTL. The bare form is the interesting control: it must stay a read.
+    /// </summary>
+    [Fact]
+    public async Task GetEx_TtlOptionsMakeItAWrite()
+    {
+        var db = await GetDatabaseAsync();
+        RedisKey key = "k";
+
+        AssertCategory(ReadOnly, db.GetStringGetExMessage(key, Expiration.Default), "GETEX");
+        AssertCategory(LastWins, db.GetStringGetExMessage(key, TimeSpan.FromMinutes(5)), "GETEX EX");
+        AssertCategory(LastWins, db.GetStringGetExMessage(key, Expiration.Persist), "GETEX PERSIST");
+
+        AssertCategory(ReadOnly, db.HashFieldGetAndSetExpiryMessage(key, "f", Expiration.Default, CommandFlags.None), "HGETEX");
+        AssertCategory(LastWins, db.HashFieldGetAndSetExpiryMessage(key, "f", TimeSpan.FromMinutes(5), CommandFlags.None), "HGETEX EX");
+        AssertCategory(LastWins, db.HashFieldGetAndSetExpiryMessage(key, "f", Expiration.Persist, CommandFlags.None), "HGETEX PERSIST");
+    }
+
+    [Fact]
+    public async Task Copy_ReplaceIsAnUnconditionalOverwrite()
+    {
+        var db = await GetDatabaseAsync();
+
+        // without REPLACE, COPY fails if the destination exists, so a replay is a no-op
+        AssertCategory(Checked, db.GetCopyMessage("src", "dest", -1, replace: false, CommandFlags.None), "COPY");
+        AssertCategory(Checked, db.GetCopyMessage("src", "dest", 3, replace: false, CommandFlags.None), "COPY DB");
+
+        // ...with it, the destination is overwritten whatever was there
+        AssertCategory(LastWins, db.GetCopyMessage("src", "dest", -1, replace: true, CommandFlags.None), "COPY REPLACE");
+        AssertCategory(LastWins, db.GetCopyMessage("src", "dest", 3, replace: true, CommandFlags.None), "COPY DB REPLACE");
+    }
+
+    [Fact]
+    public async Task StreamClaim_JustIdDoesNotBumpDeliveryCounts()
+    {
+        var db = await GetDatabaseAsync();
+        RedisKey key = "k";
+        RedisValue[] ids = ["5-5"];
+
+        // reassignment plus a delivery-count bump: leave the per-command default
+        AssertCategory(LastWins, db.GetStreamClaimMessage(key, "g", "c", 1000, ids, returnJustIds: false, CommandFlags.None), "XCLAIM");
+        AssertCategory(LastWins, db.GetStreamAutoClaimMessage(key, "g", "c", 1000, "0-0", null, idsOnly: false, CommandFlags.None), "XAUTOCLAIM");
+
+        // JUSTID explicitly does not bump the counter, so reassignment alone is idempotent
+        AssertCategory(Checked, db.GetStreamClaimMessage(key, "g", "c", 1000, ids, returnJustIds: true, CommandFlags.None), "XCLAIM JUSTID");
+        AssertCategory(Checked, db.GetStreamAutoClaimMessage(key, "g", "c", 1000, "0-0", null, idsOnly: true, CommandFlags.None), "XAUTOCLAIM JUSTID");
+    }
+
+    /// <summary>
+    /// GEORADIUS[BYMEMBER] defaults to a write because of the STORE/STOREDIST variants that <c>Execute</c> could
+    /// carry; this typed API cannot emit them, so it is a pure query.
+    /// </summary>
+    [Fact]
+    public async Task GeoRadius_TypedApiIsAlwaysARead()
+    {
+        var db = await GetDatabaseAsync();
+        RedisKey key = "k";
+
+        AssertCategory(
+            ReadOnly,
+            db.GetGeoRadiusMessage(key, null, 1.5, 2.5, 100, GeoUnit.Meters, -1, null, GeoRadiusOptions.Default, CommandFlags.None),
+            "GEORADIUS");
+        AssertCategory(
+            ReadOnly,
+            db.GetGeoRadiusMessage(key, "member", double.NaN, double.NaN, 100, GeoUnit.Meters, 5, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None),
+            "GEORADIUSBYMEMBER");
+    }
+
+    /// <summary>
+    /// SCRIPT as a whole is server-admin, but LOAD is an idempotent write to one node's script cache that sits on
+    /// the normal EVALSHA path.
+    /// </summary>
+    [Fact]
+    public void ScriptLoad_IsConnectionLevelAndNodeScoped()
+    {
+        var msg = new RedisDatabase.ScriptLoadMessage(CommandFlags.None, "return 1");
+        AssertCategory(CommandFlags.CommandRetryConnection, msg, "SCRIPT LOAD");
+        Assert.True((msg.Flags & Message.CommandServerSpecific) != 0, "SCRIPT LOAD targets one node's cache");
     }
 
     /// <summary>
