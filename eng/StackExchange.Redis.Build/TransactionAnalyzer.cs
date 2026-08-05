@@ -34,7 +34,10 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         context.RegisterCompilationStartAction(static ctx =>
         {
             if (KnownSymbols.TryCreate(ctx.Compilation) is not { } known) return;
-            ctx.RegisterOperationBlockAction(blockCtx => Analyze(blockCtx, known));
+
+            // read once per compilation, not per block: it cannot change within one
+            var declaredMinVersion = ServerVersion.FromOptions(ctx.Options);
+            ctx.RegisterOperationBlockAction(blockCtx => Analyze(blockCtx, known, declaredMinVersion));
         });
     }
 
@@ -69,7 +72,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                    || (TransactionAsync is not null && SymbolEqualityComparer.Default.Equals(type, TransactionAsync)));
     }
 
-    private static void Analyze(OperationBlockAnalysisContext context, KnownSymbols known)
+    private static void Analyze(OperationBlockAnalysisContext context, KnownSymbols known, ServerVersion declaredMinVersion)
     {
         foreach (var block in context.OperationBlocks)
         {
@@ -109,15 +112,26 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
             foreach (var pair in usages)
             {
-                if (pair.Value.TryGetSuggestion(out var conditionName, out var operationName, out var suggestion, out var needsNewerServer))
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        needsNewerServer ? Diagnostics.PreferNewerAtomicOperation : Diagnostics.PreferConditionalArgument,
+                if (pair.Value.TryGetSuggestion() is not { } found) continue;
+
+                // The suggestion is only actionable on a server that has the command, and we cannot see the
+                // server - so if the project has told us its floor, respect it. Unset shows everything.
+                if (!found.MinVersion.IsSatisfiedBy(declaredMinVersion)) continue;
+
+                context.ReportDiagnostic(found.NeedsNewerServer
+                    ? Diagnostic.Create(
+                        Diagnostics.PreferNewerAtomicOperation,
                         pair.Value.ReportAt,
-                        conditionName,
-                        operationName,
-                        suggestion));
-                }
+                        found.ConditionName,
+                        found.OperationName,
+                        found.Suggestion,
+                        found.MinVersion.ToString())
+                    : Diagnostic.Create(
+                        Diagnostics.PreferConditionalArgument,
+                        pair.Value.ReportAt,
+                        found.ConditionName,
+                        found.OperationName,
+                        found.Suggestion));
             }
         }
     }
@@ -138,6 +152,37 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// A rewrite we are prepared to suggest, and what it needs.
+    /// </summary>
+    private readonly struct Rewrite
+    {
+        public Rewrite(string conditionName, string operationName, string suggestion, bool needsNewerServer, ServerVersion minVersion)
+        {
+            ConditionName = conditionName;
+            OperationName = operationName;
+            Suggestion = suggestion;
+            NeedsNewerServer = needsNewerServer;
+            MinVersion = minVersion;
+        }
+
+        public string ConditionName { get; }
+        public string OperationName { get; }
+
+        /// <summary>The suggested call, as shown to the user.</summary>
+        public string Suggestion { get; }
+
+        /// <summary>Which rule this is: the version-dependent one, or the version-free one.</summary>
+        /// <remarks>
+        /// Kept distinct from <see cref="MinVersion"/> on purpose. This picks the diagnostic ID, and the ID is
+        /// about the *kind* of fix (move an argument vs adopt a newer command), which is what a consumer
+        /// configures severity on. The version is data about one mapping and may change as servers ship.
+        /// </remarks>
+        public bool NeedsNewerServer { get; }
+
+        public ServerVersion MinVersion { get; }
     }
 
     /// <summary>
@@ -197,49 +242,55 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        public bool TryGetSuggestion(out string conditionName, out string operationName, out string suggestion, out bool needsNewerServer)
+        public Rewrite? TryGetSuggestion()
         {
-            conditionName = operationName = suggestion = "";
-            needsNewerServer = false;
-
-            if (_disqualified) return false;
+            if (_disqualified) return null;
 
             // only the unambiguous shape: one guard, one operation, and the same key in both
-            if (_conditionCount != 1 || _operationCount != 1) return false;
-            if (_conditionFactory is null || _operationName is null) return false;
-            if (_conditionKey is null || _operationKey is null || _conditionKey != _operationKey) return false;
+            if (_conditionCount != 1 || _operationCount != 1) return null;
+            if (_conditionFactory is null || _operationName is null) return null;
+            if (_conditionKey is null || _operationKey is null || _conditionKey != _operationKey) return null;
 
-            if (Map(_conditionFactory, _operationName) is not { } mapped) return false;
+            if (Map(_conditionFactory, _operationName) is not { } mapped) return null;
 
-            conditionName = "Condition." + _conditionFactory;
-            operationName = _operationName;
-            (suggestion, needsNewerServer) = mapped;
-            return true;
+            return new Rewrite(
+                "Condition." + _conditionFactory,
+                _operationName,
+                mapped.Suggestion,
+                mapped.NeedsNewerServer,
+                mapped.MinVersion);
         }
 
         /// <summary>
         /// The condition/operation pairs that have an exact single-command equivalent.
         /// </summary>
-        private static (string Suggestion, bool NeedsNewerServer)? Map(string condition, string operation)
+        /// <remarks>
+        /// The version is the server the *suggestion* needs, not the one the flagged code needs. Family A is
+        /// <see cref="ServerVersion.Any"/> because the conditional argument has existed as long as the command
+        /// (and where it has not quite - ZADD NX arrived in 3.0.2 - it predates the oldest server this library
+        /// supports, so saying so would be noise).
+        /// </remarks>
+        private static (string Suggestion, bool NeedsNewerServer, ServerVersion MinVersion)? Map(string condition, string operation)
         {
             var op = Trim(operation);
             return (condition, op) switch
             {
                 // -- family A: the command already takes this condition as an argument; any server version --
-                ("KeyNotExists", "StringSet") => ("StringSet(key, value, When.NotExists)", false),
-                ("KeyExists", "StringSet") => ("StringSet(key, value, When.Exists)", false),
-                ("HashNotExists", "HashSet") => ("HashSet(key, field, value, When.NotExists)", false),
+                ("KeyNotExists", "StringSet") => ("StringSet(key, value, When.NotExists)", false, ServerVersion.Any),
+                ("KeyExists", "StringSet") => ("StringSet(key, value, When.Exists)", false, ServerVersion.Any),
+                ("HashNotExists", "HashSet") => ("HashSet(key, field, value, When.NotExists)", false, ServerVersion.Any),
                 // SortedSetWhen, not When: the When overload is [EditorBrowsable(Never)] and the SortedSetWhen
                 // one is the canonical spelling, so suggesting When would push callers at a hidden overload
-                ("SortedSetNotContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.NotExists)", false),
-                ("SortedSetContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.Exists)", false),
-                ("KeyNotExists", "KeyRename") => ("KeyRename(key, newKey, When.NotExists)", false),
+                ("SortedSetNotContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.NotExists)", false, ServerVersion.Any),
+                ("SortedSetContains", "SortedSetAdd") => ("SortedSetAdd(key, member, score, SortedSetWhen.Exists)", false, ServerVersion.Any),
+                ("KeyNotExists", "KeyRename") => ("KeyRename(key, newKey, When.NotExists)", false, ServerVersion.Any),
 
-                // -- family B: a newer single command subsumes condition and write (compare-and-set, 8.4+) --
-                ("StringEqual", "StringSet") => ("StringSet(key, value, ValueCondition.Equal(expected))", true),
-                ("StringNotEqual", "StringSet") => ("StringSet(key, value, ValueCondition.NotEqual(expected))", true),
-                ("StringEqual", "KeyDelete") => ("StringDelete(key, ValueCondition.Equal(expected)), or LockRelease", true),
-                ("StringNotEqual", "KeyDelete") => ("StringDelete(key, ValueCondition.NotEqual(expected))", true),
+                // -- family B: a newer single command subsumes condition and write --
+                // 8.4: SET IFEQ/IFNE and DELIFEQ; see RedisFeatures.SetWithValueCheck / DeleteWithValueCheck
+                ("StringEqual", "StringSet") => ("StringSet(key, value, ValueCondition.Equal(expected))", true, new ServerVersion(8, 4)),
+                ("StringNotEqual", "StringSet") => ("StringSet(key, value, ValueCondition.NotEqual(expected))", true, new ServerVersion(8, 4)),
+                ("StringEqual", "KeyDelete") => ("StringDelete(key, ValueCondition.Equal(expected)), or LockRelease", true, new ServerVersion(8, 4)),
+                ("StringNotEqual", "KeyDelete") => ("StringDelete(key, ValueCondition.NotEqual(expected))", true, new ServerVersion(8, 4)),
 
                 // Deliberately absent, because no atomic equivalent exists and suggesting one would be wrong:
                 //   HashExists + HashSet      - there is no HSETXX; the nearest thing is a different method

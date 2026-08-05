@@ -64,11 +64,16 @@ internal static class Diagnostics
     /// <c>DeleteWithValueCheck</c>), and an analyzer cannot see the server it will talk to. A consumer stuck on
     /// an older server wants to silence this one while keeping SER300, which a shared ID would prevent. This is
     /// also why the library's own compatibility fallbacks suppress it rather than being rewritten.
+    /// <para>
+    /// The required version is per-mapping data rather than part of the rule (see <c>ServerVersion</c>), so the
+    /// message can name it and a project that declares its own floor - <c>Redis_MinServerVersion</c>, or
+    /// <c>redis.min_server_version</c> in <c>.editorconfig</c> - gets only the suggestions it can act on.
+    /// </para>
     /// </remarks>
     public static readonly DiagnosticDescriptor PreferNewerAtomicOperation = new(
         id: "SER301",
         title: "Transaction can be replaced by a single atomic operation",
-        messageFormat: "This transaction ({0} guarding {1}) can be expressed as {2}, which is atomic on the server and needs no WATCH (requires a newer server)",
+        messageFormat: "This transaction ({0} guarding {1}) can be expressed as {2}, which is atomic on the server and needs no WATCH (requires server {3} or later)",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,

@@ -37,6 +37,9 @@
 
     <None Include="README.md" Pack="true" PackagePath="\"/>
 
+    <!-- imported into consuming projects; makes <RedisMinServerVersion> visible to the shipped analyzer -->
+    <None Include="build\StackExchange.Redis.props" Pack="true" PackagePath="build\" />
+
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
   </ItemGroup>
 

@@ -1,9 +1,11 @@
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Testing;
+using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace StackExchange.Redis.Build.Tests;
@@ -34,7 +36,17 @@ public abstract class Verifier<TAnalyzer>
 
     /// <summary>Verify that <paramref name="source"/> produces exactly <paramref name="expected"/>.</summary>
     protected static Task VerifyAsync(string source, params DiagnosticResult[] expected)
-        => RunAsync(source, referenceLibrary: true, expected);
+        => RunAsync(source, referenceLibrary: true, minServerVersion: null, expected);
+
+    /// <summary>
+    /// As <see cref="VerifyAsync"/>, but with the project declaring a minimum server version.
+    /// </summary>
+    /// <remarks>
+    /// Written as a <c>.globalconfig</c> entry, which is also how the MSBuild property arrives once
+    /// <c>CompilerVisibleProperty</c> has translated it - so this covers both spellings' consumption path.
+    /// </remarks>
+    protected static Task VerifyWithMinServerVersionAsync(string source, string minServerVersion, params DiagnosticResult[] expected)
+        => RunAsync(source, referenceLibrary: true, minServerVersion, expected);
 
     /// <summary>
     /// As <see cref="VerifyAsync"/>, but with no reference to StackExchange.Redis at all.
@@ -45,9 +57,9 @@ public abstract class Verifier<TAnalyzer>
     /// compilations, which have never heard of this library.
     /// </remarks>
     protected static Task VerifyWithoutLibraryAsync(string source)
-        => RunAsync(source, referenceLibrary: false);
+        => RunAsync(source, referenceLibrary: false, minServerVersion: null);
 
-    private static Task RunAsync(string source, bool referenceLibrary, params DiagnosticResult[] expected)
+    private static Task RunAsync(string source, bool referenceLibrary, string? minServerVersion, params DiagnosticResult[] expected)
     {
         // Test sources use string literals for keys/values, which trips the library's own [Experimental]
         // gate on the implicit string -> RedisValue conversion. That is unrelated to what we are testing, and
@@ -66,6 +78,14 @@ public abstract class Verifier<TAnalyzer>
         {
             test.TestState.AdditionalReferences.Add(
                 MetadataReference.CreateFromFile(typeof(StackExchange.Redis.ConnectionMultiplexer).Assembly.Location));
+        }
+
+        if (minServerVersion is not null)
+        {
+            test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", SourceText.From(
+                "is_global = true" + System.Environment.NewLine
+                + "redis.min_server_version = " + minServerVersion + System.Environment.NewLine,
+                Encoding.UTF8)));
         }
 
         test.ExpectedDiagnostics.AddRange(expected);

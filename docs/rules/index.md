@@ -23,6 +23,26 @@ which mean "this API is preview", not "consider changing this code".
 
 - [SER350](SER350) - language version too low for generated code
 
+## Declaring your server version
+
+Some suggestions need a recent server, and an analyzer cannot see the server you will connect to. Declare your
+floor and you will only be shown suggestions you can act on:
+
+```xml
+<PropertyGroup>
+  <RedisMinServerVersion>7.4</RedisMinServerVersion>
+</PropertyGroup>
+```
+
+or, taking precedence, in `.editorconfig` / `.globalconfig`:
+
+```ini
+redis.min_server_version = 7.4
+```
+
+Unset shows everything, which is the default: a suggestion you cannot use yet is still worth knowing about. Each
+rule's message names the version it needs, so you can tell at a glance whether it applies to you.
+
 ## Why these are only information
 
 The code these rules flag is correct - it works, and it will keep working. They point at a form that is a single

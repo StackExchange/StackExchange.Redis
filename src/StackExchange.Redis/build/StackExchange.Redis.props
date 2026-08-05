@@ -1,0 +1,29 @@
+<Project>
+
+  <!--
+    Shipped in the package's build/ folder, so it is imported into every consuming project.
+
+    Surfaces <RedisMinServerVersion> to the analyzer. An analyzer cannot see the server you will connect to, so
+    version-gated suggestions (SER301 and friends) are shown by default; set this and you only get the ones your
+    server can actually run:
+
+      <PropertyGroup>
+        <RedisMinServerVersion>7.4</RedisMinServerVersion>
+      </PropertyGroup>
+
+    The equivalent .editorconfig / .globalconfig spelling is `redis.min_server_version`, which takes precedence.
+    Major.minor is what is read; anything more precise is accepted and ignored.
+
+    Note the property is deliberately renamed on the way through: MSBuild properties reach an analyzer as
+    `build_property.<name>`, and CompilerVisibleProperty is what puts it there at all - without this file the
+    property would be silently ignored.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="Redis_MinServerVersion" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Redis_MinServerVersion Condition="'$(Redis_MinServerVersion)' == ''">$(RedisMinServerVersion)</Redis_MinServerVersion>
+  </PropertyGroup>
+
+</Project>
