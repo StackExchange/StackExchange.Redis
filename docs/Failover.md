@@ -675,6 +675,26 @@ Two things this does *not* try to model. First, the `GET` operand on `SET` (and 
 
 Commands issued through `Execute`/`ExecuteAsync` get no such treatment, because the arguments are opaque to us: they take the pessimistic whole-command default, and the caller should supply a category explicitly (see below).
 
+#### Server commands are categorized per subcommand
+
+`CLIENT`, `CLUSTER`, `CONFIG`, `SCRIPT`, `SLOWLOG`, `LATENCY`, `MEMORY` and `SENTINEL` are each a *single* command spanning very different verbs, so a per-command default has to assume the most side-effecting one. The `IServer` methods know which subcommand they are issuing, so they categorize accordingly:
+
+| Call | Category |
+|------|----------|
+| `ConfigGet` (`CONFIG GET`) | connection |
+| `ScriptExists` (`SCRIPT EXISTS`), `ScriptLoad` (`SCRIPT LOAD`) | read-only / connection |
+| `ClusterNodes` (`CLUSTER NODES`) | read-only |
+| `SlowlogGet` (`SLOWLOG GET`) | read-only |
+| `LatencyDoctor`/`LatencyHistory`/`LatencyLatest` | read-only |
+| `MemoryDoctor`/`MemoryStats`/`MemoryAllocatorStats` | read-only |
+| `SentinelMaster`/`SentinelMasters`/`SentinelReplicas`/`SentinelSentinels`/`SentinelGetMasterAddressByName` | read-only |
+| `MemoryPurge` (`MEMORY PURGE`) | server admin |
+| `ClientKill` | server admin |
+| `SentinelFailover` (`SENTINEL FAILOVER`) | server admin |
+| `ConfigSet`, `SlowlogReset`, `LatencyReset`, `ScriptFlush`, and the mutating `CLUSTER` verbs | server admin |
+
+All of these are also flagged node-affine, because the answer (or the effect) belongs to the specific server that was asked. Note the direction of two of them: `MEMORY` as a whole is read-only, so `MEMORY PURGE` has to be *raised*, while `CLIENT` is connection-level, so `CLIENT KILL` has to be raised too.
+
 #### Known-not-applied faults
 
 The category prices the *ambiguity* of a replay, not the write itself. If we know the operation never took effect, re-issuing it is a first attempt rather than a repeat: it cannot double-apply anything, so the category is not consulted at all and even an `INCR` is retried under the default policy. Two things give us that certainty:

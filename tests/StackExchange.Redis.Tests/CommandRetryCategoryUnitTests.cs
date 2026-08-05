@@ -144,6 +144,47 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
             "XADD IDMPAUTO");
     }
 
+    /// <summary>
+    /// CLIENT/CLUSTER/CONFIG/SCRIPT/SLOWLOG/LATENCY/MEMORY are each a single <see cref="RedisCommand"/> spanning
+    /// very different verbs, so the whole-command default has to assume the worst (or, for MEMORY, assumed the
+    /// best). Where the subcommand is known we categorize it properly.
+    /// </summary>
+    [Fact]
+    public void ServerSubCommands_AreCategorizedBySubCommand()
+    {
+        const CommandFlags ServerAdmin = CommandFlags.CommandRetryServerAdmin,
+                           Connection = CommandFlags.CommandRetryConnection;
+
+        // MEMORY defaults to read-only, so PURGE was previously treated as a harmless read
+        var purge = RedisServer.GetMemoryPurgeMessage(CommandFlags.None);
+        AssertCategory(ServerAdmin, purge, "MEMORY PURGE");
+        Assert.True((purge.Flags & Message.CommandServerSpecific) != 0, "MEMORY PURGE is node-scoped");
+
+        // CLUSTER/SLOWLOG default to server-admin, but these subcommands only read
+        AssertCategory(ReadOnly, RedisServer.GetClusterNodesMessage(CommandFlags.None), "CLUSTER NODES");
+        AssertCategory(ReadOnly, RedisServer.GetSlowlogGetMessage(0, CommandFlags.None), "SLOWLOG GET");
+        AssertCategory(ReadOnly, RedisServer.GetSlowlogGetMessage(25, CommandFlags.None), "SLOWLOG GET count");
+
+        // CONFIG defaults to server-admin; CONFIG GET is safe metadata (as the docs already claimed)
+        AssertCategory(Connection, RedisServer.GetConfigGetMessage(default, CommandFlags.None), "CONFIG GET");
+
+        // all of these stay node-scoped: the answer belongs to the server we asked
+        foreach (var msg in new[]
+        {
+            RedisServer.GetClusterNodesMessage(CommandFlags.None),
+            RedisServer.GetSlowlogGetMessage(0, CommandFlags.None),
+            RedisServer.GetConfigGetMessage(default, CommandFlags.None),
+        })
+        {
+            Assert.True((msg.Flags & Message.CommandServerSpecific) != 0, $"{msg.CommandAndKey} should be node-scoped");
+        }
+
+        // and the caller still wins on the ladder, without losing the node-scoped bit
+        var overridden = RedisServer.GetMemoryPurgeMessage(CallerOverride);
+        AssertCategory(CallerOverride, overridden, "MEMORY PURGE, caller override");
+        Assert.True((overridden.Flags & Message.CommandServerSpecific) != 0, "override must not clear server-specific");
+    }
+
     [Fact]
     public void ScanCursor_OnlyResumedCursorsAreServerSpecific()
     {

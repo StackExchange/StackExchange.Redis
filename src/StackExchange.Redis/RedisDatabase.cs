@@ -5750,7 +5750,9 @@ namespace StackExchange.Redis
         {
             internal readonly string Script;
             public ScriptLoadMessage(CommandFlags flags, string script)
-                : base(-1, flags, RedisCommand.SCRIPT)
+                // SCRIPT as a whole is server-admin, but LOAD is an idempotent write to that node's script
+                // cache - re-issuing it yields the same SHA - and it sits on the normal EVALSHA path
+                : base(-1, flags.WithCategory(CommandFlags.CommandRetryConnection | Message.CommandServerSpecific), RedisCommand.SCRIPT)
             {
                 Script = script ?? throw new ArgumentNullException(nameof(script));
             }

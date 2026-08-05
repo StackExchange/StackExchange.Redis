@@ -1798,7 +1798,8 @@ namespace StackExchange.Redis
 
         private async Task<EndPointCollection?> GetEndpointsFromClusterNodes(ServerEndPoint server, ILogger? log)
         {
-            var message = Message.Create(-1, CommandFlags.None, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            // CLUSTER NODES only reads topology, despite CLUSTER as a whole being server-admin
+            var message = Message.Create(-1, CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific, RedisCommand.CLUSTER, RedisLiterals.NODES);
             try
             {
                 var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();
