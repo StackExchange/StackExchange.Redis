@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -4311,6 +4312,9 @@ namespace StackExchange.Redis
             return tran;
         }
 
+        // The analyzer is right that this is DELEX, but this *is* the fallback: LockRelease prefers the atomic
+        // form (see GetStringDeleteMessage) and only lands here when the server does not support it.
+        [SuppressMessage("Usage", "SER301:Transaction can be replaced by a single atomic operation", Justification = "Deliberate fallback for servers without DELEX.")]
         private ITransaction? GetLockReleaseTransaction(RedisKey key, RedisValue value)
         {
             var tran = CreateTransactionIfAvailable(asyncState);

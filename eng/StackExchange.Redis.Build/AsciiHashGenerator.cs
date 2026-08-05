@@ -12,6 +12,11 @@ namespace StackExchange.Redis.Build;
 [Generator(LanguageNames.CSharp)]
 public class AsciiHashGenerator : IIncrementalGenerator
 {
+    /// <summary>
+    /// The emitted code uses UTF-8 string literals, which are C# 11.
+    /// </summary>
+    private const LanguageVersion MinimumLanguageVersion = LanguageVersion.CSharp11;
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // looking for [AsciiHash] partial static class Foo { }
@@ -49,10 +54,39 @@ public class AsciiHashGenerator : IIncrementalGenerator
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
+        // The code we emit uses UTF-8 string literals ("..."u8), so it will not compile below C# 11. Old TFMs
+        // default below that (netstandard2.0 and net472 default to C# 7.3), but the language version is not
+        // tied to the target framework - any consumer on a .NET 7 or later SDK can opt in with <LangVersion>,
+        // so this should be rare and is trivially fixable. The point is to *say* that: emitting anyway would
+        // put errors inside generated code the consumer cannot edit, and emitting nothing silently would
+        // surface as an unexplained "no implementing declaration". See Diagnostics.LanguageVersionTooLow.
+        var languageVersion = context.ParseOptionsProvider.Select(static (options, _)
+            => options is CSharpParseOptions cs ? cs.LanguageVersion.MapSpecifiedToEffectiveVersion() : LanguageVersion.Latest);
+
         context.RegisterSourceOutput(
-            types.Combine(methods).Combine(formatMethods).Combine(enums),
+            types.Combine(methods).Combine(formatMethods).Combine(enums).Combine(languageVersion),
             (ctx, content) =>
-                Generate(ctx, content.Left.Left.Left, content.Left.Left.Right, content.Left.Right, content.Right));
+            {
+                if (content.Right < MinimumLanguageVersion)
+                {
+                    // only complain if there was actually something to generate
+                    var (t, m, f, e) = (content.Left.Left.Left.Left, content.Left.Left.Left.Right, content.Left.Left.Right, content.Left.Right);
+                    if (t.Length + m.Length + f.Length + e.Length != 0)
+                    {
+                        ctx.ReportDiagnostic(Diagnostic.Create(
+                            Diagnostics.LanguageVersionTooLow,
+                            location: null,
+                            nameof(AsciiHashAttribute),
+                            "11",
+                            content.Right.ToDisplayString()));
+                    }
+
+                    return;
+                }
+
+                var left = content.Left;
+                Generate(ctx, left.Left.Left.Left, left.Left.Left.Right, left.Left.Right, left.Right);
+            });
 
         static bool IsStaticPartial(SyntaxTokenList tokens)
             => tokens.Any(SyntaxKind.StaticKeyword) && tokens.Any(SyntaxKind.PartialKeyword);
@@ -219,7 +253,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
         var ns = containingType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
         var arg = method.Parameters[0];
-        if (arg is not { IsOptional: false, RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter }) return default;
+        if (arg is not { IsOptional: false, RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKinds.RefReadOnlyParameter }) return default;
 
         static bool IsBytes(ITypeSymbol type)
         {
@@ -283,7 +317,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
             arg = method.Parameters[2];
             if (arg is not
                 {
-                    RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter,
+                    RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKinds.RefReadOnlyParameter,
                     Type.SpecialType: SpecialType.System_Boolean,
                 })
             {
@@ -348,7 +382,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
         if (arg is not
             {
                 IsOptional: false,
-                RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter,
+                RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKinds.RefReadOnlyParameter,
                 Type: INamedTypeSymbol { TypeKind: TypeKind.Enum },
             }) return default;
         var from = (arg.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), arg.Name, arg.RefKind);
@@ -847,7 +881,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
         RefKind.In => "in ",
         RefKind.Out => "out ",
         RefKind.Ref => "ref ",
-        RefKind.RefReadOnlyParameter or RefKind.RefReadOnly => "ref readonly ",
+        RefKinds.RefReadOnlyParameter or RefKind.RefReadOnly => "ref readonly ",
         _ => throw new NotSupportedException($"RefKind {refKind} is not yet supported."),
     };
     private static string Format(Accessibility accessibility) => accessibility switch
