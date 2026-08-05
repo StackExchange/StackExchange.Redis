@@ -161,6 +161,9 @@ public class BasicScalars(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("+array\r\n", Redis.RedisType.Array)]
     [InlineData("+none\r\n", Redis.RedisType.None)] // TYPE reply for a key that does not exist; see #3156
     [InlineData("$4\r\nnone\r\n", Redis.RedisType.None)]
+    [InlineData("+NONE\r\n", Redis.RedisType.None)] // parsing is case-insensitive
+    [InlineData("+ZSet\r\n", Redis.RedisType.SortedSet)]
+    [InlineData("+unknown\r\n", Redis.RedisType.Unknown)] // not a server token: unparsable, hence Unknown
     [InlineData("+blah\r\n", Redis.RedisType.Unknown)]
     [InlineData("$-1\r\n", Redis.RedisType.None)]
     [InlineData("_\r\n", Redis.RedisType.None)]
