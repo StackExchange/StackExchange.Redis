@@ -83,6 +83,35 @@ internal static class ReadOnlySequenceExtensions
         return false;
     }
 
+    /// <summary>
+    /// The last byte of the sequence, without copying anything out.
+    /// </summary>
+    /// <remarks>
+    /// Slicing to the final byte is not quite enough on its own: a sequence may carry empty segments, and the
+    /// remainder's first one can be empty, so walk forward until a byte actually turns up - the same reason
+    /// every other loop in this file skips them.
+    /// </remarks>
+    public static bool TryGetLast(this in ReadOnlySequence<byte> sequence, out byte value)
+    {
+        if (!sequence.IsEmpty)
+        {
+            var tail = sequence.Slice(sequence.Length - 1);
+            var position = tail.Start;
+            while (tail.TryGet(ref position, out var memory))
+            {
+                var span = memory.Span;
+                if (!span.IsEmpty)
+                {
+                    value = span[0];
+                    return true;
+                }
+            }
+        }
+
+        value = 0;
+        return false;
+    }
+
     public static bool SequenceEqual(this in ReadOnlySequence<byte> first, ReadOnlySpan<byte> other)
     {
         if (first.IsSingleSegment) return first.FirstSpan.SequenceEqual(other);

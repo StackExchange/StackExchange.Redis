@@ -4970,28 +4970,13 @@ namespace StackExchange.Redis
                 ? flags.WithCategory(CommandFlags.CommandRetryWriteChecked)
                 : flags;
 
-        // "18446744073709551615-18446744073709551615" is 41 bytes; anything longer is not an id we recognise
-        private const int MaxStreamIdBytes = 64;
-
         /// <summary>
         /// Whether the server assigns any part of a stream entry id, i.e. it ends in <c>*</c> - either the bare
         /// <c>*</c> (server picks both halves) or the <c>&lt;ms&gt;-*</c> auto-sequence form (server picks the
         /// sequence). Anything else is fully caller-specified, and so cannot be appended twice.
         /// </summary>
         internal static bool IsServerAssignedId(in RedisValue messageId)
-        {
-            var length = messageId.Length();
-            if (length is <= 0 or > MaxStreamIdBytes)
-            {
-                // empty, or too long to be an id: not something we can reason about, so treat it as
-                // caller-specified and let the server reject it (deterministically, on every attempt)
-                return false;
-            }
-
-            Span<byte> buffer = stackalloc byte[MaxStreamIdBytes];
-            var written = messageId.CopyTo(buffer);
-            return written > 0 && buffer[written - 1] == (byte)'*';
-        }
+            => messageId.EndsWithAscii((byte)'*');
 
         /// <summary>
         /// Gets message for <see href="https://redis.io/commands/xadd"/>.
