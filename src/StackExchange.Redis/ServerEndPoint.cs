@@ -959,13 +959,14 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("No connection!?");
                 return;
             }
-            Message msg;
-            // Note that we need "" (not null) for password in the case of 'nopass' logins
-            var config = Multiplexer.RawConfig;
-            string? user = config.User;
-            string password = config.Password ?? "";
 
-            string clientName = Multiplexer.ClientName;
+            Message msg;
+            var config = Multiplexer.RawConfig;
+            var user = config.User;
+            // Note that we need "" (not null) for password in the case of 'nopass' logins
+            var password = config.Password ?? "";
+            var clientName = Multiplexer.ClientName;
+
             if (!string.IsNullOrWhiteSpace(clientName))
             {
                 clientName = nameSanitizer.Replace(clientName, "");

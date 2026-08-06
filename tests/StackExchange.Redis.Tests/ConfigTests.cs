@@ -95,6 +95,8 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "ResponseBufferPool",
                 "responseTimeout",
                 "RetryPolicy",
+                "sentinelPassword",
+                "sentinelUser",
                 "ServiceName",
                 "SocketManager",
     #if !NETFRAMEWORK
