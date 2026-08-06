@@ -50,6 +50,33 @@ public class FormatTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(expectedFormat, s);
     }
 
+    // UDS endpoints live outside EndpointData because UnixDomainSocketEndPoint does not implement
+    // value equality — these compare via ToString instead.
+#if NET
+    [Fact]
+    public void ParseUnixDomainSocketEndPoint()
+    {
+        Assert.True(Format.TryParseEndPoint("!/tmp/redis.sock", out var ep));
+        var uds = Assert.IsType<System.Net.Sockets.UnixDomainSocketEndPoint>(ep);
+        Assert.Equal("/tmp/redis.sock", uds.ToString());
+        Assert.Equal("!/tmp/redis.sock", Format.ToString(ep));
+    }
+
+    [Fact]
+    public void ParseAbstractUnixDomainSocketEndPoint()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "the abstract socket namespace is Linux-only");
+
+        // "!@name": socat/systemd '@' convention for the Linux abstract namespace. The parse maps it
+        // to the kernel's leading-NUL spelling; UnixDomainSocketEndPoint.ToString renders that back
+        // as '@name', so the config string round-trips exactly.
+        Assert.True(Format.TryParseEndPoint("!@redis-abstract", out var ep));
+        var uds = Assert.IsType<System.Net.Sockets.UnixDomainSocketEndPoint>(ep);
+        Assert.Equal("@redis-abstract", uds.ToString());
+        Assert.Equal("!@redis-abstract", Format.ToString(ep));
+    }
+#endif
+
     [Theory]
     [InlineData(CommandFlags.None, "None")]
 #if NETFRAMEWORK
