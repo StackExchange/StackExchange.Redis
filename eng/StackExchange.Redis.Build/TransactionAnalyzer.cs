@@ -384,6 +384,17 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 return;
             }
 
+            // The terminator is Execute/ExecuteAsync *as declared on the transaction interface*. Matching the
+            // name alone also swallowed IDatabaseAsync.ExecuteAsync(string command, params object[] args) -
+            // which is a queued command, and the one people reach for precisely when the library has no
+            // wrapper for what they want. A queued command we cannot see makes every count below a lie: the
+            // pair rules would collapse two operations that had a third between them.
+            if (invocation.TargetMethod.Name is "Execute" or "ExecuteAsync"
+                && known.IsTransaction(invocation.TargetMethod.ContainingType))
+            {
+                return;
+            }
+
             switch (invocation.TargetMethod.Name)
             {
                 case "AddCondition":
@@ -405,12 +416,9 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
                     break;
 
-                case "Execute":
-                case "ExecuteAsync":
-                    break; // the terminator, not a queued operation
-
                 default:
-                    // everything else queued on the transaction is a redis operation
+                    // everything else queued on the transaction is a redis operation - including a raw
+                    // ExecuteAsync("SOMECMD", ...), which maps to nothing and so can only ever suppress
                     _firstOperation ??= invocation.Syntax.GetLocation();
                     if (_operations.Count < MaxInterestingOperations)
                     {

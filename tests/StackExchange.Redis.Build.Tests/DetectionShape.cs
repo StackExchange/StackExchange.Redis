@@ -241,6 +241,69 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
             "StringSet[Async](key, value, When.NotExists)"));
 
     [Fact]
+    // A raw command queued through IDatabaseAsync.ExecuteAsync(string, ...) is still a queued command. It was
+    // once invisible - skipped by name alongside the transaction's own ExecuteAsync() terminator - and these
+    // two queued operations were "collapsed" into GETDEL with a PERSIST silently dropped in between.
+    public Task RawExecuteAsyncBetweenOperations_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringGetAsync(key);
+                _ = tran.ExecuteAsync("PERSIST", key);
+                _ = tran.KeyDeleteAsync(key);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the same, on the guarded shape: a second queued command means the transaction is doing more than the
+    // condition, whether or not we have a name for what it does
+    public Task RawExecuteAsyncBesideGuardedOperation_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.KeyNotExists(key));
+                _ = tran.StringSetAsync(key, "value");
+                _ = tran.ExecuteAsync("PFADD", key, "x");
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the control for the two above: the terminator itself must still be recognised, or nothing is ever
+    // flagged. Sync Execute() as well as ExecuteAsync(), since both spellings reach here.
+    public Task SyncExecuteTerminator_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        class C
+        {
+            public void M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value");
+                tran.Execute();
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
     // two independent transactions in one method must be tracked separately, not pooled into one set of counts
     public Task TwoIndependentTransactions_AreFlaggedIndependently() => VerifyAsync(
         """
