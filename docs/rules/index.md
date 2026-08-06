@@ -65,6 +65,12 @@ whatever each rule's own page lists.
 - **A key or member local reassigned anywhere in the method.** Keys are compared as source text, which is only
   sound while the locals hold the same value throughout.
 
+These are heuristics, and the list above is where the effort has gone - but it is meant to make a false positive
+rare, not impossible. If one of these rules flags something it should not have, that is a bug in the rule rather
+than something to work around: please
+[report it](https://github.com/StackExchange/StackExchange.Redis/issues/new) with the transaction as written.
+`SER350` is not in this family - it reports a build problem rather than offering guidance.
+
 ## Declaring your server version
 
 Some suggestions need a recent server, and an analyzer cannot see the server you will connect to. Declare your
