@@ -30,15 +30,46 @@ substitute your own expressions.
 
 ## Usage
 
-- [SER300](SER300) - transaction can be replaced by a conditional argument (any server version)
-- [SER301](SER301) - transaction can be replaced by a single atomic operation (needs a newer server)
-- [SER302](SER302) - condition is redundant; the command already reports whether it acted (any server version)
-- [SER303](SER303) - two queued operations are a single compound command (varies by pair)
-- [SER304](SER304) - the same operation queued repeatedly can use the variadic overload (mostly any server)
+- [SER300](SER300) - transaction may be replaceable by a conditional argument (any server version)
+- [SER301](SER301) - transaction may be replaceable by a single atomic operation (needs a newer server)
+- [SER302](SER302) - condition may be redundant; the command already reports whether it acted (any server version)
+- [SER303](SER303) - two queued operations may be a single compound command (varies by pair)
+- [SER304](SER304) - the same operation queued repeatedly may suit the variadic overload (mostly any server)
 
 ## Build
 
 - [SER350](SER350) - language version too low for generated code
+
+## When these rules stay quiet
+
+Every rule here is deliberately conservative. It ships to every consumer of the package, and a wrong suggestion
+on correct code is worse than no suggestion at all, so the following apply across the whole family - on top of
+whatever each rule's own page lists.
+
+- **Anything else queued on the same transaction.** These rules describe a whole transaction, not a fragment of
+  one. A third queued command means the transaction is doing more than the rule accounts for - and that includes
+  a raw `tran.ExecuteAsync("SOMECMD", ...)` for something the library has no wrapper for.
+- **Commands that do not always queue together.** A command inside an `if`, `switch` or `try` is only collapsible
+  with commands inside the *same* one; opposite arms of an `if`/`else` never queue together at all. A whole
+  transaction inside a conditional is ordinary code and is still flagged.
+- **Commands that might queue more than once**: inside a loop, or inside a lambda or local function, where one
+  call site is any number of queued commands.
+- **Arguments the single command cannot express.** The suggestions are sketches, but only ever of a rewrite that
+  keeps what you wrote. N x `StringSet(key, value, expiry)` is *not* `MSET` - MSET takes one expiry for the whole
+  batch, not one per key - so that stays quiet rather than quietly making your keys permanent. Likewise a `When`
+  on a command whose variadic form has none, an `ExpireWhen` where GETEX has no NX/XX, and your own `when:`
+  argument where the suggestion *is* a `when:` argument. `CommandFlags` is the exception: it is on everything, no
+  suggestion mentions it, and you carry it over verbatim.
+- **A transaction passed to another method, stored in a field, or otherwise captured** - what it queues elsewhere
+  is not visible from here.
+- **A key or member local reassigned anywhere in the method.** Keys are compared as source text, which is only
+  sound while the locals hold the same value throughout.
+
+These are heuristics, and the list above is where the effort has gone - but it is meant to make a false positive
+rare, not impossible. If one of these rules flags something it should not have, that is a bug in the rule rather
+than something to work around: please
+[report it](https://github.com/StackExchange/StackExchange.Redis/issues/new) with the transaction as written.
+`SER350` is not in this family - it reports a build problem rather than offering guidance.
 
 ## Declaring your server version
 

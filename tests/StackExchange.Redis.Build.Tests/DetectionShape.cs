@@ -92,6 +92,131 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
         """);
 
     [Fact]
+    // Opposite arms of one if/else: exactly one of these is ever queued, so there is no pair to collapse.
+    // SetMove here would queue a removal the code deliberately did not.
+    public Task OperationsInOppositeBranches_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey a, RedisKey b, RedisValue member, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                if (flag) { _ = tran.SetAddAsync(a, member); }
+                else { _ = tran.SetRemoveAsync(b, member); }
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the asymmetric version: the second command is queued only sometimes, so the "pair" is not always a pair
+    public Task ConditionallyQueuedOperation_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringGetAsync(key);
+                if (flag) { _ = tran.KeyDeleteAsync(key); }
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // and a condition that guards from outside the branch its command is in
+    public Task ConditionOutsideOperationBranch_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.KeyNotExists(key));
+                if (flag) { _ = tran.StringSetAsync(key, "value"); }
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // The control for the three above, and the reason this is branch-matching rather than a blanket "anything
+    // conditional is out": two commands in the *same* branch always queue together, so the pair is real. A
+    // whole transaction inside an if or a try is ordinary code and must not go silent.
+    public Task OperationsInTheSameBranch_AreStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                if (flag)
+                {
+                    _ = {|#0:tran.StringGetAsync(key)|};
+                    _ = tran.KeyDeleteAsync(key);
+                    await tran.ExecuteAsync();
+                }
+            }
+        }
+        """,
+        Diagnostic("SER303").WithLocation(0).WithArguments(
+            "StringGetAsync",
+            "KeyDeleteAsync",
+            "StringGetDelete[Async](key)",
+            " (requires server 6.2 or later)"));
+
+    [Fact]
+    // A lambda is the loop case wearing a hat: one call site, and no way to see how many times it runs - or
+    // whether it runs at all. Three SetAdds are queued here, not the two the syntax shows.
+    public Task OperationInLambda_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                System.Action add = () => { _ = tran.SetAddAsync(key, "a"); };
+                add();
+                add();
+                _ = tran.SetAddAsync(key, "b");
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the same for a local function, which is the shape somebody actually writes
+    public Task OperationInLocalFunction_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, RedisKey other)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.KeyDeleteAsync(key);
+                Queue();
+                Queue();
+                await tran.ExecuteAsync();
+
+                void Queue() => _ = tran.KeyDeleteAsync(other);
+            }
+        }
+        """);
+
+    [Fact]
     // the helper may queue anything at all; our counts describe only the part we can see
     public Task TransactionPassedToAnotherMethod_IsNotFlagged() => VerifyAsync(
         """
@@ -239,6 +364,262 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
             "Condition.KeyNotExists",
             "StringSetAsync",
             "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // A raw command queued through IDatabaseAsync.ExecuteAsync(string, ...) is still a queued command. It was
+    // once invisible - skipped by name alongside the transaction's own ExecuteAsync() terminator - and these
+    // two queued operations were "collapsed" into GETDEL with a PERSIST silently dropped in between.
+    public Task RawExecuteAsyncBetweenOperations_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringGetAsync(key);
+                _ = tran.ExecuteAsync("PERSIST", key);
+                _ = tran.KeyDeleteAsync(key);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the same, on the guarded shape: a second queued command means the transaction is doing more than the
+    // condition, whether or not we have a name for what it does
+    public Task RawExecuteAsyncBesideGuardedOperation_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.KeyNotExists(key));
+                _ = tran.StringSetAsync(key, "value");
+                _ = tran.ExecuteAsync("PFADD", key, "x");
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the control for the two above: the terminator itself must still be recognised, or nothing is ever
+    // flagged. Sync Execute() as well as ExecuteAsync(), since both spellings reach here.
+    public Task SyncExecuteTerminator_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        class C
+        {
+            public void M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value");
+                tran.Execute();
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // The worst of the dropped-argument cases, because the damage outlives the build: MSET takes one expiry
+    // for the whole batch, not one per key, so collapsing these would make both keys permanent.
+    public Task VariadicWouldDropExpiry_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey a, RedisKey b)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringSetAsync(a, "1", TimeSpan.FromMinutes(1));
+                _ = tran.StringSetAsync(b, "2", TimeSpan.FromMinutes(5));
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // HSET's variadic form has no NX
+    public Task VariadicWouldDropWhen_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.HashSetAsync(key, "f1", "v1", When.NotExists);
+                _ = tran.HashSetAsync(key, "f2", "v2", When.NotExists);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // GETEX has no NX/XX, so the ExpireWhen has nowhere to go
+    public Task PairWouldDropExpireWhen_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringGetAsync(key);
+                _ = tran.KeyExpireAsync(key, TimeSpan.FromMinutes(1), ExpireWhen.HasNoExpiry);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // The caller's own when: is not an argument to move but a statement to overwrite - and this pairing says
+    // "only if absent, and only if present", which is code we should not be rewriting on a guess.
+    public Task GuardedOperationWithItsOwnWhen_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.KeyNotExists(key));
+                _ = tran.StringSetAsync(key, "value", when: When.Exists);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // The control, and the reason this is per-mapping coverage rather than "any extra argument is out":
+    // SET does take an expiry alongside NX, so the commonest lock-acquire shape there is must still be
+    // flagged. CommandFlags likewise - it appears on every command, and is carried over rather than dropped.
+    public Task GuardedOperationWithExpiryAndFlags_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value", TimeSpan.FromMinutes(1), flags: CommandFlags.DemandMaster);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // CommandFlags is on every single command, no suggestion mentions it, and the rewrite carries it over
+    // verbatim - so it is never a reason to go quiet. Deliberately the *only* extra argument in these three,
+    // where GuardedOperationWithExpiryAndFlags_IsStillFlagged has an expiry beside it and so would still pass
+    // if flags alone suppressed everything. One per family, because the audit runs in three separate places.
+    public Task FlagsAloneOnGuardedOperation_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value", flags: CommandFlags.DemandMaster);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    public Task FlagsAloneOnCommandPair_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = {|#0:tran.StringGetAsync(key, CommandFlags.DemandMaster)|};
+                _ = tran.KeyDeleteAsync(key, CommandFlags.DemandMaster);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER303").WithLocation(0).WithArguments(
+            "StringGetAsync",
+            "KeyDeleteAsync",
+            "StringGetDelete[Async](key)",
+            " (requires server 6.2 or later)"));
+
+    [Fact]
+    public Task FlagsAloneOnRepeatedCommand_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = {|#0:tran.SetAddAsync(key, "a", CommandFlags.DemandMaster)|};
+                _ = tran.SetAddAsync(key, "b", CommandFlags.FireAndForget);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER304").WithLocation(0).WithArguments(
+            "SetAddAsync",
+            "2",
+            "SetAdd[Async](key, values)",
+            ""));
+
+    [Fact]
+    // family C keeps the command exactly as written, so no argument of it can be dropped and none suppresses
+    public Task RedundantConditionWithExtraArguments_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyExists(key))|};
+                _ = tran.KeyExpireAsync(key, TimeSpan.FromMinutes(1), ExpireWhen.HasNoExpiry);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER302").WithLocation(0).WithArguments(
+            "Condition.KeyExists",
+            "KeyExpireAsync",
+            "KeyExpire[Async](key, expiry), which returns false if the key did not exist"));
 
     [Fact]
     // two independent transactions in one method must be tracked separately, not pooled into one set of counts

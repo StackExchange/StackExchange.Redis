@@ -55,16 +55,27 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
     private sealed class KnownSymbols
     {
-        private KnownSymbols(INamedTypeSymbol condition, INamedTypeSymbol? transaction, INamedTypeSymbol? transactionAsync)
+        private KnownSymbols(INamedTypeSymbol condition, INamedTypeSymbol? transaction, INamedTypeSymbol? transactionAsync, INamedTypeSymbol? commandFlags)
         {
             Condition = condition;
             Transaction = transaction;
             TransactionAsync = transactionAsync;
+            CommandFlags = commandFlags;
         }
 
         public INamedTypeSymbol Condition { get; }
         public INamedTypeSymbol? Transaction { get; }
         public INamedTypeSymbol? TransactionAsync { get; }
+
+        /// <summary>
+        /// <c>CommandFlags</c>, which every command takes and no suggestion mentions.
+        /// </summary>
+        /// <remarks>
+        /// Singled out because the argument audit below treats an argument the suggestion does not carry as a
+        /// reason to stay quiet, and flags would otherwise silence every rule for anyone who passes them. They
+        /// are carried over verbatim instead, which is what the help pages say to do.
+        /// </remarks>
+        public INamedTypeSymbol? CommandFlags { get; }
 
         public static KnownSymbols? TryCreate(Compilation compilation)
         {
@@ -75,8 +86,11 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             var transactionAsync = compilation.GetTypeByMetadataName("StackExchange.Redis.ITransactionAsync");
             if (transaction is null && transactionAsync is null) return null;
 
-            return new KnownSymbols(condition, transaction, transactionAsync);
+            return new KnownSymbols(condition, transaction, transactionAsync, compilation.GetTypeByMetadataName("StackExchange.Redis.CommandFlags"));
         }
+
+        public bool IsCommandFlags(ITypeSymbol? type)
+            => CommandFlags is not null && SymbolEqualityComparer.Default.Equals(type, CommandFlags);
 
         public bool IsTransaction(ITypeSymbol? type)
             => type is not null
@@ -90,20 +104,6 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         {
             // one pass, gathering per-transaction-local usage; most blocks contain nothing and fall straight out
             Dictionary<ISymbol, Usage>? usages = null;
-
-            // Locals that are written somewhere in this block, which is what makes comparing key expressions by
-            // text unsound: "key" and "key" are the same text but not the same key if it was reassigned in
-            // between. Declarations do not count - only later writes - so the common case stays clean.
-            HashSet<ISymbol>? reassignedLocals = null;
-
-            foreach (var operation in block.Descendants())
-            {
-                if (LocalWrittenBy(operation) is { } written)
-                {
-                    reassignedLocals ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-                    reassignedLocals.Add(written);
-                }
-            }
 
             foreach (var operation in block.Descendants())
             {
@@ -123,7 +123,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                     && SymbolEqualityComparer.Default.Equals(instanceLocal, local))
                 {
                     // tran.Something(...) - a queued command, a condition, or the terminator
-                    usage.Add(invocation, known, insideLoop: IsInsideLoop(invocation, block));
+                    var repeats = !TryGetBranch(invocation, block, out var branch);
+                    usage.Add(invocation, known, branch, repeats);
                 }
                 else
                 {
@@ -135,6 +136,24 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             }
 
             if (usages is null) continue;
+
+            // Locals that are written somewhere in this block, which is what makes comparing key expressions by
+            // text unsound: "key" and "key" are the same text but not the same key if it was reassigned in
+            // between. Declarations do not count - only later writes - so the common case stays clean.
+            //
+            // Deliberately a second walk, and deliberately after the bail-out above rather than before it: this
+            // analyzer ships to everyone who references the package, where the overwhelming majority of blocks
+            // hold no transaction at all. Those blocks now pay one walk instead of two, and this one runs only
+            // for the handful that have something to say.
+            HashSet<ISymbol>? reassignedLocals = null;
+            foreach (var operation in block.Descendants())
+            {
+                if (LocalWrittenBy(operation) is { } written)
+                {
+                    reassignedLocals ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+                    reassignedLocals.Add(written);
+                }
+            }
 
             foreach (var pair in usages)
             {
@@ -219,21 +238,51 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         => version.IsSpecified ? " (requires server " + version + " or later)" : "";
 
     /// <summary>
-    /// Is this call inside a loop, and so potentially queueing many commands from one call site?
+    /// Where a call sits within the block: which branch of it, and whether it can run more than once.
     /// </summary>
     /// <remarks>
-    /// Counting call sites is a syntactic approximation, and a loop is where it breaks: one
-    /// <c>tran.StringSetAsync(key, value)</c> in a <c>foreach</c> is one call site but N queued commands, which
-    /// is emphatically not collapsible into a single command. Cheap to check and it removes the whole class.
+    /// <para>
+    /// Counting call sites is a syntactic approximation, and this is where it breaks. Two ways, needing two
+    /// different answers. A call that can run <em>repeatedly</em> - inside a loop, or inside a lambda or local
+    /// function whose invocation count we cannot see at all - is one call site and N queued commands, so it is
+    /// not collapsible into anything: <c>false</c>, and the caller disqualifies the whole transaction.
+    /// </para>
+    /// <para>
+    /// A call under an <c>if</c>, <c>switch</c> or <c>try</c> is different: it runs at most once, so it is fine
+    /// on its own terms, but only if every <em>other</em> call on the same transaction is under the same one.
+    /// Two commands in the same <c>if</c> body always queue together and a compound command really does replace
+    /// them; the same two in opposite arms of an <c>if</c>/<c>else</c> never queue together at all, and
+    /// "collapsing" them would queue a command the code deliberately did not. Hence the innermost enclosing
+    /// <em>branch</em> rather than a plain "is it conditional" flag - and the branch, not the branching
+    /// operation, or the two arms of one <c>if</c> would compare equal.
+    /// </para>
     /// </remarks>
-    private static bool IsInsideLoop(IOperation operation, IOperation block)
+    private static bool TryGetBranch(IOperation operation, IOperation block, out SyntaxNode? branch)
     {
-        for (var node = operation; node is not null && node != block; node = node.Parent)
+        branch = null;
+        var previous = operation;
+        for (var node = operation.Parent; node is not null && node != block; node = node.Parent)
         {
-            if (node is ILoopOperation) return true;
+            switch (node)
+            {
+                case ILoopOperation:
+                case IAnonymousFunctionOperation:
+                case ILocalFunctionOperation:
+                    return false;
+
+                // keep walking after finding one: an enclosing loop still trumps it
+                case IConditionalOperation:
+                case ISwitchOperation:
+                case ISwitchExpressionOperation:
+                case ITryOperation:
+                    branch ??= previous.Syntax;
+                    break;
+            }
+
+            previous = node;
         }
 
-        return false;
+        return true;
     }
 
     /// <summary>
@@ -308,13 +357,14 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private readonly struct QueuedOperation
     {
-        public QueuedOperation(string name, string? key, string? member, List<ISymbol>? reads)
+        public QueuedOperation(string name, string? key, string? member, List<ISymbol>? reads, List<string>? supplied)
         {
             DisplayName = name;
             Name = Trim(name);
             Key = key;
             Member = member;
             Reads = reads;
+            Supplied = supplied;
         }
 
         /// <summary>The method name with any <c>Async</c> suffix removed, for matching against the tables.</summary>
@@ -339,6 +389,16 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// Locals read by the key/member expressions, so we can tell whether comparing them by text is sound.
         /// </summary>
         public List<ISymbol>? Reads { get; }
+
+        /// <summary>
+        /// Parameter names the caller actually wrote an argument for, other than <c>CommandFlags</c>.
+        /// </summary>
+        /// <remarks>
+        /// Every mapping says which of these its suggestion still carries; anything else the caller wrote would
+        /// be silently dropped by the rewrite, so it declines instead. Omitted optional arguments are not
+        /// listed - they carry no intent and are what the suggested form would default to anyway.
+        /// </remarks>
+        public List<string>? Supplied { get; }
     }
 
     /// <summary>
@@ -365,6 +425,16 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         private Location? _condition, _firstOperation;
 
         /// <summary>
+        /// The branch every call on this transaction so far was in; <c>null</c> means the block itself.
+        /// </summary>
+        /// <remarks>
+        /// Only meaningful once <see cref="_branchKnown"/> is set, because <c>null</c> is a real value here -
+        /// "not inside any branch" is the common case and has to compare equal to itself.
+        /// </remarks>
+        private SyntaxNode? _branch;
+        private bool _branchKnown;
+
+        /// <summary>
         /// Where to report, which depends on the rule: the condition is the thing to remove for most of them,
         /// but family D has no condition at all, so its report goes on the first queued command.
         /// </summary>
@@ -376,13 +446,36 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// </summary>
         public void Disqualify() => _disqualified = true;
 
-        public void Add(IInvocationOperation invocation, KnownSymbols known, bool insideLoop)
+        public void Add(IInvocationOperation invocation, KnownSymbols known, SyntaxNode? branch, bool repeats)
         {
-            if (insideLoop)
+            if (repeats)
             {
                 Disqualify();
                 return;
             }
+
+            // The terminator is Execute/ExecuteAsync *as declared on the transaction interface*. Matching the
+            // name alone also swallowed IDatabaseAsync.ExecuteAsync(string command, params object[] args) -
+            // which is a queued command, and the one people reach for precisely when the library has no
+            // wrapper for what they want. A queued command we cannot see makes every count below a lie: the
+            // pair rules would collapse two operations that had a third between them.
+            if (invocation.TargetMethod.Name is "Execute" or "ExecuteAsync"
+                && known.IsTransaction(invocation.TargetMethod.ContainingType))
+            {
+                return;
+            }
+
+            // Deliberately after the terminator check and not before it: the terminator is allowed to sit
+            // somewhere else entirely - "queue it all, then commit it inside an if" is ordinary code, and says
+            // nothing about whether the queued commands belong together.
+            if (_branchKnown && _branch != branch)
+            {
+                Disqualify();
+                return;
+            }
+
+            _branch = branch;
+            _branchKnown = true;
 
             switch (invocation.TargetMethod.Name)
             {
@@ -405,12 +498,9 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
 
                     break;
 
-                case "Execute":
-                case "ExecuteAsync":
-                    break; // the terminator, not a queued operation
-
                 default:
-                    // everything else queued on the transaction is a redis operation
+                    // everything else queued on the transaction is a redis operation - including a raw
+                    // ExecuteAsync("SOMECMD", ...), which maps to nothing and so can only ever suppress
                     _firstOperation ??= invocation.Syntax.GetLocation();
                     if (_operations.Count < MaxInterestingOperations)
                     {
@@ -418,7 +508,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                             invocation.TargetMethod.Name,
                             ArgumentText(invocation, 0),
                             ArgumentText(invocation, 1),
-                            LocalsRead(invocation)));
+                            LocalsRead(invocation),
+                            SuppliedArguments(invocation, known)));
                     }
                     else
                     {
@@ -493,6 +584,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 return null;
             }
 
+            if (!IsCovered(operation, mapped.Covered)) return null;
+
             return new Rewrite(
                 mapped.Rule,
                 "Condition." + _conditionFactory,
@@ -504,6 +597,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         private static Rewrite? TryCommandPair(QueuedOperation first, QueuedOperation second)
         {
             if (MapPair(first, second) is not { } mapped) return null;
+            if (!IsCovered(first, mapped.CoveredFirst) || !IsCovered(second, mapped.CoveredSecond)) return null;
             return new Rewrite(Rule.CompoundCommand, first.DisplayName, second.DisplayName, mapped.Suggestion, mapped.MinVersion);
         }
 
@@ -527,6 +621,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             for (var i = 0; i < _operations.Count; i++)
             {
                 if (_operations[i].Key is null) return null;
+                if (!IsCovered(_operations[i], mapped.Covered)) return null;
                 if (mapped.ManyKeys)
                 {
                     if (mapped.RequiresMember && _operations[i].Member is null) return null;
@@ -566,27 +661,30 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// the argument lists look. Same for ZMPOP.
         /// </para>
         /// </remarks>
-        private static (string Suggestion, bool ManyKeys, bool RequiresMember, ServerVersion MinVersion)? MapVariadic(string operation)
+        private static (string Suggestion, bool ManyKeys, bool RequiresMember, ServerVersion MinVersion, string Covered)? MapVariadic(string operation)
             => operation switch
             {
                 // one key, many values
-                "SetAdd" => ("SetAdd[Async](key, values)", false, true, ServerVersion.Any),
-                "SetRemove" => ("SetRemove[Async](key, values)", false, true, ServerVersion.Any),
-                "SortedSetAdd" => ("SortedSetAdd[Async](key, entries)", false, true, ServerVersion.Any),
-                "SortedSetRemove" => ("SortedSetRemove[Async](key, members)", false, true, ServerVersion.Any),
-                "HashSet" => ("HashSet[Async](key, entries)", false, true, ServerVersion.Any),
-                "HashDelete" => ("HashDelete[Async](key, fields)", false, true, ServerVersion.Any),
-                "ListLeftPush" => ("ListLeftPush[Async](key, values)", false, true, ServerVersion.Any),
-                "ListRightPush" => ("ListRightPush[Async](key, values)", false, true, ServerVersion.Any),
+                "SetAdd" => ("SetAdd[Async](key, values)", false, true, ServerVersion.Any, "key,value"),
+                "SetRemove" => ("SetRemove[Async](key, values)", false, true, ServerVersion.Any, "key,value"),
+                "SortedSetAdd" => ("SortedSetAdd[Async](key, entries)", false, true, ServerVersion.Any, "key,member,score"),
+                "SortedSetRemove" => ("SortedSetRemove[Async](key, members)", false, true, ServerVersion.Any, "key,member"),
+                "HashSet" => ("HashSet[Async](key, entries)", false, true, ServerVersion.Any, "key,hashField,value"),
+                "HashDelete" => ("HashDelete[Async](key, fields)", false, true, ServerVersion.Any, "key,hashField"),
+                "ListLeftPush" => ("ListLeftPush[Async](key, values)", false, true, ServerVersion.Any, "key,value"),
+                "ListRightPush" => ("ListRightPush[Async](key, values)", false, true, ServerVersion.Any, "key,value"),
 
                 // SMISMEMBER, which unlike the rest of these is recent; it has no RedisFeatures gate to cite
-                "SetContains" => ("SetContains[Async](key, values), which returns a bool per value", false, true, new ServerVersion(6, 2)),
+                "SetContains" => ("SetContains[Async](key, values), which returns a bool per value", false, true, new ServerVersion(6, 2), "key,value"),
 
                 // many keys
-                "KeyDelete" => ("KeyDelete[Async](keys)", true, false, ServerVersion.Any),
-                "KeyExists" => ("KeyExists[Async](keys), which returns how many exist", true, false, ServerVersion.Any),
-                "StringGet" => ("StringGet[Async](keys)", true, false, ServerVersion.Any),
-                "StringSet" => ("StringSet[Async](KeyValuePair<RedisKey, RedisValue>[])", true, false, ServerVersion.Any),
+                "KeyDelete" => ("KeyDelete[Async](keys)", true, false, ServerVersion.Any, "key"),
+                "KeyExists" => ("KeyExists[Async](keys), which returns how many exist", true, false, ServerVersion.Any, "key"),
+                "StringGet" => ("StringGet[Async](keys)", true, false, ServerVersion.Any, "key"),
+                // MSET takes one expiry and one when for the whole batch, not one per key; the variadic
+                // overload's own expiry:/when: cannot express what N separate calls each said, so Covered
+                // stops at the pair that MSET does carry
+                "StringSet" => ("StringSet[Async](KeyValuePair<RedisKey, RedisValue>[])", true, false, ServerVersion.Any, "key,value"),
 
                 _ => null,
             };
@@ -600,38 +698,40 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// (and where it has not quite - ZADD NX arrived in 3.0.2 - it predates the oldest server this library
         /// supports, so saying so would be noise).
         /// </remarks>
-        private static (Rule Rule, string Suggestion, ServerVersion MinVersion, bool SameMember)? Map(string condition, string operation)
-        {
-            var op = Trim(operation);
-            return (condition, op) switch
+        private static (Rule Rule, string Suggestion, ServerVersion MinVersion, bool SameMember, string? Covered)? Map(string condition, string operation)
+            => (condition, operation) switch
             {
                 // -- family A: the command already takes this condition as an argument; any server version --
-                ("KeyNotExists", "StringSet") => (Rule.ConditionalArgument, "StringSet[Async](key, value, When.NotExists)", ServerVersion.Any, false),
-                ("KeyExists", "StringSet") => (Rule.ConditionalArgument, "StringSet[Async](key, value, When.Exists)", ServerVersion.Any, false),
-                ("HashNotExists", "HashSet") => (Rule.ConditionalArgument, "HashSet[Async](key, field, value, When.NotExists)", ServerVersion.Any, true),
+                // Covered omits "when": these suggestions *are* a when: argument, so a caller who wrote their
+                // own has said something we would be overwriting rather than moving.
+                ("KeyNotExists", "StringSet") => (Rule.ConditionalArgument, "StringSet[Async](key, value, When.NotExists)", ServerVersion.Any, false, "key,value,expiry,keepTtl"),
+                ("KeyExists", "StringSet") => (Rule.ConditionalArgument, "StringSet[Async](key, value, When.Exists)", ServerVersion.Any, false, "key,value,expiry,keepTtl"),
+                ("HashNotExists", "HashSet") => (Rule.ConditionalArgument, "HashSet[Async](key, field, value, When.NotExists)", ServerVersion.Any, true, "key,hashField,value"),
                 // SortedSetWhen, not When: the When overload is [EditorBrowsable(Never)] and the SortedSetWhen
                 // one is the canonical spelling, so suggesting When would push callers at a hidden overload
-                ("SortedSetNotContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd[Async](key, member, score, SortedSetWhen.NotExists)", ServerVersion.Any, true),
-                ("SortedSetContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd[Async](key, member, score, SortedSetWhen.Exists)", ServerVersion.Any, true),
-                ("KeyNotExists", "KeyRename") => (Rule.ConditionalArgument, "KeyRename[Async](key, newKey, When.NotExists)", ServerVersion.Any, false),
+                ("SortedSetNotContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd[Async](key, member, score, SortedSetWhen.NotExists)", ServerVersion.Any, true, "key,member,score"),
+                ("SortedSetContains", "SortedSetAdd") => (Rule.ConditionalArgument, "SortedSetAdd[Async](key, member, score, SortedSetWhen.Exists)", ServerVersion.Any, true, "key,member,score"),
+                ("KeyNotExists", "KeyRename") => (Rule.ConditionalArgument, "KeyRename[Async](key, newKey, When.NotExists)", ServerVersion.Any, false, "key,newKey"),
 
                 // -- family B: a newer single command subsumes condition and write --
                 // 8.4: SET IFEQ/IFNE and DELIFEQ; see RedisFeatures.SetWithValueCheck / DeleteWithValueCheck
-                ("StringEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet[Async](key, value, ValueCondition.Equal(expected))", new ServerVersion(8, 4), false),
-                ("StringNotEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet[Async](key, value, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
-                ("StringEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete[Async](key, ValueCondition.Equal(expected)), or LockRelease[Async]", new ServerVersion(8, 4), false),
-                ("StringNotEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete[Async](key, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false),
+                ("StringEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet[Async](key, value, ValueCondition.Equal(expected))", new ServerVersion(8, 4), false, "key,value,expiry"),
+                ("StringNotEqual", "StringSet") => (Rule.NewerAtomicOperation, "StringSet[Async](key, value, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false, "key,value,expiry"),
+                ("StringEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete[Async](key, ValueCondition.Equal(expected)), or LockRelease[Async]", new ServerVersion(8, 4), false, "key"),
+                ("StringNotEqual", "KeyDelete") => (Rule.NewerAtomicOperation, "StringDelete[Async](key, ValueCondition.NotEqual(expected))", new ServerVersion(8, 4), false, "key"),
 
                 // -- family C: the write already reports what the condition was checking --
                 // These have always worked this way, so no version applies. The fix deletes the transaction
                 // rather than moving an argument, and what the caller observes changes: Execute() returning
                 // false ("the guard failed") becomes the command itself returning false ("I did nothing").
-                ("SetNotContains", "SetAdd") => (Rule.RedundantCondition, "SetAdd[Async](key, value), which returns false if the member was already there", ServerVersion.Any, true),
-                ("SetContains", "SetRemove") => (Rule.RedundantCondition, "SetRemove[Async](key, value), which returns false if the member was not there", ServerVersion.Any, true),
-                ("SortedSetContains", "SortedSetRemove") => (Rule.RedundantCondition, "SortedSetRemove[Async](key, member), which returns false if the member was not there", ServerVersion.Any, true),
-                ("HashExists", "HashDelete") => (Rule.RedundantCondition, "HashDelete[Async](key, field), which returns false if the field was not there", ServerVersion.Any, true),
-                ("KeyExists", "KeyDelete") => (Rule.RedundantCondition, "KeyDelete[Async](key), which returns false if the key did not exist", ServerVersion.Any, false),
-                ("KeyExists", "KeyExpire") => (Rule.RedundantCondition, "KeyExpire[Async](key, expiry), which returns false if the key did not exist", ServerVersion.Any, false),
+                // Covered is null throughout: the command is kept exactly as written, so there is no argument
+                // the rewrite could drop, however exotic.
+                ("SetNotContains", "SetAdd") => (Rule.RedundantCondition, "SetAdd[Async](key, value), which returns false if the member was already there", ServerVersion.Any, true, null),
+                ("SetContains", "SetRemove") => (Rule.RedundantCondition, "SetRemove[Async](key, value), which returns false if the member was not there", ServerVersion.Any, true, null),
+                ("SortedSetContains", "SortedSetRemove") => (Rule.RedundantCondition, "SortedSetRemove[Async](key, member), which returns false if the member was not there", ServerVersion.Any, true, null),
+                ("HashExists", "HashDelete") => (Rule.RedundantCondition, "HashDelete[Async](key, field), which returns false if the field was not there", ServerVersion.Any, true, null),
+                ("KeyExists", "KeyDelete") => (Rule.RedundantCondition, "KeyDelete[Async](key), which returns false if the key did not exist", ServerVersion.Any, false, null),
+                ("KeyExists", "KeyExpire") => (Rule.RedundantCondition, "KeyExpire[Async](key, expiry), which returns false if the key did not exist", ServerVersion.Any, false, null),
 
                 // Deliberately absent from family C: ListIndexExists + ListSetByIndex. LSET reports an
                 // out-of-range index by failing, not by returning false (ListSetByIndex returns Task, not
@@ -646,8 +746,6 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 //   *Length* conditions       - likewise
                 _ => null,
             };
-
-        }
 
         /// <summary>
         /// Family D: two queued commands, no condition, that are one compound command between them.
@@ -666,7 +764,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// fine by contrast, because the member is a value the caller already has and passes to both calls.
         /// </para>
         /// </remarks>
-        private static (string Suggestion, ServerVersion MinVersion)? MapPair(QueuedOperation first, QueuedOperation second)
+        private static (string Suggestion, ServerVersion MinVersion, string CoveredFirst, string CoveredSecond)? MapPair(QueuedOperation first, QueuedOperation second)
         {
             // 6.2: GETDEL / GETEX / SET ... GET; see RedisFeatures.GetDelete and SetAndGet
             var v6_2 = new ServerVersion(6, 2);
@@ -676,17 +774,31 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 switch (first.Name, second.Name)
                 {
                     case ("StringGet", "KeyDelete"):
-                        return ("StringGetDelete[Async](key)", v6_2);
+                        return ("StringGetDelete[Async](key)", v6_2, "key", "key");
+
+                    // GETEX has no NX/XX, so KeyExpire's ExpireWhen is not covered and a caller who wrote
+                    // one keeps their transaction
                     case ("StringGet", "KeyExpire"):
-                        return ("StringGetSetExpiry[Async](key, expiry)", v6_2);
+                        return ("StringGetSetExpiry[Async](key, expiry)", v6_2, "key", "key,expiry");
                     case ("StringGet", "KeyPersist"):
-                        return ("StringGetSetExpiry[Async](key, null)", v6_2);
+                        return ("StringGetSetExpiry[Async](key, null)", v6_2, "key", "key");
                     case ("StringGet", "StringSet"):
-                        return ("StringSetAndGet[Async](key, value)", v6_2);
+                        return ("StringSetAndGet[Async](key, value)", v6_2, "key", "key,value,expiry,keepTtl,when");
+
+                    // SET ... EX, which is why this one needs no particular server: setting a value and its
+                    // lifetime in one command is as old as SET's options (2.6.12). The order is load-bearing
+                    // in the other direction to the reads above - SET *clears* any TTL, so an EXPIRE followed
+                    // by a SET leaves no expiry at all and is emphatically not this.
+                    //
+                    // "expiry" is absent from the first coverage set on purpose: a StringSet that already
+                    // carries one, followed by an EXPIRE that overrides it, is not one command with one
+                    // lifetime and we should not be guessing which of the two the caller meant.
+                    case ("StringSet", "KeyExpire"):
+                        return ("StringSet[Async](key, value, expiry)", ServerVersion.Any, "key,value,when", "key,expiry");
 
                     // HGETDEL is 8.0; it has no RedisFeatures gate to point at
                     case ("HashGet", "HashDelete") when SameMember(first, second):
-                        return ("HashFieldGetAndDelete[Async](key, field)", new ServerVersion(8, 0));
+                        return ("HashFieldGetAndDelete[Async](key, field)", new ServerVersion(8, 0), "key,hashField", "key,hashField");
                 }
 
                 return null;
@@ -698,7 +810,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 && ((first.Name == "SetRemove" && second.Name == "SetAdd")
                     || (first.Name == "SetAdd" && second.Name == "SetRemove")))
             {
-                return ("SetMove[Async](source, destination, value)", ServerVersion.Any);
+                return ("SetMove[Async](source, destination, value)", ServerVersion.Any, "key,value", "key,value");
             }
 
             return null;
@@ -736,8 +848,74 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             return locals;
         }
 
+        /// <summary>
+        /// Does the suggestion still carry everything the caller wrote?
+        /// </summary>
+        /// <remarks>
+        /// The suggestions are sketches, so this is not about spelling every argument back out - it is about
+        /// arguments the suggested command cannot express at all, which the rewrite would therefore drop in
+        /// silence. N x <c>StringSet(key, value, expiry)</c> is not MSET: taking that advice makes the keys
+        /// permanent. Declining costs a suggestion, which is the cheap direction, and the help pages list the
+        /// shapes it gives up on.
+        /// </remarks>
+        private static bool IsCovered(QueuedOperation operation, string? covered)
+        {
+            // null covers everything: family C keeps the command exactly as written and only drops the
+            // condition, so no argument of it can go missing
+            if (covered is null || operation.Supplied is not { } supplied) return true;
+
+            foreach (var name in supplied)
+            {
+                if (!Covers(covered, name)) return false;
+            }
+
+            return true;
+
+            static bool Covers(string covered, string name)
+            {
+                foreach (var candidate in covered.Split(','))
+                {
+                    if (candidate == name) return true;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The parameter names the caller actually wrote an argument for, other than <c>CommandFlags</c>.
+        /// </summary>
+        private static List<string>? SuppliedArguments(IInvocationOperation invocation, KnownSymbols known)
+        {
+            List<string>? names = null;
+            foreach (var argument in invocation.Arguments)
+            {
+                if (argument.ArgumentKind != ArgumentKind.Explicit) continue;
+                if (argument.Parameter is not { } parameter) continue;
+
+                // Flags never bear on any of this: they are on every command, no suggestion mentions them, and
+                // the rewrite carries them over verbatim. Recognised by name as well as by type, because the
+                // consequence of failing to recognise them is not a missed exclusion but silence everywhere -
+                // every command takes flags, so one unrecognised spelling would suppress every rule for anyone
+                // who passes them. Belt and braces is cheap here; the type lookup is the one that can be null.
+                if (parameter.Name == "flags" || known.IsCommandFlags(parameter.Type)) continue;
+
+                (names ??= new List<string>()).Add(parameter.Name);
+            }
+
+            return names;
+        }
+
         private static string? ArgumentText(IInvocationOperation invocation, int index)
-            => invocation.Arguments.Length <= index ? null : invocation.Arguments[index].Value.Syntax.ToString();
+        {
+            if (invocation.Arguments.Length <= index) return null;
+
+            // An omitted optional argument reports the *invocation* as its syntax, so two of them from one
+            // call site compare equal to each other and to nothing the caller wrote. Only text somebody
+            // actually typed is a key or a member.
+            var argument = invocation.Arguments[index];
+            return argument.ArgumentKind == ArgumentKind.Explicit ? argument.Value.Syntax.ToString() : null;
+        }
 
         private static IOperation Unwrap(IOperation operation)
         {
