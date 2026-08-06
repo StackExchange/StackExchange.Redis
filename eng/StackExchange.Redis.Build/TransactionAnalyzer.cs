@@ -105,20 +105,6 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             // one pass, gathering per-transaction-local usage; most blocks contain nothing and fall straight out
             Dictionary<ISymbol, Usage>? usages = null;
 
-            // Locals that are written somewhere in this block, which is what makes comparing key expressions by
-            // text unsound: "key" and "key" are the same text but not the same key if it was reassigned in
-            // between. Declarations do not count - only later writes - so the common case stays clean.
-            HashSet<ISymbol>? reassignedLocals = null;
-
-            foreach (var operation in block.Descendants())
-            {
-                if (LocalWrittenBy(operation) is { } written)
-                {
-                    reassignedLocals ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-                    reassignedLocals.Add(written);
-                }
-            }
-
             foreach (var operation in block.Descendants())
             {
                 // the transaction is identified by the local it was assigned to; anything else (a field, a
@@ -150,6 +136,24 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             }
 
             if (usages is null) continue;
+
+            // Locals that are written somewhere in this block, which is what makes comparing key expressions by
+            // text unsound: "key" and "key" are the same text but not the same key if it was reassigned in
+            // between. Declarations do not count - only later writes - so the common case stays clean.
+            //
+            // Deliberately a second walk, and deliberately after the bail-out above rather than before it: this
+            // analyzer ships to everyone who references the package, where the overwhelming majority of blocks
+            // hold no transaction at all. Those blocks now pay one walk instead of two, and this one runs only
+            // for the handful that have something to say.
+            HashSet<ISymbol>? reassignedLocals = null;
+            foreach (var operation in block.Descendants())
+            {
+                if (LocalWrittenBy(operation) is { } written)
+                {
+                    reassignedLocals ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+                    reassignedLocals.Add(written);
+                }
+            }
 
             foreach (var pair in usages)
             {

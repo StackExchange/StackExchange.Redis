@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace StackExchange.Redis.Build;
@@ -80,11 +81,12 @@ internal readonly struct ServerVersion
         version = Any;
         if (string.IsNullOrWhiteSpace(text)) return false;
 
+        // invariant throughout: this is a version from a config file, not something a human typed in a locale
         var parts = text!.Trim().Split('.');
-        if (!int.TryParse(parts[0], out var major) || major <= 0) return false;
+        if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var major) || major <= 0) return false;
 
         var minor = 0;
-        if (parts.Length > 1 && !int.TryParse(parts[1], out minor)) return false;
+        if (parts.Length > 1 && !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out minor)) return false;
         if (minor < 0) return false;
 
         version = new ServerVersion(major, minor);
