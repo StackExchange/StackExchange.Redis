@@ -10,6 +10,9 @@ namespace StackExchange.Redis.Tests;
 
 public class SentinelBase : TestBase, IAsyncLifetime
 {
+    private const int ConnectAttempts = 150;
+    private static readonly TimeSpan ConnectRetryDelay = TimeSpan.FromMilliseconds(100);
+
     protected static string ServiceName => TestConfig.Current.SentinelSeviceName;
     protected static ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
 
@@ -24,6 +27,10 @@ public class SentinelBase : TestBase, IAsyncLifetime
     {
         Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
         Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
+        // Config being present only says where the sentinels *would* be. If they are not running,
+        // InitializeAsync below spends 15 seconds polling before asserting, once per test, and
+        // reports a failure rather than a skip; probe the endpoint instead (cached per run).
+        Skip.IfNoSentinel();
     }
 #nullable enable
 
@@ -37,19 +44,30 @@ public class SentinelBase : TestBase, IAsyncLifetime
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
         Conn = ConnectionMultiplexer.SentinelConnect(options, Writer);
 
-        for (var i = 0; i < 150; i++)
+        // Two things have to come up: the sentinel connection, and a connection to the primary that
+        // sentinel reports. The latter is what most of these tests actually use, so wait for it
+        // explicitly - waiting only on the former lets a broken primary surface later, from
+        // somewhere much less obviously related.
+        var sw = Stopwatch.StartNew();
+        bool sentinelConnected = false, primaryConnected = false;
+        for (var i = 0; i < ConnectAttempts && !primaryConnected; i++)
         {
-            await Task.Delay(100).ForAwait();
-            if (Conn.IsConnected)
-            {
-                await using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
-                if (checkConn.IsConnected)
-                {
-                    break;
-                }
-            }
+            if (i != 0) await Task.Delay(ConnectRetryDelay).ForAwait(); // check first, then back off
+            sentinelConnected = Conn.IsConnected;
+            if (!sentinelConnected) continue;
+
+            await using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
+            primaryConnected = checkConn.IsConnected;
         }
-        Assert.True(Conn.IsConnected);
+
+        var diagnostics = $"Sentinel setup did not become usable within {sw.Elapsed.TotalSeconds:0.0}s: "
+            + $"sentinel connected = {sentinelConnected}, primary connected = {primaryConnected}. "
+            + $"Service name '{ServiceName}', sentinels at {TestConfig.Current.SentinelServer}:"
+            + $"{TestConfig.Current.SentinelPortA}/{TestConfig.Current.SentinelPortB}/{TestConfig.Current.SentinelPortC}. "
+            + "Something is listening on the sentinel port (this test skips otherwise), so this is a "
+            + "sentinel or primary/replica state problem rather than a missing server: check the "
+            + "primary and replica for that service name (7010/7011 in the standard test topology).";
+        Assert.True(primaryConnected, diagnostics);
         SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA)!;
         SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB)!;
         SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC)!;

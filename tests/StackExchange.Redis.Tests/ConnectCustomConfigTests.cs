@@ -36,6 +36,9 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     [InlineData("config,info,get,cluster")]
     public async Task DisabledCommandsStillConnectCluster(string disabledCommands)
     {
+        // passes the cluster configuration directly rather than via GetConfiguration(), so it needs
+        // its own guard to skip promptly when the cluster is not running
+        Skip.IfNoCluster();
         await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, disabledCommands: disabledCommands.Split(','), log: Writer);
 
         var db = conn.GetDatabase();
