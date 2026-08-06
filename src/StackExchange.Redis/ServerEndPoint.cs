@@ -960,10 +960,9 @@ namespace StackExchange.Redis
 
             Message msg;
             var config = Multiplexer.RawConfig;
-            var isSentinelConnection = Multiplexer.ServerSelectionStrategy.ServerType == ServerType.Sentinel;
-            var user = isSentinelConnection ? config.SentinelUser : config.User;
+            var user = config.User;
             // Note that we need "" (not null) for password in the case of 'nopass' logins
-            var password = (isSentinelConnection ? config.SentinelPassword : config.Password) ?? "";
+            var password = config.Password ?? "";
             var clientName = Multiplexer.ClientName;
 
             if (!string.IsNullOrWhiteSpace(clientName))

@@ -144,8 +144,12 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
     private static ConnectionMultiplexer SentinelPrimaryConnect(ConfigurationOptions configuration, TextWriter? log = null)
     {
-        // Sentinel credentials are selected during handshake based on ServerType
-        var sentinelConnection = SentinelConnect(configuration, log);
+        // Use separate sentinel credentials when provided on the configuration
+        var sentinelConfig = configuration.Clone();
+        sentinelConfig.User = configuration.SentinelUser;
+        sentinelConfig.Password = configuration.SentinelPassword;
+
+        var sentinelConnection = SentinelConnect(sentinelConfig, log);
 
         var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
         // Set reference to sentinel connection so that we can dispose it
@@ -162,8 +166,12 @@ public partial class ConnectionMultiplexer
     /// <param name="writer">The <see cref="TextWriter"/> to log to.</param>
     private static async Task<ConnectionMultiplexer> SentinelPrimaryConnectAsync(ConfigurationOptions configuration, TextWriter? writer = null)
     {
-        // Sentinel credentials are selected during handshake based on ServerType
-        var sentinelConnection = await SentinelConnectAsync(configuration, writer).ForAwait();
+        // Use separate sentinel credentials when provided on the configuration
+        var sentinelConfig = configuration.Clone();
+        sentinelConfig.User = configuration.SentinelUser;
+        sentinelConfig.Password = configuration.SentinelPassword;
+
+        var sentinelConnection = await SentinelConnectAsync(sentinelConfig, writer).ForAwait();
 
         var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, writer);
         // Set reference to sentinel connection so that we can dispose it

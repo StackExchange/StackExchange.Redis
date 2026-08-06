@@ -1,5 +1,0 @@
-#nullable enable
-StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
