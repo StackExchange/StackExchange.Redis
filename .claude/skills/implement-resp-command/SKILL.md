@@ -1,6 +1,6 @@
 ---
 name: implement-resp-command
-description: Add a new Redis/RESP command (or overload) to StackExchange.Redis end-to-end — enum, interfaces, RedisDatabase implementation, ResultProcessor, public-API tracking, and the ResultProcessor + RoundTrip unit tests. Use when asked to "add/implement/support a Redis command", wire up a new RESP command, expose a server feature on IDatabase/IDatabaseAsync, or add a result processor.
+description: Add a new Redis/RESP command (or overload) to StackExchange.Redis end-to-end — enum, interfaces, RedisDatabase implementation, ResultProcessor, public-API tracking, the ResultProcessor + RoundTrip unit tests, and TransactionAnalyzer coverage where the command replaces a transaction. Use when asked to "add/implement/support a Redis command", wire up a new RESP command, expose a server feature on IDatabase/IDatabaseAsync, or add a result processor.
 ---
 
 # Implement a new RESP command
@@ -55,6 +55,38 @@ Before writing anything, get the command's exact argument order and reply shape 
 7. **Write the two unit-test layers** (below). These run with **no external server**, so they're the fast, reliable proof of correctness — write them even if you also add live integration tests.
 
 8. **Gate pre-release server features** behind `[Experimental(Experiments.Server_8_x)]` when appropriate (see `src/RESPite/Shared/Experiments.cs`).
+
+9. **Ask whether the command is an *atomic composition*** — does it do in one round-trip what callers currently write a `MULTI`/`WATCH` transaction (or several queued commands) to achieve? A surprising number of new commands are exactly that: `GETDEL`, `GETEX`, `HGETDEL`, `SMOVE`, `SET ... NX/GET/IFEQ`, `SMISMEMBER`, every `M*`/variadic form. If yes, teach `TransactionAnalyzer` about it, or the people who would benefit most never find out it exists — see the section below.
+
+## If the command replaces a transaction
+
+`eng/StackExchange.Redis.Build/TransactionAnalyzer.cs` ships inside the package and tells consumers when a transaction they wrote is now one command. A new atomic command that isn't added there is invisible: the analyzer keeps quiet about exactly the code your command was written to replace. This is cheap to do at the time and nobody comes back for it later.
+
+Work out which shape the command replaces, and add a row to the matching table in that file:
+
+| The transaction it replaces | Table | Rule |
+|---|---|---|
+| one `AddCondition` + one write, where the command now takes that condition as an argument | `Map`, family A | SER300 |
+| one `AddCondition` + one write, where a *newer* command subsumes both | `Map`, family B | SER301 |
+| one `AddCondition` + one write, where the write's own return value already answers the condition | `Map`, family C | SER302 |
+| two different queued commands | `MapPair` | SER303 |
+| the same command queued N times, now a variadic overload | `MapVariadic` | SER304 |
+
+Beyond the suggestion text, a row states as much of the following as its table has columns for:
+
+- **The server version the *suggestion* needs** — not the one the flagged code needs. Use the same `RedisFeatures` constant the live integration test gates on, and `ServerVersion.Any` where the form predates anything realistically in service (saying "requires 2.6 or later" is noise). This is what lets a project declaring `<RedisMinServerVersion>` see only what it can act on.
+- **A coverage set** — the parameter names the suggestion still carries. Anything the caller wrote that isn't in it makes the rule stay quiet, because a rewrite that silently drops an argument is worse than no suggestion: N x `StringSet(key, value, expiry)` is not `MSET`, and "helpfully" collapsing it makes the keys permanent. State names *kept*, never names dropped, so that a parameter added to an overload later fails safe. `CommandFlags` is exempt globally. Family C passes `null` meaning "everything", because it keeps the command as written and deletes only the condition.
+- **Whether the same member or field has to match**, not just the same key (`Map`'s `SameMember`, `MapVariadic`'s `RequiresMember`). A condition about member `"a"` says nothing about a write to member `"b"`, and collapsing the two drops a real guard.
+- **Order, where the commands are not commutative** (`MapPair`). `SET ... GET` returns the value from *before* the write; `SET` clears any TTL, so `StringSet` + `KeyExpire` is `SET ... EX` while the reverse is not. Map one direction and pin the other with a negative test.
+- **Which way the keys go** (`MapVariadic`'s `ManyKeys`). `SADD` takes one key and many values, so N calls must be on the *same* key; `MSET`/`DEL` take many keys, so those must be on *different* ones. A mapping in the wrong direction suggests a command that does something else entirely.
+
+**Write down what you decided *not* to map, and why.** The near-misses are the dangerous part and the comments in those tables are load-bearing: `ListRightPop` + `ListLeftPush` is not `LMOVE` (inside a transaction the pop's result is an unresolved `Task`, so the pushed value is a different one), N x `ListLeftPop` is not `LMPOP` (which pops from the first non-empty key, not from each). If you talk yourself out of a mapping, leave the reasoning where the next person will hit it.
+
+Then:
+
+- **Tests** in `tests/StackExchange.Redis.Build.Tests/` — a positive in `SER30x.cs`, and the negatives that matter in `DetectionShape.cs`. The negatives are the point: they are correct code a keener analyzer would suggest breaking, in a diagnostic shipped to every consumer. If your mapping needs the same key, the same member, a particular order, or the absence of an argument, there is a test for each, or the constraint isn't real.
+- **A row in `docs/rules/SER30x.md`**, since every message links to that page for the caveats it can't carry itself.
+- **A new rule ID** (rather than a row in an existing table) additionally needs a descriptor in `Diagnostics.cs` and an entry in `AnalyzerReleases.Unshipped.md`; IDs are a public contract once released, because consumers put them in `NoWarn`.
 
 ## Tests — the two layers that matter
 
@@ -114,4 +146,5 @@ The in-process managed server (`toys/StackExchange.Redis.Server`) may also need 
 
 - `dotnet build Build.csproj -c Release /p:CI=true` — analyzers + `TreatWarningsAsErrors` must pass (this catches a missing `PublicAPI.Unshipped.txt` entry).
 - `dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter "FullyQualifiedName~MyCommand"` — runs your new unit tests without any server.
+- `dotnet test tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj` — if you touched `TransactionAnalyzer`. Also needs no server, and takes seconds.
 - Double-check no shipped signature changed (back-compat).

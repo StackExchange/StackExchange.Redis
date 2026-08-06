@@ -12,63 +12,97 @@ namespace StackExchange.Redis.Build;
 [Generator(LanguageNames.CSharp)]
 public class AsciiHashGenerator : IIncrementalGenerator
 {
+    /// <summary>
+    /// The emitted code uses UTF-8 string literals, which are C# 11.
+    /// </summary>
+    private const LanguageVersion MinimumLanguageVersion = LanguageVersions.CSharp11;
+
+    /// <summary>
+    /// The attribute that drives this generator, by metadata name.
+    /// </summary>
+    /// <remarks>
+    /// Fully qualified, and matched by the host rather than by us: <c>ForAttributeWithMetadataName</c> indexes
+    /// attributes across the compilation once and only calls us for real matches. The predicates below used to
+    /// compare attribute *text* on every attribute in every file, which was both slower and looser - it would
+    /// have matched an unrelated attribute that happened to be called <c>AsciiHash</c>, and missed one reached
+    /// through an alias.
+    /// </remarks>
+    private const string AsciiHashAttributeName = "RESPite.AsciiHashAttribute";
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // looking for [AsciiHash] partial static class Foo { }
         var types = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, _) => node is ClassDeclarationSyntax decl && IsStaticPartial(decl.Modifiers) &&
-                                    HasAsciiHash(decl.AttributeLists),
+            .ForAttributeWithMetadataName(
+                AsciiHashAttributeName,
+                static (node, _) => node is ClassDeclarationSyntax decl && IsStaticPartial(decl.Modifiers),
                 TransformTypes)
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
         // looking for [AsciiHash] partial static bool TryParse(input, out output) { }
         var methods = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, _) => node is MethodDeclarationSyntax decl && IsStaticPartial(decl.Modifiers) &&
-                                    HasAsciiHash(decl.AttributeLists),
+            .ForAttributeWithMetadataName(
+                AsciiHashAttributeName,
+                static (node, _) => node is MethodDeclarationSyntax decl && IsStaticPartial(decl.Modifiers),
                 TransformMethods)
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
         // looking for [AsciiHash] partial static bool TryFormat(enum input, out string/ReadOnlySpan<byte> output) { }
         var formatMethods = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, _) => node is MethodDeclarationSyntax decl && IsStaticPartial(decl.Modifiers) &&
-                                    HasAsciiHash(decl.AttributeLists),
+            .ForAttributeWithMetadataName(
+                AsciiHashAttributeName,
+                static (node, _) => node is MethodDeclarationSyntax decl && IsStaticPartial(decl.Modifiers),
                 TransformFormatMethods)
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
         // looking for [AsciiHash("some type")] enum Foo { }
         var enums = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, _) => node is EnumDeclarationSyntax decl && HasAsciiHash(decl.AttributeLists),
+            .ForAttributeWithMetadataName(
+                AsciiHashAttributeName,
+                static (node, _) => node is EnumDeclarationSyntax,
                 TransformEnums)
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
+        // The code we emit uses UTF-8 string literals ("..."u8), so it will not compile below C# 11. Old TFMs
+        // default below that (netstandard2.0 and net472 default to C# 7.3), but the language version is not
+        // tied to the target framework - any consumer on a .NET 7 or later SDK can opt in with <LangVersion>,
+        // so this should be rare and is trivially fixable. The point is to *say* that: emitting anyway would
+        // put errors inside generated code the consumer cannot edit, and emitting nothing silently would
+        // surface as an unexplained "no implementing declaration". See Diagnostics.LanguageVersionTooLow.
+        var languageVersion = context.ParseOptionsProvider.Select(static (options, _)
+            => options is CSharpParseOptions cs ? cs.LanguageVersion.MapSpecifiedToEffectiveVersion() : LanguageVersion.Latest);
+
         context.RegisterSourceOutput(
-            types.Combine(methods).Combine(formatMethods).Combine(enums),
+            types.Combine(methods).Combine(formatMethods).Combine(enums).Combine(languageVersion),
             (ctx, content) =>
-                Generate(ctx, content.Left.Left.Left, content.Left.Left.Right, content.Left.Right, content.Right));
+            {
+                if (content.Right < MinimumLanguageVersion)
+                {
+                    // only complain if there was actually something to generate
+                    var (t, m, f, e) = (content.Left.Left.Left.Left, content.Left.Left.Left.Right, content.Left.Left.Right, content.Left.Right);
+                    if (t.Length + m.Length + f.Length + e.Length != 0)
+                    {
+                        ctx.ReportDiagnostic(Diagnostic.Create(
+                            Diagnostics.LanguageVersionTooLow,
+                            location: null,
+                            nameof(AsciiHashAttribute),
+                            "11",
+                            content.Right.ToDisplayString()));
+                    }
+
+                    return;
+                }
+
+                var left = content.Left;
+                Generate(ctx, left.Left.Left.Left, left.Left.Left.Right, left.Left.Right, left.Right);
+            });
 
         static bool IsStaticPartial(SyntaxTokenList tokens)
             => tokens.Any(SyntaxKind.StaticKeyword) && tokens.Any(SyntaxKind.PartialKeyword);
-
-        static bool HasAsciiHash(SyntaxList<AttributeListSyntax> attributeLists)
-        {
-            foreach (var attribList in attributeLists)
-            {
-                foreach (var attrib in attribList.Attributes)
-                {
-                    if (attrib.Name.ToString() is nameof(AsciiHashAttribute) or nameof(AsciiHash)) return true;
-                }
-            }
-
-            return false;
-        }
     }
 
     private static string GetName(INamedTypeSymbol type)
@@ -114,11 +148,13 @@ public class AsciiHashGenerator : IIncrementalGenerator
     }
 
     private (string Namespace, string ParentType, string Name, int Count, int MaxChars, int MaxBytes) TransformEnums(
-        GeneratorSyntaxContext ctx, CancellationToken cancellationToken)
+        GeneratorAttributeSyntaxContext ctx, CancellationToken cancellationToken)
     {
         // extract the name and value (defaults to name, but can be overridden via attribute) and the location
-        if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not INamedTypeSymbol { TypeKind: TypeKind.Enum } named) return default;
-        if (TryGetAsciiHashAttribute(named.GetAttributes()) is not { } attrib) return default;
+        if (ctx.TargetSymbol is not INamedTypeSymbol { TypeKind: TypeKind.Enum } named) return default;
+        // list patterns would need System.Index, which netstandard2.0 does not have
+        if (ctx.Attributes.IsDefaultOrEmpty) return default;
+        var attrib = ctx.Attributes[0];
         var innerName = GetRawValue("", attrib);
         if (string.IsNullOrWhiteSpace(innerName)) return default;
 
@@ -150,12 +186,14 @@ public class AsciiHashGenerator : IIncrementalGenerator
     }
 
     private (string Namespace, string ParentType, string Name, string Value) TransformTypes(
-        GeneratorSyntaxContext ctx,
+        GeneratorAttributeSyntaxContext ctx,
         CancellationToken cancellationToken)
     {
         // extract the name and value (defaults to name, but can be overridden via attribute) and the location
-        if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not INamedTypeSymbol { TypeKind: TypeKind.Class } named) return default;
-        if (TryGetAsciiHashAttribute(named.GetAttributes()) is not { } attrib) return default;
+        if (ctx.TargetSymbol is not INamedTypeSymbol { TypeKind: TypeKind.Class } named) return default;
+        // list patterns would need System.Index, which netstandard2.0 does not have
+        if (ctx.Attributes.IsDefaultOrEmpty) return default;
+        var attrib = ctx.Attributes[0];
 
         string ns = "", parentType = "";
         if (named.ContainingType is { } containingType)
@@ -217,10 +255,10 @@ public class AsciiHashGenerator : IIncrementalGenerator
         (string Type, string Name, bool IsBytes, RefKind RefKind) From, (string Type, string Name, RefKind RefKind) To,
         (string Name, bool Value, RefKind RefKind) CaseSensitive,
         BasicArray<(string EnumMember, string ParseText)> Members, int DefaultValue) TransformMethods(
-            GeneratorSyntaxContext ctx,
+            GeneratorAttributeSyntaxContext ctx,
             CancellationToken cancellationToken)
     {
-        if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not IMethodSymbol
+        if (ctx.TargetSymbol is not IMethodSymbol
             {
                 IsStatic: true,
                 IsPartialDefinition: true,
@@ -234,14 +272,16 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 },
             } method) return default;
 
-        if (TryGetAsciiHashAttribute(method.GetAttributes()) is not { } attrib) return default;
+        // list patterns would need System.Index, which netstandard2.0 does not have
+        if (ctx.Attributes.IsDefaultOrEmpty) return default;
+        var attrib = ctx.Attributes[0];
 
         if (method.ContainingType is not { } containingType) return default;
         var parentType = GetName(containingType);
         var ns = containingType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
         var arg = method.Parameters[0];
-        if (arg is not { IsOptional: false, RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter }) return default;
+        if (arg is not { IsOptional: false, RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKinds.RefReadOnlyParameter }) return default;
 
         static bool IsBytes(ITypeSymbol type)
         {
@@ -305,7 +345,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
             arg = method.Parameters[2];
             if (arg is not
                 {
-                    RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter,
+                    RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKinds.RefReadOnlyParameter,
                     Type.SpecialType: SpecialType.System_Boolean,
                 })
             {
@@ -343,10 +383,10 @@ public class AsciiHashGenerator : IIncrementalGenerator
     private (string Namespace, string ParentType, Accessibility Accessibility, string Name,
         (string Type, string Name, RefKind RefKind) From, (string Type, string Name, RefKind RefKind, bool IsBytes) To,
         BasicArray<(string EnumMember, string FormatText)> Members) TransformFormatMethods(
-            GeneratorSyntaxContext ctx,
+            GeneratorAttributeSyntaxContext ctx,
             CancellationToken cancellationToken)
     {
-        if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not IMethodSymbol
+        if (ctx.TargetSymbol is not IMethodSymbol
             {
                 IsStatic: true,
                 IsPartialDefinition: true,
@@ -360,7 +400,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 },
             } method) return default;
 
-        if (TryGetAsciiHashAttribute(method.GetAttributes()) is not { }) return default;
+        if (ctx.Attributes.IsDefaultOrEmpty) return default;
 
         if (method.ContainingType is not { } containingType) return default;
         var parentType = GetName(containingType);
@@ -370,7 +410,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
         if (arg is not
             {
                 IsOptional: false,
-                RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter,
+                RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKinds.RefReadOnlyParameter,
                 Type: INamedTypeSymbol { TypeKind: TypeKind.Enum },
             }) return default;
         var from = (arg.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), arg.Name, arg.RefKind);
@@ -869,7 +909,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
         RefKind.In => "in ",
         RefKind.Out => "out ",
         RefKind.Ref => "ref ",
-        RefKind.RefReadOnlyParameter or RefKind.RefReadOnly => "ref readonly ",
+        RefKinds.RefReadOnlyParameter or RefKind.RefReadOnly => "ref readonly ",
         _ => throw new NotSupportedException($"RefKind {refKind} is not yet supported."),
     };
     private static string Format(Accessibility accessibility) => accessibility switch
