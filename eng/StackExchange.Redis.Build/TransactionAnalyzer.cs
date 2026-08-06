@@ -593,7 +593,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         private static Rewrite? TryCommandPair(QueuedOperation first, QueuedOperation second)
         {
             if (MapPair(first, second) is not { } mapped) return null;
-            if (!IsCovered(first, mapped.Covered) || !IsCovered(second, mapped.Covered)) return null;
+            if (!IsCovered(first, mapped.CoveredFirst) || !IsCovered(second, mapped.CoveredSecond)) return null;
             return new Rewrite(Rule.CompoundCommand, first.DisplayName, second.DisplayName, mapped.Suggestion, mapped.MinVersion);
         }
 
@@ -760,7 +760,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// fine by contrast, because the member is a value the caller already has and passes to both calls.
         /// </para>
         /// </remarks>
-        private static (string Suggestion, ServerVersion MinVersion, string Covered)? MapPair(QueuedOperation first, QueuedOperation second)
+        private static (string Suggestion, ServerVersion MinVersion, string CoveredFirst, string CoveredSecond)? MapPair(QueuedOperation first, QueuedOperation second)
         {
             // 6.2: GETDEL / GETEX / SET ... GET; see RedisFeatures.GetDelete and SetAndGet
             var v6_2 = new ServerVersion(6, 2);
@@ -770,20 +770,31 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 switch (first.Name, second.Name)
                 {
                     case ("StringGet", "KeyDelete"):
-                        return ("StringGetDelete[Async](key)", v6_2, "key");
+                        return ("StringGetDelete[Async](key)", v6_2, "key", "key");
 
-                    // GETEX has no NX/XX, so KeyExpire's ExpireWhen is not in Covered and a caller who
-                    // wrote one keeps their transaction
+                    // GETEX has no NX/XX, so KeyExpire's ExpireWhen is not covered and a caller who wrote
+                    // one keeps their transaction
                     case ("StringGet", "KeyExpire"):
-                        return ("StringGetSetExpiry[Async](key, expiry)", v6_2, "key,expiry");
+                        return ("StringGetSetExpiry[Async](key, expiry)", v6_2, "key", "key,expiry");
                     case ("StringGet", "KeyPersist"):
-                        return ("StringGetSetExpiry[Async](key, null)", v6_2, "key");
+                        return ("StringGetSetExpiry[Async](key, null)", v6_2, "key", "key");
                     case ("StringGet", "StringSet"):
-                        return ("StringSetAndGet[Async](key, value)", v6_2, "key,value,expiry,keepTtl,when");
+                        return ("StringSetAndGet[Async](key, value)", v6_2, "key", "key,value,expiry,keepTtl,when");
+
+                    // SET ... EX, which is why this one needs no particular server: setting a value and its
+                    // lifetime in one command is as old as SET's options (2.6.12). The order is load-bearing
+                    // in the other direction to the reads above - SET *clears* any TTL, so an EXPIRE followed
+                    // by a SET leaves no expiry at all and is emphatically not this.
+                    //
+                    // "expiry" is absent from the first coverage set on purpose: a StringSet that already
+                    // carries one, followed by an EXPIRE that overrides it, is not one command with one
+                    // lifetime and we should not be guessing which of the two the caller meant.
+                    case ("StringSet", "KeyExpire"):
+                        return ("StringSet[Async](key, value, expiry)", ServerVersion.Any, "key,value,when", "key,expiry");
 
                     // HGETDEL is 8.0; it has no RedisFeatures gate to point at
                     case ("HashGet", "HashDelete") when SameMember(first, second):
-                        return ("HashFieldGetAndDelete[Async](key, field)", new ServerVersion(8, 0), "key,hashField");
+                        return ("HashFieldGetAndDelete[Async](key, field)", new ServerVersion(8, 0), "key,hashField", "key,hashField");
                 }
 
                 return null;
@@ -795,7 +806,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 && ((first.Name == "SetRemove" && second.Name == "SetAdd")
                     || (first.Name == "SetAdd" && second.Name == "SetRemove")))
             {
-                return ("SetMove[Async](source, destination, value)", ServerVersion.Any, "key,value");
+                return ("SetMove[Async](source, destination, value)", ServerVersion.Any, "key,value", "key,value");
             }
 
             return null;

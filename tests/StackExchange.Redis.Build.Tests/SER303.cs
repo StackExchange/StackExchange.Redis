@@ -55,6 +55,94 @@ public class SER303 : Verifier<TransactionAnalyzer>
             " (requires server 6.2 or later)"));
 
     [Fact]
+    // SET ... EX. No version clause on this one: setting a value and its lifetime in one command is as old
+    // as SET's options, so naming a version would be noise.
+    public Task StringSetThenKeyExpire_IsFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = {|#0:tran.StringSetAsync(key, "value")|};
+                _ = tran.KeyExpireAsync(key, TimeSpan.FromMinutes(1));
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER303").WithLocation(0).WithArguments(
+            "StringSetAsync",
+            "KeyExpireAsync",
+            "StringSet[Async](key, value, expiry)",
+            ""));
+
+    [Fact]
+    // an absolute expiry works the same way: Expiration converts implicitly from DateTime as well as TimeSpan
+    public Task StringSetThenKeyExpireAtDateTime_IsFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, DateTime when)
+            {
+                var tran = db.CreateTransaction();
+                _ = {|#0:tran.StringSetAsync(key, "value")|};
+                _ = tran.KeyExpireAsync(key, when);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER303").WithLocation(0).WithArguments(
+            "StringSetAsync",
+            "KeyExpireAsync",
+            "StringSet[Async](key, value, expiry)",
+            ""));
+
+    [Fact]
+    // the other order is a different program: SET clears any TTL, so EXPIRE-then-SET leaves no expiry at all
+    public Task KeyExpireThenStringSet_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.KeyExpireAsync(key, TimeSpan.FromMinutes(1));
+                _ = tran.StringSetAsync(key, "value");
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // two expiries, one of which overrides the other: which of them the single command should carry is a
+    // guess, and this rule does not guess
+    public Task StringSetWithExpiryThenKeyExpire_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringSetAsync(key, "value", TimeSpan.FromMinutes(1));
+                _ = tran.KeyExpireAsync(key, TimeSpan.FromMinutes(5));
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
     public Task StringGetThenStringSet_IsFlagged() => VerifyAsync(
         """
         using StackExchange.Redis;
