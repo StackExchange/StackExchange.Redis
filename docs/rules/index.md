@@ -52,8 +52,9 @@ whatever each rule's own page lists.
 - **Commands that do not always queue together.** A command inside an `if`, `switch` or `try` is only collapsible
   with commands inside the *same* one; opposite arms of an `if`/`else` never queue together at all. A whole
   transaction inside a conditional is ordinary code and is still flagged.
-- **Commands that might queue more than once**: inside a loop, or inside a lambda or local function, where one
-  call site is any number of queued commands.
+- **Commands that might queue more than once**: inside a loop, or inside a lambda or local function that queues
+  onto a transaction from outside itself, where one call site is any number of queued commands. A transaction
+  created *and* completed within the lambda or local function is one per invocation, so it is still flagged.
 - **Arguments the single command cannot express.** The suggestions are sketches, but only ever of a rewrite that
   keeps what you wrote. N x `StringSet(key, value, expiry)` is *not* `MSET` - MSET takes one expiry for the whole
   batch, not one per key - so that stays quiet rather than quietly making your keys permanent. Likewise a `When`
