@@ -123,7 +123,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                     && SymbolEqualityComparer.Default.Equals(instanceLocal, local))
                 {
                     // tran.Something(...) - a queued command, a condition, or the terminator
-                    var repeats = !TryGetBranch(invocation, block, out var branch);
+                    var repeats = !TryGetBranch(invocation, block, local, out var branch);
                     usage.Add(invocation, known, branch, repeats);
                 }
                 else
@@ -248,6 +248,16 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     /// not collapsible into anything: <c>false</c>, and the caller disqualifies the whole transaction.
     /// </para>
     /// <para>
+    /// That repeat risk belongs to the <em>captured</em> transaction, not to the function boundary itself. A
+    /// transaction that is a local of the lambda or local function we are walking out of is created afresh on
+    /// each invocation, so one invocation holds one entire transaction and the counts within it are exact -
+    /// stop at that boundary and report what we have. Whatever encloses the function then governs how many
+    /// transactions there are, not what goes into each. Getting this wrong silences the analyzer completely
+    /// for anyone who writes their transaction in a local function, top-level statements included, since there
+    /// the whole program body is one synthesised method and Roslyn hands us no separate block for the nested
+    /// function.
+    /// </para>
+    /// <para>
     /// A call under an <c>if</c>, <c>switch</c> or <c>try</c> is different: it runs at most once, so it is fine
     /// on its own terms, but only if every <em>other</em> call on the same transaction is under the same one.
     /// Two commands in the same <c>if</c> body always queue together and a compound command really does replace
@@ -257,7 +267,7 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
     /// operation, or the two arms of one <c>if</c> would compare equal.
     /// </para>
     /// </remarks>
-    private static bool TryGetBranch(IOperation operation, IOperation block, out SyntaxNode? branch)
+    private static bool TryGetBranch(IOperation operation, IOperation block, ISymbol transaction, out SyntaxNode? branch)
     {
         branch = null;
         var previous = operation;
@@ -266,9 +276,14 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             switch (node)
             {
                 case ILoopOperation:
-                case IAnonymousFunctionOperation:
-                case ILocalFunctionOperation:
                     return false;
+
+                // captured from outside: unbounded, so no. Declared inside: this function body is effectively
+                // the block, and we are done walking
+                case IAnonymousFunctionOperation { Symbol: { } lambda }:
+                    return DeclaredIn(lambda);
+                case ILocalFunctionOperation { Symbol: { } localFunction }:
+                    return DeclaredIn(localFunction);
 
                 // keep walking after finding one: an enclosing loop still trumps it
                 case IConditionalOperation:
@@ -283,6 +298,9 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         }
 
         return true;
+
+        bool DeclaredIn(IMethodSymbol function)
+            => SymbolEqualityComparer.Default.Equals(transaction.ContainingSymbol, function);
     }
 
     /// <summary>

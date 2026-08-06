@@ -217,6 +217,119 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
         """);
 
     [Fact]
+    // The control for the two above, and the reason the function boundary is not itself disqualifying: those
+    // capture a transaction that outlives them, which is what makes the invocation count matter. A transaction
+    // *declared* in the local function is one per invocation however often it runs, so the counts inside are
+    // exact. This shape - one transaction, one helper method - is the single commonest way the guarded pattern
+    // gets written, and treating it as unknowable silenced the whole analyzer for it.
+    public Task TransactionDeclaredInLocalFunction_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task<bool> M(IDatabase db, RedisKey key)
+            {
+                return await SetIfNotExists();
+
+                async Task<bool> SetIfNotExists()
+                {
+                    var tran = db.CreateTransaction();
+                    _ = tran.StringSetAsync(key, "value");
+                    var cond = {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                    await tran.ExecuteAsync();
+                    return cond.WasSatisfied;
+                }
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // and in a lambda, where the transaction is likewise per-invocation
+    public Task TransactionDeclaredInLambda_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public Func<Task> M(IDatabase db, RedisKey key) => async () =>
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value");
+                await tran.ExecuteAsync();
+            };
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // Calling it in a loop makes N transactions, not one transaction with N commands, so the per-transaction
+    // counts still hold. The enclosing loop governs how many transactions there are, not what goes into each.
+    public Task TransactionDeclaredInLocalFunctionCalledInLoop_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    await SetIfNotExists(key);
+                }
+
+                async Task SetIfNotExists(RedisKey key)
+                {
+                    var tran = db.CreateTransaction();
+                    {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                    _ = tran.StringSetAsync(key, "value");
+                    await tran.ExecuteAsync();
+                }
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // A loop *inside* the function still disqualifies: the walk hits it before the boundary, as it must
+    public Task LoopInsideLocalFunctionDeclaringTransaction_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, RedisValue[] values)
+            {
+                await Queue();
+
+                async Task Queue()
+                {
+                    var tran = db.CreateTransaction();
+                    tran.AddCondition(Condition.KeyNotExists(key));
+                    foreach (var value in values)
+                    {
+                        _ = tran.StringSetAsync(key, value);
+                    }
+
+                    await tran.ExecuteAsync();
+                }
+            }
+        }
+        """);
+
+    [Fact]
     // the helper may queue anything at all; our counts describe only the part we can see
     public Task TransactionPassedToAnotherMethod_IsNotFlagged() => VerifyAsync(
         """
