@@ -29,6 +29,12 @@ namespace StackExchange.Redis.Build;
 /// these down per-rule in <c>.editorconfig</c> or <c>NoWarn</c>, and the help pages say how - but the first
 /// experience is a broken build, and that is the trade being made on purpose.
 /// </para>
+/// <para>
+/// Which is also why the usage rules hedge - "may be replaceable", "looks like", "consider" - rather than
+/// asserting. They are heuristics over source text, so a false positive is rare rather than impossible, and
+/// arriving as a warning already overstates the case; wording them as findings of fact would overstate it
+/// twice. The build-level <see cref="LanguageVersionTooLow"/> does not hedge, because it is not guessing.
+/// </para>
 /// </remarks>
 internal static class Diagnostics
 {
@@ -55,12 +61,12 @@ internal static class Diagnostics
     /// </remarks>
     public static readonly DiagnosticDescriptor PreferConditionalArgument = new(
         id: "SER300",
-        title: "Transaction can be replaced by a conditional argument",
-        messageFormat: "This transaction ({0} guarding {1}) can be expressed as {2} - the condition duplicates an argument the command already has",
+        title: "Transaction may be replaceable by a conditional argument",
+        messageFormat: "Consider expressing this transaction ({0} guarding {1}) as {2} - the condition duplicates an argument the command already has",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A transaction whose only purpose is to make one operation conditional can be replaced by the command's own conditional argument, which is a single round-trip and cannot abort under contention.",
+        description: "A transaction whose only purpose is to make one operation conditional can usually be replaced by the command's own conditional argument, which is a single round-trip and cannot abort under contention.",
         helpLinkUri: HelpLink("SER300"));
 
     /// <summary>
@@ -80,12 +86,12 @@ internal static class Diagnostics
     /// </remarks>
     public static readonly DiagnosticDescriptor PreferNewerAtomicOperation = new(
         id: "SER301",
-        title: "Transaction can be replaced by a single atomic operation",
-        messageFormat: "This transaction ({0} guarding {1}) can be expressed as {2}, which is atomic on the server and needs no WATCH (requires server {3} or later)",
+        title: "Transaction may be replaceable by a single atomic operation",
+        messageFormat: "Consider expressing this transaction ({0} guarding {1}) as {2}, which is atomic on the server and needs no WATCH (requires server {3} or later)",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A transaction implementing compare-and-set can be replaced by the equivalent conditional command on servers that support it, which is a single round-trip and cannot abort under contention.",
+        description: "A transaction implementing compare-and-set can usually be replaced by the equivalent conditional command on servers that support it, which is a single round-trip and cannot abort under contention.",
         helpLinkUri: HelpLink("SER301"));
 
     /// <summary>
@@ -100,12 +106,12 @@ internal static class Diagnostics
     /// </remarks>
     public static readonly DiagnosticDescriptor RedundantCondition = new(
         id: "SER302",
-        title: "Transaction condition is redundant",
-        messageFormat: "This transaction ({0} guarding {1}) is redundant - use {2}",
+        title: "Transaction condition may be redundant",
+        messageFormat: "This transaction ({0} guarding {1}) looks redundant - consider {2}",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A condition that checks what the queued command already reports through its return value buys nothing: the transaction costs an extra round-trip and can abort, and the command alone says whether it acted.",
+        description: "A condition that checks what the queued command already reports through its return value usually buys nothing: the transaction costs an extra round-trip and can abort, and the command alone says whether it acted.",
         helpLinkUri: HelpLink("SER302"));
 
     /// <summary>
@@ -118,12 +124,12 @@ internal static class Diagnostics
     /// </remarks>
     public static readonly DiagnosticDescriptor PreferCompoundCommand = new(
         id: "SER303",
-        title: "Transaction can be replaced by a single compound command",
-        messageFormat: "These two queued operations ({0} then {1}) are one command: use {2}{3}",
+        title: "Transaction may be replaceable by a single compound command",
+        messageFormat: "These two queued operations ({0} then {1}) look like one command - consider {2}{3}",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A transaction used only to make two operations atomic can be replaced by the single command that does both, which is one round-trip and cannot abort.",
+        description: "A transaction used only to make two operations atomic can usually be replaced by the single command that does both, which is one round-trip and cannot abort.",
         helpLinkUri: HelpLink("SER303"));
 
     /// <summary>
@@ -137,12 +143,12 @@ internal static class Diagnostics
     /// </remarks>
     public static readonly DiagnosticDescriptor PreferVariadicOverload = new(
         id: "SER304",
-        title: "Repeated queued operations can use the variadic overload",
-        messageFormat: "These {1} queued {0} calls are one command: use {2}{3}",
+        title: "Repeated queued operations may suit the variadic overload",
+        messageFormat: "These {1} queued {0} calls look like one command - consider {2}{3}",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "The same command queued several times over can be a single variadic call, which is one round-trip and needs no transaction to be atomic.",
+        description: "The same command queued several times over can usually be a single variadic call, which is one round-trip and needs no transaction to be atomic.",
         helpLinkUri: HelpLink("SER304"));
 
     /// <summary>

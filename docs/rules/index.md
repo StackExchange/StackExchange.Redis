@@ -30,11 +30,11 @@ substitute your own expressions.
 
 ## Usage
 
-- [SER300](SER300) - transaction can be replaced by a conditional argument (any server version)
-- [SER301](SER301) - transaction can be replaced by a single atomic operation (needs a newer server)
-- [SER302](SER302) - condition is redundant; the command already reports whether it acted (any server version)
-- [SER303](SER303) - two queued operations are a single compound command (varies by pair)
-- [SER304](SER304) - the same operation queued repeatedly can use the variadic overload (mostly any server)
+- [SER300](SER300) - transaction may be replaceable by a conditional argument (any server version)
+- [SER301](SER301) - transaction may be replaceable by a single atomic operation (needs a newer server)
+- [SER302](SER302) - condition may be redundant; the command already reports whether it acted (any server version)
+- [SER303](SER303) - two queued operations may be a single compound command (varies by pair)
+- [SER304](SER304) - the same operation queued repeatedly may suit the variadic overload (mostly any server)
 
 ## Build
 
