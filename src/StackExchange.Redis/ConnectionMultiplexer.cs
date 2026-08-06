@@ -1798,7 +1798,7 @@ namespace StackExchange.Redis
 
         private async Task<EndPointCollection?> GetEndpointsFromClusterNodes(ServerEndPoint server, ILogger? log)
         {
-            var message = Message.Create(-1, CommandFlags.None, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            var message = RedisServer.GetClusterNodesMessage(CommandFlags.None);
             try
             {
                 var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();

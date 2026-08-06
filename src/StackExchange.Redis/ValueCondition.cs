@@ -107,6 +107,21 @@ public readonly struct ValueCondition
     internal bool IsNegated => _kind is ConditionKind.ValueNotEquals or ConditionKind.DigestNotEquals or ConditionKind.NotExists;
 
     /// <summary>
+    /// The retry category implied by applying this condition to an otherwise unconditional write;
+    /// <see cref="CommandFlags.None"/> means "no opinion", leaving the per-command default in place.
+    /// </summary>
+    /// <remarks>
+    /// Note that a compare-and-set replay (IFEQ/IFDEQ) after an *ambiguous success* fails the comparison and
+    /// reports "not set" even though the write did land; the keyspace still converges, which is what the
+    /// category describes, but callers relying on the boolean should be aware of it.
+    /// </remarks>
+    internal CommandFlags RetryCategory => _kind switch
+    {
+        ConditionKind.Always => CommandFlags.None,
+        _ => CommandFlags.CommandRetryWriteChecked,
+    };
+
+    /// <summary>
     /// Gets the underlying value for this condition.
     /// </summary>
     public RedisValue Value

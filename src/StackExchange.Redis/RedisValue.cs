@@ -1797,9 +1797,19 @@ HaveString:
                     len = Format.FormatDouble(OverlappedValueDouble, buffer);
                     return buffer.Slice(0, len).StartsWith(value);
                 case StorageType.String:
+                    // We hold UTF-16 and are being asked about UTF-8 bytes, and the two do not have the same
+                    // length: a *shorter* string is not grounds to give up, because 2 chars can be 8 bytes.
+                    // Each char is at least one byte, though, so a prefix of value.Length bytes never needs
+                    // more than that many chars - as long as the cut does not land between the halves of a
+                    // surrogate pair, where the encoder would emit U+FFFD instead of what was asked about.
                     var s = RawString().AsSpan();
-                    if (s.Length < value.Length) return false; // not enough characters to match
-                    if (s.Length > value.Length) s = s.Slice(0, value.Length); // only need to match the prefix
+                    if (s.Length > value.Length)
+                    {
+                        var take = value.Length;
+                        if (char.IsHighSurrogate(s[take - 1])) take++; // take < s.Length, so the low half is there
+                        s = s.Slice(0, take);
+                    }
+
                     var maxBytes = Encoding.UTF8.GetMaxByteCount(s.Length);
                     byte[]? lease = null;
                     const int MAX_STACK = 128;
@@ -1811,6 +1821,60 @@ HaveString:
                 default:
                     return false;
             }
+        }
+
+        /// <summary>
+        /// Indicates whether the textual form of this value ends with the supplied ASCII byte.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// ASCII-only is what makes this cheap rather than merely convenient, and the string case is where it
+        /// pays: UTF-8 never uses a byte below 0x80 as a continuation byte, so "the encoding ends with this
+        /// byte" is exactly "the last char is this char" - no encode, and no length to measure first. The
+        /// answer is then correct for non-ASCII strings rather than just undefined for them.
+        /// </para>
+        /// <para>
+        /// Every other kind reduces to reading one byte too, so nothing here copies the value out - except
+        /// <see cref="StorageType.Double"/>, which formats. Asking a double whether its text ends with some
+        /// character is not a thing worth optimising for, and going through <see cref="Format"/> is what keeps
+        /// the answer agreeing with <see cref="CopyTo(Span{byte})"/> and so with the wire, including the
+        /// <c>+inf</c>/<c>-inf</c> spellings.
+        /// </para>
+        /// </remarks>
+        internal bool EndsWithAscii(byte value)
+        {
+            Debug.Assert(value < 0x80, "ASCII only - the string shortcut below is not valid for anything else");
+
+            switch (Type)
+            {
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    // named local rather than 'out _': on the TFMs without CreateReadOnlySpan a short blob's
+                    // span is built over a pointer to this slot, and it has to stay put while we read through
+                    // it (see BlobSequenceEqual, which names its locals for the same reason)
+                    long scratch;
+                    var span = UnsafeRawSpan(out scratch);
+                    return !span.IsEmpty && span[span.Length - 1] == value;
+                case StorageType.Sequence:
+                    return RawSequence().TryGetLast(out var last) && last == value;
+                case StorageType.String:
+                    var s = RawString();
+                    return s.Length != 0 && s[s.Length - 1] == (char)value;
+                case StorageType.Int64:
+                    return IsFinalDigit(OverlappedValueInt64 % 10, value);
+                case StorageType.UInt64:
+                    return IsFinalDigit((long)(OverlappedValueUInt64 % 10), value);
+                case StorageType.Double:
+                    Span<byte> buffer = stackalloc byte[Format.MaxDoubleTextLen];
+                    var len = Format.FormatDouble(OverlappedValueDouble, buffer);
+                    return len != 0 && buffer[len - 1] == value;
+                default: // Null, and anything we cannot measure: no text, so nothing to end with
+                    return false;
+            }
+
+            // The remainder is what the final digit is, sign and all; negating *that* is safe even for
+            // long.MinValue, where negating the value itself would overflow.
+            static bool IsFinalDigit(long remainder, byte value)
+                => (byte)('0' + (remainder < 0 ? -remainder : remainder)) == value;
         }
     }
 }
