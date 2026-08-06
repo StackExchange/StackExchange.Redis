@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using RESPite.Buffers;
 
-namespace StackExchange.Redis;
+namespace RESPite.Streams;
 
 internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, IValueTaskSource
 {

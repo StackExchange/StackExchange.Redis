@@ -1,0 +1,29 @@
+<Project>
+
+  <!--
+    Shipped in the package's build/ folder, so it is imported into every consuming project.
+
+    Surfaces <RedisMinServerVersion> to the analyzer. An analyzer cannot see the server you will connect to, so
+    version-gated suggestions (SER301 and friends) are shown by default; set this and you only get the ones your
+    server can actually run:
+
+      <PropertyGroup>
+        <RedisMinServerVersion>7.4</RedisMinServerVersion>
+      </PropertyGroup>
+
+    The equivalent .editorconfig / .globalconfig spelling is `redis.min_server_version`, which takes precedence.
+    Major.minor is what is read; anything more precise is accepted and ignored.
+
+    CompilerVisibleProperty is what makes the property readable at all - without it the analyzer simply never
+    sees the value. The property is surfaced under its own name rather than being copied to some internal one:
+    this file is imported *before* the consuming project's own PropertyGroup, so anything we read here at
+    evaluation time is still empty. The item declaration is safe because the value is read later, at compile
+    time, by which point the consumer's setting is in effect.
+
+    It reaches the analyzer as `build_property.RedisMinServerVersion`.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="RedisMinServerVersion" />
+  </ItemGroup>
+
+</Project>

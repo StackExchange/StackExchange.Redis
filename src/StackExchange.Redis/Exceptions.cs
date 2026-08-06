@@ -25,7 +25,6 @@ namespace StackExchange.Redis
 
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
-        [EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         private RedisCommandException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
     }
@@ -41,8 +40,19 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="message">The message for the exception.</param>
         /// <param name="commandStatus">The command status, as of when the timeout happened.</param>
-        public RedisTimeoutException(string message, CommandStatus commandStatus) : base(message)
+        [Obsolete("Prefer the overload that specifies CommandFlags")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        public RedisTimeoutException(string message, CommandStatus commandStatus) : this(CommandFlags.CommandRetryNever, message, commandStatus) { }
+
+        /// <summary>
+        /// Creates a new <see cref="RedisTimeoutException"/>.
+        /// </summary>
+        /// <param name="flags">The command-flags associated with the faulting operation.</param>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="commandStatus">The command status, as of when the timeout happened.</param>
+        public RedisTimeoutException(CommandFlags flags, string message, CommandStatus commandStatus) : base(message)
         {
+            Flags = flags;
             Commandstatus = commandStatus;
         }
 
@@ -51,9 +61,13 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandStatus Commandstatus { get; }
 
+        /// <summary>
+        /// The command-flags associated with the faulting operation (including its retry category).
+        /// </summary>
+        public CommandFlags Flags { get; }
+
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
-        [EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         private RedisTimeoutException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
@@ -67,7 +81,7 @@ namespace StackExchange.Redis
         /// <param name="context">Serialization context.</param>
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
-        [EditorBrowsable(EditorBrowsableState.Never)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
@@ -87,7 +101,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="failureType">The type of connection failure.</param>
         /// <param name="message">The message for the exception.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) { }
+        [Obsolete("Prefer the overload that specifies CommandFlags")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, CommandFlags.CommandRetryNever, message, null, CommandStatus.Unknown) { }
 
         /// <summary>
         /// Creates a new <see cref="RedisConnectionException"/>.
@@ -95,7 +111,9 @@ namespace StackExchange.Redis
         /// <param name="failureType">The type of connection failure.</param>
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException) : this(failureType, message, innerException, CommandStatus.Unknown) { }
+        [Obsolete("Prefer the overload that specifies CommandFlags")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException) : this(failureType, CommandFlags.CommandRetryNever, message, innerException, CommandStatus.Unknown) { }
 
         /// <summary>
         /// Creates a new <see cref="RedisConnectionException"/>.
@@ -104,9 +122,22 @@ namespace StackExchange.Redis
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
         /// <param name="commandStatus">The status of the command.</param>
-        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException, CommandStatus commandStatus) : base(message, innerException)
+        [Obsolete("Prefer the overload that specifies CommandFlags")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException, CommandStatus commandStatus) : this(failureType, CommandFlags.CommandRetryNever, message, innerException, commandStatus) { }
+
+        /// <summary>
+        /// Creates a new <see cref="RedisConnectionException"/>.
+        /// </summary>
+        /// <param name="failureType">The type of connection failure.</param>
+        /// <param name="flags">The command-flags associated with the faulting operation.</param>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="innerException">The inner exception.</param>
+        /// <param name="commandStatus">The status of the command.</param>
+        public RedisConnectionException(ConnectionFailureType failureType, CommandFlags flags, string message, Exception? innerException = null, CommandStatus commandStatus = CommandStatus.Unknown) : base(message, innerException)
         {
             FailureType = failureType;
+            Flags = flags;
             CommandStatus = commandStatus;
         }
 
@@ -116,13 +147,17 @@ namespace StackExchange.Redis
         public ConnectionFailureType FailureType { get; }
 
         /// <summary>
+        /// The command-flags associated with the faulting operation (including its retry category).
+        /// </summary>
+        public CommandFlags Flags { get; }
+
+        /// <summary>
         /// Status of the command while communicating with Redis.
         /// </summary>
         public CommandStatus CommandStatus { get; }
 
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
-        [EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
@@ -137,7 +172,7 @@ namespace StackExchange.Redis
         /// <param name="context">Serialization context.</param>
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
-        [EditorBrowsable(EditorBrowsableState.Never)]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
@@ -173,7 +208,6 @@ namespace StackExchange.Redis
         /// <param name="ctx">Serialization context.</param>
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
-        [EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
     }
@@ -188,12 +222,35 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisServerException"/>.
         /// </summary>
         /// <param name="message">The message for the exception.</param>
-        public RedisServerException(string message) : base(message) { }
+        [Obsolete("Specify Kind and CommandFlags when possible")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        public RedisServerException(string message) : this(RedisErrorKind.Unknown, CommandFlags.CommandRetryNever, message) { }
+
+        /// <summary>
+        /// Creates a new <see cref="RedisServerException"/>.
+        /// </summary>
+        /// <param name="kind">The categorized meaning of the error.</param>
+        /// <param name="flags">The command-flags associated with the faulting operation.</param>
+        /// <param name="message">The message for the exception.</param>
+        public RedisServerException(RedisErrorKind kind, CommandFlags flags, string message) : base(message)
+        {
+            Kind = kind;
+            Flags = flags;
+        }
 
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
-        [EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+
+        /// <summary>
+        /// Identifies the kind of error received.
+        /// </summary>
+        public RedisErrorKind Kind { get; }
+
+        /// <summary>
+        /// The command-flags associated with the faulting operation (including its retry category).
+        /// </summary>
+        public CommandFlags Flags { get; }
     }
 }

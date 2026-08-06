@@ -59,7 +59,10 @@ namespace StackExchange.Redis
 
         internal const CommandFlags
             InternalCallFlag = (CommandFlags)128,
-            NoFlushFlag = (CommandFlags)1024;
+            NoFlushFlag = (CommandFlags)1024,
+            // "server specific" (bit 18): tied to a specific endpoint, never retry elsewhere. Not (yet) a
+            // public CommandFlags member - see the note on the hidden bit-18 value in CommandFlags.cs.
+            CommandServerSpecific = (CommandFlags)(1 << 18);
 
         protected RedisCommand command;
 
@@ -73,17 +76,22 @@ namespace StackExchange.Redis
                                                                  | CommandFlags.PreferMaster
                                                                  | CommandFlags.PreferReplica;
 
-        private const CommandFlags UserSelectableFlags = CommandFlags.None
+        // the 5-bit retry-category severity region (bits 13-17); numerically equal to CommandRetryNever.
+        // deliberately excludes CommandServerSpecific (bit 18), which is an orthogonal flag, not part of
+        // the <=-comparable severity ladder.
+        internal const CommandFlags MaskRetryCategory = CommandFlags.CommandRetryNever;
+
+        internal const CommandFlags UserSelectableFlags = CommandFlags.None
                                                          | CommandFlags.DemandMaster
                                                          | CommandFlags.DemandReplica
                                                          | CommandFlags.PreferMaster
                                                          | CommandFlags.PreferReplica
-#pragma warning disable CS0618 // Type or member is obsolete
-                                                         | CommandFlags.HighPriority
-#pragma warning restore CS0618
+                                                         | (CommandFlags)1 // CommandFlags.HighPriority; obsolete-as-error, but still tolerated from callers
                                                          | CommandFlags.FireAndForget
                                                          | CommandFlags.NoRedirect
                                                          | CommandFlags.NoScriptCache
+                                                         | MaskRetryCategory // caller may override the retry category...
+                                                         | CommandServerSpecific // ...and the server-specific flag
                                                          | NoFlushFlag; // we'll allow this one even though not advertised
 
         private IResultBox? resultBox;
@@ -120,7 +128,9 @@ namespace StackExchange.Redis
             bool primaryOnly = command.IsPrimaryOnly();
             Db = db;
             this.command = command;
-            Flags = flags & UserSelectableFlags;
+            // apply the user-selectable flags, then fill in the default retry-category for this command
+            // (WithDefaultCategory is a no-op if the caller already specified a CommandRetry* category)
+            Flags = (flags & UserSelectableFlags).WithDefaultCategory(command);
             if (primaryOnly) SetPrimaryOnly();
 
             CreatedDateTime = DateTime.UtcNow;
@@ -522,18 +532,21 @@ namespace StackExchange.Redis
 
         bool ICompletable.TryComplete(bool isAsync)
         {
-            Complete();
+            Complete(null);
             return true;
         }
 
-        public void Complete()
+        public void Complete(PhysicalConnection? connection)
         {
             // Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
 
             // set the completion/performance data
             performance?.SetCompleted();
-
+            if (currBox is not null)
+            {
+                connection?.ObserveMessageResult(currBox.Fault);
+            }
             currBox?.ActivateContinuations();
         }
 
@@ -633,6 +646,12 @@ namespace StackExchange.Redis
         {
             // for the purposes of the switch, we only care about two bits
             return flags & MaskPrimaryServerPreference;
+        }
+
+        internal static CommandFlags GetRetryCategory(CommandFlags flags)
+        {
+            // isolate the retry-category region; 0 here means "not specified" (resolved downstream)
+            return flags & MaskRetryCategory;
         }
 
         internal static bool RequiresDatabase(RedisCommand command)
@@ -745,10 +764,10 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation, muxer);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalConnection? connection)
         {
             resultBox?.SetException(exception);
-            Complete();
+            Complete(connection);
         }
 
         internal bool TrySetResult<T>(T value)

@@ -13,12 +13,28 @@
     <!-- for RESPite -->
     <PackageVersion Include="System.Buffers" Version="4.6.1" />
     <PackageVersion Include="System.Memory" Version="4.6.3" />
-    <!-- For analyzers, tied to the consumer's build SDK; at the moment, that means "us" -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+    <!-- For analyzers. This is no longer just "us": StackExchange.Redis.Build ships inside the
+         StackExchange.Redis package, and an analyzer cannot load in a Roslyn host older than the version it
+         was built against - so this is the oldest consumer tooling we support (4.3 = SDK 6.0.4xx / VS 17.3),
+         not the newest we build with. It is a *compile-time* floor only: forward compatibility means the
+         analyzer still loads in newer hosts, and at run-time the host's compiler may hand us values that
+         post-date this version (see RoslynShims.cs - prefer a shim there over raising this).
+         4.3 is where ForAttributeWithMetadataName arrives, and the generators need that to stay cheap on
+         consumer code, so going lower is not useful. Raising it drops consumer tooling; do so deliberately. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" />
+    <!-- The release-tracking analyzer (RS2002 etc), which the above would otherwise pull in transitively at
+         3.3.3 - a version that cannot see descriptors declared outside the analyzer type, as ours are in
+         Diagnostics.cs. Pinned separately because it is a build-time analyzer we never ship: unlike the
+         reference above, its version has nothing to do with the host floor, so upgrade at will. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="3.0.2" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="4.14.0" />
+    <!-- analyzer test harness; deliberately newer Roslyn than the shipped floor above (the harness needs it,
+         and we cannot test at 4.3 without pinning the whole world) -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.201" />

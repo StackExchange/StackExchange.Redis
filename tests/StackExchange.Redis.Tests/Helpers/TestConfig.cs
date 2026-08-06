@@ -130,5 +130,6 @@ public static class TestConfig
         public int ProxyPort { get; set; } = 7015;
 
         public string ProxyServerAndPort => ProxyServer + ":" + ProxyPort.ToString();
+        public string[] ActiveActiveEndpoints { get; set; } = [];
     }
 }

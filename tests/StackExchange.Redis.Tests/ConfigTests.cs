@@ -69,6 +69,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "CertificateSelection",
                 "CertificateValidation",
                 "ChannelPrefix",
+                "CircuitBreaker",
                 "ClientName",
                 "commandMap",
                 "configChannel",
@@ -93,6 +94,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "RequestBufferPool",
                 "ResponseBufferPool",
                 "responseTimeout",
+                "RetryPolicy",
                 "sentinelPassword",
                 "sentinelUser",
                 "ServiceName",
@@ -730,6 +732,39 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.True(subscriptionSocket.DontFragment);
     }
 
+    /// <summary>
+    /// Reads a property that is obsolete-as-error, which the compiler will not let us name directly
+    /// (and <c>#pragma warning disable</c> cannot suppress, since it is an error rather than a warning).
+    /// </summary>
+    private static T GetObsoleteProperty<T>(object target, string name)
+    {
+        var type = target.GetType();
+        var property = type.GetProperty(name);
+        if (property is null)
+        {
+            throw new ArgumentException($"Property '{name}' was not found on '{type.FullName}'; has it been renamed or removed?", nameof(name));
+        }
+
+        var value = property.GetValue(target);
+        if (value is null)
+        {
+            // null is a perfectly good value unless the caller asked for a non-nullable value type
+            if (typeof(T).IsValueType && Nullable.GetUnderlyingType(typeof(T)) is null)
+            {
+                throw new ArgumentException($"Property '{type.FullName}.{name}' is null; expected '{typeof(T).Name}'.", nameof(name));
+            }
+
+            return default!;
+        }
+
+        if (value is not T typed)
+        {
+            throw new ArgumentException($"Property '{type.FullName}.{name}' is of type '{property.PropertyType.Name}' with value '{value}'; expected '{typeof(T).Name}'.", nameof(name));
+        }
+
+        return typed;
+    }
+
     [Fact]
     public async Task MutableOptions()
     {
@@ -755,21 +790,21 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         options.CommandMap = CommandMap.Envoyproxy;
         Assert.NotSame(options.CommandMap, conn.CommandMap);
 
-#pragma warning disable CS0618 // Type or member is obsolete
+        // note: the ConnectionMultiplexer-level versions of these are [Obsolete(..., error: true)], so they
+        // can only be reached via reflection - see GetObsoleteProperty
         // Defaults true
         Assert.True(options.IncludeDetailInExceptions);
-        Assert.True(conn.IncludeDetailInExceptions);
+        Assert.True(GetObsoleteProperty<bool>(conn, nameof(options.IncludeDetailInExceptions)));
         options.IncludeDetailInExceptions = false;
         Assert.False(options.IncludeDetailInExceptions);
-        Assert.False(conn.IncludeDetailInExceptions);
+        Assert.False(GetObsoleteProperty<bool>(conn, nameof(options.IncludeDetailInExceptions)));
 
         // Defaults false
         Assert.False(options.IncludePerformanceCountersInExceptions);
-        Assert.False(conn.IncludePerformanceCountersInExceptions);
+        Assert.False(GetObsoleteProperty<bool>(conn, nameof(options.IncludePerformanceCountersInExceptions)));
         options.IncludePerformanceCountersInExceptions = true;
         Assert.True(options.IncludePerformanceCountersInExceptions);
-        Assert.True(conn.IncludePerformanceCountersInExceptions);
-#pragma warning restore CS0618
+        Assert.True(GetObsoleteProperty<bool>(conn, nameof(options.IncludePerformanceCountersInExceptions)));
 
         var newName = Guid.NewGuid().ToString();
         options.ClientName = newName;

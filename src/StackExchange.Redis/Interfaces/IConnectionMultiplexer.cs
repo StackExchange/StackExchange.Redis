@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using static StackExchange.Redis.ConnectionMultiplexer;
@@ -76,7 +77,7 @@ public interface IConnectionMultiplexer : IDisposable, IAsyncDisposable
     /// <summary>
     /// Should exceptions include identifiable details? (key names, additional <see cref="Exception.Data"/> annotations).
     /// </summary>
-    [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
+    [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.2.", error: true)]
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     bool IncludeDetailInExceptions { get; set; }
 

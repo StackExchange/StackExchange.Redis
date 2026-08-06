@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The numeric identifier of this database.
         /// </summary>
-        int Database { get; }
+        new int Database { get; }
 
         /// <summary>
         /// Allows creation of a group of operations that will be sent to the server as a single unit,
@@ -32,7 +32,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="asyncState">The async object state to be passed into the created <see cref="ITransaction"/>.</param>
         /// <returns>The created transaction.</returns>
-        ITransaction CreateTransaction(object? asyncState = null);
+        // hides IDatabaseAsync.CreateTransaction, refining the return type from ITransactionAsync to ITransaction
+        new ITransaction CreateTransaction(object? asyncState = null);
 
         /// <summary>
         /// Atomically transfer a key from a source Redis instance to a destination Redis instance.

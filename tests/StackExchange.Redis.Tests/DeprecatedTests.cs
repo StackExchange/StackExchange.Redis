@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Reflection;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -8,63 +9,75 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class DeprecatedTests(ITestOutputHelper output) : TestBase(output)
 {
-#pragma warning disable CS0618 // Type or member is obsolete
+    // note: everything under test here is [Obsolete(..., error: true)], so it cannot be named directly - not
+    // even via nameof, and #pragma cannot suppress an error; reflection is the only way to reach these members
+    private static PropertyInfo AssertObsoleteAsError(string name)
+    {
+        var property = typeof(ConfigurationOptions).GetProperty(name)
+            ?? throw new MissingMemberException(nameof(ConfigurationOptions), name);
+        var obsolete = property.GetCustomAttribute<ObsoleteAttribute>();
+        Assert.NotNull(obsolete);
+        Assert.True(obsolete.IsError, $"{name} should be obsolete as an error");
+        return property;
+    }
+
+    private static T Get<T>(PropertyInfo property, ConfigurationOptions options) => (T)property.GetValue(options)!;
+
     [Fact]
     public void HighPrioritySocketThreads()
     {
-        Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.HighPrioritySocketThreads))!, typeof(ObsoleteAttribute)));
+        var property = AssertObsoleteAsError("HighPrioritySocketThreads");
 
         var options = ConfigurationOptions.Parse("name=Hello");
-        Assert.False(options.HighPrioritySocketThreads);
+        Assert.False(Get<bool>(property, options));
 
         options = ConfigurationOptions.Parse("highPriorityThreads=true");
         Assert.Equal("", options.ToString());
-        Assert.False(options.HighPrioritySocketThreads);
+        Assert.False(Get<bool>(property, options));
 
         options = ConfigurationOptions.Parse("highPriorityThreads=false");
         Assert.Equal("", options.ToString());
-        Assert.False(options.HighPrioritySocketThreads);
+        Assert.False(Get<bool>(property, options));
     }
 
     [Fact]
     public void PreserveAsyncOrder()
     {
-        Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.PreserveAsyncOrder))!, typeof(ObsoleteAttribute)));
+        var property = AssertObsoleteAsError("PreserveAsyncOrder");
 
         var options = ConfigurationOptions.Parse("name=Hello");
-        Assert.False(options.PreserveAsyncOrder);
+        Assert.False(Get<bool>(property, options));
 
         options = ConfigurationOptions.Parse("preserveAsyncOrder=true");
         Assert.Equal("", options.ToString());
-        Assert.False(options.PreserveAsyncOrder);
+        Assert.False(Get<bool>(property, options));
 
         options = ConfigurationOptions.Parse("preserveAsyncOrder=false");
         Assert.Equal("", options.ToString());
-        Assert.False(options.PreserveAsyncOrder);
+        Assert.False(Get<bool>(property, options));
     }
 
     [Fact]
     public void WriteBufferParse()
     {
-        Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.WriteBuffer))!, typeof(ObsoleteAttribute)));
+        var property = AssertObsoleteAsError("WriteBuffer");
 
         var options = ConfigurationOptions.Parse("name=Hello");
-        Assert.Equal(0, options.WriteBuffer);
+        Assert.Equal(0, Get<int>(property, options));
 
         options = ConfigurationOptions.Parse("writeBuffer=8092");
-        Assert.Equal(0, options.WriteBuffer);
+        Assert.Equal(0, Get<int>(property, options));
     }
 
     [Fact]
     public void ResponseTimeout()
     {
-        Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.ResponseTimeout))!, typeof(ObsoleteAttribute)));
+        var property = AssertObsoleteAsError("ResponseTimeout");
 
         var options = ConfigurationOptions.Parse("name=Hello");
-        Assert.Equal(0, options.ResponseTimeout);
+        Assert.Equal(0, Get<int>(property, options));
 
         options = ConfigurationOptions.Parse("responseTimeout=1000");
-        Assert.Equal(0, options.ResponseTimeout);
+        Assert.Equal(0, Get<int>(property, options));
     }
-#pragma warning restore CS0618
 }

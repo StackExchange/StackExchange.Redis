@@ -37,6 +37,9 @@
 
     <None Include="README.md" Pack="true" PackagePath="\"/>
 
+    <!-- imported into consuming projects; makes <RedisMinServerVersion> visible to the shipped analyzer -->
+    <None Include="build\StackExchange.Redis.props" Pack="true" PackagePath="build\" />
+
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
   </ItemGroup>
 
@@ -59,5 +62,52 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RESPite\RESPite.csproj" />
+  </ItemGroup>
+
+  <!--
+    Ship eng/StackExchange.Redis.Build as the package's analyzer. Every project already references it (see
+    Directory.Build.props) with ReferenceOutputAssembly="false", so it is a build-time tool here and not a
+    dependency; this is what additionally puts it in the package for consumers.
+
+    analyzers/dotnet/cs is the conventional path, and applies to all consumer target frameworks. Roslyn itself
+    is PrivateAssets="all" in that project so it is not carried along - the host supplies it.
+
+    The path is asked of the project rather than assembled from bin/$(Configuration), so that a change to the
+    output layout cannot quietly produce a package with no analyzer in it. The existence check is the point:
+    Packing without having built the analyzer is otherwise a silent omission, and the failure mode downstream
+    (no diagnostics, ever, for any consumer) is invisible.
+  -->
+  <Target Name="_ResolveSERAnalyzerForPackaging" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0">
+      <Output TaskParameter="TargetOutputs" ItemName="_SERAnalyzerAssembly" />
+    </MSBuild>
+
+    <Error Condition="'@(_SERAnalyzerAssembly)' == ''"
+           Text="Could not resolve the StackExchange.Redis.Build analyzer output; the package would ship without its analyzer." />
+    <Error Condition="!Exists('%(_SERAnalyzerAssembly.FullPath)')"
+           Text="The StackExchange.Redis.Build analyzer has not been built (%(_SERAnalyzerAssembly.FullPath)); build it before packing." />
+
+    <ItemGroup>
+      <!-- no trailing separator: these items are absolute paths, and NuGet appends one itself - a trailing
+           slash here produces "analyzers/dotnet/cs//Foo.dll", which loads but is a malformed package path -->
+      <None Include="@(_SERAnalyzerAssembly)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <Compile Update="Availability/MultiGroupDatabase.*.cs">
+      <DependentUpon>MultiGroupDatabase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/HealthCheck.*.cs">
+      <DependentUpon>HealthCheck.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/HealthCheckProbe.*.cs">
+      <DependentUpon>HealthCheckProbe.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Availability/MultiGroupSubscriber.*.cs">
+      <DependentUpon>MultiGroupSubscriber.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 </Project>

@@ -3,3 +3,8 @@ StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.get -> S
 StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.set -> void
 System.Runtime.CompilerServices.IsExternalInit (forwarded, contained in System.Runtime)
 StackExchange.Redis.ConfigurationOptions.SetUserPemCertificate(string! userCertificatePath, string? userKeyPath = null) -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.DisposeAsync() -> System.Threading.Tasks.ValueTask
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Read(System.Span<byte> buffer) -> int
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Write(System.ReadOnlySpan<byte> buffer) -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

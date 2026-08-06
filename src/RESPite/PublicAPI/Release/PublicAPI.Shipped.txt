@@ -1,0 +1,2 @@
+#nullable enable
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.Current.get -> RESPite.Messages.RespReader

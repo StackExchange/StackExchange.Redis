@@ -4,7 +4,7 @@ using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace StackExchange.Redis;
+namespace RESPite.Streams;
 
 internal sealed class PipeStreamWriter : BufferedStreamWriter
 {

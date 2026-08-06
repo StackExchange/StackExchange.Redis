@@ -106,6 +106,7 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
 
         var prefix = Me() + ":";
         var foo = raw.WithKeyPrefix(prefix);
+        Output.WriteLine($"prefixed db features: {foo}"); // should be KeyPrefix (not Transaction/Batch)
 
         raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
         raw.KeyDelete(prefix + "i", CommandFlags.FireAndForget);

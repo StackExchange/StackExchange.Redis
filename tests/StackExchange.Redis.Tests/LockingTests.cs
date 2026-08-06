@@ -58,7 +58,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
             ThreadPool.QueueUserWorkItem(Inner, conn2.GetDatabase(db));
             evt.WaitOne(8000);
         }
-        Assert.Equal(0, Interlocked.CompareExchange(ref errorCount, 0, 0));
+        Assert.Equal(0, Volatile.Read(ref errorCount));
         Assert.Equal(0, bgErrorCount);
     }
 

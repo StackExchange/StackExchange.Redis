@@ -6,7 +6,8 @@ namespace StackExchange.Redis;
 // ReSharper disable InconsistentNaming
 internal enum RedisCommand
 {
-    NONE, // must be first for "zero reasons"
+    [AsciiHash("")] // not a command; must be first for "zero reasons"
+    NONE,
 
     APPEND,
     ASKING,

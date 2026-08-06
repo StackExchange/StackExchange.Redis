@@ -35,6 +35,7 @@ Documentation
 - [Basic Usage](Basics) - getting started and basic usage
 - [Async Timeouts](AsyncTimeouts) - async timeouts and cancellation
 - [Configuration](Configuration) - options available when connecting to redis
+- [Client-side geographic failover](Failover) (Active-Active / "multi-DB client") - connecting to multiple redundant Redis endpoints for high availability
 - [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?
 - [Keys, Values and Channels](KeysValues) - discusses the data-types used on the API
 - [Transactions](Transactions) - how atomic transactions work in redis
@@ -57,6 +58,7 @@ Documentation
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
 - [RESP Logging](RespLogging) - capturing and validating RESP streams
+- [Analyzer rules](rules/) - the `SER3xx` suggestions reported by the analyzer shipped in the package
 
 Questions and Contributions
 ---

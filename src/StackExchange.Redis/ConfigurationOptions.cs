@@ -13,6 +13,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RESPite;
+using RESPite.Buffers;
+using RESPite.Streams;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -39,6 +43,12 @@ namespace StackExchange.Redis
                 if (tmp < minValue) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' has a minimum value of '{minValue}'; the value '{tmp}' is not permitted.");
                 if (tmp > maxValue) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' has a maximum value of '{maxValue}'; the value '{tmp}' is not permitted.");
                 return tmp;
+            }
+
+            public static float ParseSingle(string key, string value)
+            {
+                if (!Format.TryParseDouble(value, out double tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a numeric value; the value '{value}' is not recognised.");
+                return (float)tmp;
             }
 
             internal static bool ParseBoolean(string key, string value)
@@ -345,7 +355,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the connection should be encrypted.
         /// </summary>
-        [Obsolete("Please use .Ssl instead of .UseSsl, will be removed in 3.0."),
+        [Obsolete("Please use .Ssl instead of .UseSsl, will be removed in 3.2.", error: true),
          Browsable(false),
          EditorBrowsable(EditorBrowsableState.Never)]
         public bool UseSsl
@@ -672,7 +682,7 @@ namespace StackExchange.Redis
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).
         /// If <see langword="false"/>, <see cref="ThreadPriority.Normal"/> will be used.
         /// </summary>
-        [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 3.0.")]
+        [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool HighPrioritySocketThreads
         {
@@ -771,7 +781,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
-        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + " - this will be removed in 3.0.", false)]
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + " - this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool PreserveAsyncOrder
         {
@@ -819,7 +829,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy.
         /// </summary>
-        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
+        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int ResponseTimeout
         {
@@ -899,11 +909,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The size of the output buffer to use.
         /// </summary>
-        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.0.")]
+        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int WriteBuffer
         {
             get => 0;
+            // ReSharper disable once ValueParameterNotUsed
             set { }
         }
 
@@ -994,6 +1005,8 @@ namespace StackExchange.Redis
             _protocol = _protocol,
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
+            CircuitBreaker = CircuitBreaker,
+            RetryPolicy = RetryPolicy,
 #if DEBUG
             OutputLog = OutputLog,
 #endif
@@ -1199,6 +1212,8 @@ namespace StackExchange.Redis
             Tunnel = null;
             _protocol = default;
             WriteMode = default;
+            CircuitBreaker = null;
+            RetryPolicy = null;
 #if DEBUG
             OutputLog = null;
 #endif
@@ -1405,6 +1420,28 @@ namespace StackExchange.Redis
         }
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
+
+        /// <summary>
+        /// The circuit-breaker to apply to physical connections; when <c>null</c>, no breaker is used.
+        /// </summary>
+        /// <remarks>
+        /// For a member of a connection group, the effective breaker is
+        /// <see cref="ConnectionGroupMember.CircuitBreaker"/>, else this, else
+        /// <see cref="MultiGroupOptions.CircuitBreaker"/>.
+        /// </remarks>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+        public CircuitBreaker? CircuitBreaker { get; set; }
+
+        /// <summary>
+        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry"/> for databases
+        /// obtained from this connection; when <c>null</c>, <see cref="RetryPolicy.Default"/> is used.
+        /// </summary>
+        /// <remarks>
+        /// For a member of a connection group, <see cref="MultiGroupOptions.RetryPolicy"/> applies instead.
+        /// </remarks>
+        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
+        public RetryPolicy? RetryPolicy { get; set; }
+
         internal bool AllowSimulateConnectionFailure
         {
             get => IsSet(OptionFlags.AllowSimulateConnectionFailure);

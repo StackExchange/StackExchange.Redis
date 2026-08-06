@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal partial class KeyPrefixed<TInner> : IDatabaseAsync where TInner : IDatabaseAsync
+    internal partial class KeyPrefixed<TInner> : IDatabaseAsync, IInternalDatabaseAsync where TInner : IDatabaseAsync
     {
         internal KeyPrefixed(TInner inner, byte[] keyPrefix)
         {
@@ -17,9 +19,32 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public IConnectionMultiplexer Multiplexer => Inner.Multiplexer;
 
+        public int Database => Inner.Database;
+
+        // default: this wrapper is not a full database (it is the base for the batch/transaction wrappers too),
+        // so it cannot start a transaction; KeyPrefixedDatabase reimplements this to prefix a real one
+        ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState)
+            => throw new NotSupportedException("Transactions cannot be created here");
+
         internal TInner Inner { get; }
 
         internal byte[] Prefix { get; }
+
+        DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
+            => Inner.GetFeatures(out name) | GetDatabaseFeatures();
+
+        CancellationToken IInternalDatabaseAsync.GetNextFailover() => Inner.GetNextFailover();
+
+        // this wrapper does not stamp its own async-state; it inherits whatever the inner database uses
+        object? IInternalDatabaseAsync.AsyncState => Inner.GetAsyncState();
+
+        // the flags contributed by this wrapper itself (on top of the inner database); the batch and
+        // transaction subclasses override to fold in their own flag, mirroring RedisDatabase/RedisBatch/
+        // RedisTransaction rather than relying on the inner instance to carry it.
+        private protected virtual DatabaseFeatureFlags GetDatabaseFeatures()
+            => DatabaseFeatureFlags.KeyPrefix;
+
+        public override string ToString() => this.BuildString();
 
         public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.DebugObjectAsync(ToInner(key), flags);

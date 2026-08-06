@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <!-- the analyzer test harness needs a newer Roslyn than the shipped analyzer targets; see
+         Directory.Packages.props. Testing at the shipped floor is not achievable, and is accepted. -->
+    <NoWarn>$(NoWarn);NU1608;NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- referenced as a library (not just as an analyzer) so tests can instantiate the analyzer directly -->
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
+                      OutputItemType="" ReferenceOutputAssembly="true" />
+    <!-- the analyzer resolves StackExchange.Redis.Condition by metadata name, so the test compilation must
+         actually reference the library; without this every test would pass by finding nothing -->
+    <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Testing.Platform" />
+  </ItemGroup>
+</Project>

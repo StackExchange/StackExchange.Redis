@@ -14,7 +14,8 @@ internal sealed class CodeWriter(StringBuilder buffer)
     /// <summary>Starts a new line, applying the current indent.</summary>
     public CodeWriter NewLine()
     {
-        buffer.AppendLine().Append(' ', _indent * 4);
+        buffer.AppendLine();
+        _lineHasContent = false;
         return this;
     }
 
@@ -32,26 +33,41 @@ internal sealed class CodeWriter(StringBuilder buffer)
         return this;
     }
 
+    private bool _lineHasContent;
+
+    private void IndentIfNeeded()
+    {
+        if (!_lineHasContent)
+        {
+            buffer.Append(' ', _indent * 4);
+            _lineHasContent = true;
+        }
+    }
+
     public CodeWriter Append(string? value)
     {
+        IndentIfNeeded();
         buffer.Append(value);
         return this;
     }
 
     public CodeWriter Append(char value)
     {
+        IndentIfNeeded();
         buffer.Append(value);
         return this;
     }
 
     public CodeWriter Append(int value)
     {
+        IndentIfNeeded();
         buffer.Append(value);
         return this;
     }
 
     public CodeWriter Append(long value)
     {
+        IndentIfNeeded();
         buffer.Append(value);
         return this;
     }

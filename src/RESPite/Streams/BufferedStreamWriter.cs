@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Buffers;
 
-namespace StackExchange.Redis;
+namespace RESPite.Streams;
 
 internal abstract class BufferedStreamWriter(Stream target, CancellationToken cancellationToken)
     : IBufferWriter<byte>, IDisposable, IAsyncDisposable
@@ -57,22 +57,15 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public virtual bool IsSync => false;
 
-    public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, ConfigurationOptions? options, CancellationToken cancellationToken)
-    {
-        if (connectionType is ConnectionType.Subscription | mode is WriteMode.Default)
+    public static BufferedStreamWriter Create(WriteMode mode, Stream target, MemoryPool<byte>? bufferPool, CancellationToken cancellationToken)
+        => mode switch
         {
-            // sync-mode targets latency; pub/sub never needs that;
-            // default write-mode should use async
-            mode = WriteMode.Async;
-        }
-        return mode switch
-        {
-            WriteMode.Sync => new SwitchableBufferedStreamWriter(options?.RequestBufferPool, target, cancellationToken, initiallySync: true),
-            WriteMode.Async => new SwitchableBufferedStreamWriter(options?.RequestBufferPool, target, cancellationToken, initiallySync: false),
+            WriteMode.Sync => new SwitchableBufferedStreamWriter(bufferPool, target, cancellationToken, initiallySync: true),
+            // sync-mode targets latency; the safe default is async
+            WriteMode.Default or WriteMode.Async => new SwitchableBufferedStreamWriter(bufferPool, target, cancellationToken, initiallySync: false),
             WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
-    }
 
     // ReSharper disable once ReplaceWithFieldKeyword
     private readonly CancellationToken _cancellationToken = cancellationToken;

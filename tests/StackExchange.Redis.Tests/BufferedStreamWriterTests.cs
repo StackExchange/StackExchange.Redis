@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Streams;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -17,7 +18,7 @@ public class BufferedStreamWriterTests
     public async Task FlushStateDoesNotLeakIntoNextPageActivation(WriteMode mode)
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, ConnectionType.Interactive, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, null, CancellationToken.None);
         try
         {
             Write(writer, 1, 1);
@@ -50,7 +51,7 @@ public class BufferedStreamWriterTests
     public async Task WriterDoesNotLoseFlushRequestedDuringDrainFlush(WriteMode mode)
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, ConnectionType.Interactive, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, null, CancellationToken.None);
         try
         {
             stream.BlockNextFlush();
@@ -81,7 +82,7 @@ public class BufferedStreamWriterTests
     {
         var failure = new IOException("simulated target write failure");
         var stream = new ObservedStream { WriteException = failure };
-        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, ConnectionType.Interactive, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, null, CancellationToken.None);
 
         Write(writer, 1, 1);
         writer.Flush();
@@ -101,7 +102,7 @@ public class BufferedStreamWriterTests
     public async Task SyncWriterTransitionsToAsyncWhileIdleAndPreservesBufferedData()
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, ConnectionType.Interactive, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, stream, null, CancellationToken.None);
         try
         {
             Assert.True(writer.IsSync);
@@ -135,7 +136,7 @@ public class BufferedStreamWriterTests
     public async Task SyncWriterTransitionsToAsyncAfterActiveSyncDrain()
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, ConnectionType.Interactive, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, stream, null, CancellationToken.None);
         try
         {
             stream.BlockNextWrite();
@@ -215,7 +216,7 @@ public class BufferedStreamWriterTests
         private TaskCompletionSource<bool>? _blockedFlush, _allowFlush;
 
         public Exception? WriteException { get; set; }
-        public long BytesWritten => Interlocked.Read(ref _bytesWritten);
+        public long BytesWritten => Volatile.Read(ref _bytesWritten);
         public int SyncWriteCount => Volatile.Read(ref _syncWriteCount);
         public int AsyncWriteCount => Volatile.Read(ref _asyncWriteCount);
         public byte[] WrittenBytes

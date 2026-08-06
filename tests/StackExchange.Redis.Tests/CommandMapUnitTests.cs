@@ -47,4 +47,20 @@ public class CommandMapUnitTests
         Assert.True(RedisCommandMetadata.TryParseCI(bytes, out var fromBytes), $"byte parse failed for '{name}'");
         Assert.Equal(expectedCommand, fromBytes);
     }
+
+    [Theory]
+    // NONE is a client-side sentinel, not a command, so it carries an explicit empty AsciiHash
+    // token and must not be parsable in any casing
+    [InlineData("NONE")]
+    [InlineData("none")]
+    [InlineData("None")]
+    // and something that was never a command, for baseline
+    [InlineData("NOT_A_COMMAND")]
+    public void TryParseCI_RejectsNonCommands(string name)
+    {
+        Assert.False(RedisCommandMetadata.TryParseCI(name.AsSpan(), out _), $"char parse unexpectedly succeeded for '{name}'");
+
+        ReadOnlySpan<byte> bytes = Encoding.ASCII.GetBytes(name);
+        Assert.False(RedisCommandMetadata.TryParseCI(bytes, out _), $"byte parse unexpectedly succeeded for '{name}'");
+    }
 }

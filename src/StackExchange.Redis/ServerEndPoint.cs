@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Availability;
 using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
@@ -422,7 +423,8 @@ namespace StackExchange.Redis
             }
             if (commandMap.IsAvailable(RedisCommand.SENTINEL))
             {
-                msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+                // SENTINEL MASTERS only reads the sentinel's view, despite SENTINEL defaulting to server-admin
+                msg = Message.Create(-1, flags.WithCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
@@ -463,7 +465,7 @@ namespace StackExchange.Redis
             }
             if (commandMap.IsAvailable(RedisCommand.CLUSTER))
             {
-                msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
+                msg = RedisServer.GetClusterNodesMessage(flags);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
             }
@@ -1144,6 +1146,20 @@ namespace StackExchange.Redis
             if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
         }
+
+        public void SetLatency(DateTime startTime)
+        {
+            try
+            {
+                LatencyTicks = ConnectionGroupMember.ToLatencyTicks(DateTime.UtcNow - startTime);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+        }
+
+        internal uint LatencyTicks { get; private set; } = uint.MaxValue;
 
         private ProductVariant _productVariant = ProductVariant.Redis;
         private string _productVersion = "";

@@ -17,6 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- in-box from net10.0; needed by Streams/BufferedStreamWriter.Pipe.cs elsewhere -->
+    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))" Include="System.IO.Pipelines"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="RESPite.Tests"/>
     <None Include="readme.md" Pack="true" PackagePath="/"/>
   </ItemGroup>
@@ -40,6 +45,8 @@
     <AdditionalFiles Include="PublicAPI/PublicAPI.*.txt" />
     <!-- progressively additive APIs in later frameworks; each folder is effectively NET_X_Y_OR_GREATER -->
     <AdditionalFiles Include="PublicAPI/net8.0/PublicAPI.*.txt" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))"/>
+    <!-- conditional symbol entries (debug hacks); e.g. members that are only [Experimental] in DEBUG -->
+    <AdditionalFiles Include="PublicAPI/$(Configuration)/PublicAPI.*.txt" />
 
     <InternalsVisibleTo Include="StackExchange.Redis" />
     <InternalsVisibleTo Include="StackExchange.Redis.Tests" />

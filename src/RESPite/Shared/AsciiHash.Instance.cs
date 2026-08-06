@@ -4,7 +4,12 @@ using System.Text;
 
 namespace RESPite;
 
-public readonly partial struct AsciiHash : IEquatable<AsciiHash>
+public readonly partial struct AsciiHash : IEquatable<AsciiHash>,
+#if NET
+    ISpanFormattable
+#else
+    IFormattable
+#endif
 {
     // ReSharper disable InconsistentNaming
     private readonly long _hashCS, _hashUC;
@@ -71,4 +76,23 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>
         if (uc != _hashUC | value.Length != len) return false;
         return len <= MaxBytesHashed || SequenceEqualsCI(Span, value);
     }
+
+    string IFormattable.ToString(string? format, IFormatProvider? formatProvider) => ToString();
+
+#if NET
+    bool ISpanFormattable.TryFormat(
+        Span<char> destination,
+        out int charsWritten,
+        ReadOnlySpan<char> format,
+        IFormatProvider? provider)
+    {
+        charsWritten = 0;
+        var source = Span;
+        if (source.IsEmpty) return true;
+        if (source.Length > destination.Length) return false;
+
+        charsWritten = Encoding.ASCII.GetChars(source, destination);
+        return true;
+    }
+#endif
 }
