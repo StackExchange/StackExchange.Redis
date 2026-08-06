@@ -530,6 +530,75 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
             "StringSet[Async](key, value, When.NotExists)"));
 
     [Fact]
+    // CommandFlags is on every single command, no suggestion mentions it, and the rewrite carries it over
+    // verbatim - so it is never a reason to go quiet. Deliberately the *only* extra argument in these three,
+    // where GuardedOperationWithExpiryAndFlags_IsStillFlagged has an expiry beside it and so would still pass
+    // if flags alone suppressed everything. One per family, because the audit runs in three separate places.
+    public Task FlagsAloneOnGuardedOperation_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value", flags: CommandFlags.DemandMaster);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    public Task FlagsAloneOnCommandPair_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = {|#0:tran.StringGetAsync(key, CommandFlags.DemandMaster)|};
+                _ = tran.KeyDeleteAsync(key, CommandFlags.DemandMaster);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER303").WithLocation(0).WithArguments(
+            "StringGetAsync",
+            "KeyDeleteAsync",
+            "StringGetDelete[Async](key)",
+            " (requires server 6.2 or later)"));
+
+    [Fact]
+    public Task FlagsAloneOnRepeatedCommand_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = {|#0:tran.SetAddAsync(key, "a", CommandFlags.DemandMaster)|};
+                _ = tran.SetAddAsync(key, "b", CommandFlags.FireAndForget);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER304").WithLocation(0).WithArguments(
+            "SetAddAsync",
+            "2",
+            "SetAdd[Async](key, values)",
+            ""));
+
+    [Fact]
     // family C keeps the command exactly as written, so no argument of it can be dropped and none suppresses
     public Task RedundantConditionWithExtraArguments_IsStillFlagged() => VerifyAsync(
         """

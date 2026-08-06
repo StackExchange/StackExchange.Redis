@@ -891,7 +891,15 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             foreach (var argument in invocation.Arguments)
             {
                 if (argument.ArgumentKind != ArgumentKind.Explicit) continue;
-                if (argument.Parameter is not { } parameter || known.IsCommandFlags(parameter.Type)) continue;
+                if (argument.Parameter is not { } parameter) continue;
+
+                // Flags never bear on any of this: they are on every command, no suggestion mentions them, and
+                // the rewrite carries them over verbatim. Recognised by name as well as by type, because the
+                // consequence of failing to recognise them is not a missed exclusion but silence everywhere -
+                // every command takes flags, so one unrecognised spelling would suppress every rule for anyone
+                // who passes them. Belt and braces is cheap here; the type lookup is the one that can be null.
+                if (parameter.Name == "flags" || known.IsCommandFlags(parameter.Type)) continue;
+
                 (names ??= new List<string>()).Add(parameter.Name);
             }
 
