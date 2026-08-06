@@ -131,10 +131,15 @@ jobs:
 
           # Poll rather than `sleep 5`: on a fast machine this returns almost immediately, and on a
           # slow one it actually waits long enough. A fixed sleep gets both cases wrong.
+          #
+          # NB: this shell runs with -euo pipefail, so a bare `out=$(redis-cli ...)` aborts the whole
+          # step the instant a server is not yet accepting connections - i.e. precisely the state we
+          # are here to wait out. Every probe therefore tolerates failure explicitly.
+          missing=""
           for p in $PORTS; do
             ready=""
             for _ in $(seq 1 30); do
-              out=$(redis-cli -p "$p" PING 2>&1)
+              out=$(redis-cli -p "$p" PING 2>&1 || true)
               # secure-6381 answers NOAUTH without credentials, which still proves it is listening
               case "$out" in
                 PONG|*NOAUTH*) ready="yes"; break ;;
@@ -145,9 +150,17 @@ jobs:
               echo "port $p ready: $(redis-cli -p "$p" INFO SERVER 2>/dev/null | grep redis_version || echo 'version unavailable')"
             else
               echo "port $p DID NOT COME UP"
+              missing="$missing $p"
             fi
           done
-        continue-on-error: true
+
+          # Deliberately fatal, and deliberately not continue-on-error: running ~5000 tests against
+          # servers that never started produces thousands of confusing connection failures ten
+          # minutes later, instead of one clear message here.
+          if [ -n "$missing" ]; then
+            echo "::error::no server on:$missing"
+            exit 1
+          fi
 
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
