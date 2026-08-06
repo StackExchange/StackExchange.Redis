@@ -41,7 +41,7 @@ Documentation
 - [Transactions](Transactions) - how atomic transactions work in redis
 - [Compare-And-Swap / Compare-And-Delete (CAS/CAD)](CompareAndSwap) - atomic conditional operations using value comparison
 - [Events](Events) - the events available for logging / information purposes
-- [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
+- [Pub/Sub Message Order](PubSubOrder.md) - advice on sequential and concurrent processing
 - [Pub/Sub Key Notifications](KeyspaceNotifications) - how to use keyspace and keyevent notifications
 - [Hot Keys](HotKeys) - how to use `HOTKEYS` profiling
 - [Using RESP3](Resp3) - information on using RESP3
