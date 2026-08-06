@@ -1,2 +1,6 @@
 #nullable enable
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
+StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
 [SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>

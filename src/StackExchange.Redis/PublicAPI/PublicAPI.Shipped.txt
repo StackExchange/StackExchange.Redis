@@ -287,10 +287,6 @@ StackExchange.Redis.ConfigurationOptions.ResolveDns.get -> bool
 StackExchange.Redis.ConfigurationOptions.ResolveDns.set -> void
 StackExchange.Redis.ConfigurationOptions.ResponseTimeout.get -> int
 StackExchange.Redis.ConfigurationOptions.ResponseTimeout.set -> void
-StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
 StackExchange.Redis.ConfigurationOptions.ServiceName.get -> string?
 StackExchange.Redis.ConfigurationOptions.ServiceName.set -> void
 StackExchange.Redis.ConfigurationOptions.SetClientLibrary.get -> bool
