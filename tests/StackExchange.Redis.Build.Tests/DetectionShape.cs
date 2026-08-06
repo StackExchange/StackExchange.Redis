@@ -429,6 +429,130 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
             "StringSet[Async](key, value, When.NotExists)"));
 
     [Fact]
+    // The worst of the dropped-argument cases, because the damage outlives the build: MSET takes one expiry
+    // for the whole batch, not one per key, so collapsing these would make both keys permanent.
+    public Task VariadicWouldDropExpiry_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey a, RedisKey b)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringSetAsync(a, "1", TimeSpan.FromMinutes(1));
+                _ = tran.StringSetAsync(b, "2", TimeSpan.FromMinutes(5));
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // HSET's variadic form has no NX
+    public Task VariadicWouldDropWhen_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.HashSetAsync(key, "f1", "v1", When.NotExists);
+                _ = tran.HashSetAsync(key, "f2", "v2", When.NotExists);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // GETEX has no NX/XX, so the ExpireWhen has nowhere to go
+    public Task PairWouldDropExpireWhen_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringGetAsync(key);
+                _ = tran.KeyExpireAsync(key, TimeSpan.FromMinutes(1), ExpireWhen.HasNoExpiry);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // The caller's own when: is not an argument to move but a statement to overwrite - and this pairing says
+    // "only if absent, and only if present", which is code we should not be rewriting on a guess.
+    public Task GuardedOperationWithItsOwnWhen_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.KeyNotExists(key));
+                _ = tran.StringSetAsync(key, "value", when: When.Exists);
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // The control, and the reason this is per-mapping coverage rather than "any extra argument is out":
+    // SET does take an expiry alongside NX, so the commonest lock-acquire shape there is must still be
+    // flagged. CommandFlags likewise - it appears on every command, and is carried over rather than dropped.
+    public Task GuardedOperationWithExpiryAndFlags_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyNotExists(key))|};
+                _ = tran.StringSetAsync(key, "value", TimeSpan.FromMinutes(1), flags: CommandFlags.DemandMaster);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER300").WithLocation(0).WithArguments(
+            "Condition.KeyNotExists",
+            "StringSetAsync",
+            "StringSet[Async](key, value, When.NotExists)"));
+
+    [Fact]
+    // family C keeps the command exactly as written, so no argument of it can be dropped and none suppresses
+    public Task RedundantConditionWithExtraArguments_IsStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                {|#0:tran.AddCondition(Condition.KeyExists(key))|};
+                _ = tran.KeyExpireAsync(key, TimeSpan.FromMinutes(1), ExpireWhen.HasNoExpiry);
+                await tran.ExecuteAsync();
+            }
+        }
+        """,
+        Diagnostic("SER302").WithLocation(0).WithArguments(
+            "Condition.KeyExists",
+            "KeyExpireAsync",
+            "KeyExpire[Async](key, expiry), which returns false if the key did not exist"));
+
+    [Fact]
     // two independent transactions in one method must be tracked separately, not pooled into one set of counts
     public Task TwoIndependentTransactions_AreFlaggedIndependently() => VerifyAsync(
         """
