@@ -1848,7 +1848,11 @@ HaveString:
             switch (Type)
             {
                 case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
-                    var span = UnsafeRawSpan(out _);
+                    // named local rather than 'out _': on the TFMs without CreateReadOnlySpan a short blob's
+                    // span is built over a pointer to this slot, and it has to stay put while we read through
+                    // it (see BlobSequenceEqual, which names its locals for the same reason)
+                    long scratch;
+                    var span = UnsafeRawSpan(out scratch);
                     return !span.IsEmpty && span[span.Length - 1] == value;
                 case StorageType.Sequence:
                     return RawSequence().TryGetLast(out var last) && last == value;
