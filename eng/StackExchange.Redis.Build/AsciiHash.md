@@ -117,7 +117,9 @@ public static partial bool TryParse(ReadOnlySpan<byte> value, out SomeEnum value
 Individual enum members can also be marked with `[AsciiHash("token value")]` to override the token payload. If
 an enum member declares an empty explicit value (i.e. `[AsciiHash("")]`), then that member is ignored by the
 tool; this is useful for marking "unknown" or "invalid" enum values (commonly the first enum, which by
-convention has the value `0`):
+convention has the value `0`). Note that this is about the *explicit* empty token: a member with no attribute
+(or a bare `[AsciiHash]`) still infers its token from the member name, so a member that must not be matched
+needs the explicit `[AsciiHash("")]`:
 
 ``` c#
 public enum SomeEnum

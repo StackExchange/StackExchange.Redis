@@ -183,10 +183,32 @@ public class AsciiHashGenerator : IIncrementalGenerator
         }
         if (string.IsNullOrWhiteSpace(value))
         {
-            value = InferPayload(name); // if nothing explicit: infer from name
+            // an explicit empty token means "pretend you don't know about this" (usually the zero
+            // member, i.e. Unknown/None); anything else: infer from the name
+            value = HasExplicitToken(asciiHashAttribute) ? "" : InferPayload(name);
         }
 
         return value;
+    }
+
+    // the attribute's token parameter is optional, so a bare [AsciiHash] and [AsciiHash("")] are
+    // indistinguishable in ConstructorArguments (both report ""); the syntax tells them apart
+    private static bool HasExplicitToken(AttributeData? asciiHashAttribute)
+    {
+        if (asciiHashAttribute?.ApplicationSyntaxReference?.GetSyntax()
+            is not AttributeSyntax { ArgumentList.Arguments: { Count: > 0 } arguments })
+        {
+            return false;
+        }
+
+        foreach (var argument in arguments)
+        {
+            // NameEquals is a property assignment (i.e. CaseSensitive = false); anything else is
+            // the token, whether positional or named (i.e. token: "")
+            if (argument.NameEquals is null) return true;
+        }
+
+        return false;
     }
 
     private static string InferPayload(string name) => name.Replace("_", "-");

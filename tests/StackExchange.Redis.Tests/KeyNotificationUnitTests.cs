@@ -1767,4 +1767,21 @@ public class KeyNotificationUnitTests(ITestOutputHelper log)
         Assert.Equal("field2", (string?)fieldsList[1]);
         Assert.Equal("field3", (string?)fieldsList[2]);
     }
+
+    [Fact]
+    public void GetRawBytes_Unknown_Throws()
+    {
+        // Unknown is a client-side value with no wire token (an explicit empty AsciiHash), so
+        // there is no channel name to emit: reaching here means something is already wrong
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            _ = KeyNotificationTypeMetadata.GetRawBytes(KeyNotificationType.Unknown).Length;
+        });
+        Assert.Equal("type", ex.ParamName);
+
+        // and the public channel factories that route through it
+        Assert.Throws<ArgumentOutOfRangeException>(() => RedisChannel.KeyEvent(KeyNotificationType.Unknown));
+        Assert.Throws<ArgumentOutOfRangeException>(() => RedisChannel.SubKeyEvent(KeyNotificationType.Unknown));
+        Assert.Throws<ArgumentOutOfRangeException>(() => RedisChannel.SubKeySpaceEvent(KeyNotificationType.Unknown, "mykey"));
+    }
 }
