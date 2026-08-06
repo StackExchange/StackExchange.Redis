@@ -150,6 +150,15 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ClusterNodesRaw);
         }
 
+        /// <summary>
+        /// CLUSTER NODES only reads topology, despite CLUSTER as a whole defaulting to server-admin; it stays
+        /// node-scoped because the answer is that node's view of the cluster.
+        /// </summary>
+        /// <remarks>
+        /// The single spelling of this: the topology probes in <c>ServerEndPoint.AutoConfigureAsync</c> and
+        /// <c>ConnectionMultiplexer.GetEndpointsFromClusterNodes</c> come through here too, so the category
+        /// cannot drift between the three places we ask the same question.
+        /// </remarks>
         internal static Message GetClusterNodesMessage(CommandFlags flags)
             => Message.Create(-1, flags.WithCategory(NodeLocalRead), RedisCommand.CLUSTER, RedisLiterals.NODES);
 
