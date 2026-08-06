@@ -1797,9 +1797,19 @@ HaveString:
                     len = Format.FormatDouble(OverlappedValueDouble, buffer);
                     return buffer.Slice(0, len).StartsWith(value);
                 case StorageType.String:
+                    // We hold UTF-16 and are being asked about UTF-8 bytes, and the two do not have the same
+                    // length: a *shorter* string is not grounds to give up, because 2 chars can be 8 bytes.
+                    // Each char is at least one byte, though, so a prefix of value.Length bytes never needs
+                    // more than that many chars - as long as the cut does not land between the halves of a
+                    // surrogate pair, where the encoder would emit U+FFFD instead of what was asked about.
                     var s = RawString().AsSpan();
-                    if (s.Length < value.Length) return false; // not enough characters to match
-                    if (s.Length > value.Length) s = s.Slice(0, value.Length); // only need to match the prefix
+                    if (s.Length > value.Length)
+                    {
+                        var take = value.Length;
+                        if (char.IsHighSurrogate(s[take - 1])) take++; // take < s.Length, so the low half is there
+                        s = s.Slice(0, take);
+                    }
+
                     var maxBytes = Encoding.UTF8.GetMaxByteCount(s.Length);
                     byte[]? lease = null;
                     const int MAX_STACK = 128;

@@ -334,6 +334,51 @@ public class RedisValueEquivalencyUnitTests
         Assert.False(x.StartsWith(100), LineNumber());
     }
 
+    private static ReadOnlySpan<byte> Raw(params byte[] value) => value;
+
+    [Fact]
+    // A string-backed value holds UTF-16, and the prefix is bytes; the two do not have the same length, so
+    // deciding "too short to match" by comparing char count against byte count is wrong the moment anything
+    // is not ASCII. "e-acute, euro" is 2 chars but 5 UTF-8 bytes, so every prefix of 3 bytes or more was
+    // rejected out of hand.
+    public void RedisValueStartsWithMultiByteUtf8String()
+    {
+        RedisValue x = "é€"; // C3 A9 E2 82 AC
+        Assert.Equal(5, x.Length());
+
+        Assert.True(x.StartsWith(Raw(0xC3)), LineNumber());
+        Assert.True(x.StartsWith(Raw(0xC3, 0xA9)), LineNumber());
+        Assert.True(x.StartsWith(Raw(0xC3, 0xA9, 0xE2)), LineNumber());
+        Assert.True(x.StartsWith(Raw(0xC3, 0xA9, 0xE2, 0x82)), LineNumber());
+        Assert.True(x.StartsWith(Raw(0xC3, 0xA9, 0xE2, 0x82, 0xAC)), LineNumber());
+
+        Assert.False(x.StartsWith(Raw(0xC3, 0xA9, 0xE2, 0x82, 0xAD)), LineNumber());
+        Assert.False(x.StartsWith(Raw(0xC3, 0xA9, 0xE2, 0x82, 0xAC, 0x00)), LineNumber());
+        Assert.False(x.StartsWith(Raw(0xE2)), LineNumber());
+
+        // the byte-backed spelling of the same value must of course agree
+        RedisValue y = Encoding.UTF8.GetBytes("é€");
+        Assert.True(y.StartsWith(Raw(0xC3, 0xA9, 0xE2)), LineNumber());
+    }
+
+    [Fact]
+    // The other half of the same problem: a prefix of N bytes needs at most N chars, so the string is cut to
+    // that many before encoding - but cutting between the halves of a surrogate pair leaves a lone surrogate,
+    // which the encoder replaces with U+FFFD (EF BF BD) rather than the bytes the caller is asking about.
+    public void RedisValueStartsWithSurrogatePair()
+    {
+        RedisValue x = "a\U0001F600"; // 'a' + grinning face: 61 F0 9F 98 80
+        Assert.Equal(5, x.Length());
+
+        Assert.True(x.StartsWith(Raw(0x61)), LineNumber());
+        Assert.True(x.StartsWith(Raw(0x61, 0xF0)), LineNumber());
+        Assert.True(x.StartsWith(Raw(0x61, 0xF0, 0x9F)), LineNumber());
+        Assert.True(x.StartsWith(Raw(0x61, 0xF0, 0x9F, 0x98, 0x80)), LineNumber());
+
+        Assert.False(x.StartsWith(Raw(0x61, 0xEF)), LineNumber()); // the U+FFFD a naive cut would produce
+        Assert.False(x.StartsWith(Raw(0x61, 0xF0, 0x9F, 0x98, 0x81)), LineNumber());
+    }
+
     [Fact]
     public void TryParseInt64()
     {
