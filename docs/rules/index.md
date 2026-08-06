@@ -40,6 +40,31 @@ substitute your own expressions.
 
 - [SER350](SER350) - language version too low for generated code
 
+## When these rules stay quiet
+
+Every rule here is deliberately conservative. It ships to every consumer of the package, and a wrong suggestion
+on correct code is worse than no suggestion at all, so the following apply across the whole family - on top of
+whatever each rule's own page lists.
+
+- **Anything else queued on the same transaction.** These rules describe a whole transaction, not a fragment of
+  one. A third queued command means the transaction is doing more than the rule accounts for - and that includes
+  a raw `tran.ExecuteAsync("SOMECMD", ...)` for something the library has no wrapper for.
+- **Commands that do not always queue together.** A command inside an `if`, `switch` or `try` is only collapsible
+  with commands inside the *same* one; opposite arms of an `if`/`else` never queue together at all. A whole
+  transaction inside a conditional is ordinary code and is still flagged.
+- **Commands that might queue more than once**: inside a loop, or inside a lambda or local function, where one
+  call site is any number of queued commands.
+- **Arguments the single command cannot express.** The suggestions are sketches, but only ever of a rewrite that
+  keeps what you wrote. N x `StringSet(key, value, expiry)` is *not* `MSET` - MSET takes one expiry for the whole
+  batch, not one per key - so that stays quiet rather than quietly making your keys permanent. Likewise a `When`
+  on a command whose variadic form has none, an `ExpireWhen` where GETEX has no NX/XX, and your own `when:`
+  argument where the suggestion *is* a `when:` argument. `CommandFlags` is the exception: it is on everything, no
+  suggestion mentions it, and you carry it over verbatim.
+- **A transaction passed to another method, stored in a field, or otherwise captured** - what it queues elsewhere
+  is not visible from here.
+- **A key or member local reassigned anywhere in the method.** Keys are compared as source text, which is only
+  sound while the locals hold the same value throughout.
+
 ## Declaring your server version
 
 Some suggestions need a recent server, and an analyzer cannot see the server you will connect to. Declare your
