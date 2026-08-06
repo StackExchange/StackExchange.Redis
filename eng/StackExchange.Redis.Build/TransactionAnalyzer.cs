@@ -123,7 +123,8 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                     && SymbolEqualityComparer.Default.Equals(instanceLocal, local))
                 {
                     // tran.Something(...) - a queued command, a condition, or the terminator
-                    usage.Add(invocation, known, insideLoop: IsInsideLoop(invocation, block));
+                    var repeats = !TryGetBranch(invocation, block, out var branch);
+                    usage.Add(invocation, known, branch, repeats);
                 }
                 else
                 {
@@ -219,21 +220,51 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         => version.IsSpecified ? " (requires server " + version + " or later)" : "";
 
     /// <summary>
-    /// Is this call inside a loop, and so potentially queueing many commands from one call site?
+    /// Where a call sits within the block: which branch of it, and whether it can run more than once.
     /// </summary>
     /// <remarks>
-    /// Counting call sites is a syntactic approximation, and a loop is where it breaks: one
-    /// <c>tran.StringSetAsync(key, value)</c> in a <c>foreach</c> is one call site but N queued commands, which
-    /// is emphatically not collapsible into a single command. Cheap to check and it removes the whole class.
+    /// <para>
+    /// Counting call sites is a syntactic approximation, and this is where it breaks. Two ways, needing two
+    /// different answers. A call that can run <em>repeatedly</em> - inside a loop, or inside a lambda or local
+    /// function whose invocation count we cannot see at all - is one call site and N queued commands, so it is
+    /// not collapsible into anything: <c>false</c>, and the caller disqualifies the whole transaction.
+    /// </para>
+    /// <para>
+    /// A call under an <c>if</c>, <c>switch</c> or <c>try</c> is different: it runs at most once, so it is fine
+    /// on its own terms, but only if every <em>other</em> call on the same transaction is under the same one.
+    /// Two commands in the same <c>if</c> body always queue together and a compound command really does replace
+    /// them; the same two in opposite arms of an <c>if</c>/<c>else</c> never queue together at all, and
+    /// "collapsing" them would queue a command the code deliberately did not. Hence the innermost enclosing
+    /// <em>branch</em> rather than a plain "is it conditional" flag - and the branch, not the branching
+    /// operation, or the two arms of one <c>if</c> would compare equal.
+    /// </para>
     /// </remarks>
-    private static bool IsInsideLoop(IOperation operation, IOperation block)
+    private static bool TryGetBranch(IOperation operation, IOperation block, out SyntaxNode? branch)
     {
-        for (var node = operation; node is not null && node != block; node = node.Parent)
+        branch = null;
+        var previous = operation;
+        for (var node = operation.Parent; node is not null && node != block; node = node.Parent)
         {
-            if (node is ILoopOperation) return true;
+            switch (node)
+            {
+                case ILoopOperation:
+                case IAnonymousFunctionOperation:
+                case ILocalFunctionOperation:
+                    return false;
+
+                // keep walking after finding one: an enclosing loop still trumps it
+                case IConditionalOperation:
+                case ISwitchOperation:
+                case ISwitchExpressionOperation:
+                case ITryOperation:
+                    branch ??= previous.Syntax;
+                    break;
+            }
+
+            previous = node;
         }
 
-        return false;
+        return true;
     }
 
     /// <summary>
@@ -365,6 +396,16 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         private Location? _condition, _firstOperation;
 
         /// <summary>
+        /// The branch every call on this transaction so far was in; <c>null</c> means the block itself.
+        /// </summary>
+        /// <remarks>
+        /// Only meaningful once <see cref="_branchKnown"/> is set, because <c>null</c> is a real value here -
+        /// "not inside any branch" is the common case and has to compare equal to itself.
+        /// </remarks>
+        private SyntaxNode? _branch;
+        private bool _branchKnown;
+
+        /// <summary>
         /// Where to report, which depends on the rule: the condition is the thing to remove for most of them,
         /// but family D has no condition at all, so its report goes on the first queued command.
         /// </summary>
@@ -376,9 +417,9 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
         /// </summary>
         public void Disqualify() => _disqualified = true;
 
-        public void Add(IInvocationOperation invocation, KnownSymbols known, bool insideLoop)
+        public void Add(IInvocationOperation invocation, KnownSymbols known, SyntaxNode? branch, bool repeats)
         {
-            if (insideLoop)
+            if (repeats)
             {
                 Disqualify();
                 return;
@@ -394,6 +435,18 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
             {
                 return;
             }
+
+            // Deliberately after the terminator check and not before it: the terminator is allowed to sit
+            // somewhere else entirely - "queue it all, then commit it inside an if" is ordinary code, and says
+            // nothing about whether the queued commands belong together.
+            if (_branchKnown && _branch != branch)
+            {
+                Disqualify();
+                return;
+            }
+
+            _branch = branch;
+            _branchKnown = true;
 
             switch (invocation.TargetMethod.Name)
             {

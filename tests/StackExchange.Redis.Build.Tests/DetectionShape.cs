@@ -92,6 +92,131 @@ public class DetectionShape : Verifier<TransactionAnalyzer>
         """);
 
     [Fact]
+    // Opposite arms of one if/else: exactly one of these is ever queued, so there is no pair to collapse.
+    // SetMove here would queue a removal the code deliberately did not.
+    public Task OperationsInOppositeBranches_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey a, RedisKey b, RedisValue member, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                if (flag) { _ = tran.SetAddAsync(a, member); }
+                else { _ = tran.SetRemoveAsync(b, member); }
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the asymmetric version: the second command is queued only sometimes, so the "pair" is not always a pair
+    public Task ConditionallyQueuedOperation_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.StringGetAsync(key);
+                if (flag) { _ = tran.KeyDeleteAsync(key); }
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // and a condition that guards from outside the branch its command is in
+    public Task ConditionOutsideOperationBranch_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.KeyNotExists(key));
+                if (flag) { _ = tran.StringSetAsync(key, "value"); }
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // The control for the three above, and the reason this is branch-matching rather than a blanket "anything
+    // conditional is out": two commands in the *same* branch always queue together, so the pair is real. A
+    // whole transaction inside an if or a try is ordinary code and must not go silent.
+    public Task OperationsInTheSameBranch_AreStillFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, bool flag)
+            {
+                var tran = db.CreateTransaction();
+                if (flag)
+                {
+                    _ = {|#0:tran.StringGetAsync(key)|};
+                    _ = tran.KeyDeleteAsync(key);
+                    await tran.ExecuteAsync();
+                }
+            }
+        }
+        """,
+        Diagnostic("SER303").WithLocation(0).WithArguments(
+            "StringGetAsync",
+            "KeyDeleteAsync",
+            "StringGetDelete[Async](key)",
+            " (requires server 6.2 or later)"));
+
+    [Fact]
+    // A lambda is the loop case wearing a hat: one call site, and no way to see how many times it runs - or
+    // whether it runs at all. Three SetAdds are queued here, not the two the syntax shows.
+    public Task OperationInLambda_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                var tran = db.CreateTransaction();
+                System.Action add = () => { _ = tran.SetAddAsync(key, "a"); };
+                add();
+                add();
+                _ = tran.SetAddAsync(key, "b");
+                await tran.ExecuteAsync();
+            }
+        }
+        """);
+
+    [Fact]
+    // the same for a local function, which is the shape somebody actually writes
+    public Task OperationInLocalFunction_IsNotFlagged() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key, RedisKey other)
+            {
+                var tran = db.CreateTransaction();
+                _ = tran.KeyDeleteAsync(key);
+                Queue();
+                Queue();
+                await tran.ExecuteAsync();
+
+                void Queue() => _ = tran.KeyDeleteAsync(other);
+            }
+        }
+        """);
+
+    [Fact]
     // the helper may queue anything at all; our counts describe only the part we can see
     public Task TransactionPassedToAnotherMethod_IsNotFlagged() => VerifyAsync(
         """
