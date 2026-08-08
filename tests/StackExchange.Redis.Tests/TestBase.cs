@@ -29,6 +29,21 @@ public abstract class TestBase : IDisposable
     }
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
+    /// <summary>
+    /// Cluster endpoints for tests that need the cluster, skipping the test when it is not running.
+    /// </summary>
+    /// <remarks>
+    /// The probe has to happen here rather than when connecting: the cluster configuration carries a
+    /// deliberately long <c>connectTimeout</c>, so a test that discovers the absence by connecting
+    /// pays that timeout in full before it can skip. With ~50 cluster tests that is the difference
+    /// between a one-minute run and a nine-minute one.
+    /// </remarks>
+    protected static string GetClusterConfiguration(string suffix = ",connectTimeout=10000")
+    {
+        Skip.IfNoCluster();
+        return TestConfig.Current.ClusterServersAndPorts + suffix;
+    }
+
     private readonly SharedConnectionFixture? _sharedConnectionFixture;
     private readonly InProcServerFixture? _inProcServerFixture;
 

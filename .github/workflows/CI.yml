@@ -14,6 +14,18 @@ on:
         description: 'Tag of the client libs test image to use'
         required: false
         default: ''
+      windows-topology:
+        description: 'Servers to start on the Windows job: basic (primary/replica/secure/failover) or full (adds cluster + sentinel)'
+        required: false
+        default: 'basic'
+        type: choice
+        options:
+          - basic
+          - full
+      windows-redis-version:
+        description: 'Pin the apt redis version on the Windows job, e.g. 6:8.0.2-1rl1~jammy1 (blank = whatever is GA)'
+        required: false
+        default: ''
 jobs:
   main:
     name: StackExchange.Redis (Ubuntu)
@@ -67,66 +79,88 @@ jobs:
           # fixed there, but the guard above is worth keeping either way.
           printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
           chmod +x /usr/sbin/policy-rc.d
-          apt-get install -y redis
+          # A blank pin means "whatever is GA today", which is not reproducible: a run from last
+          # month and a run from today can test different servers. Supply windows-redis-version
+          # via workflow_dispatch to pin it; `apt-cache madison redis-server` lists the candidates.
+          PIN='${{ github.event.inputs.windows-redis-version }}'
+          if [ -n "$PIN" ]; then
+            case "$PIN" in
+              *[!A-Za-z0-9.:+~_-]*) echo "refusing suspicious version pin: $PIN" >&2; exit 1 ;;
+            esac
+            echo "pinning redis to $PIN"
+            apt-get install -y "redis-server=$PIN" "redis-tools=$PIN" \
+              || { echo "pin not available; candidates:" >&2; apt-cache madison redis-server >&2; exit 1; }
+          else
+            apt-get install -y redis
+          fi
+          redis-server --version
           mkdir redis
       - name: Run redis-server
         shell: wsl-bash {0}
         working-directory: ./tests/RedisConfigs/redis
         run: |
-          pwd
-          ls .
-          # Run each server instance in order
+          # This runner is a fractional-vCPU VM running Windows running WSL running Ubuntu running
+          # redis, and the cluster/sentinel instances gossip and ping continuously even when idle.
+          # That background load is a large part of why this job intermittently sees 5-second
+          # timeouts on trivial commands, so the default here is the small topology; tests needing
+          # cluster or sentinel skip themselves as inconclusive when those servers are absent, and
+          # the Ubuntu job covers them on every run. Dispatch with windows-topology=full to get
+          # everything (and `docker compose --file tests/RedisConfigs/docker-compose.yml up -d`
+          # always brings up the complete set locally).
+          TOPOLOGY='${{ github.event.inputs.windows-topology || 'basic' }}'
+          echo "topology: $TOPOLOGY"
+
           redis-server ../Basic/primary-6379.conf &
           redis-server ../Basic/replica-6380.conf &
           redis-server ../Basic/secure-6381.conf &
           redis-server ../Failover/primary-6382.conf &
           redis-server ../Failover/replica-6383.conf &
-          redis-server ../Cluster/cluster-7000.conf --dir ../Cluster &
-          redis-server ../Cluster/cluster-7001.conf --dir ../Cluster &
-          redis-server ../Cluster/cluster-7002.conf --dir ../Cluster &
-          redis-server ../Cluster/cluster-7003.conf --dir ../Cluster &
-          redis-server ../Cluster/cluster-7004.conf --dir ../Cluster &
-          redis-server ../Cluster/cluster-7005.conf --dir ../Cluster &
-          redis-server ../Sentinel/redis-7010.conf &
-          redis-server ../Sentinel/redis-7011.conf &
-          redis-server ../Sentinel/sentinel-26379.conf --sentinel &
-          redis-server ../Sentinel/sentinel-26380.conf --sentinel &
-          redis-server ../Sentinel/sentinel-26381.conf --sentinel &
-          # Wait for server instances to get ready
-          sleep 5
-          echo "Checking redis-server version with port 6379"
-          redis-cli -p 6379 INFO SERVER | grep redis_version || echo "Failed to get version for port 6379"
-          echo "Checking redis-server version with port 6380"
-          redis-cli -p 6380 INFO SERVER | grep redis_version || echo "Failed to get version for port 6380"
-          echo "Checking redis-server version with port 6381"
-          redis-cli -p 6381 INFO SERVER | grep redis_version || echo "Failed to get version for port 6381"
-          echo "Checking redis-server version with port 6382"
-          redis-cli -p 6382 INFO SERVER | grep redis_version || echo "Failed to get version for port 6382"
-          echo "Checking redis-server version with port 6383"
-          redis-cli -p 6383 INFO SERVER | grep redis_version || echo "Failed to get version for port 6383"
-          echo "Checking redis-server version with port 7000"
-          redis-cli -p 7000 INFO SERVER | grep redis_version || echo "Failed to get version for port 7000"
-          echo "Checking redis-server version with port 7001"
-          redis-cli -p 7001 INFO SERVER | grep redis_version || echo "Failed to get version for port 7001"
-          echo "Checking redis-server version with port 7002"
-          redis-cli -p 7002 INFO SERVER | grep redis_version || echo "Failed to get version for port 7002"
-          echo "Checking redis-server version with port 7003"
-          redis-cli -p 7003 INFO SERVER | grep redis_version || echo "Failed to get version for port 7003"
-          echo "Checking redis-server version with port 7004"
-          redis-cli -p 7004 INFO SERVER | grep redis_version || echo "Failed to get version for port 7004"
-          echo "Checking redis-server version with port 7005"
-          redis-cli -p 7005 INFO SERVER | grep redis_version || echo "Failed to get version for port 7005"
-          echo "Checking redis-server version with port 7010"
-          redis-cli -p 7010 INFO SERVER | grep redis_version || echo "Failed to get version for port 7010"
-          echo "Checking redis-server version with port 7011"
-          redis-cli -p 7011 INFO SERVER | grep redis_version || echo "Failed to get version for port 7011"
-          echo "Checking redis-server version with port 26379"
-          redis-cli -p 26379 INFO SERVER | grep redis_version || echo "Failed to get version for port 26379"
-          echo "Checking redis-server version with port 26380"
-          redis-cli -p 26380 INFO SERVER | grep redis_version || echo "Failed to get version for port 26380"
-          echo "Checking redis-server version with port 26381"
-          redis-cli -p 26381 INFO SERVER | grep redis_version || echo "Failed to get version for port 26381"
-        continue-on-error: true
+          PORTS="6379 6380 6381 6382 6383"
+
+          if [ "$TOPOLOGY" = "full" ]; then
+            for p in 7000 7001 7002 7003 7004 7005; do
+              redis-server "../Cluster/cluster-$p.conf" --dir ../Cluster &
+            done
+            redis-server ../Sentinel/redis-7010.conf &
+            redis-server ../Sentinel/redis-7011.conf &
+            for p in 26379 26380 26381; do
+              redis-server "../Sentinel/sentinel-$p.conf" --sentinel &
+            done
+            PORTS="$PORTS 7000 7001 7002 7003 7004 7005 7010 7011 26379 26380 26381"
+          fi
+
+          # Poll rather than `sleep 5`: on a fast machine this returns almost immediately, and on a
+          # slow one it actually waits long enough. A fixed sleep gets both cases wrong.
+          #
+          # NB: this shell runs with -euo pipefail, so a bare `out=$(redis-cli ...)` aborts the whole
+          # step the instant a server is not yet accepting connections - i.e. precisely the state we
+          # are here to wait out. Every probe therefore tolerates failure explicitly.
+          missing=""
+          for p in $PORTS; do
+            ready=""
+            for _ in $(seq 1 30); do
+              out=$(redis-cli -p "$p" PING 2>&1 || true)
+              # secure-6381 answers NOAUTH without credentials, which still proves it is listening
+              case "$out" in
+                PONG|*NOAUTH*) ready="yes"; break ;;
+              esac
+              sleep 1
+            done
+            if [ -n "$ready" ]; then
+              echo "port $p ready: $(redis-cli -p "$p" INFO SERVER 2>/dev/null | grep redis_version || echo 'version unavailable')"
+            else
+              echo "port $p DID NOT COME UP"
+              missing="$missing $p"
+            fi
+          done
+
+          # Deliberately fatal, and deliberately not continue-on-error: running ~5000 tests against
+          # servers that never started produces thousands of confusing connection failures ten
+          # minutes later, instead of one clear message here.
+          if [ -n "$missing" ]; then
+            echo "::error::no server on:$missing"
+            exit 1
+          fi
 
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
