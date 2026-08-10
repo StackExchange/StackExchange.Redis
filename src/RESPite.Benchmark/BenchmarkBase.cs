@@ -50,6 +50,12 @@ public abstract class BenchmarkBase : IDisposable
     public bool Loop { get; }
     public bool Quiet { get; }
     public int ClientCount { get; } = 50;
+
+    // the number of connections in use; implementations that create their connections eagerly override
+    // this with the number they ACTUALLY created, rather than the number the flags asked for -- so that
+    // a banner cannot report a connection topology that the implementation did not actually deliver
+    public virtual int ConnectionCount => Multiplexed ? 1 : ClientCount;
+
     private int _operationsPerClient;
     public int OperationsPerClient(int divisor = 1) => _operationsPerClient / divisor;
 
@@ -486,7 +492,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         else
         {
             Console.Write(
-                $"====== {name}{description}{auxReason} ====== (clients: {ClientCount:#,##0}, ops: {TotalOperations(divisor):#,##0}");
+                $"====== {name}{description}{auxReason} ====== (clients: {ClientCount:#,##0}, conns: {ConnectionCount:#,##0}, ops: {TotalOperations(divisor):#,##0}");
             if (Multiplexed)
             {
                 Console.Write(", mux");

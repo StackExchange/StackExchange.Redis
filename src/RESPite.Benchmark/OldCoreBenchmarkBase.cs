@@ -9,15 +9,28 @@ namespace RESPite.Benchmark;
 
 public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
 {
-    private readonly IConnectionMultiplexer _connectionMultiplexer;
-    private readonly IDatabase _client;
+    private readonly IConnectionMultiplexer[] _connectionMultiplexers;
+    private readonly IDatabase[] _clients;
     private readonly KeyValuePair<RedisKey, RedisValue>[] _pairs;
 
     public OldCoreBenchmarkBase(string[] args) : base(args)
     {
-        // ReSharper disable once VirtualMemberCallInConstructor
-        _connectionMultiplexer = Create(Port);
-        _client = _connectionMultiplexer.GetDatabase();
+        // a multiplexer is one connection per endpoint by design, so "each client has a separate
+        // connection" means a multiplexer each; +m is the documented opt-out, sharing a single one
+        var connectionCount = Multiplexed ? 1 : ClientCount;
+        _connectionMultiplexers = new IConnectionMultiplexer[connectionCount];
+        for (var i = 0; i < connectionCount; i++)
+        {
+            // ReSharper disable once VirtualMemberCallInConstructor
+            _connectionMultiplexers[i] = Create(Port);
+        }
+
+        _clients = new IDatabase[ClientCount];
+        for (var i = 0; i < ClientCount; i++)
+        {
+            _clients[i] = _connectionMultiplexers[i % connectionCount].GetDatabase();
+        }
+
         _pairs = new KeyValuePair<RedisKey, RedisValue>[10];
 
         for (var i = 0; i < 10; i++)
@@ -25,6 +38,8 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
             _pairs[i] = new($"{"key:__rand_int__"}{i}", Payload);
         }
     }
+
+    public override int ConnectionCount => _connectionMultiplexers.Length;
 
     protected abstract IConnectionMultiplexer Create(int port);
 
@@ -40,10 +55,13 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
 
     public override void Dispose()
     {
-        _connectionMultiplexer.Dispose();
+        foreach (var connectionMultiplexer in _connectionMultiplexers)
+        {
+            connectionMultiplexer.Dispose();
+        }
     }
 
-    protected override IDatabaseAsync GetClient(int index) => _client;
+    protected override IDatabaseAsync GetClient(int index) => _clients[index];
     protected override Task DeleteAsync(IDatabaseAsync client, string key) => client.KeyDeleteAsync(key);
 
     public override async Task RunAll()
