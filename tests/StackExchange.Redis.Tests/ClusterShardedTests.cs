@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(NonParallelCollection.Name)]
 public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
+    protected override string GetConfiguration() => GetClusterConfiguration();
 
     [Fact]
     [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]

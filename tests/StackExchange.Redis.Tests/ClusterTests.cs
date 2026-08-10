@@ -23,7 +23,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         DeleteConsumerGroup,
     }
 
-    protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
+    protected override string GetConfiguration() => GetClusterConfiguration();
 
     [Fact]
     public async Task ExportConfiguration()
