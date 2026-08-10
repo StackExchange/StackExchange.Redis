@@ -30,6 +30,15 @@ public abstract class TestBase : IDisposable
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
     /// <summary>
+    /// Applies <see cref="TestConfig.MinTimeoutMilliseconds"/> as a lower bound, for CI machines that
+    /// cannot honour the library's defaults. Only ever raises, and only called where the test did not
+    /// request a specific timeout - a test asking for a short timeout is testing timeout behaviour,
+    /// and silently lengthening it would defeat the test.
+    /// </summary>
+    private static int RaiseToFloor(int timeout) =>
+        TestConfig.MinTimeoutMilliseconds > timeout ? TestConfig.MinTimeoutMilliseconds : timeout;
+
+    /// <summary>
     /// Cluster endpoints for tests that need the cluster, skipping the test when it is not running.
     /// </summary>
     /// <remarks>
@@ -467,9 +476,15 @@ public abstract class TestBase : IDisposable
             if (clientName is not null) config.ClientName = clientName;
             else if (!string.IsNullOrEmpty(caller)) config.ClientName = caller;
             if (syncTimeout is not null) config.SyncTimeout = syncTimeout.Value;
+            else config.SyncTimeout = RaiseToFloor(config.SyncTimeout);
             if (asyncTimeout is not null) config.AsyncTimeout = asyncTimeout.Value;
+            else config.AsyncTimeout = RaiseToFloor(config.AsyncTimeout);
             if (allowAdmin is not null) config.AllowAdmin = allowAdmin.Value;
             if (keepAlive is not null) config.KeepAlive = keepAlive.Value;
+            // No floor on ConnectTimeout, deliberately: tests that simulate a failure and then allow a
+            // fixed window for the heartbeat to reconnect (ConnectFailTimeoutTests.NoticesConnectFail)
+            // break when a stalled connect attempt can no longer be retried inside that window. Verified
+            // by bisection: flooring ConnectTimeout fails that test on its own, as does SyncTimeout.
             if (connectTimeout is not null) config.ConnectTimeout = connectTimeout.Value;
             if (proxy is not null) config.Proxy = proxy.Value;
             if (defaultDatabase is not null) config.DefaultDatabase = defaultDatabase.Value;

@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
@@ -134,7 +135,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         ];
         MultiGroupOptions options = new MultiGroupOptions.Builder { HealthCheck = healthCheck };
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
-        Assert.True(conn.IsConnected);
+        await GroupWait.AssertConnectedAsync(conn);
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
 
         // (R.4.1) If multiple member databases are configured, then I want to failover to the one with the highest weight.
@@ -149,6 +150,31 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         Assert.Equal(tokyo, ep);
 
         WriteLatency(conn);
+    }
+
+    /// <summary>
+    /// Refreshes latencies and re-selects until the expected group wins, returning whatever was
+    /// selected last so the caller's assert reports the real value.
+    /// </summary>
+    /// <remarks>
+    /// Replaces "heartbeat, sleep 100ms, hope it settled": the latency probes are asynchronous, so a
+    /// fixed delay is simultaneously too long here and too short on a loaded machine.
+    /// </remarks>
+    private async Task<EndPoint?> SelectPreferredAsync(MultiGroupMultiplexer typed, IDatabase db, EndPoint expected)
+    {
+        EndPoint? ep = null;
+        var watch = Stopwatch.StartNew();
+        while (watch.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            typed.OnHeartbeat(); // update latencies
+            typed.SelectPreferredGroup();
+            ep = await db.IdentifyEndpointAsync();
+            if (Equals(ep, expected)) break;
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        WriteLatency(typed);
+        return ep;
     }
 
     private void WriteLatency(IConnectionGroup conn)
@@ -186,31 +212,25 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
         conn.ConnectionChanged += (_, args) => log.WriteLine($"Connection changed: {args.Type}, from {args.PreviousGroup?.Name ?? "(nil)"} to {args.Group.Name}");
 
-        Assert.True(conn.IsConnected);
-        server0.SetLatency(TimeSpan.FromMilliseconds(10));
+        await GroupWait.AssertConnectedAsync(conn);
+
+        // Injected latencies are deliberately far apart. Measured latency includes scheduling noise,
+        // and on a contended machine (CI in particular) that noise comfortably exceeds the ~10ms
+        // margins this test used to rely on, which inverts the ordering and fails for no good reason.
+        server0.SetLatency(TimeSpan.FromMilliseconds(150));
         server1.SetLatency(TimeSpan.Zero);
-        server2.SetLatency(TimeSpan.FromMilliseconds(15));
+        server2.SetLatency(TimeSpan.FromMilliseconds(300));
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
-        typed.OnHeartbeat(); // update latencies
-        await Task.Delay(100); // allow time to settle
-        typed.SelectPreferredGroup();
-        WriteLatency(typed);
+        var db = conn.GetDatabase();
 
         // select lowest latency
-        var db = conn.GetDatabase();
-        var ep = await db.IdentifyEndpointAsync();
-        Assert.Equal(canada, ep);
+        Assert.Equal(canada, await SelectPreferredAsync(typed, db, canada));
 
         // change latency and update
-        server0.SetLatency(TimeSpan.FromMilliseconds(10));
-        server1.SetLatency(TimeSpan.FromMilliseconds(10));
+        server0.SetLatency(TimeSpan.FromMilliseconds(150));
+        server1.SetLatency(TimeSpan.FromMilliseconds(150));
         server2.SetLatency(TimeSpan.Zero);
-        typed.OnHeartbeat(); // update latencies
-        await Task.Delay(100); // allow time to settle
-        typed.SelectPreferredGroup();
-        ep = await db.IdentifyEndpointAsync();
-        WriteLatency(typed);
-        Assert.Equal(tokyo, ep);
+        Assert.Equal(tokyo, await SelectPreferredAsync(typed, db, tokyo));
     }
 
     [Fact]
@@ -241,7 +261,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
             new(server2.GetClientConfig()) { Weight = 3 },
         ];
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
-        Assert.True(conn.IsConnected);
+        await GroupWait.AssertConnectedAsync(conn);
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
         var multi = conn.GetSubscriber();
         await multi.SubscribeAsync(channel, (x, y) => capture.Seen(nameof(conn), x, y));
@@ -321,7 +341,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
             new(server2.GetClientConfig()) { Weight = 3 },
         ];
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
-        Assert.True(conn.IsConnected);
+        await GroupWait.AssertConnectedAsync(conn);
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
         var multi = conn.GetSubscriber();
         _ = capture.WriteSeen(nameof(conn), await multi.SubscribeAsync(channel));

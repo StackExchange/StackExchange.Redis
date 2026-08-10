@@ -11,7 +11,11 @@ public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output
     public async Task NoticesConnectFail()
     {
         SetExpectedAmbientFailureCount(-1);
-        await using var conn = Create(allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast, allowSimulateConnectionFailure: true);
+        // syncTimeout is explicit because this test depends on it: it simulates a failure, expects the
+        // next synchronous call to give up, and then allows a fixed window for the heartbeat to
+        // reconnect. A longer sync timeout (see TestConfig.MinTimeoutMilliseconds, raised on slow CI)
+        // changes what that call does and breaks the scenario.
+        await using var conn = Create(allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast, allowSimulateConnectionFailure: true, syncTimeout: 5000);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");

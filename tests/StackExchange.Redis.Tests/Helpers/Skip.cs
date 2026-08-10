@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Net.Sockets;
 using System.Threading;
 using Xunit;
 
@@ -73,14 +72,13 @@ public static class Skip
     }
 }
 
+/// <summary>
+/// Caches <see cref="TestConfig.IsServerRunning"/> per endpoint for the lifetime of the run, so that
+/// a whole class of tests needing an absent server pays one connect attempt between them rather than
+/// one each.
+/// </summary>
 internal static class ServerProbe
 {
-    // Generous on purpose: a listening server accepts effectively instantly even on a slow or
-    // heavily contended machine (the kernel completes the handshake from the backlog), so this
-    // only ever waits this long when nothing is there. Being too aggressive here would risk
-    // declaring a live-but-busy server absent and silently skipping tests that should have run.
-    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
-
     private static readonly ConcurrentDictionary<(string Host, int Port), Lazy<bool>> Cache = new();
 
     internal static bool IsListening(string? host, int port)
@@ -89,22 +87,10 @@ internal static class ServerProbe
 
         var probe = Cache.GetOrAdd(
             (host, port),
-            static key => new Lazy<bool>(() => Probe(key.Host, key.Port), LazyThreadSafetyMode.ExecutionAndPublication));
+            static key => new Lazy<bool>(
+                () => TestConfig.IsServerRunning(key.Host, key.Port),
+                LazyThreadSafetyMode.ExecutionAndPublication));
         return probe.Value;
-    }
-
-    private static bool Probe(string host, int port)
-    {
-        try
-        {
-            using var client = new TcpClient();
-            return client.ConnectAsync(host, port).Wait(ProbeTimeout);
-        }
-        catch
-        {
-            // refused, unresolvable, unreachable: all "no server here"
-            return false;
-        }
     }
 }
 

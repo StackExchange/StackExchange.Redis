@@ -13,6 +13,19 @@ public static class TestConfig
 
     public static Config Current { get; }
 
+    /// <summary>
+    /// A floor, in milliseconds, for connection timeouts, from <c>REDIS_TESTS_MIN_TIMEOUT_MS</c>;
+    /// zero (the default) leaves the library's own defaults alone.
+    /// </summary>
+    /// <remarks>
+    /// This exists for CI machines that cannot honour the library's 5s defaults for reasons that have
+    /// nothing to do with the code under test. It deliberately applies only where a test has not
+    /// asked for a specific timeout, so tests that pick a short one to exercise timeout behaviour
+    /// keep working.
+    /// </remarks>
+    public static int MinTimeoutMilliseconds { get; } =
+        int.TryParse(Environment.GetEnvironmentVariable("REDIS_TESTS_MIN_TIMEOUT_MS"), out var ms) && ms > 0 ? ms : 0;
+
 #if NET
     private static int _db = 17;
 #else
@@ -27,6 +40,23 @@ public static class TestConfig
 
     static TestConfig()
     {
+        // The suite opens a lot of connections at once (xunit runs 2x cores' worth of collections in
+        // parallel), and the thread pool grows only ~1-2 threads per second past its minimum. On a
+        // slow or contended machine that ramp is what turns a perfectly healthy server into
+        // "Timeout performing PING (5000ms)": a synchronous caller parks waiting for a completion
+        // that cannot get a thread. Raising the floor costs nothing on a fast machine, and it is the
+        // same advice we give users in docs/Timeouts.md.
+        try
+        {
+            ThreadPool.GetMinThreads(out var workerThreads, out var completionPortThreads);
+            var target = Math.Max(64, Environment.ProcessorCount * 8);
+            ThreadPool.SetMinThreads(Math.Max(workerThreads, target), Math.Max(completionPortThreads, target));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Unable to raise ThreadPool minimums: " + ex.Message);
+        }
+
         Current = new Config();
         try
         {

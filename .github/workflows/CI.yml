@@ -15,9 +15,9 @@ on:
         required: false
         default: ''
       windows-topology:
-        description: 'Servers to start on the Windows job: basic (primary/replica/secure/failover) or full (adds cluster + sentinel)'
+        description: 'Servers to start on the Windows job: full (everything) or basic (primary/replica/secure/failover only)'
         required: false
-        default: 'basic'
+        default: 'full'
         type: choice
         options:
           - basic
@@ -51,6 +51,11 @@ jobs:
       DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Note this doesn't work yet for Windows - see https://github.com/dotnet/runtime/issues/68340
       TERM: xterm
       DOCKER_BUILDKIT: 1
+      # This runner routinely fails the library's 5s defaults for reasons that are nothing to do
+      # with the code under test (fractional vCPU, nested virtualisation, thread-pool ramp). Raise
+      # the floor for connections that do not ask for a specific timeout; tests that deliberately
+      # pick a short timeout to exercise timeout behaviour are unaffected.
+      REDIS_TESTS_MIN_TIMEOUT_MS: "20000"
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -99,15 +104,13 @@ jobs:
         shell: wsl-bash {0}
         working-directory: ./tests/RedisConfigs/redis
         run: |
-          # This runner is a fractional-vCPU VM running Windows running WSL running Ubuntu running
-          # redis, and the cluster/sentinel instances gossip and ping continuously even when idle.
-          # That background load is a large part of why this job intermittently sees 5-second
-          # timeouts on trivial commands, so the default here is the small topology; tests needing
-          # cluster or sentinel skip themselves as inconclusive when those servers are absent, and
-          # the Ubuntu job covers them on every run. Dispatch with windows-topology=full to get
-          # everything (and `docker compose --file tests/RedisConfigs/docker-compose.yml up -d`
-          # always brings up the complete set locally).
-          TOPOLOGY='${{ github.event.inputs.windows-topology || 'basic' }}'
+          # Defaults to the whole topology: this job is the only coverage of .NET Framework and of
+          # Windows' own socket/TLS stacks, so we would rather keep it complete. `basic` starts only
+          # primary/replica/secure/failover, which is useful when bisecting whether cluster and
+          # sentinel background load is implicated in a failure - measured across three runs it was
+          # not, so it is opt-in rather than the default. Tests needing absent servers skip promptly
+          # either way (see Skip.IfNoCluster / Skip.IfNoSentinel).
+          TOPOLOGY='${{ github.event.inputs.windows-topology || 'full' }}'
           echo "topology: $TOPOLOGY"
 
           redis-server ../Basic/primary-6379.conf &
