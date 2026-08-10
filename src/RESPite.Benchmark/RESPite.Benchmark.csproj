@@ -8,7 +8,8 @@
     <ToolCommandName>resp-benchmark</ToolCommandName>
     <PackAsTool>true</PackAsTool>
     <Title>command-line "RESP" benchmark client, comparable to redis-benchmark</Title>
-    <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">True</GeneratePackageOnBuild>
+    <!-- no GeneratePackageOnBuild: that packed a nupkg on every Release build (including all of CI, for
+         nobody's benefit). The tool is still published - the pack step packs Build.csproj, which includes us. -->
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
     <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>

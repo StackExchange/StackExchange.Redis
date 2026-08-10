@@ -128,6 +128,13 @@ jobs:
           redis-cli -p 26381 INFO SERVER | grep redis_version || echo "Failed to get version for port 26381"
         continue-on-error: true
 
+      # Restore is ~80s of the build step on a cold runner, and the package set changes rarely.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
       # The analyzer and the props that configures it reach consumers only through the package, and a
@@ -156,7 +163,7 @@ jobs:
         run: |
           $exitCode = 0
           foreach ($tfm in @("net10.0", "net481")) {
-            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
             if ($LASTEXITCODE -ne 0) {
               $exitCode = $LASTEXITCODE
             }
