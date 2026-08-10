@@ -425,6 +425,10 @@ public abstract class PubSubTestBase(
         const int count = 1000;
         var syncLock = new object();
 
+        // The subscription connection is a separate connection from the interactive one, and can still
+        // be coming up when the connect call returns; asserting it immediately is a race that a slow or
+        // contended machine loses (this is the "IsConnected" failure seen on the Windows CI job).
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => sub.IsConnected()).ForAwait();
         Assert.True(sub.IsConnected(), nameof(sub.IsConnected));
         var data = new HashSet<int>();
         await sub.SubscribeAsync(channel, (_, val) =>
