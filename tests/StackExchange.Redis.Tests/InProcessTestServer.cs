@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
@@ -23,15 +24,19 @@ public class InProcessTestServer : MemoryCacheRedisServer
 {
     private readonly ITestOutputHelper? _log;
 #if !NETFRAMEWORK
-    private readonly X509Certificate2? _serverCertificate;
-    private readonly string? _serverCertificateThumbprint;
+    private readonly object _certificateLock = new();
+    private X509Certificate2? _serverCertificate;
+    private string? _serverCertificateThumbprint;
     private readonly RemoteCertificateValidationCallback? _certificateValidationCallback;
 #endif
 
     public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null, bool useSsl = false)
         : base(endpoint)
     {
-        RedisVersion = RedisFeatures.v6_0_0; // for client to expect RESP3
+        // 6.0 would do for the client to expect RESP3, but default to 7.0 so that hostnames, the
+        // preferred-endpoint-type and the CLUSTER SLOTS metadata element are all live by default;
+        // tests that want the older shape ask for it explicitly
+        RedisVersion = new Version(7, 0, 0);
         _log = log;
 #if NETFRAMEWORK
         UseSsl = false;
@@ -39,8 +44,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         UseSsl = useSsl;
         if (useSsl)
         {
-            _serverCertificate = CreateServerCertificate(DefaultEndPoint);
-            _serverCertificateThumbprint = _serverCertificate.Thumbprint;
+            // note the certificate itself is created on first use, not here; see GetServerCertificate
             _certificateValidationCallback = ValidateServerCertificate;
         }
 #endif
@@ -250,12 +254,37 @@ public class InProcessTestServer : MemoryCacheRedisServer
             return true;
         }
 
+        // a self-signed certificate always trips chain validation, so tolerate that much; a *name*
+        // mismatch is a different matter - forgiving it would mask exactly the class of bug that the
+        // SslHost handling has to get right, and would let TLS identity tests pass for the wrong reason
+        if ((errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != SslPolicyErrors.None)
+        {
+            Log($"rejecting server certificate: {errors}");
+            return false;
+        }
+
         return certificate is not null
             && _serverCertificateThumbprint is not null
             && string.Equals(certificate.GetCertHashString(), _serverCertificateThumbprint, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static X509Certificate2 CreateServerCertificate(EndPoint endpoint)
+    // deferred until first use rather than built in the constructor: tests register aliases *after*
+    // construction, and every identity a node can be dialled by has to appear in the SAN list, or TLS
+    // validation fails for reasons that have nothing to do with what the test is exercising
+    private X509Certificate2 GetServerCertificate()
+    {
+        lock (_certificateLock)
+        {
+            if (_serverCertificate is null)
+            {
+                _serverCertificate = CreateServerCertificate(DefaultEndPoint, GetAliases());
+                _serverCertificateThumbprint = _serverCertificate.Thumbprint;
+            }
+            return _serverCertificate;
+        }
+    }
+
+    private static X509Certificate2 CreateServerCertificate(EndPoint endpoint, IEnumerable<EndPoint> aliases)
     {
         var now = DateTimeOffset.UtcNow;
         var subjectName = GetCertificateSubjectName(endpoint);
@@ -270,16 +299,26 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 false));
 
         var san = new SubjectAlternativeNameBuilder();
-        switch (endpoint)
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddName(san, seen, endpoint);
+        foreach (var alias in aliases)
         {
-            case DnsEndPoint dns:
-                san.AddDnsName(dns.Host);
-                break;
-            case IPEndPoint ip:
-                san.AddIpAddress(ip.Address);
-                break;
+            AddName(san, seen, alias);
         }
         request.CertificateExtensions.Add(san.Build());
+
+        static void AddName(SubjectAlternativeNameBuilder san, HashSet<string> seen, EndPoint endpoint)
+        {
+            switch (endpoint)
+            {
+                case DnsEndPoint dns when seen.Add("dns:" + dns.Host):
+                    san.AddDnsName(dns.Host);
+                    break;
+                case IPEndPoint ip when seen.Add("ip:" + ip.Address):
+                    san.AddIpAddress(ip.Address);
+                    break;
+            }
+        }
 
         using var certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(7));
 #pragma warning disable SYSLIB0057
@@ -336,7 +375,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
                         {
                             using var ssl = new SslStream(serverTransport, leaveInnerStreamOpen: false);
                             await ssl.AuthenticateAsServerAsync(
-                                server._serverCertificate!,
+                                server.GetServerCertificate(),
                                 clientCertificateRequired: false,
                                 enabledSslProtocols: SslProtocols.None,
                                 checkCertificateRevocation: false).ConfigureAwait(false);

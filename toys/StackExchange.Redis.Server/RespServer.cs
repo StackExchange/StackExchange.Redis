@@ -488,7 +488,10 @@ namespace StackExchange.Redis.Server
                 if (GetNode(moved.HashSlot) is { } node)
                 {
                     OnMoved(client, moved.HashSlot, node);
-                    return TypedRedisValue.Error($"MOVED {moved.HashSlot} {node.Host}:{node.Port}");
+
+                    // the redirect names the node in whichever form the preferred endpoint type
+                    // selects, which may be a hostname, or empty when no endpoint can be given
+                    return TypedRedisValue.Error($"MOVED {moved.HashSlot} {node.AnnouncedHostFrom(client?.Node)}:{node.Port}");
                 }
                 return TypedRedisValue.Error($"ERR key has been migrated from slot {moved.HashSlot}, but the new owner is unknown");
             }
