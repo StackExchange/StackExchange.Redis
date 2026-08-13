@@ -206,6 +206,19 @@ namespace StackExchange.Redis.Server
         }
 
         /// <summary>
+        /// Declare an auxiliary field for a node, reported by <c>CLUSTER NODES</c> after the hostname.
+        /// Note a real 8.9 server emits none of these (<c>cluster-announce-human-nodename</c> does not
+        /// appear in the reply), so this exists to exercise the documented grammar - which is extensible -
+        /// rather than to mirror observed behaviour.
+        /// </summary>
+        public void SetAuxField(EndPoint endpoint, string key, string value)
+        {
+            if (!_nodes.TryGetValue(endpoint, out var node)) throw new KeyNotFoundException($"Node not found: {Format.ToString(endpoint)}");
+            (node.AuxFields ??= new List<KeyValuePair<string, string>>())
+                .Add(new KeyValuePair<string, string>(key, value));
+        }
+
+        /// <summary>
         /// Control what a node reports as its own address, for exercising the placeholder values that
         /// <c>CLUSTER SLOTS</c> can carry.
         /// </summary>
@@ -725,9 +738,21 @@ namespace StackExchange.Redis.Server
                 var node = pair.Value;
                 // <id> <ip:port@cport[,hostname]> ...
                 sb.Append(node.Id).Append(" ").Append(node.Host).Append(":").Append(node.Port).Append("@").Append(node.Port + 10000);
-                if (SupportsHostnames && !string.IsNullOrWhiteSpace(node.Hostname))
+                if (SupportsHostnames)
                 {
-                    sb.Append(",").Append(node.Hostname);
+                    // the hostname slot is positional: it can be empty while aux fields follow it
+                    var aux = node.AuxFields;
+                    if (!string.IsNullOrWhiteSpace(node.Hostname) || aux is { Count: > 0 })
+                    {
+                        sb.Append(",").Append(node.Hostname);
+                    }
+                    if (aux is { Count: > 0 })
+                    {
+                        foreach (var field in aux)
+                        {
+                            sb.Append(",").Append(field.Key).Append("=").Append(field.Value);
+                        }
+                    }
                 }
                 sb.Append(" ");
                 if (node == client.Node)
@@ -900,6 +925,12 @@ namespace StackExchange.Redis.Server
             /// unless a test says otherwise.
             /// </summary>
             public AnnouncedAddress Announced { get; internal set; }
+
+            /// <summary>
+            /// Auxiliary <c>name=value</c> fields this node declares after its hostname in
+            /// <c>CLUSTER NODES</c>; null when it declares none.
+            /// </summary>
+            public List<KeyValuePair<string, string>> AuxFields { get; internal set; }
 
             /// <summary>
             /// This node's own preferred endpoint type, or <c>null</c> to follow the server-wide default.
