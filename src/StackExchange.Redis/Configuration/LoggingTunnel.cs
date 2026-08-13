@@ -1,4 +1,6 @@
-﻿using System;
+﻿#pragma warning disable SER009 // experimental transport contract: this file logs the consumer side of it
+
+using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -12,6 +14,7 @@ using System.Threading.Tasks;
 using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
+using RESPite.Transports;
 using static StackExchange.Redis.PhysicalConnection;
 
 namespace StackExchange.Redis.Configuration;
@@ -316,6 +319,18 @@ public abstract class LoggingTunnel : Tunnel
 
         protected override Stream Log(Stream stream, EndPoint endpoint, ConnectionType connectionType)
         {
+            CreateLogFiles(endpoint, connectionType, out var reads, out var writes);
+            return new LoggingDuplexStream(stream, reads, writes);
+        }
+
+        protected override DuplexTransport Log(DuplexTransport transport, EndPoint endpoint, ConnectionType connectionType)
+        {
+            CreateLogFiles(endpoint, connectionType, out var reads, out var writes);
+            return new LoggingDuplexTransport(transport, reads, writes);
+        }
+
+        private void CreateLogFiles(EndPoint endpoint, ConnectionType connectionType, out Stream reads, out Stream writes)
+        {
             int index = Interlocked.Increment(ref _nextIndex);
             var name = $"{Format.ToString(endpoint)} {connectionType} {index}.tmp";
             foreach (var c in InvalidChars)
@@ -323,9 +338,8 @@ public abstract class LoggingTunnel : Tunnel
                 name = name.Replace(c, ' ');
             }
             name = Path.Combine(path, name);
-            var reads = File.Create(Path.ChangeExtension(name, ".in"));
-            var writes = File.Create(Path.ChangeExtension(name, ".out"));
-            return new LoggingDuplexStream(stream, reads, writes);
+            reads = File.Create(Path.ChangeExtension(name, ".in"));
+            writes = File.Create(Path.ChangeExtension(name, ".out"));
         }
 
         private static readonly char[] InvalidChars = Path.GetInvalidFileNameChars();
@@ -351,6 +365,35 @@ public abstract class LoggingTunnel : Tunnel
     /// Perform logging on the provided stream.
     /// </summary>
     protected abstract Stream Log(Stream stream, EndPoint endpoint, ConnectionType connectionType);
+
+    /// <inheritdoc/>
+    public override async ValueTask<DuplexTransport?> ConnectTransportAsync(EndPoint endpoint, ConnectionType connectionType, TlsOptions tls, CancellationToken cancellationToken)
+    {
+        if (_tail is null) return null; // nothing to wrap; the socket path applies
+
+        // in transport mode the tail owns connect *and* TLS, so it needs the original TLS intent - which
+        // our constructor deliberately cleared from the live options, since when we do the handshake
+        // ourselves the library must not also wrap the connection. Note that what we log here is
+        // therefore the plaintext RESP either way: we sit above the tail's own encryption.
+        if (_ssl && !tls.IsEnabled)
+        {
+            var forTail = _options.Clone();
+            forTail.Ssl = true;
+            tls = new TlsOptions(forTail);
+        }
+
+        var transport = await _tail.ConnectTransportAsync(endpoint, connectionType, tls, cancellationToken).ForAwait();
+        return transport is null ? null : Log(transport, endpoint, connectionType);
+    }
+
+    /// <summary>
+    /// Perform logging on the provided transport (push-mode transports, i.e. tunnels that supply an
+    /// entire <see cref="DuplexTransport"/> rather than a socket or <see cref="Stream"/>).
+    /// </summary>
+    /// <remarks>The default implementation returns the transport unchanged, i.e. connects but does not
+    /// log; override it (typically returning a <see cref="LoggingDuplexTransport"/>) to capture traffic
+    /// in transport mode.</remarks>
+    protected virtual DuplexTransport Log(DuplexTransport transport, EndPoint endpoint, ConnectionType connectionType) => transport;
 
     /// <inheritdoc/>
     public override ValueTask BeforeSocketConnectAsync(EndPoint endPoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
@@ -486,6 +529,120 @@ public abstract class LoggingTunnel : Tunnel
     }
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+    /// <summary>
+    /// Captures the traffic of a push-mode <see cref="DuplexTransport"/> into a pair of streams, in the
+    /// same format <see cref="LoggingDuplexStream"/> produces, so the same replay/validate tooling reads
+    /// both. Outbound bytes are captured at <see cref="Advance"/> (the last point at which they are still
+    /// ours to read); inbound bytes are captured as they are delivered, before the consumer sees them.
+    /// </summary>
+    protected sealed class LoggingDuplexTransport : DuplexTransport
+    {
+        private readonly DuplexTransport _inner;
+        private readonly Stream _reads, _writes;
+        private Memory<byte> _pending; // the buffer most recently handed out, so Advance can log from it
+        private volatile bool _logsClosed;
+
+        internal LoggingDuplexTransport(DuplexTransport inner, Stream reads, Stream writes)
+        {
+            _inner = inner;
+            _reads = reads;
+            _writes = writes;
+        }
+
+        // the wrapper adds capture, not encryption; whether the bytes are encrypted is the inner
+        // transport's assertion to make
+        public override bool IsEncrypted => _inner.IsEncrypted;
+
+        public override Memory<byte> GetMemory(int sizeHint = 0) => _pending = _inner.GetMemory(sizeHint);
+
+        // deliberately NOT delegating to _inner.GetSpan: we need the memory to still be reachable at
+        // Advance, which is the only point where we learn how much of it was actually written
+        public override Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
+
+        public override void Advance(int count)
+        {
+            if (count > 0 && !_logsClosed)
+            {
+                // capture *before* advancing; from Advance onwards the bytes belong to the transport,
+                // which is free to send and recycle them
+                WriteLog(_writes, _pending.Span.Slice(0, count));
+            }
+            _pending = default;
+            _inner.Advance(count);
+        }
+
+        public override bool Flush()
+        {
+            // capture first, so the log is never behind the wire
+            if (!_logsClosed) _writes.Flush();
+            return _inner.Flush();
+        }
+
+        public override void Start(TransportReceiver receiver) => _inner.Start(new LoggingReceiver(this, receiver));
+
+        public override async ValueTask DisposeAsync()
+        {
+            try
+            {
+                await _inner.DisposeAsync().ForAwait();
+            }
+            finally
+            {
+                CloseLogs();
+            }
+        }
+
+        private void CloseLogs()
+        {
+            if (_logsClosed) return;
+            _logsClosed = true;
+            try { _reads.Flush(); } catch { }
+            try { _reads.Dispose(); } catch { }
+            try { _writes.Flush(); } catch { }
+            try { _writes.Dispose(); } catch { }
+        }
+
+        private static void WriteLog(Stream target, ReadOnlySpan<byte> payload)
+        {
+#if NET
+            target.Write(payload);
+#else
+            var lease = ArrayPool<byte>.Shared.Rent(payload.Length);
+            payload.CopyTo(lease);
+            target.Write(lease, 0, payload.Length);
+            ArrayPool<byte>.Shared.Return(lease);
+#endif
+        }
+
+        private sealed class LoggingReceiver(LoggingDuplexTransport parent, TransportReceiver tail) : TransportReceiver
+        {
+            public override bool OnReceived(ReadOnlySpan<byte> payload)
+            {
+                // capture before handing on, so a capture exists even if the consumer faults on it
+                if (!parent._logsClosed)
+                {
+                    WriteLog(parent._reads, payload);
+                    parent._reads.Flush();
+                }
+                return tail.OnReceived(payload);
+            }
+
+            public override void OnBatchEnd() => tail.OnBatchEnd();
+
+            public override void OnClosed(Exception? fault)
+            {
+                try
+                {
+                    tail.OnClosed(fault);
+                }
+                finally
+                {
+                    parent.CloseLogs();
+                }
+            }
+        }
+    }
+
     protected sealed class LoggingDuplexStream : Stream
     {
         private readonly Stream _inner, _reads, _writes;

@@ -1,2 +1,12 @@
 #nullable enable
-[SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
+[SER009]StackExchange.Redis.Configuration.TlsOptions
+[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions() -> void
+[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions(StackExchange.Redis.ConfigurationOptions! options) -> void
+[SER009]StackExchange.Redis.Configuration.TlsOptions.IsEnabled.get -> bool
+[SER009]StackExchange.Redis.Configuration.TlsOptions.SslHost.get -> string?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.SslProtocols.get -> System.Security.Authentication.SslProtocols?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CheckCertificateRevocation.get -> bool
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateValidationCallback.get -> System.Net.Security.RemoteCertificateValidationCallback?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateSelectionCallback.get -> System.Net.Security.LocalCertificateSelectionCallback?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.ResolveHost(System.Net.EndPoint! endpoint) -> string!
+[SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, StackExchange.Redis.Configuration.TlsOptions tls, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>

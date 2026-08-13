@@ -1,1 +1,2 @@
 ﻿#nullable enable
+[SER009]StackExchange.Redis.Configuration.TlsOptions.GetSslClientAuthenticationOptions(string! host) -> System.Net.Security.SslClientAuthenticationOptions?

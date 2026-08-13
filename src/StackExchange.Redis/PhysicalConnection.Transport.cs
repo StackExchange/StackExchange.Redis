@@ -55,8 +55,15 @@ namespace StackExchange.Redis
             : BufferedStreamWriter(Stream.Null, cancellationToken)
         {
             private readonly TaskCompletionSource<bool> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            private int _staged; // bytes advanced since the last flush; see HasStagedBytes
 
             public override Task WriteComplete => _done.Task;
+
+            /// <summary>Whether anything has been advanced but not yet flushed; writes that do not demand
+            /// a flush (fire-and-forget) leave bytes here for a later flush to pick up. Deliberately
+            /// approximate in the safe direction: it can over-report (a concurrent stage during a flush
+            /// stays counted), which costs a redundant flush attempt, never a missed one.</summary>
+            public bool HasStagedBytes => Volatile.Read(ref _staged) != 0;
 
             public override Memory<byte> GetMemory(int sizeHint = 0) => transport.GetMemory(sizeHint);
 
@@ -65,16 +72,22 @@ namespace StackExchange.Redis
             public override void Advance(int count)
             {
                 transport.Advance(count);
+                Interlocked.Add(ref _staged, count);
                 OnWritten(count);
             }
 
             // A false return means the transport is closed; that failure surfaces via the receiver's
             // OnClosed (which records the connection failure), so it is not duplicated here.
-            public override void Flush() => transport.Flush();
+            public override void Flush()
+            {
+                var flushing = Volatile.Read(ref _staged);
+                transport.Flush();
+                Interlocked.Add(ref _staged, -flushing);
+            }
 
             public override void Complete(Exception? exception = null)
             {
-                try { transport.Flush(); }
+                try { Flush(); }
                 catch { }
                 if (exception is null)
                 {
@@ -118,6 +131,20 @@ namespace StackExchange.Redis
                     conn._readStatus = ReadStatus.Faulted;
                     conn.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                     return false;
+                }
+            }
+
+            public override void OnBatchEnd()
+            {
+                // The contract asks for ONE flush per delivery burst rather than per OnReceived. The only
+                // thing that can be staged-but-unflushed here is a write issued by inbound processing
+                // that did not demand a flush (typically a fire-and-forget command from a completion
+                // continuation running inline on this thread), so check before reaching for the lock -
+                // the common case is nothing staged and nothing to do.
+                var conn = connection;
+                if (conn._output is TransportWriter { HasStagedBytes: true } && conn.BridgeCouldBeNull is { } bridge)
+                {
+                    bridge.TryFlushStagedWrites(conn);
                 }
             }
 

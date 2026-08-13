@@ -709,4 +709,18 @@ internal static partial class LoggerExtensions
         EventId = 109,
         Message = "Service name not defined.")]
     internal static partial void LogInformationServiceNameNotDefined(this ILogger logger);
+
+#if NET
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 110,
+        Message = "TLS connection established successfully using protocol: {SslProtocol}, cipher suite: {CipherSuite}")]
+    internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol, System.Net.Security.TlsCipherSuite cipherSuite);
+#endif
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 111,
+        Message = "{BridgeName}: Transport connected (encrypted: {IsEncrypted})")]
+    internal static partial void LogInformationTransportConnected(this ILogger logger, string bridgeName, bool isEncrypted);
 }
