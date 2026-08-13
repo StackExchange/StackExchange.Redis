@@ -305,6 +305,23 @@ namespace StackExchange.Redis
 
         public RedisFeatures GetFeatures() => new RedisFeatures(version);
 
+        /// <summary>
+        /// The <c>CLUSTER SLOTS</c> view of the topology, keyed on node-id. Populated alongside
+        /// <see cref="ClusterConfiguration"/> but not yet used for routing, so the two can be compared
+        /// before anything depends on this one.
+        /// </summary>
+        internal ClusterTopology? ClusterTopology { get; private set; }
+
+        internal void SetClusterSlots(ClusterSlotsResult? slots)
+        {
+            var topology = ClusterTopology.From(slots);
+            if (topology is not null)
+            {
+                ClusterTopology = topology;
+                Multiplexer.Trace($"Shadow topology: {topology.Nodes.Count} nodes");
+            }
+        }
+
         public void SetClusterConfiguration(ClusterConfiguration configuration)
         {
             ClusterConfiguration = configuration;
@@ -467,6 +484,12 @@ namespace StackExchange.Redis
                 msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
+
+                // ...and the same topology as CLUSTER SLOTS sees it, which is the view that conveys naming
+                // preference and node ids. Shadow only for now: recorded, compared in tests, not routed on
+                msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.SLOTS);
+                msg.SetInternalCall();
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits

@@ -112,6 +112,37 @@ public class ClusterSlotsTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     [Fact]
+    public async Task ShadowTopologyAgreesWithNodesPerNode()
+    {
+        // the live cluster has heavily fragmented ownership, so this compares real range boundaries rather
+        // than the toy server's tidy ones - the strongest check available before the slot map is switched over
+        await using var conn = Create(allowAdmin: true);
+        var endpoint = conn.GetEndPoints()[0];
+        var api = conn.GetServer(endpoint);
+        Assert.SkipUnless(api.Version >= NodeIdVersion, $"node ids need {NodeIdVersion}, server is {api.Version}");
+
+        var nodes = await api.ClusterNodesAsync();
+        Assert.NotNull(nodes);
+
+        var topology = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint).ClusterTopology;
+        Assert.NotNull(topology);
+
+        int compared = 0;
+        foreach (var node in topology.Nodes.Where(x => !x.IsReplica))
+        {
+            var expected = Slots(nodes.Nodes.Single(x => x.NodeId == node.NodeId).Slots);
+            var actual = Slots(node.Slots);
+            Log($"{node.NodeId}: {actual.Length} slots over {node.Slots.Count} ranges");
+            Assert.Equal(expected, actual);
+            compared++;
+        }
+        Assert.NotEqual(0, compared);
+
+        static int[] Slots(System.Collections.Generic.IEnumerable<SlotRange> ranges)
+            => ranges.SelectMany(r => Enumerable.Range(r.From, r.To - r.From + 1)).OrderBy(x => x).ToArray();
+    }
+
+    [Fact]
     public async Task SlotsAndNodesAgreeOnPrimaries()
     {
         await using var conn = Create(allowAdmin: true);

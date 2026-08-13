@@ -37,6 +37,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<ClusterConfiguration>
             ClusterNodes = new ClusterNodesProcessor();
 
+        internal static readonly ResultProcessor<ClusterSlotsResult?>
+            ClusterSlots = ClusterSlotsResult.AutoConfigureProcessor;
+
         public static readonly ResultProcessor<EndPoint>
             ConnectionIdentity = new ConnectionIdentityProcessor();
 

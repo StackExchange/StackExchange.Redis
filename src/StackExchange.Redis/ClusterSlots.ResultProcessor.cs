@@ -10,7 +10,13 @@ public sealed partial class ClusterSlotsResult
 {
     internal static readonly ResultProcessor<ClusterSlotsResult?> Processor = new ClusterSlotsResultProcessor();
 
-    private sealed class ClusterSlotsResultProcessor : ResultProcessor<ClusterSlotsResult?>
+    /// <summary>
+    /// As <see cref="Processor"/>, but also records the result against the server that answered - the
+    /// autoconfigure path needs the side effect, callers of <c>CLUSTER SLOTS</c> do not.
+    /// </summary>
+    internal static readonly ResultProcessor<ClusterSlotsResult?> AutoConfigureProcessor = new ClusterSlotsResultProcessor(autoConfigure: true);
+
+    private sealed class ClusterSlotsResultProcessor(bool autoConfigure = false) : ResultProcessor<ClusterSlotsResult?>
     {
         protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
@@ -33,8 +39,15 @@ public sealed partial class ClusterSlotsResult
                 }
             }
 
-            SetResult(message, new ClusterSlotsResult(
-                assignments?.AsReadOnly() ?? (IList<ClusterSlotAssignment>)Array.Empty<ClusterSlotAssignment>()));
+            var result = new ClusterSlotsResult(
+                assignments?.AsReadOnly() ?? (IList<ClusterSlotAssignment>)Array.Empty<ClusterSlotAssignment>());
+
+            if (autoConfigure)
+            {
+                connection.BridgeCouldBeNull?.ServerEndPoint?.SetClusterSlots(result);
+            }
+
+            SetResult(message, result);
             return true;
         }
     }
