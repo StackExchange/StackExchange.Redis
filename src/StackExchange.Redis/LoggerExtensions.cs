@@ -652,13 +652,13 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 98,
         Message = "Configuring TLS")]
-    internal static partial void LogInformationConfiguringTLS(this ILogger logger);
+    internal static partial void LogInformationConfiguringTls(this ILogger logger);
 
     [LoggerMessage(
         Level = LogLevel.Information,
         EventId = 99,
         Message = "TLS connection established successfully using protocol: {SslProtocol}")]
-    internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol);
+    internal static partial void LogInformationTlsConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -715,7 +715,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 110,
         Message = "TLS connection established successfully using protocol: {SslProtocol}, cipher suite: {CipherSuite}")]
-    internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol, System.Net.Security.TlsCipherSuite cipherSuite);
+    internal static partial void LogInformationTlsConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol, System.Net.Security.TlsCipherSuite cipherSuite);
 #endif
 
     [LoggerMessage(
