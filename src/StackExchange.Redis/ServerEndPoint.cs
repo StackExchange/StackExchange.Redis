@@ -423,7 +423,8 @@ namespace StackExchange.Redis
             }
             if (commandMap.IsAvailable(RedisCommand.SENTINEL))
             {
-                msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+                // SENTINEL MASTERS only reads the sentinel's view, despite SENTINEL defaulting to server-admin
+                msg = Message.Create(-1, flags.WithCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
@@ -464,7 +465,7 @@ namespace StackExchange.Redis
             }
             if (commandMap.IsAvailable(RedisCommand.CLUSTER))
             {
-                msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
+                msg = RedisServer.GetClusterNodesMessage(flags);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
             }
@@ -958,13 +959,14 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("No connection!?");
                 return;
             }
-            Message msg;
-            // Note that we need "" (not null) for password in the case of 'nopass' logins
-            var config = Multiplexer.RawConfig;
-            string? user = config.User;
-            string password = config.Password ?? "";
 
-            string clientName = Multiplexer.ClientName;
+            Message msg;
+            var config = Multiplexer.RawConfig;
+            var user = config.User;
+            // Note that we need "" (not null) for password in the case of 'nopass' logins
+            var password = config.Password ?? "";
+            var clientName = Multiplexer.ClientName;
+
             if (!string.IsNullOrWhiteSpace(clientName))
             {
                 clientName = nameSanitizer.Replace(clientName, "");

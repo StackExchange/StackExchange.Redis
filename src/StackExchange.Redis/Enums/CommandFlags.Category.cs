@@ -3,8 +3,45 @@ namespace StackExchange.Redis;
 internal static class CommandFlagsExtensions
 {
     public static CommandFlags WithCategory(this CommandFlags flags, CommandFlags category)
-        // if the user hasn't already specified a category: use the category supplied
-        => ((flags & Message.MaskRetryCategory) is 0) ? flags | (category & Message.MaskRetryCategory) : flags;
+    {
+        // CommandServerSpecific is an orthogonal flag rather than part of the severity ladder, so it
+        // is always additive - the caller choosing a retry category doesn't make a cursor-bearing
+        // command any less node-affine.
+        flags |= category & Message.CommandServerSpecific;
+
+        // ...but for the ladder itself: if the user has already specified a category, that wins.
+        return ((flags & Message.MaskRetryCategory) is 0) ? flags | (category & Message.MaskRetryCategory) : flags;
+    }
+
+    /// <summary>
+    /// The retry category implied by an existence condition applied to an otherwise unconditional write;
+    /// <see cref="CommandFlags.None"/> means "no opinion", leaving the per-command default in place.
+    /// </summary>
+    public static CommandFlags AsRetryCategory(this When when) => when switch
+    {
+        // NX/XX make the write conditional: a replay either no-ops or fails, and either way the
+        // end-state matches the first attempt.
+        When.Exists or When.NotExists => CommandFlags.CommandRetryWriteChecked,
+        _ => CommandFlags.None,
+    };
+
+    /// <summary>
+    /// The category for one page of a SCAN-family iteration. These are reads, but a *resumed* cursor only means
+    /// something on the node that issued it (and, for the per-key variants, against that node's encoding of the
+    /// object), so it is node-affine; a fresh iteration from the origin cursor can start anywhere.
+    /// </summary>
+    public static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
+        => flags.WithCategory(cursor == RedisBase.CursorUtils.Origin
+            ? CommandFlags.CommandRetryReadOnly
+            : CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific);
+
+    /// <inheritdoc cref="AsRetryCategory(When)"/>
+    public static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
+    {
+        // NX/XX/GT/LT; GT/LT are monotone, so re-applying converges on the same deadline
+        ExpireWhen.Always => CommandFlags.None,
+        _ => CommandFlags.CommandRetryWriteChecked,
+    };
 
     public static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {
@@ -49,8 +86,9 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.COMMAND:
                     return CommandFlags.CommandRetryConnection;
 
-                // CLIENT etc often use server-specific IDs
-                case RedisCommand.CLIENT: // note some can be considered admin, overridden locally
+                // CLIENT etc often use server-specific IDs. This is the *safest* subcommand's category;
+                // RedisServer raises CLIENT KILL to server-admin, since it can't be inferred from the name.
+                case RedisCommand.CLIENT:
                     return CommandFlags.CommandRetryConnection | Message.CommandServerSpecific;
 
                 // ==========================================================================
@@ -71,11 +109,11 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.DUMP:
                 case RedisCommand.TOUCH: // technically bumps LRU/LFU state, but that's not a "real" side effect worth blocking retries over
                 case RedisCommand.OBJECT:
-                case RedisCommand.MEMORY:
+                case RedisCommand.MEMORY: // note MEMORY PURGE is raised to server-admin in RedisServer
                 case RedisCommand.SORT_RO:
-                case RedisCommand.SORT: // ignoring the STORE variant
+                case RedisCommand.SORT: // the STORE variant is raised to a write where we can see the args
                 case RedisCommand.LCS:
-                case RedisCommand.GETEX: // ignoring the TTL-mutating option variants
+                case RedisCommand.GETEX: // the TTL-mutating variants are raised to a write where we can see the args
                 case RedisCommand.HGET:
                 case RedisCommand.HMGET:
                 case RedisCommand.HGETALL:
@@ -88,7 +126,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.HPTTL:
                 case RedisCommand.HEXPIRETIME:
                 case RedisCommand.HPEXPIRETIME:
-                case RedisCommand.HGETEX: // ignoring TTL-mutating option variants
+                case RedisCommand.HGETEX: // as GETEX
                 case RedisCommand.LLEN:
                 case RedisCommand.LRANGE:
                 case RedisCommand.LINDEX:
@@ -157,9 +195,9 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.UNLINK:
                 case RedisCommand.PERSIST:
                 case RedisCommand.RENAMENX:
-                case RedisCommand.COPY: // ignoring REPLACE — default behavior fails if dest exists
+                case RedisCommand.COPY: // default behavior fails if dest exists; REPLACE is raised where we can see the args
                 case RedisCommand.MOVE:
-                case RedisCommand.RESTORE: // ignoring REPLACE
+                case RedisCommand.RESTORE: // the typed API never emits REPLACE
                 case RedisCommand.GETDEL:
                 case RedisCommand.HGETDEL:
                 case RedisCommand.HPERSIST:
@@ -204,7 +242,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.HEXPIREAT:
                 case RedisCommand.HPEXPIREAT:
                 case RedisCommand.LSET:
-                case RedisCommand.ZADD: // ignoring INCR option
+                case RedisCommand.ZADD: // NX/XX/GT/LT and INCR are all handled in SortedSetAddMessage
                 case RedisCommand.ZRANGESTORE:
                 case RedisCommand.ZUNIONSTORE:
                 case RedisCommand.ZINTERSTORE:
@@ -214,9 +252,9 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.SUNIONSTORE:
                 case RedisCommand.GEOADD:
                 case RedisCommand.GEOSEARCHSTORE:
-                case RedisCommand.GEORADIUS: // because of store scenarios
+                case RedisCommand.GEORADIUS: // because of store scenarios; the typed API demotes to read-only
                 case RedisCommand.GEORADIUSBYMEMBER:
-                case RedisCommand.XCLAIM:
+                case RedisCommand.XCLAIM: // JUSTID is demoted where we can see the args
                 case RedisCommand.XAUTOCLAIM:
                     return CommandFlags.CommandRetryWriteLastWins;
 
@@ -247,7 +285,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.ZPOPMIN:
                 case RedisCommand.ZPOPMAX:
                 case RedisCommand.ZMPOP:
-                case RedisCommand.XADD:
+                case RedisCommand.XADD: // explicit ids and IDMP/IDMPAUTO are demoted where we can see the args
                 case RedisCommand.PFMERGE: // destination accumulates union each call
                     return CommandFlags.CommandRetryWriteAccumulating;
 
@@ -266,11 +304,11 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.MIGRATE:
                 case RedisCommand.DEBUG:
                 case RedisCommand.MONITOR:
-                case RedisCommand.CONFIG: // note CONFIG GET con be considered more safe
-                case RedisCommand.SLOWLOG:
-                case RedisCommand.LATENCY:
-                case RedisCommand.SCRIPT:
-                case RedisCommand.CLUSTER: // note: some like MYID can be considered more safe
+                case RedisCommand.CONFIG: // note CONFIG GET is demoted to connection-level in RedisServer
+                case RedisCommand.SLOWLOG: // note SLOWLOG GET is demoted to read-only in RedisServer
+                case RedisCommand.LATENCY: // note LATENCY DOCTOR/HISTORY/LATEST likewise
+                case RedisCommand.SCRIPT: // note SCRIPT EXISTS/LOAD are demoted in RedisServer/RedisDatabase
+                case RedisCommand.CLUSTER: // note CLUSTER NODES is demoted to read-only where we know the subcommand
                     return CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
 
                 // ==========================================================================
@@ -284,7 +322,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.UNWATCH:
                 case RedisCommand.PUBLISH:
                 case RedisCommand.SPUBLISH:
-                case RedisCommand.XREADGROUP:
+                case RedisCommand.XREADGROUP: // only for ">"; an explicit id re-reads the PEL and is demoted to read-only
                 case RedisCommand.BLPOP:
                 case RedisCommand.BRPOP:
                 case RedisCommand.BRPOPLPUSH:
@@ -358,7 +396,7 @@ internal static class CommandFlagsExtensions
 
                 // ---- SERVER ADMIN / NODE-SPECIFIC ----
                 case RedisCommand.HOTKEYS: // diagnostic/introspection, node-local
-                case RedisCommand.SENTINEL:
+                case RedisCommand.SENTINEL: // only because of FAILOVER; the introspection verbs are demoted in RedisServer
                 case RedisCommand.SYNC: // replication stream handshake
                     return CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
 

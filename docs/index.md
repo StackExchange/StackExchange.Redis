@@ -58,6 +58,7 @@ Documentation
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
 - [RESP Logging](RespLogging) - capturing and validating RESP streams
+- [Analyzer rules](rules/) - the `SER3xx` suggestions reported by the analyzer shipped in the package
 
 Questions and Contributions
 ---

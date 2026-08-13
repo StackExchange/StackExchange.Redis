@@ -321,7 +321,18 @@ namespace StackExchange.Redis
                 }
 
 #if UNIX_SOCKET
-                endpoint = new UnixDomainSocketEndPoint(addressWithPort.Substring(1));
+                var path = addressWithPort.Substring(1);
+                if (path[0] == '@' && OperatingSystem.IsLinux())
+                {
+                    // "!@name" is the Linux ABSTRACT namespace, using the same '@' convention as
+                    // socat/systemd (and redis-cli/redis-benchmark where supported): the kernel
+                    // spelling is a leading NUL, which cannot appear in a config string. Linux-gated
+                    // because no other platform has the namespace — elsewhere '@' stays a literal
+                    // (strange) filename, matching what the other tools do. Note ToString() round-trips
+                    // for free: UnixDomainSocketEndPoint renders abstract names back as "@name".
+                    path = "\0" + path.Substring(1);
+                }
+                endpoint = new UnixDomainSocketEndPoint(path);
                 return true;
 #else
                 throw new PlatformNotSupportedException("Unix domain sockets require .NET Core 3 or above");

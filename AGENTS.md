@@ -41,6 +41,7 @@ dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Rel
 
 - SDK is pinned (`global.json`, `allowPrerelease: false`); CI installs the 6/8/10 runtimes. `LangVersion` is 14.
 - `TreatWarningsAsErrors=true` everywhere and `Features=strict` — warnings fail the build. Analyzers (StyleCop + the custom `eng` analyzer + PublicApiAnalyzers) run as part of the build.
+- Analyzers run on **one TFM per project** — the newest it builds (see `Directory.Build.targets`), because they cost ~40% of a clean build otherwise and every rule is TFM-agnostic. Source generators still run on every TFM. If you touch code inside a down-level `#if`, build it with `/p:RunAnalyzers=true` to get the full per-TFM sweep. StyleCop applies to `src/` only, not `tests/` or `toys/`.
 - Library multi-targets `net461;netstandard2.0;net472;net6.0;net8.0;net10.0`. Conditional compile symbols: `VECTOR_SAFE` (all but net461), `UNIX_SOCKET` (net6.0+). The test project targets `net481;net8.0;net10.0`; `BUILD_CURRENT` is defined on the newest TFM (disables some parallelism for brittle tests).
 
 ## Public API tracking (important — easy to trip over)
@@ -113,6 +114,6 @@ Be consise and direct where possible, but with as much detail as is necessary; n
 
 ## Conventions
 
-- Code style is enforced via `.editorconfig` + `Shared.ruleset` + StyleCop; 4-space indent, BOM + final newline on `.cs`, `System.*` usings first, no redundant `this.`. Build will fail on violations.
+- Code style is enforced via `.editorconfig` + `Shared.ruleset` + StyleCop (StyleCop in `src/` only); 4-space indent, BOM + final newline on `.cs`, `System.*` usings first, no redundant `this.`. Build will fail on violations. Match the surrounding style in `tests/`/`toys/` too — the rules are simply not enforced there.
 - `InternalsVisibleTo` exposes internals to the test/benchmark/server projects, so tests reach into internal types directly.
 - `docs/` markdown is the user-facing documentation; update it for user-visible behavior changes.

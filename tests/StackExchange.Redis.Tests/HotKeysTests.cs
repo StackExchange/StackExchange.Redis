@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 [Collection(NonParallelCollection.Name)]
 public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HotKeysTests(output, fixture)
 {
-    protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
+    protected override string GetConfiguration() => GetClusterConfiguration();
 
     [Theory]
     [InlineData(true)]

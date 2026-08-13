@@ -2,4 +2,30 @@
   <ItemGroup>
     <EmbeddedFiles Include="$(GeneratedAssemblyInfoFile)"/>
   </ItemGroup>
+
+  <!--
+    Analyzers are around 40% of a clean build's wall time, and every rule we run is TFM-agnostic: the same
+    file is analysed once per TargetFramework, so a six-TFM library pays for the same diagnostics six times.
+    Run them on one TFM per project instead - the newest the project builds, which is the branch of any #if
+    with the most code behind it. Source generators are unaffected: RunAnalyzers=false only suppresses
+    DiagnosticAnalyzers, so the generated code is identical on every TFM.
+
+    What this gives up: a diagnostic that only fires in down-level conditional code, and (for
+    PublicApiAnalyzers) public API that exists *only* on an older TFM. Pass /p:RunAnalyzers=true to get the
+    full per-TFM sweep back - worth doing after touching code inside a down-level #if.
+
+    Note this lives in .targets, not .props: TargetFrameworks is only known once the project body has been
+    evaluated. Single-TFM projects leave TargetFrameworks empty and are untouched.
+  -->
+  <PropertyGroup Condition="'$(RunAnalyzers)' == '' and '$(TargetFramework)' != '' and '$(TargetFrameworks)' != ''">
+    <!-- first match wins, so this list is newest-first rather than a sort we cannot express in MSBuild -->
+    <_AnalyzedTargetFramework Condition="'$(_AnalyzedTargetFramework)' == '' and $(TargetFrameworks.Contains('net10.0'))">net10.0</_AnalyzedTargetFramework>
+    <_AnalyzedTargetFramework Condition="'$(_AnalyzedTargetFramework)' == '' and $(TargetFrameworks.Contains('net8.0'))">net8.0</_AnalyzedTargetFramework>
+    <_AnalyzedTargetFramework Condition="'$(_AnalyzedTargetFramework)' == '' and $(TargetFrameworks.Contains('net6.0'))">net6.0</_AnalyzedTargetFramework>
+    <_AnalyzedTargetFramework Condition="'$(_AnalyzedTargetFramework)' == '' and $(TargetFrameworks.Contains('netstandard2.0'))">netstandard2.0</_AnalyzedTargetFramework>
+    <_AnalyzedTargetFramework Condition="'$(_AnalyzedTargetFramework)' == '' and $(TargetFrameworks.Contains('net481'))">net481</_AnalyzedTargetFramework>
+    <_AnalyzedTargetFramework Condition="'$(_AnalyzedTargetFramework)' == '' and $(TargetFrameworks.Contains('net472'))">net472</_AnalyzedTargetFramework>
+    <_AnalyzedTargetFramework Condition="'$(_AnalyzedTargetFramework)' == '' and $(TargetFrameworks.Contains('net461'))">net461</_AnalyzedTargetFramework>
+    <RunAnalyzers Condition="'$(_AnalyzedTargetFramework)' != '' and '$(TargetFramework)' != '$(_AnalyzedTargetFramework)'">false</RunAnalyzers>
+  </PropertyGroup>
 </Project>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -70,7 +70,7 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log) : TestBase(log)
         };
 
         // sanity: A (highest weight) is the active member to begin with
-        Assert.True(conn.IsConnected);
+        await GroupWait.AssertConnectedAsync(conn);
         Assert.Same(members[0], conn.ActiveMember);
 
         // arm the breaker and hold A unhealthy, then drive a *faulting* command to the active member (A):

@@ -44,6 +44,8 @@ namespace StackExchange.Redis
         internal bool IsDisposed => _isDisposed;
         internal ILogger<ConnectionMultiplexer>? Logger { get; }
 
+        private readonly bool _isSentinel;
+
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
         internal ConfigurationOptions RawConfig { get; }
@@ -149,6 +151,8 @@ namespace StackExchange.Redis
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
             Logger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
+
+            _isSentinel = serverType == ServerType.Sentinel;
 
             var map = CommandMap = configuration.GetCommandMap(serverType);
             if (!string.IsNullOrWhiteSpace(configuration.Password) && !configuration.TryResp3()) // RESP3 doesn't need AUTH (can issue as part of HELLO)
@@ -1798,7 +1802,7 @@ namespace StackExchange.Redis
 
         private async Task<EndPointCollection?> GetEndpointsFromClusterNodes(ServerEndPoint server, ILogger? log)
         {
-            var message = Message.Create(-1, CommandFlags.None, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            var message = RedisServer.GetClusterNodesMessage(CommandFlags.None);
             try
             {
                 var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();

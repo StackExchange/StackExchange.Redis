@@ -115,7 +115,7 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
-    private Message GetStringSetMessage(in RedisKey key, in RedisValue value, Expiration expiry, in ValueCondition when, CommandFlags flags, [CallerMemberName] string? operation = null)
+    internal Message GetStringSetMessage(in RedisKey key, in RedisValue value, Expiration expiry, in ValueCondition when, CommandFlags flags, [CallerMemberName] string? operation = null)
     {
         switch (when.Kind)
         {
@@ -127,7 +127,8 @@ internal partial class RedisDatabase
             case ValueCondition.ConditionKind.ValueNotEquals:
             case ValueCondition.ConditionKind.DigestEquals:
             case ValueCondition.ConditionKind.DigestNotEquals:
-                return Message.Create(Database, flags, RedisCommand.SET, key, value, expiry, when);
+                // SET ... IFEQ/IFNE/IFDEQ/IFDNE is a compare-and-set, not a blind overwrite
+                return Message.Create(Database, flags.WithCategory(when.RetryCategory), RedisCommand.SET, key, value, expiry, when);
             default:
                 when.ThrowInvalidOperation(operation);
                 goto case ValueCondition.ConditionKind.Always; // not reached

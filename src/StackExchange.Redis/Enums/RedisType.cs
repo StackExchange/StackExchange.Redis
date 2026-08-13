@@ -13,7 +13,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// The specified key does not exist.
         /// </summary>
-        [AsciiHash("")]
+        /// <remarks><c>none</c> is the literal reply from <c>TYPE</c> for a key that does not exist,
+        /// so this member has a real token (unlike <see cref="Unknown"/>).</remarks>
+        [AsciiHash("none")]
         None,
 
         /// <summary>
@@ -75,6 +77,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// The data-type was not recognised by the client library.
         /// </summary>
+        /// <remarks>This is a client-side value, not a server token, so it is not parsable.</remarks>
+        [AsciiHash("")]
         Unknown,
 
         /// <summary>
@@ -96,7 +100,8 @@ namespace StackExchange.Redis
     /// </summary>
     internal static partial class RedisTypeMetadata
     {
-        [AsciiHash]
+        // TYPE replies are lower-case, but this is not a hot path, and v2 parsed case-insensitively
+        [AsciiHash(CaseSensitive = false)]
         internal static partial bool TryParse(ReadOnlySpan<byte> value, out RedisType redisType);
     }
 }

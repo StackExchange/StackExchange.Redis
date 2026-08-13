@@ -10,7 +10,7 @@ internal partial class RedisDatabase
         in RedisKey key,
         SortedSetWhen when,
         bool change,
-        bool increment) : Message.CommandKeyBase(db, flags, RedisCommand.ZADD, key)
+        bool increment) : Message.CommandKeyBase(db, flags.WithCategory(GetRetryCategory(when, increment)), RedisCommand.ZADD, key)
     {
         private const SortedSetWhen KnownWhen =
             SortedSetWhen.Exists | SortedSetWhen.GreaterThan | SortedSetWhen.LessThan | SortedSetWhen.NotExists;
@@ -43,6 +43,26 @@ internal partial class RedisDatabase
             if ((_when & Change) != 0) count++;
             if ((_when & Increment) != 0) count++;
             return count;
+        }
+
+        /// <summary>
+        /// ZADD covers three very different side-effect profiles depending on its options, so the
+        /// per-command default (last-wins) is only right for the plain form.
+        /// </summary>
+        private static CommandFlags GetRetryCategory(SortedSetWhen when, bool increment)
+        {
+            if (!increment)
+            {
+                // NX/XX are conditional; GT/LT are monotone, so re-applying the same score converges.
+                // A bare ZADD is an unconditional overwrite: leave the per-command default alone.
+                return when == SortedSetWhen.Always ? CommandFlags.None : CommandFlags.CommandRetryWriteChecked;
+            }
+
+            // ZADD ... INCR compounds on every call - *unless* NX, where a replay can only find the member
+            // present and no-op.
+            return (when & SortedSetWhen.NotExists) != 0
+                ? CommandFlags.CommandRetryWriteChecked
+                : CommandFlags.CommandRetryWriteAccumulating;
         }
 
         private static SortedSetWhen GetWhen(SortedSetWhen when, bool change, bool increment)

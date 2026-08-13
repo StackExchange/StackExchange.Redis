@@ -25,6 +25,9 @@ public sealed partial class AsciiHashAttribute(string token = "") : Attribute
     /// The token expected when parsing data, if different from the implied value. The implied
     /// value is the name, replacing underscores for hyphens, so: 'a_b' becomes 'a-b'.
     /// </summary>
+    /// <remarks>An explicit empty token (i.e. <c>[AsciiHash("")]</c>) means that the member is
+    /// excluded, and cannot be parsed or formatted; this is for client-side values such as
+    /// <c>Unknown</c>. This is distinct from omitting the token, which infers it from the name.</remarks>
     public string Token => token;
 
     /// <summary>
