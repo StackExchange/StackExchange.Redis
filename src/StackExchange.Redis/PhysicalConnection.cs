@@ -180,13 +180,11 @@ namespace StackExchange.Redis
             var connectTo = endpoint;
             if (tunnel is not null)
             {
-#pragma warning disable SER009 // experimental transport contract: this is the consuming call site
                 // A transport tunnel replaces the socket outright (the widest form of the existing
                 // connectTo=null no-socket pattern): connect and TLS belong to the tunnel, and the
                 // stream/SslStream machinery below never runs. The TLS intent goes with it precisely
                 // because TLS is now the tunnel's job: it cannot honour an intent it cannot see.
                 var transport = await tunnel.ConnectTransportAsync(endpoint, bridge.ConnectionType, new(rawConfig), CancellationToken.None).ForAwait();
-#pragma warning restore SER009
                 if (transport is not null)
                 {
                     _transport = transport;

@@ -1,6 +1,4 @@
-#pragma warning disable SER009 // experimental transport contract: this file IS the consumer side of it
-
-using System;
+﻿using System;
 using System.Buffers;
 using System.IO;
 using System.Threading;
