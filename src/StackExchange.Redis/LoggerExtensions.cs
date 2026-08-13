@@ -61,7 +61,13 @@ internal static partial class LoggerExtensions
         log.LogInformationThreadPoolStats(composed);
     }
 
-    // Generated LoggerMessage methods
+    // Generated LoggerMessage methods.
+    //
+    // NOTE: renaming any method here is NOT a refactor. The generator emits the method name as the event
+    // name -- new EventId(<id>, nameof(<Method>)) -- so the name reaches consumers' telemetry (EventId.Name;
+    // "EventName" in most structured sinks), where it may be filtered or alerted on. At our download volume
+    // that is not a cost worth paying for tidiness: treat these names as fixed once shipped, however
+    // awkwardly they read. If a name genuinely must change, pin the old one via the attribute's EventName.
     [LoggerMessage(
         Level = LogLevel.Error,
         Message = "Connection failed: {EndPoint} ({ConnectionType}, {FailureType}): {ErrorMessage}")]
@@ -648,17 +654,20 @@ internal static partial class LoggerExtensions
         Message = "{EndPoint}: (socket shutdown)")]
     internal static partial void LogErrorSocketShutdown(this ILogger logger, Exception exception, EndPointLogValue endPoint);
 
+    // "TLS" here breaks the usual TLA convention (compare SslStream, TlsCipherSuite, and TlsOptions in this
+    // repo), and is kept that way ON PURPOSE: these names shipped, so they are the event names our consumers
+    // already see. See the note at the top of the generated section.
     [LoggerMessage(
         Level = LogLevel.Information,
         EventId = 98,
         Message = "Configuring TLS")]
-    internal static partial void LogInformationConfiguringTls(this ILogger logger);
+    internal static partial void LogInformationConfiguringTLS(this ILogger logger);
 
     [LoggerMessage(
         Level = LogLevel.Information,
         EventId = 99,
         Message = "TLS connection established successfully using protocol: {SslProtocol}")]
-    internal static partial void LogInformationTlsConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol);
+    internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -711,16 +720,19 @@ internal static partial class LoggerExtensions
     internal static partial void LogInformationServiceNameNotDefined(this ILogger logger);
 
 #if NET
+    // deliberately the SAME event as its sibling above (id 99, same name): one logical event that
+    // simply carries an extra property where the platform can report it. A new id would mean "TLS connection
+    // established" arrived under one id on netfx and another on modern TFMs, for no gain to anyone.
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 110,
+        EventId = 99,
         Message = "TLS connection established successfully using protocol: {SslProtocol}, cipher suite: {CipherSuite}")]
-    internal static partial void LogInformationTlsConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol, System.Net.Security.TlsCipherSuite cipherSuite);
+    internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol, System.Net.Security.TlsCipherSuite cipherSuite);
 #endif
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 111,
+        EventId = 110,
         Message = "{BridgeName}: Transport connected (encrypted: {IsEncrypted})")]
     internal static partial void LogInformationTransportConnected(this ILogger logger, string bridgeName, bool isEncrypted);
 }

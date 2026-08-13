@@ -1069,7 +1069,7 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
-                    log?.LogInformationConfiguringTls();
+                    log?.LogInformationConfiguringTLS();
                     var host = config.SslHost;
                     if (host.IsNullOrWhiteSpace())
                     {
@@ -1118,9 +1118,9 @@ namespace StackExchange.Redis
                         // .NET:   https://github.com/dotnet/dotnet/blob/b0f34d51fccc69fd334253924abd8d6853fad7aa/src/runtime/src/libraries/System.Net.Security/src/System/Net/Security/SslStream.cs#L475
                         // netfx:  https://github.com/microsoft/referencesource/blob/main/System/net/System/Net/SecureProtocols/SslStream.cs#L312-L334
 #if NET
-                        log?.LogInformationTlsConnectionEstablished(ssl.SslProtocol, ssl.NegotiatedCipherSuite);
+                        log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol, ssl.NegotiatedCipherSuite);
 #else
-                        log?.LogInformationTlsConnectionEstablished(ssl.SslProtocol);
+                        log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol);
 #endif
                     }
                     catch (AuthenticationException authexception)
