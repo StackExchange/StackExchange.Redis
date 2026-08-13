@@ -20,19 +20,35 @@ namespace StackExchange.Redis.Configuration;
 public readonly struct TlsOptions
 {
     private readonly ConfigurationOptions? _options;
+    private readonly bool _forceTls;
 
     /// <summary>
     /// Create a view over the TLS settings of the supplied configuration.
     /// </summary>
     public TlsOptions(ConfigurationOptions options)
-        => _options = options ?? throw new ArgumentNullException(nameof(options));
+        : this(options ?? throw new ArgumentNullException(nameof(options)), forceTls: false)
+    {
+    }
+
+    private TlsOptions(ConfigurationOptions? options, bool forceTls)
+    {
+        _options = options;
+        _forceTls = forceTls;
+    }
 
     /// <summary>
     /// Whether TLS is required for this connection; corresponds to <see cref="ConfigurationOptions.Ssl"/>.
     /// A transport that returns <c>false</c> from
     /// <see cref="RESPite.Transports.DuplexTransport.IsEncrypted"/> when this is set will not be used.
     /// </summary>
-    public bool IsEnabled => _options?.Ssl ?? false;
+    public bool IsEnabled => _forceTls || (_options?.Ssl ?? false);
+
+    /// <summary>
+    /// The same view, but with TLS required regardless of what the configuration says - for the intermediate
+    /// tunnel that cleared <see cref="ConfigurationOptions.Ssl"/> for its own reasons but is chaining to a
+    /// tail that owns the handshake. Everything else (host, protocols, callbacks) is unchanged.
+    /// </summary>
+    internal TlsOptions WithTls() => new(_options, forceTls: true);
 
     /// <summary>
     /// The configured TLS host name, used for SNI and certificate validation; corresponds to

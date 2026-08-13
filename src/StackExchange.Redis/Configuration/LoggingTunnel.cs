@@ -373,12 +373,7 @@ public abstract class LoggingTunnel : Tunnel
         // our constructor deliberately cleared from the live options, since when we do the handshake
         // ourselves the library must not also wrap the connection. Note that what we log here is
         // therefore the plaintext RESP either way: we sit above the tail's own encryption.
-        if (_ssl && !tls.IsEnabled)
-        {
-            var forTail = _options.Clone();
-            forTail.Ssl = true;
-            tls = new TlsOptions(forTail);
-        }
+        if (_ssl) tls = tls.WithTls();
 
         var transport = await _tail.ConnectTransportAsync(endpoint, connectionType, tls, cancellationToken).ForAwait();
         return transport is null ? null : Log(transport, endpoint, connectionType);
