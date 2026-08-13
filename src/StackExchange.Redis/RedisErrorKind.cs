@@ -162,6 +162,19 @@ public enum RedisErrorKind
     /// <c>NOSCRIPT</c> - no matching script for <c>EVALSHA</c>; the script must be re-loaded.
     /// </summary>
     NoScript,
+
+    /// <summary>
+    /// A <c>MOVED</c> or <c>ASK</c> redirect whose target cannot be identified, so it cannot be followed;
+    /// the slot has moved, but the reply does not say where to.
+    /// </summary>
+    /// <remarks>
+    /// This is a client-side classification rather than a server error code: it is a special case of
+    /// <see cref="Moved"/> / <see cref="Ask"/>. It arises when the node answering prefers hostnames while the
+    /// target has announced none, giving <c>MOVED &lt;slot&gt; ?:&lt;port&gt;</c> - and <c>?</c> denotes an
+    /// *unknown* node, so unlike a missing or empty endpoint it must not be treated as the answering node.
+    /// A topology refresh is requested when this happens, so a retry may well succeed.
+    /// </remarks>
+    UnknownRedirectTarget,
 }
 
 internal static partial class RedisErrorKindMetadata

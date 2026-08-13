@@ -18,5 +18,6 @@ StackExchange.Redis.ClusterSlotsResult
 StackExchange.Redis.ClusterSlotsResult.Assignments.get -> System.Collections.Generic.IList<StackExchange.Redis.ClusterSlotAssignment!>!
 StackExchange.Redis.IServer.ClusterSlots(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotsResult?
 StackExchange.Redis.IServer.ClusterSlotsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotsResult?>!
+[SER007]StackExchange.Redis.RedisErrorKind.UnknownRedirectTarget = 26 -> StackExchange.Redis.RedisErrorKind
 [SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
 override StackExchange.Redis.ClusterSlotNode.ToString() -> string!

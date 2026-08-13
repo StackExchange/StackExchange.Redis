@@ -335,10 +335,20 @@ public class ClusterEndpointFormUnitTests(ITestOutputHelper log)
             ? "host-2.redis.example.com"
             : expectedHost;
 
-        // the client restates the redirect in terms of the endpoint it parsed, so assert on that rather
-        // than on the wire text; note a hostname form lands as a DnsEndPoint, which is the identity
-        // hazard this fake exists to make reproducible
-        Assert.Contains("MOVED", ex.Message);
-        Assert.Contains($"{expected}:{otherPort}", ex.Message);
+        if (expected is "?" or "")
+        {
+            // nothing usable to route to; UnroutableRedirectUnitTests covers the handling, here we only
+            // care that the server named the target the way its preference dictates
+            Assert.Equal(RedisErrorKind.UnknownRedirectTarget, ex.Kind);
+            Assert.Contains($"'{expected}:{otherPort}'", ex.Message);
+        }
+        else
+        {
+            // the client restates the redirect in terms of the endpoint it parsed, so assert on that rather
+            // than on the wire text; note a hostname form lands as a DnsEndPoint, which is the identity
+            // hazard this fake exists to make reproducible
+            Assert.Contains("MOVED", ex.Message);
+            Assert.Contains($"{expected}:{otherPort}", ex.Message);
+        }
     }
 }

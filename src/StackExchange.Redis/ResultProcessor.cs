@@ -288,7 +288,24 @@ namespace StackExchange.Redis
                 log = false;
                 string[] parts = reader.ReadString()!.Split(StringSplits.Space, 3);
                 if (Format.TryParseInt32(parts[1], out int hashSlot)
-                    && Format.TryParseEndPoint(parts[2], out var endpoint))
+                    && Format.TryParseEndPoint(parts[2], out var endpoint)
+                    && IsUnroutableRedirect(endpoint))
+                {
+                    // the slot moved, but the reply does not say where to: a hostname-preferring node
+                    // redirecting to a peer with no announced hostname reports "?", which denotes an
+                    // *unknown* node and so cannot be resolved to the answering node either. Do not
+                    // manufacture a ServerEndPoint for it - that would leave us dialling a host called "?"
+                    // - but do ask for a topology refresh, which can name the target properly, since
+                    // CLUSTER NODES reports addresses positionally whatever the preference
+                    connection.OnDetailLog($"unroutable {(isMoved ? "MOVED" : "ASK")} target '{parts[2]}'");
+                    bridge?.Multiplexer.ReconfigureIfNeeded(server?.EndPoint, false, "unroutable redirect");
+                    errorKind = RedisErrorKind.UnknownRedirectTarget;
+                    err = bridge?.Multiplexer.RawConfig.IncludeDetailInExceptions == true
+                        ? $"The server redirected hashslot {hashSlot} to '{parts[2]}', which does not identify a node that can be connected to; a topology refresh has been requested. Command: {message.CommandAndKey}. "
+                        : "The server redirected to an endpoint that does not identify a node that can be connected to; a topology refresh has been requested. ";
+                }
+                else if (Format.TryParseInt32(parts[1], out hashSlot)
+                    && Format.TryParseEndPoint(parts[2], out endpoint))
                 {
                     // Check if MOVED points to same endpoint
                     bool isSameEndpoint = Equals(server?.EndPoint, endpoint);
@@ -370,6 +387,16 @@ namespace StackExchange.Redis
         }
 
         protected abstract bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader);
+
+        // "?" is the documented placeholder for an unknown node, and a zero/absent port is what the
+        // "unknown-endpoint" form parses to; neither can be dialled, and neither may be assumed to mean
+        // "the node that answered" - see the CLUSTER SLOTS endpoint contract
+        private static bool IsUnroutableRedirect(EndPoint endpoint) => endpoint switch
+        {
+            DnsEndPoint dns => dns.Port == 0 || dns.Host is "" or "?",
+            IPEndPoint ip => ip.Port == 0,
+            _ => false,
+        };
 
         private void UnexpectedResponse(Message message, in RespReader reader)
         {
