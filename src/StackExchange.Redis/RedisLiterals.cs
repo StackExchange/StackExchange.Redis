@@ -83,6 +83,7 @@ namespace StackExchange.Redis
             NO = RedisValue.FromRaw("NO"u8),
             NODES = RedisValue.FromRaw("NODES"u8),
             NOSAVE = RedisValue.FromRaw("NOSAVE"u8),
+            SLOTS = RedisValue.FromRaw("SLOTS"u8),
             nosort = RedisValue.FromRaw("nosort"u8),
             NOT = RedisValue.FromRaw("NOT"u8),
             NOVALUES = RedisValue.FromRaw("NOVALUES"u8),

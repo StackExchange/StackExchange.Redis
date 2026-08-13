@@ -29,7 +29,7 @@ namespace StackExchange.Redis
         Client = 4,
 
         /// <summary>
-        /// The output of CLUSTER NODES.
+        /// The output of CLUSTER NODES and CLUSTER SLOTS.
         /// </summary>
         Cluster = 8,
 
