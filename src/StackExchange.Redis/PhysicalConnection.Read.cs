@@ -29,6 +29,13 @@ internal sealed partial class PhysicalConnection
 
     internal void StartReading(CancellationToken cancellation = default)
     {
+        if (_transport is { } transport)
+        {
+            // push mode: no reader thread/Task -- the transport delivers into the parser directly
+            StartTransportReading(transport);
+            return;
+        }
+
         if (cancellation.CanBeCanceled && cancellation != InputCancel)
         {
             cancellation.ThrowIfCancellationRequested();

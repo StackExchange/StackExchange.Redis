@@ -1259,6 +1259,36 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Flush anything earlier writes left staged, but only if that can be done without waiting.
+        /// </summary>
+        /// <remarks>
+        /// Called from a push transport's batch-end callback, which runs on a transport thread that must
+        /// not block. The write lock is what makes staging exclusive - a flush that raced a stage could
+        /// hand a half-written frame to a transport mid-<c>Advance</c> - so this either gets the lock
+        /// instantly or does nothing, leaving the flush to whoever does hold it.
+        /// </remarks>
+        internal void TryFlushStagedWrites(PhysicalConnection physical)
+        {
+            if (!_singleWriter.TryTakeInstant()) return;
+            try
+            {
+                if (physical is { HasOutputPipe: true })
+                {
+                    physical.Flush();
+                }
+            }
+            catch
+            {
+                // opportunistic: a flush failure here means the transport is going away, and that is
+                // reported through the receiver's OnClosed
+            }
+            finally
+            {
+                _singleWriter.Release();
+            }
+        }
+
         public bool HasPendingCallerFacingItems()
         {
             if (BacklogHasItems)
