@@ -53,7 +53,8 @@ internal static class Program
                 {
                     if (benchmarks.Count > 1 || isFirst)
                     {
-                        Console.WriteLine($"### {bench} ###");
+                        Console.WriteLine(
+                            $"### {bench} (clients: {bench.ClientCount:#,##0}, conns: {bench.ConnectionCount:#,##0}) ###");
                         isFirst = false;
                     }
 

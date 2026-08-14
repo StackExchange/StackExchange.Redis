@@ -6,7 +6,8 @@ namespace StackExchange.Redis;
 // ReSharper disable InconsistentNaming
 internal enum RedisCommand
 {
-    NONE, // must be first for "zero reasons"
+    [AsciiHash("")] // not a command; must be first for "zero reasons"
+    NONE,
 
     APPEND,
     ASKING,
@@ -317,9 +318,6 @@ internal static partial class RedisCommandMetadata
 
     [AsciiHash(CaseSensitive = false)]
     public static partial bool TryParseCI(ReadOnlySpan<char> command, out RedisCommand value);
-
-    [AsciiHash]
-    public static partial bool TryFormat(RedisCommand command, out string format);
 }
 
 // ReSharper restore InconsistentNaming

@@ -205,6 +205,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         RedisChannel channel = RedisChannel.Literal(Me());
         var sub = conn.GetSubscriber();
         int counter = 0;
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => sub.IsConnected()).ForAwait();
         Assert.True(sub.IsConnected());
         await sub.SubscribeAsync(channel, (arg1, arg2) => Interlocked.Increment(ref counter)).ConfigureAwait(false);
 

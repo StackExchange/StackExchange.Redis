@@ -8,6 +8,10 @@
     <PackageIcon>seredis.png</PackageIcon>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The shipped code only. StyleCop is by far the most expensive analyzer we run (two thirds of all
+         analyzer time in a clean build), and it was buying nothing in tests/ and toys/ that review does not:
+         those are not part of the published surface and have no docs requirements. -->
+    <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
     <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" Condition=" '$(DEVCONTAINER)' != 'true' " />

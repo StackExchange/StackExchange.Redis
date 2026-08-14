@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 StackExchange.Redis.ClusterNode.AuxFields.get -> System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string!, string!>>!
 StackExchange.Redis.ClusterNode.ClusterBusPort.get -> int?
 StackExchange.Redis.ClusterNode.Hostname.get -> string?
@@ -16,8 +16,13 @@ StackExchange.Redis.ClusterSlotNode.NodeId.get -> string?
 StackExchange.Redis.ClusterSlotNode.Port.get -> int
 StackExchange.Redis.ClusterSlotsResult
 StackExchange.Redis.ClusterSlotsResult.Assignments.get -> System.Collections.Generic.IList<StackExchange.Redis.ClusterSlotAssignment!>!
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
+StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
 StackExchange.Redis.IServer.ClusterSlots(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotsResult?
 StackExchange.Redis.IServer.ClusterSlotsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotsResult?>!
+StackExchange.Redis.RedisFeatures.Hello.get -> bool
 [SER007]StackExchange.Redis.RedisErrorKind.UnknownRedirectTarget = 26 -> StackExchange.Redis.RedisErrorKind
 [SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
 override StackExchange.Redis.ClusterSlotNode.ToString() -> string!

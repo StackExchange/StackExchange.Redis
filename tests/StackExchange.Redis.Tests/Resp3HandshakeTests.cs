@@ -38,17 +38,12 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
         {
             foreach (var server in servers)
             {
-                if (client is RedisProtocol.Resp2 & server is not ServerResponse.Resp2)
+                // note that every combination is meaningful: we issue HELLO even for RESP2 clients
+                // (as HELLO 2), so "server doesn't understand HELLO" etc still needs exercising
+                int count = 1 << HandshakeFlagsCount;
+                for (int i = 0; i < count; i++)
                 {
-                    // we don't issue HELLO for this, nothing to test
-                }
-                else
-                {
-                    int count = 1 << HandshakeFlagsCount;
-                    for (int i = 0; i < count; i++)
-                    {
-                        yield return [client, server, (HandshakeFlags)i];
-                    }
+                    yield return [client, server, (HandshakeFlags)i];
                 }
             }
         }
@@ -66,6 +61,11 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
         config.ConfigurationChannel = (flags & HandshakeFlags.ConfigChannel) == 0 ? "" : "broadcast_channel";
 
         await using var clientObj = await ConnectionMultiplexer.ConnectAsync(config);
+
+        // RESP3 requires both sides to want it; anything else lands on RESP2
+        var expectedProtocol = client is RedisProtocol.Resp3 && server is ServerResponse.Resp3
+            ? RedisProtocol.Resp3 : RedisProtocol.Resp2;
+        Assert.Equal(expectedProtocol, clientObj.GetServerSnapshot()[0].Protocol);
 
         var sub = clientObj.GetSubscriber();
         var db = clientObj.GetDatabase();

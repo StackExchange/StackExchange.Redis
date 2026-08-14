@@ -106,7 +106,9 @@ namespace StackExchange.Redis
                 KeepAlive = "keepAlive",
                 ClientName = "name",
                 User = "user",
+                SentinelUser = "sentinelUser",
                 Password = "password",
+                SentinelPassword = "sentinelPassword",
                 PreserveAsyncOrder = "preserveAsyncOrder",
                 Proxy = "proxy",
                 ResolveDns = "resolveDns",
@@ -141,7 +143,9 @@ namespace StackExchange.Redis
                 HighPrioritySocketThreads,
                 KeepAlive,
                 User,
+                SentinelUser,
                 Password,
+                SentinelPassword,
                 PreserveAsyncOrder,
                 Proxy,
                 ResolveDns,
@@ -217,7 +221,7 @@ namespace StackExchange.Redis
 
         private OptionFlags optionFlags;
 
-        private string? tieBreaker, sslHost, configChannel, user, password;
+        private string? tieBreaker, sslHost, configChannel, user, sentinelUser, password, sentinelPassword;
 
         private TimeSpan heartbeatInterval;
 
@@ -747,12 +751,32 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// The username to use to authenticate with Sentinel servers, only when different from the Redis server password (optional).
+        /// If not specified, <see cref="User"/> is used when communicating with Sentinels.
+        /// </summary>
+        public string? SentinelUser
+        {
+            get => sentinelUser ?? user ?? Defaults.User;
+            set => sentinelUser = value;
+        }
+
+        /// <summary>
         /// The password to use to authenticate with the server.
         /// </summary>
         public string? Password
         {
             get => password ?? Defaults.Password;
             set => password = value;
+        }
+
+        /// <summary>
+        /// The password to use to authenticate with Sentinel servers, only when different from the Redis server password (optional).
+        /// If not specified, <see cref="Password"/> is used when communicating with Sentinels.
+        /// </summary>
+        public string? SentinelPassword
+        {
+            get => sentinelPassword ?? password ?? Defaults.Password;
+            set => sentinelPassword = value;
         }
 
         /// <summary>
@@ -941,7 +965,7 @@ namespace StackExchange.Redis
         public ConfigurationOptions Clone() => new ConfigurationOptions
         {
             defaultOptions = defaultOptions,
-            optionFlags = this.optionFlags,
+            optionFlags = optionFlags,
             ClientName = ClientName,
             ServiceName = ServiceName,
             keepAlive = keepAlive,
@@ -950,7 +974,9 @@ namespace StackExchange.Redis
             defaultVersion = defaultVersion,
             connectTimeout = connectTimeout,
             user = user,
+            sentinelUser = sentinelUser,
             password = password,
+            sentinelPassword = sentinelPassword,
             tieBreaker = tieBreaker,
             sslHost = sslHost,
             configChannel = configChannel,
@@ -1051,7 +1077,9 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, OptionFlags.ConnectTimeoutHasValue, in connectTimeout);
             Append(sb, OptionKeys.User, user);
+            Append(sb, OptionKeys.SentinelUser, sentinelUser);
             Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(password)) ? password : "*****");
+            Append(sb, OptionKeys.SentinelPassword, (includePassword || string.IsNullOrEmpty(sentinelPassword)) ? sentinelPassword : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.Ssl, OptionFlags.SslHasValue, OptionFlags.SslValue);
             if (HasValue(OptionFlags.SslProtocolsHasValue)) Append(sb, OptionKeys.SslProtocols, sslProtocols.ToString().Replace(',', '|'));
@@ -1190,6 +1218,8 @@ namespace StackExchange.Redis
 #if DEBUG
             OutputLog = null;
 #endif
+            sentinelUser = null;
+            sentinelPassword = null;
         }
 
         object ICloneable.Clone() => Clone();
@@ -1274,8 +1304,14 @@ namespace StackExchange.Redis
                         case OptionKeys.User:
                             user = value;
                             break;
+                        case OptionKeys.SentinelUser:
+                            SentinelUser = value;
+                            break;
                         case OptionKeys.Password:
                             password = value;
+                            break;
+                        case OptionKeys.SentinelPassword:
+                            SentinelPassword = value;
                             break;
                         case OptionKeys.TieBreaker:
                             TieBreaker = value;
@@ -1425,6 +1461,25 @@ namespace StackExchange.Redis
                 : protocol.GetValueOrDefault() >= RedisProtocol.Resp3;
             // either way, it requires HELLO
             return use3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+        }
+
+        /// <summary>
+        /// Determines whether to issue <c>HELLO</c> as part of the handshake, and at which protocol level.
+        /// </summary>
+        /// <remarks>We want HELLO even when staying on RESP2, because the reply tells us the server version,
+        /// role, mode and connection identifier - none of which we would otherwise know without <c>INFO</c>
+        /// or <c>CONFIG</c>, which are commonly restricted by ACLs (both are <c>@dangerous</c>).</remarks>
+        internal bool TryHello(out int protocolVersion)
+        {
+            // HELLO arrived in 6.0, at the same time as RESP3; the command-map and the assumed server
+            // version are therefore both ways of opting out (`$hello=` and `defaultVersion=5.0`, say)
+            if (CommandMap.IsAvailable(RedisCommand.HELLO) && new RedisFeatures(DefaultVersion).Hello)
+            {
+                protocolVersion = TryResp3() ? 3 : 2;
+                return true;
+            }
+            protocolVersion = 0;
+            return false;
         }
 
         internal static bool TryParseRedisProtocol(string? value, out RedisProtocol protocol)

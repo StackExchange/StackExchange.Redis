@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests;
 public sealed class PubSubKeyNotificationTestsCluster(ITestOutputHelper output, ITestContextAccessor context, SharedConnectionFixture fixture)
     : PubSubKeyNotificationTests(output, context, fixture)
 {
-    protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts;
+    protected override string GetConfiguration() => GetClusterConfiguration(string.Empty);
 }
 
 // ReSharper disable once UnusedMember.Global - used via test framework

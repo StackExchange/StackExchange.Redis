@@ -33,6 +33,18 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         ctx.RegisterSourceOutput(interfaces.Combine(classes), static (ctx, content) => Generate(ctx, content.Left, content.Right));
     }
 
+    /// <summary>
+    /// The only assembly this generator has anything to say about.
+    /// </summary>
+    /// <remarks>
+    /// This is repo-internal machinery, but it now ships as an analyzer inside the StackExchange.Redis package
+    /// (for <c>AsciiHashGenerator</c>'s benefit), so it is loaded by every consumer. It can never generate
+    /// anything useful for them - the semantic checks below reject anything that isn't our own
+    /// <c>StackExchange.Redis</c> declaration - so short-circuit on the assembly name first, and skip even the
+    /// semantic-model query for the consumers who happen to declare a type called <c>IDatabase</c>.
+    /// </remarks>
+    private const string OwningAssembly = "StackExchange.Redis";
+
     static KnownInterfaces Identify(string type) => type switch
     {
         "IDatabase" => KnownInterfaces.IDatabase,
@@ -85,6 +97,8 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
     private static InterfaceInfo ExtractInterfaceMethods(GeneratorSyntaxContext context, CancellationToken cancel)
     {
+        if (context.SemanticModel.Compilation.AssemblyName is not OwningAssembly) return default;
+
         // note: we deliberately do NOT interpret anything here - just capture the raw shape of every
         // method (name, return type, and per-parameter name/type/modifiers/optionality/default) so that
         // later passes have everything they might need.
@@ -130,6 +144,8 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
     private ClassInfo ExtractClasses(GeneratorSyntaxContext context, CancellationToken cancel)
     {
+        if (context.SemanticModel.Compilation.AssemblyName is not OwningAssembly) return default;
+
         // note: we deliberately do NOT interpret anything here - just capture the raw shape of every
         // method (name, return type, and per-parameter name/type/modifiers/optionality/default) so that
         // later passes have everything they might need.

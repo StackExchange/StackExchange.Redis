@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Minimal native-AOT rig: connects, does a few things, and exercises the event
+       machinery (which is where AOT-hostile tricks tend to surface); see #3157. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net8.0 as well as net10.0: the library uses a different invocation-list strategy on each
+         (UnsafeAccessor + validation vs. the BCL's Delegate.EnumerateInvocationList) -->
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StackTraceSupport>true</StackTraceSupport>
+    <!-- the rig deliberately uses the ordinary string APIs a caller would; it is not the place to
+         opt into every experiment individually -->
+    <NoWarn>$(NoWarn);StringToRedisValue</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+</Project>

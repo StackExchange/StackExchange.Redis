@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Threading.Tasks;
 using StackExchange.Redis.Availability;
@@ -95,7 +95,7 @@ public class GroupConfigResolutionTests(ITestOutputHelper log)
         ];
 
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
-        Assert.True(conn.IsConnected);
+        await GroupWait.AssertConnectedAsync(conn);
         Assert.Equal("beta", conn.ActiveMember?.Name);
         Assert.All(members, member => Assert.False(member.IsUnhealthy));
     }

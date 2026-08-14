@@ -55,6 +55,27 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
+    public async Task KeyTypeOfMissingKeyIsNone() // see #3156
+    {
+        await using var conn = Create();
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        Assert.Equal(RedisType.None, db.KeyType(key));
+        Assert.Equal(RedisType.None, await db.KeyTypeAsync(key));
+
+        db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
+        Assert.Equal(RedisType.String, db.KeyType(key));
+        Assert.Equal(RedisType.String, await db.KeyTypeAsync(key));
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        Assert.Equal(RedisType.None, db.KeyType(key));
+        Assert.Equal(RedisType.None, await db.KeyTypeAsync(key));
+    }
+
+    [Fact]
     public async Task Zeros()
     {
         await using var conn = Create();

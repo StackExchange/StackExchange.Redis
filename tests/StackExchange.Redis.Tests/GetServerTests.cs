@@ -135,7 +135,7 @@ public abstract class GetServerTestsBase(ITestOutputHelper output, SharedConnect
 [RunPerProtocol]
 public class GetServerTestsCluster(ITestOutputHelper output, SharedConnectionFixture fixture) : GetServerTestsBase(output, fixture)
 {
-    protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts;
+    protected override string GetConfiguration() => GetClusterConfiguration(string.Empty);
 
     protected override bool IsCluster => true;
 }
