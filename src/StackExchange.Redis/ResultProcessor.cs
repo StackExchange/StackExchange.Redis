@@ -1103,14 +1103,21 @@ namespace StackExchange.Redis
                                     connection.ConnectionId = i64;
                                     Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
                                     break;
+                                // note: "mode" and "role" describe a *server*, so we only trust them when we're
+                                // talking to one directly; a proxy may answer HELLO from an arbitrary backend node
+                                // (envoy 1.39 does), and taking that at face value would flip us into cluster mode
+                                // or mark the proxy as a replica
                                 case HelloField.Mode
-                                    when iter.Value.TryParseScalar(&ServerTypeMetadata.TryParse, out ServerType serverType):
+                                    when server.ServerType.SupportsAutoConfigure()
+                                        && iter.Value.TryParseScalar(&ServerTypeMetadata.TryParse, out ServerType serverType):
                                     server.ServerType = serverType;
                                     Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
                                     break;
                                 case HelloField.Role
-                                    when iter.Value.TryParseScalar(&KnownRoleMetadata.TryParse, out bool isReplica):
+                                    when server.ServerType.SupportsAutoConfigure()
+                                        && iter.Value.TryParseScalar(&KnownRoleMetadata.TryParse, out bool isReplica):
                                     server.IsReplica = isReplica;
+                                    server.RoleKnownFromHello = true; // so we don't need the key-based fallback probe
                                     Log?.LogInformationAutoConfiguredHelloRole(
                                         new(server),
                                         isReplica ? "replica" : "primary");

@@ -290,6 +290,13 @@ namespace StackExchange.Redis
         public bool Resp3 => Version.IsAtLeast(v6_0_0);
 
         /// <summary>
+        /// Is the <see href="https://redis.io/commands/hello/">HELLO</see> handshake available?
+        /// </summary>
+        /// <remarks>This is useful even when staying on RESP2; <c>HELLO 2</c> reports the server
+        /// version, role, mode and connection identifier without needing <c>INFO</c> or <c>CONFIG</c>.</remarks>
+        public bool Hello => Version.IsAtLeast(v6_0_0);
+
+        /// <summary>
         /// Are the <c>IF*</c> modifiers on <see href="https://redis.io/commands/set/">SET</see> available?
         /// </summary>
         public bool SetWithValueCheck => Version.IsAtLeast(v8_4_0_rc1);

@@ -1463,6 +1463,25 @@ namespace StackExchange.Redis
             return use3 && CommandMap.IsAvailable(RedisCommand.HELLO);
         }
 
+        /// <summary>
+        /// Determines whether to issue <c>HELLO</c> as part of the handshake, and at which protocol level.
+        /// </summary>
+        /// <remarks>We want HELLO even when staying on RESP2, because the reply tells us the server version,
+        /// role, mode and connection identifier - none of which we would otherwise know without <c>INFO</c>
+        /// or <c>CONFIG</c>, which are commonly restricted by ACLs (both are <c>@dangerous</c>).</remarks>
+        internal bool TryHello(out int protocolVersion)
+        {
+            // HELLO arrived in 6.0, at the same time as RESP3; the command-map and the assumed server
+            // version are therefore both ways of opting out (`$hello=` and `defaultVersion=5.0`, say)
+            if (CommandMap.IsAvailable(RedisCommand.HELLO) && new RedisFeatures(DefaultVersion).Hello)
+            {
+                protocolVersion = TryResp3() ? 3 : 2;
+                return true;
+            }
+            protocolVersion = 0;
+            return false;
+        }
+
         internal static bool TryParseRedisProtocol(string? value, out RedisProtocol protocol)
         {
             // accept raw integers too, but only trust them if we recognize them

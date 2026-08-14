@@ -388,7 +388,23 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task AutoConfigureAsync(PhysicalConnection? connection, ILogger? log = null, CommandFlags extraFlags = CommandFlags.None)
+        /// <summary>
+        /// Whether <c>HELLO</c> has told us our replication role (and server mode) on the current connection.
+        /// </summary>
+        /// <remarks>Reset at the start of each handshake, and set when the <c>HELLO</c> reply is processed.</remarks>
+        internal bool RoleKnownFromHello { get; set; }
+
+        /// <summary>
+        /// Issues the topology/configuration discovery commands for this server.
+        /// </summary>
+        /// <param name="connection">The connection to write to; <c>null</c> for an already-established connection.</param>
+        /// <param name="log">The log to write handshake details to.</param>
+        /// <param name="extraFlags">Additional flags to apply to the messages issued.</param>
+        /// <param name="helloPending">
+        /// Whether a <c>HELLO</c> has been written to this same batch, but not yet answered; in that case
+        /// we expect to learn our role from it, so we can skip the key-based fallback probe.
+        /// </param>
+        internal async Task AutoConfigureAsync(PhysicalConnection? connection, ILogger? log = null, CommandFlags extraFlags = CommandFlags.None, bool helloPending = false)
         {
             if (!serverType.SupportsAutoConfigure())
             {
@@ -452,9 +468,11 @@ namespace StackExchange.Redis
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
             }
-            else if (commandMap.IsAvailable(RedisCommand.SET))
+            else if (commandMap.IsAvailable(RedisCommand.SET) && !(helloPending || RoleKnownFromHello))
             {
                 // This is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
+                // (note we only get here when HELLO isn't going to tell us: the HELLO reply carries "role", and
+                // unlike this probe it doesn't need a key - which matters when ACLs restrict key patterns; see #2968)
                 RedisKey key = Multiplexer.UniqueId;
                 // The actual value here doesn't matter (we detect the error code if it fails).
                 // The value here is to at least give some indication to anyone watching via "monitor",
@@ -1002,10 +1020,24 @@ namespace StackExchange.Redis
             // the various tasks and just `return connection.FlushAsync();` - however, since handshake is low
             // volume, we can afford to optimize for a good stack-trace rather than avoiding state machines.
             ResultProcessor<bool>? autoConfig = null;
-            if (Multiplexer.RawConfig.TryResp3()) // note this includes an availability check on HELLO
+            bool isInteractive = connection.BridgeCouldBeNull?.ConnectionType == ConnectionType.Interactive;
+            if (isInteractive)
+            {
+                // forget what the previous connection's HELLO told us; re-established below, if this one repeats it
+                // (the subscription handshake is deliberately left out of this: it doesn't do the discovery step)
+                RoleKnownFromHello = false;
+            }
+
+            // HELLO comes in two flavours: as the RESP3 negotiation (which has to be the *first* command, and has to
+            // carry the credentials), or - when we're staying on RESP2 - purely for discovery, in which case it is
+            // issued *after* AUTH, below; see #2968 for why we want it even on RESP2
+            bool helloAvailable = Multiplexer.RawConfig.TryHello(out int helloProtocol); // includes an availability check on HELLO
+            bool negotiateResp3 = helloAvailable && helloProtocol >= 3;
+            bool discoveryHello = helloAvailable && !negotiateResp3 && isInteractive;
+            if (negotiateResp3)
             {
                 log?.LogInformationAuthenticatingViaHello(new(this));
-                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.FireAndForget | Message.NoFlushFlag);
+                var hello = Message.CreateHello(helloProtocol, user, password, clientName, CommandFlags.FireAndForget | Message.NoFlushFlag);
                 hello.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
 
@@ -1014,7 +1046,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                // if we're not even issuing HELLO, we're RESP2
+                // whether or not we issue HELLO for discovery below, we're RESP2
                 connection.SetProtocol(RedisProtocol.Resp2);
             }
 
@@ -1082,7 +1114,18 @@ namespace StackExchange.Redis
             var connType = bridge.ConnectionType;
             if (connType == ConnectionType.Interactive)
             {
-                await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag).ForAwait();
+                if (discoveryHello)
+                {
+                    // a bare HELLO (no AUTH clause of its own): we're already authenticated by this point, and
+                    // folding the credentials in here would change how credential failures surface. We only want
+                    // the reply, which reports version/role/mode/connection-id without INFO or CONFIG (both
+                    // @dangerous, hence often ACL-restricted); see #2968
+                    var hello = Message.CreateHello(helloProtocol, null, null, null, CommandFlags.FireAndForget | Message.NoFlushFlag);
+                    hello.SetInternalCall();
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+                }
+
+                await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag, helloPending: negotiateResp3 || discoveryHello).ForAwait();
             }
 
             // note that the final messages *are* flushed (no Message.NoFlushFlag)
