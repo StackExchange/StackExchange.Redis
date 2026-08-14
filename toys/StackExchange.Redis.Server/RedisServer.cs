@@ -206,6 +206,18 @@ namespace StackExchange.Redis.Server
         }
 
         /// <summary>
+        /// Declare an extra <c>CLUSTER SLOTS</c> metadata entry for a node, beyond the ip/hostname the
+        /// complement rule produces. The real set is documented as extensible, so this exists to prove a
+        /// client keeps what it does not recognize.
+        /// </summary>
+        public void SetSlotsMetadata(EndPoint endpoint, string key, string value)
+        {
+            if (!_nodes.TryGetValue(endpoint, out var node)) throw new KeyNotFoundException($"Node not found: {Format.ToString(endpoint)}");
+            (node.SlotsMetadata ??= new List<KeyValuePair<string, string>>())
+                .Add(new KeyValuePair<string, string>(key, value));
+        }
+
+        /// <summary>
         /// Declare an auxiliary field for a node, reported by <c>CLUSTER NODES</c> after the hostname.
         /// Note a real 8.9 server emits none of these (<c>cluster-announce-human-nodename</c> does not
         /// appear in the reply), so this exists to exercise the documented grammar - which is extensible -
@@ -827,7 +839,8 @@ namespace StackExchange.Redis.Server
             bool wantHostname = perspective.EffectiveEndpointType != ClusterEndpointType.Hostname
                 && !string.IsNullOrWhiteSpace(node.Hostname);
 
-            int pairs = (wantIp ? 1 : 0) + (wantHostname ? 1 : 0);
+            var extra = node.SlotsMetadata;
+            int pairs = (wantIp ? 1 : 0) + (wantHostname ? 1 : 0) + (extra?.Count ?? 0);
             if (pairs == 0) return TypedRedisValue.EmptyArray(RespPrefix.Map);
 
             var result = TypedRedisValue.Rent(2 * pairs, out var span, RespPrefix.Map);
@@ -840,7 +853,15 @@ namespace StackExchange.Redis.Server
             if (wantHostname)
             {
                 span[index++] = TypedRedisValue.BulkString("hostname");
-                span[index] = TypedRedisValue.BulkString(node.Hostname);
+                span[index++] = TypedRedisValue.BulkString(node.Hostname);
+            }
+            if (extra is not null)
+            {
+                foreach (var pair in extra)
+                {
+                    span[index++] = TypedRedisValue.BulkString(pair.Key);
+                    span[index++] = TypedRedisValue.BulkString(pair.Value);
+                }
             }
             return result;
         }
@@ -931,6 +952,11 @@ namespace StackExchange.Redis.Server
             /// <c>CLUSTER NODES</c>; null when it declares none.
             /// </summary>
             public List<KeyValuePair<string, string>> AuxFields { get; internal set; }
+
+            /// <summary>
+            /// Extra <c>CLUSTER SLOTS</c> metadata entries beyond the complement rule's ip/hostname.
+            /// </summary>
+            public List<KeyValuePair<string, string>> SlotsMetadata { get; internal set; }
 
             /// <summary>
             /// This node's own preferred endpoint type, or <c>null</c> to follow the server-wide default.

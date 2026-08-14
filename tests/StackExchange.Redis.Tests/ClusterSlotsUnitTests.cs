@@ -132,6 +132,35 @@ public class ClusterSlotsUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task RecognizedKeysAreSurfacedAndUnknownOnesPreserved()
+    {
+        // known keys are matched over the raw bytes and surfaced as properties, so they cost no allocation
+        // and do not appear in Metadata; the extensible remainder is kept as declared
+        using var server = CreateServer(log, ClusterEndpointType.Hostname);
+        server.SetSlotsMetadata(server.DefaultEndPoint, "not-invented-yet", "42");
+        var host = GetHost(server.DefaultEndPoint, out _);
+
+        var primary = await GetPrimaryAsync(server);
+
+        Assert.Equal(host, primary.Ip); // recognized...
+        Assert.Equal(new("not-invented-yet", "42"), Assert.Single(primary.Metadata)); // ...and the rest kept
+    }
+
+    [Fact]
+    public async Task MetadataKeysAreMatchedWithoutRegardToCase()
+    {
+        // the contract renders these keys inconsistently between prose and examples, so casing cannot be
+        // relied on; an upper-case key must still be recognized rather than landing in Metadata
+        using var server = CreateServer(log, ClusterEndpointType.Ip, announceHostname: false);
+        server.SetSlotsMetadata(server.DefaultEndPoint, "HOSTNAME", "shouty.redis.example.com");
+
+        var primary = await GetPrimaryAsync(server);
+
+        Assert.Equal("shouty.redis.example.com", primary.Hostname);
+        Assert.Empty(primary.Metadata);
+    }
+
+    [Fact]
     public async Task PreSevenZeroServerReportsNoMetadata()
     {
         using var server = CreateServer(log, ClusterEndpointType.Hostname, version: BeforeHostnames);

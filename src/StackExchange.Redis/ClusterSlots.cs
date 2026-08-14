@@ -87,20 +87,17 @@ public sealed class ClusterSlotNode
         int port,
         string? nodeId,
         EndPoint? endPoint,
+        string? ip,
+        string? hostname,
         IList<KeyValuePair<string, string?>> metadata)
     {
         AnnouncedEndpoint = announcedEndpoint;
         Port = port;
         NodeId = nodeId;
         EndPoint = endPoint;
+        Ip = ip;
+        Hostname = hostname;
         Metadata = metadata;
-
-        foreach (var pair in metadata)
-        {
-            // documented in prose as IP/Hostname but lower-case in the examples, so do not rely on casing
-            if (string.Equals(pair.Key, "ip", System.StringComparison.OrdinalIgnoreCase)) Ip = pair.Value;
-            else if (string.Equals(pair.Key, "hostname", System.StringComparison.OrdinalIgnoreCase)) Hostname = pair.Value;
-        }
     }
 
     /// <summary>
@@ -150,9 +147,10 @@ public sealed class ClusterSlotNode
     public string? Hostname { get; }
 
     /// <summary>
-    /// Gets all metadata reported for this node, as declared. The set is documented as extensible, so
-    /// unrecognized entries are preserved; <see cref="Ip"/> and <see cref="Hostname"/> are conveniences over
-    /// the entries this library recognizes.
+    /// Gets the metadata entries reported for this node that this library does not recognize. The set is
+    /// documented as extensible, so these are preserved rather than discarded; the recognized keys are
+    /// surfaced as <see cref="Ip"/> and <see cref="Hostname"/> instead of appearing here, which also means a
+    /// recognized key costs no allocation.
     /// </summary>
     public IList<KeyValuePair<string, string?>> Metadata { get; }
 

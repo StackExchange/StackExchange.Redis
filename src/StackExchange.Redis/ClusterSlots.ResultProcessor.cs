@@ -104,29 +104,58 @@ public sealed partial class ClusterSlotsResult
         string? nodeId = children.MoveNext() ? children.Value.ReadString() : null;
 
         IList<KeyValuePair<string, string?>> metadata = Array.Empty<KeyValuePair<string, string?>>();
+        string? ip = null, hostname = null;
         if (children.MoveNext() && children.Value.IsAggregate && !children.Value.IsNull)
         {
-            metadata = ReadMetadata(ref children.Value);
+            metadata = ReadMetadata(ref children.Value, out ip, out hostname);
         }
 
-        node = new ClusterSlotNode(announced, (int)port, nodeId, ResolveEndPoint(announced, port), metadata);
+        node = new ClusterSlotNode(announced, (int)port, nodeId, ResolveEndPoint(announced, port), ip, hostname, metadata);
         return true;
     }
 
     // walked pairwise rather than by declared length, since a map reports pairs while an array (RESP2)
-    // reports elements, and we do not need to care which we were given
-    private static IList<KeyValuePair<string, string?>> ReadMetadata(ref RespReader reader)
+    // reports elements, and we do not need to care which we were given.
+    //
+    // Keys are matched against the known set over the raw bytes, so a recognized key costs no string at all -
+    // and since ranges repeat a node whenever its slot ownership is not contiguous, that is one allocation
+    // avoided per key per range rather than per node. Only unrecognized keys are materialized, into the
+    // collection that exists to preserve them
+    private static unsafe IList<KeyValuePair<string, string?>> ReadMetadata(
+        ref RespReader reader,
+        out string? ip,
+        out string? hostname)
     {
+        ip = hostname = null;
         List<KeyValuePair<string, string?>>? metadata = null;
         var children = reader.AggregateChildren();
         while (children.MoveNext())
         {
-            var key = children.Value.ReadString();
+            if (!children.Value.TryParseScalar(&ClusterSlotMetadataKeyMetadata.TryParse, out ClusterSlotMetadataKey key))
+            {
+                key = ClusterSlotMetadataKey.Unknown;
+            }
+
+            // the key is still in the reader until we move on, so an unknown one can be read then
+            var unknownKey = key == ClusterSlotMetadataKey.Unknown ? children.Value.ReadString() : null;
+
             if (!children.MoveNext()) break; // odd count: ignore the dangling key
             var value = children.Value.IsNull ? null : children.Value.ReadString();
-            if (!string.IsNullOrEmpty(key))
+
+            switch (key)
             {
-                (metadata ??= new List<KeyValuePair<string, string?>>()).Add(new(key!, value));
+                case ClusterSlotMetadataKey.Ip:
+                    ip = value;
+                    break;
+                case ClusterSlotMetadataKey.Hostname:
+                    hostname = value;
+                    break;
+                default:
+                    if (!string.IsNullOrEmpty(unknownKey))
+                    {
+                        (metadata ??= new List<KeyValuePair<string, string?>>()).Add(new(unknownKey!, value));
+                    }
+                    break;
             }
         }
         return metadata?.AsReadOnly() ?? (IList<KeyValuePair<string, string?>>)Array.Empty<KeyValuePair<string, string?>>();
