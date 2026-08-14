@@ -99,6 +99,8 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         var fromShadow = topology.Nodes.Where(x => !x.IsReplica)
             .Select(x => x.NodeId).OrderBy(x => x).ToArray();
 
+        EndpointResolutionUnitTests.AssertOneEndpointPerNode(conn, log);
+
         log.WriteLine($"NODES:  {string.Join(",", fromNodes)}");
         log.WriteLine($"SHADOW: {string.Join(",", fromShadow)}");
         Assert.Equal(fromNodes, fromShadow);

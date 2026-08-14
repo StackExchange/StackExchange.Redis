@@ -336,6 +336,10 @@ namespace StackExchange.Redis
             {
                 ClusterTopology = topology;
                 Multiplexer.Trace($"Shadow topology: {topology.Nodes.Count} nodes");
+
+                // not routing on this yet, but the identities are useful immediately: they let a node reached
+                // by its other name resolve to the server we already have, rather than becoming a duplicate
+                Multiplexer.RegisterServerIdentities(topology);
             }
         }
 
@@ -517,21 +521,18 @@ namespace StackExchange.Redis
             }
             if (commandMap.IsAvailable(RedisCommand.CLUSTER))
             {
+                // SLOTS first, deliberately: replies arrive in request order, so this is processed before
+                // the NODES reply below, and the identities it carries are therefore known before NODES
+                // starts creating servers by address. Without that ordering, a node created from a redirect
+                // under its announced hostname is duplicated under its address moments later by its own
+                // autoconfigure. Costs nothing: the burst stays a single pipeline with no round-trip stall
+                msg = RedisServer.GetClusterSlotsMessage(flags);
+                msg.SetInternalCall();
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
+
                 msg = RedisServer.GetClusterNodesMessage(flags);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
-
-                // CLUSTER SLOTS would go here - it is the view that conveys naming preference and node ids,
-                // and ClusterTopology/SetClusterSlots exist ready for it. Deliberately *not* invoked yet:
-                // this PR is scoped to work that cannot destabilise a connection, and asking every server for
-                // an extra command on every autoconfigure is a new failure surface on the connect path (an
-                // unexpected error reply to an internal call, a proxy that mangles the command) for no
-                // user-visible benefit until routing actually consumes it. Enabled in the follow-up, where
-                // ordering matters too: it must precede CLUSTER NODES so identities are known before NODES
-                // creates servers by address.
-                //// msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.SLOTS);
-                //// msg.SetInternalCall();
-                //// await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits

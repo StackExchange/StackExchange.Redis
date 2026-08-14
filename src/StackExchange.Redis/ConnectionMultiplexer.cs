@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -38,6 +39,11 @@ namespace StackExchange.Redis
         private TimerToken? pulse;
 
         private readonly Hashtable servers = new Hashtable();
+
+        // secondary identities: a node can legitimately arrive under more than one name (an address and an
+        // announced hostname), and `servers` is keyed on exact endpoint equality, so without this the same
+        // node reached by its other name becomes a second ServerEndPoint - see #2826
+        private readonly ConcurrentDictionary<EndPoint, ServerEndPoint> _serverIdentities = new();
         private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
 
         private volatile bool _isDisposed;
@@ -924,11 +930,49 @@ namespace StackExchange.Redis
 
         ServerEndPoint IInternalConnectionMultiplexer.GetServerEndPoint(EndPoint endpoint) => GetServerEndPoint(endpoint);
 
+        /// <summary>
+        /// Finds an existing server by any identity it is known to answer to, without creating one.
+        /// </summary>
+        internal ServerEndPoint? TryResolveServerEndPoint(EndPoint? endpoint)
+        {
+            if (endpoint is null) return null;
+            if (servers[endpoint] is ServerEndPoint exact) return exact;
+            return _serverIdentities.TryGetValue(endpoint, out var byIdentity) ? byIdentity : null;
+        }
+
+        /// <summary>
+        /// Records the additional names a known node answers to, so that reaching it by any of them resolves
+        /// to the one <see cref="ServerEndPoint"/>. Deliberately does not create anything: a node we have
+        /// never heard of is a matter for discovery, not for identity.
+        /// </summary>
+        internal void RegisterServerIdentities(ClusterTopology topology)
+        {
+            foreach (var node in topology.Nodes)
+            {
+                // resolve via any identity we already hold; if we know the node at all, the rest are aliases
+                ServerEndPoint? known = null;
+                foreach (var identity in node.Identities)
+                {
+                    if ((known = TryResolveServerEndPoint(identity)) is not null) break;
+                }
+                if (known is null) continue;
+
+                foreach (var identity in node.Identities)
+                {
+                    if (servers[identity] is not null) continue; // already a server in its own right
+                    if (_serverIdentities.TryAdd(identity, known))
+                    {
+                        Trace($"Identity {Format.ToString(identity)} -> {Format.ToString(known.EndPoint)}");
+                    }
+                }
+            }
+        }
+
         [return: NotNullIfNotNull(nameof(endpoint))]
         internal ServerEndPoint? GetServerEndPoint(EndPoint? endpoint, ILogger? log = null, bool activate = true)
         {
             if (endpoint == null) return null;
-            var server = (ServerEndPoint?)servers[endpoint];
+            var server = (ServerEndPoint?)servers[endpoint] ?? TryResolveServerEndPoint(endpoint);
             if (server == null)
             {
                 bool isNew = false;
@@ -1277,7 +1321,7 @@ namespace StackExchange.Redis
             {
                 throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
             }
-            var server = servers[endpoint] as ServerEndPoint ?? throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
+            var server = TryResolveServerEndPoint(endpoint) ?? throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
             return server.GetRedisServer(asyncState);
         }
 
