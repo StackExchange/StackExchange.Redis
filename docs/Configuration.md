@@ -299,13 +299,17 @@ config.ReconnectRetryPolicy = new LinearRetry(5000);
 
 ## Redis protocol
 
-Without specific configuration, StackExchange.Redis will use the RESP2 protocol; this means that pub/sub requires a separate connection to the server. RESP3 is a newer protocol
-(usually, but not always, available on v6 servers and above) which allows (among other changes) pub/sub messages to be communicated on the *same* connection - which can be very
-desirable in servers with a large number of clients. The protocol handshake needs to happen very early in the connection, so *by default* the library does not attempt a RESP3 connection
-unless it has reason to expect it to work. 
+RESP3 is a newer protocol (available on v6 servers and above) which allows (among other changes) pub/sub messages to be communicated on the *same* connection - which can be very
+desirable in servers with a large number of clients; under RESP2, pub/sub requires a separate connection to the server. The protocol handshake needs to happen very early in the
+connection, so the library only attempts RESP3 when it has reason to expect it to work.
 
 The library determines whether to use RESP3 by:
 - The `HELLO` command has been disabled: RESP2 is used
 - A protocol *other than* `resp3` or `3` is specified: RESP2 is used
 - A protocol of `resp3` or `3` is specified: RESP3 is attempted (with fallback if it fails)
-- In all other scenarios: RESP2 is used
+- Otherwise: RESP3 is attempted if `defaultVersion` (6.0 unless overridden) is v6 or above
+
+Note that `HELLO` is issued either way: `HELLO 2` when staying on RESP2. The reply tells us the server version, replication role, mode (standalone/sentinel/cluster) and connection
+identifier, none of which we would otherwise know without `INFO` or `CONFIG GET` - both of which are in the `@dangerous` ACL category, and are commonly restricted. `HELLO` itself is
+in the `@connection` category. If you need to prevent it (for example when talking to a proxy that does not understand it), disable it at the command-map level with `$hello=` in the
+configuration string - or specify a `defaultVersion` below 6.0, since `HELLO` did not exist before then.

@@ -63,4 +63,17 @@ public class CommandMapUnitTests
         ReadOnlySpan<byte> bytes = Encoding.ASCII.GetBytes(name);
         Assert.False(RedisCommandMetadata.TryParseCI(bytes, out _), $"byte parse unexpectedly succeeded for '{name}'");
     }
+
+    /// <summary>
+    /// We now issue <c>HELLO</c> whenever it is available (RESP2 included), so the proxy maps must exclude it:
+    /// twemproxy 0.5.0 *closes the connection* on an unsupported command, and envoy (1.39, at least) forwards
+    /// HELLO to an arbitrary backend node, so its version/role/mode describe the wrong server.
+    /// </summary>
+    [Fact]
+    public void ProxyCommandMapsExcludeHello()
+    {
+        Assert.False(CommandMap.Twemproxy.IsAvailable(RedisCommand.HELLO), "twemproxy");
+        Assert.False(CommandMap.Envoyproxy.IsAvailable(RedisCommand.HELLO), "envoyproxy");
+        Assert.True(CommandMap.Default.IsAvailable(RedisCommand.HELLO), "default");
+    }
 }

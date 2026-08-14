@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
 StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
 StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
@@ -14,3 +14,4 @@ StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
 [SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateSelectionCallback.get -> System.Net.Security.LocalCertificateSelectionCallback?
 [SER009]StackExchange.Redis.Configuration.TlsOptions.ResolveHost(System.Net.EndPoint! endpoint) -> string!
 [SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, StackExchange.Redis.Configuration.TlsOptions tls, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
+StackExchange.Redis.RedisFeatures.Hello.get -> bool

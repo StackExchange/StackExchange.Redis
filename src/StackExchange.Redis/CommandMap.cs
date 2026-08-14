@@ -46,6 +46,9 @@ namespace StackExchange.Redis
 
             RedisCommand.ECHO, RedisCommand.SELECT,
 
+            // twemproxy *closes the connection* on an unsupported command, so HELLO is fatal, not just useless
+            RedisCommand.HELLO,
+
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
             RedisCommand.SAVE, RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME, RedisCommand.HOTKEYS,
@@ -69,6 +72,11 @@ namespace StackExchange.Redis
             RedisCommand.SCRIPT,
 
             RedisCommand.SELECT,
+
+            // envoy either rejects HELLO ("unsupported command", up to ~1.31) or proxies it to an arbitrary
+            // backend node (1.39+), so the version/role/mode it reports describe *some* server, not the endpoint
+            // we're talking to; either way we don't want it
+            RedisCommand.HELLO,
 
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.REPLICAOF,
