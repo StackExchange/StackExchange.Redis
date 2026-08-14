@@ -297,7 +297,7 @@ namespace StackExchange.Redis
                 ParseBusPortAndIdentities(ep.Substring(at + 1));
                 ep = ep.Substring(0, at);
             }
-            AuxFields ??= Array.Empty<KeyValuePair<string, string>>();
+            AuxFields ??= [];
 
             if (Format.TryParseEndPoint(ep, out var epResult))
             {
@@ -359,7 +359,14 @@ namespace StackExchange.Redis
                         new KeyValuePair<string, string>(field.Substring(0, eq), field.Substring(eq + 1)));
                 }
             }
-            AuxFields = aux?.AsReadOnly() ?? (IList<KeyValuePair<string, string>>)Array.Empty<KeyValuePair<string, string>>();
+            if (aux is null)
+            {
+                AuxFields = [];
+            }
+            else
+            {
+                AuxFields = aux.AsReadOnly();
+            }
         }
 
         /// <summary>
@@ -379,7 +386,7 @@ namespace StackExchange.Redis
         /// Gets any auxiliary fields the current node reports after its hostname, as declared. The set is
         /// documented as extensible, so unrecognized fields are preserved rather than discarded.
         /// </summary>
-        public IList<KeyValuePair<string, string>> AuxFields { get; private set; }
+        public IReadOnlyList<KeyValuePair<string, string>> AuxFields { get; private set; }
 
         /// <summary>
         /// Gets all child nodes of the current node.

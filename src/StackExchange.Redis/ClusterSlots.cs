@@ -34,13 +34,13 @@ public partial interface IServer
 /// </summary>
 public sealed partial class ClusterSlotsResult
 {
-    internal ClusterSlotsResult(IList<ClusterSlotAssignment> assignments) => Assignments = assignments;
+    internal ClusterSlotsResult(IReadOnlyList<ClusterSlotAssignment> assignments) => Assignments = assignments;
 
     /// <summary>
     /// Gets the slot ranges reported, in the order the server reported them. Ranges may repeat a node when
     /// its slot ownership is not contiguous, so this is not a per-node list.
     /// </summary>
-    public IList<ClusterSlotAssignment> Assignments { get; }
+    public IReadOnlyList<ClusterSlotAssignment> Assignments { get; }
 }
 
 /// <summary>
@@ -48,7 +48,7 @@ public sealed partial class ClusterSlotsResult
 /// </summary>
 public sealed class ClusterSlotAssignment
 {
-    internal ClusterSlotAssignment(SlotRange slots, ClusterSlotNode primary, IList<ClusterSlotNode> replicas)
+    internal ClusterSlotAssignment(SlotRange slots, ClusterSlotNode primary, IReadOnlyList<ClusterSlotNode> replicas)
     {
         Slots = slots;
         Primary = primary;
@@ -68,7 +68,7 @@ public sealed class ClusterSlotAssignment
     /// <summary>
     /// Gets the nodes replicating this range, if any.
     /// </summary>
-    public IList<ClusterSlotNode> Replicas { get; }
+    public IReadOnlyList<ClusterSlotNode> Replicas { get; }
 }
 
 /// <summary>
@@ -89,7 +89,7 @@ public sealed class ClusterSlotNode
         EndPoint? endPoint,
         string? ip,
         string? hostname,
-        IList<KeyValuePair<string, string?>> metadata)
+        IReadOnlyList<KeyValuePair<string, string?>> metadata)
     {
         AnnouncedEndpoint = announcedEndpoint;
         Port = port;
@@ -152,7 +152,7 @@ public sealed class ClusterSlotNode
     /// surfaced as <see cref="Ip"/> and <see cref="Hostname"/> instead of appearing here, which also means a
     /// recognized key costs no allocation.
     /// </summary>
-    public IList<KeyValuePair<string, string?>> Metadata { get; }
+    public IReadOnlyList<KeyValuePair<string, string?>> Metadata { get; }
 
     /// <inheritdoc/>
     public override string ToString() => $"{AnnouncedEndpoint ?? "(unknown)"}:{Port}";

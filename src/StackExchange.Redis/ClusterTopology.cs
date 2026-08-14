@@ -108,10 +108,10 @@ internal sealed class ClusterTopologyNode
     /// Every endpoint this node is known to answer to. More than one means the same node arrived under
     /// different names, which is exactly the case that must not produce duplicate <c>ServerEndPoint</c>s.
     /// </summary>
-    public IReadOnlyList<EndPoint> Identities => _identities ?? (IReadOnlyList<EndPoint>)Array.Empty<EndPoint>();
+    public IReadOnlyList<EndPoint> Identities => _identities ?? [];
 
     /// <summary>The slots this node serves as primary; empty for a replica.</summary>
-    public IReadOnlyList<SlotRange> Slots => _slots ?? (IReadOnlyList<SlotRange>)Array.Empty<SlotRange>();
+    public IReadOnlyList<SlotRange> Slots => _slots ?? [];
 
     /// <summary>
     /// Fold in another sighting of this node. Names accumulate rather than overwrite: a reply that renders

@@ -40,7 +40,7 @@ public sealed partial class ClusterSlotsResult
             }
 
             var result = new ClusterSlotsResult(
-                assignments?.AsReadOnly() ?? (IList<ClusterSlotAssignment>)Array.Empty<ClusterSlotAssignment>());
+                AsReadOnly(assignments));
 
             if (autoConfigure)
             {
@@ -82,7 +82,7 @@ public sealed partial class ClusterSlotsResult
         assignment = new ClusterSlotAssignment(
             new SlotRange((int)from, (int)to),
             primary,
-            replicas?.AsReadOnly() ?? (IList<ClusterSlotNode>)Array.Empty<ClusterSlotNode>());
+            AsReadOnly(replicas));
         return true;
     }
 
@@ -103,7 +103,7 @@ public sealed partial class ClusterSlotsResult
         // the node id arrived in 4.0 and the metadata map in 7.0, so both are absent on older servers
         string? nodeId = children.MoveNext() ? children.Value.ReadString() : null;
 
-        IList<KeyValuePair<string, string?>> metadata = Array.Empty<KeyValuePair<string, string?>>();
+        IReadOnlyList<KeyValuePair<string, string?>> metadata = [];
         string? ip = null, hostname = null;
         if (children.MoveNext() && children.Value.IsAggregate && !children.Value.IsNull)
         {
@@ -121,7 +121,7 @@ public sealed partial class ClusterSlotsResult
     // and since ranges repeat a node whenever its slot ownership is not contiguous, that is one allocation
     // avoided per key per range rather than per node. Only unrecognized keys are materialized, into the
     // collection that exists to preserve them
-    private static unsafe IList<KeyValuePair<string, string?>> ReadMetadata(
+    private static unsafe IReadOnlyList<KeyValuePair<string, string?>> ReadMetadata(
         ref RespReader reader,
         out string? ip,
         out string? hostname)
@@ -158,7 +158,15 @@ public sealed partial class ClusterSlotsResult
                     break;
             }
         }
-        return metadata?.AsReadOnly() ?? (IList<KeyValuePair<string, string?>>)Array.Empty<KeyValuePair<string, string?>>();
+        return AsReadOnly(metadata);
+    }
+
+    // empty collection expressions to an interface target compile to Array.Empty<T>(), so the common case
+    // costs nothing; only a genuinely populated list pays for the wrapper
+    private static IReadOnlyList<T> AsReadOnly<T>(List<T>? values)
+    {
+        if (values is null) return [];
+        return values.AsReadOnly();
     }
 
     private static EndPoint? ResolveEndPoint(string? announced, long port)

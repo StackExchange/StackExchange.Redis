@@ -1,21 +1,21 @@
 ﻿#nullable enable
-StackExchange.Redis.ClusterNode.AuxFields.get -> System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string!, string!>>!
+StackExchange.Redis.ClusterNode.AuxFields.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string!>>!
 StackExchange.Redis.ClusterNode.ClusterBusPort.get -> int?
 StackExchange.Redis.ClusterNode.Hostname.get -> string?
 StackExchange.Redis.ClusterSlotAssignment
 StackExchange.Redis.ClusterSlotAssignment.Primary.get -> StackExchange.Redis.ClusterSlotNode!
-StackExchange.Redis.ClusterSlotAssignment.Replicas.get -> System.Collections.Generic.IList<StackExchange.Redis.ClusterSlotNode!>!
+StackExchange.Redis.ClusterSlotAssignment.Replicas.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotNode!>!
 StackExchange.Redis.ClusterSlotAssignment.Slots.get -> StackExchange.Redis.SlotRange
 StackExchange.Redis.ClusterSlotNode
 StackExchange.Redis.ClusterSlotNode.AnnouncedEndpoint.get -> string?
 StackExchange.Redis.ClusterSlotNode.EndPoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClusterSlotNode.Hostname.get -> string?
 StackExchange.Redis.ClusterSlotNode.Ip.get -> string?
-StackExchange.Redis.ClusterSlotNode.Metadata.get -> System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string!, string?>>!
+StackExchange.Redis.ClusterSlotNode.Metadata.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string?>>!
 StackExchange.Redis.ClusterSlotNode.NodeId.get -> string?
 StackExchange.Redis.ClusterSlotNode.Port.get -> int
 StackExchange.Redis.ClusterSlotsResult
-StackExchange.Redis.ClusterSlotsResult.Assignments.get -> System.Collections.Generic.IList<StackExchange.Redis.ClusterSlotAssignment!>!
+StackExchange.Redis.ClusterSlotsResult.Assignments.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotAssignment!>!
 StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
 StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
 StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
