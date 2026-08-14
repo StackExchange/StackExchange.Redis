@@ -283,6 +283,23 @@ namespace StackExchange.Redis
                 : interactive ??= CreateBridge(ConnectionType.Interactive, null);
         }
 
+        /// <summary>
+        /// Moves a subscription message that was queued against the interactive bridge over to the subscription
+        /// bridge, which is where it belongs now that we know the connection is RESP2 (see #3154).
+        /// </summary>
+        /// <returns><c>true</c> if the message is now the subscription bridge's responsibility.</returns>
+        internal bool TryRerouteToSubscriptionBridge(Message message, PhysicalBridge from)
+        {
+            if (isDisposed) return false;
+
+            // deliberately not via GetBridge: that consults the same expectation that got us here
+            var target = subscription ??= CreateBridge(ConnectionType.Subscription, null);
+            if (target is null || ReferenceEquals(target, from)) return false;
+
+            target.AcceptRerouted(message);
+            return true;
+        }
+
         public PhysicalBridge? GetBridge(RedisCommand command, bool create = true)
         {
             if (isDisposed) return null;
