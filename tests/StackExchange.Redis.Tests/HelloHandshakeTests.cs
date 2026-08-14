@@ -102,6 +102,64 @@ public class HelloHandshakeTests(ITestOutputHelper log)
         Assert.All(sets, args => Assert.Equal("replica-read-only", args.Skip(1).FirstOrDefault()));
     }
 
+    /// <summary>
+    /// Redis (7.4 through at least 8.x; valkey is unaffected) drops the error reply of a *failing* <c>AUTH</c>
+    /// unless that AUTH is the first command in the pipelined batch, which desynchronizes every reply after it.
+    /// During the handshake that means the tracer never gets its answer and the connection never becomes usable
+    /// (an authentication failure presenting as a connection that times out everything). So the handshake sends
+    /// AUTH first and never sends both a credential-carrying <c>HELLO</c> and a standalone <c>AUTH</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(RedisProtocol.Resp2)]
+    [InlineData(RedisProtocol.Resp3)]
+    public async Task CredentialsGoViaAuthNotHello(RedisProtocol protocol)
+    {
+        using var server = new RecordingServer(log) { Password = "correcthorse" };
+        var config = server.GetClientConfig();
+        config.Protocol = protocol;
+        config.Password = "correcthorse";
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+
+        // AUTH carries the credentials...
+        var auths = server.Recorded("AUTH");
+        Assert.NotEmpty(auths);
+        Assert.All(auths, args => Assert.Equal("correcthorse", args.FirstOrDefault()));
+
+        // ...and HELLO is bare: just the protocol version, no AUTH (or SETNAME) clause
+        var hellos = server.Recorded("HELLO");
+        Assert.NotEmpty(hellos);
+        Assert.All(hellos, args => Assert.Single(args));
+
+        // and AUTH is issued first, so the connection is authenticated before HELLO runs
+        Assert.Equal("AUTH", server.RecordedOrder().First(x => x is "AUTH" or "HELLO"));
+    }
+
+    /// <summary>
+    /// The converse: when <c>AUTH</c> is unavailable, <c>HELLO</c> is the only way to authenticate, so it does
+    /// carry the credentials - and is issued first, since nothing else can authenticate the connection.
+    /// </summary>
+    /// <remarks>Only RESP3 here: a password with <c>AUTH</c> disabled is rejected up-front on RESP2, see the
+    /// <c>AssertAvailable</c> check in the <see cref="ConnectionMultiplexer"/> constructor.</remarks>
+    [Fact]
+    public async Task HelloCarriesCredentialsWhenAuthUnavailable()
+    {
+        const RedisProtocol protocol = RedisProtocol.Resp3;
+        using var server = new RecordingServer(log) { Password = "correcthorse" };
+        var config = server.GetClientConfig();
+        config.Protocol = protocol;
+        config.Password = "correcthorse";
+        config.CommandMap = server.CreateCommandMap(except: "AUTH");
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+
+        Assert.Empty(server.Recorded("AUTH"));
+        var hellos = server.Recorded("HELLO");
+        Assert.NotEmpty(hellos);
+        Assert.All(hellos, args => Assert.Equal(["AUTH", "default", "correcthorse"], args.Skip(1).Take(3)));
+        Assert.Equal("HELLO", server.RecordedOrder().First());
+    }
+
     private sealed class RecordingServer(ITestOutputHelper log) : InProcessTestServer(log)
     {
         private readonly ConcurrentQueue<(string Command, string[] Args)> _commands = new();
@@ -119,6 +177,8 @@ public class HelloHandshakeTests(ITestOutputHelper log)
 
         public List<string[]> Recorded(string command)
             => _commands.Where(x => x.Command == command).Select(x => x.Args).ToList();
+
+        public List<string> RecordedOrder() => _commands.Select(x => x.Command).ToList();
 
         public CommandMap CreateCommandMap(params string[] except)
         {
