@@ -15,3 +15,24 @@ StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
 [SER009]StackExchange.Redis.Configuration.TlsOptions.ResolveHost(System.Net.EndPoint! endpoint) -> string!
 [SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, StackExchange.Redis.Configuration.TlsOptions tls, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
 StackExchange.Redis.RedisFeatures.Hello.get -> bool
+StackExchange.Redis.ClusterNode.AuxFields.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string!>>!
+StackExchange.Redis.ClusterNode.ClusterBusPort.get -> int?
+StackExchange.Redis.ClusterNode.Hostname.get -> string?
+StackExchange.Redis.ClusterSlotAssignment
+StackExchange.Redis.ClusterSlotAssignment.Primary.get -> StackExchange.Redis.ClusterSlotNode!
+StackExchange.Redis.ClusterSlotAssignment.Replicas.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotNode!>!
+StackExchange.Redis.ClusterSlotAssignment.Slots.get -> StackExchange.Redis.SlotRange
+StackExchange.Redis.ClusterSlotNode
+StackExchange.Redis.ClusterSlotNode.AnnouncedEndpoint.get -> string?
+StackExchange.Redis.ClusterSlotNode.EndPoint.get -> System.Net.EndPoint?
+StackExchange.Redis.ClusterSlotNode.Hostname.get -> string?
+StackExchange.Redis.ClusterSlotNode.Ip.get -> string?
+StackExchange.Redis.ClusterSlotNode.Metadata.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string?>>!
+StackExchange.Redis.ClusterSlotNode.NodeId.get -> string?
+StackExchange.Redis.ClusterSlotNode.Port.get -> int
+StackExchange.Redis.ClusterSlotsResult
+StackExchange.Redis.ClusterSlotsResult.Assignments.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotAssignment!>!
+StackExchange.Redis.IServer.ClusterSlots(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotsResult?
+StackExchange.Redis.IServer.ClusterSlotsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotsResult?>!
+[SER007]StackExchange.Redis.RedisErrorKind.UnknownRedirectTarget = 26 -> StackExchange.Redis.RedisErrorKind
+override StackExchange.Redis.ClusterSlotNode.ToString() -> string!

@@ -11,6 +11,9 @@
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <StackTraceSupport>true</StackTraceSupport>
+    <!-- the rig deliberately uses the ordinary string APIs a caller would; it is not the place to
+         opt into every experiment individually -->
+    <NoWarn>$(NoWarn);StringToRedisValue</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

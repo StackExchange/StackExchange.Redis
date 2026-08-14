@@ -287,10 +287,17 @@ namespace StackExchange.Redis
 
             var flags = parts[2].Split(StringSplits.Comma);
 
-            // redis 4 changes the format of "cluster nodes" - adds @... to the endpoint
+            // redis 4 changes the format of "cluster nodes" - adds @... to the endpoint, and the documented
+            // form is now ip:port@cport[,hostname[,aux-field=value]*]; keep all of it rather than just the
+            // address, since a hostname here is the node's second identity (see #2826)
             var ep = parts[1];
             int at = ep.IndexOf('@');
-            if (at >= 0) ep = ep.Substring(0, at);
+            if (at >= 0)
+            {
+                ParseBusPortAndIdentities(ep.Substring(at + 1));
+                ep = ep.Substring(0, at);
+            }
+            AuxFields ??= [];
 
             if (Format.TryParseEndPoint(ep, out var epResult))
             {
@@ -327,6 +334,59 @@ namespace StackExchange.Redis
             Slots = slots?.AsReadOnly() ?? (IList<SlotRange>)Array.Empty<SlotRange>();
             IsConnected = parts[7] == "connected"; // Can be "connected" or "disconnected"
         }
+
+        // "cport[,hostname[,aux-field=value]*]" - everything after the '@'. Parsed leniently on purpose:
+        // this is topology data, and per the note on the constructor an exception here does silent damage.
+        // Note the hostname slot can be empty while aux fields follow, i.e. "17000,,shard-id=abc"
+        private void ParseBusPortAndIdentities(string trailer)
+        {
+            var fields = trailer.Split(StringSplits.Comma);
+
+            if (Format.TryParseInt32(fields[0], out var busPort)) ClusterBusPort = busPort;
+
+            if (fields.Length > 1 && !string.IsNullOrWhiteSpace(fields[1])) Hostname = fields[1];
+
+            List<KeyValuePair<string, string>>? aux = null;
+            for (int i = 2; i < fields.Length; i++)
+            {
+                var field = fields[i];
+                int eq = field.IndexOf('=');
+
+                // parse by name and keep what we do not recognize; the set is documented as extensible
+                if (eq > 0)
+                {
+                    (aux ??= new List<KeyValuePair<string, string>>(fields.Length - i)).Add(
+                        new KeyValuePair<string, string>(field.Substring(0, eq), field.Substring(eq + 1)));
+                }
+            }
+            if (aux is null)
+            {
+                AuxFields = [];
+            }
+            else
+            {
+                AuxFields = aux.AsReadOnly();
+            }
+        }
+
+        /// <summary>
+        /// Gets the cluster bus port of the current node (the <c>cport</c> after the <c>@</c>), or
+        /// <c>null</c> for servers older than 4.0, which do not report one.
+        /// </summary>
+        public int? ClusterBusPort { get; private set; }
+
+        /// <summary>
+        /// Gets the hostname announced by the current node via <c>cluster-announce-hostname</c>, or
+        /// <c>null</c> if it announces none. This is an additional identity for the node rather than a
+        /// replacement for <see cref="EndPoint"/>, which remains the address the node reports.
+        /// </summary>
+        public string? Hostname { get; private set; }
+
+        /// <summary>
+        /// Gets any auxiliary fields the current node reports after its hostname, as declared. The set is
+        /// documented as extensible, so unrecognized fields are preserved rather than discarded.
+        /// </summary>
+        public IReadOnlyList<KeyValuePair<string, string>> AuxFields { get; private set; }
 
         /// <summary>
         /// Gets all child nodes of the current node.

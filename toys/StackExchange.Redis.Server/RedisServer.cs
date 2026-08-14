@@ -23,7 +23,14 @@ namespace StackExchange.Redis.Server
 
         private ConcurrentDictionary<EndPoint, Node> _nodes = new();
 
-        public bool TryGetNode(EndPoint endpoint, out Node node) => _nodes.TryGetValue(endpoint, out node);
+        // additional identities for nodes that already exist; deliberately *not* extra _nodes entries,
+        // so that _nodes stays one-key-per-node: EndPointComparer cannot order mixed endpoint types
+        // (it returns 0), and AddEmptyNode derives the next endpoint from an arbitrary existing key,
+        // so a mixed _nodes would make both CLUSTER NODES/SLOTS ordering and node naming arbitrary
+        private readonly ConcurrentDictionary<EndPoint, Node> _aliases = new();
+
+        public bool TryGetNode(EndPoint endpoint, out Node node)
+            => _nodes.TryGetValue(endpoint, out node) || _aliases.TryGetValue(endpoint, out node);
 
         public EndPoint DefaultEndPoint { get; }
 
@@ -44,6 +51,49 @@ namespace StackExchange.Redis.Server
             foreach (var pair in _nodes)
             {
                 yield return pair.Key;
+            }
+        }
+
+        /// <summary>
+        /// The secondary identities registered via <see cref="AddAlias"/> or <see cref="SetHostname"/>;
+        /// these are not returned by <see cref="GetEndPoints"/>, which reports one endpoint per node.
+        /// </summary>
+        public IEnumerable<EndPoint> GetAliases()
+        {
+            foreach (var pair in _aliases)
+            {
+                yield return pair.Key;
+            }
+        }
+
+        /// <summary>
+        /// Register an additional identity for an existing node. The node remains keyed by its original
+        /// endpoint, but requests for <paramref name="alias"/> resolve to it, so a single node can be
+        /// reached by several names - which is what makes identity-unification testable.
+        /// </summary>
+        public void AddAlias(EndPoint alias, EndPoint node)
+        {
+            if (alias is null) throw new ArgumentNullException(nameof(alias));
+            if (!_nodes.TryGetValue(node, out var target)) throw new KeyNotFoundException($"Node not found: {Format.ToString(node)}");
+            if (_nodes.ContainsKey(alias)) throw new ArgumentException($"Already a node in its own right: {Format.ToString(alias)}", nameof(alias));
+            if (!_aliases.TryAdd(alias, target) && !ReferenceEquals(_aliases[alias], target))
+            {
+                throw new ArgumentException($"Already an alias of a different node: {Format.ToString(alias)}", nameof(alias));
+            }
+        }
+
+        /// <summary>
+        /// Announce a hostname for a node, as <c>cluster-announce-hostname</c> does; this is reported by
+        /// <c>CLUSTER NODES</c> and registered as an alias, so the node can be reached by that name as
+        /// well as by the endpoint it is keyed on.
+        /// </summary>
+        public void SetHostname(EndPoint endpoint, string hostname)
+        {
+            if (!_nodes.TryGetValue(endpoint, out var node)) throw new KeyNotFoundException($"Node not found: {Format.ToString(endpoint)}");
+            node.Hostname = hostname;
+            if (!string.IsNullOrWhiteSpace(hostname))
+            {
+                AddAlias(new DnsEndPoint(hostname, node.Port), endpoint);
             }
         }
 
@@ -70,6 +120,168 @@ namespace StackExchange.Redis.Server
         public bool Migrate(Span<byte> key, EndPoint to) => Migrate(ServerSelectionStrategy.GetClusterSlot(key), to);
         public bool Migrate(in RedisKey key, EndPoint to) => Migrate(GetHashSlot(key), to);
 
+        /// <summary>
+        /// The value a node announces when hostname reporting is configured but no hostname is set;
+        /// prescribed by the <c>CLUSTER SLOTS</c> contract, not chosen here.
+        /// </summary>
+        private const string UnannouncedHostname = "?";
+
+        private const string ClusterPreferredEndpointType = "cluster-preferred-endpoint-type";
+        private const string ClusterAnnounceHostname = "cluster-announce-hostname";
+
+        // hostnames, the endpoint-type preference and the CLUSTER SLOTS metadata map all arrived in 7.0;
+        // before that there is no hostname anywhere in the topology, so the whole mechanism is inert and
+        // a client sees exactly the ip-only shape it always did
+        private static readonly Version s_HostnameVersion = new(7, 0, 0);
+
+        private bool SupportsHostnames => RedisVersion is { } version && version >= s_HostnameVersion;
+
+        /// <summary>
+        /// Override the preferred endpoint type for a single node. The real parameter is per-node, so a
+        /// deployment *can* have nodes that disagree - nobody sane configures that deliberately, but a
+        /// rolling config change is exactly that for a window, and a client must not infer a
+        /// cluster-wide mode from any one node's reply.
+        /// </summary>
+        public void SetPreferredEndpointType(EndPoint endpoint, ClusterEndpointType preferred)
+        {
+            if (!_nodes.TryGetValue(endpoint, out var node)) throw new KeyNotFoundException($"Node not found: {Format.ToString(endpoint)}");
+            node.PreferredEndpointType = preferred;
+        }
+
+        private static string ToConfigValue(ClusterEndpointType type) => type switch
+        {
+            ClusterEndpointType.Hostname => "hostname",
+            ClusterEndpointType.UnknownEndpoint => "unknown-endpoint",
+            _ => "ip",
+        };
+
+        /// <summary>
+        /// Which identity form this server prefers when naming nodes, mirroring the server's
+        /// <c>cluster-preferred-endpoint-type</c>. It governs the primary endpoint position in
+        /// <c>CLUSTER SLOTS</c> and the address in <c>-MOVED</c> redirects; <c>CLUSTER NODES</c> is
+        /// unaffected, since its field positions do not move.
+        /// </summary>
+        public ClusterEndpointType PreferredEndpointType { get; set; } = ClusterEndpointType.Ip;
+
+        /// <summary>
+        /// The identity form a server prefers when naming nodes; the values mirror
+        /// <c>cluster-preferred-endpoint-type</c>.
+        /// </summary>
+        public enum ClusterEndpointType
+        {
+            /// <summary>Report the node's ip address.</summary>
+            Ip = 0,
+
+            /// <summary>Report the node's announced hostname, or <c>?</c> if it has none.</summary>
+            Hostname,
+
+            /// <summary>Report no endpoint at all, leaving the client to use the one it dialled.</summary>
+            UnknownEndpoint,
+        }
+
+        /// <summary>
+        /// What a node knows about its own address. The values other than <see cref="Address"/> are
+        /// prescribed by the <c>CLUSTER SLOTS</c> contract rather than chosen here. Note the third
+        /// documented placeholder, <c>?</c>, is deliberately *not* a member: it is derived from
+        /// hostnames being preferred while none is announced, so that a combination the real server
+        /// cannot produce cannot be expressed here either.
+        /// </summary>
+        public enum AnnouncedAddress
+        {
+            /// <summary>The node knows its own address and reports it.</summary>
+            Address = 0,
+
+            /// <summary>
+            /// The RESP null: the server does not know this node's address, typically because it sits
+            /// behind a load balancer. A client should dial the endpoint it sent the command to, with
+            /// the port from the reply.
+            /// </summary>
+            Null,
+
+            /// <summary>
+            /// The empty string: the node does not know its own ip - a single-node cluster, or a node
+            /// that has not joined yet. May be treated as <see cref="Null"/>.
+            /// </summary>
+            Empty,
+        }
+
+        /// <summary>
+        /// Declare an extra <c>CLUSTER SLOTS</c> metadata entry for a node, beyond the ip/hostname the
+        /// complement rule produces. The real set is documented as extensible, so this exists to prove a
+        /// client keeps what it does not recognize.
+        /// </summary>
+        public void SetSlotsMetadata(EndPoint endpoint, string key, string value)
+        {
+            if (!_nodes.TryGetValue(endpoint, out var node)) throw new KeyNotFoundException($"Node not found: {Format.ToString(endpoint)}");
+            (node.SlotsMetadata ??= new List<KeyValuePair<string, string>>())
+                .Add(new KeyValuePair<string, string>(key, value));
+        }
+
+        /// <summary>
+        /// Declare an auxiliary field for a node, reported by <c>CLUSTER NODES</c> after the hostname.
+        /// Note a real 8.9 server emits none of these (<c>cluster-announce-human-nodename</c> does not
+        /// appear in the reply), so this exists to exercise the documented grammar - which is extensible -
+        /// rather than to mirror observed behaviour.
+        /// </summary>
+        public void SetAuxField(EndPoint endpoint, string key, string value)
+        {
+            if (!_nodes.TryGetValue(endpoint, out var node)) throw new KeyNotFoundException($"Node not found: {Format.ToString(endpoint)}");
+            (node.AuxFields ??= new List<KeyValuePair<string, string>>())
+                .Add(new KeyValuePair<string, string>(key, value));
+        }
+
+        /// <summary>
+        /// Control what a node reports as its own address, for exercising the placeholder values that
+        /// <c>CLUSTER SLOTS</c> can carry.
+        /// </summary>
+        public void SetAnnouncedAddress(EndPoint endpoint, AnnouncedAddress announced)
+        {
+            if (!_nodes.TryGetValue(endpoint, out var node)) throw new KeyNotFoundException($"Node not found: {Format.ToString(endpoint)}");
+            node.Announced = announced;
+        }
+
+        // the ip form of a node's identity, as it appears in either the primary position or the
+        // metadata; the empty string covers both "not known to the server" and "not known to the node",
+        // per the contract's note that "" applies to the ip metadata field as well as the endpoint
+        private static string GetIpForm(Node node)
+            => node.Announced == AnnouncedAddress.Address ? node.Host : "";
+
+        // a node we only know by name has no address identity of its own, so the only coherent shape is
+        // hostname-preferred with the ip unknown - anything else would have us report a hostname in a
+        // field that is documented to carry an address, which is the bug class this fake exists to expose
+        private static void ApplyNameOnlyIdentity(EndPoint endpoint, Node node)
+        {
+            if (endpoint is DnsEndPoint dns)
+            {
+                node.Hostname = dns.Host;
+                node.Announced = AnnouncedAddress.Empty;
+
+                // scoped to this node rather than the whole server: adding one name-only node to an
+                // address-keyed cluster is a legitimate topology, not a reconfiguration of its peers
+                node.PreferredEndpointType = ClusterEndpointType.Hostname;
+            }
+        }
+
+        // verified against a real 8.9 cluster: the *answering* node's preference governs every entry in
+        // the reply, while hostname availability is a property of each described node. So asking a
+        // hostname-preferring node about a peer with no hostname yields "?", and the same peer asked of an
+        // ip-preferring node yields its address
+        private static TypedRedisValue GetAnnouncedEndpoint(Node perspective, Node node)
+        {
+            switch (perspective.EffectiveEndpointType)
+            {
+                case ClusterEndpointType.UnknownEndpoint:
+                    return TypedRedisValue.BulkString(RedisValue.Null);
+                case ClusterEndpointType.Hostname:
+                    return TypedRedisValue.BulkString(
+                        string.IsNullOrWhiteSpace(node.Hostname) ? UnannouncedHostname : node.Hostname);
+                default:
+                    return node.Announced == AnnouncedAddress.Null
+                        ? TypedRedisValue.BulkString(RedisValue.Null)
+                        : TypedRedisValue.BulkString(GetIpForm(node));
+            }
+        }
+
         [Flags]
         public enum NodeFlags
         {
@@ -80,6 +292,23 @@ namespace StackExchange.Redis.Server
             PFail = 1 << 3,
             NoAddress = 1 << 4,
             NoFailover = 1 << 5,
+        }
+
+        /// <summary>
+        /// Add an empty node at a specific endpoint; the derived-endpoint overload copies the *form* of an
+        /// existing key, so it cannot produce a node whose identity form differs from its peers'.
+        /// </summary>
+        public EndPoint AddEmptyNode(EndPoint endpoint, NodeFlags flags = NodeFlags.None)
+        {
+            if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
+            var node = new Node(this, endpoint, flags);
+            node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
+            ApplyNameOnlyIdentity(endpoint, node);
+            if (!_nodes.TryAdd(endpoint, node))
+            {
+                throw new ArgumentException($"Node already exists: {Format.ToString(endpoint)}", nameof(endpoint));
+            }
+            return endpoint;
         }
 
         public EndPoint AddEmptyNode(NodeFlags flags = NodeFlags.None)
@@ -119,6 +348,7 @@ namespace StackExchange.Redis.Server
 
                 node = new(this, endpoint, flags);
                 node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
+                ApplyNameOnlyIdentity(endpoint, node);
             }
             // defensive loop for concurrency
             while (!_nodes.TryAdd(endpoint, node));
@@ -128,7 +358,9 @@ namespace StackExchange.Redis.Server
         protected RedisServer(EndPoint endpoint = null, int databases = DefaultDatabaseCount, TextWriter output = null) : base(output)
         {
             DefaultEndPoint = endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
-            _nodes.TryAdd(endpoint, new Node(this, endpoint, NodeFlags.None));
+            var defaultNode = new Node(this, endpoint, NodeFlags.None);
+            ApplyNameOnlyIdentity(endpoint, defaultNode);
+            _nodes.TryAdd(endpoint, defaultNode);
             RedisVersion = s_DefaultServerVersion;
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
             Databases = databases;
@@ -516,7 +748,25 @@ namespace StackExchange.Redis.Server
             foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
             {
                 var node = pair.Value;
-                sb.Append(node.Id).Append(" ").Append(node.Host).Append(":").Append(node.Port).Append("@1").Append(node.Port).Append(" ");
+                // <id> <ip:port@cport[,hostname]> ...
+                sb.Append(node.Id).Append(" ").Append(node.Host).Append(":").Append(node.Port).Append("@").Append(node.Port + 10000);
+                if (SupportsHostnames)
+                {
+                    // the hostname slot is positional: it can be empty while aux fields follow it
+                    var aux = node.AuxFields;
+                    if (!string.IsNullOrWhiteSpace(node.Hostname) || aux is { Count: > 0 })
+                    {
+                        sb.Append(",").Append(node.Hostname);
+                    }
+                    if (aux is { Count: > 0 })
+                    {
+                        foreach (var field in aux)
+                        {
+                            sb.Append(",").Append(field.Key).Append("=").Append(field.Value);
+                        }
+                    }
+                }
+                sb.Append(" ");
                 if (node == client.Node)
                 {
                     sb.Append("myself,");
@@ -550,24 +800,70 @@ namespace StackExchange.Redis.Server
             {
                 count += pair.Value.Slots.Length;
             }
+            var perspective = client?.Node ?? (TryGetNode(DefaultEndPoint, out var fallback) ? fallback : null);
             var slots = TypedRedisValue.Rent(count, out var slotsSpan, RespPrefix.Array);
             foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
             {
-                string host = GetHost(pair.Key, out int port);
-                foreach (var range in pair.Value.Slots)
+                var node = pair.Value;
+                GetHost(pair.Key, out int port);
+                foreach (var range in node.Slots)
                 {
                     if (index >= count) break; // someone changed things while we were working
                     slotsSpan[index++] = TypedRedisValue.Rent(3, out var slotSpan, RespPrefix.Array);
                     slotSpan[0] = TypedRedisValue.Integer(range.From);
                     slotSpan[1] = TypedRedisValue.Integer(range.To);
-                    slotSpan[2] = TypedRedisValue.Rent(4, out var nodeSpan, RespPrefix.Array);
-                    nodeSpan[0] = TypedRedisValue.BulkString(host);
+                    // the metadata element itself only exists from 7.0; older servers stop at the node id
+                    slotSpan[2] = TypedRedisValue.Rent(SupportsHostnames ? 4 : 3, out var nodeSpan, RespPrefix.Array);
+
+                    // note the first field is positionally "the endpoint" and its *content* is whichever
+                    // form is preferred, so it may well be a hostname rather than an address
+                    nodeSpan[0] = GetAnnouncedEndpoint(perspective ?? node, node);
                     nodeSpan[1] = TypedRedisValue.Integer(port);
-                    nodeSpan[2] = TypedRedisValue.BulkString(pair.Value.Id);
-                    nodeSpan[3] = TypedRedisValue.EmptyArray(RespPrefix.Array);
+                    nodeSpan[2] = TypedRedisValue.BulkString(node.Id);
+                    if (SupportsHostnames)
+                    {
+                        nodeSpan[3] = GetEndpointMetadata(perspective ?? node, node);
+                    }
                 }
             }
             return slots;
+        }
+
+        // the metadata map is documented as the *complement* of the primary position: ip when the
+        // preferred type is not ip, hostname when the node has one and the preferred type is not
+        // hostname. So the union of the primary field and the metadata is every form the node has, with
+        // no duplication - which is what makes one reply enough to reconcile identities.
+        private static TypedRedisValue GetEndpointMetadata(Node perspective, Node node)
+        {
+            bool wantIp = perspective.EffectiveEndpointType != ClusterEndpointType.Ip;
+            bool wantHostname = perspective.EffectiveEndpointType != ClusterEndpointType.Hostname
+                && !string.IsNullOrWhiteSpace(node.Hostname);
+
+            var extra = node.SlotsMetadata;
+            int pairs = (wantIp ? 1 : 0) + (wantHostname ? 1 : 0) + (extra?.Count ?? 0);
+            if (pairs == 0) return TypedRedisValue.EmptyArray(RespPrefix.Map);
+
+            var result = TypedRedisValue.Rent(2 * pairs, out var span, RespPrefix.Map);
+            int index = 0;
+            if (wantIp)
+            {
+                span[index++] = TypedRedisValue.BulkString("ip");
+                span[index++] = TypedRedisValue.BulkString(GetIpForm(node));
+            }
+            if (wantHostname)
+            {
+                span[index++] = TypedRedisValue.BulkString("hostname");
+                span[index++] = TypedRedisValue.BulkString(node.Hostname);
+            }
+            if (extra is not null)
+            {
+                foreach (var pair in extra)
+                {
+                    span[index++] = TypedRedisValue.BulkString(pair.Key);
+                    span[index++] = TypedRedisValue.BulkString(pair.Value);
+                }
+            }
+            return result;
         }
 
         private sealed class EndPointComparer : IComparer<EndPoint>
@@ -639,6 +935,57 @@ namespace StackExchange.Redis.Server
 
             public string Host { get; }
 
+            /// <summary>
+            /// The announced hostname of this node, if any; an additional identity rather than a
+            /// replacement for <see cref="Host"/>, which remains what the node is keyed on.
+            /// </summary>
+            public string Hostname { get; internal set; }
+
+            /// <summary>
+            /// What this node knows about its own address; <see cref="AnnouncedAddress.Address"/>
+            /// unless a test says otherwise.
+            /// </summary>
+            public AnnouncedAddress Announced { get; internal set; }
+
+            /// <summary>
+            /// Auxiliary <c>name=value</c> fields this node declares after its hostname in
+            /// <c>CLUSTER NODES</c>; null when it declares none.
+            /// </summary>
+            public List<KeyValuePair<string, string>> AuxFields { get; internal set; }
+
+            /// <summary>
+            /// Extra <c>CLUSTER SLOTS</c> metadata entries beyond the complement rule's ip/hostname.
+            /// </summary>
+            public List<KeyValuePair<string, string>> SlotsMetadata { get; internal set; }
+
+            /// <summary>
+            /// This node's own preferred endpoint type, or <c>null</c> to follow the server-wide default.
+            /// Nullable rather than copied at construction, so that setting the server default later
+            /// still applies to nodes that have no opinion.
+            /// </summary>
+            public ClusterEndpointType? PreferredEndpointType { get; internal set; }
+
+            /// <summary>
+            /// The preference as it actually applies to this node, given the server version; a pre-7.0
+            /// server has no such setting at all, so it reports addresses.
+            /// </summary>
+            internal ClusterEndpointType EffectiveEndpointType => _server.SupportsHostnames
+                ? PreferredEndpointType ?? _server.PreferredEndpointType
+                : ClusterEndpointType.Ip;
+
+            /// <summary>
+            /// The host portion this node is named by in a <c>-MOVED</c> redirect issued by
+            /// <paramref name="perspective"/> - the redirect uses the *answering* node's preferred
+            /// endpoint type, as a real server does. Empty when no endpoint can be given, in which case a
+            /// client should dial the endpoint it sent the command to, using the port from the redirect.
+            /// </summary>
+            public string AnnouncedHostFrom(Node perspective) => (perspective ?? this).EffectiveEndpointType switch
+            {
+                ClusterEndpointType.UnknownEndpoint => "",
+                ClusterEndpointType.Hostname => string.IsNullOrWhiteSpace(Hostname) ? UnannouncedHostname : Hostname,
+                _ => GetIpForm(this),
+            };
+
             public int Port { get; }
             public string Id { get; } = NewId();
 
@@ -695,18 +1042,41 @@ namespace StackExchange.Redis.Server
                 return false;
             }
 
+            private static int s_idCounter;
+#if !NET
+            private static readonly Random s_rand = new Random();
+#endif
+
             private static string NewId()
             {
                 Span<char> data = stackalloc char[40];
+                ReadOnlySpan<char> alphabet = "0123456789abcdef";
 #if NET
                 var rand = Random.Shared;
-#else
-                var rand = new Random();
-#endif
-                ReadOnlySpan<char> alphabet = "0123456789abcdef";
                 for (int i = 0; i < data.Length; i++)
                 {
                     data[i] = alphabet[rand.Next(alphabet.Length)];
+                }
+#else
+                // one shared instance: .NET Framework seeds Random from Environment.TickCount, so an
+                // instance per call yields identical sequences - and therefore identical node ids - for
+                // nodes created within the same tick
+                lock (s_rand)
+                {
+                    for (int i = 0; i < data.Length; i++)
+                    {
+                        data[i] = alphabet[s_rand.Next(alphabet.Length)];
+                    }
+                }
+#endif
+
+                // ...and weave in a counter, so ids are unique by construction rather than by luck. Node ids
+                // are the identity that topology reconciliation keys on, so a collision here does not produce
+                // a test failure that looks like a collision: it looks like the client wrongly merging nodes
+                var unique = (uint)Interlocked.Increment(ref s_idCounter);
+                for (int i = 0; i < 8; i++)
+                {
+                    data[i] = alphabet[(int)((unique >> (28 - (i * 4))) & 0xF)];
                 }
                 return data.ToString();
             }
@@ -906,7 +1276,20 @@ namespace StackExchange.Redis.Server
         }
         protected virtual void LRange(int database, in RedisKey key, long start, Span<TypedRedisValue> arr) => throw new NotSupportedException();
 
-        protected virtual void OnUpdateServerConfiguration() { }
+        // both of these parameters are per-node on a real server, so the values published depend on the
+        // connection asking; pre-7.0 they do not exist at all and are simply absent. This is why CONFIG GET
+        // is not LockFree: it writes the answering node's view into the shared configuration first
+        protected virtual void OnUpdateServerConfiguration(RedisClient client)
+        {
+            if (!SupportsHostnames) return;
+
+            var node = client?.Node ?? (TryGetNode(DefaultEndPoint, out var fallback) ? fallback : null);
+            if (node is null) return;
+
+            var config = ServerConfiguration;
+            config[ClusterPreferredEndpointType] = ToConfigValue(node.EffectiveEndpointType);
+            config[ClusterAnnounceHostname] = node.Hostname ?? "";
+        }
         protected RedisConfig ServerConfiguration { get; } = RedisConfig.Create();
         protected struct RedisConfig
         {
@@ -937,12 +1320,12 @@ namespace StackExchange.Redis.Server
                 return count;
             }
         }
-        [RedisCommand(3, nameof(RedisCommand.CONFIG), "get", LockFree = true)]
+        [RedisCommand(3, nameof(RedisCommand.CONFIG), "get")]
         protected virtual TypedRedisValue Config(RedisClient client, in RedisRequest request)
         {
             var pattern = request.GetString(2);
 
-            OnUpdateServerConfiguration();
+            OnUpdateServerConfiguration(client);
             var config = ServerConfiguration;
             var matches = config.CountMatch(pattern);
             if (matches == 0) return TypedRedisValue.EmptyArray(RespPrefix.Map);

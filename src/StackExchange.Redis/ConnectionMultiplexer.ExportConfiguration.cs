@@ -53,6 +53,7 @@ public partial class ConnectionMultiplexer
                 if ((options & ExportOptions.Cluster) != 0)
                 {
                     tasks.Add(api.ClusterNodesRawAsync(flags: flags));
+                    tasks.Add(api.ClusterSlotsAsync(flags: flags));
                 }
 
                 WaitAllIgnoreErrors(tasks.ToArray());
@@ -93,6 +94,10 @@ public partial class ConnectionMultiplexer
                 if ((options & ExportOptions.Cluster) != 0)
                 {
                     Write<string>(zip, prefix + "/nodes.txt", tasks[index++], WriteNormalizingLineEndings);
+
+                    // the two views can legitimately disagree about how a node is *named*, since SLOTS
+                    // renders endpoints in whichever form the answering node prefers - so capture both
+                    Write<ClusterSlotsResult?>(zip, prefix + "/slots.txt", tasks[index++], WriteClusterSlots);
                 }
             }
         }
@@ -120,6 +125,44 @@ public partial class ConnectionMultiplexer
                     break;
             }
         }
+    }
+
+    // one line per node per range, so it greps like nodes.txt does. The endpoint is written exactly as the
+    // server reported it - including the placeholders, which do not mean the same thing as each other - so
+    // nothing the reply carried is lost in the rendering
+    private static void WriteClusterSlots(ClusterSlotsResult? slots, StreamWriter writer)
+    {
+        if (slots is null)
+        {
+            writer.WriteLine(NoContent);
+            return;
+        }
+
+        foreach (var assignment in slots.Assignments)
+        {
+            WriteNode(writer, assignment, "primary", assignment.Primary);
+            foreach (var replica in assignment.Replicas)
+            {
+                WriteNode(writer, assignment, "replica", replica);
+            }
+        }
+
+        static void WriteNode(StreamWriter writer, ClusterSlotAssignment assignment, string role, ClusterSlotNode node)
+        {
+            writer.Write("{0} {1} endpoint={2} port={3} id={4}", assignment.Slots, role, Describe(node.AnnouncedEndpoint), node.Port, node.NodeId ?? "(none)");
+            foreach (var pair in node.Metadata)
+            {
+                writer.Write(" {0}={1}", pair.Key, Describe(pair.Value));
+            }
+            writer.WriteLine();
+        }
+
+        static string Describe(string? value) => value switch
+        {
+            null => "(null)",  // the server does not know this node's address
+            "" => "(empty)",   // the node does not know its own address
+            _ => value,        // may be an address, a hostname, or "?" for an unknown node
+        };
     }
 
     private static void WriteNormalizingLineEndings(string source, StreamWriter writer)

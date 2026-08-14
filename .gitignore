@@ -31,3 +31,6 @@ launchSettings.json
 TestResults/
 BenchmarkDotNet.Artifacts/
 .codex
+
+# local planning/design notes (not for publication)
+planning/

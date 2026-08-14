@@ -135,6 +135,7 @@ public readonly struct FaultContext
             case RedisErrorKind.TryAgain: // slot mid-migration
             case RedisErrorKind.Moved: // wrong node; this one did not run it
             case RedisErrorKind.Ask: // ditto, mid-migration
+            case RedisErrorKind.UnknownRedirectTarget: // a redirect we could not follow, so still not run
             case RedisErrorKind.ReadOnly: // writes refused by a replica
             case RedisErrorKind.Misconfigured: // e.g. persistence failing, so writes are refused
             case RedisErrorKind.NoReplicas: // not enough replicas to accept the write
