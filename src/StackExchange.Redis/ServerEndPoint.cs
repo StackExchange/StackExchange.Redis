@@ -1120,7 +1120,6 @@ namespace StackExchange.Redis
                     // folding the credentials in here would change how credential failures surface. We only want
                     // the reply, which reports version/role/mode/connection-id without INFO or CONFIG (both
                     // @dangerous, hence often ACL-restricted); see #2968
-                    log?.LogInformationDiscoveryViaHello(new(this));
                     var hello = Message.CreateHello(helloProtocol, null, null, null, CommandFlags.FireAndForget | Message.NoFlushFlag);
                     hello.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
