@@ -1042,18 +1042,41 @@ namespace StackExchange.Redis.Server
                 return false;
             }
 
+            private static int s_idCounter;
+#if !NET
+            private static readonly Random s_rand = new Random();
+#endif
+
             private static string NewId()
             {
                 Span<char> data = stackalloc char[40];
+                ReadOnlySpan<char> alphabet = "0123456789abcdef";
 #if NET
                 var rand = Random.Shared;
-#else
-                var rand = new Random();
-#endif
-                ReadOnlySpan<char> alphabet = "0123456789abcdef";
                 for (int i = 0; i < data.Length; i++)
                 {
                     data[i] = alphabet[rand.Next(alphabet.Length)];
+                }
+#else
+                // one shared instance: .NET Framework seeds Random from Environment.TickCount, so an
+                // instance per call yields identical sequences - and therefore identical node ids - for
+                // nodes created within the same tick
+                lock (s_rand)
+                {
+                    for (int i = 0; i < data.Length; i++)
+                    {
+                        data[i] = alphabet[s_rand.Next(alphabet.Length)];
+                    }
+                }
+#endif
+
+                // ...and weave in a counter, so ids are unique by construction rather than by luck. Node ids
+                // are the identity that topology reconciliation keys on, so a collision here does not produce
+                // a test failure that looks like a collision: it looks like the client wrongly merging nodes
+                var unique = (uint)Interlocked.Increment(ref s_idCounter);
+                for (int i = 0; i < 8; i++)
+                {
+                    data[i] = alphabet[(int)((unique >> (28 - (i * 4))) & 0xF)];
                 }
                 return data.ToString();
             }

@@ -38,6 +38,27 @@ public class ClusterSlotsUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public void NodeIdsAreUniqueEvenWhenCreatedInTheSameTick()
+    {
+        // regression: the toy server created a Random per id, and .NET Framework seeds that from the tick
+        // count - so nodes created in the same tick shared an id. Keyed reconciliation then merged two nodes
+        // into one, which surfaced as the *client* looking wrong
+        using var server = new InProcessTestServer(log) { ServerType = ServerType.Cluster };
+        var ids = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
+
+        GetHost(server.DefaultEndPoint, out var port);
+        Assert.True(server.TryGetNode(server.DefaultEndPoint, out var first));
+        Assert.True(ids.Add(first.Id));
+
+        for (int i = 1; i <= 25; i++)
+        {
+            var endpoint = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + i));
+            Assert.True(server.TryGetNode(endpoint, out var node));
+            Assert.True(ids.Add(node.Id), $"duplicate id at node {i}: {node.Id}");
+        }
+    }
+
+    [Fact]
     public async Task WholeKeyspaceIsReportedWithNodeIdAndEndpoint()
     {
         using var server = CreateServer(log, announceHostname: false);
