@@ -485,11 +485,17 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
 
-                // ...and the same topology as CLUSTER SLOTS sees it, which is the view that conveys naming
-                // preference and node ids. Shadow only for now: recorded, compared in tests, not routed on
-                msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.SLOTS);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
+                // CLUSTER SLOTS would go here - it is the view that conveys naming preference and node ids,
+                // and ClusterTopology/SetClusterSlots exist ready for it. Deliberately *not* invoked yet:
+                // this PR is scoped to work that cannot destabilise a connection, and asking every server for
+                // an extra command on every autoconfigure is a new failure surface on the connect path (an
+                // unexpected error reply to an internal call, a proxy that mangles the command) for no
+                // user-visible benefit until routing actually consumes it. Enabled in the follow-up, where
+                // ordering matters too: it must precede CLUSTER NODES so identities are known before NODES
+                // creates servers by address.
+                //// msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.SLOTS);
+                //// msg.SetInternalCall();
+                //// await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits

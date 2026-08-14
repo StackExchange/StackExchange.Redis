@@ -124,7 +124,7 @@ public class ClusterSlotsTests(ITestOutputHelper output, SharedConnectionFixture
         var nodes = await api.ClusterNodesAsync();
         Assert.NotNull(nodes);
 
-        var topology = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint).ClusterTopology;
+        var topology = ClusterTopology.From(await api.ClusterSlotsAsync());
         Assert.NotNull(topology);
 
         int compared = 0;

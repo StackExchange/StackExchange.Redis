@@ -26,10 +26,15 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         return server;
     }
 
-    private static ClusterTopology GetShadow(IConnectionMultiplexer conn, EndPoint endpoint)
+    /// <summary>
+    /// Builds the view from an explicit <c>CLUSTER SLOTS</c> call. Autoconfigure does not ask for it yet - see
+    /// the comment in <c>ServerEndPoint.AutoConfigureAsync</c> - so these exercise the model and the parser
+    /// rather than the wiring; the wiring is covered where it is enabled.
+    /// </summary>
+    private static async Task<ClusterTopology> GetShadowAsync(IConnectionMultiplexer conn, EndPoint endpoint)
     {
-        var server = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint);
-        var topology = server.ClusterTopology;
+        var slots = await conn.GetServer(endpoint).ClusterSlotsAsync();
+        var topology = ClusterTopology.From(slots);
         Assert.NotNull(topology);
         return topology;
     }
@@ -37,12 +42,12 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
     [Theory]
     [InlineData(ClusterEndpointType.Ip)]
     [InlineData(ClusterEndpointType.Hostname)]
-    public async Task ShadowTopologyIsPopulatedOnConnect(ClusterEndpointType preferred)
+    public async Task ShadowTopologyIsBuiltFromTheReply(ClusterEndpointType preferred)
     {
         using var server = CreateServer(log, preferred);
         await using var conn = await server.ConnectAsync(defaultOnly: true);
 
-        var topology = GetShadow(conn, server.DefaultEndPoint);
+        var topology = await GetShadowAsync(conn, server.DefaultEndPoint);
         var node = Assert.Single(topology.Nodes);
         log.WriteLine(node.ToString());
 
@@ -64,7 +69,7 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         using var server = CreateServer(log, preferred);
         await using var conn = await server.ConnectAsync(defaultOnly: true);
 
-        var node = Assert.Single(GetShadow(conn, server.DefaultEndPoint).Nodes);
+        var node = Assert.Single((await GetShadowAsync(conn, server.DefaultEndPoint)).Nodes);
         var host = GetHost(server.DefaultEndPoint, out var port);
 
         Assert.Equal(host, node.Ip);
@@ -87,7 +92,7 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         // force both views to be refreshed from the same server
         var nodes = await api.ClusterNodesAsync();
         Assert.NotNull(nodes);
-        var topology = GetShadow(conn, server.DefaultEndPoint);
+        var topology = await GetShadowAsync(conn, server.DefaultEndPoint);
 
         var fromNodes = nodes.Nodes.Where(x => !x.IsReplica && x.Slots.Count > 0)
             .Select(x => x.NodeId).OrderBy(x => x).ToArray();
@@ -121,7 +126,7 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         using var server = CreateServer(log, ClusterEndpointType.Hostname);
         await using var conn = await server.ConnectAsync(defaultOnly: true);
 
-        Assert.NotNull(GetShadow(conn, server.DefaultEndPoint));
+        Assert.NotNull(await GetShadowAsync(conn, server.DefaultEndPoint));
 
         // endpoints are still exactly what NODES gave us: addresses, not the preferred hostname form
         Assert.All(conn.GetEndPoints(), ep => Assert.IsType<IPEndPoint>(ep));
@@ -140,7 +145,7 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         };
         await using var conn = await server.ConnectAsync(defaultOnly: true);
 
-        var api = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
-        log.WriteLine($"topology: {api.ClusterTopology?.Nodes.Count.ToString() ?? "(none)"}");
+        var slots = await conn.GetServer(server.DefaultEndPoint).ClusterSlotsAsync();
+        log.WriteLine($"topology: {ClusterTopology.From(slots)?.Nodes.Count.ToString() ?? "(none)"}");
     }
 }
