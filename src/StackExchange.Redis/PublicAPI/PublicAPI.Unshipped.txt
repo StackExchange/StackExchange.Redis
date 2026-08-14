@@ -1,4 +1,20 @@
 ﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
+StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
+[SER009]StackExchange.Redis.Configuration.TlsOptions
+[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions() -> void
+[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions(StackExchange.Redis.ConfigurationOptions! options) -> void
+[SER009]StackExchange.Redis.Configuration.TlsOptions.IsEnabled.get -> bool
+[SER009]StackExchange.Redis.Configuration.TlsOptions.SslHost.get -> string?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.SslProtocols.get -> System.Security.Authentication.SslProtocols?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CheckCertificateRevocation.get -> bool
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateValidationCallback.get -> System.Net.Security.RemoteCertificateValidationCallback?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateSelectionCallback.get -> System.Net.Security.LocalCertificateSelectionCallback?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.ResolveHost(System.Net.EndPoint! endpoint) -> string!
+[SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, StackExchange.Redis.Configuration.TlsOptions tls, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
+StackExchange.Redis.RedisFeatures.Hello.get -> bool
 StackExchange.Redis.ClusterNode.AuxFields.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string!>>!
 StackExchange.Redis.ClusterNode.ClusterBusPort.get -> int?
 StackExchange.Redis.ClusterNode.Hostname.get -> string?
@@ -16,13 +32,7 @@ StackExchange.Redis.ClusterSlotNode.NodeId.get -> string?
 StackExchange.Redis.ClusterSlotNode.Port.get -> int
 StackExchange.Redis.ClusterSlotsResult
 StackExchange.Redis.ClusterSlotsResult.Assignments.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotAssignment!>!
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
-StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
 StackExchange.Redis.IServer.ClusterSlots(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotsResult?
 StackExchange.Redis.IServer.ClusterSlotsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotsResult?>!
-StackExchange.Redis.RedisFeatures.Hello.get -> bool
 [SER007]StackExchange.Redis.RedisErrorKind.UnknownRedirectTarget = 26 -> StackExchange.Redis.RedisErrorKind
-[SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
 override StackExchange.Redis.ClusterSlotNode.ToString() -> string!

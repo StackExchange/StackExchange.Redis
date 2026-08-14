@@ -784,6 +784,19 @@ namespace StackExchange.Redis
 
         private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
         {
+            if (ConnectionType == ConnectionType.Interactive
+                && message.IsForSubscriptionBridge
+                && Protocol is RedisProtocol.Resp2
+                && ServerEndPoint.TryRerouteToSubscriptionBridge(message, this))
+            {
+                // this was queued while we expected RESP3 - where subscriptions share the interactive
+                // connection - but the handshake resolved to RESP2, which needs them on their own connection.
+                // Writing it here would put *this* connection into subscriber mode, which rejects every
+                // ordinary command on it from then on; see #3154
+                Trace($"Rerouting {message.CommandAndKey} to the subscription connection (RESP2)");
+                return WriteResult.Success;
+            }
+
             WriteResult result;
             var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
@@ -909,6 +922,16 @@ namespace StackExchange.Redis
             // Which StartBacklogProcessor will check.
             StartBacklogProcessor();
             return true;
+        }
+
+        /// <summary>
+        /// Takes over a message that was queued against a different bridge of the same endpoint, because the
+        /// protocol resolved differently to what we expected when it was queued (see #3154).
+        /// </summary>
+        internal void AcceptRerouted(Message message)
+        {
+            BacklogEnqueue(message);
+            StartBacklogProcessor();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1233,6 +1256,36 @@ namespace StackExchange.Redis
                 {
                     _singleWriter.Release();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Flush anything earlier writes left staged, but only if that can be done without waiting.
+        /// </summary>
+        /// <remarks>
+        /// Called from a push transport's batch-end callback, which runs on a transport thread that must
+        /// not block. The write lock is what makes staging exclusive - a flush that raced a stage could
+        /// hand a half-written frame to a transport mid-<c>Advance</c> - so this either gets the lock
+        /// instantly or does nothing, leaving the flush to whoever does hold it.
+        /// </remarks>
+        internal void TryFlushStagedWrites(PhysicalConnection physical)
+        {
+            if (!_singleWriter.TryTakeInstant()) return;
+            try
+            {
+                if (physical is { HasOutputPipe: true })
+                {
+                    physical.Flush();
+                }
+            }
+            catch
+            {
+                // opportunistic: a flush failure here means the transport is going away, and that is
+                // reported through the receiver's OnClosed
+            }
+            finally
+            {
+                _singleWriter.Release();
             }
         }
 

@@ -774,7 +774,6 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
         Assert.Equal("Details", options.ClientName);
-        Assert.SkipWhen(options.TryResp3(), "only validate RESP2");
         Log(options.ToString());
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options, log: Writer);
         Assert.NotNull(conn.AuthException);

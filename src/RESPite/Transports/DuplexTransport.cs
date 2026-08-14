@@ -47,6 +47,15 @@ public abstract class DuplexTransport : IBufferWriter<byte>, IAsyncDisposable
     /// delivery runs on the transport's schedule and threads.</summary>
     public abstract void Start(TransportReceiver receiver);
 
+    /// <summary>
+    /// Whether this transport's bytes are encrypted on the wire. Since the transport owns connect and
+    /// TLS end-to-end, this is the only thing a consumer can ask; it is the transport's assertion, and
+    /// the default is the safe answer (no). A transport that terminates TLS itself MUST override this,
+    /// otherwise a configuration that demands TLS will refuse to use it.
+    /// </summary>
+    /// <remarks>Valid once the transport is connected; consumers check it before first use.</remarks>
+    public virtual bool IsEncrypted => false;
+
     public abstract ValueTask DisposeAsync();
 }
 

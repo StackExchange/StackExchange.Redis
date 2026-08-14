@@ -37,14 +37,28 @@ namespace StackExchange.Redis.Configuration
         public virtual ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken) => default;
 
         /// <summary>
-        /// Optionally supply the ENTIRE transport for this connection — the same hijack as
+        /// Optionally supply the ENTIRE transport for this connection - the same hijack as
         /// <see cref="BeforeAuthenticateAsync"/> one level deeper: instead of yielding a
         /// <see cref="Stream"/> over a socket the library owns, yield a
         /// <see cref="RESPite.Transports.DuplexTransport"/> the tunnel owns, and no socket is created at
         /// all. Return null (the default for every existing tunnel) for the standard socket path.
         /// </summary>
+        /// <param name="endpoint">The logical endpoint being connected to.</param>
+        /// <param name="connectionType">Whether this is the interactive or subscription connection.</param>
+        /// <param name="tls">
+        /// The TLS intent this transport must honour: since the transport owns connect and TLS
+        /// end-to-end, the library does not (and cannot) apply <see cref="ConfigurationOptions.Ssl"/>
+        /// and friends on its behalf.
+        /// </param>
+        /// <param name="cancellationToken">Cancellation for the connect attempt.</param>
+        /// <remarks>
+        /// A transport that establishes TLS must report that via
+        /// <see cref="RESPite.Transports.DuplexTransport.IsEncrypted"/>; if
+        /// <see cref="TlsOptions.IsEnabled"/> is set and the transport reports otherwise, the
+        /// connection is failed rather than used.
+        /// </remarks>
         [Experimental(RESPite.Experiments.Transport, UrlFormat = RESPite.Experiments.UrlFormat)]
-        public virtual ValueTask<RESPite.Transports.DuplexTransport?> ConnectTransportAsync(EndPoint endpoint, ConnectionType connectionType, CancellationToken cancellationToken) => default;
+        public virtual ValueTask<RESPite.Transports.DuplexTransport?> ConnectTransportAsync(EndPoint endpoint, ConnectionType connectionType, TlsOptions tls, CancellationToken cancellationToken) => default;
 
         private sealed class HttpProxyTunnel : Tunnel
         {

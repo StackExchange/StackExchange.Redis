@@ -180,7 +180,20 @@ namespace StackExchange.Redis
             var connectTo = endpoint;
             if (tunnel is not null)
             {
-                connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, CancellationToken.None).ForAwait();
+                // A transport tunnel replaces the socket outright (the widest form of the existing
+                // connectTo=null no-socket pattern): connect and TLS belong to the tunnel, and the
+                // stream/SslStream machinery below never runs. The TLS intent goes with it precisely
+                // because TLS is now the tunnel's job: it cannot honour an intent it cannot see.
+                var transport = await tunnel.ConnectTransportAsync(endpoint, bridge.ConnectionType, new(rawConfig), CancellationToken.None).ForAwait();
+                if (transport is not null)
+                {
+                    _transport = transport;
+                    connectTo = null;
+                }
+                else
+                {
+                    connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, CancellationToken.None).ForAwait();
+                }
             }
             if (connectTo is not null)
             {
@@ -314,6 +327,7 @@ namespace StackExchange.Redis
         {
             var output = Interlocked.Exchange(ref _output, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
+            var transport = Interlocked.Exchange(ref _transport, null);
 
             if (output != null)
             {
@@ -328,11 +342,16 @@ namespace StackExchange.Redis
                 try { socket.Close(); } catch { }
                 try { socket.Dispose(); } catch { }
             }
+
+            if (transport != null)
+            {
+                try { transport.DisposeAsync().AsTask().RedisFireAndForget(); } catch { }
+            }
         }
 
         public void Dispose()
         {
-            bool markDisposed = VolatileSocket != null;
+            bool markDisposed = VolatileSocket != null || _transport != null;
             Shutdown();
             if (markDisposed)
             {
@@ -1014,6 +1033,31 @@ namespace StackExchange.Redis
                 // TLS:     [Socket]<==[NetworkStream]<==[SslStream]<==[StreamConnection:IDuplexPipe]
                 var config = bridge.Multiplexer.RawConfig;
 
+                if (_transport is { } transport)
+                {
+                    // Transport mode: no socket, no stream, no SslStream. TLS is the transport's job
+                    // (it saw the config on ConnectTransportAsync), so the only question here is whether
+                    // the transport DISAGREES with the configured intent. Configured TLS plus a
+                    // transport that reports plaintext is a hard failure: silently sending credentials
+                    // in the clear is exactly what Ssl=true forbids. The converse - a transport that is
+                    // encrypted when the config did not demand it - is fine, and merely noted.
+                    if (config.Ssl && !transport.IsEncrypted)
+                    {
+                        var mismatch = new RedisConnectionException(
+                            ConnectionFailureType.AuthenticationFailure,
+                            CommandFlags.None,
+                            "TLS was requested (Ssl=true), but the transport supplied by the tunnel reports an unencrypted connection.");
+                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, mismatch, isInitialConnect: true);
+                        bridge.Multiplexer.Trace("Transport is not encrypted");
+                        return false;
+                    }
+
+                    InitTransportOutput(transport);
+                    log?.LogInformationTransportConnected(bridge.Name, transport.IsEncrypted);
+                    await bridge.OnConnectedAsync(this, log).ForAwait();
+                    return true;
+                }
+
                 var tunnel = config.Tunnel;
                 if (tunnel is not null)
                 {
@@ -1064,7 +1108,20 @@ namespace StackExchange.Redis
                             bridge.Multiplexer.Logger?.LogErrorConnectionIssue(ex, ex.Message);
                             throw;
                         }
+                        // Note on the "assert ssl.IsEncrypted after the handshake" advice: on every TFM we
+                        // target, SslStream.IsEncrypted (and IsSigned) is literally an alias for
+                        // IsAuthenticated, i.e. "handshake completed, no exception" - which is exactly what
+                        // the await above already proved, so asserting it would guarantee nothing about the
+                        // bytes on the wire. What actually forbids plaintext here is the
+                        // EncryptionPolicy.RequireEncryption passed to the ctor above; instead of a
+                        // tautological assert we log what was negotiated, so a surprise is visible.
+                        // .NET:   https://github.com/dotnet/dotnet/blob/b0f34d51fccc69fd334253924abd8d6853fad7aa/src/runtime/src/libraries/System.Net.Security/src/System/Net/Security/SslStream.cs#L475
+                        // netfx:  https://github.com/microsoft/referencesource/blob/main/System/net/System/Net/SecureProtocols/SslStream.cs#L312-L334
+#if NET
+                        log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol, ssl.NegotiatedCipherSuite);
+#else
                         log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol);
+#endif
                     }
                     catch (AuthenticationException authexception)
                     {

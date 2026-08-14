@@ -213,6 +213,19 @@ jobs:
           name: Tests Results - Windows Server 2025
           path: 'test-results/*.trx'
           reporter: dotnet-trx
+          # list only failures: listing every test rendered ~3MB into $GITHUB_STEP_SUMMARY, which has a
+          # 1MB limit, so the summary was dropped entirely and failures had to be read from annotations
+          list-suites: failed
+          list-tests: failed
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          # the trx carries per-test output, which the failure-only report above deliberately omits; that is
+          # the difference between diagnosing a CI-only failure and guessing at it
+          name: test-results-windows
+          path: test-results/*.trx
+          retention-days: 14
       # Package and upload to MyGet only on pushes to main/v3, not on PRs
       - name: .NET Pack
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3')

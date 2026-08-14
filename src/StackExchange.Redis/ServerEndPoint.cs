@@ -283,6 +283,23 @@ namespace StackExchange.Redis
                 : interactive ??= CreateBridge(ConnectionType.Interactive, null);
         }
 
+        /// <summary>
+        /// Moves a subscription message that was queued against the interactive bridge over to the subscription
+        /// bridge, which is where it belongs now that we know the connection is RESP2 (see #3154).
+        /// </summary>
+        /// <returns><c>true</c> if the message is now the subscription bridge's responsibility.</returns>
+        internal bool TryRerouteToSubscriptionBridge(Message message, PhysicalBridge from)
+        {
+            if (isDisposed) return false;
+
+            // deliberately not via GetBridge: that consults the same expectation that got us here
+            var target = subscription ??= CreateBridge(ConnectionType.Subscription, null);
+            if (target is null || ReferenceEquals(target, from)) return false;
+
+            target.AcceptRerouted(message);
+            return true;
+        }
+
         public PhysicalBridge? GetBridge(RedisCommand command, bool create = true)
         {
             if (isDisposed) return null;
@@ -998,6 +1015,19 @@ namespace StackExchange.Redis
             return bridge;
         }
 
+        /// <summary>
+        /// Issues <c>HELLO</c>, optionally carrying the credentials and client name.
+        /// </summary>
+        /// <remarks>The server can reject RESP3 either with an error (<c>HELLO</c> not understood, or an
+        /// unsupported protocol version) or by simply reporting RESP2, so we don't assign the protocol here:
+        /// that happens when the reply is processed (and as a last resort, when the tracer completes).</remarks>
+        private async Task WriteHelloAsync(PhysicalConnection connection, ILogger? log, int protocolVersion, string? user, string? password, string? clientName)
+        {
+            var hello = Message.CreateHello(protocolVersion, user, password, clientName, CommandFlags.FireAndForget | Message.NoFlushFlag);
+            hello.SetInternalCall();
+            await WriteDirectOrQueueFireAndForgetAsync(connection, hello, ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+        }
+
         private async Task HandshakeAsync(PhysicalConnection connection, ILogger? log)
         {
             log?.LogInformationServerHandshake(new(this));
@@ -1057,43 +1087,57 @@ namespace StackExchange.Redis
                 RoleKnownFromHello = false;
             }
 
-            // HELLO comes in two flavours: as the RESP3 negotiation (which has to be the *first* command, and has to
-            // carry the credentials), or - when we're staying on RESP2 - purely for discovery, in which case it is
-            // issued *after* AUTH, below; see #2968 for why we want it even on RESP2
+            // HELLO serves two purposes: negotiating RESP3, and reporting details we would otherwise need INFO or
+            // CONFIG for (see #2968) - so we issue it whenever the server should understand it, at 2 or 3.
             bool helloAvailable = Multiplexer.RawConfig.TryHello(out int helloProtocol); // includes an availability check on HELLO
             bool negotiateResp3 = helloAvailable && helloProtocol >= 3;
-            bool discoveryHello = helloAvailable && !negotiateResp3 && isInteractive;
-            if (negotiateResp3)
+
+            // HELLO can carry the credentials, but we only use that when we have no other way of authenticating,
+            // and *never* both HELLO AUTH and a standalone AUTH. This is defensive against a redis bug (7.4
+            // through at least 8.x; valkey is unaffected): inside a pipelined batch, a *failing* AUTH only gets
+            // a reply if it is the first command in that batch - otherwise the error is silently dropped, which
+            // desynchronizes every reply that follows it on the connection. When that happens during the
+            // handshake, the tracer never gets its answer and the connection never becomes usable: what should
+            // have been a clean authentication failure instead presents as a connection that times out
+            // everything. So AUTH goes first in the batch, and HELLO follows it (bare).
+            bool haveCredentials = !string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(password);
+            bool canAuthDirectly = Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH);
+            bool helloCarriesCredentials = helloAvailable && haveCredentials && !canAuthDirectly;
+
+            // ...which also means HELLO doesn't have to come first: only the credential-carrying flavour does,
+            // as nothing else can authenticate the connection in that case
+            if (helloCarriesCredentials)
             {
                 log?.LogInformationAuthenticatingViaHello(new(this));
-                var hello = Message.CreateHello(helloProtocol, user, password, clientName, CommandFlags.FireAndForget | Message.NoFlushFlag);
-                hello.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
-
-                // note that the server can reject RESP3 via either an -ERR response (HELLO not understood), or by simply saying "nope",
-                // so we don't set the actual .Protocol until we process the result of the HELLO request
+                await WriteHelloAsync(connection, log, helloProtocol, user, password, clientName).ForAwait();
             }
-            else
+            else if (!negotiateResp3)
             {
                 // whether or not we issue HELLO for discovery below, we're RESP2
                 connection.SetProtocol(RedisProtocol.Resp2);
             }
 
-            // note: we auth EVEN IF we have used HELLO to AUTH; because otherwise the fallback/detection path is pure hell,
-            // and: we're pipelined here, so... meh
-            if (!string.IsNullOrWhiteSpace(user) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
+            if (!string.IsNullOrWhiteSpace(user) && canAuthDirectly)
             {
                 log?.LogInformationAuthenticatingUserPassword(new(this));
                 msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, user.AsRedisValue(), password.AsRedisValue());
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
-            else if (!string.IsNullOrWhiteSpace(password) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
+            else if (!string.IsNullOrWhiteSpace(password) && canAuthDirectly)
             {
                 log?.LogInformationAuthenticatingPassword(new(this));
                 msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, password.AsRedisValue());
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
+            }
+
+            // a bare HELLO, now that the connection is authenticated; for RESP2 this is discovery only, so we
+            // limit it to the interactive connection (the subscription connection does no discovery)
+            bool bareHello = helloAvailable && !helloCarriesCredentials && (negotiateResp3 || isInteractive);
+            if (bareHello)
+            {
+                await WriteHelloAsync(connection, log, helloProtocol, user: null, password: null, clientName: null).ForAwait();
             }
 
             if (Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT))
@@ -1143,18 +1187,7 @@ namespace StackExchange.Redis
             var connType = bridge.ConnectionType;
             if (connType == ConnectionType.Interactive)
             {
-                if (discoveryHello)
-                {
-                    // a bare HELLO (no AUTH clause of its own): we're already authenticated by this point, and
-                    // folding the credentials in here would change how credential failures surface. We only want
-                    // the reply, which reports version/role/mode/connection-id without INFO or CONFIG (both
-                    // @dangerous, hence often ACL-restricted); see #2968
-                    var hello = Message.CreateHello(helloProtocol, null, null, null, CommandFlags.FireAndForget | Message.NoFlushFlag);
-                    hello.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
-                }
-
-                await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag, helloPending: negotiateResp3 || discoveryHello).ForAwait();
+                await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag, helloPending: helloAvailable).ForAwait();
             }
 
             // note that the final messages *are* flushed (no Message.NoFlushFlag)
