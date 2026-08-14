@@ -70,7 +70,7 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection?, Microsoft.Extensions.Logging.ILogger?, CommandFlags)"/>.
+        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection?, Microsoft.Extensions.Logging.ILogger?, CommandFlags, bool)"/>.
         /// </summary>
         internal static bool SupportsAutoConfigure(this ServerType type) => type switch
         {

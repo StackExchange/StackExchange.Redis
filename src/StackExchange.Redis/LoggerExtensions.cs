@@ -709,4 +709,10 @@ internal static partial class LoggerExtensions
         EventId = 109,
         Message = "Service name not defined.")]
     internal static partial void LogInformationServiceNameNotDefined(this ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 110,
+        Message = "{Server}: Requesting server details via HELLO")]
+    internal static partial void LogInformationDiscoveryViaHello(this ILogger logger, ServerEndPointLogValue server);
 }
