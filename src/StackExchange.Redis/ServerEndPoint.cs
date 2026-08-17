@@ -27,6 +27,31 @@ namespace StackExchange.Redis
         Retiring = 8,
     }
 
+    /// <summary>
+    /// How we came to know about a server, which decides what may retire it: "absent from the topology" only
+    /// means anything if the source that would have listed it actually ran.
+    /// </summary>
+    internal enum ServerProvenance
+    {
+        /// <summary>Named in <see cref="ConfigurationOptions.EndPoints"/>; never pruned.</summary>
+        Configured = 0,
+
+        /// <summary>Discovered from cluster topology; prunable when the topology stops listing it.</summary>
+        ClusterTopology,
+
+        /// <summary>
+        /// Discovered from sentinel. Cluster absence must never count against it - in a sentinel deployment
+        /// there is no cluster topology at all, so a single rule would prune the entire thing.
+        /// </summary>
+        Sentinel,
+
+        /// <summary>
+        /// Learned from a redirect, so it is legitimately ahead of the topology; initial absence is expected
+        /// rather than evidence.
+        /// </summary>
+        Redirect,
+    }
+
     internal sealed partial class ServerEndPoint : IDisposable
     {
         internal volatile ServerEndPoint? Primary;
@@ -49,10 +74,11 @@ namespace StackExchange.Redis
             subscription?.ResetNonConnected();
         }
 
-        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint)
+        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, ServerProvenance provenance = ServerProvenance.Configured)
         {
             Multiplexer = multiplexer;
             EndPoint = endpoint;
+            Provenance = multiplexer.RawConfig.EndPoints.Contains(endpoint) ? ServerProvenance.Configured : provenance;
             var config = multiplexer.RawConfig;
             version = config.DefaultVersion;
             replicaReadOnly = true;
@@ -239,6 +265,67 @@ namespace StackExchange.Redis
         /// Whether this server has been disposed; a retired server must not be handed out again.
         /// </summary>
         internal bool IsDisposed => isDisposed;
+
+        /// <summary>How we learned of this server; see <see cref="ServerProvenance"/>.</summary>
+        internal ServerProvenance Provenance { get; private set; }
+
+        /// <summary>
+        /// The topology generation in which this server was last listed, or -1 if it never has been.
+        /// </summary>
+        internal int LastSeenGeneration { get; private set; } = -1;
+
+        /// <summary>
+        /// The generation in which this server first went missing from the topology, or -1 if present.
+        /// </summary>
+        internal int AbsentSinceGeneration { get; private set; } = -1;
+
+        /// <summary>
+        /// Note that the topology still lists this server, clearing any accrued absence.
+        /// </summary>
+        internal void OnSeenInTopology(int generation)
+        {
+            LastSeenGeneration = generation;
+            AbsentSinceGeneration = -1;
+
+            // a node first learned from a redirect is confirmed by the topology, so it stops being a special
+            // case; configured endpoints keep their provenance, since nothing may prune them
+            if (Provenance == ServerProvenance.Redirect) Provenance = ServerProvenance.ClusterTopology;
+        }
+
+        /// <summary>
+        /// Note that the topology did not list this server. Returns the number of consecutive generations it
+        /// has now been missing for, counting this one.
+        /// </summary>
+        /// <remarks>
+        /// The design notes proposed also resetting this whenever the server had been *used* since the last
+        /// absence, on the grounds that "recently useful" is stronger evidence than "not listed". That is not
+        /// implementable as stated and turns out to be unnecessary: the only usage counter available
+        /// (<c>PhysicalBridge.IncrementOpCount</c>) is incremented by our own heartbeat pings as well as by
+        /// callers, so an idle-but-connected server never looks unused - and every case it was meant to
+        /// protect is already covered by <see cref="IsIdle"/>, since a server actually carrying traffic owns
+        /// slots in the map. What remains uncovered is a server used only via <c>GetServer</c> by hand while
+        /// absent from the topology, and pruning that is consistent with the endpoint collection being a
+        /// snapshot.
+        /// </remarks>
+        internal int OnMissingFromTopology(int generation)
+        {
+            if (AbsentSinceGeneration < 0)
+            {
+                AbsentSinceGeneration = generation;
+                return 1;
+            }
+            return generation - AbsentSinceGeneration + 1;
+        }
+
+        /// <summary>
+        /// Whether retiring this server would abandon anything: slots it owns, subscriptions it carries, or
+        /// work it still owes.
+        /// </summary>
+        internal bool IsIdle()
+            => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
+            && (subscription?.SubscriptionCount ?? 0) == 0
+            && (interactive?.SubscriptionCount ?? 0) == 0
+            && GetOutstandingCount() == 0;
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in

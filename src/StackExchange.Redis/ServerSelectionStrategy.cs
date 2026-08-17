@@ -204,7 +204,9 @@ namespace StackExchange.Redis
             {
                 if ((ServerType == ServerType.Standalone && !isSelf) || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
 
-                ServerEndPoint? server = multiplexer?.GetServerEndPoint(endpoint);
+                // a redirect target is legitimately ahead of the topology, so mark it as such: it must not be
+                // pruned merely for being absent from a topology reply that predates it
+                ServerEndPoint? server = multiplexer?.GetServerEndPoint(endpoint, provenance: ServerProvenance.Redirect);
                 if (server != null)
                 {
                     bool retry = false;
@@ -292,6 +294,21 @@ namespace StackExchange.Redis
                 oldSlot = CombineSlot(oldSlot, keys[i]);
             }
             return oldSlot;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="server"/> currently owns any slot in the map, i.e. whether retiring it
+        /// would leave part of the keyspace unroutable.
+        /// </summary>
+        internal bool OwnsAnySlot(ServerEndPoint server)
+        {
+            var arr = map;
+            if (arr is null) return false;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                if (ReferenceEquals(arr[i], server)) return true;
+            }
+            return false;
         }
 
         internal int CountCoveredSlots()

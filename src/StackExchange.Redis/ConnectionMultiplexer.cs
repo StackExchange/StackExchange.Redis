@@ -974,6 +974,105 @@ namespace StackExchange.Redis
                 ? byIdentity : null;
         }
 
+        // bumped once per applied cluster topology; absence is measured in these rather than in time, so a
+        // quiet client cannot age an endpoint out simply by not reconfiguring
+        private int _topologyGeneration;
+
+        /// <summary>
+        /// How many consecutive topology generations a server must be missing from before it may be pruned.
+        /// A single reply is one node's view, so one absence is not evidence.
+        /// </summary>
+        private const int PruneAfterMissingGenerations = 3;
+
+        /// <summary>
+        /// Records which servers the freshly-applied topology listed, and retires those which have been absent
+        /// long enough - and which nothing depends on.
+        /// </summary>
+        internal async Task ApplyTopologyGenerationAsync(ClusterTopology topology, ILogger? log = null)
+        {
+            if (topology is null) return;
+
+            var generation = Interlocked.Increment(ref _topologyGeneration);
+
+            // resolve the listed nodes to servers we hold, by any identity. More than one distinct server for
+            // one node-id is a duplicate: the same process reached under two names, which costs a second
+            // socket and splits backlog and subscription state across the pair
+            var seen = new HashSet<ServerEndPoint>();
+            List<(ServerEndPoint Survivor, ServerEndPoint Loser)>? merge = null;
+            foreach (var node in topology.Nodes)
+            {
+                ServerEndPoint? survivor = null;
+                foreach (var identity in node.Identities)
+                {
+                    if (TryResolveServerEndPoint(identity) is not { } server) continue;
+
+                    if (survivor is null)
+                    {
+                        // Identities is ordered with the form the answering node advertised first, so the
+                        // earliest match is also the deployment's stated preference
+                        survivor = server;
+                    }
+                    else if (!ReferenceEquals(survivor, server))
+                    {
+                        // ...unless one of them was configured: those may never be retired, so they win
+                        var (keep, drop) = server.Provenance == ServerProvenance.Configured
+                            ? (server, survivor)
+                            : (survivor, server);
+                        survivor = keep;
+                        (merge ??= new()).Add((keep, drop));
+                    }
+                }
+
+                if (survivor is not null)
+                {
+                    survivor.OnSeenInTopology(generation);
+                    seen.Add(survivor);
+
+                    // every name this node answers to now resolves to the survivor, so a caller holding the
+                    // retired one keeps working rather than breaking
+                    foreach (var identity in node.Identities)
+                    {
+                        if (servers[identity] is null) _serverIdentities[identity] = survivor;
+                    }
+                }
+            }
+
+            if (merge is not null)
+            {
+                foreach (var (survivor, loser) in merge)
+                {
+                    if (loser.IsDisposed || loser.Provenance == ServerProvenance.Configured) continue;
+                    log?.LogInformationMergingDuplicateServer(new(loser.EndPoint), new(survivor.EndPoint));
+                    _serverIdentities[loser.EndPoint] = survivor;
+                    await RetireServerAsync(loser, "duplicate of " + Format.ToString(survivor.EndPoint), log: log).ForAwait();
+                    seen.Add(loser); // already handled; do not also consider it for pruning
+                }
+            }
+
+            List<ServerEndPoint>? prune = null;
+            foreach (var server in GetServerSnapshot())
+            {
+                if (seen.Contains(server) || server.IsDisposed) continue;
+
+                // only cluster-discovered nodes may be pruned by cluster absence: a configured endpoint is the
+                // seed we need to bootstrap after a full rotation, and sentinel-discovered nodes are listed by
+                // a source that did not run here
+                if (server.Provenance != ServerProvenance.ClusterTopology) continue;
+
+                var missingFor = server.OnMissingFromTopology(generation);
+                if (missingFor < PruneAfterMissingGenerations || !server.IsIdle()) continue;
+
+                (prune ??= new List<ServerEndPoint>()).Add(server);
+            }
+
+            if (prune is null) return;
+            foreach (var server in prune)
+            {
+                log?.LogInformationPruningServer(new(server.EndPoint), PruneAfterMissingGenerations);
+                await RetireServerAsync(server, "absent from topology", log: log).ForAwait();
+            }
+        }
+
         /// <summary>
         /// Drains and removes a server: it stops being selected, finishes what it owes, then is forgotten -
         /// including every secondary identity that pointed at it.
@@ -1039,7 +1138,11 @@ namespace StackExchange.Redis
         }
 
         [return: NotNullIfNotNull(nameof(endpoint))]
-        internal ServerEndPoint? GetServerEndPoint(EndPoint? endpoint, ILogger? log = null, bool activate = true)
+        internal ServerEndPoint? GetServerEndPoint(
+            EndPoint? endpoint,
+            ILogger? log = null,
+            bool activate = true,
+            ServerProvenance provenance = ServerProvenance.ClusterTopology)
         {
             if (endpoint == null) return null;
             var server = (ServerEndPoint?)servers[endpoint] ?? TryResolveServerEndPoint(endpoint);
@@ -1053,7 +1156,7 @@ namespace StackExchange.Redis
                     {
                         if (_isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint);
+                        server = new ServerEndPoint(this, endpoint, provenance);
                         servers.Add(endpoint, server);
                         isNew = true;
                         _serverSnapshot = _serverSnapshot.Add(server);
@@ -1973,6 +2076,12 @@ namespace StackExchange.Redis
                 foreach (EndPoint endpoint in clusterEndpoints)
                 {
                     GetServerEndPoint(endpoint)?.UpdateNodeRelations(clusterConfig);
+                }
+
+                // ...and now that the topology is applied, age out anything it has stopped listing
+                if (topology is not null)
+                {
+                    await ApplyTopologyGenerationAsync(topology, log).ForAwait();
                 }
                 return clusterEndpoints;
             }

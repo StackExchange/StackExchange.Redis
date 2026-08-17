@@ -334,6 +334,18 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 115,
+        Message = "Merging {EndPoint} into {Survivor}: the same node under two names")]
+    internal static partial void LogInformationMergingDuplicateServer(this ILogger logger, EndPointLogValue endPoint, EndPointLogValue survivor);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 114,
+        Message = "Pruning {EndPoint}: absent from the topology for {Generations} generations")]
+    internal static partial void LogInformationPruningServer(this ILogger logger, EndPointLogValue endPoint, int generations);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 112,
         Message = "Retiring {EndPoint}: {Reason}")]
     internal static partial void LogInformationRetiringServer(this ILogger logger, EndPointLogValue endPoint, string reason);
