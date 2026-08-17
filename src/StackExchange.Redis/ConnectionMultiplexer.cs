@@ -1846,21 +1846,63 @@ namespace StackExchange.Redis
 
         private async Task<EndPointCollection?> GetEndpointsFromClusterNodes(ServerEndPoint server, ILogger? log)
         {
-            var message = RedisServer.GetClusterNodesMessage(CommandFlags.None);
             try
             {
-                var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();
+                // both views, freshly: SLOTS says who serves what and under which names, NODES lists every
+                // node including those serving nothing. Asked as a pair for symmetry - trusting the topology
+                // cached from autoconfigure here would mean acting on possibly-stale data while deliberately
+                // re-reading the other half
+                var slotsTask = ExecuteAsyncImpl(
+                    RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
+                var nodesTask = ExecuteAsyncImpl(
+                    RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
+
+                var slots = await slotsTask.ForAwait();
+                var clusterConfig = await nodesTask.ForAwait();
                 if (clusterConfig is null)
                 {
                     return null;
                 }
-                var clusterEndpoints = new EndPointCollection(clusterConfig.Nodes.Where(node => node.EndPoint is not null && !node.IgnoreFromClient).Select(node => node.EndPoint!).ToList());
-                // Loop through nodes in the cluster and update nodes relations to other nodes
-                ServerEndPoint? serverEndpoint = null;
+
+                var topology = ClusterTopology.From(slots);
+                var clusterEndpoints = new EndPointCollection();
+
+                if (topology is not null)
+                {
+                    // SLOTS drives discovery: these are the nodes that serve traffic, so they are the ones we
+                    // connect to. Resolve through every identity first, so a node we already hold under
+                    // another name is not duplicated
+                    RegisterServerIdentities(topology);
+                    foreach (var node in topology.Nodes)
+                    {
+                        if (SelectIdentity(node) is { } endpoint) clusterEndpoints.TryAdd(endpoint);
+                    }
+                }
+
+                // ...and NODES contributes the remainder - nodes serving no slots do not appear in SLOTS at
+                // all. Registered *inert*: known and addressable via GetServer, but not dialled, since
+                // there is nothing to route to them. First use creates the bridge, so nothing is lost
+                foreach (var node in clusterConfig.Nodes)
+                {
+                    if (node.EndPoint is null || node.IgnoreFromClient) continue;
+
+                    if (topology is null)
+                    {
+                        // no usable SLOTS view (pre-4.0, or an error reply): behave exactly as before
+                        clusterEndpoints.TryAdd(node.EndPoint);
+                    }
+                    else if (TryResolveServerEndPoint(node.EndPoint) is null)
+                    {
+                        log?.LogInformationRegisteringInertNode(new(node.EndPoint));
+                        GetServerEndPoint(node.EndPoint, activate: false);
+                    }
+                }
+
+                // node relations come from NODES either way - SLOTS conveys replica-of by position, but not
+                // the node ids and flags that Primary/Replicas resolution uses
                 foreach (EndPoint endpoint in clusterEndpoints)
                 {
-                    serverEndpoint = GetServerEndPoint(endpoint);
-                    serverEndpoint?.UpdateNodeRelations(clusterConfig);
+                    GetServerEndPoint(endpoint)?.UpdateNodeRelations(clusterConfig);
                 }
                 return clusterEndpoints;
             }
@@ -1868,6 +1910,21 @@ namespace StackExchange.Redis
             {
                 log?.LogErrorEncounteredErrorWhileUpdatingClusterConfig(ex, ex.Message);
                 return null;
+            }
+
+            // prefer an identity we already know, then an address, then whatever we were given: an address is
+            // dialable as-is, whereas a hostname is only usable if it resolves
+            EndPoint? SelectIdentity(ClusterTopologyNode node)
+            {
+                foreach (var identity in node.Identities)
+                {
+                    if (TryResolveServerEndPoint(identity) is { } known) return known.EndPoint;
+                }
+                foreach (var identity in node.Identities)
+                {
+                    if (identity is IPEndPoint) return identity;
+                }
+                return node.Identities.Count > 0 ? node.Identities[0] : null;
             }
         }
 

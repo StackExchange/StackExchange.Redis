@@ -328,6 +328,12 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 111,
+        Message = "Registering {EndPoint} without connecting: serves no slots")]
+    internal static partial void LogInformationRegisteringInertNode(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 43,
         Message = "Election summary:")]
     internal static partial void LogInformationElectionSummary(this ILogger logger);

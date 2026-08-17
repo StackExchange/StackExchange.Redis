@@ -197,6 +197,46 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task SlotLessNodesAreKnownButNotConnected()
+    {
+        // CLUSTER SLOTS does not list a node that serves nothing, so NODES contributes it - registered but
+        // not dialled, since there is nothing to route to it. It stays addressable, and first use connects it
+        using var server = CreateServer(log, announceHostname: false);
+        var idle = server.AddEmptyNode(); // no slots
+
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        await conn.GetServer(server.DefaultEndPoint).PingAsync(); // force a reconfigure pass
+
+        foreach (var ep in conn.GetEndPoints())
+        {
+            log.WriteLine($"endpoint: {ep}");
+        }
+        Assert.Contains(idle, conn.GetEndPoints());
+
+        var api = conn.GetServer(idle);
+        Assert.False(api.IsConnected); // known, but no bridge was created for it
+
+        // ...and using it activates it, so nothing is lost by not dialling eagerly
+        await api.PingAsync();
+        Assert.True(api.IsConnected);
+    }
+
+    [Fact]
+    public async Task SlotServingNodesAreConnectedEagerly()
+    {
+        // the counterpart: a node that owns slots is in the SLOTS view and so is connected as before
+        using var server = CreateServer(log, announceHostname: false);
+        GetHost(server.DefaultEndPoint, out var port);
+        var owner = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
+        server.Migrate((RedisKey)"eager-key", owner);
+
+        await using var conn = await server.ConnectAsync();
+        await conn.GetServer(server.DefaultEndPoint).PingAsync();
+
+        Assert.True(conn.GetServer(owner).IsConnected);
+    }
+
+    [Fact]
     public async Task ShadowTopologyDoesNotChangeRouting()
     {
         // the whole point of shadow mode: recorded, compared, not acted upon
