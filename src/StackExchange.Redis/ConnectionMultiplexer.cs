@@ -822,6 +822,36 @@ namespace StackExchange.Redis
                 return new ServerSnapshot(nextEndpoints, _count + 1);
             }
 
+            /// <summary>
+            /// Returns a snapshot without <paramref name="value"/>, or this one if it was not present.
+            /// </summary>
+            /// <remarks>
+            /// Unlike <see cref="Add"/> this can never reuse the existing array. Add is allowed to write into
+            /// spare capacity because older readers hold a smaller count and so never observe the new slot;
+            /// removal would have to *shift* elements a concurrent reader may be part-way through enumerating,
+            /// so it always allocates a compacted copy.
+            /// </remarks>
+            internal ServerSnapshot Remove(ServerEndPoint value)
+            {
+                if (value is null) return this;
+
+                int index = -1;
+                for (int i = 0; i < _count; i++)
+                {
+                    if (ReferenceEquals(_endpoints[i], value))
+                    {
+                        index = i;
+                        break;
+                    }
+                }
+                if (index < 0) return this;
+
+                var next = new ServerEndPoint[Math.Max(_count - 1, 1)];
+                if (index > 0) Array.Copy(_endpoints, 0, next, 0, index);
+                if (index < _count - 1) Array.Copy(_endpoints, index + 1, next, index, _count - 1 - index);
+                return new ServerSnapshot(next, _count - 1);
+            }
+
             internal EndPoint[] GetEndPoints()
             {
                 if (_count == 0) return Array.Empty<EndPoint>();
@@ -937,7 +967,47 @@ namespace StackExchange.Redis
         {
             if (endpoint is null) return null;
             if (servers[endpoint] is ServerEndPoint exact) return exact;
-            return _serverIdentities.TryGetValue(endpoint, out var byIdentity) ? byIdentity : null;
+
+            // a retired server may still be referenced by an alias for a moment; never hand one back, or the
+            // caller receives something whose bridges are gone
+            return _serverIdentities.TryGetValue(endpoint, out var byIdentity) && !byIdentity.IsDisposed
+                ? byIdentity : null;
+        }
+
+        /// <summary>
+        /// Drains and removes a server: it stops being selected, finishes what it owes, then is forgotten -
+        /// including every secondary identity that pointed at it.
+        /// </summary>
+        /// <remarks>
+        /// The single spelling of retirement, deliberately: topology pruning, duplicate merging, and the
+        /// endpoint handoffs of the maintenance-notification work all want the same drain-then-close, and
+        /// having one of them reach for <see cref="ServerEndPoint.Dispose"/> instead would abandon in-flight
+        /// commands.
+        /// </remarks>
+        internal async Task RetireServerAsync(ServerEndPoint server, string reason, TimeSpan? drainTimeout = null, ILogger? log = null)
+        {
+            if (server is null) return;
+
+            await server.RetireAsync(reason, drainTimeout ?? TimeSpan.FromSeconds(5), log).ForAwait();
+
+            lock (servers)
+            {
+                // by endpoint, not by scanning: the server is keyed on exactly one
+                if (ReferenceEquals(servers[server.EndPoint], server))
+                {
+                    servers.Remove(server.EndPoint);
+                }
+                _serverSnapshot = _serverSnapshot.Remove(server);
+            }
+
+            // ...and drop the aliases, or a later lookup resolves to something disposed
+            foreach (var pair in _serverIdentities)
+            {
+                if (ReferenceEquals(pair.Value, server))
+                {
+                    _serverIdentities.TryRemove(pair.Key, out _);
+                }
+            }
         }
 
         /// <summary>

@@ -22,6 +22,9 @@ namespace StackExchange.Redis
         RedundantPrimary = 1,
         DidNotRespond = 2,
         ServerType = 4,
+
+        /// <summary>This server is being retired; it must not be selected for new work.</summary>
+        Retiring = 8,
     }
 
     internal sealed partial class ServerEndPoint : IDisposable
@@ -231,6 +234,55 @@ namespace StackExchange.Redis
         }
 
         internal ConnectionMultiplexer Multiplexer { get; }
+
+        /// <summary>
+        /// Whether this server has been disposed; a retired server must not be handed out again.
+        /// </summary>
+        internal bool IsDisposed => isDisposed;
+
+        /// <summary>
+        /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
+        /// the backlog. Zero means a retirement can complete without abandoning anyone.
+        /// </summary>
+        internal int GetOutstandingCount()
+        {
+            var counters = GetCounters();
+            return counters.Interactive.SentItemsAwaitingResponse + counters.Interactive.PendingUnsentItems
+                + counters.Subscription.SentItemsAwaitingResponse + counters.Subscription.PendingUnsentItems;
+        }
+
+        /// <summary>
+        /// Retire this server gracefully: stop accepting new work, let what has already been written complete,
+        /// then tear the connections down. Distinct from <see cref="Dispose"/>, which is the abrupt path and
+        /// abandons anything outstanding.
+        /// </summary>
+        /// <param name="reason">Why this server is being retired; for logging.</param>
+        /// <param name="drainTimeout">How long to allow the drain before closing regardless.</param>
+        /// <param name="log">Optional logger.</param>
+        internal async Task RetireAsync(string reason, TimeSpan drainTimeout, ILogger? log = null)
+        {
+            if (isDisposed) return;
+
+            // stop being selected *first*, so the drain is bounded: nothing new arrives while we wait
+            SetUnselectable(UnselectableFlags.Retiring);
+            log?.LogInformationRetiringServer(new(EndPoint), reason);
+
+            // Stopwatch rather than TickCount64: the latter does not exist on the down-level targets
+            var watch = ValueStopwatch.StartNew();
+            int outstanding;
+            while ((outstanding = GetOutstandingCount()) > 0 && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
+            }
+
+            if (outstanding > 0)
+            {
+                // deliberately reported: an abandoned command is exactly what a caller will be asking about
+                log?.LogInformationRetiringServerAbandoned(new(EndPoint), outstanding);
+            }
+
+            Dispose();
+        }
 
         public void Dispose()
         {

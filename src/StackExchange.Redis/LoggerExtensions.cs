@@ -334,6 +334,18 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 112,
+        Message = "Retiring {EndPoint}: {Reason}")]
+    internal static partial void LogInformationRetiringServer(this ILogger logger, EndPointLogValue endPoint, string reason);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 113,
+        Message = "Retiring {EndPoint} with {Outstanding} operation(s) still outstanding; closing anyway")]
+    internal static partial void LogInformationRetiringServerAbandoned(this ILogger logger, EndPointLogValue endPoint, int outstanding);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 43,
         Message = "Election summary:")]
     internal static partial void LogInformationElectionSummary(this ILogger logger);
