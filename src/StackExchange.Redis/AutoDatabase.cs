@@ -35,6 +35,21 @@ internal interface IMappableRedisArgs
     object? UnMapper { get; }
 }
 
+// Implemented by a generated captured-arguments struct whenever the captured call has a CommandFlags
+// parameter - which is very nearly all of them - so that a funnel holding an opaque TState can still ask the
+// one question that changes what it must hand back: was this fire-and-forget?
+//
+// It exists for RetryTransaction. That funnel records each call and returns a durable proxy task completed
+// later from the attempt, which is wrong for fire-and-forget: a plain RedisTransaction hands back an
+// *already-completed* task there (the caller has explicitly declined the reply), so without this the same
+// source awaiting the same result returns instantly on one and hangs on the other. The flags are captured
+// inside TState and are otherwise invisible to a funnel, which is the whole reason this interface is needed
+// rather than the funnel simply reading a parameter.
+internal interface IFlaggedRedisArgs
+{
+    CommandFlags Flags { get; }
+}
+
 // The projections used by the auto-database funnels. There are exactly four real shapes, so each is named
 // rather than being expressed generically over the target/return type: that lets the type system encode the
 // invariants (sync goes to IDatabase, async goes to IDatabaseAsync and returns a Task) instead of leaving

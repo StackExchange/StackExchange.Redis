@@ -59,6 +59,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         CheckNotExecuted();
         var op = new RecordedOp<TState, TResult>(state, operation);
         _ops.Add(op);
+        if (IsFireAndForget(in state)) op.CompleteFireAndForget();
         return op.Proxy;
     }
 
@@ -68,8 +69,27 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         CheckNotExecuted();
         var op = new RecordedVoidOp<TState>(state, operation);
         _ops.Add(op);
+        if (IsFireAndForget(in state)) op.CompleteFireAndForget();
         return op.Proxy;
     }
+
+    // A fire-and-forget operation must hand back an already-completed task, because that is what a plain
+    // RedisTransaction does (see its ExecuteAsync: F+F never gets a TaskCompletionSource at all). Without this
+    // the durable proxy stays incomplete until Execute, so identical caller code returns instantly on a plain
+    // transaction and blocks for good on a retrying one - which defeats this class's stated goal of letting
+    // ITransaction code move onto a retrying database unchanged.
+    //
+    // The op is still recorded and replayed like any other: fire-and-forget declines the *reply*, not the
+    // command. Completing the proxy up front simply means the later ForwardSuccess/Fault - which use TrySet* -
+    // find it already settled and do nothing, so a discarded attempt can never fault a result the caller was
+    // told not to expect.
+    //
+    // The flags are captured inside TState, so this is the one thing the generated struct is asked to expose
+    // (IFlaggedRedisArgs). The `is` test boxes, once per queued operation; that is noise beside the RecordedOp
+    // and TaskCompletionSource this method already allocates, and it only happens on a retrying transaction.
+    private static bool IsFireAndForget<TState>(in TState state)
+        where TState : struct
+        => state is IFlaggedRedisArgs flagged && (flagged.Flags & CommandFlags.FireAndForget) != 0;
 
     public ConditionResult AddCondition(Condition condition)
     {
@@ -228,6 +248,11 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 
         public Task<TResult> Proxy => _proxy.Task;
 
+        // settled up front for fire-and-forget; see IsFireAndForget. default(TResult) rather than the
+        // command's own "no reply" value, which lives inside the command implementation and is not reachable
+        // from here - a distinction without a difference, since neither is an answer from the server
+        public void CompleteFireAndForget() => _proxy.TrySetResult(default!);
+
         public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
         public void ForwardSuccess()
@@ -284,6 +309,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         }
 
         public Task Proxy => _proxy.Task;
+
+        // see the note on RecordedOp.CompleteFireAndForget
+        public void CompleteFireAndForget() => _proxy.TrySetResult(true);
 
         public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
