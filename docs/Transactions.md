@@ -117,6 +117,38 @@ var wasSet = (bool) db.ScriptEvaluate(@"if redis.call('hexists', KEYS[1], 'Uniqu
 
 (note that the response from `ScriptEvaluate` and `ScriptEvaluateAsync` is variable depending on your exact script; the response can be interpreted by casting - in this case as a `bool`)
 
+Don't await inside the transaction
+---
+
+This is the most common mistake with transactions, and it does not fail loudly - it hangs.
+
+Commands queued on an `ITransaction` (or an `IBatch`) are *buffered*, not sent. They go to the server only when
+you call `Execute`/`ExecuteAsync`, so the `Task` handed back at the point of queueing cannot complete until
+after that call. Awaiting it there waits for something that can only happen further down the method:
+
+```csharp
+var tran = db.CreateTransaction();
+var value = await tran.StringGetAsync(key);   // never completes - nothing has been sent yet
+await tran.ExecuteAsync();                    // never reached
+```
+
+Everything else in the async API rewards awaiting promptly, and `ITransaction` offers the same method names, so
+this reads as perfectly ordinary code. Instead, capture the tasks and await them *after* `Execute`:
+
+```csharp
+var tran = db.CreateTransaction();
+var pending = tran.StringGetAsync(key);
+_ = tran.StringSetAsync(other, "value");      // discard the ones you do not need
+if (await tran.ExecuteAsync())
+{
+    var value = await pending;
+}
+```
+
+The analyzer reports this as [SER305](rules/SER305) - an **error**, not a suggestion - and offers both fixes.
+The one case that does not hang is `CommandFlags.FireAndForget`, which completes immediately carrying the
+default value; awaiting that is legal but tells you nothing, which is [SER306](rules/SER306).
+
 Do you need a transaction at all?
 ---
 

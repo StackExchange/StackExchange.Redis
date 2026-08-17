@@ -20,8 +20,8 @@ namespace StackExchange.Redis.Build;
 /// them in <c>NoWarn</c> and <c>.editorconfig</c>.
 /// </para>
 /// <para>
-/// Everything here defaults to <see cref="DiagnosticSeverity.Warning"/>, including the usage rules, whose code
-/// is correct rather than broken. That is a deliberate change from an earlier <see
+/// Everything here defaults to <see cref="DiagnosticSeverity.Warning"/> or above, including the suggestion
+/// rules, whose code is correct rather than broken. That is a deliberate change from an earlier <see
 /// cref="DiagnosticSeverity.Info"/> default: information-level diagnostics are not printed by <c>dotnet
 /// build</c> at all, so outside an IDE the rules simply did not exist, and a suggestion nobody sees is not
 /// worth shipping. The cost is real and should be understood rather than discovered: a consumer building with
@@ -30,10 +30,18 @@ namespace StackExchange.Redis.Build;
 /// experience is a broken build, and that is the trade being made on purpose.
 /// </para>
 /// <para>
-/// Which is also why the usage rules hedge - "may be replaceable", "looks like", "consider" - rather than
-/// asserting. They are heuristics over source text, so a false positive is rare rather than impossible, and
-/// arriving as a warning already overstates the case; wording them as findings of fact would overstate it
-/// twice. The build-level <see cref="LanguageVersionTooLow"/> does not hedge, because it is not guessing.
+/// Which is also why the *suggestion* rules hedge - "may be replaceable", "looks like", "consider" - rather
+/// than asserting. They are heuristics over source text, so a false positive is rare rather than impossible,
+/// and arriving as a warning already overstates the case; wording them as findings of fact would overstate it
+/// twice.
+/// </para>
+/// <para>
+/// Two rules here are not of that kind and are worded flatly, because they are not guessing: the build-level
+/// <see cref="LanguageVersionTooLow"/>, and <see cref="AwaitBeforeExecute"/> - the only <see
+/// cref="DiagnosticSeverity.Error"/> in the set - which describes code that cannot work rather than code that
+/// could be better. Severity here is a statement about certainty, so keep the two kinds apart when adding an
+/// ID: an error that can be wrong is a broken build on correct code, which is a far worse trade than a
+/// warning that can be wrong.
 /// </para>
 /// </remarks>
 internal static class Diagnostics
@@ -150,6 +158,66 @@ internal static class Diagnostics
         isEnabledByDefault: true,
         description: "The same command queued several times over can usually be a single variadic call, which is one round-trip and needs no transaction to be atomic.",
         helpLinkUri: HelpLink("SER304"));
+
+    /// <summary>
+    /// Waiting on a command queued to a transaction or batch, before anything has been sent.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one <see cref="DiagnosticSeverity.Error"/> in the set, and the only rule here that describes broken
+    /// code rather than improvable code. A command queued on an <c>ITransaction</c>/<c>IBatch</c> is not sent
+    /// until <c>Execute[Async]</c>, so the task it hands back cannot complete before then: awaiting it at the
+    /// point of queueing deadlocks the caller for good.
+    /// </para>
+    /// <para>
+    /// It can be an error without hedging because there is no arrangement of the surrounding code that makes it
+    /// work. The wait sits at the queueing site, so even a prior <c>Execute</c> is no help - *this* command was
+    /// queued after it and will never be sent. That is what makes it flow-insensitive, and so certain; the
+    /// shapes that would need ordering to judge (a task captured to a local, or gathered by <c>Task.WhenAll</c>,
+    /// and then awaited) are deliberately not reported, because awaiting a captured task *after* <c>Execute</c>
+    /// is the recommended fix and getting the order wrong would error on correct code.
+    /// </para>
+    /// <para>
+    /// <see cref="AwaitFireAndForgetResult"/> is the one case that survives the wait, and is split off rather
+    /// than excluded silently.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor AwaitBeforeExecute = new(
+        id: "SER305",
+        title: "Waiting for a queued command before it is executed will never complete",
+        messageFormat: "'{0}' is queued on {1} and is not sent until Execute[Async](), so waiting for its result here will never complete; capture the task and await it after Execute[Async](), or discard it",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Commands queued on a transaction or batch are only sent when Execute[Async]() is called, so the task returned at the point of queueing cannot complete until then; awaiting or blocking on it there deadlocks.",
+        helpLinkUri: HelpLink("SER305"));
+
+    /// <summary>
+    /// As <see cref="AwaitBeforeExecute"/>, but with <c>CommandFlags.FireAndForget</c>, which does not deadlock.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Fire-and-forget hands back an already-completed task carrying the default value (see
+    /// <c>RedisTransaction.ExecuteAsync</c>), so this one is legal: it returns immediately, and the command is
+    /// still queued and sent by <c>Execute</c> like any other. What it cannot do is produce the server's answer
+    /// - not later, not after <c>Execute</c>, not ever - so the value read from it is always <c>default</c>.
+    /// </para>
+    /// <para>
+    /// Hence a warning rather than an error, and its own ID: somebody using fire-and-forget deliberately needs
+    /// to be able to silence this without silencing <see cref="AwaitBeforeExecute"/>, which is the one that says
+    /// their code cannot work. It is also the only rule here whose advice is *only* "discard it" - capturing the
+    /// task to await after <c>Execute</c> is the fix for the other one and gains nothing at all here.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor AwaitFireAndForgetResult = new(
+        id: "SER306",
+        title: "Waiting for a fire-and-forget result yields nothing",
+        messageFormat: "'{0}' is queued on {1} as fire-and-forget, so its result is the default value whenever it is read, not the server's answer; discard it instead",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A fire-and-forget command completes immediately with the default value and never carries a result from the server, so awaiting or blocking on it reads nothing meaningful.",
+        helpLinkUri: HelpLink("SER306"));
 
     /// <summary>
     /// The generated code cannot be compiled at the language version in effect, so nothing was generated.

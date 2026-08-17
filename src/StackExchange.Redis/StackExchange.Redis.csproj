@@ -65,20 +65,29 @@
   </ItemGroup>
 
   <!--
-    Ship eng/StackExchange.Redis.Build as the package's analyzer. Every project already references it (see
-    Directory.Build.props) with ReferenceOutputAssembly="false", so it is a build-time tool here and not a
-    dependency; this is what additionally puts it in the package for consumers.
+    Ship eng/StackExchange.Redis.Build as the package's analyzer, and eng/StackExchange.Redis.CodeFixes
+    alongside it. Every project already references the analyzer (see Directory.Build.props) with
+    ReferenceOutputAssembly="false", so it is a build-time tool here and not a dependency; this is what
+    additionally puts it in the package for consumers.
 
     analyzers/dotnet/cs is the conventional path, and applies to all consumer target frameworks. Roslyn itself
-    is PrivateAssets="all" in that project so it is not carried along - the host supplies it.
+    is PrivateAssets="all" in both projects so it is not carried along - the host supplies it. That is also why
+    the code fixes are a *separate* assembly: they need Workspaces, which csc does not ship and the IDE does.
 
-    The path is asked of the project rather than assembled from bin/$(Configuration), so that a change to the
+    The paths are asked of the projects rather than assembled from bin/$(Configuration), so that a change to the
     output layout cannot quietly produce a package with no analyzer in it. The existence check is the point:
-    Packing without having built the analyzer is otherwise a silent omission, and the failure mode downstream
+    Packing without having built them is otherwise a silent omission, and the failure mode downstream
     (no diagnostics, ever, for any consumer) is invisible.
   -->
   <Target Name="_ResolveSERAnalyzerForPackaging" BeforeTargets="_GetPackageFiles">
     <MSBuild Projects="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0">
+      <Output TaskParameter="TargetOutputs" ItemName="_SERAnalyzerAssembly" />
+    </MSBuild>
+
+    <!-- appended to the same item, so the checks and the pack below cover both without being written twice -->
+    <MSBuild Projects="..\..\eng\StackExchange.Redis.CodeFixes\StackExchange.Redis.CodeFixes.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0">
       <Output TaskParameter="TargetOutputs" ItemName="_SERAnalyzerAssembly" />

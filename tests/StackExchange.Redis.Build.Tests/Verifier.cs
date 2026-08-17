@@ -1,11 +1,8 @@
-using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Testing;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace StackExchange.Redis.Build.Tests;
@@ -14,26 +11,17 @@ namespace StackExchange.Redis.Build.Tests;
 /// Base for analyzer verification, in the shape used by DapperAOT: a source string with <c>{|#0:...|}</c>
 /// markers, plus the diagnostics expected at those locations.
 /// </summary>
+/// <remarks>
+/// The compilation itself is assembled by <see cref="TestSetup"/>, shared with
+/// <see cref="CodeFixVerifier{TAnalyzer, TCodeFix}"/>.
+/// </remarks>
 public abstract class Verifier<TAnalyzer>
     where TAnalyzer : DiagnosticAnalyzer, new()
 {
-    /// <summary>
-    /// Reference assemblies matching the library build we load below.
-    /// </summary>
-    /// <remarks>
-    /// The harness only ships well-known sets up to a point, and mismatching them against the
-    /// StackExchange.Redis build we reference gives CS1705 (assembly wants a newer System.Runtime), so
-    /// describe the current target explicitly rather than pinning to whatever the harness happens to know.
-    /// </remarks>
-    private static readonly ReferenceAssemblies Net10 = new(
-        "net10.0",
-        new PackageIdentity("Microsoft.NETCore.App.Ref", "10.0.0"),
-        Path.Combine("ref", "net10.0"));
-
     /// <summary>Expect a diagnostic with this id at the marked location.</summary>
     /// <remarks>
-    /// Defaults to <see cref="DiagnosticSeverity.Warning"/> because that is what the rules ship as; the harness
-    /// checks severity, so this is also what stops the default being changed without anyone noticing.
+    /// Defaults to <see cref="DiagnosticSeverity.Warning"/> because that is what most of the rules ship as; the
+    /// harness checks severity, so this is also what stops a default being changed without anyone noticing.
     /// </remarks>
     protected static DiagnosticResult Diagnostic(string id, DiagnosticSeverity severity = DiagnosticSeverity.Warning)
         => new(id, severity);
@@ -45,10 +33,6 @@ public abstract class Verifier<TAnalyzer>
     /// <summary>
     /// As <see cref="VerifyAsync"/>, but with the project declaring a minimum server version.
     /// </summary>
-    /// <remarks>
-    /// Written as a <c>.globalconfig</c> entry, which is also how the MSBuild property arrives once
-    /// <c>CompilerVisibleProperty</c> has translated it - so this covers both spellings' consumption path.
-    /// </remarks>
     protected static Task VerifyWithMinServerVersionAsync(string source, string minServerVersion, params DiagnosticResult[] expected)
         => RunAsync(source, referenceLibrary: true, minServerVersion, expected);
 
@@ -65,33 +49,12 @@ public abstract class Verifier<TAnalyzer>
 
     private static Task RunAsync(string source, bool referenceLibrary, string? minServerVersion, params DiagnosticResult[] expected)
     {
-        // Test sources use string literals for keys/values, which trips the library's own [Experimental]
-        // gate on the implicit string -> RedisValue conversion. That is unrelated to what we are testing, and
-        // surfaces as an error in the test compilation, so opt out of it for every case.
         var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
         {
-            TestCode = "#pragma warning disable StringToRedisValue" + System.Environment.NewLine + source,
-            ReferenceAssemblies = Net10,
+            TestCode = TestSetup.WithPreamble(source),
         };
 
-        // The analyzer resolves StackExchange.Redis.Condition by metadata name and does nothing at all if it
-        // is absent - so without this reference the positive cases would fail to compile rather than silently
-        // pass, but the *negative* cases would trivially "pass" by finding no diagnostics. Hence both this and
-        // NoLibrary.cs, which asserts the absent case deliberately rather than by accident.
-        if (referenceLibrary)
-        {
-            test.TestState.AdditionalReferences.Add(
-                MetadataReference.CreateFromFile(typeof(StackExchange.Redis.ConnectionMultiplexer).Assembly.Location));
-        }
-
-        if (minServerVersion is not null)
-        {
-            test.TestState.AnalyzerConfigFiles.Add(("/.globalconfig", SourceText.From(
-                "is_global = true" + System.Environment.NewLine
-                + "redis.min_server_version = " + minServerVersion + System.Environment.NewLine,
-                Encoding.UTF8)));
-        }
-
+        TestSetup.Configure(test, referenceLibrary, minServerVersion);
         test.ExpectedDiagnostics.AddRange(expected);
         return test.RunAsync(TestContext.Current.CancellationToken);
     }
