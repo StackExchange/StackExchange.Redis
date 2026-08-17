@@ -2038,6 +2038,51 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Applies the slot map from the <c>CLUSTER SLOTS</c> view, which supersedes
+        /// <see cref="UpdateClusterRange(ClusterConfiguration)"/> when the answering server supplied one.
+        /// </summary>
+        /// <remarks>
+        /// Preferred over the <c>CLUSTER NODES</c> view because it is keyed on node-id and carries both naming
+        /// forms, so an endpoint arriving under a different name than we hold resolves to the server we
+        /// already have rather than creating a duplicate.
+        /// </remarks>
+        internal void UpdateClusterRange(ClusterTopology topology)
+        {
+            if (topology is null) return;
+
+            foreach (var node in topology.Nodes)
+            {
+                if (node.IsReplica || node.Slots.Count == 0) continue;
+
+                // resolve by *any* identity the node answers to before falling back to the form this reply
+                // happened to use; that is what keeps one node from becoming two ServerEndPoints
+                var server = ResolveOrCreate(node);
+                if (server is null) continue;
+
+                foreach (var slot in node.Slots)
+                {
+                    ServerSelectionStrategy.UpdateClusterRange(slot.From, slot.To, server);
+                }
+            }
+
+            ServerEndPoint? ResolveOrCreate(ClusterTopologyNode node)
+            {
+                foreach (var identity in node.Identities)
+                {
+                    if (TryResolveServerEndPoint(identity) is { } known) return known;
+                }
+
+                // unknown node: create it under the form this reply used, preferring an address if we were
+                // given one - a hostname is only usable if it resolves, whereas the address is dialable as-is
+                foreach (var identity in node.Identities)
+                {
+                    if (identity is IPEndPoint) return GetServerEndPoint(identity);
+                }
+                return node.Identities.Count > 0 ? GetServerEndPoint(node.Identities[0]) : null;
+            }
+        }
+
         internal ServerEndPoint? SelectServer(Message? message) =>
             message == null ? null : ServerSelectionStrategy.Select(message);
 

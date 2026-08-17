@@ -350,7 +350,17 @@ namespace StackExchange.Redis
             if (configuration != null)
             {
                 Multiplexer.Trace("Updating cluster ranges...");
-                Multiplexer.UpdateClusterRange(configuration);
+
+                // the SLOTS view drives the slot map when this server supplied one; NODES remains the source
+                // for node relations below, and for anything SLOTS does not report
+                if (ClusterTopology is { } topology)
+                {
+                    Multiplexer.UpdateClusterRange(topology);
+                }
+                else
+                {
+                    Multiplexer.UpdateClusterRange(configuration);
+                }
                 Multiplexer.Trace("Resolving genealogy...");
                 UpdateNodeRelations(configuration);
                 Multiplexer.Trace("Cluster configured");
