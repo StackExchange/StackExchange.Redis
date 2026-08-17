@@ -78,7 +78,13 @@ namespace StackExchange.Redis
         {
             Multiplexer = multiplexer;
             EndPoint = endpoint;
-            Provenance = multiplexer.RawConfig.EndPoints.Contains(endpoint) ? ServerProvenance.Configured : provenance;
+            // both collections, deliberately: ResolveDns rewrites the multiplexer's working set at startup,
+            // replacing configured DnsEndPoints with the addresses they resolved to, while RawConfig keeps the
+            // original names. Testing only RawConfig would classify a *configured* endpoint as discovered - and
+            // therefore prunable - whenever ResolveDns is enabled
+            Provenance = multiplexer.RawConfig.EndPoints.Contains(endpoint) || multiplexer.EndPoints.Contains(endpoint)
+                ? ServerProvenance.Configured
+                : provenance;
             var config = multiplexer.RawConfig;
             version = config.DefaultVersion;
             replicaReadOnly = true;

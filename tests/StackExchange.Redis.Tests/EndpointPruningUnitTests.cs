@@ -147,6 +147,52 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task ConfiguredEndpointSurvivesResolveDns()
+    {
+        // regression: ResolveDns rewrites the working set at startup, replacing configured names with the
+        // addresses they resolved to, while the configuration keeps the names. Testing only the configuration
+        // for "was this configured?" classifies a configured endpoint as discovered - and so prunable
+        using var server = CreateServer(log);
+        var config = server.GetClientConfig(defaultOnly: true);
+        config.ResolveDns = true;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var endpoint = conn.GetEndPoints().Single();
+
+        var sep = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint);
+        log.WriteLine($"{endpoint} provenance={sep.Provenance}");
+        Assert.Equal(ServerProvenance.Configured, sep.Provenance);
+
+        await ApplyGenerationsAsync(conn, endpoint, 5);
+        Assert.Contains(endpoint, conn.GetEndPoints());
+    }
+
+    [Fact]
+    public async Task NewNodeIsDialledByTheAdvertisedForm()
+    {
+        // a certificate validates against a name, and where hostnames are preferred the advertised address may
+        // not be routable at all - so a node we have never seen is dialled by the form the answering node
+        // advertised, not by an address we happen to have been given alongside it
+        using var server = CreateServer(log, ClusterEndpointType.Hostname);
+        GetHost(server.DefaultEndPoint, out var port);
+        var newcomer = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
+        server.SetHostname(newcomer, "host-2.redis.example.com");
+        server.Migrate((RedisKey)"advertised-key", newcomer);
+
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        await ApplyGenerationsAsync(conn, server.DefaultEndPoint, 1);
+
+        foreach (var ep in conn.GetEndPoints())
+        {
+            log.WriteLine($"endpoint: {ep}");
+        }
+
+        // reached by name, since that is what this cluster advertises
+        Assert.Contains(conn.GetEndPoints(), ep => ep is DnsEndPoint { Host: "host-2.redis.example.com" });
+        Assert.DoesNotContain(conn.GetEndPoints(), ep => ep is IPEndPoint { Port: var p } && p == port + 1);
+    }
+
+    [Fact]
     public async Task DuplicateUnderTwoNamesIsMergedIntoOne()
     {
         // one node, two ServerEndPoints - what happens when something creates by a name we had not yet linked.

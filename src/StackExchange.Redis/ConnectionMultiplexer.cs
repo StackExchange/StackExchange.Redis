@@ -2091,17 +2091,13 @@ namespace StackExchange.Redis
                 return null;
             }
 
-            // prefer an identity we already know, then an address, then whatever we were given: an address is
-            // dialable as-is, whereas a hostname is only usable if it resolves
+            // an identity we already hold if there is one - otherwise the form the answering node advertised,
+            // which is what Identities is ordered by, and which is the form TLS can validate
             EndPoint? SelectIdentity(ClusterTopologyNode node)
             {
                 foreach (var identity in node.Identities)
                 {
                     if (TryResolveServerEndPoint(identity) is { } known) return known.EndPoint;
-                }
-                foreach (var identity in node.Identities)
-                {
-                    if (identity is IPEndPoint) return identity;
                 }
                 return node.Identities.Count > 0 ? node.Identities[0] : null;
             }
@@ -2309,12 +2305,9 @@ namespace StackExchange.Redis
                     if (TryResolveServerEndPoint(identity) is { } known) return known;
                 }
 
-                // unknown node: create it under the form this reply used, preferring an address if we were
-                // given one - a hostname is only usable if it resolves, whereas the address is dialable as-is
-                foreach (var identity in node.Identities)
-                {
-                    if (identity is IPEndPoint) return GetServerEndPoint(identity);
-                }
+                // unknown node: dial the form the answering node *advertised*, which Identities is ordered by.
+                // Not the address by preference: a certificate validates against a name, and where hostnames
+                // are preferred the advertised address may not even be routable (#2826)
                 return node.Identities.Count > 0 ? GetServerEndPoint(node.Identities[0]) : null;
             }
         }
