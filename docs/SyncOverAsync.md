@@ -144,12 +144,12 @@ if you actually want a result — see `SER306`.
 
 The package ships a Roslyn analyzer that flags these at build time:
 
-- **`SER307`** — blocking on a redis call instead of awaiting it; this page is what it links to.
-- **`SER306`** — reading a fire-and-forget result, which is always the default value.
-- **`SER305`** — waiting on a command queued to a transaction or batch before `Execute[Async]` has sent it.
-  That one is an *error*, because it cannot ever complete.
+- **`SER307`** — blocking on a redis call instead of awaiting it. This page is what it links to.
+- **`SER306`** — reading a fire-and-forget result, which is always the default value. SER307 hands that case
+  to this rule, since blocking on an already-completed task is not what starves anything.
 
-See [Analyzer rules](rules/) for the full set, including how to turn any of them down.
+See [Analyzer rules](rules/) for the full set — including the transaction rules, which describe a different
+problem — and for how to turn any of them down.
 
 ## See also
 
