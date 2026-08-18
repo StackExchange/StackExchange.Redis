@@ -155,5 +155,8 @@ problem — and for how to turn any of them down.
 
 - [Timeouts](Timeouts) — reading a timeout message, and the thread-pool statistics in it
 - [Thread Theft](ThreadTheft) — a different problem with a similar smell, where the reader thread is hijacked
-  by continuations rather than starved of threads
+  by continuations rather than starved of threads. Largely historical: the client asks for
+  `RunContinuationsAsynchronously` by default, so on modern .NET this is handled for you — the mitigation
+  there exists for hosts whose synchronization context cannot be trusted to honour it, which in practice
+  means classic ASP.NET on .NET Framework
 - [Pipelines and multiplexers](PipelinesMultiplexers) — why the client is shaped this way in the first place
