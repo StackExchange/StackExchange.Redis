@@ -82,6 +82,41 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task StreamAddNoMkStream(bool pairs, bool useAsync)
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+        var db = conn.GetDatabase();
+        var key = Me() + $":{pairs}:{useAsync}";
+        await db.KeyDeleteAsync(key);
+
+        async Task<RedisValue> Add(bool nomkstream)
+        {
+            if (pairs)
+            {
+                NameValueEntry[] fields = [new("field1", "value1"), new("field2", "value2")];
+                return useAsync
+                    ? await db.StreamAddAsync(key, fields, nomkstream: nomkstream)
+                    : db.StreamAdd(key, fields, nomkstream: nomkstream);
+            }
+
+            return useAsync
+                ? await db.StreamAddAsync(key, "field", "value", nomkstream: nomkstream)
+                : db.StreamAdd(key, "field", "value", nomkstream: nomkstream);
+        }
+
+        Assert.Equal(RedisValue.Null, await Add(nomkstream: true));
+        Assert.False(await db.KeyExistsAsync(key));
+
+        Assert.NotEqual(RedisValue.Null, await Add(nomkstream: false));
+        Assert.NotEqual(RedisValue.Null, await Add(nomkstream: true));
+        Assert.Equal(2, await db.StreamLengthAsync(key));
+    }
+
+    [Theory]
     [InlineData(false, false, false)]
     [InlineData(false, false, true)]
     [InlineData(false, true, false)]

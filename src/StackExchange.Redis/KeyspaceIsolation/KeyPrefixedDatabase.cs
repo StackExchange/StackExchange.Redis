@@ -625,17 +625,37 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, flags);
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode, CommandFlags flags) =>
             Inner.StreamAdd(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, limit, mode, flags);
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+#pragma warning disable RS0026
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool nomkstream = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAdd(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, nomkstream, limit, mode, flags);
+#pragma warning restore RS0026
+
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode, CommandFlags flags) =>
             Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, limit, mode, flags);
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+#pragma warning disable RS0026
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool nomkstream = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, nomkstream, limit, mode, flags);
+#pragma warning restore RS0026
+
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode, CommandFlags flags) =>
             Inner.StreamAdd(ToInner(key), streamField, streamValue, idempotentId, maxLength, useApproximateMaxLength, limit, mode, flags);
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+#pragma warning disable RS0026
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, bool nomkstream = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAdd(ToInner(key), streamField, streamValue, idempotentId, maxLength, useApproximateMaxLength, nomkstream, limit, mode, flags);
+#pragma warning restore RS0026
+
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode, CommandFlags flags) =>
             Inner.StreamAdd(ToInner(key), streamPairs, idempotentId, maxLength, useApproximateMaxLength, limit, mode, flags);
+
+#pragma warning disable RS0026
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, bool nomkstream = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAdd(ToInner(key), streamPairs, idempotentId, maxLength, useApproximateMaxLength, nomkstream, limit, mode, flags);
+#pragma warning restore RS0026
 
         public void StreamConfigure(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamConfigure(ToInner(key), configuration, flags);

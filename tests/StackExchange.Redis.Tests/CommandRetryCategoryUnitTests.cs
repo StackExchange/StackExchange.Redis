@@ -121,27 +121,27 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
         // "*" lets the server pick the id, so a replay appends a second entry
         AssertCategory(
             Accumulating,
-            db.GetStreamAddMessage(key, "*", in noId, null, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
+            db.GetStreamAddMessage(key, "*", in noId, null, false, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
             "XADD *");
 
         // an explicit id is rejected second time round ("equal or smaller")
         AssertCategory(
             Checked,
-            db.GetStreamAddMessage(key, "5-5", in noId, null, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
+            db.GetStreamAddMessage(key, "5-5", in noId, null, false, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
             "XADD with explicit id");
 
         // IDMP producer id: the server deduplicates
         var idmp = new StreamIdempotentId("producer", "item-1");
         AssertCategory(
             Checked,
-            db.GetStreamAddMessage(key, "*", in idmp, null, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
+            db.GetStreamAddMessage(key, "*", in idmp, null, false, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
             "XADD IDMP");
 
         // IDMPAUTO producer: same, with the id derived from the entry content
         var idmpAuto = new StreamIdempotentId("producer");
         AssertCategory(
             Checked,
-            db.GetStreamAddMessage(key, "*", in idmpAuto, null, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
+            db.GetStreamAddMessage(key, "*", in idmpAuto, null, false, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None),
             "XADD IDMPAUTO");
     }
 
@@ -159,7 +159,7 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
         var pair = new NameValueEntry("f", "v");
         var noId = default(StreamIdempotentId);
 
-        Message Add(RedisValue id) => db.GetStreamAddMessage(key, id, in noId, null, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None);
+        Message Add(RedisValue id) => db.GetStreamAddMessage(key, id, in noId, null, false, false, pair, null, StreamTrimMode.KeepReferences, CommandFlags.None);
 
         // anything the server completes accumulates...
         AssertCategory(Accumulating, Add("*"), "XADD *");

@@ -37,6 +37,8 @@ You also have the option to override the auto-generated message ID by passing yo
 db.StreamAdd("events_stream", "foo_name", "bar_value", messageId: "0-1", maxLength: 100);
 ```
 
+Set `nomkstream: true` to append only when the stream already exists; otherwise `StreamAdd` returns a null `RedisValue` without creating the key.
+
 Idempotent write-at-most-once production
 ===
 
