@@ -1,4 +1,4 @@
-# Sync over async, and thread-pool starvation
+﻿# Sync over async, and thread-pool starvation
 
 If you are here from a `SER307` warning or a support conversation: this page explains why blocking on an
 asynchronous redis call is worse than it looks, why the symptom shows up somewhere else entirely, and what to
@@ -66,6 +66,21 @@ combination that points here is:
 - `Busy` at or above `Min` for `WORKER` or `IOCP`, meaning the pool is in its throttled, slow-growth regime;
 - bytes waiting unread on the connection, meaning the server already answered;
 - and timeouts that get *worse* under load rather than better as caches warm.
+
+A message showing all of it at once looks something like:
+
+	Timeout performing GET MyKey (5000ms), inst: 0, qs: 84, in: 487312, mgr: 10 of 10 available,
+	IOCP: (Busy=0,Free=1000,Min=8,Max=1000),
+	WORKER: (Busy=73,Free=32694,Min=64,Max=32767)
+
+Read that as: 84 commands are awaiting replies (`qs`), **476KiB has already arrived and is sitting unread**
+(`in`), the client's own dedicated pool is completely idle (`mgr: 10 of 10`) — and the global worker pool has
+more busy threads than its minimum, so it is injecting new ones a couple per second at most.
+
+The `in` figure is the tell. The server has answered; the bytes are in the buffer. Nothing is wrong with the
+network, the server, or the connection — there is simply no thread available to pick the reply up. An idle
+`mgr` alongside a busy `WORKER` says the same thing from the other direction: the client is not the bottleneck,
+the application's thread-pool is.
 
 If the pool is healthy and you still see timeouts, this is not your problem — look at
 [Timeouts](Timeouts) and [Thread Theft](ThreadTheft) instead.
