@@ -14,3 +14,4 @@ Rule ID | Category | Severity | Notes
 SER305  | Usage    | Error    | QueuedResultAnalyzer: waiting for a command queued on a transaction or batch, before Execute[Async]() sends it, never completes
 SER306  | Usage    | Warning  | QueuedResultAnalyzer: waiting for a fire-and-forget result reads the default value rather than the server's answer
 SER307  | Usage    | Warning  | QueuedResultAnalyzer: blocking on a redis call instead of awaiting it, which ties up a thread-pool thread while the reply needs one of its own
+SER308  | Usage    | Warning  | QueuedResultAnalyzer: calling the library's own Wait/WaitAll/TryWait helpers, which block the calling thread
