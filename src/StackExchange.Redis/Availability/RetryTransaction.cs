@@ -282,7 +282,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             // for correctness - there is no point registering one to settle a proxy that does not exist
             if (_proxy is null) return;
 
-            var attempt = _attempt!;
+            // ForwardSuccess only runs after Replay, so this cannot be null; `?? throw` says that to the
+            // compiler as well as the reader, and keeps the failure loud if the order ever changes
+            var attempt = _attempt ?? throw new InvalidOperationException("Cannot forward a result before the operation has been replayed");
             if (attempt.IsCompleted)
             {
                 Forward(attempt);
@@ -346,7 +348,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         {
             if (_proxy is null) return; // fire-and-forget: see RecordedOp.ForwardSuccess
 
-            var attempt = _attempt!;
+            // ForwardSuccess only runs after Replay, so this cannot be null; `?? throw` says that to the
+            // compiler as well as the reader, and keeps the failure loud if the order ever changes
+            var attempt = _attempt ?? throw new InvalidOperationException("Cannot forward a result before the operation has been replayed");
             if (attempt.IsCompleted)
             {
                 Forward(attempt);

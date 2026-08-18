@@ -13,6 +13,22 @@ public partial class ConnectionMultiplexer
     {
         None,
         PreventThreadTheft = 1,
+
+        /// <summary>
+        /// Service connections from threads this library owns, rather than from the global thread-pool.
+        /// </summary>
+        /// <remarks>
+        /// For an application whose thread-pool is saturated - most often by sync-over-async somewhere, though
+        /// the cause does not matter here - the reply from redis cannot be processed, because processing it
+        /// needs a thread and every thread is waiting on one. Owning the reader and writer takes this library
+        /// out of that queue. It does not *fix* the thread-pool, and nothing here can: it means only that redis
+        /// traffic keeps flowing while the real problem is found. See docs/SyncOverAsync.md.
+        /// <para>
+        /// Costs a reader and a writer thread per connection, so it is worth thinking about before enabling it
+        /// against a very wide cluster, where connection counts scale with the number of shards.
+        /// </para>
+        /// </remarks>
+        DedicatedThreads = 2,
     }
 
     private static void SetAutodetectFeatureFlags()
@@ -54,4 +70,6 @@ public partial class ConnectionMultiplexer
         && (s_featureFlags & flags) == flags;
 
     internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
+
+    internal static bool DedicatedThreads => (s_featureFlags & FeatureFlags.DedicatedThreads) != 0;
 }

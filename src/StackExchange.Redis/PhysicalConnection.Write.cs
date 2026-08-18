@@ -19,14 +19,41 @@ internal partial class PhysicalConnection
         }
     }
 
+    /// <summary>
+    /// Which writer this connection should use, given how it is configured and what it is for.
+    /// </summary>
+    /// <remarks>
+    /// Policy rather than plumbing, so it is a function that can be tested rather than a condition buried in
+    /// <see cref="InitOutput"/>: three rules interact here, and getting the precedence subtly wrong would show
+    /// up only as a performance characteristic, which is the kind of bug nobody notices for a year.
+    /// </remarks>
+    internal static BufferedStreamWriter.WriteMode ResolveWriteMode(
+        ConnectionType connectionType,
+        BufferedStreamWriter.WriteMode configured,
+        bool dedicatedThreads)
+    {
+        // Redis policy over the generic writer: sync-mode targets latency, which pub/sub never needs.
+        if (connectionType is ConnectionType.Subscription) return BufferedStreamWriter.WriteMode.Async;
+
+        // Sync-mode also owns its reader and writer threads rather than borrowing the thread-pool, which is
+        // what the DedicatedThreads flag is asking for: on a saturated pool the reply cannot be processed,
+        // because processing it needs a thread and every thread is waiting on one. Note this promotes an
+        // *unstated* preference only - anything explicitly configured still wins.
+        if (configured == BufferedStreamWriter.WriteMode.Default && dedicatedThreads)
+        {
+            return BufferedStreamWriter.WriteMode.Sync;
+        }
+
+        return configured;
+    }
+
     private void InitOutput(Stream? stream)
     {
         if (stream is null) return;
         _ioStream = stream;
         var config = BridgeCouldBeNull?.Multiplexer?.RawConfig;
 
-        // Redis policy over the generic writer: sync-mode targets latency, which pub/sub never needs.
-        var mode = connectionType is ConnectionType.Subscription ? BufferedStreamWriter.WriteMode.Async : WriteMode;
+        var mode = ResolveWriteMode(connectionType, WriteMode, ConnectionMultiplexer.DedicatedThreads);
         _output = BufferedStreamWriter.Create(mode, stream, config?.RequestBufferPool, OutputCancel);
 
         // Nothing awaits WriteComplete in production (it is mostly a test affordance); observe it so a
