@@ -1,0 +1,22 @@
+# Jekyll config for the published docs site (https://seredis.dev).
+# Without this file the site runs on GitHub's defaults: the Primer theme, and site
+# title/description silently taken from the repo's name and description fields.
+
+title: StackExchange.Redis
+description: The Redis client for .NET
+url: https://seredis.dev
+
+theme: jekyll-theme-cayman
+
+# Cayman renders "Download .zip/.tar.gz" buttons in its header when this is on, and
+# GitHub's default config turns it on; the package comes from NuGet, not a tarball.
+show_downloads: false
+
+# Not in the always-on GitHub Pages plugin set, so it has to be asked for; generates
+# sitemap.xml and robots.txt, neither of which the site had.
+plugins:
+  - jekyll-sitemap
+
+# Present only so the docs show up in the solution; not site content.
+exclude:
+  - docs.csproj
