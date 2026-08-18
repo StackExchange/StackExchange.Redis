@@ -24,6 +24,15 @@ internal interface IInternalConnectionMultiplexer : IConnectionMultiplexer
 
     long? GetConnectionId(EndPoint endPoint, ConnectionType type);
 
+    /// <summary>
+    /// Whether this connection is read/written by a thread we own rather than by the thread-pool; <c>null</c>
+    /// if there is no such connection. See the <c>DedicatedThreads</c> feature flag.
+    /// </summary>
+    bool? IsSyncReader(EndPoint endPoint, ConnectionType type);
+
+    /// <inheritdoc cref="IsSyncReader"/>
+    bool? IsSyncWriter(EndPoint endPoint, ConnectionType type);
+
     ServerSelectionStrategy ServerSelectionStrategy { get; }
 
     int GetSubscriptionsCount();

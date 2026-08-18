@@ -215,6 +215,12 @@ public class SharedConnectionFixture : IDisposable
         public override string ToString() => _inner.ToString();
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
             => _inner.GetConnectionId(endPoint, type);
+
+        bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endPoint, ConnectionType type)
+            => _inner.IsSyncReader(endPoint, type);
+
+        bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endPoint, ConnectionType type)
+            => _inner.IsSyncWriter(endPoint, type);
     }
 
     public void Dispose()

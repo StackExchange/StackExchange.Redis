@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Net;
 using System.Threading;
 
 namespace StackExchange.Redis;
@@ -72,4 +73,23 @@ public partial class ConnectionMultiplexer
     internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
 
     internal static bool DedicatedThreads => (s_featureFlags & FeatureFlags.DedicatedThreads) != 0;
+
+    /// <summary>
+    /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there
+    /// is no such connection.
+    /// </summary>
+    /// <remarks>
+    /// For tests and diagnostics: the <see cref="FeatureFlags.DedicatedThreads"/> flag is a request, and this
+    /// is what actually happened. Note that under RESP3 there is no separate subscription connection, so
+    /// asking about <see cref="ConnectionType.Subscription"/> answers about the shared one.
+    /// </remarks>
+    bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endpoint, ConnectionType connectionType)
+        => GetPhysical(endpoint, connectionType)?.IsSyncReader;
+
+    /// <summary>As <c>IsSyncReader</c>, for the writer.</summary>
+    bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endpoint, ConnectionType connectionType)
+        => GetPhysical(endpoint, connectionType)?.IsSyncWriter;
+
+    private PhysicalConnection? GetPhysical(EndPoint endpoint, ConnectionType connectionType)
+        => GetServerEndPoint(endpoint, activate: false)?.GetBridge(connectionType, create: false)?.Physical;
 }

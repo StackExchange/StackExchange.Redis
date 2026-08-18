@@ -47,6 +47,15 @@ internal partial class PhysicalConnection
         return configured;
     }
 
+    /// <summary>
+    /// Whether this connection is written by a thread of our own rather than by the thread-pool.
+    /// </summary>
+    /// <remarks>
+    /// Sync-mode is what owns the threads (see <see cref="ResolveWriteMode"/>), so this is simply what the
+    /// writer ended up in. Note it can change after connect: a switchable writer may transition to async.
+    /// </remarks>
+    internal bool IsSyncWriter => _output is { IsSync: true };
+
     private void InitOutput(Stream? stream)
     {
         if (stream is null) return;

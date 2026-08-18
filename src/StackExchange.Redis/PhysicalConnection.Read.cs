@@ -27,6 +27,16 @@ internal sealed partial class PhysicalConnection
 
     private BufferedStreamWriter.WriteMode WriteMode { get; }
 
+    /// <summary>
+    /// Whether this connection is read by a thread of our own rather than by the thread-pool.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately mirrors the branching in <see cref="StartReading"/> rather than restating the rule: a
+    /// transport-backed connection is in push mode and has no reader of either kind, and otherwise the reader
+    /// follows the writer's mode.
+    /// </remarks>
+    internal bool IsSyncReader => _transport is null && _output is { IsSync: true };
+
     internal void StartReading(CancellationToken cancellation = default)
     {
         if (_transport is { } transport)
