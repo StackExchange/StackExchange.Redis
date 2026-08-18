@@ -124,6 +124,42 @@ public class QueuedResultTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.True((await pending).IsNull);
     }
 
+    /// <summary>
+    /// A fire-and-forget operation builds no <see cref="System.Threading.Tasks.TaskCompletionSource{T}"/> at
+    /// all: every one hands back the same shared completed task.
+    /// </summary>
+    /// <remarks>
+    /// Asserted as identity rather than as a byte count, which would be brittle. There is nothing for a proxy
+    /// to carry when the reply has been declined, so building one costs two objects per queued operation - the
+    /// source and the <c>Task</c> it creates in its own constructor - for a value that is fixed in advance.
+    /// The instance handed back is the one a plain <see cref="ITransaction"/> returns for the same case.
+    /// </remarks>
+    [Fact]
+    public async Task RetryTransactionFireAndForgetSharesOneCompletedTask()
+    {
+        await using var conn = Create();
+
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        var tran = db.WithRetry().CreateTransaction();
+
+        var first = tran.StringGetAsync(key, CommandFlags.FireAndForget);
+        var second = tran.StringGetAsync(key, CommandFlags.FireAndForget);
+        Assert.Same(first, second);
+
+        // the void-returning shape has its own proxy type, and the same applies to it
+        var firstVoid = tran.HashSetAsync(key, [new HashEntry("f", "v")], CommandFlags.FireAndForget);
+        Assert.Same(Task.CompletedTask, firstVoid);
+
+        // ...while an operation that did *not* decline its reply still gets a durable proxy of its own
+        var pending = tran.StringGetAsync(key);
+        Assert.NotSame(first, pending);
+        Assert.False(pending.IsCompleted);
+
+        Assert.True(await tran.ExecuteAsync());
+        Assert.True(pending.IsCompleted);
+    }
+
     /// <summary>...and the command itself is still queued, replayed and sent.</summary>
     [Fact]
     public async Task RetryTransactionQueuedFireAndForgetStillExecutes()

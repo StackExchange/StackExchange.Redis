@@ -58,9 +58,8 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         where TState : struct
     {
         CheckNotExecuted();
-        var op = new RecordedOp<TState, TResult>(state, operation);
+        var op = new RecordedOp<TState, TResult>(state, operation, IsFireAndForget(in state));
         _ops.Add(op);
-        if (IsFireAndForget(in state)) op.CompleteFireAndForget();
         return op.Proxy;
     }
 
@@ -68,9 +67,8 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         where TState : struct
     {
         CheckNotExecuted();
-        var op = new RecordedVoidOp<TState>(state, operation);
+        var op = new RecordedVoidOp<TState>(state, operation, IsFireAndForget(in state));
         _ops.Add(op);
-        if (IsFireAndForget(in state)) op.CompleteFireAndForget();
         return op.Proxy;
     }
 
@@ -81,9 +79,8 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     // ITransaction code move onto a retrying database unchanged.
     //
     // The op is still recorded and replayed like any other: fire-and-forget declines the *reply*, not the
-    // command. Completing the proxy up front simply means the later ForwardSuccess/Fault - which use TrySet* -
-    // find it already settled and do nothing, so a discarded attempt can never fault a result the caller was
-    // told not to expect.
+    // command. What it does not get is a proxy - see RecordedOp - so forwarding and faulting both become
+    // no-ops for it, and a discarded attempt can never fault a result the caller was told not to expect.
     //
     // The flags are captured inside TState, so this is the one thing the generated struct is asked to expose
     // (IFlaggedRedisArgs). Testing a generic value against an interface boxes in IL, and this sits on every
@@ -254,26 +251,33 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     {
         private readonly TState _state;
         private readonly AutoDatabaseAsyncOperation<TState, TResult> _operation;
-        private readonly TaskCompletionSource<TResult> _proxy = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<TResult>? _proxy;
         private Task<TResult>? _attempt;
 
-        public RecordedOp(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
+        public RecordedOp(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation, bool fireAndForget)
         {
             _state = state;
             _operation = operation;
+
+            // Fire-and-forget declines the reply, so there is nothing for a proxy to carry and none is built -
+            // saving *both* objects, the TaskCompletionSource and the Task it creates in its own constructor,
+            // on every fire-and-forget operation queued. Proxy hands back the shared completed task instead,
+            // which is the same instance a plain RedisTransaction returns for this case.
+            //
+            // The value is default(TResult) rather than the command's own "no reply" value, which lives inside
+            // the command implementation and is not reachable from here - a distinction without a difference,
+            // since neither is an answer from the server.
+            _proxy = fireAndForget ? null : new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
-        public Task<TResult> Proxy => _proxy.Task;
-
-        // settled up front for fire-and-forget; see IsFireAndForget. default(TResult) rather than the
-        // command's own "no reply" value, which lives inside the command implementation and is not reachable
-        // from here - a distinction without a difference, since neither is an answer from the server
-        public void CompleteFireAndForget() => _proxy.TrySetResult(default!);
+        public Task<TResult> Proxy => _proxy?.Task ?? CompletedTask<TResult>.Default(null)!;
 
         public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
         public void ForwardSuccess()
         {
+            if (_proxy is null) return; // fire-and-forget: no proxy to forward onto, and nothing to report
+
             var attempt = _attempt!;
             if (attempt.IsCompleted)
             {
@@ -295,9 +299,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 
         private void Forward(Task<TResult> attempt)
         {
-            if (attempt.IsCanceled) _proxy.TrySetCanceled();
-            else if (attempt.IsFaulted) _proxy.TrySetException(attempt.Exception!.InnerExceptions);
-            else _proxy.TrySetResult(attempt.GetAwaiter().GetResult());
+            if (attempt.IsCanceled) _proxy!.TrySetCanceled();
+            else if (attempt.IsFaulted) _proxy!.TrySetException(attempt.Exception!.InnerExceptions);
+            else _proxy!.TrySetResult(attempt.GetAwaiter().GetResult());
         }
 
         // observe the (faulted) inner attempt before faulting the durable proxy, so the discarded
@@ -305,7 +309,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         public void Fault(Exception ex)
         {
             Observe();
-            _proxy.TrySetException(ex);
+            _proxy?.TrySetException(ex);
         }
 
         public void Observe() => _ = _attempt?.Exception;
@@ -316,24 +320,24 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     {
         private readonly TState _state;
         private readonly AutoDatabaseAsyncOperation<TState> _operation;
-        private readonly TaskCompletionSource<bool> _proxy = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool>? _proxy;
         private Task? _attempt;
 
-        public RecordedVoidOp(in TState state, AutoDatabaseAsyncOperation<TState> operation)
+        public RecordedVoidOp(in TState state, AutoDatabaseAsyncOperation<TState> operation, bool fireAndForget)
         {
             _state = state;
             _operation = operation;
+            _proxy = fireAndForget ? null : new(TaskCreationOptions.RunContinuationsAsynchronously); // see RecordedOp
         }
 
-        public Task Proxy => _proxy.Task;
-
-        // see the note on RecordedOp.CompleteFireAndForget
-        public void CompleteFireAndForget() => _proxy.TrySetResult(true);
+        public Task Proxy => _proxy?.Task ?? Task.CompletedTask;
 
         public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
         public void ForwardSuccess()
         {
+            if (_proxy is null) return; // fire-and-forget: see RecordedOp.ForwardSuccess
+
             var attempt = _attempt!;
             if (attempt.IsCompleted)
             {
@@ -355,9 +359,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 
         private void Forward(Task attempt)
         {
-            if (attempt.IsCanceled) _proxy.TrySetCanceled();
-            else if (attempt.IsFaulted) _proxy.TrySetException(attempt.Exception!.InnerExceptions);
-            else _proxy.TrySetResult(true);
+            if (attempt.IsCanceled) _proxy!.TrySetCanceled();
+            else if (attempt.IsFaulted) _proxy!.TrySetException(attempt.Exception!.InnerExceptions);
+            else _proxy!.TrySetResult(true);
         }
 
         // observe the (faulted) inner attempt before faulting the durable proxy, so the discarded
@@ -365,7 +369,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         public void Fault(Exception ex)
         {
             Observe();
-            _proxy.TrySetException(ex);
+            _proxy?.TrySetException(ex);
         }
 
         public void Observe() => _ = _attempt?.Exception;
