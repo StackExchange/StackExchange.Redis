@@ -178,5 +178,5 @@ public class SER305CodeFix : CodeFixVerifier<QueuedResultAnalyzer, QueuedResultC
         }
         """,
         DiscardFix,
-        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringSetAsync", "a transaction"));
+        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringSetAsync"));
 }

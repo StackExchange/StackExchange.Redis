@@ -27,6 +27,10 @@ Asynchronous operations in StackExchange.Redis can come back in 3 different ways
 
 The StackExchange.Redis dedicated thread-pool has a fixed size suitable for many common scenarios, which is shared between multiple connection instances (this can be customized by explicitly providing a `SocketManager` when creating a `ConnectionMultiplexer`). In many scenarios when using 2.0 and above, the vast majority of asynchronous operations will be serviced by this dedicated pool. This pool exists to avoid contention, as we've frequently seen cases where the global thread-pool becomes jammed with threads that need redis results to unblock them.
 
+If the global thread-pool is saturated, the most common cause by far is blocking on asynchronous calls
+somewhere in the application - see [Sync over async](SyncOverAsync), which covers how to confirm that, why
+raising the minimum thread count does not fix it, and how to keep redis traffic flowing meanwhile.
+
 .NET itself provides new global thread pool worker threads or I/O completion threads on demand (without any throttling) until it reaches the "Minimum" setting for each type of thread. By default, the minimum number of threads is set to the number of processors on a system.
 
 For these .NET-provided global thread pools: once the number of existing (busy) threads hits the "minimum" number of threads, the ThreadPool will throttle the rate at which it injects new threads to one thread per 500 milliseconds.  This means that if your system gets a burst of work needing an IOCP thread, it will process that work very quickly.   However, if the burst of work is more than the configured "Minimum" setting, there will be some delay in processing some of the work as the ThreadPool waits for one of two things to happen:
