@@ -127,6 +127,16 @@ Two caveats worth knowing before you enable it:
   very wide cluster, where connection count scales with the number of shards;
 - it is deliberately opt-in, and set process-wide at startup rather than per-connection.
 
+How many connections that is depends on the protocol, which is worth checking before doing the arithmetic:
+
+- under **[RESP3](Resp3)**, pub/sub is multiplexed over the same connection, so it is one connection per node
+  — two threads per node. RESP3 is the default where the server supports it: the client negotiates with
+  `HELLO` and uses it unless you have pinned `Protocol` lower or the server is too old.
+- under **RESP2**, pub/sub needs a *second* connection to each node, so there are two. That does not double
+  the threads, because subscription connections are deliberately left on the thread-pool — but it does mean
+  the flag covers your commands and **not** your pub/sub. If you are on RESP2 and it is pub/sub that is
+  stalling, moving to RESP3 is the more useful change.
+
 Neither is meant to be permanent, and the first one especially. Work is in progress on dedicated readers built
 over the platform's native completion machinery — `io_uring` on Linux, IOCP on Windows — which would service
 many connections from a small fixed set of threads rather than a pair per connection. That is the thing that
