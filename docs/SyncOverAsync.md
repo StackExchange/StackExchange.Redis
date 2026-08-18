@@ -64,18 +64,20 @@ combination that points here is:
 
 A message showing all of it at once looks something like:
 
-	Timeout performing GET MyKey (5000ms), inst: 0, qs: 84, in: 487312, mgr: 10 of 10 available,
+	Timeout performing GET MyKey (5000ms), inst: 0, qs: 84, in: 487312,
 	IOCP: (Busy=0,Free=1000,Min=8,Max=1000),
-	WORKER: (Busy=73,Free=32694,Min=64,Max=32767)
+	WORKER: (Busy=73,Free=32694,Min=64,Max=32767),
+	POOL: (Threads=73,QueuedItems=612,CompletedItems=418327,Timers=14)
 
-Read that as: 84 commands are awaiting replies (`qs`), **476KiB has already arrived and is sitting unread**
-(`in`), the client's own dedicated pool is completely idle (`mgr: 10 of 10`) — and the global worker pool has
-more busy threads than its minimum, so it is injecting new ones a couple per second at most.
+Read that as: 84 commands are awaiting replies (`qs`); **476KiB has already arrived and is sitting unread**
+(`in`); the worker pool has more busy threads than its minimum, so it is now injecting new ones a couple per
+second at most; and 612 work items are queued behind them.
 
-The `in` figure is the tell. The server has answered; the bytes are in the buffer. Nothing is wrong with the
-network, the server, or the connection — there is simply no thread available to pick the reply up. An idle
-`mgr` alongside a busy `WORKER` says the same thing from the other direction: the client is not the bottleneck,
-the application's thread-pool is.
+The `in` figure is the tell. The server has answered and the bytes are in the buffer, so nothing is wrong with
+the network, the server, or the connection — there is simply no thread available to pick the reply up.
+`QueuedItems` says the same thing from the other direction: work is arriving faster than the pool can start it.
+
+(`POOL` is only reported on .NET 5 and above; on .NET Framework it reads `n/a`.)
 
 If the pool is healthy and you still see timeouts, this is not your problem — look at
 [Timeouts](Timeouts) and [Thread Theft](ThreadTheft) instead.

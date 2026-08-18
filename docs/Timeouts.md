@@ -47,6 +47,11 @@ If we look at an example error message from StackExchange.Redis 2.0, you will se
 
 In the above example, there are 6 operations currently awaiting replies from redis ("`qs`"), there are 0 bytes waiting to be read from the input stream from redis ("`in`"), and the dedicated thread-pool is almost fully available to service asynchronous completions ("`mgr`"). You can also see that for IOCP thread there are 6 busy threads and the system is configured to allow 4 minimum threads.
 
+Note that `mgr` describes the dedicated `SocketManager` thread-pool used by 2.x. **That machinery is gone as
+of 3.0** - `ConfigurationOptions.SocketManager` is obsolete and unused - so `mgr` no longer appears; current
+messages instead carry `POOL` (thread count, queued and completed work items, and active timers) on .NET 5
+and above. The `IOCP` and `WORKER` statistics are unchanged, and are still the ones to read first.
+
 In 1.*, the information is similar but slightly different:
 
 	System.TimeoutException: Timeout performing GET MyKey, inst: 2, mgr: Inactive,
