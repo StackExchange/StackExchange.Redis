@@ -8,7 +8,7 @@ separately:
 
 | Range | Meaning |
 |---|---|
-| `SER300`-`SER349` | usage guidance about your code |
+| `SER300`-`SER349` | rules about your code - mostly guidance, but see the correctness rules below |
 | `SER350`-`SER399` | build-level problems from the source generators |
 
 Note that `SER0xx` is a different thing entirely: those are the [`[Experimental]` API gates](../exp/SER004),
@@ -27,6 +27,13 @@ want `StringSet`. Reach for the async form in new code.
 
 Argument names in the suggestion (`key`, `value`, `entries`) are a sketch of the shape, not literal text -
 substitute your own expressions.
+
+## Correctness
+
+Unlike everything under [Usage](#usage), these describe code that does not do what it looks like it does.
+
+- [SER305](SER305) - **error**: waiting for a queued command before `Execute[Async]` never completes
+- [SER306](SER306) - waiting for a fire-and-forget result, which is always the default value
 
 ## Usage
 
@@ -70,7 +77,11 @@ These are heuristics, and the list above is where the effort has gone - but it i
 rare, not impossible. If one of these rules flags something it should not have, that is a bug in the rule rather
 than something to work around: please
 [report it](https://github.com/StackExchange/StackExchange.Redis/issues/new) with the transaction as written.
-`SER350` is not in this family - it reports a build problem rather than offering guidance.
+
+Three rules are not in this family, because they are not suggesting an improvement to working code: `SER350`
+reports a build problem, and [SER305](SER305)/[SER306](SER306) report code that does not work. Those two have
+their own, much narrower quiet-lists on their own pages - they are flow-insensitive by design, so most of the
+caveats above (a loop, an `if`, a transaction passed elsewhere) simply do not arise.
 
 ## Declaring your server version
 
@@ -94,10 +105,13 @@ rule's message names the version it needs, so you can tell at a glance whether i
 
 ## Severity, and turning it down
 
-These are **warnings** by default. The code they flag is correct - it works, and it will keep working - so a
-warning is arguably strong; they are warnings anyway because information-level diagnostics are not printed by
-`dotnet build`, which means outside an IDE they are invisible, and a suggestion nobody ever sees is not worth
-shipping.
+These are **warnings** by default, with one exception: [SER305](SER305) is an **error**, because the code it
+flags cannot work rather than merely being improvable. It is the only one here that is not a matter of taste,
+and it is worth reading before suppressing.
+
+For the rest, the code they flag is correct - it works, and it will keep working - so a warning is arguably
+strong; they are warnings anyway because information-level diagnostics are not printed by `dotnet build`, which
+means outside an IDE they are invisible, and a suggestion nobody ever sees is not worth shipping.
 
 The consequence worth knowing before you upgrade: if you build with `TreatWarningsAsErrors`, these **will fail
 your build** on code that previously compiled. Nothing is broken - you have a choice of acting on them or

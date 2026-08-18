@@ -12,6 +12,9 @@
     <!-- referenced as a library (not just as an analyzer) so tests can instantiate the analyzer directly -->
     <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
                       OutputItemType="" ReferenceOutputAssembly="true" />
+    <!-- likewise for the code fixes, which are a separate assembly (see that project for why) -->
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.CodeFixes\StackExchange.Redis.CodeFixes.csproj"
+                      OutputItemType="" ReferenceOutputAssembly="true" />
     <!-- the analyzer resolves StackExchange.Redis.Condition by metadata name, so the test compilation must
          actually reference the library; without this every test would pass by finding nothing -->
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
@@ -19,6 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />

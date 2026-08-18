@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The code fixes for the analyzers in StackExchange.Redis.Build, shipped alongside them in the package.
+
+    A separate assembly on purpose, and not because of packaging: a code fix needs Microsoft.CodeAnalysis
+    .Workspaces, which the *compiler* does not supply - csc ships only Microsoft.CodeAnalysis, .CSharp and
+    .VisualBasic. That is harmless in practice (csc discovers analyzers from metadata and never instantiates a
+    CodeFixProvider, so the reference is never resolved during a command-line build) but it is exactly what
+    RS1038 tells you not to do, and keeping the analyzer assembly free of Workspaces means the question never
+    has to be asked again. The IDE, which is the only host that loads this, supplies Workspaces itself.
+
+    Note the pinned analyzer version here has no RS1038 to warn us - it was added to
+    Microsoft.CodeAnalysis.Analyzers after 3.3.4 - so this layout is chosen deliberately rather than in
+    response to a diagnostic.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- VersionOverride to the same low floor as the analyzer (Directory.Packages.props pins the newer
+         version the *test harness* needs): a fix that will not load in the consumer's IDE is no use, and
+         there is nothing here that wants a modern Roslyn API. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" VersionOverride="4.3.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
