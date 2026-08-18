@@ -1197,8 +1197,13 @@ namespace StackExchange.Redis
                 // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
                 bool flush = false;
-                while (IsConnected && physical is { HasOutputPipe: true })
+                while (IsConnected)
                 {
+                    // Snapshot the connection for the whole of this message: OnDisconnected nulls the field
+                    // without waiting for the write lock, so re-reading it (as the loop guard used to) can hand
+                    // null to a write path that requires a connection. See #3167.
+                    if (this.physical is not { HasOutputPipe: true } physical) break;
+
                     Message? message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
 
@@ -1437,13 +1442,14 @@ namespace StackExchange.Redis
 
         private WriteResult HandleWriteException(PhysicalConnection? physical, Message message, Exception ex)
         {
-            var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, message.Flags, "Failed to write", ex);
+            var failureType = PhysicalConnection.ClassifyWriteFailure(ex, physical);
+            var inner = new RedisConnectionException(failureType, message.Flags, "Failed to write", ex);
             message.SetExceptionAndComplete(inner, physical);
             // Tear down the physical connection. A write that throws may have left a partial frame on the
             // wire, and continuing to use the same socket would let the next reply match the wrong message
             // in the response queue. Forcing a reconnect drains the in-flight queue with failures and
             // restores wire-level synchronization.
-            physical?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, inner);
+            physical?.RecordConnectionFailed(failureType, inner);
             return WriteResult.WriteFailure;
         }
 
@@ -1713,11 +1719,14 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
+
+                // Most likely an IOException, or the connection being torn down underneath us
+                var failureType = PhysicalConnection.ClassifyWriteFailure(ex, connection);
+                message.Fail(failureType, ex, null, Multiplexer);
                 message.Complete(connection);
 
-                // We're not sure *what* happened here - probably an IOException; kill the connection
-                connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                // We don't know how far the write got; kill the connection
+                connection?.RecordConnectionFailed(failureType, ex);
                 return WriteResult.WriteFailure;
             }
         }

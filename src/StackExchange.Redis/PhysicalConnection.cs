@@ -325,6 +325,7 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
         internal void Shutdown(ConnectionFailureType failureType = ConnectionFailureType.ConnectionDisposed)
         {
+            _isShutdown = true; // *before* discarding the output, so an observed-null output implies this flag
             var output = Interlocked.Exchange(ref _output, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
             var transport = Interlocked.Exchange(ref _transport, null);
@@ -599,6 +600,32 @@ namespace StackExchange.Redis
         /// <returns>A string that represents the current object.</returns>
         public override string ToString() => $"{_physicalName} ({_writeStatus})";
 
+        /// <summary>
+        /// Classify a fault from the write path. Prefer what the exception already knows - an inner
+        /// <see cref="RedisConnectionException"/> carries its own failure type, and a discarded output pipe or a
+        /// dead socket is a closure - falling back to <see cref="ConnectionFailureType.InternalFailure"/> only when
+        /// there is nothing better to go on. Writes can lose the connection underneath them at any point, because
+        /// <see cref="Shutdown"/> does not (and must not) wait on the write lock; that is an ordinary connection
+        /// failure, not an internal fault, and badging it as the latter also reports it via OnInternalError. See #3167.
+        /// </summary>
+        internal static ConnectionFailureType ClassifyWriteFailure(Exception exception, PhysicalConnection? connection)
+        {
+            var failureType = exception is RedisConnectionException rce ? rce.FailureType : ConnectionFailureType.InternalFailure;
+            IdentifyFailureType(exception, ref failureType);
+
+            // A write killed by *our own* output cancellation is the same closure that the read loop reports as
+            // SocketClosed (see ReadAllAsync), and RESPite calls it out as expected teardown noise. A cancellation
+            // that came from the caller is a different thing, so check whose token actually fired.
+            if (failureType == ConnectionFailureType.InternalFailure
+                && exception is OperationCanceledException
+                && connection?.OutputCancel.IsCancellationRequested == true)
+            {
+                failureType = ConnectionFailureType.SocketClosed;
+            }
+
+            return failureType;
+        }
+
         internal static void IdentifyFailureType(Exception? exception, ref ConnectionFailureType failureType)
         {
             if (exception != null && failureType == ConnectionFailureType.InternalFailure)
@@ -864,14 +891,11 @@ namespace StackExchange.Redis
 
         internal void Flush()
         {
-            var tmp = _output;
-            if (tmp is null) Throw();
+            var tmp = _output ?? ThrowOutputUnavailable();
             _writeStatus = WriteStatus.Flushing;
             tmp.Flush();
             _writeStatus = WriteStatus.Flushed;
             UpdateLastWriteTime();
-            [DoesNotReturn]
-            static void Throw() => throw new InvalidOperationException("Output pipe not initialized");
         }
 
         internal readonly struct ConnectionStatus
