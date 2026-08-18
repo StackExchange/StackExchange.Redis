@@ -51,6 +51,9 @@ namespace StackExchange.Redis
         private long operationCount, socketCount;
         private volatile PhysicalConnection? physical;
 
+        /// <summary>The current connection, if any; for diagnostics and tests.</summary>
+        internal PhysicalConnection? Physical => physical;
+
         private long profileLastLog;
         private int profileLogIndex;
 

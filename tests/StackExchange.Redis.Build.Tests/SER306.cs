@@ -27,7 +27,7 @@ public class SER306 : Verifier<QueuedResultAnalyzer>
             }
         }
         """,
-        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync", "a transaction"));
+        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync"));
 
     /// <summary>
     /// Combined flags are still a compile-time constant, so the bit is visible through the <c>|</c>.
@@ -47,7 +47,7 @@ public class SER306 : Verifier<QueuedResultAnalyzer>
             }
         }
         """,
-        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync", "a transaction"));
+        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync"));
 
     [Fact]
     public Task BlockingOnFireAndForgetResult_IsFlagged() => VerifyAsync(
@@ -64,7 +64,7 @@ public class SER306 : Verifier<QueuedResultAnalyzer>
             }
         }
         """,
-        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync", "a transaction"));
+        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync"));
 
     [Fact]
     public Task AwaitedFireAndForgetOnBatch_IsFlagged() => VerifyAsync(
@@ -81,7 +81,7 @@ public class SER306 : Verifier<QueuedResultAnalyzer>
             }
         }
         """,
-        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringSetAsync", "a batch"));
+        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringSetAsync"));
 
     /// <summary>
     /// Not a constant, but <c>|</c> only sets bits - so the flag is there whatever <c>flags</c> holds.
@@ -101,7 +101,7 @@ public class SER306 : Verifier<QueuedResultAnalyzer>
             }
         }
         """,
-        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync", "a transaction"));
+        Diagnostic("SER306").WithLocation(0).WithLocation(1).WithArguments("StringGetAsync"));
 
     /// <summary>
     /// The other side of that coin, and the reason the test exists: <c>&amp;~</c> would prove the flag *absent*,
@@ -157,7 +157,11 @@ public class SER306 : Verifier<QueuedResultAnalyzer>
         }
         """);
 
-    /// <summary>Fire-and-forget straight to the database is ordinary code and says nothing to this rule.</summary>
+    /// <summary>
+    /// Away from a transaction, *awaiting* fire-and-forget is a no-op await rather than a mistake, and is far
+    /// too common to flag - the library's own tests contain hundreds. Blocking on one is a different matter,
+    /// and is covered in <see cref="SER307"/>.
+    /// </summary>
     [Fact]
     public Task AwaitedFireAndForgetOnDatabase_IsClean() => VerifyAsync(
         """
@@ -168,6 +172,21 @@ public class SER306 : Verifier<QueuedResultAnalyzer>
             public async Task M(IDatabase db, RedisKey key)
             {
                 await db.StringSetAsync(key, "value", flags: CommandFlags.FireAndForget);
+            }
+        }
+        """);
+
+    /// <summary>...but an ordinary await, with no fire-and-forget, is exactly right and says nothing.</summary>
+    [Fact]
+    public Task AwaitedOnDatabase_IsClean() => VerifyAsync(
+        """
+        using StackExchange.Redis;
+        using System.Threading.Tasks;
+        class C
+        {
+            public async Task M(IDatabase db, RedisKey key)
+            {
+                await db.StringSetAsync(key, "value");
             }
         }
         """);

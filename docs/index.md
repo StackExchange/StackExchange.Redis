@@ -1,4 +1,4 @@
-StackExchange.Redis
+﻿StackExchange.Redis
 ===================
 
 - [Release Notes](ReleaseNotes)
@@ -57,6 +57,7 @@ Documentation
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
+- [Sync over async](SyncOverAsync) - why blocking on an async redis call starves the thread-pool, and what to do
 - [RESP Logging](RespLogging) - capturing and validating RESP streams
 - [Analyzer rules](rules/) - the `SER3xx` suggestions reported by the analyzer shipped in the package
 

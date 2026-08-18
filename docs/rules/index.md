@@ -1,4 +1,4 @@
-# Analyzer rules
+﻿# Analyzer rules
 
 StackExchange.Redis ships a Roslyn analyzer inside the package, so these rules are reported in your own build
 with no extra reference. Each diagnostic links here from its message.
@@ -34,6 +34,7 @@ Unlike everything under [Usage](#usage), these describe code that does not do wh
 
 - [SER305](SER305) - **error**: waiting for a queued command before `Execute[Async]` never completes
 - [SER306](SER306) - waiting for a fire-and-forget result, which is always the default value
+- [SER307](../SyncOverAsync) - blocking on a redis call instead of awaiting it ("sync over async")
 
 ## Usage
 
@@ -78,9 +79,9 @@ rare, not impossible. If one of these rules flags something it should not have, 
 than something to work around: please
 [report it](https://github.com/StackExchange/StackExchange.Redis/issues/new) with the transaction as written.
 
-Three rules are not in this family, because they are not suggesting an improvement to working code: `SER350`
-reports a build problem, and [SER305](SER305)/[SER306](SER306) report code that does not work. Those two have
-their own, much narrower quiet-lists on their own pages - they are flow-insensitive by design, so most of the
+Four rules are not in this family, because they are not suggesting an improvement to working code: `SER350`
+reports a build problem, and [SER305](SER305)/[SER306](SER306)/[SER307](../SyncOverAsync) report code that does
+not do what it looks like. Those have their own, much narrower quiet-lists on their own pages - they are flow-insensitive by design, so most of the
 caveats above (a loop, an `if`, a transaction passed elsewhere) simply do not arise.
 
 ## Declaring your server version

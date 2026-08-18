@@ -1,4 +1,4 @@
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 
 namespace StackExchange.Redis.Build;
 
@@ -212,12 +212,45 @@ internal static class Diagnostics
     public static readonly DiagnosticDescriptor AwaitFireAndForgetResult = new(
         id: "SER306",
         title: "Waiting for a fire-and-forget result yields nothing",
-        messageFormat: "'{0}' is queued on {1} as fire-and-forget, so its result is the default value whenever it is read, not the server's answer; discard it instead",
+        messageFormat: "'{0}' is fire-and-forget, so its result is the default value whenever it is read, not the server's answer; discard it, or drop the fire-and-forget flag if you want the result",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "A fire-and-forget command completes immediately with the default value and never carries a result from the server, so awaiting or blocking on it reads nothing meaningful.",
         helpLinkUri: HelpLink("SER306"));
+
+    /// <summary>
+    /// Blocking a thread on a redis call instead of awaiting it - "sync over async".
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The failure this leads to is systemic rather than local, which is why the rule is worth having: the
+    /// blocked thread is holding a thread-pool thread hostage while it waits for a reply that *also* needs a
+    /// thread-pool thread to be processed. Enough of those and the pool cannot make progress at all, and the
+    /// symptom - timeouts, with data sitting unread in the socket - looks nothing like its cause.
+    /// </para>
+    /// <para>
+    /// The help link goes to the explainer rather than to a rule page, deliberately: what people need here is
+    /// the thread-pool story, not a description of the squiggle. Fire-and-forget is excluded, since its task is
+    /// already complete and blocking on it does not wait for anything - that is
+    /// <see cref="AwaitFireAndForgetResult"/>'s business instead.
+    /// </para>
+    /// <para>
+    /// The message says "await it instead" and stops there, deliberately. The synchronous API is *not* the
+    /// answer: it is not literally sync-over-async, but a blocked thread is a blocked thread, and if the caller
+    /// is on the thread-pool - which it is in ASP.NET and anything else pool-driven - the starvation is
+    /// identical. An analyzer that pointed people at it would be sending them somewhere just as bad.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BlockingOnRedisCall = new(
+        id: "SER307",
+        title: "Blocking on a redis call instead of awaiting it",
+        messageFormat: "'{0}' is being waited on synchronously, which ties up a thread until redis replies - and the reply needs a thread of its own to be processed; await it instead",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Blocking on an asynchronous redis call holds a thread-pool thread while waiting for a reply whose processing also needs the thread-pool; enough of these will starve the pool, at which point replies cannot be processed at all.",
+        helpLinkUri: "https://stackexchange.github.io/StackExchange.Redis/SyncOverAsync");
 
     /// <summary>
     /// The generated code cannot be compiled at the language version in effect, so nothing was generated.

@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
@@ -6,15 +6,22 @@ using Microsoft.CodeAnalysis.Operations;
 namespace StackExchange.Redis.Build;
 
 /// <summary>
-/// Spots code that waits for the result of a command queued on an <c>ITransaction</c> or <c>IBatch</c> at the
-/// point of queueing, before <c>Execute[Async]</c> has sent anything (SER305, SER306).
+/// Spots the ways of consuming the task from a redis call that do not do what they look like: waiting on a
+/// queued command before it has been sent (SER305), reading a fire-and-forget result (SER306), and blocking a
+/// thread rather than awaiting (SER307).
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the mistake that "always await your tasks" teaches people to make, and it does not fail loudly: the
-/// task simply never completes, so the caller hangs. Unlike the suggestion rules in
-/// <see cref="TransactionAnalyzer"/>, this one is reported as an error - see
-/// <see cref="Diagnostics.AwaitBeforeExecute"/> for why that is safe here and is not a hedge being dropped.
+/// SER305 is the mistake that "always await your tasks" teaches people to make, and it does not fail loudly:
+/// the task simply never completes, so the caller hangs. Unlike the suggestion rules in
+/// <see cref="TransactionAnalyzer"/>, it is reported as an error - see
+/// <see cref="Diagnostics.AwaitBeforeExecute"/> for why that is safe and is not a hedge being dropped.
+/// </para>
+/// <para>
+/// The three rules share one traversal because they share one question - what is being done with the task -
+/// and differ only in the answer. The receiver decides which world we are in: on a transaction or batch
+/// nothing has been sent yet, so *any* wait is the problem; elsewhere the call is already in flight, and only
+/// blocking is. Fire-and-forget cuts across both, because there the value is settled before the call returns.
 /// </para>
 /// <para>
 /// The shapes covered are the ones that are certain without any flow analysis, because the wait is written at
@@ -38,7 +45,8 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; }
         = ImmutableArray.Create(
             Diagnostics.AwaitBeforeExecute,
-            Diagnostics.AwaitFireAndForgetResult);
+            Diagnostics.AwaitFireAndForgetResult,
+            Diagnostics.BlockingOnRedisCall);
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -60,34 +68,53 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
 
     private static void Analyze(OperationAnalysisContext context, KnownSymbols known)
     {
-        // what is being waited for, if this operation waits for anything at all
+        // what is being waited for, and how - awaiting is correct usage nearly everywhere, blocking is not
         if (Waited(context.Operation, known) is not { } waited) return;
+        if (waited.Call is not { } call || !known.IsRedis(call.Instance?.Type)) return;
+        if (known.IsTerminator(call.TargetMethod)) return;
 
-        // ...and is that a command queued on a transaction or batch?
-        if (waited is not IInvocationOperation queued) return;
-        if (!known.IsQueueing(queued.Instance?.Type)) return;
-        if (known.IsTerminator(queued.TargetMethod)) return;
+        var flags = FireAndForget(call, known);
+        var queued = known.IsQueueing(call.Instance?.Type);
 
-        // The command flags decide which of the two rules applies, and an unknown value picks neither: a
-        // non-constant argument may or may not carry FireAndForget at run-time, and we would be guessing in
-        // both directions. Guessing wrong on SER305 means an error on legal code, so silence is the answer.
-        var flags = FireAndForget(queued, known);
-        if (flags == FireAndForgetState.Unknown) return;
+        var descriptor = (queued, flags, waited.Blocking) switch
+        {
+            // Queued on a transaction or batch: nothing has been sent, so the task cannot complete and this
+            // waits forever - unless fire-and-forget already completed it. An unknown flags value picks
+            // neither, because guessing wrong on SER305 is a build error on legal code.
+            (true, FireAndForgetState.Set, _) => Diagnostics.AwaitFireAndForgetResult,
+            (true, FireAndForgetState.Clear, _) => Diagnostics.AwaitBeforeExecute,
+            (true, _, _) => null,
 
-        var descriptor = flags == FireAndForgetState.Set
-            ? Diagnostics.AwaitFireAndForgetResult
-            : Diagnostics.AwaitBeforeExecute;
+            // An ordinary redis call, already in flight: only *blocking* is a problem, and awaiting is exactly
+            // what you should be doing. Blocking on fire-and-forget is its own case - it waits for nothing,
+            // since the task was complete before the call returned - so it gets SER306's advice, not SER307's.
+            //
+            // Note the await of a fire-and-forget result is deliberately NOT reported here, though it is when
+            // queued. `await db.KeyDeleteAsync(key, FireAndForget);` is a no-op await rather than a mistake,
+            // and this repo alone contains 416 of them: a rule that noisy would be turned off wholesale, and
+            // would take SER305 with it.
+            (false, FireAndForgetState.Set, true) => Diagnostics.AwaitFireAndForgetResult,
+            (false, _, true) => Diagnostics.BlockingOnRedisCall,
+            (false, _, false) => null,
+        };
+
+        if (descriptor is null) return;
 
         // Reported on the whole wait - "await tran.StringGetAsync(key)" - because that expression is the thing
         // that is wrong; the call inside it is fine. The call is carried as an additional location so the code
         // fix can find it without re-deriving the unwrapping below in a second assembly.
+        // only SER305 names the receiver ("queued on a transaction"); the other two are about the call itself,
+        // and passing them a description they do not use would put "a batch" behind a plain database
+        var args = ReferenceEquals(descriptor, Diagnostics.AwaitBeforeExecute)
+            ? new object[] { call.TargetMethod.Name, Describe(call.Instance?.Type, known) }
+            : new object[] { call.TargetMethod.Name };
+
         context.ReportDiagnostic(Diagnostic.Create(
             descriptor,
             context.Operation.Syntax.GetLocation(),
-            additionalLocations: new[] { queued.Syntax.GetLocation() },
+            additionalLocations: new[] { call.Syntax.GetLocation() },
             properties: null,
-            queued.TargetMethod.Name,
-            Describe(queued.Instance?.Type, known)));
+            args));
     }
 
     /// <summary>
@@ -96,24 +123,28 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
     /// <remarks>
     /// The three await-pattern members are matched by name rather than by symbol, which is what the language
     /// itself does for <c>GetAwaiter</c>/<c>GetResult</c> - and is safe regardless, because the caller still
-    /// requires the unwrapped operation to be a queued command before anything is reported.
+    /// requires the unwrapped operation to be a redis call before anything is reported.
+    /// <para>
+    /// <c>Blocking</c> is the distinction that matters away from transactions: awaiting is correct usage of an
+    /// async API, while blocking on it holds a thread for the round-trip (SER307).
+    /// </para>
     /// </remarks>
-    private static IOperation? Waited(IOperation operation, KnownSymbols known) => operation switch
+    private static (IInvocationOperation? Call, bool Blocking)? Waited(IOperation operation, KnownSymbols known) => operation switch
     {
         // await tran.StringGetAsync(key)
-        IAwaitOperation await => Unwrap(await.Operation),
+        IAwaitOperation await => (Unwrap(await.Operation) as IInvocationOperation, false),
 
-        // tran.StringGetAsync(key).Result
+        // db.StringGetAsync(key).Result
         IPropertyReferenceOperation { Property.Name: "Result", Instance: { } instance } when known.IsTask(instance.Type)
-            => Unwrap(instance),
+            => (Unwrap(instance) as IInvocationOperation, true),
 
-        // tran.StringGetAsync(key).Wait()
+        // db.StringGetAsync(key).Wait()
         IInvocationOperation { TargetMethod.Name: "Wait", Instance: { } instance } when known.IsTask(instance.Type)
-            => Unwrap(instance),
+            => (Unwrap(instance) as IInvocationOperation, true),
 
-        // tran.StringGetAsync(key).GetAwaiter().GetResult()
+        // db.StringGetAsync(key).GetAwaiter().GetResult()
         IInvocationOperation { TargetMethod.Name: "GetResult", Instance: IInvocationOperation { TargetMethod.Name: "GetAwaiter", Instance: { } instance } }
-            => Unwrap(instance),
+            => (Unwrap(instance) as IInvocationOperation, true),
 
         _ => null,
     };
@@ -204,8 +235,9 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
 
     private sealed class KnownSymbols
     {
-        private KnownSymbols(INamedTypeSymbol? batch, INamedTypeSymbol? transactionAsync, INamedTypeSymbol? transaction, INamedTypeSymbol? commandFlags, INamedTypeSymbol? task, int? fireAndForgetValue)
+        private KnownSymbols(INamedTypeSymbol? redisAsync, INamedTypeSymbol? batch, INamedTypeSymbol? transactionAsync, INamedTypeSymbol? transaction, INamedTypeSymbol? commandFlags, INamedTypeSymbol? task, int? fireAndForgetValue)
         {
+            RedisAsync = redisAsync;
             Batch = batch;
             TransactionAsync = transactionAsync;
             Transaction = transaction;
@@ -213,6 +245,9 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
             Task = task;
             FireAndForgetValue = fireAndForgetValue;
         }
+
+        /// <summary>The root of every async redis surface: IDatabaseAsync, IServer and ISubscriber all derive from it.</summary>
+        private INamedTypeSymbol? RedisAsync { get; }
 
         private INamedTypeSymbol? Batch { get; }
         private INamedTypeSymbol? TransactionAsync { get; }
@@ -230,9 +265,10 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
             // IBatch and ITransactionAsync are the two roots of the queueing surface, and neither derives from
             // the other: ITransaction implements both, while IBatch is reachable on its own from CreateBatch.
             // No queueing type at all => not our library, or not a version with one; either way, nothing here.
+            var redisAsync = compilation.GetTypeByMetadataName("StackExchange.Redis.IRedisAsync");
             var batch = compilation.GetTypeByMetadataName("StackExchange.Redis.IBatch");
             var transactionAsync = compilation.GetTypeByMetadataName("StackExchange.Redis.ITransactionAsync");
-            if (batch is null && transactionAsync is null) return null;
+            if (redisAsync is null && batch is null && transactionAsync is null) return null;
 
             var commandFlags = compilation.GetTypeByMetadataName("StackExchange.Redis.CommandFlags");
             int? fireAndForget = null;
@@ -249,6 +285,7 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
             }
 
             return new KnownSymbols(
+                redisAsync,
                 batch,
                 transactionAsync,
                 compilation.GetTypeByMetadataName("StackExchange.Redis.ITransaction"),
@@ -256,6 +293,9 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
                 compilation.GetTypeByMetadataName("System.Threading.Tasks.Task"),
                 fireAndForget);
         }
+
+        /// <summary>Whether this receiver is any asynchronous redis surface at all.</summary>
+        public bool IsRedis(ITypeSymbol? type) => Implements(type, RedisAsync);
 
         /// <summary>Whether commands on this receiver are queued rather than sent.</summary>
         public bool IsQueueing(ITypeSymbol? type)
