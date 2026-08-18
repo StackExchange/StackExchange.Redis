@@ -86,13 +86,21 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     // told not to expect.
     //
     // The flags are captured inside TState, so this is the one thing the generated struct is asked to expose
-    // (IFlaggedRedisArgs). Testing a generic value against an interface boxes in IL - but value-type generics
-    // are not shared, so the JIT knows the exact TState, devirtualizes the property to a field load and drops
-    // the allocation; measured at 0 bytes/call. It only does that in optimized code, and this method is small
-    // and hot enough that starting in tier-0 is the difference between 0 and 24 bytes per queued operation.
-    // A cast instead of the `is` pattern does not avoid the box - it was measured too, and is no better.
+    // (IFlaggedRedisArgs). Testing a generic value against an interface boxes in IL, and this sits on every
+    // queued operation - but value-type generics are not shared, so the JIT knows the exact TState and
+    // compiles the whole thing to a field load with no allocator call at all (11 bytes of machine code).
+    //
+    // Measured on net10.0 rather than reasoned about, because none of it is obvious - bytes per call:
+    //
+    //   `is` pattern, tier-0 ......... 24     `is` pattern, optimized ....... 0
+    //   cast instead of `is` ......... 24     ...with AggressiveOptimization  0
+    //
+    // Two findings worth keeping. Rewriting the `is` pattern as a cast does *not* avoid the box - both
+    // spellings emit the same one - so the attribute below is the fix rather than a different expression.
+    // And a TState *without* the interface costs nothing even in tier-0: the test folds to a constant and
+    // the dead box is removed, so the states that captured no flags never pay for this at all.
 
-    // skips tiering, so the box above is elided from the first call rather than only after tier-1 promotion
+    // skips tiering, so the above is free from the first call rather than only after tier-1 promotion
 #if NET
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
 #endif
