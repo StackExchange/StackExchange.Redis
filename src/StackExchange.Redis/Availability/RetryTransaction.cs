@@ -270,13 +270,17 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             _proxy = fireAndForget ? null : new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
+        // the ! is an annotation artifact, not a null: TResult is unconstrained, so Task<TResult?> and
+        // Task<TResult> are the same type - Default simply spells its return the other way round
         public Task<TResult> Proxy => _proxy?.Task ?? CompletedTask<TResult>.Default(null)!;
 
         public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
         public void ForwardSuccess()
         {
-            if (_proxy is null) return; // fire-and-forget: no proxy to forward onto, and nothing to report
+            // fire-and-forget: Forward guards too, so this is here to skip the continuation below rather than
+            // for correctness - there is no point registering one to settle a proxy that does not exist
+            if (_proxy is null) return;
 
             var attempt = _attempt!;
             if (attempt.IsCompleted)
@@ -299,9 +303,13 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 
         private void Forward(Task<TResult> attempt)
         {
-            if (attempt.IsCanceled) _proxy!.TrySetCanceled();
-            else if (attempt.IsFaulted) _proxy!.TrySetException(attempt.Exception!.InnerExceptions);
-            else _proxy!.TrySetResult(attempt.GetAwaiter().GetResult());
+            // a null proxy is fire-and-forget; `?.` then skips the argument too, including the Exception
+            // access that would otherwise observe a fault. Safe only because such an attempt is the shared
+            // completed task RedisTransaction hands back for F+F, so it cannot fault - see Observe for the
+            // attempts that can.
+            if (attempt.IsCanceled) _proxy?.TrySetCanceled();
+            else if (attempt.IsFaulted) _proxy?.TrySetException(attempt.Exception!.InnerExceptions);
+            else _proxy?.TrySetResult(attempt.GetAwaiter().GetResult());
         }
 
         // observe the (faulted) inner attempt before faulting the durable proxy, so the discarded
@@ -359,9 +367,10 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 
         private void Forward(Task attempt)
         {
-            if (attempt.IsCanceled) _proxy!.TrySetCanceled();
-            else if (attempt.IsFaulted) _proxy!.TrySetException(attempt.Exception!.InnerExceptions);
-            else _proxy!.TrySetResult(true);
+            // see RecordedOp.Forward for why `?.` is safe here
+            if (attempt.IsCanceled) _proxy?.TrySetCanceled();
+            else if (attempt.IsFaulted) _proxy?.TrySetException(attempt.Exception!.InnerExceptions);
+            else _proxy?.TrySetResult(true);
         }
 
         // observe the (faulted) inner attempt before faulting the durable proxy, so the discarded
