@@ -12,6 +12,11 @@ theme: jekyll-theme-cayman
 # GitHub's default config turns it on; the package comes from NuGet, not a tarball.
 show_downloads: false
 
+# Cayman renders the page title in its header banner, and the title comes from each page's
+# first heading - so without this the heading reads twice, banner then body.
+titles_from_headings:
+  strip_title: true
+
 # Not in the always-on GitHub Pages plugin set, so it has to be asked for; generates
 # sitemap.xml and robots.txt, neither of which the site had.
 plugins:
