@@ -33,7 +33,7 @@ From 3.0, [release notes will be maintained in GitHub only](https://github.com/S
 
 ***IMPORTANT:*** This release changes the default protocol from RESP2 to RESP3 for Azure Managed Redis endpoints (only) ; this
 has scalability and feature advantages, but if you are using modules or ad-hoc commands,
-*[please see the RESP3 notes](https://stackexchange.github.io/StackExchange.Redis/Resp3)*,
+*[please see the RESP3 notes](https://seredis.dev/Resp3)*,
 which includes:
 
 - the purpose of RESP3
@@ -167,7 +167,7 @@ Changes:
 
 - Add support for new `BITOP` operations in CE 8.2 ([#2900 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2900))
 - Package updates ([#2906 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2906))
-- Docs: added [guidance on async timeouts](https://stackexchange.github.io/StackExchange.Redis/AsyncTimeouts) ([#2910 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2910))
+- Docs: added [guidance on async timeouts](https://seredis.dev/AsyncTimeouts) ([#2910 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2910))
 - Fix handshake error with `CLIENT ID` ([#2909 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2909))
 
 ## 2.8.41
@@ -215,14 +215,14 @@ Changes:
 
 ## 2.8.0
 
-- Add high-integrity mode ([docs](https://stackexchange.github.io/StackExchange.Redis/Configuration), [#2471 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2741))
+- Add high-integrity mode ([docs](https://seredis.dev/Configuration), [#2471 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2741))
 - TLS certificate/`TrustIssuer`: Check EKU in X509 chain checks when validating certificates ([#2670 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2670))
 
 ## 2.7.33
 
 - **Potentially Breaking**: Fix `CheckTrustedIssuer` certificate validation for broken chain scenarios ([#2665 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2665))
   - Users inadvertently trusting a remote cert with a broken chain could not be failing custom validation before this change. This is only in play if you are using `ConfigurationOptions.TrustIssuer` at all.
-- Add new `LoggingTunnel` API; see [https://stackexchange.github.io/StackExchange.Redis/RespLogging](https://stackexchange.github.io/StackExchange.Redis/RespLogging) ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
+- Add new `LoggingTunnel` API; see [https://seredis.dev/RespLogging](https://seredis.dev/RespLogging) ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
 - Fix [#2664](https://github.com/StackExchange/StackExchange.Redis/issues/2664): Move ProcessBacklog to fully sync to prevent thread pool hopping and blocking on awaits ([#2667 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2667))
 
 ## 2.7.27
@@ -254,7 +254,7 @@ Changes:
 
 ## 2.7.4
 
-- Adds: RESP3 support ([#2396 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2396)) - see https://stackexchange.github.io/StackExchange.Redis/Resp3
+- Adds: RESP3 support ([#2396 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2396)) - see https://seredis.dev/Resp3
 - Fix [#2507](https://github.com/StackExchange/StackExchange.Redis/issues/2507): Pub/sub with multi-item payloads should be usable ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
 - Add: connection-id tracking (internal only, no public API) ([#2508 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2508))
 - Add: `ConfigurationOptions.LoggerFactory` for logging to an `ILoggerFactory` (e.g. `ILogger`) all connection and error events ([#2051 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2051))
@@ -338,7 +338,7 @@ Changes:
 - Fix [#1968](https://github.com/StackExchange/StackExchange.Redis/issues/1968): Improved handling of EVAL scripts during server restarts and failovers, detecting and re-sending the script for a retry when needed ([#2170 by martintmk](https://github.com/StackExchange/StackExchange.Redis/pull/2170))
 - Adds: `ConfigurationOptions.SslClientAuthenticationOptions` (`netcoreapp3.1`/`net5.0`+ only) to give more control over SSL/TLS authentication ([#2224 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2224))
 - Fix [#2240](https://github.com/StackExchange/StackExchange.Redis/pull/2241): Improve support for DNS-based IPv6 endpoints ([#2241 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2241))
-- Adds: `ConfigurationOptions.HeartbeatInterval` (**Advanced Setting** - [see docs](https://stackexchange.github.io/StackExchange.Redis/Configuration#configuration-options)) To allow more finite control of the client heartbeat, which encompases how often command timeouts are actually evaluated - still defaults to 1,000 ms ([#2243 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2243))
+- Adds: `ConfigurationOptions.HeartbeatInterval` (**Advanced Setting** - [see docs](https://seredis.dev/Configuration#configuration-options)) To allow more finite control of the client heartbeat, which encompases how often command timeouts are actually evaluated - still defaults to 1,000 ms ([#2243 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2243))
 - Fix [#1879](https://github.com/StackExchange/StackExchange.Redis/issues/1879): Improve exception message when the wrong password is used ([#2246 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2246))
 - Fix [#2233](https://github.com/StackExchange/StackExchange.Redis/issues/2233): Repeated connection to Sentinel servers using the same ConfigurationOptions would fail ([#2242 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2242))
 
@@ -529,7 +529,7 @@ Changes:
 - Fix: Ensure active-message is cleared ([#1374 by hamish-omny](https://github.com/StackExchange/StackExchange.Redis/pull/1374))
 - Adds: Sentinel support ([#1067 by shadim](https://github.com/StackExchange/StackExchange.Redis/pull/1067), [#692 by lexxdark](https://github.com/StackExchange/StackExchange.Redis/pull/692))
 - Adds: `IAsyncEnumerable<T>` scanning APIs now supported ([#1087 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/1087))
-- Adds: New API for use with misbehaving sync-contexts ([more info](https://stackexchange.github.io/StackExchange.Redis/ThreadTheft))
+- Adds: New API for use with misbehaving sync-contexts ([more info](https://seredis.dev/ThreadTheft))
 - Adds: `TOUCH` support ([#1291 by gkorland](https://github.com/StackExchange/StackExchange.Redis/pull/1291))
 - Adds: `Condition` API (transactions) now supports `SortedSetLengthEqual` ([#1332 by phosphene47](https://github.com/StackExchange/StackExchange.Redis/pull/1332))
 - Adds: `SocketManager` is now more configurable ([#1115 by naile](https://github.com/StackExchange/StackExchange.Redis/pull/1115))
@@ -609,7 +609,7 @@ Changes:
   only releasing `StackExchange.Redis` (strong-named). This is a binary breaking change that requires consumers to be re-compiled; it cannot be applied via binding-redirects
 - **Hard Break**: The platform targets have been rationalized - supported targets are .NETStandard 2.0 (and above), .NETFramework 4.6.1 (and above), and .NETFramework 4.7.2 (and above)
   (note - the last two are mainly due to assembly binding problems)
-- **Hard Break**: The profiling API has been overhauled and simplified; full documentation is [provided here](https://stackexchange.github.io/StackExchange.Redis/Profiling_v2.html)
+- **Hard Break**: The profiling API has been overhauled and simplified; full documentation is [provided here](https://seredis.dev/Profiling_v2.html)
 - **Soft Break**: The `PreserveAsyncOrder` behaviour of the pub/sub API has been deprecated; a *new* API has been provided for scenarios that require in-order pub/sub handling -
   the `Subscribe` method has a new overload *without* a handler parameter which returns a `ChannelMessageQueue`, which provides `async` ordered access to messages)
 - Internal: The network architecture has moved to use `System.IO.Pipelines`; this has allowed us to simplify and unify a lot of the network code, and in particular fix a lot of problems relating to how the library worked with TLS and/or .NETStandard

@@ -6,7 +6,7 @@
     internal static class Experiments
     {
         // note: {0} is substituted with the DiagnosticId by the analyzer, e.g. .../exp/SER002
-        public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/{0}";
+        public const string UrlFormat = "https://seredis.dev/exp/{0}";
 
         // Retired experiments: these server features are now stable and no longer gated.
         // The DiagnosticIds remain reserved (do NOT reuse them) so old callers' suppressions
