@@ -127,6 +127,12 @@ Two caveats worth knowing before you enable it:
   very wide cluster, where connection count scales with the number of shards;
 - it is deliberately opt-in, and set process-wide at startup rather than per-connection.
 
+Neither is meant to be permanent, and the first one especially. Work is in progress on dedicated readers built
+over the platform's native completion machinery — `io_uring` on Linux, IOCP on Windows — which would service
+many connections from a small fixed set of threads rather than a pair per connection. That is the thing that
+would make this practical at any width. There is no date on it, and nothing here depends on it; but if you
+have read the caveat above and thought "not with my shard count", the answer is "not yet" rather than "no".
+
 ## Fire-and-forget is a special case
 
 `CommandFlags.FireAndForget` returns an already-completed task carrying the default value, so blocking on one
