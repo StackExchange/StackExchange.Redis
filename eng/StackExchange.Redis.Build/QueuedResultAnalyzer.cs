@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using System.Collections.Generic;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
@@ -46,7 +47,8 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
         = ImmutableArray.Create(
             Diagnostics.AwaitBeforeExecute,
             Diagnostics.AwaitFireAndForgetResult,
-            Diagnostics.BlockingOnRedisCall);
+            Diagnostics.BlockingOnRedisCall,
+            Diagnostics.BlockingHelper);
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -68,6 +70,17 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
 
     private static void Analyze(OperationAnalysisContext context, KnownSymbols known)
     {
+        // SER308 is a plain call rather than a wait wrapped around one, so it is answered first and on its
+        // own terms: the blocking is inside the helper, and there is nothing here to unwrap
+        if (context.Operation is IInvocationOperation helper && known.IsBlockingHelper(helper.TargetMethod))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                Diagnostics.BlockingHelper,
+                helper.Syntax.GetLocation(),
+                helper.TargetMethod.Name));
+            return;
+        }
+
         // what is being waited for, and how - awaiting is correct usage nearly everywhere, blocking is not
         if (Waited(context.Operation, known) is not { } waited) return;
         if (waited.Call is not { } call || !known.IsRedis(call.Instance?.Type)) return;
@@ -235,8 +248,9 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
 
     private sealed class KnownSymbols
     {
-        private KnownSymbols(INamedTypeSymbol? redisAsync, INamedTypeSymbol? batch, INamedTypeSymbol? transactionAsync, INamedTypeSymbol? transaction, INamedTypeSymbol? commandFlags, INamedTypeSymbol? task, int? fireAndForgetValue)
+        private KnownSymbols(List<IMethodSymbol> blockingHelpers, INamedTypeSymbol? redisAsync, INamedTypeSymbol? batch, INamedTypeSymbol? transactionAsync, INamedTypeSymbol? transaction, INamedTypeSymbol? commandFlags, INamedTypeSymbol? task, int? fireAndForgetValue)
         {
+            BlockingHelpers = blockingHelpers;
             RedisAsync = redisAsync;
             Batch = batch;
             TransactionAsync = transactionAsync;
@@ -245,6 +259,15 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
             Task = task;
             FireAndForgetValue = fireAndForgetValue;
         }
+
+        /// <summary>
+        /// <c>Wait</c>/<c>WaitAll</c>/<c>TryWait</c>, gathered from both declaring interfaces.
+        /// </summary>
+        /// <remarks>
+        /// Two unrelated interfaces declare these - IRedisAsync for database/server/subscriber calls, and
+        /// IConnectionMultiplexer for its own - so one lookup would silently cover only half the surface.
+        /// </remarks>
+        private List<IMethodSymbol> BlockingHelpers { get; }
 
         /// <summary>The root of every async redis surface: IDatabaseAsync, IServer and ISubscriber all derive from it.</summary>
         private INamedTypeSymbol? RedisAsync { get; }
@@ -284,7 +307,18 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
                 }
             }
 
+            var blockingHelpers = new List<IMethodSymbol>();
+            foreach (var declaring in new[] { redisAsync, compilation.GetTypeByMetadataName("StackExchange.Redis.IConnectionMultiplexer") })
+            {
+                if (declaring is null) continue;
+                foreach (var member in declaring.GetMembers())
+                {
+                    if (member is IMethodSymbol { Name: "Wait" or "WaitAll" or "TryWait" } helper) blockingHelpers.Add(helper);
+                }
+            }
+
             return new KnownSymbols(
+                blockingHelpers,
                 redisAsync,
                 batch,
                 transactionAsync,
@@ -292,6 +326,39 @@ public sealed class QueuedResultAnalyzer : DiagnosticAnalyzer
                 commandFlags,
                 compilation.GetTypeByMetadataName("System.Threading.Tasks.Task"),
                 fireAndForget);
+        }
+
+        /// <summary>
+        /// Whether this is one of the library's own blocking helpers - <c>Wait</c>, <c>WaitAll</c>,
+        /// <c>TryWait</c> - on either of the two unrelated interfaces that declare them.
+        /// </summary>
+        /// <remarks>
+        /// Matched through <c>FindImplementationForInterfaceMember</c> as well as directly, so a call on a
+        /// class rather than an interface still counts. That is not a corner case here: ConnectionMultiplexer
+        /// is what Connect returns, so <c>conn.Wait(task)</c> is the common shape and its containing type is
+        /// the class.
+        /// </remarks>
+        public bool IsBlockingHelper(IMethodSymbol method)
+        {
+            if (BlockingHelpers.Count == 0) return false;
+            if (method.Name is not ("Wait" or "WaitAll" or "TryWait")) return false; // cheap reject first
+
+            foreach (var helper in BlockingHelpers)
+            {
+                if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, helper)) return true;
+            }
+
+            var containing = method.ContainingType;
+            if (containing is null) return false;
+            foreach (var helper in BlockingHelpers)
+            {
+                if (SymbolEqualityComparer.Default.Equals(containing.FindImplementationForInterfaceMember(helper), method.OriginalDefinition))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>Whether this receiver is any asynchronous redis surface at all.</summary>

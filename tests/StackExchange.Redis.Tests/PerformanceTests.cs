@@ -40,7 +40,9 @@ public class PerformanceTests(ITestOutputHelper output) : TestBase(output)
             var final = new Task<RedisValue>[5];
             for (int db = 0; db < 5; db++)
                 final[db] = conn.GetDatabase(db).StringGetAsync(key);
+            #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
             conn.WaitAll(final);
+            #pragma warning restore SER308
             timer.Stop();
             asyncTimer = (int)timer.ElapsedMilliseconds;
             Log("async to completion (local): {0}ms", timer.ElapsedMilliseconds);

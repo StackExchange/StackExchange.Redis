@@ -248,7 +248,9 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
             allTasks.Add(finalResult);
         }
 
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         conn.WaitAll(allTasks.ToArray());
+        #pragma warning restore SER308
 
         var res = session.FinishProfiling();
         Assert.True(res.GetType().IsValueType);

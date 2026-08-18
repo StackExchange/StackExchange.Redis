@@ -214,8 +214,10 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
 
         var db = conn.GetDatabase();
         _ = db.KeyDeleteAsync("keynotexist");
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         var result1 = db.Wait(db.HashIncrementAsync("keynotexist", "fieldnotexist", 1));
         var result2 = db.Wait(db.HashIncrementAsync("keynotexist", "anotherfieldnotexist", 1));
+        #pragma warning restore SER308
         Assert.Equal(1, result1);
         Assert.Equal(1, result2);
     }
@@ -636,8 +638,10 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
 
         var result1 = db.HashGetAllAsync(hashkey);
 
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         Assert.Empty(conn.Wait(result0));
         var result = conn.Wait(result1).ToStringDictionary();
+        #pragma warning restore SER308
         Assert.Equal(2, result.Count);
         Assert.Equal("abc", result["foo"]);
         Assert.Equal("def", result["bar"]);
@@ -664,7 +668,9 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
         };
         _ = db.HashSetAsync(hashkey, data).ForAwait();
 
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         var result1 = db.Wait(db.HashGetAllAsync(hashkey));
+        #pragma warning restore SER308
 
         Assert.Empty(result0.Result);
         var result = result1.ToStringDictionary();

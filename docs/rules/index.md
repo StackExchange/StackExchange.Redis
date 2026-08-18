@@ -35,6 +35,7 @@ Unlike everything under [Usage](#usage), these describe code that does not do wh
 - [SER305](SER305) - **error**: waiting for a queued command before `Execute[Async]` never completes
 - [SER306](SER306) - waiting for a fire-and-forget result, which is always the default value
 - [SER307](../SyncOverAsync) - blocking on a redis call instead of awaiting it ("sync over async")
+- [SER308](../SyncOverAsync) - the same, via the library's own `Wait`/`WaitAll`/`TryWait` helpers
 
 ## Usage
 

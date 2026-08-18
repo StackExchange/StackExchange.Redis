@@ -1,8 +1,8 @@
 ﻿# Sync over async, and thread-pool starvation
 
-If you are here from a `SER307` warning or a support conversation: this page explains why blocking on an
-asynchronous redis call is worse than it looks, why the symptom shows up somewhere else entirely, and what to
-do about it.
+If you are here from a `SER307` or `SER308` warning, or from a support conversation: this page explains why
+blocking on an asynchronous redis call is worse than it looks, why the symptom shows up somewhere else
+entirely, and what to do about it.
 
 ## The short version
 
@@ -134,6 +134,16 @@ many connections from a small fixed set of threads rather than a pair per connec
 would make this practical at any width. There is no date on it, and nothing here depends on it; but if you
 have read the caveat above and thought "not with my shard count", the answer is "not yet" rather than "no".
 
+### The `Wait` helpers are the same thing
+
+`Wait`, `WaitAll` and `TryWait` — on `IDatabase`/`IServer`/`ISubscriber` via `IRedisAsync`, and on
+`IConnectionMultiplexer` — are the library's own blocking helpers, and everything above applies to them: the
+calling thread is held for the round-trip while the reply needs a thread of its own.
+
+They are **not worse** than `.Result` — they apply the multiplexer's configured timeout, so they fail rather
+than hanging forever — but that is a better *failure*, not an escaped problem. `SER308` flags them; await the
+task instead.
+
 ## Fire-and-forget is a special case
 
 `CommandFlags.FireAndForget` returns an already-completed task carrying the default value, so blocking on one
@@ -146,17 +156,18 @@ if you actually want a result — see `SER306`.
 The package ships a Roslyn analyzer that flags these at build time:
 
 - **`SER307`** — blocking on a redis call instead of awaiting it. This page is what it links to.
+- **`SER308`** — the same, through the library's own `Wait`/`WaitAll`/`TryWait` helpers.
 - **`SER306`** — reading a fire-and-forget result, which is always the default value. SER307 hands that case
   to this rule, since blocking on an already-completed task is not what starves anything.
 
 See [Analyzer rules](rules/) for the full set, including the transaction rules, which describe a different
 problem.
 
-### Turning SER307 off
+### Turning these off
 
-It is a **warning**, so a build with `TreatWarningsAsErrors` will fail until you act on it or turn it down.
-Nobody is going to rewrite a large codebase in an afternoon, and a rule you cannot silence is a rule people
-rip out entirely, so:
+Both are **warnings**, so a build with `TreatWarningsAsErrors` will fail until you act on them or turn them
+down. Nobody is going to rewrite a large codebase in an afternoon, and a rule you cannot silence is a rule
+people rip out entirely, so:
 
 For a single call site you have decided about — a legacy entry point, an interface you do not control:
 
@@ -167,14 +178,19 @@ For a single call site you have decided about — a legacy entry point, an inter
 For a project, while you work through it:
 
 ```xml
-<NoWarn>$(NoWarn);SER307</NoWarn>
+<NoWarn>$(NoWarn);SER307;SER308</NoWarn>
 ```
 
-Or turn it down rather than off, so it stays visible in the IDE without failing builds — in `.editorconfig`:
+Or turn them down rather than off, so they stay visible in the IDE without failing builds — in
+`.editorconfig`:
 
 ```ini
 dotnet_diagnostic.SER307.severity = suggestion   # or none, silent, warning, error
+dotnet_diagnostic.SER308.severity = suggestion
 ```
+
+Note these are IDs of our own rather than `CS0618`, and that is the point: silencing them silences *this*,
+not every deprecation you have ever taken a dependency on.
 
 Worth saying plainly: suppressing it does not make the problem go away, and if you are here because of
 timeouts then this rule is pointing at their cause. The `#pragma` form is the one to prefer where you can,

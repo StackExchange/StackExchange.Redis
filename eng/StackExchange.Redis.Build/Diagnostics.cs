@@ -253,6 +253,45 @@ internal static class Diagnostics
         helpLinkUri: "https://seredis.dev/SyncOverAsync");
 
     /// <summary>
+    /// Calling the library's own blocking helpers - <c>Wait</c>, <c>WaitAll</c>, <c>TryWait</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Same problem as <see cref="BlockingOnRedisCall"/> - a thread held for the round-trip, while the reply
+    /// needs a thread of its own - but reached through the API the library itself offers for it, rather than
+    /// through <c>.Result</c>. Shipping SER307 while the library provided a blessed way to do the same thing
+    /// was only ever half a position.
+    /// </para>
+    /// <para>
+    /// This is a rule rather than <c>[Obsolete]</c> deliberately, and the reason is about how it is turned
+    /// off. <c>[Obsolete]</c> reports <c>CS0618</c>, which is shared with every obsoletion from every source,
+    /// so a consumer who wants to silence *this* has to silence *all* of them - including deprecations in
+    /// their own code and in unrelated packages. <c>ObsoleteAttribute.DiagnosticId</c> would solve that, but
+    /// it is net5+ and this library still targets netstandard2.0, so it would give a granular ID on some
+    /// target frameworks and <c>CS0618</c> on others. An ID of our own behaves the same everywhere, and sits
+    /// with the rest of the family. <c>[Experimental]</c> was considered and rejected: it is granular, but
+    /// these APIs are long-standing rather than preview, so it would be saying something untrue.
+    /// </para>
+    /// <para>
+    /// Worth revisiting rather than settled: if netstandard2.0 and net4x are ever dropped, the attribute
+    /// becomes strictly the better instrument - it is metadata, so it needs no analyzer to be loaded and
+    /// works in every tool - and this rule could retire in its favour. A hybrid was considered now and is
+    /// not worth it: the attribute would need <c>#if</c> on the interface *and* on ConnectionMultiplexer's
+    /// own members (marking only the interface does not warn through the class), and on modern targets both
+    /// mechanisms would report at the same location.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BlockingHelper = new(
+        id: "SER308",
+        title: "Blocking on a task through the library's Wait helpers",
+        messageFormat: "'{0}' blocks the calling thread until the task completes, and the reply needs a thread of its own to be processed; await the task instead",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The Wait/WaitAll/TryWait helpers block the calling thread while waiting for a reply whose processing also needs the thread-pool; enough of these will starve the pool.",
+        helpLinkUri: "https://seredis.dev/SyncOverAsync");
+
+    /// <summary>
     /// The generated code cannot be compiled at the language version in effect, so nothing was generated.
     /// </summary>
     /// <remarks>
