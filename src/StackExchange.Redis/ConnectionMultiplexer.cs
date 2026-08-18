@@ -20,7 +20,7 @@ namespace StackExchange.Redis
     /// Represents an inter-related group of connections to redis servers.
     /// A reference to this should be held and re-used.
     /// </summary>
-    /// <remarks><seealso href="https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers"/></remarks>
+    /// <remarks><seealso href="https://seredis.dev/PipelinesMultiplexers"/></remarks>
     public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
         // This gets accessed for every received event; let's make sure we can process it "raw"

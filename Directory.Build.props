@@ -13,7 +13,7 @@
     <!-- SER002/SER003/SER006 retired (Redis 8.4/8.6/8.8 features no longer experimental); IDs reserved, see Experiments.cs -->
     <NoWarn>$(NoWarn);NU5105;NU1507;SER001;SER004;SER005;SER007;SER008;SER009</NoWarn>
     <PackageReleaseNotes>https://github.com/StackExchange/StackExchange.Redis/releases</PackageReleaseNotes>
-    <PackageProjectUrl>https://stackexchange.github.io/StackExchange.Redis/</PackageProjectUrl>
+    <PackageProjectUrl>https://seredis.dev/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
     <LangVersion>14</LangVersion>

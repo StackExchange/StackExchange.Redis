@@ -13,7 +13,7 @@ namespace StackExchange.Redis
             DataCommandKey = "redis-command",
             DataSentStatusKey = "request-sent-status",
             DataServerKey = "redis-server",
-            TimeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
+            TimeoutHelpLink = "https://seredis.dev/Timeouts";
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message? message, ServerEndPoint? server)
         {
@@ -366,7 +366,7 @@ namespace StackExchange.Redis
                 {
                     case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
                     case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
-                        sb.Append(" ** possible thread-theft indicated; see https://stackexchange.github.io/StackExchange.Redis/ThreadTheft ** ");
+                        sb.Append(" ** possible thread-theft indicated; see https://seredis.dev/ThreadTheft ** ");
                         break;
                 }
                 Add(data, sb, "OpsSinceLastHeartbeat", "inst", bs.MessagesSinceLastHeartbeat.ToString());

@@ -57,7 +57,7 @@ internal static class Diagnostics
     /// sketch of the rewrite - the caveats that actually catch people out (the result changes meaning, the
     /// queued task disappears, CommandFlags has to be carried over) only fit in prose.
     /// </remarks>
-    private const string HelpLinkFormat = "https://stackexchange.github.io/StackExchange.Redis/rules/{0}";
+    private const string HelpLinkFormat = "https://seredis.dev/rules/{0}";
 
     /// <summary>
     /// Family A: the condition duplicates a <c>when:</c> argument that already exists on the queued command.
@@ -250,7 +250,7 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Blocking on an asynchronous redis call holds a thread-pool thread while waiting for a reply whose processing also needs the thread-pool; enough of these will starve the pool, at which point replies cannot be processed at all.",
-        helpLinkUri: "https://stackexchange.github.io/StackExchange.Redis/SyncOverAsync");
+        helpLinkUri: "https://seredis.dev/SyncOverAsync");
 
     /// <summary>
     /// The generated code cannot be compiled at the language version in effect, so nothing was generated.
