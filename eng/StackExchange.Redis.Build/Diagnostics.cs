@@ -212,7 +212,7 @@ internal static class Diagnostics
     public static readonly DiagnosticDescriptor AwaitFireAndForgetResult = new(
         id: "SER306",
         title: "Waiting for a fire-and-forget result yields nothing",
-        messageFormat: "'{0}' is fire-and-forget, so its result is the default value whenever it is read, not the server's answer; discard it, or use the synchronous API if you want the result",
+        messageFormat: "'{0}' is fire-and-forget, so its result is the default value whenever it is read, not the server's answer; discard it, or drop the fire-and-forget flag if you want the result",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -235,11 +235,17 @@ internal static class Diagnostics
     /// already complete and blocking on it does not wait for anything - that is
     /// <see cref="AwaitFireAndForgetResult"/>'s business instead.
     /// </para>
+    /// <para>
+    /// The message says "await it instead" and stops there, deliberately. The synchronous API is *not* the
+    /// answer: it is not literally sync-over-async, but a blocked thread is a blocked thread, and if the caller
+    /// is on the thread-pool - which it is in ASP.NET and anything else pool-driven - the starvation is
+    /// identical. An analyzer that pointed people at it would be sending them somewhere just as bad.
+    /// </para>
     /// </remarks>
     public static readonly DiagnosticDescriptor BlockingOnRedisCall = new(
         id: "SER307",
         title: "Blocking on a redis call instead of awaiting it",
-        messageFormat: "'{0}' is being waited on synchronously, which ties up a thread until redis replies - and the reply needs a thread of its own to be processed; await it instead, or use the synchronous API",
+        messageFormat: "'{0}' is being waited on synchronously, which ties up a thread until redis replies - and the reply needs a thread of its own to be processed; await it instead",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,

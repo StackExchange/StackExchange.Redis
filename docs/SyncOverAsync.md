@@ -16,16 +16,11 @@ it is stuck.
 // the problem
 var value = db.StringGetAsync(key).Result;
 
-// the fix, if the caller can be async
+// the fix
 var value = await db.StringGetAsync(key);
-
-// the fix, if it genuinely cannot
-var value = db.StringGet(key);
 ```
 
-That last line is the one people miss. **StackExchange.Redis has a real synchronous API**, and it is not
-sync-over-async internally — it is a genuinely synchronous path. If you need a blocking call, use it. Blocking
-on the *async* method is the only version of this that hurts.
+There is no second option. In particular, switching to the synchronous API is **not** a fix — see below.
 
 ## Why it fails so badly, rather than just being slow
 
@@ -90,10 +85,24 @@ If the pool is healthy and you still see timeouts, this is not your problem — 
 In order of preference:
 
 1. **Make the call path async.** `await` the call, all the way up. This is the only change that removes the
-   problem rather than accommodating it.
-2. **Use the synchronous API** where the caller genuinely cannot be async — a constructor, an interface you do
-   not control, a legacy entry point. `db.StringGet(key)` is not sync-over-async.
-3. **Take the client off the thread-pool**, as a mitigation while you do 1 or 2 (see below).
+   problem rather than accommodating it, and it is worth pushing further up the call stack than feels
+   convenient — a single blocking frame anywhere in the path reintroduces it for everything below.
+2. **Take the client off the thread-pool**, as a mitigation while you do 1 (see below).
+
+### The synchronous API is not an escape hatch
+
+StackExchange.Redis does have a synchronous API, and `db.StringGet(key)` is not *literally* sync-over-async:
+it does not wrap an asynchronous call and block on the result. That distinction is about mechanism, and it
+buys you nothing here, because the consequence is identical.
+
+The calling thread still blocks until redis replies, and processing that reply still needs a thread. If the
+calling thread came from the thread-pool — as it does under ASP.NET, in hosted services, in timer callbacks,
+in continuations, in almost anything you did not start yourself — then you are still occupying exactly the
+resource the reply needs in order to arrive. The pool starves the same way, for the same reason.
+
+So the synchronous API is not a safe way to keep blocking, and this page is not telling you to reach for it.
+If a caller genuinely cannot be made async, the honest position is that you are trading against the pool and
+should size and isolate accordingly — not that you have avoided the problem.
 
 ### Mitigation: give the client its own threads
 
@@ -120,8 +129,8 @@ Two caveats worth knowing before you enable it:
 
 `CommandFlags.FireAndForget` returns an already-completed task carrying the default value, so blocking on one
 does not wait for anything and cannot starve the pool. It is still not doing what it looks like: the value is
-fixed before the call returns and is never the server's answer. Discard it, or use the synchronous API if you
-actually want a result — see `SER306`.
+fixed before the call returns and is never the server's answer. Discard it, or drop the fire-and-forget flag
+if you actually want a result — see `SER306`.
 
 ## The analyzer
 

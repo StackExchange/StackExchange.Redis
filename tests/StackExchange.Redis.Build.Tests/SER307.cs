@@ -124,9 +124,14 @@ public class SER307 : Verifier<QueuedResultAnalyzer>
         """);
 
     /// <summary>
-    /// The synchronous API is not sync-over-async: it is a genuinely synchronous path, and is the answer this
-    /// rule points people at - so flagging it would be advising them into a circle.
+    /// The synchronous API is out of scope for this rule, which is about blocking on the *async* API.
     /// </summary>
+    /// <remarks>
+    /// Not an endorsement: a blocked thread is a blocked thread, and a synchronous call from a thread-pool
+    /// thread starves the pool exactly as sync-over-async does. It is unflagged because deciding when a
+    /// synchronous call is legitimate needs to know which thread the caller is on, which an analyzer cannot
+    /// see - and a rule that fired on every synchronous call would be unusable.
+    /// </remarks>
     [Fact]
     public Task SynchronousApi_IsClean() => VerifyAsync(
         """
