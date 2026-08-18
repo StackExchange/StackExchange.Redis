@@ -123,14 +123,9 @@ service while the real fix is made. It is not a licence to keep the blocking cal
 
 Two caveats worth knowing before you enable it:
 
-- it costs a reader and a writer thread **per connection**, so think about it before enabling it against a
-  very wide cluster, where connection count scales with the number of shards;
+- it costs a reader and a writer thread **for each node you connect to**, so think about it before enabling it
+  against a very wide cluster, where that scales with the number of shards;
 - it is deliberately opt-in, and set process-wide at startup rather than per-connection.
-
-Budget two threads per node. Under **[RESP3](Resp3)** — the default where the server supports it, negotiated
-via `HELLO` — pub/sub is multiplexed over the one connection to each node, so that is all there is. Under
-**RESP2** there is a second connection per node carrying pub/sub, but it does not add to the count: those stay
-on the thread-pool by design, because pub/sub is out-of-band delivery rather than a caller waiting on a reply.
 
 Neither is meant to be permanent, and the first one especially. Work is in progress on dedicated readers built
 over the platform's native completion machinery — `io_uring` on Linux, IOCP on Windows — which would service
