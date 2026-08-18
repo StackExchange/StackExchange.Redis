@@ -109,7 +109,9 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
                 tasks[j] = batch.StringIncrementAsync(key);
             }
             batch.Execute();
+            #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
             db.Multiplexer.WaitAll(tasks);
+            #pragma warning restore SER308
         }
 
         var count = (long)db.StringGet(key);
@@ -127,7 +129,9 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
                 tasks[j] = batch.PingAsync();
             }
             batch.Execute();
+            #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
             db.Multiplexer.WaitAll(tasks);
+            #pragma warning restore SER308
         }
     }
 
@@ -228,7 +232,9 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
                 tasks[j] = batch.StringIncrementAsync(key);
             }
             batch.Execute();
+            #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
             db.Multiplexer.WaitAll(tasks);
+            #pragma warning restore SER308
         }
 
         var count = (long)db.StringGet(key);
@@ -249,7 +255,9 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
                 tasks[j] = batch.PingAsync();
             }
             batch.Execute();
+            #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
             db.Multiplexer.WaitAll(tasks);
+            #pragma warning restore SER308
         }
     }
 

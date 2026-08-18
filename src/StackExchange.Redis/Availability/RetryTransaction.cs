@@ -416,10 +416,14 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     // ---- hand-implemented members the generator deliberately skips ----------------------------------
     // (the Wait family, the synchronous IsConnected probe, and the streaming scans). Wait/IsConnected are
     // straight pass-throughs; scans cannot participate in a transaction.
+    // forwarding is not using: these decorators must implement the interface in full, and the
+    // implementation cannot be dropped while the interface declares it
+    #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
     void IRedisAsync.Wait(Task task) => _source.Wait(task);
     T IRedisAsync.Wait<T>(Task<T> task) => _source.Wait<T>(task);
     void IRedisAsync.WaitAll(Task[] tasks) => _source.WaitAll(tasks);
     bool IRedisAsync.TryWait(Task task) => _source.TryWait(task);
+    #pragma warning restore SER308
 
     bool IDatabaseAsync.IsConnected(RedisKey key, CommandFlags flags) => _source.IsConnected(key, flags);
 

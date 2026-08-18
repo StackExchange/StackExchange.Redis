@@ -15,6 +15,9 @@ internal sealed partial class MultiGroupSubscriber(MultiGroupMultiplexer parent,
 
     public IConnectionMultiplexer Multiplexer => parent;
 
+    // forwarding is not using: these decorators must implement the interface in full, and the
+    // implementation cannot be dropped while the interface declares it
+    #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
     public bool TryWait(Task task) => GetActiveSubscriber().TryWait(task);
 
     public void Wait(Task task) => GetActiveSubscriber().Wait(task);
@@ -22,6 +25,7 @@ internal sealed partial class MultiGroupSubscriber(MultiGroupMultiplexer parent,
     public T Wait<T>(Task<T> task) => GetActiveSubscriber().Wait(task);
 
     public void WaitAll(params Task[] tasks) => GetActiveSubscriber().WaitAll(tasks);
+    #pragma warning restore SER308
 
     public TimeSpan Ping(CommandFlags flags = CommandFlags.None) => GetActiveSubscriber().Ping(flags);
 

@@ -290,7 +290,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
             var c = tran.StringIncrementAsync(key);
             var complete = tran.ExecuteAsync();
 
+            #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
             Assert.True(conn.Wait(complete));
+            #pragma warning restore SER308
             Assert.True(QuickWait(a).IsCompleted, a.Status.ToString());
             Assert.True(QuickWait(c).IsCompleted, "State: " + c.Status);
             Assert.Equal(1L, a.Result);
@@ -305,7 +307,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
             Assert.Contains(ex.Message, new[] { "ERR oops", "oops" });
         }
         var afterTran = db.StringGetAsync(key);
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         Assert.Equal(2L, (long)db.Wait(afterTran));
+        #pragma warning restore SER308
     }
     private static Task<T> QuickWait<T>(Task<T> task)
     {

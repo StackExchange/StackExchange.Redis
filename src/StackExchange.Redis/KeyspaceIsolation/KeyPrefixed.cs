@@ -885,6 +885,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.KeyTouchAsync(ToInner(key), flags);
 
         public bool TryWait(Task task) =>
+            // forwarding is not using: these decorators must implement the interface in full, and the
+            // implementation cannot be dropped while the interface declares it
+            #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
             Inner.TryWait(task);
 
         public TResult Wait<TResult>(Task<TResult> task) =>
@@ -895,6 +898,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public void WaitAll(params Task[] tasks) =>
             Inner.WaitAll(tasks);
+            #pragma warning restore SER308
 
         protected internal RedisKey ToInner(RedisKey outer) =>
             RedisKey.WithPrefix(Prefix, outer);

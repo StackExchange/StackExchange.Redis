@@ -511,8 +511,10 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.False(setY.IsCanceled, "set y cancelled");
         var existsX = cluster.KeyExistsAsync(x);
         var existsY = cluster.KeyExistsAsync(y);
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         Assert.True(cluster.Wait(existsX), "x exists");
         Assert.True(cluster.Wait(existsY), "y exists");
+        #pragma warning restore SER308
     }
 
     [Theory]
@@ -667,7 +669,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             actual[index] = cluster.StringGetAsync(pair.Key);
             index++;
         }
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         cluster.WaitAll(actual);
+        #pragma warning restore SER308
         for (int i = 0; i < COUNT; i++)
         {
             Assert.Equal(expected[i], actual[i].Result);

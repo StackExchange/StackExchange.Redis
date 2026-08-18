@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -1041,11 +1041,15 @@ namespace StackExchange.Redis
 
             public EndPoint[] GetEndPoints(bool configuredOnly = false) => Active.GetEndPoints(configuredOnly);
 
+            // forwarding is not using: these decorators must implement the interface in full, and the
+            // implementation cannot be dropped while the interface declares it
+            #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
             public void Wait(Task task) => Active.Wait(task);
 
             public T Wait<T>(Task<T> task) => Active.Wait(task);
 
             public void WaitAll(params Task[] tasks) => Active.WaitAll(tasks);
+            #pragma warning restore SER308
 
             private EventHandler<HashSlotMovedEventArgs>? _hashSlotMoved;
 

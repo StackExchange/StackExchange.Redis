@@ -371,7 +371,9 @@ public abstract class PubSubTestBase(
             tasks[i] = sub.PublishAsync(channel, "bar");
 #pragma warning restore CS0618
         }
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         sub.WaitAll(tasks);
+        #pragma warning restore SER308
         withAsync.Stop();
 
         Log($"{caption}: {withFAF.ElapsedMilliseconds}ms (F+F) vs {withAsync.ElapsedMilliseconds}ms (async)");

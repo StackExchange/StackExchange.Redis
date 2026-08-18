@@ -211,7 +211,11 @@ namespace StackExchange.Redis
 
             private protected TResult Wait<TResult>(Task<TResult> pending, Message message)
             {
+                // the synchronous scan surface: this *is* the blocking path, reached only from a caller who asked
+                // for the sync API, and TryWait is what applies the configured timeout to it
+                #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
                 if (!parent.redis.TryWait(pending)) ThrowTimeout(message);
+                #pragma warning restore SER308
                 return pending.Result;
             }
 

@@ -25,8 +25,10 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
         var a = db.SetAddAsync(key, "a");
         var b = db.SetAddAsync(key, "b");
 
+        #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
         Assert.True(conn.Wait(a));
         Assert.True(conn.Wait(b));
+        #pragma warning restore SER308
 
         conn.AllowConnect = false;
 
