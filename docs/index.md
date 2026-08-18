@@ -1,7 +1,7 @@
 ﻿StackExchange.Redis
 ===================
 
-- [Release Notes](ReleaseNotes)
+- [Release Notes](https://github.com/StackExchange/StackExchange.Redis/releases) (3.0 onwards; [earlier releases](ReleaseNotes))
 
 ## Overview
 
