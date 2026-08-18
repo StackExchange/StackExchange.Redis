@@ -148,8 +148,36 @@ The package ships a Roslyn analyzer that flags these at build time:
 - **`SER306`** — reading a fire-and-forget result, which is always the default value. SER307 hands that case
   to this rule, since blocking on an already-completed task is not what starves anything.
 
-See [Analyzer rules](rules/) for the full set — including the transaction rules, which describe a different
-problem — and for how to turn any of them down.
+See [Analyzer rules](rules/) for the full set, including the transaction rules, which describe a different
+problem.
+
+### Turning SER307 off
+
+It is a **warning**, so a build with `TreatWarningsAsErrors` will fail until you act on it or turn it down.
+Nobody is going to rewrite a large codebase in an afternoon, and a rule you cannot silence is a rule people
+rip out entirely, so:
+
+For a single call site you have decided about — a legacy entry point, an interface you do not control:
+
+```c#
+#pragma warning disable SER307 // blocking: called from <somewhere that cannot be async>
+```
+
+For a project, while you work through it:
+
+```xml
+<NoWarn>$(NoWarn);SER307</NoWarn>
+```
+
+Or turn it down rather than off, so it stays visible in the IDE without failing builds — in `.editorconfig`:
+
+```ini
+dotnet_diagnostic.SER307.severity = suggestion   # or none, silent, warning, error
+```
+
+Worth saying plainly: suppressing it does not make the problem go away, and if you are here because of
+timeouts then this rule is pointing at their cause. The `#pragma` form is the one to prefer where you can,
+because it records the decision at the site and keeps the rest of the codebase covered.
 
 ## See also
 
