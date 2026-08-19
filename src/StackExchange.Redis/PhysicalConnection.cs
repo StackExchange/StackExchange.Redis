@@ -1053,6 +1053,18 @@ namespace StackExchange.Redis
                     }
 
                     InitTransportOutput(transport);
+
+                    // Start inbound delivery BEFORE anything is written. OnConnectedAsync below sends the
+                    // handshake, and a transport is already connected by the time we get here, so if the
+                    // receiver were attached afterwards (as it was until now, via StartReading once this
+                    // method returned) the reply could be on the wire first. That is not theoretical: it
+                    // cost every SUBSCRIBE on a transport-backed multiplexer, because the subscription
+                    // connection lost that race every time while the interactive one happened to win it.
+                    // Starting first also makes DuplexTransport.Start's contract - a receiver set "before
+                    // any data is expected" - true, rather than something each implementer must discover
+                    // and work around by buffering.
+                    StartTransportReading(transport);
+
                     log?.LogInformationTransportConnected(bridge.Name, transport.IsEncrypted);
                     await bridge.OnConnectedAsync(this, log).ForAwait();
                     return true;
