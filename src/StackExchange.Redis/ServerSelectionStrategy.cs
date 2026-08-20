@@ -442,5 +442,7 @@ namespace StackExchange.Redis
         /// Gets a string that can be used as a hash-tag to reference a specific slot.
         /// </summary>
         internal static string GetHashTag(int slot) => slot < 0 ? "" : HashTags.Get(slot);
+
+        internal static RedisKey GetHashTagPrefix(int slot) => HashTags.GetPrefix(slot);
     }
 }

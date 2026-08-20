@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
 
 namespace StackExchange.Redis;
 
@@ -10,8 +11,24 @@ internal sealed partial class ServerSelectionStrategy
     private static class HashTags
     {
         private static readonly string[] Cache = Populate();
+        private static readonly byte[]?[] PrefixCache = new byte[TotalSlots][];
+        private static readonly object PrefixCacheLock = new();
+
         public static ReadOnlySpan<string> Tags => Cache;
         public static string Get(int slot) => Cache[slot];
+
+        public static byte[] GetPrefix(int slot)
+        {
+            var prefix = Volatile.Read(ref PrefixCache[slot]);
+            if (prefix is null)
+            {
+                lock (PrefixCacheLock)
+                {
+                    prefix = PrefixCache[slot] ??= Encoding.ASCII.GetBytes("{" + Get(slot) + "}");
+                }
+            }
+            return prefix;
+        }
 
         private static string[] Populate()
         {
