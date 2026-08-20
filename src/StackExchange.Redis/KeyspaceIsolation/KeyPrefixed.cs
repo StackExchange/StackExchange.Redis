@@ -670,6 +670,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs,  StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAddAsync(ToInner(key), streamPairs, idempotentId, maxLength, useApproximateMaxLength, limit, mode, flags);
 
+        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamAddOptions options, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAddAsync(ToInner(key), streamField, streamValue, options, flags);
+
+        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamAddOptions options, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAddAsync(ToInner(key), streamPairs, options, flags);
+
         public Task StreamConfigureAsync(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamConfigureAsync(ToInner(key), configuration, flags);
 

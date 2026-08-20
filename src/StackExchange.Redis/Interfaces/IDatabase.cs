@@ -2835,6 +2835,41 @@ namespace StackExchange.Redis
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
         RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist and <see cref="StreamAddOptions.CreateStream"/> is set, a new key holding a
+        /// stream is created. The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamField">The field name for the stream entry.</param>
+        /// <param name="streamValue">The value to set in the stream entry.</param>
+        /// <param name="options">Additional options for this operation, such as trimming and the entry ID.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The ID of the newly created message, or a null value when the key does not exist and
+        /// <see cref="StreamAddOptions.CreateStream"/> is <c>false</c>.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+#pragma warning disable RS0027 // additive overload: `options` is required, so existing calls still bind to the overloads above
+        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamAddOptions options, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist and <see cref="StreamAddOptions.CreateStream"/> is set, a new key holding a
+        /// stream is created. The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
+        /// <param name="options">Additional options for this operation, such as trimming and the entry ID.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The ID of the newly created message, or a null value when the key does not exist and
+        /// <see cref="StreamAddOptions.CreateStream"/> is <c>false</c>.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamAddOptions options, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
 #pragma warning restore RS0026
 
         /// <summary>

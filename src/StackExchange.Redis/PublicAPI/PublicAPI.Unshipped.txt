@@ -36,3 +36,25 @@ StackExchange.Redis.IServer.ClusterSlots(StackExchange.Redis.CommandFlags flags 
 StackExchange.Redis.IServer.ClusterSlotsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotsResult?>!
 [SER007]StackExchange.Redis.RedisErrorKind.UnknownRedirectTarget = 26 -> StackExchange.Redis.RedisErrorKind
 override StackExchange.Redis.ClusterSlotNode.ToString() -> string!
+StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamAddOptions
+StackExchange.Redis.StreamAddOptions.Approximate.get -> bool
+StackExchange.Redis.StreamAddOptions.Approximate.init -> void
+StackExchange.Redis.StreamAddOptions.CreateStream.get -> bool
+StackExchange.Redis.StreamAddOptions.CreateStream.init -> void
+StackExchange.Redis.StreamAddOptions.IdempotentId.get -> StackExchange.Redis.StreamIdempotentId
+StackExchange.Redis.StreamAddOptions.IdempotentId.init -> void
+StackExchange.Redis.StreamAddOptions.Limit.get -> long?
+StackExchange.Redis.StreamAddOptions.Limit.init -> void
+StackExchange.Redis.StreamAddOptions.MaxLength.get -> long?
+StackExchange.Redis.StreamAddOptions.MaxLength.init -> void
+StackExchange.Redis.StreamAddOptions.MessageId.get -> StackExchange.Redis.RedisValue?
+StackExchange.Redis.StreamAddOptions.MessageId.init -> void
+StackExchange.Redis.StreamAddOptions.MinId.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamAddOptions.MinId.init -> void
+StackExchange.Redis.StreamAddOptions.StreamAddOptions() -> void
+StackExchange.Redis.StreamAddOptions.TrimMode.get -> StackExchange.Redis.StreamTrimMode
+StackExchange.Redis.StreamAddOptions.TrimMode.init -> void

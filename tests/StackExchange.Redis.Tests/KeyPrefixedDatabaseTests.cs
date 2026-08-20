@@ -1778,6 +1778,23 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void StreamAdd_WithOptions_1()
+    {
+        var options = new StreamAddOptions { MaxLength = 1000, CreateStream = false };
+        prefixed.StreamAdd("key", "field", "value", options, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", "field", "value", options, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamAdd_WithOptions_2()
+    {
+        var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
+        var options = new StreamAddOptions { MinId = "5-5", CreateStream = false };
+        prefixed.StreamAdd("key", fields, options, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", fields, options, CommandFlags.None);
+    }
+
+    [Fact]
     public void StreamTrim_WithMode()
     {
         prefixed.StreamTrim("key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
