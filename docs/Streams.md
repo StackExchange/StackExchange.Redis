@@ -37,7 +37,20 @@ You also have the option to override the auto-generated message ID by passing yo
 db.StreamAdd("events_stream", "foo_name", "bar_value", messageId: "0-1", maxLength: 100);
 ```
 
-Set `nomkstream: true` to append only when the stream already exists; otherwise `StreamAdd` returns a null `RedisValue` without creating the key.
+Trimming, the entry ID and the other `XADD` options can be supplied together via `StreamAddOptions`:
+
+```csharp
+// append only if the stream already exists, trimming anything older than the given entry ID
+var id = db.StreamAdd("events_stream", "foo_name", "bar_value", new StreamAddOptions
+{
+    CreateStream = false,       // NOMKSTREAM
+    MinId = "1526919030474-55", // or MaxLength, for MAXLEN
+    Approximate = true,         // the "~" form, which is cheaper
+});
+```
+
+With `CreateStream = false`, adding to a stream that does not exist returns `RedisValue.Null` and the key is
+not created. `MinId` and `Approximate` require server version 6.2 or above.
 
 Idempotent write-at-most-once production
 ===

@@ -86,34 +86,70 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task StreamAddNoMkStream(bool pairs, bool useAsync)
+    public async Task StreamAddCreateStreamFalse(bool pairs, bool useAsync)
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
         var db = conn.GetDatabase();
         var key = Me() + $":{pairs}:{useAsync}";
         await db.KeyDeleteAsync(key);
 
-        async Task<RedisValue> Add(bool nomkstream)
+        async Task<RedisValue> Add(bool createStream)
         {
+            var options = new StreamAddOptions { CreateStream = createStream };
             if (pairs)
             {
                 NameValueEntry[] fields = [new("field1", "value1"), new("field2", "value2")];
                 return useAsync
-                    ? await db.StreamAddAsync(key, fields, nomkstream: nomkstream)
-                    : db.StreamAdd(key, fields, nomkstream: nomkstream);
+                    ? await db.StreamAddAsync(key, fields, options)
+                    : db.StreamAdd(key, fields, options);
             }
 
             return useAsync
-                ? await db.StreamAddAsync(key, "field", "value", nomkstream: nomkstream)
-                : db.StreamAdd(key, "field", "value", nomkstream: nomkstream);
+                ? await db.StreamAddAsync(key, "field", "value", options)
+                : db.StreamAdd(key, "field", "value", options);
         }
 
-        Assert.Equal(RedisValue.Null, await Add(nomkstream: true));
+        // no stream, and we declined to create one: nothing happens, and we are told so
+        Assert.Equal(RedisValue.Null, await Add(createStream: false));
         Assert.False(await db.KeyExistsAsync(key));
 
-        Assert.NotEqual(RedisValue.Null, await Add(nomkstream: false));
-        Assert.NotEqual(RedisValue.Null, await Add(nomkstream: true));
+        // ...but once the stream exists, the same call appends as normal
+        Assert.NotEqual(RedisValue.Null, await Add(createStream: true));
+        Assert.NotEqual(RedisValue.Null, await Add(createStream: false));
         Assert.Equal(2, await db.StreamLengthAsync(key));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StreamAddTrimsByMinId(bool approximate)
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+        var db = conn.GetDatabase();
+        var key = Me() + $":{approximate}";
+        await db.KeyDeleteAsync(key);
+
+        for (var i = 1; i <= 5; i++)
+        {
+            db.StreamAdd(key, "f", i, new StreamAddOptions { MessageId = $"{i}-1" });
+        }
+        Assert.Equal(5, await db.StreamLengthAsync(key));
+
+        // exact MINID must drop everything below the threshold; the approximate form is
+        // free to keep more, so only assert what the server guarantees in each mode
+        db.StreamAdd(key, "f", 6, new StreamAddOptions { MessageId = "6-1", MinId = "4-1", Approximate = approximate });
+
+        var entries = await db.StreamRangeAsync(key);
+        Assert.Contains(entries, x => x.Id == "6-1");
+        if (approximate)
+        {
+            Assert.True(entries.Length <= 6);
+        }
+        else
+        {
+            Assert.Equal(3, entries.Length); // 4-1, 5-1, 6-1
+            Assert.DoesNotContain(entries, x => x.Id == "3-1");
+        }
     }
 
     [Theory]
