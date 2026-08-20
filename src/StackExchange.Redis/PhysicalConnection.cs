@@ -184,7 +184,23 @@ namespace StackExchange.Redis
                 // connectTo=null no-socket pattern): connect and TLS belong to the tunnel, and the
                 // stream/SslStream machinery below never runs. The TLS intent goes with it precisely
                 // because TLS is now the tunnel's job: it cannot honour an intent it cannot see.
-                var transport = await tunnel.ConnectTransportAsync(endpoint, bridge.ConnectionType, new(rawConfig), CancellationToken.None).ForAwait();
+                RESPite.Transports.DuplexTransport? transport;
+                try
+                {
+                    transport = await tunnel.ConnectTransportAsync(endpoint, bridge.ConnectionType, new(rawConfig), CancellationToken.None).ForAwait();
+                }
+                catch (Exception ex)
+                {
+                    // A tunnel refuses a dial by throwing, and the message is the useful part: it is where
+                    // "this configuration asks for something this transport cannot do" gets said. This
+                    // method runs fire-and-forget (PhysicalBridge calls it as BeginConnectAsync(log)
+                    // .RedisFireAndForget()) and the try below has not been entered yet, so an escaping
+                    // exception was reported nowhere - the caller saw a bare connect timeout, and the
+                    // reason was lost.
+                    RecordConnectionFailed(ConnectionFailureType.UnableToConnect, ex, isInitialConnect: true);
+                    return;
+                }
+
                 if (transport is not null)
                 {
                     _transport = transport;
@@ -1053,6 +1069,18 @@ namespace StackExchange.Redis
                     }
 
                     InitTransportOutput(transport);
+
+                    // Start inbound delivery BEFORE anything is written. OnConnectedAsync below sends the
+                    // handshake, and a transport is already connected by the time we get here, so if the
+                    // receiver were attached afterwards (as it was until now, via StartReading once this
+                    // method returned) the reply could be on the wire first. That is not theoretical: it
+                    // cost every SUBSCRIBE on a transport-backed multiplexer, because the subscription
+                    // connection lost that race every time while the interactive one happened to win it.
+                    // Starting first also makes DuplexTransport.Start's contract - a receiver set "before
+                    // any data is expected" - true, rather than something each implementer must discover
+                    // and work around by buffering.
+                    StartTransportReading(transport);
+
                     log?.LogInformationTransportConnected(bridge.Name, transport.IsEncrypted);
                     await bridge.OnConnectedAsync(this, log).ForAwait();
                     return true;
