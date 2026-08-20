@@ -355,7 +355,7 @@ namespace StackExchange.Redis
 
         public void UpdateNodeRelations(ClusterConfiguration configuration)
         {
-            var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint?.Equals(EndPoint) == true);
+            var thisNode = GetClusterNode(configuration);
             if (thisNode != null)
             {
                 Multiplexer.Trace($"Updating node relations for {Format.ToString(thisNode.EndPoint)}...");
@@ -378,6 +378,9 @@ namespace StackExchange.Redis
                 Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
             }
         }
+
+        private ClusterNode? GetClusterNode(ClusterConfiguration? configuration) =>
+            configuration?.Nodes.FirstOrDefault(x => x.EndPoint?.Equals(EndPoint) == true);
 
         public void SetUnselectable(UnselectableFlags flags)
         {
@@ -502,7 +505,9 @@ namespace StackExchange.Redis
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
             }
-            else if (commandMap.IsAvailable(RedisCommand.SET) && !(helloPending || RoleKnownFromHello))
+            else if (commandMap.IsAvailable(RedisCommand.SET)
+                && !(helloPending || RoleKnownFromHello)
+                && !(ServerType == ServerType.Cluster && GetClusterNode(ClusterConfiguration) is not null))
             {
                 // This is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 // (note we only get here when HELLO isn't going to tell us: the HELLO reply carries "role", and
@@ -535,7 +540,9 @@ namespace StackExchange.Redis
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
-            if (Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
+            if (ServerType != ServerType.Cluster
+                && Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey)
+                && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
             {
                 log?.LogInformationRequestingTieBreak(new(EndPoint), tieBreakerKey);
                 msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
@@ -680,10 +687,22 @@ namespace StackExchange.Redis
             else
             {
                 map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId);
+                msg = Message.Create(0, flags, RedisCommand.EXISTS, GetTracerKey());
             }
             msg.SetInternalCall();
             return msg;
+        }
+
+        internal RedisKey GetTracerKey()
+        {
+            RedisKey key = Multiplexer.UniqueId;
+            if (ServerType == ServerType.Cluster
+                && GetClusterNode(ClusterConfiguration) is { } node
+                && node.Slots.Count > 0)
+            {
+                key = key.Prepend(ServerSelectionStrategy.GetHashTagPrefix(node.Slots[0].From));
+            }
+            return key;
         }
 
         internal UnselectableFlags GetUnselectableFlags() => unselectableReasons;
