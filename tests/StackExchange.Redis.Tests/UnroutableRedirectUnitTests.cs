@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -39,12 +39,18 @@ public class UnroutableRedirectUnitTests(ITestOutputHelper log)
     private static async Task<(ConnectionMultiplexer Conn, InProcessTestServer Server)> ConnectThenMigrateAsync(ITestOutputHelper log)
     {
         var server = CreateServer(log, out var targetEndpoint);
-
-        // connect first, so the client's slot map still points at the original owner and the command
-        // actually earns a redirect
         var conn = await server.ConnectAsync(defaultOnly: true);
 
-        var target = server.AddEmptyNode(targetEndpoint); // announces no hostname, hence "?"
+        var target = server.AddEmptyNode(targetEndpoint);
+
+        // the target must be unaddressable by *every* form, not merely un-named. Hostnames are preferred and
+        // it announces none, so the endpoint field is "?" - but the complement rule would then put its address
+        // in the metadata, and a topology refresh landing between here and the command would discover it there
+        // and route straight to it, leaving no redirect to test. Marking the address unknown as well removes
+        // that race by construction rather than relying on the refresh not happening: under RESP2 the
+        // subscription connection completing can trigger one, which is why this only ever failed on RESP2
+        server.SetAnnouncedAddress(target, AnnouncedAddress.Empty);
+
         server.Migrate((RedisKey)Key, target);
         return (conn, server);
     }
@@ -121,6 +127,48 @@ public class UnroutableRedirectUnitTests(ITestOutputHelper log)
             var fault = new FaultContext(ex);
             Assert.True(fault.NotApplied);
             Assert.Equal(RedisErrorKind.UnknownRedirectTarget, fault.ErrorKind);
+        }
+    }
+
+    [Fact]
+    public async Task RefreshingTheTopologyDoesNotMakeTheTargetRoutable()
+    {
+        // this is the condition CI hit, asserted rather than avoided: a topology refresh between the migrate
+        // and the command must not give the client a way to reach a node it cannot address. If it does, the
+        // slot map routes directly, no redirect is issued, and every other test in this class silently stops
+        // testing anything
+        var (conn, server) = await ConnectThenMigrateAsync(log);
+        using (server)
+        await using (conn)
+        {
+            var slots = await conn.GetServer(server.DefaultEndPoint).ClusterSlotsAsync();
+            var topology = ClusterTopology.From(slots);
+            Assert.NotNull(topology);
+
+            var mux = (ConnectionMultiplexer)conn;
+            mux.UpdateClusterRange(topology);
+            await mux.ApplyTopologyGenerationAsync(topology);
+
+            foreach (var ep in conn.GetEndPoints())
+            {
+                log.WriteLine($"endpoint: {ep}");
+            }
+
+            // the target owns the slot but has no usable identity, so it cannot have become an endpoint
+            GetHost(server.DefaultEndPoint, out var port);
+            Assert.DoesNotContain(conn.GetEndPoints(), ep => PortOf(ep) == port + 1);
+
+            static int PortOf(EndPoint ep) => ep switch
+            {
+                IPEndPoint ip => ip.Port,
+                DnsEndPoint dns => dns.Port,
+                _ => 0,
+            };
+
+            // ...and the command still earns the unroutable redirect
+            var ex = await Assert.ThrowsAsync<RedisServerException>(
+                () => conn.GetDatabase().StringGetAsync(Key));
+            Assert.Equal(RedisErrorKind.UnknownRedirectTarget, ex.Kind);
         }
     }
 
