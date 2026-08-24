@@ -1,0 +1,50 @@
+---
+layout: default
+title: Page not found
+sitemap: false
+---
+
+<p>There is nothing at this address.</p>
+
+<p id="suggestion" hidden></p>
+
+<p>If you got here from a link in an exception message or a log line, the punctuation after the URL was
+probably picked up as part of it &mdash; most link detectors will happily swallow a closing bracket or a
+quote.</p>
+
+<ul>
+  <li><a href="/">Documentation index</a></li>
+  <li><a href="/Timeouts">Timeouts</a> &mdash; reading a timeout message</li>
+  <li><a href="/Configuration">Configuration</a></li>
+  <li><a href="/Basics">Basics</a></li>
+  <li><a href="https://github.com/StackExchange/StackExchange.Redis/releases">Release notes</a>
+      (3.0 onwards; <a href="/ReleaseNotes">earlier releases</a>)</li>
+</ul>
+
+<script>
+// Much of this site's 404 traffic is one page's URL pasted out of an exception message or a log, with the
+// trailing punctuation of the surrounding sentence attached. Strip the characters that can never end a page
+// here and offer what is left. Cleaning is idempotent, so a cleaned path that also 404s offers nothing and
+// there is no loop; and the suggestion is a link rather than a redirect, so a wrong guess costs nothing.
+(function () {
+    var path = location.pathname;
+    try { path = decodeURIComponent(path); } catch (e) { /* malformed escape; use it raw */ }
+
+    var cleaned = path
+        .replace(/(?:\/r)?\/n$/, "")     // a trailing "\r\n" from a log line: URL parsing reads \ as /
+        .replace(/[)\]}"'.,;:>]+$/, "")  // punctuation belonging to the prose around the link
+        .replace(/\/+$/, "");            // every page here is a file, so a trailing slash never resolves
+
+    if (!cleaned || cleaned === path || cleaned.charAt(0) !== "/") return;
+
+    var link = document.createElement("a");
+    link.href = cleaned;
+    link.textContent = cleaned;
+
+    var target = document.getElementById("suggestion");
+    target.appendChild(document.createTextNode("Did you mean "));
+    target.appendChild(link);
+    target.appendChild(document.createTextNode("?"));
+    target.hidden = false;
+})();
+</script>
