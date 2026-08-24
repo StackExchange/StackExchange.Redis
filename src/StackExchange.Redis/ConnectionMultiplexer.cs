@@ -785,6 +785,21 @@ namespace StackExchange.Redis
         ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => _serverSnapshot.AsSpan();
         internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.AsSpan();
         internal ReadOnlyMemory<ServerEndPoint> GetServerSnaphotMemory() => _serverSnapshot.AsMemory();
+
+        /// <summary>
+        /// Two servers found to be the same node under different names, and which of them survives the merge.
+        /// </summary>
+        /// <remarks>
+        /// A named struct rather than a tuple on purpose: the library must not reference <c>ValueTuple</c>
+        /// (asserted by <c>SanityChecks.ValueTupleNotReferenced</c>, since it would add a facade dependency on
+        /// the down-level targets).
+        /// </remarks>
+        private readonly struct DuplicateServers(ServerEndPoint survivor, ServerEndPoint loser)
+        {
+            public ServerEndPoint Survivor { get; } = survivor;
+            public ServerEndPoint Loser { get; } = loser;
+        }
+
         internal sealed class ServerSnapshot : IEnumerable<ServerEndPoint>
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
@@ -998,7 +1013,7 @@ namespace StackExchange.Redis
             // one node-id is a duplicate: the same process reached under two names, which costs a second
             // socket and splits backlog and subscription state across the pair
             var seen = new HashSet<ServerEndPoint>();
-            List<(ServerEndPoint Survivor, ServerEndPoint Loser)>? merge = null;
+            List<DuplicateServers>? merge = null;
             foreach (var node in topology.Nodes)
             {
                 ServerEndPoint? survivor = null;
@@ -1015,11 +1030,11 @@ namespace StackExchange.Redis
                     else if (!ReferenceEquals(survivor, server))
                     {
                         // ...unless one of them was configured: those may never be retired, so they win
-                        var (keep, drop) = server.Provenance == ServerProvenance.Configured
-                            ? (server, survivor)
-                            : (survivor, server);
-                        survivor = keep;
-                        (merge ??= new()).Add((keep, drop));
+                        var pair = server.Provenance == ServerProvenance.Configured
+                            ? new DuplicateServers(server, survivor)
+                            : new DuplicateServers(survivor, server);
+                        survivor = pair.Survivor;
+                        (merge ??= new()).Add(pair);
                     }
                 }
 
@@ -1039,8 +1054,10 @@ namespace StackExchange.Redis
 
             if (merge is not null)
             {
-                foreach (var (survivor, loser) in merge)
+                foreach (var pair in merge)
                 {
+                    var survivor = pair.Survivor;
+                    var loser = pair.Loser;
                     if (loser.IsDisposed || loser.Provenance == ServerProvenance.Configured) continue;
                     log?.LogInformationMergingDuplicateServer(new(loser.EndPoint), new(survivor.EndPoint));
                     _serverIdentities[loser.EndPoint] = survivor;
