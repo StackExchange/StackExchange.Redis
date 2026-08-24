@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
@@ -207,7 +207,7 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
 
         server.SetHostname(server.DefaultEndPoint, Hostname);
         var byName = new DnsEndPoint(Hostname, port);
-        mux.GetServerEndPoint(byName, activate: false);
+        mux.GetServerEndPoint(byName, ServerProvenance.ClusterTopology, activate: false);
         Assert.Equal(2, conn.GetEndPoints().Length); // one node, two endpoints
 
         await ApplyGenerationsAsync(conn, server.DefaultEndPoint, 1);

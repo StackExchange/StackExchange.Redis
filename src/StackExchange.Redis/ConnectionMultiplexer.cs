@@ -973,7 +973,11 @@ namespace StackExchange.Redis
             }
         }
 
-        ServerEndPoint IInternalConnectionMultiplexer.GetServerEndPoint(EndPoint endpoint) => GetServerEndPoint(endpoint);
+        // callers of this member are looking up a server they expect to exist (tests, connection-id probes),
+        // so the provenance is all but unreachable - Configured is the conservative choice if it ever is
+        // reached, since it is the one value that cannot cause a later prune
+        ServerEndPoint IInternalConnectionMultiplexer.GetServerEndPoint(EndPoint endpoint)
+            => GetServerEndPoint(endpoint, ServerProvenance.Configured);
 
         /// <summary>
         /// Finds an existing server by any identity it is known to answer to, without creating one.
@@ -1154,12 +1158,22 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Finds the server for an endpoint, creating it if we do not have one.
+        /// </summary>
+        /// <remarks>
+        /// <paramref name="provenance"/> is deliberately required: it decides what may later retire the
+        /// server, and a defaulted value means a new call site silently inherits a policy it never considered.
+        /// It only takes effect when this call *creates* - an endpoint we already hold keeps the provenance it
+        /// was created with, and one named in the configuration is <see cref="ServerProvenance.Configured"/>
+        /// regardless of what is passed here.
+        /// </remarks>
         [return: NotNullIfNotNull(nameof(endpoint))]
         internal ServerEndPoint? GetServerEndPoint(
             EndPoint? endpoint,
+            ServerProvenance provenance,
             ILogger? log = null,
-            bool activate = true,
-            ServerProvenance provenance = ServerProvenance.ClusterTopology)
+            bool activate = true)
         {
             if (endpoint == null) return null;
             var server = (ServerEndPoint?)servers[endpoint] ?? TryResolveServerEndPoint(endpoint);
@@ -1727,7 +1741,7 @@ namespace StackExchange.Redis
                     }
                     foreach (var endpoint in EndPoints)
                     {
-                        GetServerEndPoint(endpoint, log, false);
+                        GetServerEndPoint(endpoint, ServerProvenance.Configured, log, activate: false);
                     }
                     ActivateAllServers(log);
                 }
@@ -1773,7 +1787,7 @@ namespace StackExchange.Redis
                         {
                             Trace("Testing: " + Format.ToString(endpoints[i]));
 
-                            var server = GetServerEndPoint(endpoints[i]);
+                            var server = GetServerEndPoint(endpoints[i], ServerProvenance.ClusterTopology);
                             // server.ReportNextFailure();
                             servers[i] = server;
 
@@ -2084,7 +2098,7 @@ namespace StackExchange.Redis
                     else if (TryResolveServerEndPoint(node.EndPoint) is null)
                     {
                         log?.LogInformationRegisteringInertNode(new(node.EndPoint));
-                        GetServerEndPoint(node.EndPoint, activate: false);
+                        GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology, activate: false);
                     }
                 }
 
@@ -2092,7 +2106,7 @@ namespace StackExchange.Redis
                 // the node ids and flags that Primary/Replicas resolution uses
                 foreach (EndPoint endpoint in clusterEndpoints)
                 {
-                    GetServerEndPoint(endpoint)?.UpdateNodeRelations(clusterConfig);
+                    TryResolveServerEndPoint(endpoint)?.UpdateNodeRelations(clusterConfig);
                 }
 
                 // ...and now that the topology is applied, age out anything it has stopped listing
@@ -2279,7 +2293,7 @@ namespace StackExchange.Redis
                 if (node.IgnoreFromClient || node.IsReplica || node.Slots.Count == 0) continue;
                 foreach (var slot in node.Slots)
                 {
-                    if (GetServerEndPoint(node.EndPoint) is ServerEndPoint server)
+                    if (GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology) is ServerEndPoint server)
                     {
                         ServerSelectionStrategy.UpdateClusterRange(slot.From, slot.To, server);
                     }
@@ -2325,7 +2339,7 @@ namespace StackExchange.Redis
                 // unknown node: dial the form the answering node *advertised*, which Identities is ordered by.
                 // Not the address by preference: a certificate validates against a name, and where hostnames
                 // are preferred the advertised address may not even be routable (#2826)
-                return node.Identities.Count > 0 ? GetServerEndPoint(node.Identities[0]) : null;
+                return node.Identities.Count > 0 ? GetServerEndPoint(node.Identities[0], ServerProvenance.ClusterTopology) : null;
             }
         }
 
@@ -2746,7 +2760,7 @@ namespace StackExchange.Redis
         }
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
-            => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+            => TryResolveServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
 
         internal uint UpdateLatency()
         {

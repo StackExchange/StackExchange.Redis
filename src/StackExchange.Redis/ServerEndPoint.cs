@@ -74,7 +74,7 @@ namespace StackExchange.Redis
             subscription?.ResetNonConnected();
         }
 
-        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, ServerProvenance provenance = ServerProvenance.Configured)
+        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, ServerProvenance provenance)
         {
             Multiplexer = multiplexer;
             EndPoint = endpoint;
@@ -526,11 +526,11 @@ namespace StackExchange.Redis
 
                     if (node.NodeId == thisNode.ParentNodeId)
                     {
-                        primary = Multiplexer.GetServerEndPoint(node.EndPoint);
+                        primary = Multiplexer.GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology);
                     }
                     else if (node.ParentNodeId == thisNode.NodeId && node.EndPoint is not null)
                     {
-                        (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                        (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology));
                     }
                 }
                 Primary = primary;
