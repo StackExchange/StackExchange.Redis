@@ -513,9 +513,13 @@ namespace StackExchange.Redis
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
             }
+            // Cluster replicas return MOVED rather than READONLY for writes to their primary's slots, so no
+            // hash tag can make this role probe reliable; skip it whenever cluster mode is already known.
+            // On the first handshake, serverType is seeded as Standalone until the CLUSTER NODES reply is
+            // processed, so neither this guard nor the tie-breaker GET guard below suppresses their initial probes.
             else if (commandMap.IsAvailable(RedisCommand.SET)
                 && !(helloPending || RoleKnownFromHello)
-                && !(ServerType == ServerType.Cluster && GetClusterNode(ClusterConfiguration) is not null))
+                && ServerType != ServerType.Cluster)
             {
                 // This is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 // (note we only get here when HELLO isn't going to tell us: the HELLO reply carries "role", and
