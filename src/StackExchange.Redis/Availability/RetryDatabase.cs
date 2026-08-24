@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interfaces;
@@ -135,10 +135,14 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
         // (nothing to post-process)
     }
 
+    // forwarding is not using: these decorators must implement the interface in full, and the
+    // implementation cannot be dropped while the interface declares it
+    #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
     void IRedisAsync.Wait(Task task) => _inner.Wait(task);
     T IRedisAsync.Wait<T>(Task<T> task) => _inner.Wait<T>(task);
     void IRedisAsync.WaitAll(Task[] tasks) => _inner.WaitAll(tasks);
     bool IRedisAsync.TryWait(Task task) => _inner.TryWait(task);
+    #pragma warning restore SER308
 
     // Methods the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod): the Wait
     // family, the synchronous IsConnected probe, and the streaming IEnumerable/IAsyncEnumerable scans

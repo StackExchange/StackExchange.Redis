@@ -72,7 +72,9 @@ public class SO10504853Tests(ITestOutputHelper output) : TestBase(output)
 
             try
             {
+                #pragma warning disable SER308 // deliberate: test code blocking on a task, and the Wait helpers apply the configured timeout that a bare await would not
                 db.Wait(taskResult);
+                #pragma warning restore SER308
                 Assert.Fail("Should throw a WRONGTYPE");
             }
             catch (AggregateException ex)

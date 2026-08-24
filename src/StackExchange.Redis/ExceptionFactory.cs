@@ -13,7 +13,7 @@ namespace StackExchange.Redis
             DataCommandKey = "redis-command",
             DataSentStatusKey = "request-sent-status",
             DataServerKey = "redis-server",
-            TimeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
+            TimeoutHelpLink = "https://seredis.dev/Timeouts";
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message? message, ServerEndPoint? server)
         {
@@ -309,9 +309,12 @@ namespace StackExchange.Redis
             }
             AddCommonDetail(data, sb, message, multiplexer, server);
 
-            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ")
+            // Keep the URL away from the end of the message and away from punctuation: linkifiers in log
+            // viewers, chat and issue trackers greedily swallow a trailing ')' or '"', and the docs site
+            // then sees a 404 for /Timeouts). The space after it is what makes them stop.
+            sb.Append(" (see ")
               .Append(TimeoutHelpLink)
-              .Append(')');
+              .Append(" for some common client-side issues that can cause timeouts)");
 
             // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
             // and we have a more direct cause: we had no connection to send it on.
@@ -366,7 +369,7 @@ namespace StackExchange.Redis
                 {
                     case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
                     case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
-                        sb.Append(" ** possible thread-theft indicated; see https://stackexchange.github.io/StackExchange.Redis/ThreadTheft ** ");
+                        sb.Append(" ** possible thread-theft indicated; see https://seredis.dev/ThreadTheft ** ");
                         break;
                 }
                 Add(data, sb, "OpsSinceLastHeartbeat", "inst", bs.MessagesSinceLastHeartbeat.ToString());

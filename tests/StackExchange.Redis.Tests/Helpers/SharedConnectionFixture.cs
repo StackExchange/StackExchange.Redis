@@ -203,11 +203,14 @@ public class SharedConnectionFixture : IDisposable
 
         public void ResetStormLog() => _inner.ResetStormLog();
 
+        // forwarding is not using: this wrapper must implement IConnectionMultiplexer in full
+        #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
         public void Wait(Task task) => _inner.Wait(task);
 
         public T Wait<T>(Task<T> task) => _inner.Wait(task);
 
         public void WaitAll(params Task[] tasks) => _inner.WaitAll(tasks);
+        #pragma warning restore SER308
 
         public void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All)
             => _inner.ExportConfiguration(destination, options);
@@ -215,6 +218,12 @@ public class SharedConnectionFixture : IDisposable
         public override string ToString() => _inner.ToString();
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
             => _inner.GetConnectionId(endPoint, type);
+
+        bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endPoint, ConnectionType type)
+            => _inner.IsSyncReader(endPoint, type);
+
+        bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endPoint, ConnectionType type)
+            => _inner.IsSyncWriter(endPoint, type);
     }
 
     public void Dispose()

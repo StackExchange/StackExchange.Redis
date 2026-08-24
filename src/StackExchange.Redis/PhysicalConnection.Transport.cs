@@ -37,8 +37,17 @@ namespace StackExchange.Redis
 #endif
         }
 
+        private bool _transportReadingStarted;
+
+        /// <summary>Attach the receiver and begin inbound delivery. Idempotent because it is now called
+        /// from TWO places: as soon as the transport is adopted (before the handshake is written, which is
+        /// the point), and from <see cref="StartReading"/>, which every connection still goes through and
+        /// which must not start a second receiver.</summary>
         private void StartTransportReading(DuplexTransport transport)
         {
+            if (_transportReadingStarted) return;
+            _transportReadingStarted = true;
+
             _readStatus = ReadStatus.Init;
             _readState = default;
             _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);

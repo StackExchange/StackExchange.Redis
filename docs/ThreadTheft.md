@@ -1,4 +1,11 @@
-# Thread Theft
+﻿# Thread Theft
+
+> **Check this first: are you on .NET Framework?** Everything below needs a `SynchronizationContext` whose
+> `Post` runs the callback *synchronously*, and in practice that means classic ASP.NET. .NET Core and .NET 5+
+> do not install a `SynchronizationContext` for server workloads at all, so the default protection described
+> below is sufficient there and the flag will not help you. If you have timeouts on a modern runtime, start
+> with [Sync over async](SyncOverAsync) and [Timeouts](Timeouts) instead - the symptoms overlap, but the
+> causes do not.
 
 If you're here because you followed a link in an exception and you just want your code to work,
 the short version is: try adding the following *early on* in your application startup:
@@ -66,3 +73,10 @@ both appropriate and necessary, and does not represent additional overhead.
 The library will attempt to detect `LegacyAspNetSynchronizationContext` in particular,
 but this is not always reliable. The flag is also available for manual use with other
 similar scenarios.
+
+## If that was not it
+
+The distinctive marker for thread theft is `rs: CompletePendingMessage` showing up often in timeout messages -
+the reader caught running application logic. If you are seeing timeouts *without* that, the reader is more
+likely to be starved than stolen: it cannot get a thread at all, rather than being hijacked once it has one.
+That is [Sync over async](SyncOverAsync), and it applies on every runtime.

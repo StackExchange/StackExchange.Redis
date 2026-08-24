@@ -19,13 +19,16 @@ The parameter “`qs`” in the error message tells you how many requests were s
 Are you seeing a high number of busyio or busyworker threads in the timeout exception?
 ---------------
 
-Asynchronous operations in StackExchange.Redis can come back in 3 different ways:
+Asynchronous operations in StackExchange.Redis can come back in 2 different ways:
 
 - IOCP threads are used when asynchronous IO happens (e.g. reading from the network).
-- From 2.0 onwards, StackExchange.Redis maintains a dedicated thread-pool that it uses for completing most `async` operations; the error message may include an indication of how many of these workers are currently available - if this is zero, it may suggest that your system is particularly busy with asynchronous operations.
-- .NET also has a global thread-pool; if the dedicated thread-pool is failing to keep up, additional work will be offered to the global thread-pool, so the message may include details of the global thread-pool.
+- .NET's global thread-pool runs the continuations, so the message includes its statistics.
 
-The StackExchange.Redis dedicated thread-pool has a fixed size suitable for many common scenarios, which is shared between multiple connection instances (this can be customized by explicitly providing a `SocketManager` when creating a `ConnectionMultiplexer`). In many scenarios when using 2.0 and above, the vast majority of asynchronous operations will be serviced by this dedicated pool. This pool exists to avoid contention, as we've frequently seen cases where the global thread-pool becomes jammed with threads that need redis results to unblock them.
+2.x maintained a dedicated thread-pool of its own for completing `async` operations, reported as `mgr` and configurable via `SocketManager`. **That is gone as of 3.0** - `ConfigurationOptions.SocketManager` is obsolete and unused - so neither appears any more, and the global thread-pool statistics are what matter. If you need redis serviced off the global pool, see [Sync over async](SyncOverAsync#mitigation-give-the-client-its-own-threads).
+
+If the global thread-pool is saturated, the most common cause by far is blocking on asynchronous calls
+somewhere in the application - see [Sync over async](SyncOverAsync), which covers how to confirm that, why
+raising the minimum thread count does not fix it, and how to keep redis traffic flowing meanwhile.
 
 .NET itself provides new global thread pool worker threads or I/O completion threads on demand (without any throttling) until it reaches the "Minimum" setting for each type of thread. By default, the minimum number of threads is set to the number of processors on a system.
 
@@ -33,26 +36,18 @@ For these .NET-provided global thread pools: once the number of existing (busy) 
 	1. An existing thread becomes free to process the work
 	2. No existing thread becomes free for 500ms, so a new thread is created.
 
-Basically, *if* you're hitting the global thread pool (rather than the dedicated StackExchange.Redis thread-pool) it means that when the number of Busy threads is greater than Min threads, you are likely paying a 500ms delay before network traffic is processed by the application.  Also, it is important to note that when an existing thread stays idle for longer than 15 seconds (based on what I remember), it will be cleaned up and this cycle of growth and shrinkage can repeat.
+Basically, when the number of Busy threads is greater than Min threads, you are likely paying a 500ms delay before network traffic is processed by the application.  Also, it is important to note that when an existing thread stays idle for longer than 15 seconds (based on what I remember), it will be cleaned up and this cycle of growth and shrinkage can repeat.
 
-If we look at an example error message from StackExchange.Redis 2.0, you will see that it now prints ThreadPool statistics (see IOCP and WORKER details below).
+An error message carries ThreadPool statistics alongside the connection state (see IOCP, WORKER and POOL below).
 
-	Timeout performing GET MyKey (1000ms), inst: 2, qs: 6, in: 0, mgr: 9 of 10 available,
+	Timeout performing GET MyKey (1000ms), inst: 2, qs: 6, in: 0,
 	IOCP: (Busy=6,Free=994,Min=4,Max=1000),
-	WORKER: (Busy=3,Free=997,Min=4,Max=1000)
+	WORKER: (Busy=3,Free=997,Min=4,Max=1000),
+	POOL: (Threads=8,QueuedItems=0,CompletedItems=42,Timers=10)
 
-In the above example, there are 6 operations currently awaiting replies from redis ("`qs`"), there are 0 bytes waiting to be read from the input stream from redis ("`in`"), and the dedicated thread-pool is almost fully available to service asynchronous completions ("`mgr`"). You can also see that for IOCP thread there are 6 busy threads and the system is configured to allow 4 minimum threads.
+In the above example, there are 6 operations currently awaiting replies from redis ("`qs`") and 0 bytes waiting to be read from the input stream from redis ("`in`"). You can also see that for IOCP thread there are 6 busy threads and the system is configured to allow 4 minimum threads. (`POOL` is reported on .NET 5 and above; elsewhere it reads `n/a`.)
 
-In 1.*, the information is similar but slightly different:
-
-	System.TimeoutException: Timeout performing GET MyKey, inst: 2, mgr: Inactive,
-	queue: 6, qu: 0, qs: 6, qc: 0, wr: 0, wq: 0, in: 0, ar: 0,
-	IOCP: (Busy=6,Free=994,Min=4,Max=1000),
-	WORKER: (Busy=3,Free=997,Min=4,Max=1000)
-
-It may seem contradictory that there are *less* numbers in 2.0 - this is because the 2.0 code has been redesigned not to require some additional steps.
-
-Note that StackExchange.Redis can hit timeouts if either the IOCP threads or the worker threads (.NET global thread-pool, or the dedicated thread-pool) become saturated without the ability to grow.
+Note that StackExchange.Redis can hit timeouts if either the IOCP threads or the worker threads become saturated without the ability to grow.
 
 Also note that the IOCP and WORKER threads will not be shown on .NET Core if using `netstandard` < 2.0.
 
@@ -93,7 +88,6 @@ By default Redis Timeout exception(s) includes useful information, which can hel
 |in | Inbound-Bytes : {long}|there are x bytes waiting to be read from the input stream from redis| 
 |in-pipe | Inbound-Pipe-Bytes: {long}|Bytes waiting to be read| 
 |out-pipe| Outbound-Pipe-Bytes: {long}|Bytes waiting to be sent| 
-|mgr | 8 of 10 available|Redis Internal Dedicated Thread Pool State| 
 |IOCP | IOCP: (Busy=0,Free=500,Min=248,Max=500)| Runtime Global Thread Pool IO Threads. |
 |WORKER | WORKER: (Busy=170,Free=330,Min=248,Max=500)| Runtime Global Thread Pool Worker Threads.| 
 |POOL | POOL: (Threads=8,QueuedItems=0,CompletedItems=42,Timers=10)| Thread Pool Work Item Stats.| 

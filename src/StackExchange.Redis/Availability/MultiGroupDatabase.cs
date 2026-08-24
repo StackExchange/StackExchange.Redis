@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interfaces;
@@ -81,8 +81,12 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
         => TryGetActiveDatabase()?.IdentifyEndpointAsync(key, flags) ?? MultiGroupMultiplexer.NoEndpoint;
 
     // the Wait family operates on caller-supplied Tasks, not server calls
+    // forwarding is not using: these decorators must implement the interface in full, and the
+    // implementation cannot be dropped while the interface declares it
+    #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
     public bool TryWait(Task task) => GetActiveDatabase().TryWait(task);
     public void Wait(Task task) => GetActiveDatabase().Wait(task);
     public T Wait<T>(Task<T> task) => GetActiveDatabase().Wait(task);
     public void WaitAll(params Task[] tasks) => GetActiveDatabase().WaitAll(tasks);
+    #pragma warning restore SER308
 }

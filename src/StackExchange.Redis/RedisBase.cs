@@ -34,11 +34,15 @@ namespace StackExchange.Redis
 
         public bool TryWait(Task task) => task.Wait(multiplexer.TimeoutMilliseconds);
 
+        // forwarding is not using: these decorators must implement the interface in full, and the
+        // implementation cannot be dropped while the interface declares it
+        #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
         public void Wait(Task task) => multiplexer.Wait(task);
 
         public T Wait<T>(Task<T> task) => multiplexer.Wait(task);
 
         public void WaitAll(params Task[] tasks) => multiplexer.WaitAll(tasks);
+        #pragma warning restore SER308
 
         internal virtual Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
         {

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/eng/">
     <Project Path="eng/StackExchange.Redis.Build/StackExchange.Redis.Build.csproj" />
+    <Project Path="eng/StackExchange.Redis.CodeFixes/StackExchange.Redis.CodeFixes.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

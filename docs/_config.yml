@@ -1,0 +1,36 @@
+# Jekyll config for the published docs site (https://seredis.dev).
+# Without this file the site runs on GitHub's defaults: the Primer theme, and site
+# title/description silently taken from the repo's name and description fields.
+
+title: StackExchange.Redis
+description: The Redis client for .NET
+url: https://seredis.dev
+
+theme: jekyll-theme-cayman
+
+# Cayman renders "Download .zip/.tar.gz" buttons in its header when this is on, and
+# GitHub's default config turns it on; the package comes from NuGet, not a tarball.
+show_downloads: false
+
+# Cayman renders the page title in its header banner, and the title comes from each page's
+# first heading - so without this the heading reads twice, banner then body.
+titles_from_headings:
+  strip_title: true
+
+# Cayman's footer reads "<repository> is maintained by <site.github.owner_name>", and that name
+# comes from whoever owns the repository - so the site claimed to be maintained by the organisation
+# rather than by a person, which isn't true of this project. jekyll-github-metadata merges anything
+# set here over the values it reads from the API (SiteGitHubMunger#github_namespace does
+# drop.merge(config)), so naming the maintainer is enough; nothing else on the site reads either key.
+github:
+  owner_name: Marc Gravell
+  owner_url: https://github.com/mgravell
+
+# Not in the always-on GitHub Pages plugin set, so it has to be asked for; generates
+# sitemap.xml and robots.txt, neither of which the site had.
+plugins:
+  - jekyll-sitemap
+
+# Present only so the docs show up in the solution; not site content.
+exclude:
+  - docs.csproj

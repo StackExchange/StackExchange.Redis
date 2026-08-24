@@ -434,7 +434,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 return index;
             }
 
-            // const string CommandFlagsType = "StackExchange.Redis.CommandFlags";
+            const string CommandFlagsType = "StackExchange.Redis.CommandFlags";
             const string RedisKeyType = "StackExchange.Redis.RedisKey";
             const string RedisChannelType = "StackExchange.Redis.RedisChannel";
             // types that carry key(s) internally without "RedisKey" in their name, so the
@@ -475,17 +475,47 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     }
 
                     // captured args are a plain struct unless the owning database rewrites keys, in which
-                    // case the mapping members - and the interface that carries them - are emitted below
+                    // case the mapping members - and the interface that carries them - are emitted below.
+                    // A captured CommandFlags is surfaced through IFlaggedRedisArgs regardless, so that a
+                    // funnel holding an opaque TState can still see fire-and-forget; the two compose.
                     writer.Append(")");
+                    int flagsArg = -1;
+                    for (int p = 0; p < parameters.Length; p++)
+                    {
+                        // suffix rather than substring: this must not match a nullable, an array, or a
+                        // container *of* flags, none of which the funnel could read as a plain value
+                        if (parameters[p].Type.EndsWith(CommandFlagsType, StringComparison.Ordinal))
+                        {
+                            flagsArg = p;
+                            break;
+                        }
+                    }
+
+                    bool firstBase = true;
                     if (cls.IsMutator)
                     {
                         writer.Append(" : global::StackExchange.Redis.IMappableRedisArgs");
+                        firstBase = false;
+                    }
+
+                    if (flagsArg >= 0)
+                    {
+                        writer.Append(firstBase ? " : " : ", ").Append("global::StackExchange.Redis.IFlaggedRedisArgs");
                     }
                     writer.NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
                         writer.NewLine().Append("public ").Append(cls.IsMutator && NeedsMap(parameters[p].Type) ? "" : "readonly ").Append(parameters[p].Type)
                             .Append(" Arg").Append(p).Append(" = arg").Append(p).Append(";");
+                    }
+
+                    if (flagsArg >= 0)
+                    {
+                        // explicit implementation, so it cannot collide with a captured argument's own name;
+                        // readonly only on a mutator's struct, since a readonly struct's members already are
+                        writer.NewLine().Append(cls.IsMutator ? "readonly " : "")
+                            .Append("global::StackExchange.Redis.CommandFlags global::StackExchange.Redis.IFlaggedRedisArgs.Flags => Arg")
+                            .Append(flagsArg).Append(";");
                     }
 
                     if (!cls.IsMutator)
