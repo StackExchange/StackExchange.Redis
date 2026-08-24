@@ -32,12 +32,10 @@ public class HashTagUnitTests
     [InlineData(1)]
     [InlineData(8191)]
     [InlineData(16383)]
-    public void TestHashTagPrefixTargetsSlot(int slot)
+    public void TestCreateKeyForSlotTargetsSlot(int slot)
     {
-        var prefix = ServerSelectionStrategy.GetHashTagPrefix(slot);
-        RedisKey key = ((RedisKey)"probe-id").Prepend(prefix);
+        var key = ServerSelectionStrategy.CreateKeyForSlot(slot, "probe-id");
 
         Assert.Equal(slot, ServerSelectionStrategy.GetHashSlot(key));
-        Assert.Same((byte[]?)prefix, (byte[]?)ServerSelectionStrategy.GetHashTagPrefix(slot));
     }
 }
