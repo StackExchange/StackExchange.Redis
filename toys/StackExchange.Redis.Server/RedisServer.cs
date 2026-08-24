@@ -694,6 +694,83 @@ namespace StackExchange.Redis.Server
             return TypedRedisValue.OK;
         }
 
+        /// <summary>
+        /// How this server answers <c>CLIENT MAINT_NOTIFICATIONS</c>. Real servers vary: Enterprise supports
+        /// it, OSS and Valkey and Garnet do not, and Enterprise can have the feature flag off - so a client
+        /// must cope with all three, and a test must be able to ask for all three.
+        /// </summary>
+        public enum MaintenanceNotificationSupport
+        {
+            /// <summary>Accept the opt-in and reply <c>+OK</c>.</summary>
+            Supported = 0,
+
+            /// <summary>Reply with an error, as a server that has never heard of the subcommand does.</summary>
+            UnknownSubcommand,
+
+            /// <summary>Reply with an error, as a server whose feature flag is off does.</summary>
+            Disabled,
+        }
+
+        /// <summary>
+        /// How this server answers the maintenance-notification opt-in; <see cref="MaintenanceNotificationSupport.Supported"/>
+        /// by default, so that any test may opt in and see it accepted.
+        /// </summary>
+        public MaintenanceNotificationSupport MaintenanceNotifications { get; set; }
+
+        // CLIENT MAINT_NOTIFICATIONS <ON|OFF> [parameter value ...], where parameter names follow a
+        // $type-$setting convention and moving-endpoint-type is the only one defined so far. A bare ON is
+        // explicitly valid and means "use the server defaults", so the parameter list is optional and
+        // unrecognized parameters are an error rather than something to ignore - the client is asking the
+        // server to do something specific, and silently not doing it would be worse than refusing
+        [RedisCommand(-3, nameof(RedisCommand.CLIENT), "maint_notifications", LockFree = true)]
+        protected virtual TypedRedisValue ClientMaintNotifications(RedisClient client, in RedisRequest request)
+        {
+            switch (MaintenanceNotifications)
+            {
+                case MaintenanceNotificationSupport.UnknownSubcommand:
+                    return request.UnknownSubcommandOrArgumentCount();
+                case MaintenanceNotificationSupport.Disabled:
+                    return TypedRedisValue.Error("ERR maintenance notifications are disabled on this server");
+            }
+
+            bool on;
+            if (request.IsString(2, "on"u8)) on = true;
+            else if (request.IsString(2, "off"u8)) on = false;
+            else return TypedRedisValue.Error("ERR syntax error");
+
+            string movingEndpointType = null;
+            for (int i = 3; i < request.Count; i += 2)
+            {
+                if (i + 1 >= request.Count) return TypedRedisValue.Error("ERR syntax error");
+
+                if (request.IsString(i, "moving-endpoint-type"u8))
+                {
+                    movingEndpointType = request.GetString(i + 1);
+                    switch (movingEndpointType)
+                    {
+                        case "internal-ip":
+                        case "internal-fqdn":
+                        case "external-ip":
+                        case "external-fqdn":
+                        case "none":
+                            break;
+                        default:
+                            return TypedRedisValue.Error($"ERR unsupported moving-endpoint-type '{movingEndpointType}'");
+                    }
+                }
+                else
+                {
+                    return TypedRedisValue.Error($"ERR unknown parameter '{request.GetString(i)}'");
+                }
+            }
+
+            client.MaintenanceNotifications = on;
+            client.MovingEndpointType = on ? movingEndpointType : null;
+            client.MaintenanceNotificationOptInCount++;
+            Log($"[{client}] maintenance notifications {(on ? "on" : "off")}, moving-endpoint-type: {movingEndpointType ?? "(server default)"}");
+            return TypedRedisValue.OK;
+        }
+
         [RedisCommand(2, nameof(RedisCommand.CLIENT), "id", LockFree = true)]
         protected virtual TypedRedisValue ClientId(RedisClient client, in RedisRequest request)
             => TypedRedisValue.Integer(client.Id);

@@ -99,6 +99,22 @@ namespace StackExchange.Redis.Server
         }
 
         public RedisServer.Node Node => node;
+
+        /// <summary>
+        /// Whether this connection has opted in to maintenance notifications, and with which endpoint type -
+        /// per connection, because that is how the real opt-in is scoped, so a test can assert that every
+        /// connection opted in rather than merely that one did.
+        /// </summary>
+        public bool MaintenanceNotifications { get; internal set; }
+
+        /// <summary>The <c>moving-endpoint-type</c> this connection asked for, or null for server defaults.</summary>
+        public string MovingEndpointType { get; internal set; }
+
+        /// <summary>
+        /// How many times this connection has sent the opt-in. Re-arming on reconnect is a requirement, and a
+        /// count is what distinguishes "opted in once" from "opted in again after reconnecting".
+        /// </summary>
+        public int MaintenanceNotificationOptInCount { get; internal set; }
         public int SkipReplies { get; set; }
         public void SkipAllReplies() => SkipReplies = -1;
         internal bool ShouldSkipResponse()
