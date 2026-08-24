@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -37,6 +36,8 @@ namespace StackExchange.Redis
         private bool isDisposed, replicaReadOnly, isReplica, allowReplicaWrites;
         private bool? supportsDatabases, supportsPrimaryWrites;
         private ServerType serverType;
+        private RedisKey tracerKey;
+        private int? tracerKeySlot = ServerSelectionStrategy.MultipleSlots;
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
 
@@ -380,7 +381,14 @@ namespace StackExchange.Redis
         }
 
         private ClusterNode? GetClusterNode(ClusterConfiguration? configuration) =>
-            configuration?.Nodes.FirstOrDefault(x => x.EndPoint?.Equals(EndPoint) == true);
+            configuration?[EndPoint];
+
+        internal int? GetServableSlot()
+        {
+            if (ServerType != ServerType.Cluster || GetClusterNode(ClusterConfiguration) is not { } node) return null;
+            if (node.Slots.Count == 0 && node.Parent is { } parent) node = parent;
+            return node.Slots.Count == 0 ? null : node.Slots[0].From;
+        }
 
         public void SetUnselectable(UnselectableFlags flags)
         {
@@ -695,14 +703,15 @@ namespace StackExchange.Redis
 
         internal RedisKey GetTracerKey()
         {
-            RedisKey key = Multiplexer.UniqueId;
-            if (ServerType == ServerType.Cluster
-                && GetClusterNode(ClusterConfiguration) is { } node
-                && node.Slots.Count > 0)
+            var slot = GetServableSlot();
+            if (tracerKeySlot != slot)
             {
-                key = key.Prepend(ServerSelectionStrategy.GetHashTagPrefix(node.Slots[0].From));
+                tracerKey = slot is int value
+                    ? ServerSelectionStrategy.CreateKeyForSlot(value, Multiplexer.UniqueId)
+                    : Multiplexer.UniqueId;
+                tracerKeySlot = slot;
             }
-            return key;
+            return tracerKey;
         }
 
         internal UnselectableFlags GetUnselectableFlags() => unselectableReasons;

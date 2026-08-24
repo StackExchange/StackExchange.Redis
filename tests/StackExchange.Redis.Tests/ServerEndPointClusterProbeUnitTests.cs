@@ -29,12 +29,7 @@ public class ServerEndPointClusterProbeUnitTests
         Assert.Equal(RedisCommand.EXISTS, message.Command);
         Assert.Equal(targetSlot, message.GetHashSlot(connection.ServerSelectionStrategy));
         var key = endpoint.GetTracerKey();
-        var keyBytes = (byte[]?)key;
-        var prefixBytes = (byte[]?)ServerSelectionStrategy.GetHashTagPrefix(targetSlot);
-        Assert.NotNull(keyBytes);
-        Assert.NotNull(prefixBytes);
-        Assert.True(keyBytes.Take(prefixBytes.Length).SequenceEqual(prefixBytes));
-        Assert.True(keyBytes.Skip(keyBytes.Length - connection.UniqueId.Length).SequenceEqual(connection.UniqueId));
+        Assert.Equal(ServerSelectionStrategy.CreateKeyForSlot(targetSlot, connection.UniqueId), key);
     }
 
     [Theory]
