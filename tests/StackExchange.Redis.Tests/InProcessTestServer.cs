@@ -268,16 +268,27 @@ public class InProcessTestServer : MemoryCacheRedisServer
             && string.Equals(certificate.GetCertHashString(), _serverCertificateThumbprint, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Restricts what the server's certificate is valid for. When null (the default) the certificate covers
+    /// the default endpoint and every registered alias, which is convenient but means a test *cannot* catch
+    /// the client dialling or presenting the wrong name - everything validates. Set this to make the
+    /// certificate narrow, so that dialling by an uncovered name fails the way a real deployment would.
+    /// </summary>
+    public IReadOnlyList<EndPoint>? CertificateNames { get; set; }
+
     // deferred until first use rather than built in the constructor: tests register aliases *after*
-    // construction, and every identity a node can be dialled by has to appear in the SAN list, or TLS
-    // validation fails for reasons that have nothing to do with what the test is exercising
+    // construction, and every identity a node can be dialled by has to appear in the SAN list unless the test
+    // has deliberately narrowed it, or TLS validation fails for reasons unrelated to what is being exercised
     private X509Certificate2 GetServerCertificate()
     {
         lock (_certificateLock)
         {
             if (_serverCertificate is null)
             {
-                _serverCertificate = CreateServerCertificate(DefaultEndPoint, GetAliases());
+                var names = CertificateNames;
+                _serverCertificate = names is null
+                    ? CreateServerCertificate(DefaultEndPoint, GetAliases())
+                    : CreateServerCertificate(names.Count > 0 ? names[0] : DefaultEndPoint, names);
                 _serverCertificateThumbprint = _serverCertificate.Thumbprint;
             }
             return _serverCertificate;

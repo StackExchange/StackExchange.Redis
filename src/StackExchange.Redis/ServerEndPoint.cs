@@ -22,6 +22,34 @@ namespace StackExchange.Redis
         RedundantPrimary = 1,
         DidNotRespond = 2,
         ServerType = 4,
+
+        /// <summary>This server is being retired; it must not be selected for new work.</summary>
+        Retiring = 8,
+    }
+
+    /// <summary>
+    /// How we came to know about a server, which decides what may retire it: "absent from the topology" only
+    /// means anything if the source that would have listed it actually ran.
+    /// </summary>
+    internal enum ServerProvenance
+    {
+        /// <summary>Named in <see cref="ConfigurationOptions.EndPoints"/>; never pruned.</summary>
+        Configured = 0,
+
+        /// <summary>Discovered from cluster topology; prunable when the topology stops listing it.</summary>
+        ClusterTopology,
+
+        /// <summary>
+        /// Discovered from sentinel. Cluster absence must never count against it - in a sentinel deployment
+        /// there is no cluster topology at all, so a single rule would prune the entire thing.
+        /// </summary>
+        Sentinel,
+
+        /// <summary>
+        /// Learned from a redirect, so it is legitimately ahead of the topology; initial absence is expected
+        /// rather than evidence.
+        /// </summary>
+        Redirect,
     }
 
     internal sealed partial class ServerEndPoint : IDisposable
@@ -46,10 +74,17 @@ namespace StackExchange.Redis
             subscription?.ResetNonConnected();
         }
 
-        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint)
+        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, ServerProvenance provenance)
         {
             Multiplexer = multiplexer;
             EndPoint = endpoint;
+            // both collections, deliberately: ResolveDns rewrites the multiplexer's working set at startup,
+            // replacing configured DnsEndPoints with the addresses they resolved to, while RawConfig keeps the
+            // original names. Testing only RawConfig would classify a *configured* endpoint as discovered - and
+            // therefore prunable - whenever ResolveDns is enabled
+            Provenance = multiplexer.RawConfig.EndPoints.Contains(endpoint) || multiplexer.EndPoints.Contains(endpoint)
+                ? ServerProvenance.Configured
+                : provenance;
             var config = multiplexer.RawConfig;
             version = config.DefaultVersion;
             replicaReadOnly = true;
@@ -232,6 +267,116 @@ namespace StackExchange.Redis
 
         internal ConnectionMultiplexer Multiplexer { get; }
 
+        /// <summary>
+        /// Whether this server has been disposed; a retired server must not be handed out again.
+        /// </summary>
+        internal bool IsDisposed => isDisposed;
+
+        /// <summary>How we learned of this server; see <see cref="ServerProvenance"/>.</summary>
+        internal ServerProvenance Provenance { get; private set; }
+
+        /// <summary>
+        /// The topology generation in which this server was last listed, or -1 if it never has been.
+        /// </summary>
+        internal int LastSeenGeneration { get; private set; } = -1;
+
+        /// <summary>
+        /// The generation in which this server first went missing from the topology, or -1 if present.
+        /// </summary>
+        internal int AbsentSinceGeneration { get; private set; } = -1;
+
+        /// <summary>
+        /// Note that the topology still lists this server, clearing any accrued absence.
+        /// </summary>
+        internal void OnSeenInTopology(int generation)
+        {
+            LastSeenGeneration = generation;
+            AbsentSinceGeneration = -1;
+
+            // a node first learned from a redirect is confirmed by the topology, so it stops being a special
+            // case; configured endpoints keep their provenance, since nothing may prune them
+            if (Provenance == ServerProvenance.Redirect) Provenance = ServerProvenance.ClusterTopology;
+        }
+
+        /// <summary>
+        /// Note that the topology did not list this server. Returns the number of consecutive generations it
+        /// has now been missing for, counting this one.
+        /// </summary>
+        /// <remarks>
+        /// The design notes proposed also resetting this whenever the server had been *used* since the last
+        /// absence, on the grounds that "recently useful" is stronger evidence than "not listed". That is not
+        /// implementable as stated and turns out to be unnecessary: the only usage counter available
+        /// (<c>PhysicalBridge.IncrementOpCount</c>) is incremented by our own heartbeat pings as well as by
+        /// callers, so an idle-but-connected server never looks unused - and every case it was meant to
+        /// protect is already covered by <see cref="IsIdle"/>, since a server actually carrying traffic owns
+        /// slots in the map. What remains uncovered is a server used only via <c>GetServer</c> by hand while
+        /// absent from the topology, and pruning that is consistent with the endpoint collection being a
+        /// snapshot.
+        /// </remarks>
+        internal int OnMissingFromTopology(int generation)
+        {
+            if (AbsentSinceGeneration < 0)
+            {
+                AbsentSinceGeneration = generation;
+                return 1;
+            }
+            return generation - AbsentSinceGeneration + 1;
+        }
+
+        /// <summary>
+        /// Whether retiring this server would abandon anything: slots it owns, subscriptions it carries, or
+        /// work it still owes.
+        /// </summary>
+        internal bool IsIdle()
+            => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
+            && (subscription?.SubscriptionCount ?? 0) == 0
+            && (interactive?.SubscriptionCount ?? 0) == 0
+            && GetOutstandingCount() == 0;
+
+        /// <summary>
+        /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
+        /// the backlog. Zero means a retirement can complete without abandoning anyone.
+        /// </summary>
+        internal int GetOutstandingCount()
+        {
+            var counters = GetCounters();
+            return counters.Interactive.SentItemsAwaitingResponse + counters.Interactive.PendingUnsentItems
+                + counters.Subscription.SentItemsAwaitingResponse + counters.Subscription.PendingUnsentItems;
+        }
+
+        /// <summary>
+        /// Retire this server gracefully: stop accepting new work, let what has already been written complete,
+        /// then tear the connections down. Distinct from <see cref="Dispose"/>, which is the abrupt path and
+        /// abandons anything outstanding.
+        /// </summary>
+        /// <param name="reason">Why this server is being retired; for logging.</param>
+        /// <param name="drainTimeout">How long to allow the drain before closing regardless.</param>
+        /// <param name="log">Optional logger.</param>
+        internal async Task RetireAsync(string reason, TimeSpan drainTimeout, ILogger? log = null)
+        {
+            if (isDisposed) return;
+
+            // stop being selected *first*, so the drain is bounded: nothing new arrives while we wait
+            SetUnselectable(UnselectableFlags.Retiring);
+            log?.LogInformationRetiringServer(new(EndPoint), reason);
+
+            // Stopwatch rather than TickCount64: the latter does not exist on the down-level targets
+            var watch = ValueStopwatch.StartNew();
+            int outstanding;
+            while ((outstanding = GetOutstandingCount()) > 0 && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
+            }
+
+            if (outstanding > 0)
+            {
+                // deliberately reported: an abandoned command is exactly what a caller will be asking about
+                log?.LogInformationRetiringServerAbandoned(new(EndPoint), outstanding);
+            }
+
+            Dispose();
+        }
+
         public void Dispose()
         {
             isDisposed = true;
@@ -336,6 +481,10 @@ namespace StackExchange.Redis
             {
                 ClusterTopology = topology;
                 Multiplexer.Trace($"Shadow topology: {topology.Nodes.Count} nodes");
+
+                // not routing on this yet, but the identities are useful immediately: they let a node reached
+                // by its other name resolve to the server we already have, rather than becoming a duplicate
+                Multiplexer.RegisterServerIdentities(topology);
             }
         }
 
@@ -346,7 +495,17 @@ namespace StackExchange.Redis
             if (configuration != null)
             {
                 Multiplexer.Trace("Updating cluster ranges...");
-                Multiplexer.UpdateClusterRange(configuration);
+
+                // the SLOTS view drives the slot map when this server supplied one; NODES remains the source
+                // for node relations below, and for anything SLOTS does not report
+                if (ClusterTopology is { } topology)
+                {
+                    Multiplexer.UpdateClusterRange(topology);
+                }
+                else
+                {
+                    Multiplexer.UpdateClusterRange(configuration);
+                }
                 Multiplexer.Trace("Resolving genealogy...");
                 UpdateNodeRelations(configuration);
                 Multiplexer.Trace("Cluster configured");
@@ -367,11 +526,11 @@ namespace StackExchange.Redis
 
                     if (node.NodeId == thisNode.ParentNodeId)
                     {
-                        primary = Multiplexer.GetServerEndPoint(node.EndPoint);
+                        primary = Multiplexer.GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology);
                     }
                     else if (node.ParentNodeId == thisNode.NodeId && node.EndPoint is not null)
                     {
-                        (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                        (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology));
                     }
                 }
                 Primary = primary;
@@ -517,21 +676,18 @@ namespace StackExchange.Redis
             }
             if (commandMap.IsAvailable(RedisCommand.CLUSTER))
             {
+                // SLOTS first, deliberately: replies arrive in request order, so this is processed before
+                // the NODES reply below, and the identities it carries are therefore known before NODES
+                // starts creating servers by address. Without that ordering, a node created from a redirect
+                // under its announced hostname is duplicated under its address moments later by its own
+                // autoconfigure. Costs nothing: the burst stays a single pipeline with no round-trip stall
+                msg = RedisServer.GetClusterSlotsMessage(flags);
+                msg.SetInternalCall();
+                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
+
                 msg = RedisServer.GetClusterNodesMessage(flags);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
-
-                // CLUSTER SLOTS would go here - it is the view that conveys naming preference and node ids,
-                // and ClusterTopology/SetClusterSlots exist ready for it. Deliberately *not* invoked yet:
-                // this PR is scoped to work that cannot destabilise a connection, and asking every server for
-                // an extra command on every autoconfigure is a new failure surface on the connect path (an
-                // unexpected error reply to an internal call, a proxy that mangles the command) for no
-                // user-visible benefit until routing actually consumes it. Enabled in the follow-up, where
-                // ordering matters too: it must precede CLUSTER NODES so identities are known before NODES
-                // creates servers by address.
-                //// msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.SLOTS);
-                //// msg.SetInternalCall();
-                //// await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits

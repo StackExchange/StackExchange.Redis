@@ -515,7 +515,7 @@ public partial class ConnectionMultiplexer
     /// <param name="newPrimaryEndPoint">The primary endpoint reported by sentinel (already known to the connection).</param>
     private static bool IsStalePrimaryView(ConnectionMultiplexer connection, EndPoint newPrimaryEndPoint)
     {
-        var newPrimaryServer = connection.GetServerEndPoint(newPrimaryEndPoint, activate: false);
+        var newPrimaryServer = connection.GetServerEndPoint(newPrimaryEndPoint, activate: false, provenance: ServerProvenance.Sentinel);
 
         // We do not know this endpoint yet, or we still think the sentinel-reported primary is a
         // replica, or we are not actually connected to it: our view is stale.

@@ -112,7 +112,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
             var server = GetServer(conn);
             conn.AllowConnect = false;
             var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-            var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint));
+            var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint, ServerProvenance.Configured));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
             Log("Exception: " + ex.Message);
 
@@ -192,7 +192,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
                 options.IncludePerformanceCountersInExceptions = hasDetail;
 
                 var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-                var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint));
+                var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint, ServerProvenance.Configured));
                 var ex = Assert.IsType<RedisConnectionException>(rawEx);
                 Log("Exception: " + ex.Message);
 

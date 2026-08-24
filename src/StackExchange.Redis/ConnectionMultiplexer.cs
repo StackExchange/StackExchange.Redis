@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -38,6 +39,11 @@ namespace StackExchange.Redis
         private TimerToken? pulse;
 
         private readonly Hashtable servers = new Hashtable();
+
+        // secondary identities: a node can legitimately arrive under more than one name (an address and an
+        // announced hostname), and `servers` is keyed on exact endpoint equality, so without this the same
+        // node reached by its other name becomes a second ServerEndPoint - see #2826
+        private readonly ConcurrentDictionary<EndPoint, ServerEndPoint> _serverIdentities = new();
         private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
 
         private volatile bool _isDisposed;
@@ -779,6 +785,21 @@ namespace StackExchange.Redis
         ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => _serverSnapshot.AsSpan();
         internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.AsSpan();
         internal ReadOnlyMemory<ServerEndPoint> GetServerSnaphotMemory() => _serverSnapshot.AsMemory();
+
+        /// <summary>
+        /// Two servers found to be the same node under different names, and which of them survives the merge.
+        /// </summary>
+        /// <remarks>
+        /// A named struct rather than a tuple on purpose: the library must not reference <c>ValueTuple</c>
+        /// (asserted by <c>SanityChecks.ValueTupleNotReferenced</c>, since it would add a facade dependency on
+        /// the down-level targets).
+        /// </remarks>
+        private readonly struct DuplicateServers(ServerEndPoint survivor, ServerEndPoint loser)
+        {
+            public ServerEndPoint Survivor { get; } = survivor;
+            public ServerEndPoint Loser { get; } = loser;
+        }
+
         internal sealed class ServerSnapshot : IEnumerable<ServerEndPoint>
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
@@ -814,6 +835,36 @@ namespace StackExchange.Redis
                 }
                 nextEndpoints[_count] = value;
                 return new ServerSnapshot(nextEndpoints, _count + 1);
+            }
+
+            /// <summary>
+            /// Returns a snapshot without <paramref name="value"/>, or this one if it was not present.
+            /// </summary>
+            /// <remarks>
+            /// Unlike <see cref="Add"/> this can never reuse the existing array. Add is allowed to write into
+            /// spare capacity because older readers hold a smaller count and so never observe the new slot;
+            /// removal would have to *shift* elements a concurrent reader may be part-way through enumerating,
+            /// so it always allocates a compacted copy.
+            /// </remarks>
+            internal ServerSnapshot Remove(ServerEndPoint value)
+            {
+                if (value is null) return this;
+
+                int index = -1;
+                for (int i = 0; i < _count; i++)
+                {
+                    if (ReferenceEquals(_endpoints[i], value))
+                    {
+                        index = i;
+                        break;
+                    }
+                }
+                if (index < 0) return this;
+
+                var next = new ServerEndPoint[Math.Max(_count - 1, 1)];
+                if (index > 0) Array.Copy(_endpoints, 0, next, 0, index);
+                if (index < _count - 1) Array.Copy(_endpoints, index + 1, next, index, _count - 1 - index);
+                return new ServerSnapshot(next, _count - 1);
             }
 
             internal EndPoint[] GetEndPoints()
@@ -922,13 +973,210 @@ namespace StackExchange.Redis
             }
         }
 
-        ServerEndPoint IInternalConnectionMultiplexer.GetServerEndPoint(EndPoint endpoint) => GetServerEndPoint(endpoint);
+        // callers of this member are looking up a server they expect to exist (tests, connection-id probes),
+        // so the provenance is all but unreachable - Configured is the conservative choice if it ever is
+        // reached, since it is the one value that cannot cause a later prune
+        ServerEndPoint IInternalConnectionMultiplexer.GetServerEndPoint(EndPoint endpoint)
+            => GetServerEndPoint(endpoint, ServerProvenance.Configured);
 
+        /// <summary>
+        /// Finds an existing server by any identity it is known to answer to, without creating one.
+        /// </summary>
+        internal ServerEndPoint? TryResolveServerEndPoint(EndPoint? endpoint)
+        {
+            if (endpoint is null) return null;
+            if (servers[endpoint] is ServerEndPoint exact) return exact;
+
+            // a retired server may still be referenced by an alias for a moment; never hand one back, or the
+            // caller receives something whose bridges are gone
+            return _serverIdentities.TryGetValue(endpoint, out var byIdentity) && !byIdentity.IsDisposed
+                ? byIdentity : null;
+        }
+
+        // bumped once per applied cluster topology; absence is measured in these rather than in time, so a
+        // quiet client cannot age an endpoint out simply by not reconfiguring
+        private int _topologyGeneration;
+
+        /// <summary>
+        /// How many consecutive topology generations a server must be missing from before it may be pruned.
+        /// A single reply is one node's view, so one absence is not evidence.
+        /// </summary>
+        private const int PruneAfterMissingGenerations = 3;
+
+        /// <summary>
+        /// Records which servers the freshly-applied topology listed, and retires those which have been absent
+        /// long enough - and which nothing depends on.
+        /// </summary>
+        internal async Task ApplyTopologyGenerationAsync(ClusterTopology topology, ILogger? log = null)
+        {
+            if (topology is null) return;
+
+            var generation = Interlocked.Increment(ref _topologyGeneration);
+
+            // resolve the listed nodes to servers we hold, by any identity. More than one distinct server for
+            // one node-id is a duplicate: the same process reached under two names, which costs a second
+            // socket and splits backlog and subscription state across the pair
+            var seen = new HashSet<ServerEndPoint>();
+            List<DuplicateServers>? merge = null;
+            foreach (var node in topology.Nodes)
+            {
+                ServerEndPoint? survivor = null;
+                foreach (var identity in node.Identities)
+                {
+                    if (TryResolveServerEndPoint(identity) is not { } server) continue;
+
+                    if (survivor is null)
+                    {
+                        // Identities is ordered with the form the answering node advertised first, so the
+                        // earliest match is also the deployment's stated preference
+                        survivor = server;
+                    }
+                    else if (!ReferenceEquals(survivor, server))
+                    {
+                        // ...unless one of them was configured: those may never be retired, so they win
+                        var pair = server.Provenance == ServerProvenance.Configured
+                            ? new DuplicateServers(server, survivor)
+                            : new DuplicateServers(survivor, server);
+                        survivor = pair.Survivor;
+                        (merge ??= new()).Add(pair);
+                    }
+                }
+
+                if (survivor is not null)
+                {
+                    survivor.OnSeenInTopology(generation);
+                    seen.Add(survivor);
+
+                    // every name this node answers to now resolves to the survivor, so a caller holding the
+                    // retired one keeps working rather than breaking
+                    foreach (var identity in node.Identities)
+                    {
+                        if (servers[identity] is null) _serverIdentities[identity] = survivor;
+                    }
+                }
+            }
+
+            if (merge is not null)
+            {
+                foreach (var pair in merge)
+                {
+                    var survivor = pair.Survivor;
+                    var loser = pair.Loser;
+                    if (loser.IsDisposed || loser.Provenance == ServerProvenance.Configured) continue;
+                    log?.LogInformationMergingDuplicateServer(new(loser.EndPoint), new(survivor.EndPoint));
+                    _serverIdentities[loser.EndPoint] = survivor;
+                    await RetireServerAsync(loser, "duplicate of " + Format.ToString(survivor.EndPoint), log: log).ForAwait();
+                    seen.Add(loser); // already handled; do not also consider it for pruning
+                }
+            }
+
+            List<ServerEndPoint>? prune = null;
+            foreach (var server in GetServerSnapshot())
+            {
+                if (seen.Contains(server) || server.IsDisposed) continue;
+
+                // only cluster-discovered nodes may be pruned by cluster absence: a configured endpoint is the
+                // seed we need to bootstrap after a full rotation, and sentinel-discovered nodes are listed by
+                // a source that did not run here
+                if (server.Provenance != ServerProvenance.ClusterTopology) continue;
+
+                var missingFor = server.OnMissingFromTopology(generation);
+                if (missingFor < PruneAfterMissingGenerations || !server.IsIdle()) continue;
+
+                (prune ??= new List<ServerEndPoint>()).Add(server);
+            }
+
+            if (prune is null) return;
+            foreach (var server in prune)
+            {
+                log?.LogInformationPruningServer(new(server.EndPoint), PruneAfterMissingGenerations);
+                await RetireServerAsync(server, "absent from topology", log: log).ForAwait();
+            }
+        }
+
+        /// <summary>
+        /// Drains and removes a server: it stops being selected, finishes what it owes, then is forgotten -
+        /// including every secondary identity that pointed at it.
+        /// </summary>
+        /// <remarks>
+        /// The single spelling of retirement, deliberately: topology pruning, duplicate merging, and the
+        /// endpoint handoffs of the maintenance-notification work all want the same drain-then-close, and
+        /// having one of them reach for <see cref="ServerEndPoint.Dispose"/> instead would abandon in-flight
+        /// commands.
+        /// </remarks>
+        internal async Task RetireServerAsync(ServerEndPoint server, string reason, TimeSpan? drainTimeout = null, ILogger? log = null)
+        {
+            if (server is null) return;
+
+            await server.RetireAsync(reason, drainTimeout ?? TimeSpan.FromSeconds(5), log).ForAwait();
+
+            lock (servers)
+            {
+                // by endpoint, not by scanning: the server is keyed on exactly one
+                if (ReferenceEquals(servers[server.EndPoint], server))
+                {
+                    servers.Remove(server.EndPoint);
+                }
+                _serverSnapshot = _serverSnapshot.Remove(server);
+            }
+
+            // ...and drop the aliases, or a later lookup resolves to something disposed
+            foreach (var pair in _serverIdentities)
+            {
+                if (ReferenceEquals(pair.Value, server))
+                {
+                    _serverIdentities.TryRemove(pair.Key, out _);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Records the additional names a known node answers to, so that reaching it by any of them resolves
+        /// to the one <see cref="ServerEndPoint"/>. Deliberately does not create anything: a node we have
+        /// never heard of is a matter for discovery, not for identity.
+        /// </summary>
+        internal void RegisterServerIdentities(ClusterTopology topology)
+        {
+            foreach (var node in topology.Nodes)
+            {
+                // resolve via any identity we already hold; if we know the node at all, the rest are aliases
+                ServerEndPoint? known = null;
+                foreach (var identity in node.Identities)
+                {
+                    if ((known = TryResolveServerEndPoint(identity)) is not null) break;
+                }
+                if (known is null) continue;
+
+                foreach (var identity in node.Identities)
+                {
+                    if (servers[identity] is not null) continue; // already a server in its own right
+                    if (_serverIdentities.TryAdd(identity, known))
+                    {
+                        Trace($"Identity {Format.ToString(identity)} -> {Format.ToString(known.EndPoint)}");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finds the server for an endpoint, creating it if we do not have one.
+        /// </summary>
+        /// <remarks>
+        /// <paramref name="provenance"/> is deliberately required: it decides what may later retire the
+        /// server, and a defaulted value means a new call site silently inherits a policy it never considered.
+        /// It only takes effect when this call *creates* - an endpoint we already hold keeps the provenance it
+        /// was created with, and one named in the configuration is <see cref="ServerProvenance.Configured"/>
+        /// regardless of what is passed here.
+        /// </remarks>
         [return: NotNullIfNotNull(nameof(endpoint))]
-        internal ServerEndPoint? GetServerEndPoint(EndPoint? endpoint, ILogger? log = null, bool activate = true)
+        internal ServerEndPoint? GetServerEndPoint(
+            EndPoint? endpoint,
+            ServerProvenance provenance,
+            ILogger? log = null,
+            bool activate = true)
         {
             if (endpoint == null) return null;
-            var server = (ServerEndPoint?)servers[endpoint];
+            var server = (ServerEndPoint?)servers[endpoint] ?? TryResolveServerEndPoint(endpoint);
             if (server == null)
             {
                 bool isNew = false;
@@ -939,7 +1187,7 @@ namespace StackExchange.Redis
                     {
                         if (_isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint);
+                        server = new ServerEndPoint(this, endpoint, provenance);
                         servers.Add(endpoint, server);
                         isNew = true;
                         _serverSnapshot = _serverSnapshot.Add(server);
@@ -1277,7 +1525,7 @@ namespace StackExchange.Redis
             {
                 throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
             }
-            var server = servers[endpoint] as ServerEndPoint ?? throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
+            var server = TryResolveServerEndPoint(endpoint) ?? throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
             return server.GetRedisServer(asyncState);
         }
 
@@ -1493,7 +1741,7 @@ namespace StackExchange.Redis
                     }
                     foreach (var endpoint in EndPoints)
                     {
-                        GetServerEndPoint(endpoint, log, false);
+                        GetServerEndPoint(endpoint, ServerProvenance.Configured, log, activate: false);
                     }
                     ActivateAllServers(log);
                 }
@@ -1539,7 +1787,7 @@ namespace StackExchange.Redis
                         {
                             Trace("Testing: " + Format.ToString(endpoints[i]));
 
-                            var server = GetServerEndPoint(endpoints[i]);
+                            var server = GetServerEndPoint(endpoints[i], ServerProvenance.ClusterTopology);
                             // server.ReportNextFailure();
                             servers[i] = server;
 
@@ -1802,21 +2050,69 @@ namespace StackExchange.Redis
 
         private async Task<EndPointCollection?> GetEndpointsFromClusterNodes(ServerEndPoint server, ILogger? log)
         {
-            var message = RedisServer.GetClusterNodesMessage(CommandFlags.None);
             try
             {
-                var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();
+                // both views, freshly: SLOTS says who serves what and under which names, NODES lists every
+                // node including those serving nothing. Asked as a pair for symmetry - trusting the topology
+                // cached from autoconfigure here would mean acting on possibly-stale data while deliberately
+                // re-reading the other half
+                var slotsTask = ExecuteAsyncImpl(
+                    RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
+                var nodesTask = ExecuteAsyncImpl(
+                    RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
+
+                var slots = await slotsTask.ForAwait();
+                var clusterConfig = await nodesTask.ForAwait();
                 if (clusterConfig is null)
                 {
                     return null;
                 }
-                var clusterEndpoints = new EndPointCollection(clusterConfig.Nodes.Where(node => node.EndPoint is not null && !node.IgnoreFromClient).Select(node => node.EndPoint!).ToList());
-                // Loop through nodes in the cluster and update nodes relations to other nodes
-                ServerEndPoint? serverEndpoint = null;
+
+                var topology = ClusterTopology.From(slots);
+                var clusterEndpoints = new EndPointCollection();
+
+                if (topology is not null)
+                {
+                    // SLOTS drives discovery: these are the nodes that serve traffic, so they are the ones we
+                    // connect to. Resolve through every identity first, so a node we already hold under
+                    // another name is not duplicated
+                    RegisterServerIdentities(topology);
+                    foreach (var node in topology.Nodes)
+                    {
+                        if (SelectIdentity(node) is { } endpoint) clusterEndpoints.TryAdd(endpoint);
+                    }
+                }
+
+                // ...and NODES contributes the remainder - nodes serving no slots do not appear in SLOTS at
+                // all. Registered *inert*: known and addressable via GetServer, but not dialled, since
+                // there is nothing to route to them. First use creates the bridge, so nothing is lost
+                foreach (var node in clusterConfig.Nodes)
+                {
+                    if (node.EndPoint is null || node.IgnoreFromClient) continue;
+
+                    if (topology is null)
+                    {
+                        // no usable SLOTS view (pre-4.0, or an error reply): behave exactly as before
+                        clusterEndpoints.TryAdd(node.EndPoint);
+                    }
+                    else if (TryResolveServerEndPoint(node.EndPoint) is null)
+                    {
+                        log?.LogInformationRegisteringInertNode(new(node.EndPoint));
+                        GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology, activate: false);
+                    }
+                }
+
+                // node relations come from NODES either way - SLOTS conveys replica-of by position, but not
+                // the node ids and flags that Primary/Replicas resolution uses
                 foreach (EndPoint endpoint in clusterEndpoints)
                 {
-                    serverEndpoint = GetServerEndPoint(endpoint);
-                    serverEndpoint?.UpdateNodeRelations(clusterConfig);
+                    TryResolveServerEndPoint(endpoint)?.UpdateNodeRelations(clusterConfig);
+                }
+
+                // ...and now that the topology is applied, age out anything it has stopped listing
+                if (topology is not null)
+                {
+                    await ApplyTopologyGenerationAsync(topology, log).ForAwait();
                 }
                 return clusterEndpoints;
             }
@@ -1824,6 +2120,17 @@ namespace StackExchange.Redis
             {
                 log?.LogErrorEncounteredErrorWhileUpdatingClusterConfig(ex, ex.Message);
                 return null;
+            }
+
+            // an identity we already hold if there is one - otherwise the form the answering node advertised,
+            // which is what Identities is ordered by, and which is the form TLS can validate
+            EndPoint? SelectIdentity(ClusterTopologyNode node)
+            {
+                foreach (var identity in node.Identities)
+                {
+                    if (TryResolveServerEndPoint(identity) is { } known) return known.EndPoint;
+                }
+                return node.Identities.Count > 0 ? node.Identities[0] : null;
             }
         }
 
@@ -1986,11 +2293,53 @@ namespace StackExchange.Redis
                 if (node.IgnoreFromClient || node.IsReplica || node.Slots.Count == 0) continue;
                 foreach (var slot in node.Slots)
                 {
-                    if (GetServerEndPoint(node.EndPoint) is ServerEndPoint server)
+                    if (GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology) is ServerEndPoint server)
                     {
                         ServerSelectionStrategy.UpdateClusterRange(slot.From, slot.To, server);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Applies the slot map from the <c>CLUSTER SLOTS</c> view, which supersedes
+        /// <see cref="UpdateClusterRange(ClusterConfiguration)"/> when the answering server supplied one.
+        /// </summary>
+        /// <remarks>
+        /// Preferred over the <c>CLUSTER NODES</c> view because it is keyed on node-id and carries both naming
+        /// forms, so an endpoint arriving under a different name than we hold resolves to the server we
+        /// already have rather than creating a duplicate.
+        /// </remarks>
+        internal void UpdateClusterRange(ClusterTopology topology)
+        {
+            if (topology is null) return;
+
+            foreach (var node in topology.Nodes)
+            {
+                if (node.IsReplica || node.Slots.Count == 0) continue;
+
+                // resolve by *any* identity the node answers to before falling back to the form this reply
+                // happened to use; that is what keeps one node from becoming two ServerEndPoints
+                var server = ResolveOrCreate(node);
+                if (server is null) continue;
+
+                foreach (var slot in node.Slots)
+                {
+                    ServerSelectionStrategy.UpdateClusterRange(slot.From, slot.To, server);
+                }
+            }
+
+            ServerEndPoint? ResolveOrCreate(ClusterTopologyNode node)
+            {
+                foreach (var identity in node.Identities)
+                {
+                    if (TryResolveServerEndPoint(identity) is { } known) return known;
+                }
+
+                // unknown node: dial the form the answering node *advertised*, which Identities is ordered by.
+                // Not the address by preference: a certificate validates against a name, and where hostnames
+                // are preferred the advertised address may not even be routable (#2826)
+                return node.Identities.Count > 0 ? GetServerEndPoint(node.Identities[0], ServerProvenance.ClusterTopology) : null;
             }
         }
 
@@ -2411,7 +2760,7 @@ namespace StackExchange.Redis
         }
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
-            => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+            => TryResolveServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
 
         internal uint UpdateLatency()
         {
