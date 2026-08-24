@@ -613,7 +613,7 @@ Changes:
 - **Soft Break**: The `PreserveAsyncOrder` behaviour of the pub/sub API has been deprecated; a *new* API has been provided for scenarios that require in-order pub/sub handling -
   the `Subscribe` method has a new overload *without* a handler parameter which returns a `ChannelMessageQueue`, which provides `async` ordered access to messages)
 - Internal: The network architecture has moved to use `System.IO.Pipelines`; this has allowed us to simplify and unify a lot of the network code, and in particular fix a lot of problems relating to how the library worked with TLS and/or .NETStandard
-- Change: As a result of the `System.IO.Pipelines` change, the error-reporting on timeouts is now much simpler and clearer; the [timeouts documentation](Timeouts.md) has been updated
+- Change: As a result of the `System.IO.Pipelines` change, the error-reporting on timeouts is now much simpler and clearer; the [timeouts documentation](Timeouts) has been updated
 - Removed: The `HighPriority` (queue-jumping) flag is now deprecated
 - Internal: Most buffers internally now make use of pooled memory; `RedisValue` no longer preemptively allocates buffers
 - Internal: Added new custom thread-pool for handling async continuations to avoid thread-pool starvation issues
