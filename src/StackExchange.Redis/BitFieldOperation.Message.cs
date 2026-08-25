@@ -20,8 +20,34 @@ internal partial class RedisDatabase
         }
 
         /// <summary>
-        /// Counts the arguments needed by a set of operations, including the key; <see langword="false"/>
-        /// if any of them cannot be written.
+        /// Accumulates the arguments needed by one operation, tracking the sticky overflow mode;
+        /// <see langword="false"/> if it cannot be written.
+        /// </summary>
+        protected static bool TryCountArgs(in BitFieldOperation operation, ref BitFieldOverflow overflow, ref int count)
+        {
+            switch (operation.Kind)
+            {
+                case BitFieldOperation.OperationKind.Get:
+                    count += 3; // GET, encoding, offset
+                    return true;
+                case BitFieldOperation.OperationKind.Set:
+                case BitFieldOperation.OperationKind.IncrementBy:
+                    if (operation.Overflow != overflow)
+                    {
+                        overflow = operation.Overflow;
+                        count += 2; // OVERFLOW, mode
+                    }
+
+                    count += 4; // SET/INCRBY, encoding, offset, value
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Counts the arguments needed by a set of operations, including the key;
+        /// <see langword="false"/> if any of them cannot be written.
         /// </summary>
         protected static bool TryCountArgs(ReadOnlySpan<BitFieldOperation> operations, out int count)
         {
@@ -29,24 +55,7 @@ internal partial class RedisDatabase
             var overflow = BitFieldOverflow.Wrap;
             foreach (ref readonly var op in operations)
             {
-                switch (op.Kind)
-                {
-                    case BitFieldOperation.OperationKind.Get:
-                        count += 3; // GET, encoding, offset
-                        break;
-                    case BitFieldOperation.OperationKind.Set:
-                    case BitFieldOperation.OperationKind.IncrementBy:
-                        if (op.Overflow != overflow)
-                        {
-                            overflow = op.Overflow;
-                            count += 2; // OVERFLOW, mode
-                        }
-
-                        count += 4; // SET/INCRBY, encoding, offset, value
-                        break;
-                    default:
-                        return false;
-                }
+                if (!TryCountArgs(in op, ref overflow, ref count)) return false;
             }
 
             return true;
@@ -57,9 +66,10 @@ internal partial class RedisDatabase
         /// cannot be written.
         /// </summary>
         protected static int CountArgs(ReadOnlySpan<BitFieldOperation> operations, string paramName) =>
-            TryCountArgs(operations, out var count)
-                ? count
-                : throw new ArgumentException($"A default {nameof(BitFieldOperation)} is not a valid operation.", paramName);
+            TryCountArgs(operations, out var count) ? count : throw InvalidOperation(paramName);
+
+        protected static ArgumentException InvalidOperation(string paramName) =>
+            new($"A default {nameof(BitFieldOperation)} is not a valid operation.", paramName);
 
         protected static void WriteOperations(in MessageWriter writer, ReadOnlySpan<BitFieldOperation> operations)
         {
@@ -69,50 +79,58 @@ internal partial class RedisDatabase
             var overflow = BitFieldOverflow.Wrap;
             foreach (ref readonly var op in operations)
             {
-                if (op.Kind != BitFieldOperation.OperationKind.Get && op.Overflow != overflow)
-                {
-                    overflow = op.Overflow;
-                    writer.WriteRaw("$8\r\nOVERFLOW\r\n"u8);
-                    switch (overflow)
-                    {
-                        case BitFieldOverflow.Saturate:
-                            writer.WriteRaw("$3\r\nSAT\r\n"u8);
-                            break;
-                        case BitFieldOverflow.Fail:
-                            writer.WriteRaw("$4\r\nFAIL\r\n"u8);
-                            break;
-                        default:
-                            // shape-neutral (the count comes from the transition, not the mode), so
-                            // the server's own default is the safe answer here
-                            writer.WriteRaw("$4\r\nWRAP\r\n"u8);
-                            break;
-                    }
-                }
+                WriteOperation(in writer, in op, ref overflow, scratch);
+            }
+        }
 
-                switch (op.Kind)
+        /// <summary>
+        /// Writes one operation, emitting the <c>OVERFLOW</c> token only when the sticky mode changes.
+        /// </summary>
+        protected static void WriteOperation(in MessageWriter writer, in BitFieldOperation operation, ref BitFieldOverflow overflow, Span<byte> scratch)
+        {
+            if (operation.Kind != BitFieldOperation.OperationKind.Get && operation.Overflow != overflow)
+            {
+                overflow = operation.Overflow;
+                writer.WriteRaw("$8\r\nOVERFLOW\r\n"u8);
+                switch (overflow)
                 {
-                    case BitFieldOperation.OperationKind.Get:
-                        writer.WriteRaw("$3\r\nGET\r\n"u8);
+                    case BitFieldOverflow.Saturate:
+                        writer.WriteRaw("$3\r\nSAT\r\n"u8);
                         break;
-                    case BitFieldOperation.OperationKind.Set:
-                        writer.WriteRaw("$3\r\nSET\r\n"u8);
-                        break;
-                    case BitFieldOperation.OperationKind.IncrementBy:
-                        writer.WriteRaw("$6\r\nINCRBY\r\n"u8);
+                    case BitFieldOverflow.Fail:
+                        writer.WriteRaw("$4\r\nFAIL\r\n"u8);
                         break;
                     default:
-                        // unreachable: the callers check the operations before writing the header.
-                        // Guessing here would be worse than failing - a wrong sub-command corrupts
-                        // data, and one of the wrong arity corrupts the connection
-                        throw new InvalidOperationException($"A default {nameof(BitFieldOperation)} is not a valid operation.");
+                        // shape-neutral (the count comes from the transition, not the mode), so
+                        // the server's own default is the safe answer here
+                        writer.WriteRaw("$4\r\nWRAP\r\n"u8);
+                        break;
                 }
+            }
 
-                op.Encoding.Write(in writer, scratch);
-                op.Offset.Write(in writer, scratch);
-                if (op.Kind != BitFieldOperation.OperationKind.Get)
-                {
-                    writer.WriteBulkString(op.Value);
-                }
+            switch (operation.Kind)
+            {
+                case BitFieldOperation.OperationKind.Get:
+                    writer.WriteRaw("$3\r\nGET\r\n"u8);
+                    break;
+                case BitFieldOperation.OperationKind.Set:
+                    writer.WriteRaw("$3\r\nSET\r\n"u8);
+                    break;
+                case BitFieldOperation.OperationKind.IncrementBy:
+                    writer.WriteRaw("$6\r\nINCRBY\r\n"u8);
+                    break;
+                default:
+                    // unreachable: the callers check the operations before writing the header.
+                    // Guessing here would be worse than failing - a wrong sub-command corrupts
+                    // data, and one of the wrong arity corrupts the connection
+                    throw new InvalidOperationException($"A default {nameof(BitFieldOperation)} is not a valid operation.");
+            }
+
+            operation.Encoding.Write(in writer, scratch);
+            operation.Offset.Write(in writer, scratch);
+            if (operation.Kind != BitFieldOperation.OperationKind.Get)
+            {
+                writer.WriteBulkString(operation.Value);
             }
         }
     }
@@ -135,7 +153,9 @@ internal partial class RedisDatabase
             // we alias the caller's memory rather than copying it, and here - unlike the messages that
             // hold a RedisValue[] - the *shape* depends on the contents, so a mutation between issue
             // and write would desync the frame. Re-check before the header goes out, so that a
-            // violated contract fails with nothing written rather than corrupting the connection
+            // violated contract fails with nothing written rather than corrupting the connection.
+            // Note this becomes redundant once the write path serializes on the calling thread: with
+            // no deferral there is no interval in which reasonable code could mutate the operations
             var operations = _operations.Span;
             if (!TryCountArgs(operations, out var count) || count != _argCount)
             {
@@ -160,14 +180,23 @@ internal partial class RedisDatabase
             : base(db, flags, command, key)
         {
             _operation = operation;
-            _argCount = CountArgs([operation], nameof(operation));
+
+            // deliberately not `[operation]`: a collection expression of one element compiles to a
+            // heap array on the target frameworks without the by-ref span constructor, which would
+            // undo the point of holding the operation inline
+            _argCount = 1; // the key
+            var overflow = BitFieldOverflow.Wrap;
+            if (!TryCountArgs(in operation, ref overflow, ref _argCount)) throw InvalidOperation(nameof(operation));
         }
 
         protected override void WriteImpl(in MessageWriter writer)
         {
             writer.WriteHeader(Command, _argCount);
             writer.Write(Key);
-            WriteOperations(in writer, [_operation]);
+
+            Span<byte> scratch = stackalloc byte[Format.MaxInt64TextLen + 1];
+            var overflow = BitFieldOverflow.Wrap;
+            WriteOperation(in writer, in _operation, ref overflow, scratch);
         }
 
         public override int ArgCount => _argCount;
