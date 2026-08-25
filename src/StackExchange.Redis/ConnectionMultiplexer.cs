@@ -2492,7 +2492,25 @@ namespace StackExchange.Redis
                             throw GetException(result, message, server);
                         }
 
-                        if (Monitor.Wait(source, TimeoutMilliseconds))
+                        // Unlike the async sweeps, which re-read the effective timeout on every heartbeat, a
+                        // sync caller commits to a duration when it parks - so if maintenance relaxation
+                        // begins while we are waiting, we have to notice by re-waiting rather than failing at
+                        // the original deadline. Without this a sync caller in flight when a MIGRATING
+                        // arrives times out at the strict timeout while its async neighbour is relaxed.
+                        var watch = ValueStopwatch.StartNew();
+                        bool completed = Monitor.Wait(source, server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds);
+                        while (!completed)
+                        {
+                            var elapsed = watch.ElapsedMilliseconds;
+                            var revised = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
+
+                            // also the path back: if a window closed while we waited, revised drops to the
+                            // configured value and we stop
+                            if (revised <= elapsed) break;
+                            completed = Monitor.Wait(source, revised - elapsed);
+                        }
+
+                        if (completed)
                         {
                             Trace("Timely response to " + message);
                         }

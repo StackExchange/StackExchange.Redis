@@ -351,6 +351,35 @@ namespace StackExchange.Redis.Configuration
         public virtual MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Disabled;
 
         /// <summary>
+        /// Gets the value command timeouts are relaxed to during an announced disruption; 10 seconds, as the
+        /// notification contract prescribes.
+        /// </summary>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual TimeSpan MaintenanceRelaxedTimeout => TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// Gets the longest a relaxed window may last, or <c>null</c> to derive it as three times the
+        /// <em>effective</em> <see cref="ConfigurationOptions.MaintenanceRelaxedTimeout"/>.
+        /// </summary>
+        /// <remarks>
+        /// Deriving is the default because the two have to stay coherent: a cap below the timeout it bounds is
+        /// nonsense, and it is the *configured* relaxed timeout that matters, which this type cannot see.
+        /// At the prescribed 10 seconds that gives 30 - the contract caps the <c>MOVING</c> budget at 15, so
+        /// there is ample room for a legitimate window while a stuck one is bounded to half a minute. Return a
+        /// value here to pin it regardless of the relaxed timeout.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual TimeSpan? MaintenanceRelaxedWindowMax => null;
+
+        /// <summary>
+        /// Gets how long timeouts stay relaxed after a disruption reports completion, or <c>null</c> to derive
+        /// it as twice the <em>effective</em> <see cref="ConfigurationOptions.MaintenanceRelaxedTimeout"/>
+        /// (which matches go-redis at the prescribed default).
+        /// </summary>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual TimeSpan? MaintenancePostEventRelaxedDuration => null;
+
+        /// <summary>
         /// Gets whether to enable TCP keep-alive when appropriate (endpoint- and platform-dependent).
         /// </summary>
         public virtual bool TcpKeepAlive => true;

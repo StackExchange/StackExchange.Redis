@@ -91,6 +91,31 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            /// <summary>
+            /// Parses one of the maintenance durations, which are expressed in <em>seconds</em> - the unit the
+            /// cross-client contract uses for <c>maintRelaxedTimeout</c>, so a documented value can be pasted
+            /// between clients.
+            /// </summary>
+            /// <remarks>
+            /// Seconds is the odd one out in this file, where every other timeout is milliseconds, and the
+            /// mistake is silent in one direction: a caller who assumes milliseconds and writes 30000 would
+            /// otherwise get an eight-hour relaxed timeout. Hence the upper bound, whose message names the
+            /// unit - it exists to turn that into a diagnosable error rather than a mystery.
+            /// </remarks>
+            internal static TimeSpan ParseMaintenanceSeconds(string key, string value)
+            {
+                const int MaxSeconds = 600;
+                if (!Format.TryParseInt32(value, out int seconds) || seconds < 0)
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a non-negative integer number of seconds; the value '{value}' is not valid.");
+                }
+                if (seconds > MaxSeconds)
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' is expressed in seconds, and {seconds}s exceeds the maximum of {MaxSeconds}s; note that this option is not in milliseconds.");
+                }
+                return TimeSpan.FromSeconds(seconds);
+            }
+
             internal static SslProtocols ParseSslProtocols(string key, string? value)
             {
                 // Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
@@ -145,6 +170,9 @@ namespace StackExchange.Redis
                 Protocol = "protocol",
                 Defaults = "defaults",
                 MaintenanceNotifications = "maintNotifications",
+                MaintenanceRelaxedTimeout = "maintRelaxedTimeout",
+                MaintenanceRelaxedWindowMax = "maintRelaxedWindowMax",
+                MaintenancePostEventRelaxedDuration = "maintPostEventRelaxed",
                 HighIntegrity = "highIntegrity",
                 TcpKeepAlive = "tcpKeepAlive";
 
@@ -184,6 +212,9 @@ namespace StackExchange.Redis
                 Protocol,
                 Defaults,
                 MaintenanceNotifications,
+                MaintenanceRelaxedTimeout,
+                MaintenanceRelaxedWindowMax,
+                MaintenancePostEventRelaxedDuration,
                 HighIntegrity,
                 TcpKeepAlive,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
@@ -241,6 +272,9 @@ namespace StackExchange.Redis
             AllowSimulateConnectionFailure = 1UL << 34,
             MaintenanceNotificationsHasValue = 1UL << 35,
             DefaultsHasValue = 1UL << 36,
+            MaintenanceRelaxedTimeoutHasValue = 1UL << 37,
+            MaintenanceRelaxedWindowMaxHasValue = 1UL << 38,
+            MaintenancePostEventRelaxedDurationHasValue = 1UL << 39,
         }
 
         private OptionFlags optionFlags;
@@ -267,6 +301,7 @@ namespace StackExchange.Redis
 
         private RedisProtocol _protocol;
         private MaintenanceNotificationMode _maintenanceNotifications;
+        private TimeSpan _maintenanceRelaxedTimeout, _maintenanceRelaxedWindowMax, _maintenancePostEventRelaxedDuration;
 
         private bool HasValue(OptionFlags hasValue) => (optionFlags & hasValue) != 0;
 
@@ -1038,6 +1073,9 @@ namespace StackExchange.Redis
             LibraryName = LibraryName,
             _protocol = _protocol,
             _maintenanceNotifications = _maintenanceNotifications,
+            _maintenanceRelaxedTimeout = _maintenanceRelaxedTimeout,
+            _maintenanceRelaxedWindowMax = _maintenanceRelaxedWindowMax,
+            _maintenancePostEventRelaxedDuration = _maintenancePostEventRelaxedDuration,
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
             CircuitBreaker = CircuitBreaker,
@@ -1135,6 +1173,9 @@ namespace StackExchange.Redis
             // the string, or re-parsing would pin a choice that was only ever a guess from the endpoints
             if (HasValue(OptionFlags.DefaultsHasValue) && defaultOptions?.Name is { } defaultsName) Append(sb, OptionKeys.Defaults, defaultsName);
             if (HasValue(OptionFlags.MaintenanceNotificationsHasValue)) Append(sb, OptionKeys.MaintenanceNotifications, _maintenanceNotifications.ToString());
+            if (HasValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue)) Append(sb, OptionKeys.MaintenanceRelaxedTimeout, FormatMaintenanceSeconds(_maintenanceRelaxedTimeout));
+            if (HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)) Append(sb, OptionKeys.MaintenanceRelaxedWindowMax, FormatMaintenanceSeconds(_maintenanceRelaxedWindowMax));
+            if (HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)) Append(sb, OptionKeys.MaintenancePostEventRelaxedDuration, FormatMaintenanceSeconds(_maintenancePostEventRelaxedDuration));
             Append(sb, OptionKeys.TcpKeepAlive, OptionFlags.TcpKeepAliveHasValue, OptionFlags.TcpKeepAliveValue);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
@@ -1251,6 +1292,7 @@ namespace StackExchange.Redis
             Tunnel = null;
             _protocol = default;
             _maintenanceNotifications = default;
+            _maintenanceRelaxedTimeout = _maintenanceRelaxedWindowMax = _maintenancePostEventRelaxedDuration = default;
             WriteMode = default;
             CircuitBreaker = null;
             RetryPolicy = null;
@@ -1413,6 +1455,15 @@ namespace StackExchange.Redis
                         case OptionKeys.MaintenanceNotifications:
                             SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, OptionKeys.ParseMaintenanceNotifications(key, value));
                             break;
+                        case OptionKeys.MaintenanceRelaxedTimeout:
+                            SetWithValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue, ref _maintenanceRelaxedTimeout, OptionKeys.ParseMaintenanceSeconds(key, value));
+                            break;
+                        case OptionKeys.MaintenanceRelaxedWindowMax:
+                            SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, OptionKeys.ParseMaintenanceSeconds(key, value));
+                            break;
+                        case OptionKeys.MaintenancePostEventRelaxedDuration:
+                            SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, OptionKeys.ParseMaintenanceSeconds(key, value));
+                            break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
@@ -1482,6 +1533,68 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.MaintenanceNotificationsHasValue) ? _maintenanceNotifications : Defaults.MaintenanceNotifications;
             set => SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, value);
         }
+
+        /// <summary>
+        /// The value command timeouts are relaxed <em>to</em> while a server has announced a disruption.
+        /// </summary>
+        /// <remarks>
+        /// This is a floor, never a reduction: the effective timeout inside a window is
+        /// <c>max(configured, this)</c>, so a caller with a generous timeout keeps it. Expressed in seconds in
+        /// a configuration string (<c>maintRelaxedTimeout=10</c>), matching the cross-client contract - note
+        /// that this is unlike every other timeout here, which are milliseconds. Only command timeouts are
+        /// relaxed; keep-alive, the heartbeat and connection-failure detection are deliberately untouched, so
+        /// a server that dies mid-maintenance is still noticed on the usual schedule.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public TimeSpan MaintenanceRelaxedTimeout
+        {
+            get => HasValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue) ? _maintenanceRelaxedTimeout : Defaults.MaintenanceRelaxedTimeout;
+            set => SetWithValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue, ref _maintenanceRelaxedTimeout, value);
+        }
+
+        /// <summary>
+        /// The longest a relaxed window may last, however long the server said the disruption would take.
+        /// </summary>
+        /// <remarks>
+        /// A backstop for a closing notification that never arrives, and <em>our invention</em> - the
+        /// notification contract names no upper bound. A window that never closes is worse than one that
+        /// closes early, since relaxation delays the point at which a genuinely slow server surfaces as a
+        /// timeout. Expressed in seconds in a configuration string.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public TimeSpan MaintenanceRelaxedWindowMax
+        {
+            get => HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)
+                ? _maintenanceRelaxedWindowMax
+                : Defaults.MaintenanceRelaxedWindowMax ?? Multiply(MaintenanceRelaxedTimeout, 3);
+            set => SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+        }
+
+        /// <summary>
+        /// How long to keep timeouts relaxed after a disruption reports that it has finished.
+        /// </summary>
+        /// <remarks>
+        /// Also <em>our invention</em>. A closing notification means the server-side operation completed, not
+        /// that the server is back to normal latency - and the moment after it completes is precisely when
+        /// every other client that received the same notification re-engages, so the load spike arrives
+        /// slightly after the all-clear. Does <em>not</em> apply when a window ended by hitting
+        /// <see cref="MaintenanceRelaxedWindowMax"/>: in that case nothing told us the event finished, and
+        /// extending past the backstop would defeat it. Expressed in seconds in a configuration string.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public TimeSpan MaintenancePostEventRelaxedDuration
+        {
+            get => HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)
+                ? _maintenancePostEventRelaxedDuration
+                : Defaults.MaintenancePostEventRelaxedDuration ?? Multiply(MaintenanceRelaxedTimeout, 2);
+            set => SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+        }
+
+        // TimeSpan * int is netstandard2.1+, so this is ticks arithmetic to keep the down-level TFMs building
+        private static TimeSpan Multiply(TimeSpan value, int factor) => TimeSpan.FromTicks(value.Ticks * factor);
+
+        private static string FormatMaintenanceSeconds(TimeSpan value)
+            => ((int)value.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
 

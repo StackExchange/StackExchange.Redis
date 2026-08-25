@@ -829,7 +829,9 @@ namespace StackExchange.Redis
                 {
                     var server = bridge.ServerEndPoint;
                     var multiplexer = bridge.Multiplexer;
-                    var timeout = multiplexer.AsyncTimeoutMilliseconds;
+
+                    // relaxed while this server has announced a disruption; a floor, never a reduction
+                    var timeout = server.GetEffectiveTimeoutMilliseconds(multiplexer.AsyncTimeoutMilliseconds);
                     foreach (var msg in _writtenAwaitingResponse)
                     {
                         // We only handle async timeouts here, synchronous timeouts are handled upstream.

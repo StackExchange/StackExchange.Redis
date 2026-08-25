@@ -154,3 +154,12 @@ override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Protoc
 StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider
 StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.RedisEnterpriseOptionsProvider() -> void
 override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> string!
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.set -> void
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan?
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedTimeout.get -> System.TimeSpan
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedWindowMax.get -> System.TimeSpan?

@@ -63,6 +63,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             new[]
             {
                 "_maintenanceNotifications",
+                "_maintenancePostEventRelaxedDuration",
+                "_maintenanceRelaxedTimeout",
+                "_maintenanceRelaxedWindowMax",
                 "_protocol",
                 "asyncTimeout",
                 "backlogPolicy",
@@ -890,6 +893,47 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var parsed = Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
+    }
+
+    [Theory]
+    [InlineData("maintRelaxedTimeout=20", 20, 60, 40)]
+    [InlineData("maintRelaxedWindowMax=45", 10, 45, 20)]
+    [InlineData("maintPostEventRelaxed=0", 10, 30, 0)]
+    public void MaintenanceDurationsRoundTrip(string cs, int relaxedSeconds, int capSeconds, int tailSeconds)
+    {
+        // these are in *seconds*, unlike every other timeout here, because that is the unit the cross-client
+        // contract names for maintRelaxedTimeout - so a documented value can be pasted between clients
+        var options = Parse("dummy," + cs);
+        Assert.Equal(TimeSpan.FromSeconds(relaxedSeconds), options.MaintenanceRelaxedTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(capSeconds), options.MaintenanceRelaxedWindowMax);
+        Assert.Equal(TimeSpan.FromSeconds(tailSeconds), options.MaintenancePostEventRelaxedDuration);
+
+        // only the explicitly-set key is serialized; the others stay defaulted
+        Assert.Equal("dummy," + cs, RemoveTestDefaults(options.ToString()));
+
+        var clone = options.Clone();
+        Assert.Equal(options.MaintenanceRelaxedTimeout, clone.MaintenanceRelaxedTimeout);
+        Assert.Equal("dummy," + cs, RemoveTestDefaults(clone.ToString()));
+    }
+
+    [Fact]
+    public void MaintenanceDurationsDefaultRelativeToTheRelaxedTimeout()
+    {
+        // the cap and tail are multiples so that raising the relaxed timeout cannot produce a cap below it
+        var options = Parse("dummy,maintRelaxedTimeout=60");
+        Assert.Equal(TimeSpan.FromSeconds(180), options.MaintenanceRelaxedWindowMax);
+        Assert.Equal(TimeSpan.FromSeconds(120), options.MaintenancePostEventRelaxedDuration);
+    }
+
+    [Fact]
+    public void MaintenanceDurationInMillisecondsIsDiagnosed()
+    {
+        // the silent-misconfiguration case: somebody assumes milliseconds like every other timeout here and
+        // writes 30000, which as seconds would be an eight-hour relaxed timeout. The message names the unit
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => Parse("dummy,maintRelaxedTimeout=30000"));
+        Output.WriteLine(ex.Message);
+        Assert.Contains("seconds", ex.Message);
+        Assert.Contains("not in milliseconds", ex.Message);
     }
 
     [Theory]

@@ -108,6 +108,20 @@ internal sealed partial class PhysicalConnection
         Trace($"maintenance notification: {raw}");
         OnDetailLog($"maintenance notification: {raw}");
 
+        // relax before reporting: the event handler is consumer code, and the window should already be open
+        // by the time anyone sees the notification that opened it
+        if (server is not null)
+        {
+            if (IsWindowOpening(type))
+            {
+                server.OnMaintenanceWindowOpened(type, sequenceId, time);
+            }
+            else if (IsWindowClosing(type))
+            {
+                server.OnMaintenanceWindowClosed(type, sequenceId);
+            }
+        }
+
         var evt = new PushMaintenanceEvent(type, sequenceId, server?.EndPoint, time, newEndPoint, payload, raw);
         muxer.OnServerMaintenanceEvent(evt);
         return OutOfBandResult.Handled;
@@ -130,6 +144,27 @@ internal sealed partial class PhysicalConnection
 
     private static bool TryParseInt64(string? value, out long result)
         => long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+
+    /// <summary>
+    /// Whether this notification announces a disruption starting (or still running).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MaintenanceNotificationType.Moving"/> is an opener with no closer: its window can only end
+    /// by the deadline the server gave us, or - later - by the handoff completing.
+    /// </remarks>
+    private static bool IsWindowOpening(MaintenanceNotificationType type) => type is
+        MaintenanceNotificationType.Moving
+        or MaintenanceNotificationType.Migrating
+        or MaintenanceNotificationType.FailingOver
+        or MaintenanceNotificationType.SlotMigrating;
+
+    /// <summary>
+    /// Whether this notification announces that a disruption has finished.
+    /// </summary>
+    private static bool IsWindowClosing(MaintenanceNotificationType type) => type is
+        MaintenanceNotificationType.Migrated
+        or MaintenanceNotificationType.FailedOver
+        or MaintenanceNotificationType.SlotMigrated;
 
     /// <summary>
     /// Whether the contract gives this notification a <c>time</c> element.

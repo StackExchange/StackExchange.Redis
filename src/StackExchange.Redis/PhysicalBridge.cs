@@ -1022,7 +1022,12 @@ namespace StackExchange.Redis
         private void CheckBacklogForTimeouts()
         {
             var now = Environment.TickCount;
-            var timeout = _singleWriter.TimeoutMilliseconds;
+
+            // deliberately *not* _singleWriter.TimeoutMilliseconds, which is the write-lock acquisition
+            // timeout: that is about contention between writers, and relaxing it during maintenance is not
+            // something anybody asked for. This is the age at which a queued command is considered timed out,
+            // relaxed while the server has announced a disruption.
+            var timeout = ServerEndPoint.GetEffectiveTimeoutMilliseconds(Multiplexer.TimeoutMilliseconds);
 
             // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
