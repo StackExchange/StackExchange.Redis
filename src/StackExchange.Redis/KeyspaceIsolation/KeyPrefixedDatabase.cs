@@ -751,6 +751,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitCount(ToInner(key), start, end, indexType, flags);
 
+        public long? StringBitField(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitField(ToInner(key), operation, flags);
+
+        public Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitField(ToInner(key), operations, flags);
+
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitOperation(operation, ToInner(destination), ToInner(keys), flags);
 

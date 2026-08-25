@@ -823,6 +823,14 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StringBitCount(RedisKey, long, long, StringIndexType, CommandFlags)"/>
         Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.StringBitField(RedisKey, BitFieldOperation, CommandFlags)"/>
+#pragma warning disable RS0026 // competing overloads - disambiguated via parameter types
+        Task<long?> StringBitFieldAsync(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StringBitField(RedisKey, System.ReadOnlyMemory{BitFieldOperation}, CommandFlags)"/>
+        Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
         /// <inheritdoc cref="IDatabase.StringBitOperation(Bitwise, RedisKey, RedisKey, RedisKey, CommandFlags)"/>
         Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None);
 

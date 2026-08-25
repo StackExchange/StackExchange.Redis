@@ -58,3 +58,56 @@ StackExchange.Redis.StreamAddOptions.MinId.init -> void
 StackExchange.Redis.StreamAddOptions.StreamAddOptions() -> void
 StackExchange.Redis.StreamAddOptions.TrimMode.get -> StackExchange.Redis.StreamTrimMode
 StackExchange.Redis.StreamAddOptions.TrimMode.init -> void
+StackExchange.Redis.StringIndex
+const StackExchange.Redis.StringIndex.Unbounded = -9223372036854775808 -> long
+override StackExchange.Redis.BitFieldEncoding.Equals(object? obj) -> bool
+override StackExchange.Redis.BitFieldEncoding.GetHashCode() -> int
+override StackExchange.Redis.BitFieldEncoding.ToString() -> string!
+override StackExchange.Redis.BitFieldOffset.Equals(object? obj) -> bool
+override StackExchange.Redis.BitFieldOffset.GetHashCode() -> int
+override StackExchange.Redis.BitFieldOffset.ToString() -> string!
+override StackExchange.Redis.BitFieldOperation.Equals(object? obj) -> bool
+override StackExchange.Redis.BitFieldOperation.GetHashCode() -> int
+override StackExchange.Redis.BitFieldOperation.ToString() -> string!
+StackExchange.Redis.BitFieldEncoding
+StackExchange.Redis.BitFieldEncoding.BitFieldEncoding() -> void
+StackExchange.Redis.BitFieldEncoding.Equals(StackExchange.Redis.BitFieldEncoding other) -> bool
+StackExchange.Redis.BitFieldEncoding.IsSigned.get -> bool
+StackExchange.Redis.BitFieldEncoding.Width.get -> int
+StackExchange.Redis.BitFieldOffset
+StackExchange.Redis.BitFieldOffset.BitFieldOffset() -> void
+StackExchange.Redis.BitFieldOffset.Equals(StackExchange.Redis.BitFieldOffset other) -> bool
+StackExchange.Redis.BitFieldOperation
+StackExchange.Redis.BitFieldOperation.BitFieldOperation() -> void
+StackExchange.Redis.BitFieldOperation.Equals(StackExchange.Redis.BitFieldOperation other) -> bool
+StackExchange.Redis.BitFieldOverflow
+StackExchange.Redis.BitFieldOverflow.Fail = 2 -> StackExchange.Redis.BitFieldOverflow
+StackExchange.Redis.BitFieldOverflow.Saturate = 1 -> StackExchange.Redis.BitFieldOverflow
+StackExchange.Redis.BitFieldOverflow.Wrap = 0 -> StackExchange.Redis.BitFieldOverflow
+StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
+StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<long?>!>!
+StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
+StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<long?>!
+StackExchange.Redis.RedisFeatures.BitFieldReadOnly.get -> bool
+static StackExchange.Redis.BitFieldEncoding.Int16.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Int32.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Int64.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Int8.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.operator ==(StackExchange.Redis.BitFieldEncoding x, StackExchange.Redis.BitFieldEncoding y) -> bool
+static StackExchange.Redis.BitFieldEncoding.operator !=(StackExchange.Redis.BitFieldEncoding x, StackExchange.Redis.BitFieldEncoding y) -> bool
+static StackExchange.Redis.BitFieldEncoding.Signed(int width) -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt16.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt32.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt63.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt8.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Unsigned(int width) -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldOffset.Bit(long bit) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.implicit operator StackExchange.Redis.BitFieldOffset(long bit) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.Element(long element) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.operator ==(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
+static StackExchange.Redis.BitFieldOffset.operator !=(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
+static StackExchange.Redis.BitFieldOperation.Get(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset) -> StackExchange.Redis.BitFieldOperation
+static StackExchange.Redis.BitFieldOperation.IncrementBy(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
+static StackExchange.Redis.BitFieldOperation.operator ==(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
+static StackExchange.Redis.BitFieldOperation.operator !=(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
+static StackExchange.Redis.BitFieldOperation.Set(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation

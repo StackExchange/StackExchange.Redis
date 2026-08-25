@@ -40,6 +40,7 @@
     <!-- imported into consuming projects; makes <RedisMinServerVersion> visible to the shipped analyzer -->
     <None Include="build\StackExchange.Redis.props" Pack="true" PackagePath="build\" />
 
+    <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
   </ItemGroup>
 

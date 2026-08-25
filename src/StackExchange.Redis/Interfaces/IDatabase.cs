@@ -3352,6 +3352,47 @@ namespace StackExchange.Redis
         long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Performs a single arbitrary-width integer operation on the string at <paramref name="key"/>,
+        /// treating it as an array of bitfields.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The value read (for <see cref="BitFieldOperation.Get"/>), the previous value (for
+        /// <see cref="BitFieldOperation.Set"/>) or the new value (for
+        /// <see cref="BitFieldOperation.IncrementBy"/>); <see langword="null"/> if the operation was
+        /// skipped because of <see cref="BitFieldOverflow.Fail"/>.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
+#pragma warning disable RS0026 // competing overloads - disambiguated via parameter types
+        long? StringBitField(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Performs a batch of arbitrary-width integer operations on the string at <paramref name="key"/>,
+        /// treating it as an array of bitfields. The operations are applied in order, and the result has
+        /// one element per operation.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="operations">The operations to perform; an empty batch is a no-op.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// One element per operation, in order; an element is <see langword="null"/> if that operation was
+        /// skipped because of <see cref="BitFieldOverflow.Fail"/>. Empty for an empty batch, or when the
+        /// result is not observable (<see cref="CommandFlags.FireAndForget"/>). The caller owns the lease.
+        /// </returns>
+        /// <remarks>
+        /// <para><seealso href="https://redis.io/commands/bitfield"/></para>
+        /// <para>
+        /// If every operation is a <see cref="BitFieldOperation.Get"/> this is issued as <c>BITFIELD_RO</c>
+        /// where the server supports it (6.0 and above), so it can be served by a replica; otherwise it is
+        /// issued as <c>BITFIELD</c>, which the server treats as a write and will only accept on a primary.
+        /// </para>
+        /// </remarks>
+        Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
         /// The BITOP command supports four bitwise operations; note that NOT is a unary operator: the second key should be omitted in this case
         /// and only the first key will be considered.
@@ -3392,14 +3433,24 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
         /// <param name="start">The position to start looking (defaults to 0).</param>
-        /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
+        /// <param name="end">The position to stop looking (defaults to -1, the last byte); <see cref="StringIndex.Unbounded"/> leaves the range open-ended, which is not the same thing when <paramref name="bit"/> is <c>false</c> - see the remarks.</param>
         /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns the position of the first bit set to 1 or 0 according to the request.
         /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.
         /// </returns>
-        /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
+        /// <remarks>
+        /// <para><seealso href="https://redis.io/commands/bitpos"/></para>
+        /// <para>
+        /// When looking for a clear bit (<paramref name="bit"/> is <c>false</c>), the server treats an explicit
+        /// range differently from an open-ended one: with an explicit <paramref name="end"/> the search is confined
+        /// to the string, so a string of all-set bits gives -1, whereas with no end at all the result is the first
+        /// bit past the end of the string. Pass <see cref="StringIndex.Unbounded"/> as <paramref name="end"/> for
+        /// the latter; that requires <see cref="StringIndexType.Byte"/>, since the server accepts a bit/byte index
+        /// type only after an explicit end.
+        /// </para>
+        /// </remarks>
         long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

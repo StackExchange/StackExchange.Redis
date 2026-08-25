@@ -3761,6 +3761,32 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public long? StringBitField(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitFieldMessage(key, operation, flags, out var server);
+            return ExecuteSync(msg, ResultProcessor.NullableInt64, server);
+        }
+
+        public Task<long?> StringBitFieldAsync(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetBitFieldMessage(key, operation, flags, out var server);
+            return ExecuteAsync(msg, ResultProcessor.NullableInt64, server);
+        }
+
+        public Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
+        {
+            if (operations.IsEmpty) return Lease<long?>.Empty; // no operations, no reply elements
+            var msg = GetBitFieldMessage(key, operations, flags, out var server);
+            return ExecuteSync(msg, ResultProcessor.LeaseNullableInt64, server, defaultValue: Lease<long?>.Empty);
+        }
+
+        public Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
+        {
+            if (operations.IsEmpty) return CompletedTask<Lease<long?>>.FromDefault(Lease<long?>.Empty, asyncState);
+            var msg = GetBitFieldMessage(key, operations, flags, out var server);
+            return ExecuteAsync(msg, ResultProcessor.LeaseNullableInt64, Lease<long?>.Empty, server);
+        }
+
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStringBitOperationMessage(operation, destination, first, second, flags);
@@ -3790,11 +3816,7 @@ namespace StackExchange.Redis
 
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
-            var msg = indexType switch
-            {
-                StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
-                _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, indexType.ToLiteral()),
-            };
+            var msg = GetStringBitPositionMessage(key, bit, start, end, indexType, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
@@ -3803,11 +3825,7 @@ namespace StackExchange.Redis
 
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
         {
-            var msg = indexType switch
-            {
-                StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
-                _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, indexType.ToLiteral()),
-            };
+            var msg = GetStringBitPositionMessage(key, bit, start, end, indexType, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -5400,6 +5418,104 @@ namespace StackExchange.Redis
             // binary
             slot = serverSelectionStrategy.CombineSlot(slot, second);
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
+        }
+
+        private Message GetBitFieldMessage(in RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags, out ServerEndPoint? server)
+        {
+            bool allGet = true, anyIncrement = false;
+            foreach (ref readonly var op in operations.Span)
+            {
+                switch (op.Kind)
+                {
+                    case BitFieldOperation.OperationKind.Get:
+                        break;
+                    case BitFieldOperation.OperationKind.IncrementBy:
+                        anyIncrement = true;
+                        allGet = false;
+                        break;
+                    default:
+                        allGet = false;
+                        break;
+                }
+            }
+
+            var command = GetBitFieldCommand(key, allGet, anyIncrement, ref flags, out server);
+            return new BitFieldMessage(Database, flags, command, key, operations);
+        }
+
+        private Message GetBitFieldMessage(in RedisKey key, in BitFieldOperation operation, CommandFlags flags, out ServerEndPoint? server)
+        {
+            var command = GetBitFieldCommand(
+                key,
+                allGet: operation.Kind == BitFieldOperation.OperationKind.Get,
+                anyIncrement: operation.Kind == BitFieldOperation.OperationKind.IncrementBy,
+                ref flags,
+                out server);
+            return new BitFieldSingleMessage(Database, flags, command, key, operation);
+        }
+
+        private RedisCommand GetBitFieldCommand(in RedisKey key, bool allGet, bool anyIncrement, ref CommandFlags flags, out ServerEndPoint? server)
+        {
+            var readOnlyAvailable = false;
+            server = null;
+            if (allGet)
+            {
+                // every operation is a read, so BITFIELD_RO will do - and unlike BITFIELD, a replica
+                // will accept it
+                var features = GetFeatures(key, flags, RedisCommand.BITFIELD_RO, out server);
+                readOnlyAvailable = server is not null && features.BitFieldReadOnly
+                    && multiplexer.CommandMap.IsAvailable(RedisCommand.BITFIELD_RO);
+                if (!readOnlyAvailable)
+                {
+                    server = null; // BITFIELD is primary-only; forget the read-eligible server we picked
+                }
+            }
+
+            return SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags);
+        }
+
+        /// <summary>
+        /// Chooses the command, and the retry category the payload deserves - which is a separate axis
+        /// from routing: the server treats BITFIELD as a write however read-only its sub-operations are,
+        /// but that governs which servers will accept it, not whether replaying it is safe.
+        /// </summary>
+        internal static RedisCommand SelectBitFieldCommand(bool allGet, bool anyIncrement, bool readOnlyAvailable, ref CommandFlags flags)
+        {
+            if (allGet)
+            {
+                // nothing to replay, whichever of the two commands we end up issuing
+                flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+                return readOnlyAvailable ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
+            }
+
+            if (!anyIncrement)
+            {
+                // SET is positional, so a replay lands on the same value; only INCRBY compounds
+                flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+            }
+
+            return RedisCommand.BITFIELD;
+        }
+
+        internal Message GetStringBitPositionMessage(in RedisKey key, bool bit, long start, long end, StringIndexType indexType, CommandFlags flags)
+        {
+            if (end == StringIndex.Unbounded)
+            {
+                // BITPOS takes the BYTE/BIT token only *after* an explicit end, so an open-ended range and a
+                // bit index cannot be expressed together; dropping the token silently would reinterpret start
+                if (indexType != StringIndexType.Byte)
+                {
+                    throw new ArgumentException($"{nameof(StringIndex)}.{nameof(StringIndex.Unbounded)} requires {nameof(StringIndexType)}.{nameof(StringIndexType.Byte)}; the server accepts a bit/byte index type only after an explicit end.", nameof(indexType));
+                }
+
+                return Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start);
+            }
+
+            return indexType switch
+            {
+                StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
+                _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, indexType.ToLiteral()),
+            };
         }
 
         internal Message GetStringGetExMessage(in RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
