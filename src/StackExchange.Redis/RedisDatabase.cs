@@ -2718,6 +2718,8 @@ namespace StackExchange.Redis
 
         public long SortedSetRemove(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            if (members.Length == 0) return 0;
             var msg = Message.Create(Database, flags, RedisCommand.ZREM, key, members);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
@@ -2730,6 +2732,8 @@ namespace StackExchange.Redis
 
         public Task<long> SortedSetRemoveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            if (members.Length == 0) return CompletedTask<long>.FromResult(0, asyncState);
             var msg = Message.Create(Database, flags, RedisCommand.ZREM, key, members);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
