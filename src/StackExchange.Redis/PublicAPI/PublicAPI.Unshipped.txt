@@ -163,3 +163,6 @@ override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> 
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan?
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedTimeout.get -> System.TimeSpan
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedWindowMax.get -> System.TimeSpan?
+[SER010]StackExchange.Redis.Availability.FaultContext.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.RedisConnectionException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.RedisTimeoutException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType

@@ -673,8 +673,12 @@ namespace StackExchange.Redis
 
                             // This is an "always" check - we always want to evaluate a dead connection from a non-responsive sever regardless of the need to heartbeat above
                             var totalTimeoutThisHeartbeat = asyncTimeoutThisHeartbeat + syncTimeoutThisHeartbeat;
-                            bool deadConnectionOnAsync = asyncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4);
-                            bool deadConnectionOnSync = syncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.TimeoutMilliseconds * 4);
+                            // note these track the *effective* timeout: this heuristic is derived from the
+                            // command timeout, so if relaxation says "be patient for 60s" while this says
+                            // "dead after 4x5s", we would tear down the connection relaxation was protecting.
+                            // Socket-level failure detection is untouched and still notices a dead server.
+                            bool deadConnectionOnAsync = asyncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (ServerEndPoint.GetEffectiveTimeoutMilliseconds(tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds ?? 0) * 4);
+                            bool deadConnectionOnSync = syncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (ServerEndPoint.GetEffectiveTimeoutMilliseconds(tmp.BridgeCouldBeNull?.Multiplexer.TimeoutMilliseconds ?? 0) * 4);
                             if (deadConnectionOnAsync || deadConnectionOnSync)
                             {
                                 // If we've received *NOTHING* on the pipe in 4 timeouts worth of time and we're timing out commands, issue a connection failure so that we reconnect

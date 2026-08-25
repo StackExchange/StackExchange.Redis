@@ -96,6 +96,9 @@ internal sealed partial class ServerEndPoint
     // subtraction, as elsewhere in this type, so the ~49-day wrap is a non-event.
     private int _relaxedDeadlineTicks;
 
+    // the notification that last touched the window, reported on faults that happen inside it
+    private int _relaxedType;
+
     // Dedup state, per notification type: the sequence ids are not defined by any specification, so this is
     // conservative - a repeat of an id we have already acted on is ignored, and nothing else is inferred.
     // Allocated on first notification, so a server that never sees one pays nothing.
@@ -106,6 +109,13 @@ internal sealed partial class ServerEndPoint
     /// Whether timeouts are currently relaxed for this server.
     /// </summary>
     internal bool IsMaintenanceRelaxed => GetRelaxedRemaining() > 0;
+
+    /// <summary>
+    /// The notification in force for this server, or <see cref="MaintenanceNotificationType.None"/> if no
+    /// window is open; reported on faults so that a timeout during a migration says so.
+    /// </summary>
+    internal MaintenanceNotificationType ActiveMaintenanceType
+        => GetRelaxedRemaining() > 0 ? (MaintenanceNotificationType)Volatile.Read(ref _relaxedType) : MaintenanceNotificationType.None;
 
     /// <summary>
     /// The effective timeout for a command against this server: the configured value, or the relaxed value if
@@ -158,6 +168,7 @@ internal sealed partial class ServerEndPoint
         if (duration < floor) duration = floor;
         if (duration > cap) duration = cap;
 
+        Volatile.Write(ref _relaxedType, (int)type);
         ExtendRelaxedWindow(duration, $"{type} for {duration.TotalSeconds}s");
     }
 
@@ -173,6 +184,7 @@ internal sealed partial class ServerEndPoint
     {
         if (!TryClaimSequenceId(type, sequenceId)) return;
 
+        Volatile.Write(ref _relaxedType, (int)type);
         var tail = Multiplexer.RawConfig.MaintenancePostEventRelaxedDuration;
         if (tail <= TimeSpan.Zero)
         {

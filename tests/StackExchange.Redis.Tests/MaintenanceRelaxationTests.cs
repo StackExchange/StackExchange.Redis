@@ -255,6 +255,44 @@ public class MaintenanceRelaxationTests(ITestOutputHelper log)
         }
     }
 
+    [Theory]
+    [InlineData(true, MaintenanceNotificationType.Migrating)]
+    [InlineData(false, MaintenanceNotificationType.None)]
+    public async Task TimeoutReportsWhetherMaintenanceWasInForce(bool announce, MaintenanceNotificationType expected)
+    {
+        // "timeout" and "timeout during an announced migration" call for very different reactions from
+        // whoever reads the log, so the fault says which it was
+        var (server, conn) = await ConnectAsync(log, config =>
+        {
+            config.AsyncTimeout = 200;
+            config.SyncTimeout = 200;
+            config.MaintenanceRelaxedTimeout = TimeSpan.FromSeconds(1);
+            config.MaintenanceRelaxedWindowMax = TimeSpan.FromSeconds(30);
+            config.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
+        });
+        using (server)
+        await using (conn)
+        {
+            var endpoint = Endpoint(conn, server);
+            if (announce)
+            {
+                server.SendShardNotification(null, MaintenanceNotificationKind.Migrating, timeSeconds: 20);
+                Assert.True(await UntilRelaxedAsync(endpoint, true));
+            }
+
+            server.SetLatency(TimeSpan.FromSeconds(5)); // longer than any timeout in play
+            var ex = await Assert.ThrowsAsync<RedisTimeoutException>(() => conn.GetDatabase().StringGetAsync("maint-fault"));
+            log.WriteLine($"{ex.MaintenanceType}: {ex.Message}");
+            Assert.Equal(expected, ex.MaintenanceType);
+
+            // and it reaches the circuit-breaker/retry surface the same way
+            var context = new Availability.FaultContext(ex);
+            Assert.Equal(expected, context.MaintenanceType);
+
+            server.SetLatency(TimeSpan.Zero);
+        }
+    }
+
     [Fact]
     public async Task CommandsStillWorkThroughAWindow()
     {
