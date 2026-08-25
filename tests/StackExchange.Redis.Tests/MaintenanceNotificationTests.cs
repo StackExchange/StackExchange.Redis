@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -260,10 +260,85 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         }
     }
 
+    [Fact]
+    public async Task NestedSlotMigrationsAreRead()
+    {
+        // the shape the shipped clients read: [type, seq, [[source, target, slots], ...]]. We were dropping
+        // this until the prior-art cross-check, because the parser rejected non-scalar elements
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            Assert.Equal(1, server.SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+            [
+                ("127.0.0.1:7000", "127.0.0.1:7001", "0-99"),
+                ("127.0.0.1:7002", "127.0.0.1:7003", "1000,2000-2500"),
+            ]));
+
+            var evt = await events.NextAsync();
+            log.WriteLine(evt.RawMessage ?? "(no message)");
+            Assert.Equal(MaintenanceNotificationType.SlotMigrated, evt.NotificationType);
+            Assert.Equal(2, evt.SlotMigrations.Count);
+
+            var first = evt.SlotMigrations[0];
+            Assert.Equal(new IPEndPoint(IPAddress.Loopback, 7000), first.Source);
+            Assert.Equal(new IPEndPoint(IPAddress.Loopback, 7001), first.Target);
+            Assert.Equal(new SlotRange(0, 99), Assert.Single(first.Slots));
+
+            var second = evt.SlotMigrations[1];
+            Assert.Equal(2, second.Slots.Count);
+            Assert.Equal(new SlotRange(1000, 1000), second.Slots[0]);
+            Assert.Equal(new SlotRange(2000, 2500), second.Slots[1]);
+            Assert.Equal("1000,2000-2500", second.RawSlots);
+        }
+    }
+
+    [Fact]
+    public async Task MalformedTripletIsSkippedNotFatal()
+    {
+        // one bad entry must not lose the migrations we could have applied - the same choice go-redis makes
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            server.SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+            [
+                ("127.0.0.1:7000", "127.0.0.1:7001", "not-a-slot-list"), // kept, but with no parsed slots
+                ("127.0.0.1:7002", "?", "50-60"), // an unnameable target, kept with a null Target
+                ("127.0.0.1:7004", "127.0.0.1:7005", "70"),
+            ]);
+
+            var evt = await events.NextAsync();
+            Assert.Equal(3, evt.SlotMigrations.Count);
+            Assert.Empty(evt.SlotMigrations[0].Slots);
+            Assert.Equal("not-a-slot-list", evt.SlotMigrations[0].RawSlots); // raw form survives
+            Assert.Null(evt.SlotMigrations[1].Target);
+            Assert.Equal(new SlotRange(50, 60), Assert.Single(evt.SlotMigrations[1].Slots));
+            Assert.Equal(new SlotRange(70, 70), Assert.Single(evt.SlotMigrations[2].Slots));
+        }
+    }
+
+    [Fact]
+    public async Task MissingSequenceIdStillReportsTheNotification()
+    {
+        // stricter-than-shipped-clients was the bug here: go-redis length-checks these at two elements and
+        // reads no sequence number at all, so dropping a frame for want of one loses a real disruption
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            // two elements, with an unreadable seq - the floor go-redis works to
+            Assert.True(server.SendRawPush(null, "MIGRATING", "not-a-number") > 0);
+
+            var evt = await events.NextAsync();
+            log.WriteLine(evt.RawMessage ?? "(no message)");
+            Assert.Equal(MaintenanceNotificationType.Migrating, evt.NotificationType);
+        }
+    }
+
     [Theory]
-    [InlineData("MOVING")] // nothing but the type
-    [InlineData("MOVING", "not-a-number")] // unusable sequence id
     [InlineData("NOT_A_REAL_KIND", "1", "5")] // a type we don't know
+    [InlineData("NOT_A_REAL_KIND")] // ...and one with nothing else at all
     public async Task MalformedNotificationIsDroppedAndTheConnectionSurvives(params string[] parts)
     {
         // the important half of this feature's safety: an unparseable push frame must be consumed and

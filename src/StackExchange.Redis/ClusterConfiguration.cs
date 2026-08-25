@@ -137,21 +137,93 @@ namespace StackExchange.Redis
 
         internal bool Includes(int hashSlot) => hashSlot >= from && hashSlot <= to;
 
-        private static bool TryParseInt16(string s, int offset, int count, out short value)
+        /// <summary>
+        /// Parses one range from within a larger string, so that a comma-separated list can be read without
+        /// allocating a substring per element.
+        /// </summary>
+        internal static bool TryParse(string value, int offset, int length, out SlotRange range)
         {
-            checked
+            range = default;
+            if (length <= 0) return false;
+
+            int dash = -1;
+            for (int i = 0; i < length; i++)
             {
-                value = 0;
-                int tmp = 0;
-                for (int i = 0; i < count; i++)
+                if (value[offset + i] == '-')
                 {
-                    char c = s[offset + i];
-                    if (c < '0' || c > '9') return false;
-                    tmp = (tmp * 10) + (c - '0');
+                    dash = i;
+                    break;
                 }
-                value = (short)tmp;
+            }
+
+            if (dash < 0)
+            {
+                if (TryParseInt16(value, offset, length, out var only))
+                {
+                    range = new SlotRange(only, only);
+                    return true;
+                }
+                return false;
+            }
+
+            if (dash != 0 && dash != length - 1
+                && TryParseInt16(value, offset, dash, out var from)
+                && TryParseInt16(value, offset + dash + 1, length - dash - 1, out var to))
+            {
+                // a reversed range is a server bug, not something to normalize silently
+                if (from > to) return false;
+                range = new SlotRange(from, to);
                 return true;
             }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Parses the comma-and-range slot form used by the maintenance notifications, e.g.
+        /// <c>123,456,789-1000</c>. Empty elements are skipped; a malformed element fails the whole list,
+        /// since a partially-read slot set is worse than none.
+        /// </summary>
+        internal static bool TryParseList(string? value, out List<SlotRange> ranges)
+        {
+            ranges = [];
+            if (string.IsNullOrEmpty(value)) return false;
+
+            int start = 0;
+            while (start <= value!.Length)
+            {
+                var comma = value.IndexOf(',', start);
+                var length = (comma < 0 ? value.Length : comma) - start;
+                if (length > 0)
+                {
+                    if (!TryParse(value, start, length, out var range)) return false;
+                    ranges.Add(range);
+                }
+
+                if (comma < 0) break;
+                start = comma + 1;
+            }
+
+            return ranges.Count != 0;
+        }
+
+        private static bool TryParseInt16(string s, int offset, int count, out short value)
+        {
+            // note this deliberately does not use `checked`: it used to, and an out-of-range slot number
+            // therefore threw OverflowException from a Try* method - reachable from the public
+            // SlotRange.TryParse and from CLUSTER NODES parsing, and now also from the maintenance
+            // notification reader, where throwing on the read loop is far worse than rejecting a value
+            value = 0;
+            int tmp = 0;
+            for (int i = 0; i < count; i++)
+            {
+                char c = s[offset + i];
+                if (c < '0' || c > '9') return false;
+                tmp = (tmp * 10) + (c - '0');
+                if (tmp > short.MaxValue) return false; // as soon as it cannot fit, stop
+            }
+            value = (short)tmp;
+            return true;
         }
 
         int IComparable.CompareTo(object? obj) => obj is SlotRange sRange ? CompareTo(sRange) : -1;

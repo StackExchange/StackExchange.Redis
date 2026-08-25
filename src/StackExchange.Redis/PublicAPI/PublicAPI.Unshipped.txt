@@ -166,3 +166,11 @@ override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> 
 [SER010]StackExchange.Redis.Availability.FaultContext.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
 [SER010]StackExchange.Redis.RedisConnectionException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
 [SER010]StackExchange.Redis.RedisTimeoutException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]override StackExchange.Redis.Maintenance.ClusterSlotMigration.ToString() -> string!
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.ClusterSlotMigration() -> void
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.RawSlots.get -> string?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Slots.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.SlotRange>!
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Source.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Target.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SlotMigrations.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.Maintenance.ClusterSlotMigration>!

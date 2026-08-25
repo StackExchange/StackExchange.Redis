@@ -154,7 +154,7 @@ internal sealed partial class ServerEndPoint
     /// <summary>
     /// An announced disruption has started (or is still running): open or extend the relaxed window.
     /// </summary>
-    internal void OnMaintenanceWindowOpened(MaintenanceNotificationType type, long sequenceId, TimeSpan? time)
+    internal void OnMaintenanceWindowOpened(MaintenanceNotificationType type, long? sequenceId, TimeSpan? time)
     {
         if (!TryClaimSequenceId(type, sequenceId)) return;
 
@@ -180,7 +180,7 @@ internal sealed partial class ServerEndPoint
     /// previously said about duration is stale - but the tail still applies, because completion is when every
     /// other client that received the same notification re-engages.
     /// </remarks>
-    internal void OnMaintenanceWindowClosed(MaintenanceNotificationType type, long sequenceId)
+    internal void OnMaintenanceWindowClosed(MaintenanceNotificationType type, long? sequenceId)
     {
         if (!TryClaimSequenceId(type, sequenceId)) return;
 
@@ -224,8 +224,12 @@ internal sealed partial class ServerEndPoint
     /// <summary>
     /// Whether this notification is new, per the conservative dedup described on <see cref="_lastSequenceIds"/>.
     /// </summary>
-    private bool TryClaimSequenceId(MaintenanceNotificationType type, long sequenceId)
+    private bool TryClaimSequenceId(MaintenanceNotificationType type, long? sequenceId)
     {
+        // no id, no dedup - but the notification still counts. Dropping an announced disruption because we
+        // could not read a field whose meaning nobody has defined would be the wrong way round
+        if (sequenceId is not { } id) return true;
+
         var index = (int)type;
         lock (_maintenanceSync)
         {
@@ -233,13 +237,13 @@ internal sealed partial class ServerEndPoint
             if ((uint)index >= (uint)ids.Length) return true; // unknown type: don't dedup what we can't index
 
             // note "<=", not "<": a replay carries the id we already acted on
-            if (ids[index] != 0 && sequenceId <= ids[index])
+            if (ids[index] != 0 && id <= ids[index])
             {
-                Multiplexer.Trace($"{type}: ignoring replayed sequence id {sequenceId}", ToString());
+                Multiplexer.Trace($"{type}: ignoring replayed sequence id {id}", ToString());
                 return false;
             }
 
-            ids[index] = sequenceId;
+            ids[index] = id;
             return true;
         }
     }

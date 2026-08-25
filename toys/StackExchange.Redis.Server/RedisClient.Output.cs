@@ -139,6 +139,9 @@ public partial class RedisClient
         }
         catch (Exception ex)
         {
+            // this used to vanish into the pipe: a serialization bug in a fake server's *outbound* path
+            // presents as "the client never received it", with a reconnect covering the tracks. Log it
+            Node?.Server?.Log($"[{this}] write loop faulted: {ex.Message}");
             await writer.CompleteAsync(ex);
         }
     }

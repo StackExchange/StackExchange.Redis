@@ -98,6 +98,38 @@ namespace StackExchange.Redis.Server
             => Send(client, kind, null, sequenceId, null, slots);
 
         /// <summary>
+        /// Sends <c>SMIGRATED</c> in its nested form - <c>[type, seq, [[source, target, slots], ...]]</c> -
+        /// which is what the shipped clients read (see the topic README's prior art; go-redis reads exactly
+        /// this shape and redis-py models the same nesting).
+        /// </summary>
+        /// <remarks>
+        /// Note the sender is not implicitly the source of anything: every node reports the same movements, so
+        /// a test can and should exercise a delta that does not involve this server at all.
+        /// </remarks>
+        /// <returns>The number of clients the notification was sent to.</returns>
+        public int SendSlotMigrations(RedisClient client, MaintenanceNotificationKind kind, (string Source, string Target, string Slots)[] migrations, int? sequenceId = null)
+        {
+            // Rent at every level: Recycle() recurses, so a Standalone child inside a pooled parent gets
+            // handed to the pool it did not come from ("The buffer is not associated with this pool")
+            var frame = TypedRedisValue.Rent(3, out var span, RespPrefix.Push);
+            span[0] = TypedRedisValue.SimpleString(GetName(kind));
+            span[1] = TypedRedisValue.Integer(sequenceId ?? Interlocked.Increment(ref _maintenanceSequence));
+
+            var outer = TypedRedisValue.Rent(migrations.Length, out var outerSpan, RespPrefix.Array);
+            for (int i = 0; i < migrations.Length; i++)
+            {
+                var triplet = TypedRedisValue.Rent(3, out var inner, RespPrefix.Array);
+                inner[0] = TypedRedisValue.BulkString(migrations[i].Source);
+                inner[1] = TypedRedisValue.BulkString(migrations[i].Target);
+                inner[2] = TypedRedisValue.BulkString(migrations[i].Slots);
+                outerSpan[i] = triplet;
+            }
+
+            span[2] = outer;
+            return Dispatch(client, frame, requireOptIn: true);
+        }
+
+        /// <summary>
         /// Sends an arbitrary push frame to a client, for the cases a well-formed notification cannot express:
         /// an unknown type, a malformed payload, extra trailing elements.
         /// </summary>

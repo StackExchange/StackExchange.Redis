@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using RESPite;
@@ -26,7 +27,8 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
         TimeSpan? time,
         EndPoint? newEndPoint,
         string? payload,
-        string rawMessage)
+        string rawMessage,
+        IReadOnlyList<ClusterSlotMigration>? slotMigrations = null)
     {
         NotificationType = notificationType;
         SequenceId = sequenceId;
@@ -35,6 +37,7 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
         NewEndPoint = newEndPoint;
         Payload = payload;
         RawMessage = rawMessage;
+        SlotMigrations = slotMigrations ?? [];
         if (time is { } value && value > TimeSpan.Zero)
         {
             StartTimeUtc = ReceivedTimeUtc + value;
@@ -93,6 +96,15 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
     /// carried through for diagnostics rather than parsed into a model that the contract does not pin down.
     /// </remarks>
     public string? Payload { get; }
+
+    /// <summary>
+    /// For the cluster notifications, the slot movements described; empty for everything else.
+    /// </summary>
+    /// <remarks>
+    /// A notification carries several of these, and the node that sent it is not necessarily the source of
+    /// any of them - every node reports the same movements.
+    /// </remarks>
+    public IReadOnlyList<ClusterSlotMigration> SlotMigrations { get; }
 
     /// <inheritdoc/>
     public override string? ToString() => RawMessage;
