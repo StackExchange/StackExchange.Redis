@@ -75,6 +75,11 @@ namespace StackExchange.Redis
         public bool BitwiseOperations => Version.IsAtLeast(v2_6_0);
 
         /// <summary>
+        /// Is <see href="https://redis.io/commands/bitfield_ro/">BITFIELD_RO</see> available?
+        /// </summary>
+        public bool BitFieldReadOnly => Version.IsAtLeast(v6_0_0);
+
+        /// <summary>
         /// Is <see href="https://redis.io/commands/client-setname/">CLIENT SETNAME</see> available?
         /// </summary>
         public bool ClientName => Version.IsAtLeast(v2_6_9);

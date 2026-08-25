@@ -8,6 +8,8 @@ internal abstract partial class ResultProcessor
     // Lease result processors
     public static readonly ResultProcessor<Lease<float>?> LeaseFloat32 = new LeaseFloat32Processor();
 
+    public static readonly ResultProcessor<Lease<long?>?> LeaseNullableInt64 = new LeaseNullableInt64Processor();
+
     public static readonly ResultProcessor<Lease<byte>>
         Lease = new LeaseProcessor();
 
@@ -139,6 +141,12 @@ internal abstract partial class ResultProcessor
                 throw;
             }
         }
+    }
+
+    private sealed class LeaseNullableInt64Processor : LeaseProcessor<long?>
+    {
+        // BITFIELD reports a nil element for any operation skipped by OVERFLOW FAIL
+        protected override long? TryParse(ref RespReader reader) => reader.IsNull ? null : reader.ReadInt64();
     }
 
     private sealed class LeaseFloat32Processor : LeaseProcessor<float>

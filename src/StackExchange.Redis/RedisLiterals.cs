@@ -40,6 +40,7 @@ namespace StackExchange.Redis
             EXACTLY = RedisValue.FromRaw("EXACTLY"u8),
             EXAT = RedisValue.FromRaw("EXAT"u8),
             EXISTS = RedisValue.FromRaw("EXISTS"u8),
+            FAIL = RedisValue.FromRaw("FAIL"u8),
             FIELDS = RedisValue.FromRaw("FIELDS"u8),
             FILTERBY = RedisValue.FromRaw("FILTERBY"u8),
             FLUSH = RedisValue.FromRaw("FLUSH"u8),
@@ -61,6 +62,7 @@ namespace StackExchange.Redis
             IDMPAUTO = RedisValue.FromRaw("IDMPAUTO"u8),
             IDMP_DURATION = RedisValue.FromRaw("IDMP-DURATION"u8),
             IDMP_MAXSIZE = RedisValue.FromRaw("IDMP-MAXSIZE"u8),
+            INCRBY = RedisValue.FromRaw("INCRBY"u8),
             KEEPTTL = RedisValue.FromRaw("KEEPTTL"u8),
             KILL = RedisValue.FromRaw("KILL"u8),
             LADDR = RedisValue.FromRaw("LADDR"u8),
@@ -94,6 +96,7 @@ namespace StackExchange.Redis
             OBO = RedisValue.FromRaw("OBO"u8),
             ONE = RedisValue.FromRaw("ONE"u8),
             OR = RedisValue.FromRaw("OR"u8),
+            OVERFLOW = RedisValue.FromRaw("OVERFLOW"u8),
             PATTERN = RedisValue.FromRaw("PATTERN"u8),
             PAUSE = RedisValue.FromRaw("PAUSE"u8),
             PERSIST = RedisValue.FromRaw("PERSIST"u8),
@@ -110,6 +113,7 @@ namespace StackExchange.Redis
             REV = RedisValue.FromRaw("REV"u8),
             REWRITE = RedisValue.FromRaw("REWRITE"u8),
             RIGHT = RedisValue.FromRaw("RIGHT"u8),
+            SAT = RedisValue.FromRaw("SAT"u8),
             SAVE = RedisValue.FromRaw("SAVE"u8),
             SEGFAULT = RedisValue.FromRaw("SEGFAULT"u8),
             SET = RedisValue.FromRaw("SET"u8),
@@ -127,6 +131,7 @@ namespace StackExchange.Redis
             WITHMATCHLEN = RedisValue.FromRaw("WITHMATCHLEN"u8),
             WITHSCORES = RedisValue.FromRaw("WITHSCORES"u8),
             WITHVALUES = RedisValue.FromRaw("WITHVALUES"u8),
+            WRAP = RedisValue.FromRaw("WRAP"u8),
             XOR = RedisValue.FromRaw("XOR"u8),
             XX = RedisValue.FromRaw("XX"u8),
 
@@ -187,6 +192,14 @@ namespace StackExchange.Redis
             slave_read_only = RedisValue.FromRaw("slave-read-only"u8),
             timeout = RedisValue.FromRaw("timeout"u8),
             yes = RedisValue.FromRaw("yes"u8);
+
+        internal static RedisValue Get(BitFieldOverflow overflow) => overflow switch
+        {
+            BitFieldOverflow.Wrap => WRAP,
+            BitFieldOverflow.Saturate => SAT,
+            BitFieldOverflow.Fail => FAIL,
+            _ => throw new ArgumentOutOfRangeException(nameof(overflow)),
+        };
 
         internal static RedisValue Get(Bitwise operation) => operation switch
         {
