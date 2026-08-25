@@ -46,7 +46,11 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
         // defaultOnly, so the doomed node is *discovered* rather than configured - a configured endpoint is
         // exempt by design, and connecting to every toy node would make this test vacuous
         await using var conn = await server.ConnectAsync(defaultOnly: true);
-        Assert.Contains(doomed, conn.GetEndPoints());
+
+        // discovery is prompt but not synchronous with ConnectAsync returning: the node is learned from the
+        // CLUSTER SLOTS reply during handshake, and registering it does not have to have finished on the
+        // connecting thread. Asserting instantly passes on a fast machine and fails on a two-core runner
+        Assert.True(await Poll.UntilAsync(() => conn.GetEndPoints().Contains(doomed)), $"{doomed} was never discovered");
 
         // hand its slot back, so the topology stops listing it - and it owns nothing, so it is prunable
         server.Migrate((RedisKey)"prune-key", server.DefaultEndPoint);
@@ -187,8 +191,11 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
             log.WriteLine($"endpoint: {ep}");
         }
 
-        // reached by name, since that is what this cluster advertises
-        Assert.Contains(conn.GetEndPoints(), ep => ep is DnsEndPoint { Host: "host-2.redis.example.com" });
+        // reached by name, since that is what this cluster advertises (polled for the same reason as above:
+        // the newcomer is discovered, not configured)
+        Assert.True(
+            await Poll.UntilAsync(() => conn.GetEndPoints().Any(ep => ep is DnsEndPoint { Host: "host-2.redis.example.com" })),
+            "the newcomer was never discovered by name");
         Assert.DoesNotContain(conn.GetEndPoints(), ep => ep is IPEndPoint { Port: var p } && p == port + 1);
     }
 
