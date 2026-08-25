@@ -168,6 +168,31 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Empty(conn.GetOutboundData().ToArray());
     }
 
+    [Theory]
+    // all-GET: no side effects to replay, whichever command we end up issuing
+    [InlineData(true, false, true, "BITFIELD_RO", CommandFlags.CommandRetryReadOnly)]
+    [InlineData(true, false, false, "BITFIELD", CommandFlags.CommandRetryReadOnly)]
+    // SET only: a replay lands on the same value, because the offset is positional
+    [InlineData(false, false, false, "BITFIELD", CommandFlags.CommandRetryWriteLastWins)]
+    // anything with an INCRBY compounds, so it keeps BITFIELD's accumulating default
+    [InlineData(false, true, false, "BITFIELD", CommandFlags.None)]
+    public void CommandAndRetryCategoryFollowThePayload(bool allGet, bool anyIncrement, bool readOnlyAvailable, string expectedCommand, CommandFlags expectedCategory)
+    {
+        var flags = CommandFlags.None;
+        Assert.Equal(expectedCommand, RedisDatabase.SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags).ToString());
+
+        // CommandFlags.None here means "no opinion", leaving BITFIELD's own accumulating default in place
+        Assert.Equal(expectedCategory, flags & Message.MaskRetryCategory);
+    }
+
+    [Fact]
+    public void AnExplicitRetryCategoryIsNotOverridden()
+    {
+        var flags = CommandFlags.CommandRetryNever;
+        Assert.Equal(RedisCommand.BITFIELD_RO, RedisDatabase.SelectBitFieldCommand(allGet: true, anyIncrement: false, readOnlyAvailable: true, ref flags));
+        Assert.Equal(CommandFlags.CommandRetryNever, flags & Message.MaskRetryCategory);
+    }
+
     [Fact]
     public void ReadOnlyVariantIsNotPrimaryOnly()
     {

@@ -5439,13 +5439,13 @@ namespace StackExchange.Redis
                 }
             }
 
-            var command = SelectBitFieldCommand(key, allGet, anyIncrement, ref flags, out server);
+            var command = GetBitFieldCommand(key, allGet, anyIncrement, ref flags, out server);
             return new BitFieldMessage(Database, flags, command, key, operations);
         }
 
         private Message GetBitFieldMessage(in RedisKey key, in BitFieldOperation operation, CommandFlags flags, out ServerEndPoint? server)
         {
-            var command = SelectBitFieldCommand(
+            var command = GetBitFieldCommand(
                 key,
                 allGet: operation.Kind == BitFieldOperation.OperationKind.Get,
                 anyIncrement: operation.Kind == BitFieldOperation.OperationKind.IncrementBy,
@@ -5454,22 +5454,41 @@ namespace StackExchange.Redis
             return new BitFieldSingleMessage(Database, flags, command, key, operation);
         }
 
-        private RedisCommand SelectBitFieldCommand(in RedisKey key, bool allGet, bool anyIncrement, ref CommandFlags flags, out ServerEndPoint? server)
+        private RedisCommand GetBitFieldCommand(in RedisKey key, bool allGet, bool anyIncrement, ref CommandFlags flags, out ServerEndPoint? server)
         {
+            var readOnlyAvailable = false;
             server = null;
             if (allGet)
             {
                 // every operation is a read, so BITFIELD_RO will do - and unlike BITFIELD, a replica
                 // will accept it
                 var features = GetFeatures(key, flags, RedisCommand.BITFIELD_RO, out server);
-                if (server is not null && features.BitFieldReadOnly && multiplexer.CommandMap.IsAvailable(RedisCommand.BITFIELD_RO))
+                readOnlyAvailable = server is not null && features.BitFieldReadOnly
+                    && multiplexer.CommandMap.IsAvailable(RedisCommand.BITFIELD_RO);
+                if (!readOnlyAvailable)
                 {
-                    return RedisCommand.BITFIELD_RO;
+                    server = null; // BITFIELD is primary-only; forget the read-eligible server we picked
                 }
-
-                server = null; // BITFIELD is primary-only; forget the read-eligible server we picked
             }
-            else if (!anyIncrement)
+
+            return SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags);
+        }
+
+        /// <summary>
+        /// Chooses the command, and the retry category the payload deserves - which is a separate axis
+        /// from routing: the server treats BITFIELD as a write however read-only its sub-operations are,
+        /// but that governs which servers will accept it, not whether replaying it is safe.
+        /// </summary>
+        internal static RedisCommand SelectBitFieldCommand(bool allGet, bool anyIncrement, bool readOnlyAvailable, ref CommandFlags flags)
+        {
+            if (allGet)
+            {
+                // nothing to replay, whichever of the two commands we end up issuing
+                flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+                return readOnlyAvailable ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
+            }
+
+            if (!anyIncrement)
             {
                 // SET is positional, so a replay lands on the same value; only INCRBY compounds
                 flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
