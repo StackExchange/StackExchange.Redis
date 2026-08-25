@@ -83,35 +83,46 @@ public readonly struct BitFieldEncoding : IEquatable<BitFieldEncoding>
 
     internal bool IsDefault => _value == 0;
 
-    internal RedisValue ToLiteral()
+    /// <summary>
+    /// Writes this encoding as a complete bulk string - <c>$2\r\ni8\r\n</c> or <c>$3\r\ni64\r\n</c> - since
+    /// the width is 1-64 and so the length prefix is always a single digit.
+    /// </summary>
+    internal void Write(in MessageWriter writer, Span<byte> scratch)
     {
         if (_value == 0) ThrowDefault();
-        return Literals[_value + 64];
+
+        int width = Width, len;
+        scratch[0] = (byte)'$';
+        scratch[2] = (byte)'\r';
+        scratch[3] = (byte)'\n';
+        scratch[4] = _value < 0 ? (byte)'i' : (byte)'u';
+        if (width >= 10)
+        {
+            scratch[1] = (byte)'3';
+            scratch[5] = (byte)('0' + (width / 10));
+            scratch[6] = (byte)('0' + (width % 10));
+            len = 7;
+        }
+        else
+        {
+            scratch[1] = (byte)'2';
+            scratch[5] = (byte)('0' + width);
+            len = 6;
+        }
+
+        scratch[len++] = (byte)'\r';
+        scratch[len++] = (byte)'\n';
+        writer.WriteRaw(scratch.Slice(0, len));
 
         static void ThrowDefault() => throw new ArgumentException(
             $"A {nameof(BitFieldEncoding)} must be created via {nameof(Signed)}, {nameof(Unsigned)}, or one of the named encodings.",
             nameof(BitFieldEncoding));
     }
 
-    // i64..i1 (indexes 0..63), unused (64), u1..u63 (65..127)
-    private static readonly RedisValue[] Literals = CreateLiterals();
-
-    private static RedisValue[] CreateLiterals()
-    {
-        var arr = new RedisValue[128];
-        for (int width = 1; width <= 64; width++)
-        {
-            arr[64 - width] = "i" + width.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (width <= 63)
-            {
-                arr[64 + width] = "u" + width.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-        }
-        return arr;
-    }
-
     /// <inheritdoc/>
-    public override string ToString() => _value == 0 ? "(default)" : (string)ToLiteral()!;
+    public override string ToString() => _value == 0
+        ? "(default)"
+        : (IsSigned ? "i" : "u") + Width.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <inheritdoc/>
     public bool Equals(BitFieldEncoding other) => _value == other._value;

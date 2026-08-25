@@ -3763,29 +3763,27 @@ namespace StackExchange.Redis
 
         public long? StringBitField(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
         {
-            ReadOnlySpan<BitFieldOperation> operations = [operation];
-            var msg = GetBitFieldMessage(key, operations, flags, out var server);
+            var msg = GetBitFieldMessage(key, operation, flags, out var server);
             return ExecuteSync(msg, ResultProcessor.NullableInt64, server);
         }
 
         public Task<long?> StringBitFieldAsync(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
         {
-            ReadOnlySpan<BitFieldOperation> operations = [operation];
-            var msg = GetBitFieldMessage(key, operations, flags, out var server);
+            var msg = GetBitFieldMessage(key, operation, flags, out var server);
             return ExecuteAsync(msg, ResultProcessor.NullableInt64, server);
         }
 
         public Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
         {
             if (operations.IsEmpty) return Lease<long?>.Empty; // no operations, no reply elements
-            var msg = GetBitFieldMessage(key, operations.Span, flags, out var server);
+            var msg = GetBitFieldMessage(key, operations, flags, out var server);
             return ExecuteSync(msg, ResultProcessor.LeaseNullableInt64, server, defaultValue: Lease<long?>.Empty);
         }
 
         public Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
         {
             if (operations.IsEmpty) return CompletedTask<Lease<long?>>.FromDefault(Lease<long?>.Empty, asyncState);
-            var msg = GetBitFieldMessage(key, operations.Span, flags, out var server);
+            var msg = GetBitFieldMessage(key, operations, flags, out var server);
             return ExecuteAsync(msg, ResultProcessor.LeaseNullableInt64, Lease<long?>.Empty, server);
         }
 
@@ -5422,11 +5420,42 @@ namespace StackExchange.Redis
             return Message.CreateInSlot(Database, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
 
-        private Message GetBitFieldMessage(in RedisKey key, ReadOnlySpan<BitFieldOperation> operations, CommandFlags flags, out ServerEndPoint? server)
+        private Message GetBitFieldMessage(in RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags, out ServerEndPoint? server)
         {
-            var values = BuildBitFieldPayload(operations, out var allGet, out var anyIncrement);
+            bool allGet = true, anyIncrement = false;
+            foreach (ref readonly var op in operations.Span)
+            {
+                switch (op.Kind)
+                {
+                    case BitFieldOperation.OperationKind.Get:
+                        break;
+                    case BitFieldOperation.OperationKind.IncrementBy:
+                        anyIncrement = true;
+                        allGet = false;
+                        break;
+                    default:
+                        allGet = false;
+                        break;
+                }
+            }
 
-            var command = RedisCommand.BITFIELD;
+            var command = SelectBitFieldCommand(key, allGet, anyIncrement, ref flags, out server);
+            return new BitFieldMessage(Database, flags, command, key, operations);
+        }
+
+        private Message GetBitFieldMessage(in RedisKey key, in BitFieldOperation operation, CommandFlags flags, out ServerEndPoint? server)
+        {
+            var command = SelectBitFieldCommand(
+                key,
+                allGet: operation.Kind == BitFieldOperation.OperationKind.Get,
+                anyIncrement: operation.Kind == BitFieldOperation.OperationKind.IncrementBy,
+                ref flags,
+                out server);
+            return new BitFieldSingleMessage(Database, flags, command, key, operation);
+        }
+
+        private RedisCommand SelectBitFieldCommand(in RedisKey key, bool allGet, bool anyIncrement, ref CommandFlags flags, out ServerEndPoint? server)
+        {
             server = null;
             if (allGet)
             {
@@ -5435,12 +5464,10 @@ namespace StackExchange.Redis
                 var features = GetFeatures(key, flags, RedisCommand.BITFIELD_RO, out server);
                 if (server is not null && features.BitFieldReadOnly && multiplexer.CommandMap.IsAvailable(RedisCommand.BITFIELD_RO))
                 {
-                    command = RedisCommand.BITFIELD_RO;
+                    return RedisCommand.BITFIELD_RO;
                 }
-                else
-                {
-                    server = null; // BITFIELD is primary-only; forget the read-eligible server we picked
-                }
+
+                server = null; // BITFIELD is primary-only; forget the read-eligible server we picked
             }
             else if (!anyIncrement)
             {
@@ -5448,73 +5475,7 @@ namespace StackExchange.Redis
                 flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
             }
 
-            return Message.Create(Database, flags, command, key, values);
-        }
-
-        /// <summary>
-        /// Renders the sub-operations of a BITFIELD call. The OVERFLOW token is sticky on the server
-        /// (and untouched by GET), so it is emitted only when the required mode changes - and never for
-        /// a leading run of <see cref="BitFieldOverflow.Wrap"/>, which is the server's own default.
-        /// </summary>
-        internal static RedisValue[] BuildBitFieldPayload(ReadOnlySpan<BitFieldOperation> operations, out bool allGet, out bool anyIncrement)
-        {
-            // first pass: size the payload, and note what kind of operations we have
-            allGet = true;
-            anyIncrement = false;
-            int count = 0;
-            var overflow = BitFieldOverflow.Wrap;
-            foreach (ref readonly var op in operations)
-            {
-                switch (op.Kind)
-                {
-                    case BitFieldOperation.OperationKind.Get:
-                        count += 3; // GET, encoding, offset
-                        break;
-                    case BitFieldOperation.OperationKind.Set:
-                    case BitFieldOperation.OperationKind.IncrementBy:
-                        allGet = false;
-                        anyIncrement |= op.Kind == BitFieldOperation.OperationKind.IncrementBy;
-                        if (op.Overflow != overflow)
-                        {
-                            overflow = op.Overflow;
-                            count += 2; // OVERFLOW, mode
-                        }
-                        count += 4; // SET/INCRBY, encoding, offset, value
-                        break;
-                    default:
-                        throw new ArgumentException($"A default {nameof(BitFieldOperation)} is not a valid operation.", nameof(operations));
-                }
-            }
-
-            // second pass: write it
-            var values = new RedisValue[count];
-            int index = 0;
-            overflow = BitFieldOverflow.Wrap;
-            foreach (ref readonly var op in operations)
-            {
-                if (op.Kind != BitFieldOperation.OperationKind.Get && op.Overflow != overflow)
-                {
-                    overflow = op.Overflow;
-                    values[index++] = RedisLiterals.OVERFLOW;
-                    values[index++] = RedisLiterals.Get(overflow);
-                }
-
-                values[index++] = op.Kind switch
-                {
-                    BitFieldOperation.OperationKind.Get => RedisLiterals.GET,
-                    BitFieldOperation.OperationKind.Set => RedisLiterals.SET,
-                    _ => RedisLiterals.INCRBY,
-                };
-                values[index++] = op.Encoding.ToLiteral();
-                values[index++] = op.Offset.ToLiteral();
-                if (op.Kind != BitFieldOperation.OperationKind.Get)
-                {
-                    values[index++] = op.Value;
-                }
-            }
-
-            Debug.Assert(index == count, "bitfield payload size mismatch");
-            return values;
+            return RedisCommand.BITFIELD;
         }
 
         internal Message GetStringBitPositionMessage(in RedisKey key, bool bit, long start, long end, StringIndexType indexType, CommandFlags flags)
