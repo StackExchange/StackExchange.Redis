@@ -1272,6 +1272,7 @@ namespace StackExchange.Redis
             ResetArena,
             ProcessBufferComplete,
             PubSubUnsubscribe,
+            MaintenanceNotification,
             NA = -1,
         }
 
