@@ -62,6 +62,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(
             new[]
             {
+                "_maintenanceNotifications",
                 "_protocol",
                 "asyncTimeout",
                 "backlogPolicy",
@@ -889,6 +890,27 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var parsed = Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
+    }
+
+    [Theory]
+    [InlineData(null, MaintenanceNotificationMode.Disabled, "dummy")]
+    [InlineData(MaintenanceNotificationMode.Disabled, MaintenanceNotificationMode.Disabled, "dummy,maintNotifications=Disabled")]
+    [InlineData(MaintenanceNotificationMode.Enabled, MaintenanceNotificationMode.Enabled, "dummy,maintNotifications=Enabled")]
+    [InlineData(MaintenanceNotificationMode.Auto, MaintenanceNotificationMode.Auto, "dummy,maintNotifications=Auto")]
+    public void CheckMaintenanceNotifications(MaintenanceNotificationMode? assigned, MaintenanceNotificationMode expected, string cs)
+    {
+        var options = Parse("dummy");
+        if (assigned.HasValue) options.MaintenanceNotifications = assigned.Value;
+
+        Assert.Equal(expected, options.MaintenanceNotifications);
+        Assert.Equal(cs, RemoveTestDefaults(options.ToString()));
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.MaintenanceNotifications);
+        Assert.Equal(cs, RemoveTestDefaults(clone.ToString()));
+
+        var parsed = Parse(cs);
+        Assert.Equal(expected, parsed.MaintenanceNotifications);
     }
 
     [Theory]

@@ -111,3 +111,11 @@ static StackExchange.Redis.BitFieldOperation.IncrementBy(StackExchange.Redis.Bit
 static StackExchange.Redis.BitFieldOperation.operator ==(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
 static StackExchange.Redis.BitFieldOperation.operator !=(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
 static StackExchange.Redis.BitFieldOperation.Set(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode?
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceNotifications.set -> void
+[SER010]StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Auto = 2 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Disabled = 0 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Enabled = 1 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode?
+[SER010]override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode?

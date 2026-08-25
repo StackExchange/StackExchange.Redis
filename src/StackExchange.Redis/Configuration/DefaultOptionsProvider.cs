@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RESPite;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -266,6 +268,21 @@ namespace StackExchange.Redis.Configuration
         /// Gets the preferred protocol to use for the connection.
         /// </summary>
         public virtual RedisProtocol? Protocol => null;
+
+        /// <summary>
+        /// Gets whether to ask servers to send maintenance notifications.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="MaintenanceNotificationMode.Disabled"/> here on purpose. The notification contract asks
+        /// clients to default to <c>auto</c>, and that is right for the deployments that emit them - but this
+        /// library is pointed at every RESP implementation there is, most of which have never heard of the
+        /// opt-in, and asking them all costs a handshake slot plus an error reply in their logs. Nor is the
+        /// server the only thing in the path: proxies sit in front of these deployments, and an unrecognized
+        /// <c>CLIENT</c> subcommand is not guaranteed to be answered as politely as a server would. A provider
+        /// that recognizes a deployment which supports the feature should override this.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual MaintenanceNotificationMode? MaintenanceNotifications => MaintenanceNotificationMode.Disabled;
 
         /// <summary>
         /// Gets whether to enable TCP keep-alive when appropriate (endpoint- and platform-dependent).

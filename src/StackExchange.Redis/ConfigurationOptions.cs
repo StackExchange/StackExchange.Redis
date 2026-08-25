@@ -73,6 +73,15 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            internal static MaintenanceNotificationMode ParseMaintenanceNotifications(string key, string value)
+            {
+                if (!Enum.TryParse(value, true, out MaintenanceNotificationMode tmp) || !Enum.IsDefined(typeof(MaintenanceNotificationMode), tmp))
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a MaintenanceNotificationMode value; the value '{value}' is not recognised.");
+                }
+                return tmp;
+            }
+
             internal static SslProtocols ParseSslProtocols(string key, string? value)
             {
                 // Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
@@ -125,6 +134,7 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
+                MaintenanceNotifications = "maintNotifications",
                 HighIntegrity = "highIntegrity",
                 TcpKeepAlive = "tcpKeepAlive";
 
@@ -162,6 +172,7 @@ namespace StackExchange.Redis
                 Tunnel,
                 SetClientLibrary,
                 Protocol,
+                MaintenanceNotifications,
                 HighIntegrity,
                 TcpKeepAlive,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
@@ -217,6 +228,7 @@ namespace StackExchange.Redis
             SslProtocolsHasValue = 1UL << 32,
             ProtocolHasValue = 1UL << 33,
             AllowSimulateConnectionFailure = 1UL << 34,
+            MaintenanceNotificationsHasValue = 1UL << 35,
         }
 
         private OptionFlags optionFlags;
@@ -242,6 +254,7 @@ namespace StackExchange.Redis
         private SslProtocols sslProtocols;
 
         private RedisProtocol _protocol;
+        private MaintenanceNotificationMode _maintenanceNotifications;
 
         private bool HasValue(OptionFlags hasValue) => (optionFlags & hasValue) != 0;
 
@@ -1004,6 +1017,7 @@ namespace StackExchange.Redis
             Tunnel = Tunnel,
             LibraryName = LibraryName,
             _protocol = _protocol,
+            _maintenanceNotifications = _maintenanceNotifications,
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
             CircuitBreaker = CircuitBreaker,
@@ -1097,6 +1111,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
             Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
             if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
+            if (HasValue(OptionFlags.MaintenanceNotificationsHasValue)) Append(sb, OptionKeys.MaintenanceNotifications, _maintenanceNotifications.ToString());
             Append(sb, OptionKeys.TcpKeepAlive, OptionFlags.TcpKeepAliveHasValue, OptionFlags.TcpKeepAliveValue);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
@@ -1212,6 +1227,7 @@ namespace StackExchange.Redis
 #endif
             Tunnel = null;
             _protocol = default;
+            _maintenanceNotifications = default;
             WriteMode = default;
             CircuitBreaker = null;
             RetryPolicy = null;
@@ -1368,6 +1384,9 @@ namespace StackExchange.Redis
                         case OptionKeys.Protocol:
                             SetWithValue(OptionFlags.ProtocolHasValue, ref _protocol, OptionKeys.ParseRedisProtocol(key, value));
                             break;
+                        case OptionKeys.MaintenanceNotifications:
+                            SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, OptionKeys.ParseMaintenanceNotifications(key, value));
+                            break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
@@ -1418,6 +1437,24 @@ namespace StackExchange.Redis
         {
             get => HasValue(OptionFlags.ProtocolHasValue) ? _protocol : Defaults.Protocol;
             set => Set(OptionFlags.ProtocolHasValue, ref _protocol, value);
+        }
+
+        /// <summary>
+        /// Whether to ask servers to send maintenance notifications; note that
+        /// <see cref="MaintenanceNotificationMode.Enabled"/> means <i>required</i> and <b>rejects connections
+        /// that cannot deliver them</b> - <see cref="MaintenanceNotificationMode.Auto"/> is the best-effort
+        /// mode.
+        /// </summary>
+        /// <remarks>
+        /// Requires RESP3, and only Redis Enterprise and Redis Cloud emit them - so the default is
+        /// <see cref="MaintenanceNotificationMode.Disabled"/> rather than spending an extra handshake command
+        /// asking every server in existence a question almost none of them understand.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public MaintenanceNotificationMode? MaintenanceNotifications
+        {
+            get => HasValue(OptionFlags.MaintenanceNotificationsHasValue) ? _maintenanceNotifications : Defaults.MaintenanceNotifications;
+            set => Set(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, value);
         }
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }

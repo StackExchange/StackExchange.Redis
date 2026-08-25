@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Threading.Tasks;
+using RESPite;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -65,5 +67,18 @@ namespace StackExchange.Redis.Configuration
 
         /// <inheritdoc/>
         public override string ConfigurationChannel => ""; // disable on AMR
+
+        /// <summary>
+        /// Ask for maintenance notifications, tolerating a server that doesn't offer them.
+        /// </summary>
+        /// <remarks>
+        /// Pre-emptive: AMR does not emit these yet, and support is being added concurrently with this
+        /// client-side work. <see cref="MaintenanceNotificationMode.Auto"/> is what makes that safe - until
+        /// the server side ships, the opt-in is refused and the feature stays off, and it then starts working
+        /// without anybody needing to change a connection string. AMR also already prefers RESP3 here, which
+        /// the feature requires.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public override MaintenanceNotificationMode? MaintenanceNotifications => MaintenanceNotificationMode.Auto;
     }
 }

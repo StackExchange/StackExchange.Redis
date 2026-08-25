@@ -25,6 +25,7 @@ namespace StackExchange.Redis
             TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
+            MaintenanceNotifications = new MaintenanceNotificationsProcessor(),
             BackgroundSaveStarted = new ExpectBasicStringProcessor(Literals.background_saving_started.Hash, startsWith: true),
             BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(Literals.background_aof_rewriting_started.Hash, startsWith: true);
 
@@ -3189,6 +3190,44 @@ The coordinates as an array of two items x,y (longitude,latitude).
                 }
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Handles the reply to the maintenance-notification opt-in, which we send speculatively: a server that
+        /// doesn't know the subcommand replies with an error, and that is an expected outcome rather than a
+        /// fault. So the error is absorbed here rather than going through the common error path, which would
+        /// raise an <see cref="ConnectionMultiplexer.ErrorMessage"/> to the consumer for something we asked for
+        /// on their behalf.
+        /// </summary>
+        private sealed class MaintenanceNotificationsProcessor : ResultProcessor<bool>
+        {
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                reader.MovePastBof();
+                var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+                if (reader.IsError)
+                {
+                    server?.OnMaintenanceNotificationsRefused(connection, reader.ReadString() ?? "declined");
+                    SetResult(message, false);
+                    return true;
+                }
+
+                if (reader.IsScalar && Literals.OK.Hash.IsCS(reader.TryGetSpan(out var span) ? span : reader.Buffer(stackalloc byte[16])))
+                {
+                    server?.OnMaintenanceNotificationsAccepted();
+                    SetResult(message, true);
+                    return true;
+                }
+
+                // anything else: treat as "not available" rather than a protocol fault; being liberal in what
+                // we accept matters more here than pinning an unverifiable reply shape
+                server?.OnMaintenanceNotificationsRefused(connection, $"unexpected reply: {reader.GetOverview()}");
+                SetResult(message, false);
+                return true;
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+                => throw new NotSupportedException(); // SetResult is fully overridden
         }
 
         private sealed class TracerProcessor(bool establishConnection) : ResultProcessor<bool>

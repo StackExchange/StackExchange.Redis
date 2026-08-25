@@ -87,6 +87,24 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Theory]
+    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Auto)] // AMR asks, pre-emptively
+    [InlineData("contoso.redis.cache.windows.net", MaintenanceNotificationMode.Disabled)] // classic Azure does not
+    [InlineData("contoso.example.com", MaintenanceNotificationMode.Disabled)] // and neither does anything else
+    public void MaintenanceNotificationDefaultPerProvider(string hostName, MaintenanceNotificationMode expected)
+    {
+        // Auto rather than Enabled is what makes the pre-emptive default safe: AMR does not emit these yet,
+        // so until the server side ships the opt-in is refused and the feature simply stays off
+        var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
+        var provider = DefaultOptionsProvider.GetProvider(epc);
+        Output.WriteLine($"{hostName} -> {provider.GetType().Name}");
+        Assert.Equal(expected, provider.MaintenanceNotifications);
+
+        // ...and it arrives through the options, not just off the provider
+        var options = new ConfigurationOptions { EndPoints = { new DnsEndPoint(hostName, 0) } };
+        Assert.Equal(expected, options.MaintenanceNotifications);
+    }
+
+    [Theory]
     [InlineData(RedisProtocol.Resp2)]
     [InlineData(RedisProtocol.Resp3)]
     public async Task AzureManagedRedisConnectsWithoutSubscriptionConnection(RedisProtocol protocol)

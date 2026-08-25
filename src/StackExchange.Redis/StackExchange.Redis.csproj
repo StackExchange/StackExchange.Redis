@@ -42,6 +42,7 @@
 
     <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
+    <Compile Update="ServerEndPoint.*.cs" DependentUpon="ServerEndPoint.cs" />
   </ItemGroup>
 
   <ItemGroup>

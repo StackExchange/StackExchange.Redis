@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using System.Threading;
 using RESPite;
 using RESPite.Messages;
 
@@ -54,6 +55,15 @@ namespace StackExchange.Redis.Server
         };
 
         private int _maintenanceSequence;
+        private int _maintenanceOptIns;
+
+        /// <summary>
+        /// How many times a client has opted in, across the lifetime of the server. Per-client state goes away
+        /// with the client, so this is what a reconnect test can measure.
+        /// </summary>
+        public int TotalMaintenanceOptIns => Volatile.Read(ref _maintenanceOptIns);
+
+        internal void OnMaintenanceOptIn() => Interlocked.Increment(ref _maintenanceOptIns);
 
         /// <summary>
         /// The sequence id given to the next notification, unless one is supplied explicitly. The contract does

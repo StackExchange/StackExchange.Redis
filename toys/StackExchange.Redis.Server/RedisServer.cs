@@ -722,6 +722,9 @@ namespace StackExchange.Redis.Server
         // explicitly valid and means "use the server defaults", so the parameter list is optional and
         // unrecognized parameters are an error rather than something to ignore - the client is asking the
         // server to do something specific, and silently not doing it would be worse than refusing
+        private static bool IsKeyword(in RedisRequest request, int index, string keyword)
+            => string.Equals(request.GetString(index), keyword, StringComparison.OrdinalIgnoreCase);
+
         [RedisCommand(-3, nameof(RedisCommand.CLIENT), "maint_notifications", LockFree = true)]
         protected virtual TypedRedisValue ClientMaintNotifications(RedisClient client, in RedisRequest request)
         {
@@ -733,9 +736,12 @@ namespace StackExchange.Redis.Server
                     return TypedRedisValue.Error("ERR maintenance notifications are disabled on this server");
             }
 
+            // keywords are matched case-insensitively, as a real server does; clients differ here (go-redis
+            // sends lowercase, we send the same uppercase form we use for every other keyword), and a fake
+            // that only accepted one of them would fail a client for something a real server allows
             bool on;
-            if (request.IsString(2, "on"u8)) on = true;
-            else if (request.IsString(2, "off"u8)) on = false;
+            if (IsKeyword(request, 2, "on")) on = true;
+            else if (IsKeyword(request, 2, "off")) on = false;
             else return TypedRedisValue.Error("ERR syntax error");
 
             string movingEndpointType = null;
@@ -743,9 +749,9 @@ namespace StackExchange.Redis.Server
             {
                 if (i + 1 >= request.Count) return TypedRedisValue.Error("ERR syntax error");
 
-                if (request.IsString(i, "moving-endpoint-type"u8))
+                if (IsKeyword(request, i, "moving-endpoint-type"))
                 {
-                    movingEndpointType = request.GetString(i + 1);
+                    movingEndpointType = request.GetString(i + 1)?.ToLowerInvariant();
                     switch (movingEndpointType)
                     {
                         case "internal-ip":
@@ -767,6 +773,7 @@ namespace StackExchange.Redis.Server
             client.MaintenanceNotifications = on;
             client.MovingEndpointType = on ? movingEndpointType : null;
             client.MaintenanceNotificationOptInCount++;
+            if (on) OnMaintenanceOptIn();
             Log($"[{client}] maintenance notifications {(on ? "on" : "off")}, moving-endpoint-type: {movingEndpointType ?? "(server default)"}");
             return TypedRedisValue.OK;
         }
