@@ -101,9 +101,9 @@ static StackExchange.Redis.BitFieldEncoding.UInt32.get -> StackExchange.Redis.Bi
 static StackExchange.Redis.BitFieldEncoding.UInt63.get -> StackExchange.Redis.BitFieldEncoding
 static StackExchange.Redis.BitFieldEncoding.UInt8.get -> StackExchange.Redis.BitFieldEncoding
 static StackExchange.Redis.BitFieldEncoding.Unsigned(int width) -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldOffset.Bits(long offset) -> StackExchange.Redis.BitFieldOffset
-static StackExchange.Redis.BitFieldOffset.implicit operator StackExchange.Redis.BitFieldOffset(long offset) -> StackExchange.Redis.BitFieldOffset
-static StackExchange.Redis.BitFieldOffset.Index(long index) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.Bit(long bit) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.implicit operator StackExchange.Redis.BitFieldOffset(long bit) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.Element(long element) -> StackExchange.Redis.BitFieldOffset
 static StackExchange.Redis.BitFieldOffset.operator ==(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
 static StackExchange.Redis.BitFieldOffset.operator !=(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
 static StackExchange.Redis.BitFieldOperation.Get(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset) -> StackExchange.Redis.BitFieldOperation

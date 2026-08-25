@@ -73,17 +73,17 @@ public class BitFieldTypeTests
     [Fact]
     public void OffsetForms()
     {
-        Assert.Equal("100", BitFieldOffset.Bits(100).ToString());
-        Assert.Equal("#100", BitFieldOffset.Index(100).ToString());
-        Assert.Equal(BitFieldOffset.Bits(3), (BitFieldOffset)3L); // implicit long is a bit offset
-        Assert.NotEqual(BitFieldOffset.Bits(3), BitFieldOffset.Index(3));
+        Assert.Equal("100", BitFieldOffset.Bit(100).ToString());
+        Assert.Equal("#100", BitFieldOffset.Element(100).ToString());
+        Assert.Equal(BitFieldOffset.Bit(3), (BitFieldOffset)3L); // implicit long is a bit offset
+        Assert.NotEqual(BitFieldOffset.Bit(3), BitFieldOffset.Element(3));
     }
 
     [Fact]
     public void OffsetsCannotBeNegative()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => BitFieldOffset.Bits(-1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BitFieldOffset.Index(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BitFieldOffset.Bit(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BitFieldOffset.Element(-1));
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class BitFieldTypeTests
     [Fact]
     public void OperationToString()
     {
-        Assert.Equal("GET u8 #1", BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Index(1)).ToString());
+        Assert.Equal("GET u8 #1", BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Element(1)).ToString());
         Assert.Equal("SET i16 32 -5 (Saturate)", BitFieldOperation.Set(BitFieldEncoding.Int16, 32, -5, BitFieldOverflow.Saturate).ToString());
         Assert.Equal("INCRBY i8 0 1 (Wrap)", BitFieldOperation.IncrementBy(BitFieldEncoding.Int8, 0, 1).ToString());
     }

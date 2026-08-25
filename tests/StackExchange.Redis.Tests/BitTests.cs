@@ -59,8 +59,8 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         // SET reports the previous value, GET the current one; the #N form indexes by width
-        Assert.Equal(0, db.StringBitField(key, BitFieldOperation.Set(BitFieldEncoding.UInt8, BitFieldOffset.Index(1), 255)));
-        Assert.Equal(255, await db.StringBitFieldAsync(key, BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Index(1))));
+        Assert.Equal(0, db.StringBitField(key, BitFieldOperation.Set(BitFieldEncoding.UInt8, BitFieldOffset.Element(1), 255)));
+        Assert.Equal(255, await db.StringBitFieldAsync(key, BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Element(1))));
         Assert.Equal(255, db.StringBitField(key, BitFieldOperation.Get(BitFieldEncoding.UInt8, 8))); // ... same field, by bit
         Assert.Equal(0, db.StringBitField(key, BitFieldOperation.Get(BitFieldEncoding.UInt8, 0)));
 

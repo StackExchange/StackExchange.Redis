@@ -28,7 +28,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         var msg = Message(
             RedisCommand.BITFIELD_RO,
             BitFieldOperation.Get(BitFieldEncoding.UInt8, 0),
-            BitFieldOperation.Get(BitFieldEncoding.UInt63, BitFieldOffset.Index(2)));
+            BitFieldOperation.Get(BitFieldEncoding.UInt63, BitFieldOffset.Element(2)));
         const string RequestResp = "*8\r\n$11\r\nBITFIELD_RO\r\n$1\r\nk\r\n$3\r\nGET\r\n$2\r\nu8\r\n$1\r\n0\r\n$3\r\nGET\r\n$3\r\nu63\r\n$2\r\n#2\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.LeaseNullableInt64, RequestResp, "*2\r\n:255\r\n:0\r\n", log: log);
@@ -52,7 +52,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         var msg = Message(
             RedisCommand.BITFIELD,
             BitFieldOperation.Set(BitFieldEncoding.UInt8, 0, 1, BitFieldOverflow.Saturate),
-            BitFieldOperation.IncrementBy(BitFieldEncoding.UInt8, BitFieldOffset.Index(1), 2, BitFieldOverflow.Saturate),
+            BitFieldOperation.IncrementBy(BitFieldEncoding.UInt8, BitFieldOffset.Element(1), 2, BitFieldOverflow.Saturate),
             BitFieldOperation.Set(BitFieldEncoding.UInt8, 0, 3, BitFieldOverflow.Wrap));
         const string RequestResp = "*18\r\n$8\r\nBITFIELD\r\n$1\r\nk\r\n"
             + "$8\r\nOVERFLOW\r\n$3\r\nSAT\r\n$3\r\nSET\r\n$2\r\nu8\r\n$1\r\n0\r\n$1\r\n1\r\n"

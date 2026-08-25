@@ -4,62 +4,64 @@ using System.Globalization;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Where a bitfield sits inside a string: either an absolute bit offset, or - via
-/// <see cref="Index(long)"/> - a zero-based index into an array of consecutive fields of the same
-/// width, which the server multiplies out for us (the <c>#</c> form).
+/// Where a bitfield sits inside a string: either a bit position, or - via
+/// <see cref="Element(long)"/> - the position of one element in an array of consecutive fields of
+/// the same width, which the server multiplies out for us (the <c>#</c> form).
 /// </summary>
 /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
 public readonly struct BitFieldOffset : IEquatable<BitFieldOffset>
 {
     private readonly long _value;
-    private readonly bool _isIndex;
+    private readonly bool _isElement;
 
     private BitFieldOffset(long value, bool isIndex)
     {
         _value = value;
-        _isIndex = isIndex;
+        _isElement = isIndex;
     }
 
     /// <summary>
-    /// An absolute offset, in bits, from the start of the string.
+    /// The zero-based bit position, counted from the start of the string; <c>Bit(16)</c> is the
+    /// seventeenth bit.
     /// </summary>
-    /// <param name="offset">The offset, in bits.</param>
-    public static BitFieldOffset Bits(long offset) => offset < 0
-        ? throw new ArgumentOutOfRangeException(nameof(offset), "A bitfield offset cannot be negative.")
-        : new(offset, false);
+    /// <param name="bit">The bit position.</param>
+    public static BitFieldOffset Bit(long bit) => bit < 0
+        ? throw new ArgumentOutOfRangeException(nameof(bit), "A bitfield bit position cannot be negative.")
+        : new(bit, false);
 
     /// <summary>
-    /// A zero-based index into an array of consecutive fields of the encoding's own width; the
-    /// server multiplies the index by the width, so <c>Index(2)</c> of a <c>u8</c> is bit 16.
+    /// The zero-based position of one element in an array of consecutive fields of the encoding's
+    /// own width; the server multiplies it by the width, so <c>Element(2)</c> of a <c>u8</c> is
+    /// bit 16.
     /// </summary>
-    /// <param name="index">The index of the field.</param>
-    public static BitFieldOffset Index(long index) => index < 0
-        ? throw new ArgumentOutOfRangeException(nameof(index), "A bitfield index cannot be negative.")
-        : new(index, true);
+    /// <param name="element">The element position.</param>
+    public static BitFieldOffset Element(long element) => element < 0
+        ? throw new ArgumentOutOfRangeException(nameof(element), "A bitfield element position cannot be negative.")
+        : new(element, true);
 
     /// <summary>
-    /// Creates an absolute bit offset; equivalent to <see cref="Bits(long)"/>.
+    /// Creates a bit position; equivalent to <see cref="Bit(long)"/>.
     /// </summary>
-    /// <param name="offset">The offset, in bits.</param>
-    public static implicit operator BitFieldOffset(long offset) => Bits(offset);
+    /// <param name="bit">The bit position.</param>
+    public static implicit operator BitFieldOffset(long bit) => Bit(bit);
 
-    internal RedisValue ToLiteral() => _isIndex
+    internal RedisValue ToLiteral() => _isElement
         ? (RedisValue)("#" + _value.ToString(CultureInfo.InvariantCulture))
         : (RedisValue)_value;
 
     /// <inheritdoc/>
-    public override string ToString() => _isIndex
+    public override string ToString() => _isElement
         ? "#" + _value.ToString(CultureInfo.InvariantCulture)
         : _value.ToString(CultureInfo.InvariantCulture);
 
     /// <inheritdoc/>
-    public bool Equals(BitFieldOffset other) => _value == other._value && _isIndex == other._isIndex;
+    public bool Equals(BitFieldOffset other) => _value == other._value && _isElement == other._isElement;
 
     /// <inheritdoc/>
     public override bool Equals(object? obj) => obj is BitFieldOffset other && Equals(other);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => _isIndex ? ~_value.GetHashCode() : _value.GetHashCode();
+    public override int GetHashCode() => _isElement ? ~_value.GetHashCode() : _value.GetHashCode();
 
     /// <summary>Compares two values for equality.</summary>
     public static bool operator ==(BitFieldOffset x, BitFieldOffset y) => x.Equals(y);
