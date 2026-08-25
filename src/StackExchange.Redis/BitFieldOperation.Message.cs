@@ -20,12 +20,12 @@ internal partial class RedisDatabase
         }
 
         /// <summary>
-        /// Counts the arguments needed by a set of operations, including the key, and rejects anything
-        /// that cannot be written - while we can still throw at the caller rather than mid-write.
+        /// Counts the arguments needed by a set of operations, including the key; <see langword="false"/>
+        /// if any of them cannot be written.
         /// </summary>
-        protected static int CountArgs(ReadOnlySpan<BitFieldOperation> operations, string paramName)
+        protected static bool TryCountArgs(ReadOnlySpan<BitFieldOperation> operations, out int count)
         {
-            int count = 1; // the key
+            count = 1; // the key
             var overflow = BitFieldOverflow.Wrap;
             foreach (ref readonly var op in operations)
             {
@@ -45,12 +45,21 @@ internal partial class RedisDatabase
                         count += 4; // SET/INCRBY, encoding, offset, value
                         break;
                     default:
-                        throw new ArgumentException($"A default {nameof(BitFieldOperation)} is not a valid operation.", paramName);
+                        return false;
                 }
             }
 
-            return count;
+            return true;
         }
+
+        /// <summary>
+        /// Counts the arguments, throwing at the caller - rather than mid-write - if the operations
+        /// cannot be written.
+        /// </summary>
+        protected static int CountArgs(ReadOnlySpan<BitFieldOperation> operations, string paramName) =>
+            TryCountArgs(operations, out var count)
+                ? count
+                : throw new ArgumentException($"A default {nameof(BitFieldOperation)} is not a valid operation.", paramName);
 
         protected static void WriteOperations(in MessageWriter writer, ReadOnlySpan<BitFieldOperation> operations)
         {
@@ -73,6 +82,8 @@ internal partial class RedisDatabase
                             writer.WriteRaw("$4\r\nFAIL\r\n"u8);
                             break;
                         default:
+                            // shape-neutral (the count comes from the transition, not the mode), so
+                            // the server's own default is the safe answer here
                             writer.WriteRaw("$4\r\nWRAP\r\n"u8);
                             break;
                     }
@@ -86,9 +97,14 @@ internal partial class RedisDatabase
                     case BitFieldOperation.OperationKind.Set:
                         writer.WriteRaw("$3\r\nSET\r\n"u8);
                         break;
-                    default:
+                    case BitFieldOperation.OperationKind.IncrementBy:
                         writer.WriteRaw("$6\r\nINCRBY\r\n"u8);
                         break;
+                    default:
+                        // unreachable: the callers check the operations before writing the header.
+                        // Guessing here would be worse than failing - a wrong sub-command corrupts
+                        // data, and one of the wrong arity corrupts the connection
+                        throw new InvalidOperationException($"A default {nameof(BitFieldOperation)} is not a valid operation.");
                 }
 
                 op.Encoding.Write(in writer, scratch);
@@ -116,9 +132,19 @@ internal partial class RedisDatabase
 
         protected override void WriteImpl(in MessageWriter writer)
         {
+            // we alias the caller's memory rather than copying it, and here - unlike the messages that
+            // hold a RedisValue[] - the *shape* depends on the contents, so a mutation between issue
+            // and write would desync the frame. Re-check before the header goes out, so that a
+            // violated contract fails with nothing written rather than corrupting the connection
+            var operations = _operations.Span;
+            if (!TryCountArgs(operations, out var count) || count != _argCount)
+            {
+                throw new InvalidOperationException($"The {nameof(BitFieldOperation)} values were modified after the command was issued.");
+            }
+
             writer.WriteHeader(Command, _argCount);
             writer.Write(Key);
-            WriteOperations(in writer, _operations.Span);
+            WriteOperations(in writer, operations);
         }
 
         public override int ArgCount => _argCount;

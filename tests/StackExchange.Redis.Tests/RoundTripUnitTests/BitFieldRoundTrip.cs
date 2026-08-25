@@ -151,6 +151,24 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
     }
 
     [Fact]
+    public void MutatingTheOperationsAfterIssue_FailsBeforeAnythingIsWritten()
+    {
+        // the batch form aliases the caller's memory rather than copying it, and the shape depends on
+        // the contents, so a mutation has to be caught before the header goes out
+        var operations = new[] { BitFieldOperation.Set(BitFieldEncoding.UInt8, 0, 1) };
+        var msg = new RedisDatabase.BitFieldMessage(0, CommandFlags.None, RedisCommand.BITFIELD, (RedisKey)"k", operations);
+
+        operations[0] = default;
+
+        using var conn = new TestConnection(startReading: false);
+        var box = TaskResultBox<long?>.Create(out _, null);
+        msg.SetSource(box, ResultProcessor.NullableInt64);
+
+        Assert.Throws<InvalidOperationException>(() => conn.WriteOutbound(msg));
+        Assert.Empty(conn.GetOutboundData().ToArray());
+    }
+
+    [Fact]
     public void ReadOnlyVariantIsNotPrimaryOnly()
     {
         // BITFIELD is a write server-side even when every sub-operation is a GET; BITFIELD_RO is not
