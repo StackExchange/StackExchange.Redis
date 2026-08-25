@@ -35,8 +35,44 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
         }
     }
 
+    /// <summary>
+    /// The threshold itself, driven directly - deterministic, because it does not depend on how many
+    /// generations anything else applied.
+    /// </summary>
+    /// <remarks>
+    /// This is deliberately not asserted end-to-end. <c>OnMissingFromTopology</c> returns
+    /// <c>generation - absentSince + 1</c>, which is the number of generations *elapsed* rather than the
+    /// number of times this server was observed absent - so any topology application, from anywhere,
+    /// advances it. A test that applies two generations and then asserts "not pruned yet" is asserting that
+    /// nothing else applied one, which it cannot control: it passes on a fast machine and fails on a
+    /// two-core runner. So the threshold is pinned here, and the end-to-end test below asserts only what it
+    /// can honestly own - that an absent, idle node is eventually pruned.
+    /// </remarks>
     [Fact]
-    public async Task NodeAbsentFromTopologyIsPrunedAfterThreeGenerations()
+    public async Task AbsenceIsCountedAsGenerationsElapsed()
+    {
+        using var server = CreateServer(log);
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        var target = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+
+        // generation numbers are arbitrary here; what matters is the delta from the first absence
+        Assert.Equal(1, target.OnMissingFromTopology(41));
+        Assert.Equal(2, target.OnMissingFromTopology(42));
+        Assert.Equal(3, target.OnMissingFromTopology(43));
+
+        // being seen again clears it, so absences have to be consecutive to accumulate
+        target.OnSeenInTopology(44);
+        Assert.Equal(1, target.OnMissingFromTopology(45));
+
+        // and a gap in generation numbers counts as the distance, not as one more absence - which is exactly
+        // what an end-to-end test cannot control, since it does not own the generation counter
+        target.OnSeenInTopology(49);
+        Assert.Equal(1, target.OnMissingFromTopology(50));
+        Assert.Equal(3, target.OnMissingFromTopology(52)); // two generations later, not two absences later
+    }
+
+    [Fact]
+    public async Task NodeAbsentFromTopologyIsEventuallyPruned()
     {
         using var server = CreateServer(log);
         GetHost(server.DefaultEndPoint, out var port);
@@ -55,10 +91,13 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
         // hand its slot back, so the topology stops listing it - and it owns nothing, so it is prunable
         server.Migrate((RedisKey)"prune-key", server.DefaultEndPoint);
 
-        await ApplyGenerationsAsync(conn, server.DefaultEndPoint, 2);
-        Assert.Contains(doomed, conn.GetEndPoints()); // two absences is not yet evidence
+        // the *threshold* is pinned by AbsenceIsCountedAsGenerationsElapsed; what this owns is that applying
+        // topology generations does eventually remove it. Bounded so a regression fails rather than hangs
+        for (int i = 0; i < 10 && conn.GetEndPoints().Contains(doomed); i++)
+        {
+            await ApplyGenerationsAsync(conn, server.DefaultEndPoint, 1);
+        }
 
-        await ApplyGenerationsAsync(conn, server.DefaultEndPoint, 1);
         log.WriteLine(string.Join(", ", conn.GetEndPoints().Select(x => x.ToString())));
         Assert.DoesNotContain(doomed, conn.GetEndPoints());
     }
