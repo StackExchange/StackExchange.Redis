@@ -3378,7 +3378,8 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// One element per operation, in order; an element is <see langword="null"/> if that operation was
-        /// skipped because of <see cref="BitFieldOverflow.Fail"/>. The caller owns the returned lease.
+        /// skipped because of <see cref="BitFieldOverflow.Fail"/>. Empty for an empty batch, or when the
+        /// result is not observable (<see cref="CommandFlags.FireAndForget"/>). The caller owns the lease.
         /// </returns>
         /// <remarks>
         /// <para><seealso href="https://redis.io/commands/bitfield"/></para>
@@ -3388,7 +3389,7 @@ namespace StackExchange.Redis
         /// issued as <c>BITFIELD</c>, which the server treats as a write and will only accept on a primary.
         /// </para>
         /// </remarks>
-        Lease<long?>? StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None);
+        Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <summary>

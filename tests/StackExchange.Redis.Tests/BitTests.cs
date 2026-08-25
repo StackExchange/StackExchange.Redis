@@ -88,8 +88,6 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
                 BitFieldOperation.IncrementBy(BitFieldEncoding.Int8, 0, 100, BitFieldOverflow.Wrap),
             });
 
-        Assert.NotNull(lease);
-
         // the FAIL element is null; note the sticky OVERFLOW state survives the intervening GET
         Assert.Equal(new long?[] { 0, 127, 127, null, -29 }, lease.Span.ToArray());
     }
@@ -102,11 +100,9 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         RedisKey key = Me();
 
         using var lease = db.StringBitField(key, ReadOnlyMemory<BitFieldOperation>.Empty);
-        Assert.NotNull(lease);
         Assert.True(lease.IsEmpty);
 
         using var leaseAsync = await db.StringBitFieldAsync(key, ReadOnlyMemory<BitFieldOperation>.Empty);
-        Assert.NotNull(leaseAsync);
         Assert.True(leaseAsync.IsEmpty);
     }
 
@@ -131,7 +127,6 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
             key,
             new[] { BitFieldOperation.Get(BitFieldEncoding.UInt8, 0) },
             CommandFlags.DemandReplica);
-        Assert.NotNull(lease);
         Assert.Equal(1, lease.Length);
         Assert.NotNull(db.StringBitField(key, BitFieldOperation.Get(BitFieldEncoding.UInt8, 0), CommandFlags.DemandReplica));
 

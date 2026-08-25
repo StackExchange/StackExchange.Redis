@@ -3775,18 +3775,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableInt64, server);
         }
 
-        public Lease<long?>? StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
+        public Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
         {
             if (operations.IsEmpty) return Lease<long?>.Empty; // no operations, no reply elements
             var msg = GetBitFieldMessage(key, operations.Span, flags, out var server);
-            return ExecuteSync(msg, ResultProcessor.LeaseNullableInt64, server);
+            return ExecuteSync(msg, ResultProcessor.LeaseNullableInt64, server, defaultValue: Lease<long?>.Empty);
         }
 
-        public Task<Lease<long?>?> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
+        public Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
         {
-            if (operations.IsEmpty) return CompletedTask<Lease<long?>?>.FromDefault(Lease<long?>.Empty, asyncState);
+            if (operations.IsEmpty) return CompletedTask<Lease<long?>>.FromDefault(Lease<long?>.Empty, asyncState);
             var msg = GetBitFieldMessage(key, operations.Span, flags, out var server);
-            return ExecuteAsync(msg, ResultProcessor.LeaseNullableInt64, server);
+            return ExecuteAsync(msg, ResultProcessor.LeaseNullableInt64, Lease<long?>.Empty, server);
         }
 
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)

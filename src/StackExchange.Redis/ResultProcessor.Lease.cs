@@ -8,7 +8,10 @@ internal abstract partial class ResultProcessor
     // Lease result processors
     public static readonly ResultProcessor<Lease<float>?> LeaseFloat32 = new LeaseFloat32Processor();
 
-    public static readonly ResultProcessor<Lease<long?>?> LeaseNullableInt64 = new LeaseNullableInt64Processor();
+    // outer type is deliberately non-null: BITFIELD always replies with an array (empty for no
+    // operations), so the only null would come from a non-observable result such as fire-and-forget,
+    // which the callers handle with an explicit empty default
+    public static readonly ResultProcessor<Lease<long?>> LeaseNullableInt64 = new LeaseNullableInt64Processor()!;
 
     public static readonly ResultProcessor<Lease<byte>>
         Lease = new LeaseProcessor();

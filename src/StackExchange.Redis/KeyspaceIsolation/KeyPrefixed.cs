@@ -787,7 +787,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long?> StringBitFieldAsync(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitFieldAsync(ToInner(key), operation, flags);
 
-        public Task<Lease<long?>?> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None) =>
+        public Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitFieldAsync(ToInner(key), operations, flags);
 
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>

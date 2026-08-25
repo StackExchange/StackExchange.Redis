@@ -85,9 +85,9 @@ StackExchange.Redis.BitFieldOverflow.Fail = 2 -> StackExchange.Redis.BitFieldOve
 StackExchange.Redis.BitFieldOverflow.Saturate = 1 -> StackExchange.Redis.BitFieldOverflow
 StackExchange.Redis.BitFieldOverflow.Wrap = 0 -> StackExchange.Redis.BitFieldOverflow
 StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
-StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<long?>?>!
+StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<long?>!>!
 StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
-StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<long?>?
+StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<long?>!
 StackExchange.Redis.RedisFeatures.BitFieldReadOnly.get -> bool
 static StackExchange.Redis.BitFieldEncoding.Int16.get -> StackExchange.Redis.BitFieldEncoding
 static StackExchange.Redis.BitFieldEncoding.Int32.get -> StackExchange.Redis.BitFieldEncoding
