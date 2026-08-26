@@ -278,10 +278,10 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
             // nothing, which is the feature working. What must not happen is one attempt per notification.
             Assert.InRange(resubscribes, 1, 6);
 
-            // Note: whether a message published after the migration is *delivered* is deliberately not
-            // asserted here. It fails with notifications disabled too, so it is either a pre-existing gap or a
-            // limitation of the fake's freshly-added node - either way it is not this feature's to prove, and
-            // asserting it would attribute an unrelated failure to this code.
+            // Delivery is deliberately *not* asserted. It does not work here even with no migration in play -
+            // the fake registers a sharded subscription somewhere its own SPUBLISH lookup does not find, so
+            // publish reports zero receivers - which makes any delivery assertion a test of that gap rather
+            // than of this code. Verified by a control with no migration at all. See the design notes.
             GC.KeepAlive(received);
         }
     }
