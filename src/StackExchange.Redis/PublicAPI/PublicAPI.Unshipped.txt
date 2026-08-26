@@ -153,3 +153,4 @@ override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Protoc
 [SER010]override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
 StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider
 StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.RedisEnterpriseOptionsProvider() -> void
+override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> string!

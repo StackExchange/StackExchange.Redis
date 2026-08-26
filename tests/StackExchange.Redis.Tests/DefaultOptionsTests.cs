@@ -107,6 +107,20 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
+    public void ProviderToStringPrefersTheName()
+    {
+        // for logs: "amr" rather than a namespace-qualified type name
+        Assert.Equal("amr", new AzureManagedRedisOptionsProvider().ToString());
+        Assert.Equal("enterprise", new RedisEnterpriseOptionsProvider().ToString());
+
+        // ...and an unnameable one still says something useful, which is exactly why serialization tests
+        // Name rather than ToString: this is never null
+        var custom = new TestOptionsProvider(".custom");
+        Assert.Null(custom.Name);
+        Assert.Contains(nameof(TestOptionsProvider), custom.ToString());
+    }
+
+    [Fact]
     public void UnknownDefaultsProviderNameIsRejectedWithTheAlternatives()
     {
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("localhost,defaults=sideways"));

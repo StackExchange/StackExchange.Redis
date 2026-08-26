@@ -76,6 +76,17 @@ namespace StackExchange.Redis.Configuration
         public virtual string? Name => null;
 
         /// <summary>
+        /// The provider's <see cref="Name"/> where it has one, and the type name otherwise.
+        /// </summary>
+        /// <remarks>
+        /// Display only - a provider in a log should read as <c>amr</c> rather than as a namespace-qualified
+        /// type name. Note that serialization tests <see cref="Name"/> directly rather than going through
+        /// here: this never returns <c>null</c>, and an unnameable provider must not end up in a
+        /// configuration string.
+        /// </remarks>
+        public override string ToString() => Name ?? base.ToString()!;
+
+        /// <summary>
         /// Finds a registered provider by its <see cref="Name"/>.
         /// </summary>
         internal static bool TryGetByName(string name, [NotNullWhen(true)] out DefaultOptionsProvider? provider)
