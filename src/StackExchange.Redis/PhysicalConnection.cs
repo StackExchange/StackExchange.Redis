@@ -812,6 +812,27 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// How many messages awaiting a response were issued by a *caller* rather than by us.
+        /// </summary>
+        /// <remarks>
+        /// The distinction matters wherever we ask "is anyone using this server": our own handshake,
+        /// autoconfigure and keep-alive traffic is not use, and counting it makes a server we are probing look
+        /// busy *because* we are probing it.
+        /// </remarks>
+        internal int CountCallerMessagesAwaitingResponse()
+        {
+            int count = 0;
+            lock (_writtenAwaitingResponse)
+            {
+                foreach (var message in _writtenAwaitingResponse)
+                {
+                    if (!message.IsInternalCall) count++;
+                }
+            }
+            return count;
+        }
+
+        /// <summary>
         /// Runs on every heartbeat for a bridge, timing out any commands that are overdue and returning an integer of how many we timed out.
         /// </summary>
         /// <param name="asyncTimeoutDetected">How many async commands were overdue and threw timeout exceptions.</param>

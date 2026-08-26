@@ -312,13 +312,9 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
     [Fact]
     public async Task NodeThatLeavesTheClusterIsRetired()
     {
-        // Gated on a quiet machine, and the reason is a product problem rather than an impatient test.
-        // Retirement requires IsIdle(), and the blocker was measured: `outstanding` on the departed node grows
-        // by ~170 per topology pass (176, 348, 520, ... 1339), because each reconfigure sends autoconfigure
-        // probes to it that can never be answered - the node is gone - so they accumulate in its backlog and it
-        // never looks idle. The more we look for it, the busier it appears. It only retires by winning a race
-        // on an early pass, hence the load sensitivity. Not the keep-alive, which was the first theory.
-        Skip.UnlessLongRunning();
+        // This is also the regression test for idleness counting *caller* work only. Before that, the
+        // reconfigure's own probes to the departed node piled into its backlog (~170 per pass, unbounded), so
+        // it looked busy because we were looking for it, and could never be retired.
 
         // The narrowed form of D5's "retire endpoints serving no slots". Serving nothing is *not* the
         // condition: a node still listed in CLUSTER NODES is a live member that may be given slots again, and

@@ -390,16 +390,21 @@ namespace StackExchange.Redis
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
+                    // note both of these mark themselves as internal calls, as the interactive branch does via
+                    // GetTracerMessage: a keep-alive is our traffic, not a caller's, and anything asking "is
+                    // anyone using this server" has to be able to tell the difference
                     if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
                         msg.SetForSubscriptionBridge();
                         msg.SetSource(ResultProcessor.Tracer, null);
+                        msg.SetInternalCall();
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, RedisChannel.Literal(Multiplexer.UniqueId));
                         msg.SetSource(ResultProcessor.TrackSubscriptions, null);
+                        msg.SetInternalCall();
                     }
                     break;
             }
@@ -1023,6 +1028,19 @@ namespace StackExchange.Redis
         /// Crawls from the head of the backlog queue, consuming anything that should have timed out
         /// and pruning it accordingly (these messages will get timeout exceptions).
         /// </summary>
+        /// <summary>
+        /// Outstanding work on this bridge that a caller is waiting for, ignoring our own internal traffic.
+        /// </summary>
+        internal int GetCallerOutstandingCount()
+        {
+            int count = physical?.CountCallerMessagesAwaitingResponse() ?? 0;
+            foreach (var message in _backlog) // snapshot enumeration; a concurrent queue is fine to walk
+            {
+                if (!message.IsInternalCall) count++;
+            }
+            return count;
+        }
+
         private void CheckBacklogForTimeouts()
         {
             var now = Environment.TickCount;

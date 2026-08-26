@@ -331,7 +331,22 @@ namespace StackExchange.Redis
             => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
             && (subscription?.SubscriptionCount ?? 0) == 0
             && (interactive?.SubscriptionCount ?? 0) == 0
-            && GetOutstandingCount() == 0;
+            && GetCallerOutstandingCount() == 0;
+
+        /// <summary>
+        /// Outstanding work a *caller* is waiting on, which is the only kind that should stop us retiring a
+        /// server.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately not <see cref="GetOutstandingCount"/>, which counts everything. A node the topology has
+        /// stopped listing still receives our autoconfigure probes on every pass, and nothing answers them, so
+        /// they accumulate in its backlog: measured at ~170 per pass, growing without bound. Counting those
+        /// made the node look busy *because* we were looking for it, so it could never be retired - the
+        /// precondition defeated itself in exactly the case pruning exists for. Keep-alive traffic has the same
+        /// property, and is excluded by the same test, since both set the internal-call flag.
+        /// </remarks>
+        internal int GetCallerOutstandingCount()
+            => (interactive?.GetCallerOutstandingCount() ?? 0) + (subscription?.GetCallerOutstandingCount() ?? 0);
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
