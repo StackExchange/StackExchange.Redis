@@ -312,13 +312,11 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
     [Fact]
     public async Task NodeThatLeavesTheClusterIsRetired()
     {
-        // Needs a machine quiet enough for the departed node to look idle. Pruning requires IsIdle(), which
-        // counts outstanding work - and we keep heart-beating the node we are trying to retire, so a ping in
-        // flight makes it look busy. On a constrained runner that repeats often enough to starve the
-        // retirement indefinitely, which is a real property of the policy and not a flaw in this test: see the
-        // design notes, where the same trap was recorded for the usage-based grace rule and led to dropping
-        // it. Excluding our own keep-alive traffic from the idleness test would fix it, and is a product
-        // change rather than something to paper over here.
+        // Gated on a quiet machine: under a two-core runner this fails about half the time, because the
+        // retirement never happens rather than because the test is impatient. Pruning requires IsIdle(), so
+        // something keeps the departed node looking busy - the obvious suspect was our own keep-alive, but
+        // suppressing heartbeats to nodes awaiting retirement did *not* fix it, so the cause is still unknown
+        // and wants a focused look with instrumentation inside the pruning loop rather than from a test.
         Skip.UnlessLongRunning();
 
         // The narrowed form of D5's "retire endpoints serving no slots". Serving nothing is *not* the
