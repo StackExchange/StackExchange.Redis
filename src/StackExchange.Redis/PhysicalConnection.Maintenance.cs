@@ -135,6 +135,14 @@ internal sealed partial class PhysicalConnection
             else if (IsWindowClosing(type))
             {
                 server.OnMaintenanceWindowClosed(type, sequenceId);
+
+                // ...and if slots moved away from us, learn the new topology rather than waiting to be told
+                // by a -MOVED. Scoped and jittered inside OnSlotsMigratedAway; see its remarks for why this
+                // is the cluster family only
+                if (type == MaintenanceNotificationType.SlotMigrated && migrations is not null)
+                {
+                    server.OnSlotsMigratedAway(migrations);
+                }
             }
         }
 

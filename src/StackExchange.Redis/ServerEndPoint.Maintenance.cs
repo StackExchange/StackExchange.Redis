@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
+using System.Threading.Tasks;
 using RESPite;
 using StackExchange.Redis.Maintenance;
 
@@ -249,4 +251,100 @@ internal sealed partial class ServerEndPoint
     }
 
     private const int MaintenanceNotificationTypeCount = 8; // None + the seven notification types
+
+    /// <summary>
+    /// How long to smear a notification-triggered topology refresh over.
+    /// </summary>
+    /// <remarks>
+    /// Not configurable, deliberately. The relaxed-window durations are options because their right value is
+    /// deployment-specific and we invented them; this is a fixed small smear that exists only so that a fleet
+    /// which was all told the same thing at the same instant does not all query the same node at the same
+    /// instant. Nobody needs to tune it, and every option is public surface to keep. Promote it if that turns
+    /// out to be wrong.
+    /// <para>
+    /// Note <see cref="ConnectionMultiplexer.ReconfigureIfNeeded"/> already declines while one refresh is in
+    /// flight, so the *local* storm is handled; this is purely about the fleet.
+    /// </para>
+    /// </remarks>
+    private static readonly int MaintenanceRefreshJitterMilliseconds = 1000;
+
+    // 1 while a jittered refresh is scheduled and has not yet started
+    private int _refreshPending;
+
+    /// <summary>
+    /// Whether this server is one of the sources in a slot-migration delta - i.e. whether the movement being
+    /// described is movement away from <em>us</em>.
+    /// </summary>
+    /// <remarks>
+    /// Every node in the cluster reports the same movements, so the sender is not implicitly a source and most
+    /// notifications describe somebody else. Acting only on our own is what stops a fleet re-reading topology
+    /// because one shard moved somewhere unrelated - go-redis makes the same choice.
+    /// <para>
+    /// Resolution goes through the identity map rather than comparing endpoints directly: a node answers to
+    /// its address and to its announced hostname, and the delta may name either.
+    /// </para>
+    /// </remarks>
+    private bool IsSourceOf(IReadOnlyList<ClusterSlotMigration> migrations)
+    {
+        foreach (var migration in migrations)
+        {
+            if (migration.Source is { } source && ReferenceEquals(Multiplexer.TryResolveServerEndPoint(source), this))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Refreshes the topology after slots have moved away from this server, once the fleet has had a moment to
+    /// spread out.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately only for the cluster family: <c>MIGRATED</c> and <c>FAILED_OVER</c> arrive in proxied
+    /// deployments where the client addresses a single endpoint, so there is no topology for a refresh to
+    /// learn - they get relaxation and nothing else. Endpoints left serving nothing are handled by the
+    /// existing absence-based pruning, which a refresh feeds; there is deliberately no second, faster
+    /// retirement path here.
+    /// </remarks>
+    internal void OnSlotsMigratedAway(IReadOnlyList<ClusterSlotMigration> migrations)
+    {
+        if (migrations.Count == 0 || !IsSourceOf(migrations)) return;
+
+        // Coalesce *before* the jitter, not after. ReconfigureIfNeeded declines only while a refresh is
+        // actually in flight, and the jitter spreads a burst of notifications out far enough that each one
+        // completes before the next begins - so relying on that alone turns ten notifications into ten
+        // topology passes. Found by the test that counts them.
+        if (Interlocked.CompareExchange(ref _refreshPending, 1, 0) != 0)
+        {
+            Multiplexer.Trace("topology refresh already pending; folding this notification into it", ToString());
+            return;
+        }
+
+        var cause = $"slots migrated from {Format.ToString(EndPoint)}";
+        Multiplexer.Trace($"{cause}; refreshing topology after jitter", ToString());
+
+        // fire-and-forget: we are on the read loop, and the refresh must not block it
+        _ = RefreshAfterJitterAsync(cause);
+    }
+
+    private async Task RefreshAfterJitterAsync(string cause)
+    {
+        try
+        {
+            await Task.Delay(ServerSelectionStrategy.SharedRandom.Next(MaintenanceRefreshJitterMilliseconds)).ForAwait();
+
+            // released before the refresh runs, not after: anything that arrives from here on describes a
+            // state this pass may not have seen, and deserves its own pass
+            Volatile.Write(ref _refreshPending, 0);
+            Multiplexer.ReconfigureIfNeeded(EndPoint, fromBroadcast: false, cause);
+        }
+        catch (Exception ex)
+        {
+            // a refresh we failed to start is a missed optimization, not a fault: the next -MOVED still works
+            Volatile.Write(ref _refreshPending, 0);
+            Multiplexer.Trace($"topology refresh after {cause} failed: {ex.Message}", ToString());
+        }
+    }
 }
