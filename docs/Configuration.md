@@ -100,6 +100,11 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
 | protocol={string}      | `Protocol`             | `null`                       | Redis protocol to use; see section below                                                                  |
 | highIntegrity={bool}   | `HighIntegrity`        | `false`                      | High integrity (incurs overhead) sequence checking on every command; see section below                    |
+| defaults={string}      | `Defaults`             | `null`                       | Selects a named defaults provider; see section below                                                      |
+| maintNotifications={string} | `MaintenanceNotifications` | `disabled`           | Whether to ask servers for maintenance notifications; see section below                                    |
+| maintRelaxedTimeout={int}   | `MaintenanceRelaxedTimeout` | `10`                | **Seconds** that command timeouts are relaxed to during announced maintenance; see section below           |
+| maintRelaxedWindowMax={int} | `MaintenanceRelaxedWindowMax` | `30`              | **Seconds** a relaxed window may last at most; see section below                                          |
+| maintPostEventRelaxed={int} | `MaintenancePostEventRelaxedDuration` | `20`      | **Seconds** timeouts stay relaxed after maintenance completes; see section below                           |
 
 Additional code-only options:
 - LoggerFactory (`ILoggerFactory`) - Default: `null`
@@ -286,6 +291,57 @@ config.ReconnectRetryPolicy = new LinearRetry(5000);
 //5	        5000
 //6	        5000
 ```
+
+## Defaults providers
+
+Some settings have sensible values that depend on *what you are connecting to* rather than on what you want, so
+the library keeps them in a provider and consults it for anything you have not set explicitly. Providers are
+normally chosen automatically by looking at the endpoints - an `*.redis.cache.windows.net` host selects the
+Azure provider, and so on - and you can select one explicitly instead:
+
+```
+myserver:6379,defaults=enterprise
+```
+
+The names are `azure`, `amr` (Azure Managed Redis), `rediscloud` and `enterprise` (a self-managed Redis
+Enterprise deployment). The last one exists because it cannot be detected: a self-managed cluster has whatever
+DNS its operator gave it, so there is nothing to recognize. It is also the right choice for a hosted deployment
+reached behind private DNS, a CNAME or a proxy, where the endpoint no longer looks like what it is.
+
+A provider chosen explicitly appears in `ToString()`; one that was merely inferred from the endpoints does not,
+since writing it out would turn a guess into a decision. Custom providers (assigned in code, via
+`ConfigurationOptions.Defaults`, or registered with `DefaultOptionsProvider.AddProvider`) work exactly as
+before; they can additionally be named in a configuration string if they override `Name`.
+
+## Maintenance notifications
+
+Redis Enterprise and Redis Cloud can warn a connected client *before* a disruptive event - a shard migration, a
+failover, or an endpoint being replaced - so the client can act ahead of it rather than discover it by way of a
+broken connection. This requires RESP3, and the client asks for it per connection:
+
+| Mode | Behaviour |
+| --- | --- |
+| `disabled` | Never ask. The default, because most servers have never heard of the request. |
+| `auto` | Ask, and carry on if the server refuses or the connection ends up RESP2. Safe against a mixture of servers, and what most callers want. |
+| `enabled` | **Required**: ask, and reject the connection unless notifications are live. Only point this at a deployment you know supports them. |
+
+Note that `enabled` means *required*, not merely *on* - it is the cross-client name for that mode, and it will
+refuse a connection that cannot deliver notifications, including any RESP2 connection. The `amr`, `rediscloud`
+and `enterprise` providers select `auto` for you, so on those deployments you need not set anything.
+
+While a disruption has been announced, command timeouts are relaxed - raised to `maintRelaxedTimeout`, never
+lowered, so a caller with a more generous timeout keeps it. The window ends when the server says the disruption
+finished, and then stays relaxed for `maintPostEventRelaxed` longer, because completion is exactly when every
+other client that received the same notification comes back. `maintRelaxedWindowMax` bounds a window whose
+closing notification never arrives. Only *command* timeouts are affected: keep-alive and connection-failure
+detection are untouched, so a server that dies mid-maintenance is still noticed on the usual schedule.
+
+These durations are in **seconds**, unlike every other timeout here, because those are the units the
+cross-client specification names for them.
+
+Receiving a notification raises `ConnectionMultiplexer.ServerMaintenanceEvent` with a `PushMaintenanceEvent`,
+and a timeout or connection fault that happened during an announced disruption carries a `MaintenanceType`
+saying so.
 
 ## Redis protocol
 
