@@ -312,11 +312,12 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
     [Fact]
     public async Task NodeThatLeavesTheClusterIsRetired()
     {
-        // Gated on a quiet machine: under a two-core runner this fails about half the time, because the
-        // retirement never happens rather than because the test is impatient. Pruning requires IsIdle(), so
-        // something keeps the departed node looking busy - the obvious suspect was our own keep-alive, but
-        // suppressing heartbeats to nodes awaiting retirement did *not* fix it, so the cause is still unknown
-        // and wants a focused look with instrumentation inside the pruning loop rather than from a test.
+        // Gated on a quiet machine, and the reason is a product problem rather than an impatient test.
+        // Retirement requires IsIdle(), and the blocker was measured: `outstanding` on the departed node grows
+        // by ~170 per topology pass (176, 348, 520, ... 1339), because each reconfigure sends autoconfigure
+        // probes to it that can never be answered - the node is gone - so they accumulate in its backlog and it
+        // never looks idle. The more we look for it, the busier it appears. It only retires by winning a race
+        // on an early pass, hence the load sensitivity. Not the keep-alive, which was the first theory.
         Skip.UnlessLongRunning();
 
         // The narrowed form of D5's "retire endpoints serving no slots". Serving nothing is *not* the
@@ -360,6 +361,7 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
             {
                 await mux.ReconfigureAsync(first: false, reconfigureAll: true, log: null, blame: null, cause: $"test-generation-{i}");
                 await Task.Delay(50); // retirement drains before removing, so give it a moment to complete
+
             }
 
             log.WriteLine($"endpoints: {string.Join(", ", conn.GetEndPoints().Select(x => x.ToString()))}");
