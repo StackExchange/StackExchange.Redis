@@ -21,15 +21,26 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
     /// </summary>
     private sealed class CountingServer(ITestOutputHelper log) : InProcessTestServer(log)
     {
-        private int _clusterCommands;
+        private int _clusterCommands, _subscribeCommands;
 
         public int ClusterCommands => Volatile.Read(ref _clusterCommands);
 
+        public int SubscribeCommands => Volatile.Read(ref _subscribeCommands);
+
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
-            if (request.Count > 0 && string.Equals(request.GetString(0), "cluster", StringComparison.OrdinalIgnoreCase))
+            if (request.Count > 0)
             {
-                Interlocked.Increment(ref _clusterCommands);
+                var command = request.GetString(0);
+                if (string.Equals(command, "cluster", StringComparison.OrdinalIgnoreCase))
+                {
+                    Interlocked.Increment(ref _clusterCommands);
+                }
+                else if (string.Equals(command, "ssubscribe", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(command, "subscribe", StringComparison.OrdinalIgnoreCase))
+                {
+                    Interlocked.Increment(ref _subscribeCommands);
+                }
             }
 
             return base.Execute(client, in request);
@@ -139,6 +150,88 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
             await Task.Delay(2000);
             log.WriteLine($"cluster commands: {before} -> {server.ClusterCommands}");
             Assert.Equal(before, server.ClusterCommands);
+        }
+    }
+
+    [Fact]
+    public async Task ShardedSubscriptionOnAMovedSlotIsReEstablished()
+    {
+        // mostly belt-and-braces: the server also sends an unsolicited SUNSUBSCRIBE for this, which we already
+        // act on. What this adds is being pre-emptive when SMIGRATED lands first, and covering the case where
+        // the unsubscribe never arrives - where the only other symptom is messages silently stopping
+        var (server, conn) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            GetHost(server.DefaultEndPoint, out var port);
+            var sub = conn.GetSubscriber();
+            var channel = RedisChannel.Sharded("resub-channel");
+            await sub.SubscribeAsync(channel, (_, _) => { });
+
+            var slot = ((ConnectionMultiplexer)conn).ServerSelectionStrategy.HashSlot(channel);
+            log.WriteLine($"channel hashes to slot {slot}");
+
+            var before = server.SubscribeCommands;
+            server.SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+            [
+                ($"127.0.0.1:{port}", $"127.0.0.1:{port + 1}", $"{slot}"),
+            ]);
+
+            Assert.True(
+                await Poll.UntilAsync(() => server.SubscribeCommands > before),
+                "the sharded subscription should have been re-established");
+        }
+    }
+
+    [Fact]
+    public async Task ShardedSubscriptionOnAnUnaffectedSlotIsLeftAlone()
+    {
+        // knowing *which* slots moved is the advantage over the unsolicited-unsubscribe path: only the
+        // affected channels are touched, rather than everything subscribed on this server
+        var (server, conn) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            GetHost(server.DefaultEndPoint, out var port);
+            var sub = conn.GetSubscriber();
+            var channel = RedisChannel.Sharded("untouched-channel");
+            await sub.SubscribeAsync(channel, (_, _) => { });
+
+            var slot = ((ConnectionMultiplexer)conn).ServerSelectionStrategy.HashSlot(channel);
+            var otherSlot = slot == 0 ? 1 : 0;
+            var before = server.SubscribeCommands;
+
+            server.SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+            [
+                ($"127.0.0.1:{port}", $"127.0.0.1:{port + 1}", $"{otherSlot}"),
+            ]);
+
+            await Task.Delay(2000);
+            log.WriteLine($"subscribe commands: {before} -> {server.SubscribeCommands} (slot {slot} vs moved {otherSlot})");
+            Assert.Equal(before, server.SubscribeCommands);
+        }
+    }
+
+    [Fact]
+    public async Task OrdinaryPubSubIsNotSlotBoundAndIsLeftAlone()
+    {
+        var (server, conn) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            GetHost(server.DefaultEndPoint, out var port);
+            var sub = conn.GetSubscriber();
+            await sub.SubscribeAsync(RedisChannel.Literal("plain-channel"), (_, _) => { });
+
+            var before = server.SubscribeCommands;
+            server.SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+            [
+                ($"127.0.0.1:{port}", $"127.0.0.1:{port + 1}", "0-16383"), // everything moves
+            ]);
+
+            await Task.Delay(2000);
+            log.WriteLine($"subscribe commands: {before} -> {server.SubscribeCommands}");
+            Assert.Equal(before, server.SubscribeCommands);
         }
     }
 

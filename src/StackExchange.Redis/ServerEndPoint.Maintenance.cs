@@ -312,6 +312,11 @@ internal sealed partial class ServerEndPoint
     {
         if (migrations.Count == 0 || !IsSourceOf(migrations)) return;
 
+        // sharded subscriptions are slot-bound, so a slot leaving takes them with it. Done before the refresh
+        // and without waiting for the jitter: a subscriber that is silently no longer subscribed is a
+        // correctness problem, where a stale slot map is only an extra round trip
+        ResubscribeShardedChannels(migrations);
+
         // Coalesce *before* the jitter, not after. ReconfigureIfNeeded declines only while a refresh is
         // actually in flight, and the jitter spreads a burst of notifications out far enough that each one
         // completes before the next begins - so relying on that alone turns ten notifications into ten
@@ -346,5 +351,60 @@ internal sealed partial class ServerEndPoint
             Volatile.Write(ref _refreshPending, 0);
             Multiplexer.Trace($"topology refresh after {cause} failed: {ex.Message}", ToString());
         }
+    }
+
+    /// <summary>
+    /// Re-establishes sharded subscriptions whose slots have just moved off this server.
+    /// </summary>
+    /// <remarks>
+    /// Mostly belt-and-braces: a server that migrates a slot also sends an unsolicited <c>SUNSUBSCRIBE</c>,
+    /// and <see cref="PhysicalConnection.OnOutOfBand"/> already resubscribes on that. This adds two things.
+    /// It is *pre-emptive* where <c>SMIGRATED</c> arrives first, and it *covers* the case where the
+    /// unsolicited unsubscribe never arrives or is lost - in which case the only other signal is a message
+    /// that silently stops being delivered, which nothing detects.
+    /// <para>
+    /// It also knows which slots moved, so only the affected channels are touched rather than everything
+    /// subscribed on this server.
+    /// </para>
+    /// <para>
+    /// Note it resubscribes via <em>this</em> server, not the migration target, reusing
+    /// <see cref="RedisSubscriber.ResubscribeToServer"/> unchanged: the outgoing node is the one we know has
+    /// the new route, and sending there follows the redirect. The target is named in the notification and
+    /// could be dialled directly, but it may be a node we have never seen, or named in a form we cannot dial,
+    /// and the redirect path is the one already proven by the <c>SUNSUBSCRIBE</c> case.
+    /// </para>
+    /// </remarks>
+    private void ResubscribeShardedChannels(IReadOnlyList<ClusterSlotMigration> migrations)
+    {
+        var subscriptions = Multiplexer.GetSubscriptions();
+        if (subscriptions.IsEmpty) return;
+
+        var strategy = Multiplexer.ServerSelectionStrategy;
+        foreach (var pair in subscriptions)
+        {
+            var channel = pair.Key;
+
+            // ordinary pub/sub is not slot-bound, so a slot moving says nothing about it
+            if (!channel.IsSharded) continue;
+
+            var slot = strategy.HashSlot(channel);
+            if (slot == ServerSelectionStrategy.NoSlot || !IsInMigratedRange(migrations, slot)) continue;
+
+            Multiplexer.Trace($"slot {slot} moved; resubscribing {channel}", ToString());
+            Multiplexer.DefaultSubscriber.ResubscribeToServer(pair.Value, channel, this, cause: "smigrated");
+        }
+    }
+
+    private static bool IsInMigratedRange(IReadOnlyList<ClusterSlotMigration> migrations, int slot)
+    {
+        foreach (var migration in migrations)
+        {
+            foreach (var range in migration.Slots)
+            {
+                if (slot >= range.From && slot <= range.To) return true;
+            }
+        }
+
+        return false;
     }
 }
