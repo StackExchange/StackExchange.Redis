@@ -112,6 +112,12 @@ namespace StackExchange.Redis.Server
                         throw new KeyNotFoundException($"Unable to remove slot {hashSlot} from old owner");
                     }
                     target.AddSlot(hashSlot);
+
+                    if (NotifyOnMigrate)
+                    {
+                        AnnounceMigration(hashSlot, pair.Value, target);
+                    }
+
                     return true;
                 }
             }

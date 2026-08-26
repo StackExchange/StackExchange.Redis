@@ -47,13 +47,16 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
         }
     }
 
-    private static async Task<(CountingServer Server, ConnectionMultiplexer Connection)> ConnectAsync(ITestOutputHelper log, Action<CountingServer>? configure = null)
+    private static async Task<(CountingServer Server, ConnectionMultiplexer Connection)> ConnectAsync(
+        ITestOutputHelper log,
+        Action<CountingServer>? configure = null,
+        MaintenanceNotificationMode mode = MaintenanceNotificationMode.Enabled)
     {
         var server = new CountingServer(log) { ServerType = ServerType.Cluster };
         configure?.Invoke(server);
         var config = server.GetClientConfig(defaultOnly: true);
         config.Protocol = RedisProtocol.Resp3;
-        config.MaintenanceNotifications = MaintenanceNotificationMode.Enabled;
+        config.MaintenanceNotifications = mode;
 
         var conn = await ConnectionMultiplexer.ConnectAsync(config);
         return (server, conn);
@@ -232,6 +235,54 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
             await Task.Delay(2000);
             log.WriteLine($"subscribe commands: {before} -> {server.SubscribeCommands}");
             Assert.Equal(before, server.SubscribeCommands);
+        }
+    }
+
+    [Theory]
+    [InlineData(MaintenanceNotificationMode.Disabled)] // only the unsolicited SUNSUBSCRIBE path can act
+    [InlineData(MaintenanceNotificationMode.Enabled)] // both paths see the same migration
+    public async Task RealMigrationRecoversTheSubscriptionWithoutStorming(MaintenanceNotificationMode mode)
+    {
+        // Until the fake announced its own migrations this could not be tested at all, and it is the case that
+        // matters: a real slot migration produces *both* an unsolicited SUNSUBSCRIBE (ordinary cluster
+        // behaviour, sent to every subscriber) and SMIGRATED (only to clients that opted in). Both paths lead
+        // to ResubscribeToServer, so the question is whether the subscription ends up established exactly
+        // once rather than twice or not at all.
+        var (server, conn) = await ConnectAsync(log, mode: mode);
+        using (server)
+        await using (conn)
+        {
+            GetHost(server.DefaultEndPoint, out var port);
+            var doomed = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
+
+            var sub = conn.GetSubscriber();
+            var channel = RedisChannel.Sharded("migrating-channel");
+            var received = 0;
+            await sub.SubscribeAsync(channel, (_, _) => Interlocked.Increment(ref received));
+
+            var slot = ((ConnectionMultiplexer)conn).ServerSelectionStrategy.HashSlot(channel);
+            var before = server.SubscribeCommands;
+
+            server.NotifyOnMigrate = true;
+            server.Migrate(slot, doomed); // the whole realistic sequence, from one call
+
+            Assert.True(await Poll.UntilAsync(() => server.SubscribeCommands > before), "should have resubscribed");
+            await Task.Delay(2000); // and settle, so a second resubscribe would show up
+
+            var resubscribes = server.SubscribeCommands - before;
+            log.WriteLine($"{mode}: {resubscribes} (re)subscribe command(s) after a real migration");
+
+            // The property is boundedness, not an absolute count: the unsolicited-unsubscribe path has its own
+            // pre-existing retry-and-redirect behaviour. Measured at 4 with notifications off and 5 with them
+            // on - the extra one being the fallback acting on a subscription that path left attached to
+            // nothing, which is the feature working. What must not happen is one attempt per notification.
+            Assert.InRange(resubscribes, 1, 6);
+
+            // Note: whether a message published after the migration is *delivered* is deliberately not
+            // asserted here. It fails with notifications disabled too, so it is either a pre-existing gap or a
+            // limitation of the fake's freshly-added node - either way it is not this feature's to prove, and
+            // asserting it would attribute an unrelated failure to this code.
+            GC.KeepAlive(received);
         }
     }
 

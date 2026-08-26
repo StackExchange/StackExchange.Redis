@@ -312,11 +312,6 @@ internal sealed partial class ServerEndPoint
     {
         if (migrations.Count == 0 || !IsSourceOf(migrations)) return;
 
-        // sharded subscriptions are slot-bound, so a slot leaving takes them with it. Done before the refresh
-        // and without waiting for the jitter: a subscriber that is silently no longer subscribed is a
-        // correctness problem, where a stale slot map is only an extra round trip
-        ResubscribeShardedChannels(migrations);
-
         // Coalesce *before* the jitter, not after. ReconfigureIfNeeded declines only while a refresh is
         // actually in flight, and the jitter spreads a burst of notifications out far enough that each one
         // completes before the next begins - so relying on that alone turns ten notifications into ten
@@ -331,14 +326,17 @@ internal sealed partial class ServerEndPoint
         Multiplexer.Trace($"{cause}; refreshing topology after jitter", ToString());
 
         // fire-and-forget: we are on the read loop, and the refresh must not block it
-        _ = RefreshAfterJitterAsync(cause);
+        _ = RefreshAfterJitterAsync(cause, migrations);
     }
 
-    private async Task RefreshAfterJitterAsync(string cause)
+    private async Task RefreshAfterJitterAsync(string cause, IReadOnlyList<ClusterSlotMigration> migrations)
     {
         try
         {
             await Task.Delay(ServerSelectionStrategy.SharedRandom.Next(MaintenanceRefreshJitterMilliseconds)).ForAwait();
+
+            // deliberately *after* the delay - see the remarks on ResubscribeStrandedShardedChannels
+            ResubscribeStrandedShardedChannels(migrations);
 
             // released before the refresh runs, not after: anything that arrives from here on describes a
             // state this pass may not have seen, and deserves its own pass
@@ -354,7 +352,7 @@ internal sealed partial class ServerEndPoint
     }
 
     /// <summary>
-    /// Re-establishes sharded subscriptions whose slots have just moved off this server.
+    /// Re-establishes sharded subscriptions that the slot movement stranded and nothing else recovered.
     /// </summary>
     /// <remarks>
     /// Mostly belt-and-braces: a server that migrates a slot also sends an unsolicited <c>SUNSUBSCRIBE</c>,
@@ -367,6 +365,21 @@ internal sealed partial class ServerEndPoint
     /// subscribed on this server.
     /// </para>
     /// <para>
+    /// <b>Why this runs after the jitter, and only for a subscription connected nowhere.</b> An earlier cut ran
+    /// it immediately, on the reasoning that a silently-unsubscribed subscriber is a correctness problem while a
+    /// stale slot map is only a round trip. Measured against a fake that emits the realistic sequence, that
+    /// produced an extra resubscribe per channel - because the unsolicited unsubscribe had already started one,
+    /// and mid-flight the subscription still looked like ours. Being a genuine *fallback* means acting only
+    /// once the other path has had its chance, which costs a stranded subscription up to the jitter in
+    /// recovery time and costs nothing when it was not needed.
+    /// </para>
+    /// <para>
+    /// Measured against the fake's realistic sequence: four (re)subscribes with notifications off, five with
+    /// them on. The extra one is this fallback acting on a subscription the unsolicited-unsubscribe path left
+    /// attached to nothing - i.e. it is the feature working, not duplicate work. One extra attempt per
+    /// stranded channel, not one per notification.
+    /// </para>
+    /// <para>
     /// Note it resubscribes via <em>this</em> server, not the migration target, reusing
     /// <see cref="RedisSubscriber.ResubscribeToServer"/> unchanged: the outgoing node is the one we know has
     /// the new route, and sending there follows the redirect. The target is named in the notification and
@@ -374,7 +387,7 @@ internal sealed partial class ServerEndPoint
     /// and the redirect path is the one already proven by the <c>SUNSUBSCRIBE</c> case.
     /// </para>
     /// </remarks>
-    private void ResubscribeShardedChannels(IReadOnlyList<ClusterSlotMigration> migrations)
+    private void ResubscribeStrandedShardedChannels(IReadOnlyList<ClusterSlotMigration> migrations)
     {
         var subscriptions = Multiplexer.GetSubscriptions();
         if (subscriptions.IsEmpty) return;
@@ -390,8 +403,20 @@ internal sealed partial class ServerEndPoint
             var slot = strategy.HashSlot(channel);
             if (slot == ServerSelectionStrategy.NoSlot || !IsInMigratedRange(migrations, slot)) continue;
 
+            // Skip only if it is attached somewhere *else* - that means the other path already moved it. Still
+            // attached to us is the pre-emptive case (the notification beat the unsubscribe, and the
+            // subscription is now stale); attached nowhere is the stranded case. Both need acting on, and
+            // distinguishing them from "already handled" is the whole job of this check.
+            var subscription = pair.Value;
+            var current = subscription.GetAnyCurrentServer();
+            if (current is not null && !ReferenceEquals(current, this))
+            {
+                Multiplexer.Trace($"slot {slot} moved, and {channel} has already moved with it; leaving it alone", ToString());
+                continue;
+            }
+
             Multiplexer.Trace($"slot {slot} moved; resubscribing {channel}", ToString());
-            Multiplexer.DefaultSubscriber.ResubscribeToServer(pair.Value, channel, this, cause: "smigrated");
+            Multiplexer.DefaultSubscriber.ResubscribeToServer(subscription, channel, this, cause: "smigrated");
         }
     }
 

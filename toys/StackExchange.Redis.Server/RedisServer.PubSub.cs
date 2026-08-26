@@ -280,6 +280,38 @@ public partial class RedisClient
         return new Regex(re, RegexOptions.CultureInvariant);
     }
 
+    /// <summary>
+    /// Drops this client's sharded subscriptions whose channel hashes into <paramref name="hashSlot"/>,
+    /// pushing the unsolicited <c>sunsubscribe</c> a real server sends when a slot moves away.
+    /// </summary>
+    /// <returns>How many subscriptions were dropped.</returns>
+    internal int UnsubscribeMigratedSlot(int hashSlot)
+    {
+        var subs = SubscriptionsIfAny;
+        if (subs is null) return 0;
+
+        List<RedisChannel> affected = null;
+        lock (subs)
+        {
+            foreach (var pair in subs)
+            {
+                var channel = pair.Key;
+                if (channel.IsSharded && ServerSelectionStrategy.GetClusterSlot((byte[])channel) == hashSlot)
+                {
+                    (affected ??= new()).Add(channel);
+                }
+            }
+        }
+
+        if (affected is null) return 0;
+        foreach (var channel in affected)
+        {
+            Unsubscribe(channel); // removes it *and* sends the push, exactly as a client-issued one would
+        }
+
+        return affected.Count;
+    }
+
     internal void Unsubscribe(RedisChannel channel)
     {
         var subs = SubscriptionsIfAny;

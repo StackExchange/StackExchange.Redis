@@ -66,6 +66,41 @@ namespace StackExchange.Redis.Server
         internal void OnMaintenanceOptIn() => Interlocked.Increment(ref _maintenanceOptIns);
 
         /// <summary>
+        /// Whether <see cref="Migrate(int, EndPoint)"/> announces itself the way a real server does, rather
+        /// than only moving the slot in this model.
+        /// </summary>
+        /// <remarks>
+        /// Off by default, because plenty of tests use <c>Migrate</c> purely to arrange a topology and would
+        /// not expect a notification to arrive mid-arrangement. Turn it on to exercise the *sequence* a client
+        /// really sees - which is the only way to test how the notification-driven path and the unsolicited
+        /// <c>SUNSUBSCRIBE</c> path interact, since both fire for the same migration.
+        /// </remarks>
+        public bool NotifyOnMigrate { get; set; }
+
+        /// <summary>
+        /// Announces a slot migration the way a real server does: the shard notifications either side of it,
+        /// and an unsolicited <c>sunsubscribe</c> to any client subscribed to a sharded channel that has just
+        /// moved away.
+        /// </summary>
+        /// <remarks>
+        /// Note the two signals are independent. The notifications only reach clients that opted in, whereas
+        /// the unsubscribe is ordinary cluster behaviour and reaches every subscriber - so a client can
+        /// legitimately see one, the other, or both, and the order is a server implementation detail. That is
+        /// exactly the interaction worth being able to reproduce here.
+        /// </remarks>
+        private void AnnounceMigration(int hashSlot, Node from, Node to)
+        {
+            var slots = hashSlot.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            SendSlotNotification(null, MaintenanceNotificationKind.SlotMigrating, slots);
+
+            var dropped = ForAllClients(hashSlot, static (client, slot) => client.UnsubscribeMigratedSlot(slot));
+            if (dropped != 0) Log($"unsubscribed {dropped} sharded subscription(s) for migrated slot {hashSlot}");
+
+            SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+                [($"{from.Host}:{from.Port}", $"{to.Host}:{to.Port}", slots)]);
+        }
+
+        /// <summary>
         /// The sequence id given to the next notification, unless one is supplied explicitly. The contract does
         /// not define these, so a client's use of them is its own invention - which is worth being able to
         /// exercise, including by repeating one.
