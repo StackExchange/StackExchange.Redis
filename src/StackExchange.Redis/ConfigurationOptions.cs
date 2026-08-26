@@ -73,6 +73,15 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            internal static DefaultOptionsProvider ParseDefaultsProvider(string key, string value)
+            {
+                if (!DefaultOptionsProvider.TryGetByName(value, out var provider))
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a known defaults provider name; '{value}' is not one of: {DefaultOptionsProvider.GetKnownNames()}.");
+                }
+                return provider;
+            }
+
             internal static MaintenanceNotificationMode ParseMaintenanceNotifications(string key, string value)
             {
                 if (!Enum.TryParse(value, true, out MaintenanceNotificationMode tmp) || !Enum.IsDefined(typeof(MaintenanceNotificationMode), tmp))
@@ -134,6 +143,7 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
+                Defaults = "defaults",
                 MaintenanceNotifications = "maintNotifications",
                 HighIntegrity = "highIntegrity",
                 TcpKeepAlive = "tcpKeepAlive";
@@ -172,6 +182,7 @@ namespace StackExchange.Redis
                 Tunnel,
                 SetClientLibrary,
                 Protocol,
+                Defaults,
                 MaintenanceNotifications,
                 HighIntegrity,
                 TcpKeepAlive,
@@ -229,6 +240,7 @@ namespace StackExchange.Redis
             ProtocolHasValue = 1UL << 33,
             AllowSimulateConnectionFailure = 1UL << 34,
             MaintenanceNotificationsHasValue = 1UL << 35,
+            DefaultsHasValue = 1UL << 36,
         }
 
         private OptionFlags optionFlags;
@@ -327,7 +339,15 @@ namespace StackExchange.Redis
         public DefaultOptionsProvider Defaults
         {
             get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
-            set => defaultOptions = value;
+            set
+            {
+                defaultOptions = value;
+
+                // the getter memoizes an *inferred* provider into the same field, so a flag is the only way to
+                // tell "the caller chose this" from "we worked it out from the endpoints" - and only the former
+                // may be written back out to a configuration string
+                optionFlags |= OptionFlags.DefaultsHasValue;
+            }
         }
 
         /// <summary>
@@ -1111,6 +1131,9 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
             Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
             if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
+            // only when the caller set it *and* it can be named: an inferred provider must not be baked into
+            // the string, or re-parsing would pin a choice that was only ever a guess from the endpoints
+            if (HasValue(OptionFlags.DefaultsHasValue) && defaultOptions?.Name is { } defaultsName) Append(sb, OptionKeys.Defaults, defaultsName);
             if (HasValue(OptionFlags.MaintenanceNotificationsHasValue)) Append(sb, OptionKeys.MaintenanceNotifications, _maintenanceNotifications.ToString());
             Append(sb, OptionKeys.TcpKeepAlive, OptionFlags.TcpKeepAliveHasValue, OptionFlags.TcpKeepAliveValue);
             if (Tunnel is { IsInbuilt: true } tunnel)
@@ -1384,6 +1407,9 @@ namespace StackExchange.Redis
                         case OptionKeys.Protocol:
                             SetWithValue(OptionFlags.ProtocolHasValue, ref _protocol, OptionKeys.ParseRedisProtocol(key, value));
                             break;
+                        case OptionKeys.Defaults:
+                            Defaults = OptionKeys.ParseDefaultsProvider(key, value);
+                            break;
                         case OptionKeys.MaintenanceNotifications:
                             SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, OptionKeys.ParseMaintenanceNotifications(key, value));
                             break;
@@ -1451,10 +1477,10 @@ namespace StackExchange.Redis
         /// asking every server in existence a question almost none of them understand.
         /// </remarks>
         [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-        public MaintenanceNotificationMode? MaintenanceNotifications
+        public MaintenanceNotificationMode MaintenanceNotifications
         {
             get => HasValue(OptionFlags.MaintenanceNotificationsHasValue) ? _maintenanceNotifications : Defaults.MaintenanceNotifications;
-            set => Set(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, value);
+            set => SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, value);
         }
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }

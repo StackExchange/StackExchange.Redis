@@ -29,6 +29,10 @@ namespace StackExchange.Redis.Configuration
         {
             new AzureOptionsProvider(),
             new AzureManagedRedisOptionsProvider(),
+            new RedisCloudOptionsProvider(),
+
+            // matches nothing, so its position is irrelevant; it is here to be resolvable by name
+            new RedisEnterpriseOptionsProvider(),
         };
 
         /// <summary>
@@ -52,6 +56,57 @@ namespace StackExchange.Redis.Configuration
         /// Whether this options provider matches a given endpoint, for automatically selecting a provider based on what's being connected to.
         /// </summary>
         public virtual bool IsMatch(EndPoint endpoint) => false;
+
+        /// <summary>
+        /// The name this provider can be selected by in a configuration string, as <c>defaults={name}</c>;
+        /// <c>null</c> (the default) means it cannot be named, and can only be selected in code or by
+        /// <see cref="IsMatch(EndPoint)"/>.
+        /// </summary>
+        /// <remarks>
+        /// This exists for the deployments <see cref="IsMatch(EndPoint)"/> cannot recognize: an on-premise
+        /// Enterprise cluster has arbitrary DNS, and a hosted one reached through private DNS or a proxy no
+        /// longer looks like itself. Naming is also what makes a provider expressible in the connection string
+        /// an application is configured with, rather than only in code it would have to be rebuilt to change.
+        /// <para>
+        /// Only providers registered with <see cref="AddProvider(DefaultOptionsProvider)"/> or built in can be
+        /// resolved by name - deliberately, since a configuration string that could name an arbitrary type
+        /// would be a way to have one loaded, and would defeat trimming.
+        /// </para>
+        /// </remarks>
+        public virtual string? Name => null;
+
+        /// <summary>
+        /// Finds a registered provider by its <see cref="Name"/>.
+        /// </summary>
+        internal static bool TryGetByName(string name, [NotNullWhen(true)] out DefaultOptionsProvider? provider)
+        {
+            foreach (var candidate in KnownProviders)
+            {
+                if (candidate.Name is { } candidateName && string.Equals(candidateName, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    provider = candidate;
+                    return true;
+                }
+            }
+
+            provider = null;
+            return false;
+        }
+
+        /// <summary>
+        /// The names that <c>defaults=</c> accepts, for diagnostics.
+        /// </summary>
+        internal static string GetKnownNames()
+        {
+            var names = new List<string>();
+            foreach (var candidate in KnownProviders)
+            {
+                if (candidate.Name is { } name && !names.Contains(name)) names.Add(name);
+            }
+
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return string.Join(", ", names);
+        }
 
         /// <summary>
         /// Gets a provider for the given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
@@ -282,7 +337,7 @@ namespace StackExchange.Redis.Configuration
         /// that recognizes a deployment which supports the feature should override this.
         /// </remarks>
         [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-        public virtual MaintenanceNotificationMode? MaintenanceNotifications => MaintenanceNotificationMode.Disabled;
+        public virtual MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Disabled;
 
         /// <summary>
         /// Gets whether to enable TCP keep-alive when appropriate (endpoint- and platform-dependent).

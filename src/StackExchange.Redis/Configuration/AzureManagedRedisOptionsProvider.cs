@@ -32,6 +32,9 @@ namespace StackExchange.Redis.Configuration
         ];
 
         /// <inheritdoc/>
+        public override string Name => "amr";
+
+        /// <inheritdoc/>
         public override bool IsMatch(EndPoint endpoint)
         {
             if (endpoint is DnsEndPoint dnsEp && IsHostInDomains(dnsEp.Host, azureManagedRedisDomains))
@@ -79,6 +82,6 @@ namespace StackExchange.Redis.Configuration
         /// the feature requires.
         /// </remarks>
         [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-        public override MaintenanceNotificationMode? MaintenanceNotifications => MaintenanceNotificationMode.Auto;
+        public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
     }
 }

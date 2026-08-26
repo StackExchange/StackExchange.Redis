@@ -924,6 +924,12 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         if (clone) options = options.Clone();
         Assert.Equal(RedisProtocol.Resp3, options.Protocol);
         Assert.Same(provider, options.Defaults);
-        Assert.Equal("", options.ToString());
+
+        // the *values* a provider supplies are still never serialized - that is what this test is for...
+        Assert.DoesNotContain("protocol=", options.ToString());
+
+        // ...but the explicit choice of provider now is, by name, so the string describes the configuration it
+        // was given rather than quietly dropping part of it
+        Assert.Equal("defaults=amr", options.ToString());
     }
 }

@@ -20,7 +20,7 @@ internal sealed partial class ServerEndPoint
 
     [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     private MaintenanceNotificationMode MaintenanceMode
-        => Multiplexer.RawConfig.MaintenanceNotifications ?? MaintenanceNotificationMode.Disabled;
+        => Multiplexer.RawConfig.MaintenanceNotifications;
 
     /// <summary>
     /// Whether to ask this server for maintenance notifications during handshake.

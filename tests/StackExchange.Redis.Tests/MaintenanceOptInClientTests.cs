@@ -75,8 +75,7 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
         // the library default has to be Disabled: OSS Redis, Valkey and Garnet don't know the subcommand, and
         // an unsolicited error reply on every connection would be a poor first impression
         using var server = CreateServer(log);
-        var config = server.GetClientConfig(defaultOnly: true);
-        config.MaintenanceNotifications = null; // whatever the provider says
+        var config = server.GetClientConfig(defaultOnly: true); // untouched, so whatever the provider says
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
 
         Assert.Equal(MaintenanceNotificationMode.Disabled, config.MaintenanceNotifications);
