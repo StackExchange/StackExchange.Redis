@@ -278,11 +278,21 @@ public class MaintenanceTopologyRefreshTests(ITestOutputHelper log)
             // nothing, which is the feature working. What must not happen is one attempt per notification.
             Assert.InRange(resubscribes, 1, 6);
 
-            // Delivery is deliberately *not* asserted. It does not work here even with no migration in play -
-            // the fake registers a sharded subscription somewhere its own SPUBLISH lookup does not find, so
-            // publish reports zero receivers - which makes any delivery assertion a test of that gap rather
-            // than of this code. Verified by a control with no migration at all. See the design notes.
-            GC.KeepAlive(received);
+            // Delivery is asserted by publishing *repeatedly*, because pub/sub is fire and forget: a message
+            // published while the subscription is still in flux is simply dropped. Losing messages during the
+            // tremor is expected; never delivering again is not, and one publish cannot tell those apart.
+            var delivered = await Poll.UntilAsync(
+                () =>
+                {
+                    if (Volatile.Read(ref received) > 0) return true;
+                    conn.GetSubscriber().Publish(channel, "hello");
+                    return Volatile.Read(ref received) > 0;
+                },
+                timeoutMilliseconds: 10_000,
+                pollMilliseconds: 250);
+
+            log.WriteLine($"{mode}: delivered after migration = {delivered}");
+            Assert.True(delivered, "the subscription should deliver again once things settle");
         }
     }
 

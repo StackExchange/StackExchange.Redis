@@ -62,7 +62,9 @@ public partial class RedisServer
         var slot = ServerSelectionStrategy.GetClusterSlot((byte[])channel);
         if (!node.HasSlot(slot)) KeyMovedException.Throw(slot);
 
-        PublishPair pair = new(channel, request.GetValue(2));
+        // note the node: without it pair.Node is null, ReferenceEquals never matches, and sharded publish
+        // silently delivers to nobody - which is how it behaved until 2026-08-26
+        PublishPair pair = new(channel, request.GetValue(2), node);
         int count = ForAllClients(pair, static (client, pair) =>
             ReferenceEquals(client.Node, pair.Node) ? client.Publish(pair.Channel, pair.Value) : 0);
         return TypedRedisValue.Integer(count);
