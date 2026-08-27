@@ -390,9 +390,16 @@ namespace StackExchange.Redis
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
-                    // note both of these mark themselves as internal calls, as the interactive branch does via
+                    // Both mark themselves as internal calls, as the interactive branch does via
                     // GetTracerMessage: a keep-alive is our traffic, not a caller's, and anything asking "is
-                    // anyone using this server" has to be able to tell the difference
+                    // anyone using this server" has to be able to tell the difference.
+                    //
+                    // In practice this is the PING: PingOnSubscriber gates at 3.0 and the library's default
+                    // assumed version is 6.0, so the UNSUBSCRIBE fallback only fires against a server that
+                    // reports (or is configured as) older than 3.0 - observed to be exactly the case. Note also
+                    // that a subscribed RESP2 connection answers PING with the two-element array pong rather
+                    // than +PONG; OnResponseFrame's IsArrayPong is what keeps that out of the out-of-band path
+                    // so it still matches this message.
                     if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
