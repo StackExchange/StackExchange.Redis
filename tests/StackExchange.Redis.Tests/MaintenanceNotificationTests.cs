@@ -338,6 +338,40 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task CapturedMovingFrameIsUnderstood()
+    {
+        // Captured from the same deployment during a maintenance_mode scenario, byte for byte:
+        //
+        //   >4\r\n$6\r\nMOVING\r\n:0\r\n:15\r\n_\r\n
+        //
+        // Four elements: type, sequence *zero*, a 15-second window, and an explicit RESP3 null for the
+        // address - so "no replacement given, reconnect the way you connected". The proxy then closed the
+        // socket, which is the point of MOVING: you are told to move, and then the connection goes away.
+        //
+        // The sequence number is zero because this was the first event of that chain, not because MOVING is
+        // special - which is the point: zero is a legal value, so dedup tracks "have we seen one" as a separate
+        // bit rather than treating a stored zero as unset.
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            server.SendMoving(null, timeSeconds: 15, newEndpoint: null, sequenceId: 0);
+
+            var moving = await events.NextAsync();
+            log.WriteLine(moving.RawMessage ?? "(none)");
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+            Assert.Equal(0, moving.SequenceId);
+            Assert.Equal(TimeSpan.FromSeconds(15), moving.Time);
+            Assert.Null(moving.NewEndPoint); // the null is the documented "use what you already have"
+            Assert.Null(moving.Payload);
+
+            // and the window it opened is what covers the reconnect that follows the socket closing
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            Assert.True(endpoint.IsMaintenanceRelaxed, "MOVING should have relaxed timeouts");
+        }
+    }
+
+    [Fact]
     public async Task MalformedTripletIsSkippedNotFatal()
     {
         // one bad entry must not lose the migrations we could have applied - the same choice go-redis makes

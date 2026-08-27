@@ -105,6 +105,7 @@ internal sealed partial class ServerEndPoint
     // conservative - a repeat of an id we have already acted on is ignored, and nothing else is inferred.
     // Allocated on first notification, so a server that never sees one pays nothing.
     private long[]? _lastSequenceIds;
+    private bool[]? _haveSequenceIds; // zero is a real sequence number, so "unset" needs its own bit
     private readonly object _maintenanceSync = new();
 
     /// <summary>
@@ -236,16 +237,23 @@ internal sealed partial class ServerEndPoint
         lock (_maintenanceSync)
         {
             var ids = _lastSequenceIds ??= new long[MaintenanceNotificationTypeCount];
+            var have = _haveSequenceIds ??= new bool[MaintenanceNotificationTypeCount];
             if ((uint)index >= (uint)ids.Length) return true; // unknown type: don't dedup what we can't index
 
+            // The "have we seen one" bit is separate because zero is a real sequence number - observed on
+            // Enterprise 8.6.2 as the first event of a chain (`>4 $6 MOVING :0 :15 _`). Treating a stored zero
+            // as "unset", which an earlier cut did, quietly disabled dedup for whichever notification happened
+            // to open the chain.
+            //
             // note "<=", not "<": a replay carries the id we already acted on
-            if (ids[index] != 0 && id <= ids[index])
+            if (have[index] && id <= ids[index])
             {
                 Multiplexer.Trace($"{type}: ignoring replayed sequence id {id}", ToString());
                 return false;
             }
 
             ids[index] = id;
+            have[index] = true;
             return true;
         }
     }
