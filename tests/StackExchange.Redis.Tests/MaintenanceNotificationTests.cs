@@ -371,6 +371,102 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         }
     }
 
+    [Theory]
+    [InlineData(MaintenanceNotificationKind.Migrating, MaintenanceNotificationKind.Migrated, "27")]
+    [InlineData(MaintenanceNotificationKind.FailingOver, MaintenanceNotificationKind.FailedOver, "21")]
+    public async Task CapturedShardNotificationsAreUnderstood(
+        MaintenanceNotificationKind opening,
+        MaintenanceNotificationKind closing,
+        string shard)
+    {
+        // Captured from the same deployment, byte for byte, running the fault injector's maintenance_mode and
+        // failover scenarios:
+        //
+        //   >4\r\n$9\r\nMIGRATING\r\n:0\r\n:2\r\n$6\r\n["27"]\r\n
+        //   >3\r\n$8\r\nMIGRATED\r\n:1\r\n$6\r\n["27"]\r\n
+        //   >4\r\n$12\r\nFAILING_OVER\r\n:0\r\n:2\r\n$6\r\n["21"]\r\n
+        //   >3\r\n$11\r\nFAILED_OVER\r\n:1\r\n$6\r\n["21"]\r\n
+        //
+        // Both families have the same shape, and it is the shape the parser assumed: the *opening*
+        // notification carries a time and the *closing* one has no time element at all - which is why
+        // CarriesTime is keyed on the notification type rather than on sniffing whether the third element
+        // looks like a number. The shard list is a stringified JSON array of id strings, quotes included, and
+        // is carried through opaquely: nothing a client does depends on which shard it was.
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            var shards = $"[\"{shard}\"]";
+            server.SendShardNotification(null, opening, timeSeconds: 2, shardIds: shards, sequenceId: 0);
+
+            var open = await events.NextAsync();
+            log.WriteLine(open.RawMessage ?? "(none)");
+            Assert.Equal(TimeSpan.FromSeconds(2), open.Time);
+            Assert.Equal(shards, open.Payload);
+            Assert.Equal(0, open.SequenceId);
+
+            // note 2 seconds is what the server actually said, and is shorter than the relaxed timeout floor;
+            // the window is clamped up to the floor rather than being honoured literally
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            Assert.True(endpoint.IsMaintenanceRelaxed, $"{opening} should have relaxed timeouts");
+
+            server.SendShardNotification(null, closing, timeSeconds: null, shardIds: shards, sequenceId: 1);
+
+            var closed = await events.NextAsync();
+            log.WriteLine(closed.RawMessage ?? "(none)");
+            Assert.Null(closed.Time); // three elements on the wire: no time to read
+            Assert.Equal(shards, closed.Payload);
+            Assert.Equal(1, closed.SequenceId);
+        }
+    }
+
+    [Fact]
+    public async Task OneLogicalEventFromEveryNodeRaisesOneEvent()
+    {
+        // Observed on the real deployment: every node broadcasts a given event, and all the copies carry the
+        // same sequence number - the id identifies the event, not the delivery. So a two-node cluster delivers
+        // one migration twice. Both deliveries have to be *acted on*, because the timeout relaxation is
+        // per-server, but the consumer wants one callback rather than one per proxy.
+        var server = new InProcessTestServer(log) { ServerType = ServerType.Cluster };
+        GetHost(server.DefaultEndPoint, out var port);
+        var second = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
+        server.Migrate((RedisKey)"elsewhere", second); // owns something, so the client connects to it
+
+        var config = server.GetClientConfig(defaultOnly: true);
+        config.Protocol = RedisProtocol.Resp3;
+        config.MaintenanceNotifications = MaintenanceNotificationMode.Enabled;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var events = new EventCollector(conn);
+        using (server)
+        {
+            var muxer = (IInternalConnectionMultiplexer)conn;
+            Assert.True(
+                await Poll.UntilAsync(() =>
+                {
+                    var endpoints = conn.GetEndPoints();
+                    return endpoints.Length == 2 && endpoints.All(ep => muxer.GetServerEndPoint(ep).MaintenanceNotificationsActive);
+                }),
+                "both nodes should be connected and opted in, or there is only one delivery and this proves nothing");
+
+            // one send, two clients: this is the fan-out, from the server side
+            var delivered = server.SendShardNotification(null, MaintenanceNotificationKind.Migrating, timeSeconds: 2, shardIds: "[\"27\"]", sequenceId: 5);
+            Assert.Equal(2, delivered);
+
+            // both servers relax - that is the internal work that has to happen per connection...
+            Assert.True(
+                await Poll.UntilAsync(() => conn.GetEndPoints().All(ep => muxer.GetServerEndPoint(ep).IsMaintenanceRelaxed)),
+                "every node that was told should have relaxed its own timeouts");
+
+            // ...and the consumer sees it once
+            Assert.Equal(1, events.Count);
+            var evt = await events.NextAsync();
+            Assert.Equal(5, evt.SequenceId);
+            log.WriteLine($"{events.Count} event(s) from {delivered} deliveries: {evt.RawMessage}");
+            Assert.Contains(evt.EndPoint, conn.GetEndPoints()); // whichever told us first
+        }
+    }
+
     [Fact]
     public async Task MalformedTripletIsSkippedNotFatal()
     {

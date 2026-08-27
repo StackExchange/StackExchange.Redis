@@ -69,6 +69,14 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
     /// <summary>
     /// The server that sent the notification.
     /// </summary>
+    /// <remarks>
+    /// More precisely: whichever node told us first. Every node broadcasts a given event, so a three-proxy
+    /// deployment delivers one migration three times, on three connections, with the same
+    /// <see cref="SequenceId"/>. All three are acted on internally - the timeout relaxation is per-server, so
+    /// each connection genuinely has to see it - but the event is raised once, for the first arrival, and the
+    /// rest are dropped. Do not read this as "the node being maintained": for the cluster notifications it is
+    /// usually a bystander reporting someone else's movements (see <see cref="SlotMigrations"/>).
+    /// </remarks>
     public EndPoint? EndPoint { get; }
 
     /// <summary>

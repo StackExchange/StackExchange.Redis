@@ -146,8 +146,18 @@ internal sealed partial class PhysicalConnection
             }
         }
 
-        var evt = new PushMaintenanceEvent(type, sequenceId ?? 0, server?.EndPoint, time, newEndPoint, payload, raw, migrations);
-        muxer.OnServerMaintenanceEvent(evt);
+        // Per-server work above, one event below: relaxation is per-connection and every connection is told,
+        // but a consumer wants one callback per logical event rather than one per proxy that mentioned it
+        if (muxer.TryClaimMaintenanceEvent(type, sequenceId))
+        {
+            var evt = new PushMaintenanceEvent(type, sequenceId ?? 0, server?.EndPoint, time, newEndPoint, payload, raw, migrations);
+            muxer.OnServerMaintenanceEvent(evt);
+        }
+        else
+        {
+            Trace($"{kind} seq {sequenceId} already reported by another node; not raising again");
+        }
+
         return OutOfBandResult.Handled;
     }
 

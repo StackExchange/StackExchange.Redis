@@ -118,10 +118,16 @@ namespace StackExchange.Redis.Server
 
         /// <summary>
         /// Sends one of the shard-scoped notifications. <paramref name="timeSeconds"/> is a remaining-time
-        /// delta and may legitimately be zero or negative for a connection that arrived mid-window.
+        /// delta and may legitimately be zero or negative for a connection that arrived mid-window; pass
+        /// <c>null</c> to omit the element entirely, which is what a real server does for the *closing*
+        /// notifications - captured from Enterprise 8.6.2:
+        /// <code>
+        /// &gt;4 $12 FAILING_OVER :0 :2 $6 ["21"]
+        /// &gt;3 $11 FAILED_OVER  :1    $6 ["21"]
+        /// </code>
         /// </summary>
         /// <returns>The number of clients the notification was sent to.</returns>
-        public int SendShardNotification(RedisClient client, MaintenanceNotificationKind kind, int timeSeconds, string shardIds = null, int? sequenceId = null)
+        public int SendShardNotification(RedisClient client, MaintenanceNotificationKind kind, int? timeSeconds, string shardIds = null, int? sequenceId = null)
             => Send(client, kind, timeSeconds, sequenceId, null, shardIds);
 
         /// <summary>
@@ -144,26 +150,34 @@ namespace StackExchange.Redis.Server
         /// <returns>The number of clients the notification was sent to.</returns>
         public int SendSlotMigrations(RedisClient client, MaintenanceNotificationKind kind, (string Source, string Target, string Slots)[] migrations, int? sequenceId = null)
         {
-            // Rent at every level: Recycle() recurses, so a Standalone child inside a pooled parent gets
-            // handed to the pool it did not come from ("The buffer is not associated with this pool")
-            var frame = TypedRedisValue.Rent(3, out var span, RespPrefix.Push);
-            // bulk, not simple: that is what a real server sends. Captured from Enterprise 8.6.2:
-            //   >3 $9 SMIGRATED :19 *1[ *3[ $20 <source> $18 <target> $9 <slots> ] ]
-            span[0] = TypedRedisValue.BulkString(GetName(kind));
-            span[1] = TypedRedisValue.Integer(sequenceId ?? Interlocked.Increment(ref _maintenanceSequence));
+            // one sequence id for the notification, however many clients it is delivered to - it identifies the
+            // event, not the delivery, which is what a real server does and what client-side dedup relies on
+            var seq = sequenceId ?? Interlocked.Increment(ref _maintenanceSequence);
+            return Dispatch(client, Build, requireOptIn: true);
 
-            var outer = TypedRedisValue.Rent(migrations.Length, out var outerSpan, RespPrefix.Array);
-            for (int i = 0; i < migrations.Length; i++)
+            TypedRedisValue Build()
             {
-                var triplet = TypedRedisValue.Rent(3, out var inner, RespPrefix.Array);
-                inner[0] = TypedRedisValue.BulkString(migrations[i].Source);
-                inner[1] = TypedRedisValue.BulkString(migrations[i].Target);
-                inner[2] = TypedRedisValue.BulkString(migrations[i].Slots);
-                outerSpan[i] = triplet;
-            }
+                // Rent at every level: Recycle() recurses, so a Standalone child inside a pooled parent gets
+                // handed to the pool it did not come from ("The buffer is not associated with this pool")
+                var frame = TypedRedisValue.Rent(3, out var span, RespPrefix.Push);
+                // bulk, not simple: that is what a real server sends. Captured from Enterprise 8.6.2:
+                //   >3 $9 SMIGRATED :19 *1[ *3[ $20 <source> $18 <target> $9 <slots> ] ]
+                span[0] = TypedRedisValue.BulkString(GetName(kind));
+                span[1] = TypedRedisValue.Integer(seq);
 
-            span[2] = outer;
-            return Dispatch(client, frame, requireOptIn: true);
+                var outer = TypedRedisValue.Rent(migrations.Length, out var outerSpan, RespPrefix.Array);
+                for (int i = 0; i < migrations.Length; i++)
+                {
+                    var triplet = TypedRedisValue.Rent(3, out var inner, RespPrefix.Array);
+                    inner[0] = TypedRedisValue.BulkString(migrations[i].Source);
+                    inner[1] = TypedRedisValue.BulkString(migrations[i].Target);
+                    inner[2] = TypedRedisValue.BulkString(migrations[i].Slots);
+                    outerSpan[i] = triplet;
+                }
+
+                span[2] = outer;
+                return frame;
+            }
         }
 
         /// <summary>
@@ -173,12 +187,17 @@ namespace StackExchange.Redis.Server
         /// <returns>The number of clients the frame was sent to.</returns>
         public int SendRawPush(RedisClient client, params string[] parts)
         {
-            var frame = TypedRedisValue.Rent(parts.Length, out var span, RespPrefix.Push);
-            for (int i = 0; i < parts.Length; i++)
+            return Dispatch(client, Build, requireOptIn: false);
+
+            TypedRedisValue Build()
             {
-                span[i] = TypedRedisValue.BulkString(parts[i]);
+                var frame = TypedRedisValue.Rent(parts.Length, out var span, RespPrefix.Push);
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    span[i] = TypedRedisValue.BulkString(parts[i]);
+                }
+                return frame;
             }
-            return Dispatch(client, frame, requireOptIn: false);
         }
 
         private int Send(
@@ -192,46 +211,61 @@ namespace StackExchange.Redis.Server
             // [type, seqID, ...] - the sequence id is an integer, which is precisely why these frames could
             // not be treated as pub/sub: element 1 is not a channel name
             int count = 2 + (timeSeconds.HasValue ? 1 : 0) + (newEndpoint is not null || kind == MaintenanceNotificationKind.Moving ? 1 : 0) + (extra is not null ? 1 : 0);
-            var frame = TypedRedisValue.Rent(count, out var span, RespPrefix.Push);
+            var seq = sequenceId ?? System.Threading.Interlocked.Increment(ref _maintenanceSequence);
+            return Dispatch(client, Build, requireOptIn: true);
 
-            int index = 0;
-            span[index++] = TypedRedisValue.BulkString(GetName(kind)); // bulk, as a real server sends
-            span[index++] = TypedRedisValue.Integer(sequenceId ?? System.Threading.Interlocked.Increment(ref _maintenanceSequence));
-            if (timeSeconds.HasValue) span[index++] = TypedRedisValue.Integer(timeSeconds.GetValueOrDefault());
-            if (kind == MaintenanceNotificationKind.Moving)
+            TypedRedisValue Build()
             {
-                // null rather than absent when there is no address: the client must cope with both
-                span[index++] = newEndpoint is null
-                    ? TypedRedisValue.BulkString(RedisValue.Null)
-                    : TypedRedisValue.BulkString(Format.ToString(newEndpoint));
-            }
-            else if (newEndpoint is not null)
-            {
-                span[index++] = TypedRedisValue.BulkString(Format.ToString(newEndpoint));
-            }
-            if (extra is not null) span[index] = TypedRedisValue.BulkString(extra);
+                var frame = TypedRedisValue.Rent(count, out var span, RespPrefix.Push);
 
-            return Dispatch(client, frame, requireOptIn: true);
+                int index = 0;
+                span[index++] = TypedRedisValue.BulkString(GetName(kind)); // bulk, as a real server sends
+                span[index++] = TypedRedisValue.Integer(seq);
+                if (timeSeconds.HasValue) span[index++] = TypedRedisValue.Integer(timeSeconds.GetValueOrDefault());
+                if (kind == MaintenanceNotificationKind.Moving)
+                {
+                    // null rather than absent when there is no address: the client must cope with both
+                    span[index++] = newEndpoint is null
+                        ? TypedRedisValue.BulkString(RedisValue.Null)
+                        : TypedRedisValue.BulkString(Format.ToString(newEndpoint));
+                }
+                else if (newEndpoint is not null)
+                {
+                    span[index++] = TypedRedisValue.BulkString(Format.ToString(newEndpoint));
+                }
+                if (extra is not null) span[index] = TypedRedisValue.BulkString(extra);
+
+                return frame;
+            }
         }
 
-        private int Dispatch(RedisClient client, in TypedRedisValue frame, bool requireOptIn)
+        /// <summary>
+        /// Sends a notification to one client or to every opted-in client, building the frame per recipient.
+        /// </summary>
+        /// <remarks>
+        /// The factory is called once per recipient rather than the frame being built once and shared, because
+        /// each client's write loop recycles what it wrote: a shared frame is returned to the pool by the first
+        /// writer and the second one faults with "Array element cannot be nil", killing that connection. Every
+        /// broadcast therefore used to reach exactly one client, which is invisible in a single-node test and
+        /// silently made multi-node fan-out untestable.
+        /// </remarks>
+        private int Dispatch(RedisClient client, Func<TypedRedisValue> frameFactory, bool requireOptIn)
         {
             if (client is not null)
             {
-                client.AddOutbound(frame);
+                client.AddOutbound(frameFactory());
                 return 1;
             }
 
             // a real server sends only to connections that asked, so sending to all means all *opted-in*.
             // Counting the sends rather than the clients visited: the Action overload of ForAllClients returns
             // one per client regardless, which would report every connection as a recipient
-            var copy = frame;
             return ForAllClients(
                 requireOptIn,
                 (target, gated) =>
                 {
                     if (gated && !target.MaintenanceNotifications) return 0;
-                    target.AddOutbound(copy);
+                    target.AddOutbound(frameFactory());
                     return 1;
                 });
         }

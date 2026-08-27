@@ -88,6 +88,50 @@ public partial class ConnectionMultiplexer
     /// Raised when server indicates a maintenance event is going to happen.
     /// </summary>
     public event EventHandler<ServerMaintenanceEvent>? ServerMaintenanceEvent;
+
+    // recently-raised (type, sequence) pairs, so one logical event raises one event however many nodes told
+    // us. Small and fixed: the copies arrive within milliseconds of each other, so a handful of slots covers
+    // any realistic proxy count even with other notifications interleaved
+    private readonly (Maintenance.MaintenanceNotificationType Type, long Sequence)[] _raisedMaintenanceEvents = new (Maintenance.MaintenanceNotificationType, long)[8];
+    private int _raisedMaintenanceEventIndex;
+
+    /// <summary>
+    /// Whether this is the first time we have been told about a given maintenance event, across every
+    /// connection.
+    /// </summary>
+    /// <remarks>
+    /// Every node broadcasts a given event, and all of them carry the same sequence number - observed on
+    /// Enterprise 8.6.2, where the id identifies the event rather than the delivery. So without this, a
+    /// deployment fronted by three proxies raises three events for one migration and every consumer has to
+    /// dedupe them.
+    /// <para>
+    /// Matched on equality rather than "less than or equal", deliberately: a lagging node reporting an
+    /// *earlier* event we have not seen yet is a distinct event and must still be raised. Only an exact repeat
+    /// of something already raised is a duplicate.
+    /// </para>
+    /// <para>
+    /// Eviction is the only expiry - an entry falls out once eight further notifications have been recorded, so
+    /// nothing has to be purged on a timer and the state cannot grow. A duplicate arriving after its entry has
+    /// been evicted would be raised a second time, which is the right way round to be wrong: the copies arrive
+    /// within milliseconds of each other, so that takes a straggler behind eight intervening events.
+    /// </para>
+    /// </remarks>
+    internal bool TryClaimMaintenanceEvent(Maintenance.MaintenanceNotificationType type, long? sequence)
+    {
+        if (sequence is not { } seq) return true; // no id to match on; better a duplicate than a silence
+
+        lock (_raisedMaintenanceEvents)
+        {
+            foreach (var entry in _raisedMaintenanceEvents)
+            {
+                if (entry.Type == type && entry.Sequence == seq) return false;
+            }
+
+            _raisedMaintenanceEvents[_raisedMaintenanceEventIndex] = (type, seq);
+            _raisedMaintenanceEventIndex = (_raisedMaintenanceEventIndex + 1) % _raisedMaintenanceEvents.Length;
+            return true;
+        }
+    }
     internal void OnServerMaintenanceEvent(ServerMaintenanceEvent e) =>
         ServerMaintenanceEvent?.Invoke(this, e);
 
