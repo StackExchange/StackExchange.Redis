@@ -390,28 +390,24 @@ namespace StackExchange.Redis
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
-                    // Both mark themselves as internal calls, as the interactive branch does via
-                    // GetTracerMessage: a keep-alive is our traffic, not a caller's, and anything asking "is
-                    // anyone using this server" has to be able to tell the difference.
+                    // Normally the PING - observed against a 7.0 server, answered with the two-element array
+                    // pong rather than +PONG (OnResponseFrame's IsArrayPong is what keeps that out of the
+                    // out-of-band path so it still matches this message). The UNSUBSCRIBE fallback is not just
+                    // for pre-3.0 servers: the condition also fails when PING is disabled or renamed in the
+                    // CommandMap, or fronted by something that does not support it.
                     //
-                    // In practice this is the PING: PingOnSubscriber gates at 3.0 and the library's default
-                    // assumed version is 6.0, so the UNSUBSCRIBE fallback only fires against a server that
-                    // reports (or is configured as) older than 3.0 - observed to be exactly the case. Note also
-                    // that a subscribed RESP2 connection answers PING with the two-element array pong rather
-                    // than +PONG; OnResponseFrame's IsArrayPong is what keeps that out of the out-of-band path
-                    // so it still matches this message.
+                    // Neither needs SetInternalCall here: the common path below flags whatever the switch
+                    // produced, so any tracer added later is covered without remembering to.
                     if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
                         msg.SetForSubscriptionBridge();
                         msg.SetSource(ResultProcessor.Tracer, null);
-                        msg.SetInternalCall();
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, RedisChannel.Literal(Multiplexer.UniqueId));
                         msg.SetSource(ResultProcessor.TrackSubscriptions, null);
-                        msg.SetInternalCall();
                     }
                     break;
             }
@@ -1036,16 +1032,17 @@ namespace StackExchange.Redis
         /// and pruning it accordingly (these messages will get timeout exceptions).
         /// </summary>
         /// <summary>
-        /// Outstanding work on this bridge that a caller is waiting for, ignoring our own internal traffic.
+        /// Whether this bridge owes a *caller* anything, ignoring our own internal traffic.
         /// </summary>
-        internal int GetCallerOutstandingCount()
+        internal bool HasCallerWork()
         {
-            int count = physical?.CountCallerMessagesAwaitingResponse() ?? 0;
+            if (physical?.HasCallerMessagesAwaitingResponse() == true) return true;
+
             foreach (var message in _backlog) // snapshot enumeration; a concurrent queue is fine to walk
             {
-                if (!message.IsInternalCall) count++;
+                if (!message.IsInternalCall) return true;
             }
-            return count;
+            return false;
         }
 
         private void CheckBacklogForTimeouts()

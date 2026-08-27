@@ -812,24 +812,28 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// How many messages awaiting a response were issued by a *caller* rather than by us.
+        /// Whether any message awaiting a response was issued by a *caller* rather than by us.
         /// </summary>
         /// <remarks>
         /// The distinction matters wherever we ask "is anyone using this server": our own handshake,
-        /// autoconfigure and keep-alive traffic is not use, and counting it makes a server we are probing look
-        /// busy *because* we are probing it.
+        /// autoconfigure and keep-alive traffic is not use, and treating it as such makes a server we are
+        /// probing look busy *because* we are probing it.
+        /// <para>
+        /// A predicate rather than a count, because every caller only asks whether the answer is zero - and
+        /// this way the common case (a caller's message at the head of the queue) costs one iteration instead
+        /// of walking a queue that a stalled server can leave thousands of entries long.
+        /// </para>
         /// </remarks>
-        internal int CountCallerMessagesAwaitingResponse()
+        internal bool HasCallerMessagesAwaitingResponse()
         {
-            int count = 0;
             lock (_writtenAwaitingResponse)
             {
                 foreach (var message in _writtenAwaitingResponse)
                 {
-                    if (!message.IsInternalCall) count++;
+                    if (!message.IsInternalCall) return true;
                 }
             }
-            return count;
+            return false;
         }
 
         /// <summary>
