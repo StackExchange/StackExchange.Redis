@@ -101,9 +101,12 @@ internal sealed partial class ServerEndPoint
     // the notification that last touched the window, reported on faults that happen inside it
     private int _relaxedType;
 
-    // Dedup state, per notification type: the sequence ids are not defined by any specification, so this is
-    // conservative - a repeat of an id we have already acted on is ignored, and nothing else is inferred.
-    // Allocated on first notification, so a server that never sees one pays nothing.
+    // Dedup state, per notification type. No specification defines the sequence ids, but they were observed on
+    // Enterprise 8.6.2 to be monotonic per database and shared across types, and to carry the same value on
+    // every node broadcasting a given event - so they identify the event, which is exactly what dedup needs.
+    // Keyed per type anyway: within a type the ids are still monotonic, and a per-type key cannot mistake one
+    // node's earlier event for a replay of another's later one. Allocated on first notification, so a server
+    // that never sees one pays nothing.
     private long[]? _lastSequenceIds;
     private bool[]? _haveSequenceIds; // zero is a real sequence number, so "unset" needs its own bit
     private readonly object _maintenanceSync = new();

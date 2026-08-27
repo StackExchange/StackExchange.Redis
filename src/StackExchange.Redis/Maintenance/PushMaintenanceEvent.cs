@@ -53,9 +53,16 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
     /// The sequence number the server attached to this notification.
     /// </summary>
     /// <remarks>
-    /// No specification defines what these mean beyond being a number that goes up, so treat any use of them
-    /// as heuristic; in particular, do not assume that they are contiguous, or that they are scoped the same
-    /// way across notification types.
+    /// No specification defines these, but observation does: on Enterprise 8.6.2 they are monotonic per
+    /// database, start at zero on a fresh one, are shared *across* notification types (a
+    /// <see cref="MaintenanceNotificationType.SlotMigrating"/> at 16 followed by its
+    /// <see cref="MaintenanceNotificationType.SlotMigrated"/> at 17), and carry the same value on every node
+    /// that broadcasts a given event - so they identify the event rather than the connection that delivered
+    /// it. That makes them genuinely useful for spotting a replay.
+    /// <para>
+    /// Still treat cross-deployment use as heuristic: this is one build of one product, and nothing obliges a
+    /// different implementation to behave the same way.
+    /// </para>
     /// </remarks>
     public long SequenceId { get; }
 
