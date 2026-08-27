@@ -294,6 +294,50 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task CapturedEnterpriseFramesAreUnderstood()
+    {
+        // Captured from a real Redis Cloud QA endpoint (Enterprise 8.6.2, OSS cluster API) during an actual
+        // slot migration on 2026-08-27. Byte for byte, except that the node addresses are rewritten into the
+        // private range - the lengths are preserved, so the $20 and $18 counts below are still the real ones:
+        //
+        //   >3\r\n$10\r\nSMIGRATING\r\n:18\r\n$9\r\n8892-8991\r\n
+        //   >3\r\n$9\r\nSMIGRATED\r\n:19\r\n*1\r\n*3\r\n$20\r\n10.129.228.140:13486\r\n
+        //       $18\r\n10.252.90.18:13486\r\n$9\r\n8892-8991\r\n
+        //
+        // Things this pins, each of which was an assumption before: the type name arrives as a *bulk* string;
+        // the sequence number as a RESP integer rather than a string; neither cluster notification carries a
+        // time element; SMIGRATING's slots are a flat string; and SMIGRATED nests an array *of* triplets - one
+        // here - rather than a single flat triple. The fake emits this shape, so this test is the real frame.
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            server.SendSlotNotification(null, MaintenanceNotificationKind.SlotMigrating, "8892-8991", sequenceId: 18);
+
+            var migrating = await events.NextAsync();
+            log.WriteLine(migrating.RawMessage ?? "(none)");
+            Assert.Equal(MaintenanceNotificationType.SlotMigrating, migrating.NotificationType);
+            Assert.Equal(18, migrating.SequenceId);
+            Assert.Null(migrating.Time); // no time element on the wire
+            Assert.Equal("8892-8991", migrating.Payload);
+
+            server.SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+                [("10.129.228.140:13486", "10.252.90.18:13486", "8892-8991")], sequenceId: 19);
+
+            var migrated = await events.NextAsync();
+            log.WriteLine(migrated.RawMessage ?? "(none)");
+            Assert.Equal(MaintenanceNotificationType.SlotMigrated, migrated.NotificationType);
+            Assert.Equal(19, migrated.SequenceId);
+            Assert.Null(migrated.Time);
+
+            var migration = Assert.Single(migrated.SlotMigrations);
+            Assert.Equal(new IPEndPoint(IPAddress.Parse("10.129.228.140"), 13486), migration.Source);
+            Assert.Equal(new IPEndPoint(IPAddress.Parse("10.252.90.18"), 13486), migration.Target);
+            Assert.Equal(new SlotRange(8892, 8991), Assert.Single(migration.Slots));
+        }
+    }
+
+    [Fact]
     public async Task MalformedTripletIsSkippedNotFatal()
     {
         // one bad entry must not lose the migrations we could have applied - the same choice go-redis makes

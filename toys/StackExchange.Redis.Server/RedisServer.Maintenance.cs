@@ -147,7 +147,9 @@ namespace StackExchange.Redis.Server
             // Rent at every level: Recycle() recurses, so a Standalone child inside a pooled parent gets
             // handed to the pool it did not come from ("The buffer is not associated with this pool")
             var frame = TypedRedisValue.Rent(3, out var span, RespPrefix.Push);
-            span[0] = TypedRedisValue.SimpleString(GetName(kind));
+            // bulk, not simple: that is what a real server sends. Captured from Enterprise 8.6.2:
+            //   >3 $9 SMIGRATED :19 *1[ *3[ $20 <source> $18 <target> $9 <slots> ] ]
+            span[0] = TypedRedisValue.BulkString(GetName(kind));
             span[1] = TypedRedisValue.Integer(sequenceId ?? Interlocked.Increment(ref _maintenanceSequence));
 
             var outer = TypedRedisValue.Rent(migrations.Length, out var outerSpan, RespPrefix.Array);
@@ -193,7 +195,7 @@ namespace StackExchange.Redis.Server
             var frame = TypedRedisValue.Rent(count, out var span, RespPrefix.Push);
 
             int index = 0;
-            span[index++] = TypedRedisValue.SimpleString(GetName(kind));
+            span[index++] = TypedRedisValue.BulkString(GetName(kind)); // bulk, as a real server sends
             span[index++] = TypedRedisValue.Integer(sequenceId ?? System.Threading.Interlocked.Increment(ref _maintenanceSequence));
             if (timeSeconds.HasValue) span[index++] = TypedRedisValue.Integer(timeSeconds.GetValueOrDefault());
             if (kind == MaintenanceNotificationKind.Moving)
