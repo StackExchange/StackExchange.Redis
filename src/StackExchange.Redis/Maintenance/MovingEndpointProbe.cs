@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +19,17 @@ namespace StackExchange.Redis.Maintenance;
 /// before DNS reflects it, and nothing tells a client which of those has happened. Probing until the answer
 /// changes is the only mechanism available, and the short TTL is what makes it work - several attempts fit
 /// inside the window.
+/// </para>
+/// <para>
+/// The rule is "take any address that is not the one being retired", and that is doing more work than it
+/// looks. A Redis Cloud hostname usually carries <em>several</em> A records - measured 2026-08-28: 2 for
+/// <c>all-nodes</c>, 3 for <c>all-master-shards</c>, 1 for <c>single</c>, all on a 5s TTL - and the count
+/// follows actual proxy *placement* rather than the policy name, so a multi-proxy database whose shards happen
+/// to share a node still resolves to one address. With several records the first resolution already names a
+/// live sibling proxy, so this returns immediately and steps sideways rather than waiting: any proxy of the
+/// same database serves the same data, so a sibling now beats the replacement in nine seconds. The poll only
+/// engages when the record names nothing but the address being retired - the single-address case, which is
+/// exactly where waiting is the only option available.
 /// </para>
 /// <para>
 /// Deliberately free of jitter, clocks-by-configuration and connection state, so that it can be tested
@@ -78,16 +89,26 @@ internal static class MovingEndpointProbe
 
             if (addresses is not null)
             {
+                IPAddress? candidate = null;
+                bool retiringStillAdvertised = false;
                 foreach (var address in addresses)
                 {
-                    if (!address.Equals(retiring))
-                    {
-                        log?.Invoke($"MOVING: {endpoint.Host} now resolves to {address} after {attempt} attempt(s)");
-                        return new IPEndPoint(address, endpoint.Port);
-                    }
+                    if (address.Equals(retiring)) retiringStillAdvertised = true;
+                    else candidate ??= address;
                 }
 
-                log?.Invoke($"MOVING: {endpoint.Host} still resolves to {retiring} (attempt {attempt}); not yet updated");
+                if (candidate is not null)
+                {
+                    // Two operationally different outcomes, worth distinguishing in a log somebody reads while
+                    // debugging a handoff: we either stepped sideways to a proxy that was already there, or the
+                    // record itself has moved on to the replacement.
+                    log?.Invoke(retiringStillAdvertised
+                        ? $"MOVING: {endpoint.Host} still advertises {retiring}; moving to sibling {candidate} (attempt {attempt})"
+                        : $"MOVING: {endpoint.Host} now resolves to {candidate} after {attempt} attempt(s)");
+                    return new IPEndPoint(candidate, endpoint.Port);
+                }
+
+                log?.Invoke($"MOVING: {endpoint.Host} still resolves only to {retiring} (attempt {attempt}); not yet updated");
             }
 
             var remaining = unchecked(deadline - Environment.TickCount);

@@ -134,6 +134,40 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task PlacementNotPolicyDecidesWhetherWeWait()
+    {
+        // The A-record count follows actual proxy placement, not the policy name: an all-master-shards
+        // database whose shards share a node resolves to one address, and then there is no sibling to step to
+        // and the wait is the only option. Same code path as `single`, which is the point - nothing here reads
+        // the policy.
+        var resolver = new ScriptedResolver([Retiring], [Retiring], [Replacement]);
+
+        var result = await MovingEndpointProbe.ProbeAsync(
+            Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10),
+            resolve: resolver.ResolveAsync, log: log.WriteLine);
+
+        Assert.Equal(new IPEndPoint(Replacement, 13486), result);
+        Assert.Equal(3, resolver.Calls); // it waited, because there was nothing else advertised
+    }
+
+    [Fact]
+    public async Task SiblingIsTakenWithoutWaitingForTheRecordToMove()
+    {
+        // The common case: several A records, so the first resolution already names a live sibling proxy while
+        // the retiring address is *still* advertised. Stepping sideways immediately is correct - any proxy of
+        // the same database serves the same data - and it means the poll usually never engages.
+        var sibling = IPAddress.Parse("10.246.250.155");
+        var resolver = new ScriptedResolver([Retiring, sibling]);
+
+        var result = await MovingEndpointProbe.ProbeAsync(
+            Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromSeconds(1),
+            resolve: resolver.ResolveAsync, log: log.WriteLine);
+
+        Assert.Equal(new IPEndPoint(sibling, 13486), result);
+        Assert.Equal(1, resolver.Calls);
+    }
+
+    [Fact]
     public async Task CancellationStopsThePoll()
     {
         using var cts = new CancellationTokenSource();
