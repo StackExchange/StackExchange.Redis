@@ -1,0 +1,105 @@
+using System;
+using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace StackExchange.Redis.Maintenance;
+
+/// <summary>
+/// Finds the address that replaces an endpoint being retired by a <c>MOVING</c> notification.
+/// </summary>
+/// <remarks>
+/// A poll rather than a lookup, and that is the whole point. Measured on Redis Enterprise (2026-08-28), with
+/// times relative to the notification: the server-side endpoint moves at +8.6s, DNS follows at +9.7s and +4.4s
+/// across two runs, and the sockets close at +18.4s and +16.6s - against a declared 15s grace and a 5s record
+/// TTL. So resolving immediately returns <em>the address being retired</em>, in every run observed, and a
+/// client that treats the first answer as authoritative hands off to the node it was told to leave.
+/// <para>
+/// There is no way to observe the intermediate state from outside: the endpoint has moved server-side well
+/// before DNS reflects it, and nothing tells a client which of those has happened. Probing until the answer
+/// changes is the only mechanism available, and the short TTL is what makes it work - several attempts fit
+/// inside the window.
+/// </para>
+/// <para>
+/// Deliberately free of jitter, clocks-by-configuration and connection state, so that it can be tested
+/// exhaustively without a server: the caller supplies the resolver, the interval and the budget. Jitter
+/// belongs at the call site, where the existing refresh jitter lives.
+/// </para>
+/// </remarks>
+internal static class MovingEndpointProbe
+{
+    /// <summary>
+    /// Polls DNS until it stops naming <paramref name="retiring"/>, or until the window runs out.
+    /// </summary>
+    /// <returns>
+    /// The replacement endpoint, or <c>null</c> if the window expired without DNS moving - in which case the
+    /// caller has learned something useful and should do nothing: the server will close the socket, and the
+    /// relaxed timeout window is what covers the reconnect that follows.
+    /// </returns>
+    internal static async Task<EndPoint?> ProbeAsync(
+        DnsEndPoint endpoint,
+        IPAddress retiring,
+        TimeSpan window,
+        TimeSpan pollInterval,
+        Func<string, CancellationToken, Task<IPAddress[]>> resolve,
+        Action<string>? log = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
+        if (retiring is null) throw new ArgumentNullException(nameof(retiring));
+        if (resolve is null) throw new ArgumentNullException(nameof(resolve));
+
+        // A non-positive window is not an error: a notification can arrive with nothing left of its budget
+        // (the shard notifications legitimately carry zero or negative times), and "act now" means one attempt
+        // rather than none.
+        var deadline = Environment.TickCount + (int)Math.Max(window.TotalMilliseconds, 0);
+        int attempt = 0;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            attempt++;
+
+            IPAddress[]? addresses = null;
+            try
+            {
+                addresses = await resolve(endpoint.Host, cancellationToken).ForAwait();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // a DNS blip mid-handoff is exactly when we can least afford to give up; keep trying until
+                // the window says otherwise
+                log?.Invoke($"MOVING: resolve attempt {attempt} for {endpoint.Host} failed: {ex.Message}");
+            }
+
+            if (addresses is not null)
+            {
+                foreach (var address in addresses)
+                {
+                    if (!address.Equals(retiring))
+                    {
+                        log?.Invoke($"MOVING: {endpoint.Host} now resolves to {address} after {attempt} attempt(s)");
+                        return new IPEndPoint(address, endpoint.Port);
+                    }
+                }
+
+                log?.Invoke($"MOVING: {endpoint.Host} still resolves to {retiring} (attempt {attempt}); not yet updated");
+            }
+
+            var remaining = unchecked(deadline - Environment.TickCount);
+            if (remaining <= 0)
+            {
+                log?.Invoke($"MOVING: {endpoint.Host} never stopped resolving to {retiring} within the window");
+                return null;
+            }
+
+            // never sleep past the deadline: the last attempt should land inside the window, not after it
+            var delay = (int)Math.Min(pollInterval.TotalMilliseconds, remaining);
+            if (delay > 0) await Task.Delay(delay, cancellationToken).ForAwait();
+        }
+    }
+}
