@@ -602,6 +602,55 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         }
     }
 
+    [Theory]
+    [InlineData(null)] // the measured shape: the close arrives *after* the announced window
+    [InlineData(300)] // a less generous proxy: the close beats the window it announced
+    public async Task MovingClosesTheConnectionAndWeRecover(int? closeDelayMilliseconds)
+    {
+        // The defining half of MOVING, which no test covered until now: we are told to move, and then the
+        // socket goes away. Measured on RS (2026-08-28): the close landed at +18.4s and +16.6s against a
+        // declared 15s window, so the window is a floor with slack rather than a deadline - which is why the
+        // default case here lets the fake overshoot, and why nothing below asserts on the window expiring.
+        // The short case is the defensive one: a client that treats the announced window as guaranteed fails
+        // it. What must hold either way is that the connection comes back and the relaxed window opened by the
+        // notification is what covers the reconnect.
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            server.MovingClosesConnection = true;
+            server.MovingCloseDelay = closeDelayMilliseconds is { } ms ? TimeSpan.FromMilliseconds(ms) : null;
+            server.SendMoving(null, timeSeconds: 1, newEndpoint: null, sequenceId: 0);
+
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            Assert.True(endpoint.IsMaintenanceRelaxed, "the window has to be open before the socket dies");
+
+            // the client must reconnect on its own; nothing here asks it to. Note the probe has to tolerate
+            // throwing rather than returning false: a command issued in the window between the socket dying
+            // and the reconnect completing raises, and that is the state being polled *out* of
+            Assert.True(
+                await Poll.UntilAsync(
+                    () =>
+                    {
+                        try
+                        {
+                            return conn.IsConnected && conn.GetDatabase().Ping() >= TimeSpan.Zero;
+                        }
+                        catch (Exception ex) when (ex is RedisException or TimeoutException)
+                        {
+                            return false;
+                        }
+                    },
+                    timeoutMilliseconds: 15_000),
+                "the multiplexer should have re-established itself after the close");
+
+            log.WriteLine($"close delay {closeDelayMilliseconds?.ToString() ?? "announced+slack"}: reconnected, relaxed = {endpoint.IsMaintenanceRelaxed}");
+        }
+    }
+
     [Fact]
     public async Task MalformedTripletIsSkippedNotFatal()
     {

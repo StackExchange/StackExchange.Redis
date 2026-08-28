@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
 
@@ -160,7 +162,84 @@ namespace StackExchange.Redis.Server
         /// </summary>
         /// <returns>The number of clients the notification was sent to.</returns>
         public int SendMoving(RedisClient client, int timeSeconds, EndPoint newEndpoint, int? sequenceId = null)
-            => Send(client, MaintenanceNotificationKind.Moving, timeSeconds, sequenceId, newEndpoint, null);
+        {
+            var recipients = MovingClosesConnection ? new List<RedisClient>() : null;
+            Action<RedisClient> onSent = recipients is null ? null : recipients.Add;
+            var count = Send(client, MaintenanceNotificationKind.Moving, timeSeconds, sequenceId, newEndpoint, null, onSent);
+
+            if (recipients is { Count: > 0 })
+            {
+                // The half of MOVING that defines it: the socket goes away - and it takes every other
+                // connection to the same node with it (see MovingClosesConnection).
+                var delay = MovingCloseDelay ?? TimeSpan.FromSeconds(Math.Max(timeSeconds, 0)) + MeasuredCloseSlack;
+                _ = CloseAfterAsync(CollectSiblings(recipients), delay);
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Whether <see cref="SendMoving"/> then closes the affected connections, as a real proxy does.
+        /// </summary>
+        /// <remarks>
+        /// Note the blast radius is the *node*, not the connection. Measured on RS (2026-08-28) with four
+        /// connections to one node differing only in handshake - two opted in, one RESP3 without the opt-in,
+        /// one RESP2 - all four closed simultaneously, and only the two that had opted in were warned. So this
+        /// is endpoint retirement rather than socket recycling, and a connection that did not opt in gets no
+        /// warning at all before it dies: an argument for opting in on every connection rather than one.
+        /// </remarks>
+        public bool MovingClosesConnection { get; set; }
+
+        /// <summary>
+        /// How much later than the announced window the close actually arrives, by default.
+        /// </summary>
+        /// <remarks>
+        /// Measured at +3.4s and +1.6s against a declared 15s grace, i.e. the announced window behaves as a
+        /// floor with slack rather than a deadline. Tests should assert that a client acts *within* the window,
+        /// never that the socket survives to the end of it.
+        /// </remarks>
+        public TimeSpan MeasuredCloseSlack { get; set; } = TimeSpan.FromSeconds(2);
+
+        /// <summary>
+        /// How long after <c>MOVING</c> the connections are closed; defaults to the announced window plus
+        /// <see cref="MeasuredCloseSlack"/>, which is what a real proxy was measured doing.
+        /// </summary>
+        /// <remarks>
+        /// Set it shorter than the announced window to exercise a proxy less generous than the one measured -
+        /// a client that treats the window as guaranteed rather than as a budget fails that case. It cannot
+        /// usefully be set to zero: the close would race the delivery of the notification itself, which is not
+        /// something any real timing produces.
+        /// </remarks>
+        public TimeSpan? MovingCloseDelay { get; set; }
+
+        /// <summary>
+        /// Expands the notified connections to every connection sharing a node with them.
+        /// </summary>
+        private List<RedisClient> CollectSiblings(List<RedisClient> notified)
+        {
+            var nodes = new HashSet<Node>();
+            foreach (var client in notified) nodes.Add(client.Node);
+
+            var all = new List<RedisClient>();
+            ForAllClients(
+                all,
+                (client, list) =>
+                {
+                    if (nodes.Contains(client.Node)) list.Add(client);
+                    return 0;
+                });
+            return all;
+        }
+
+        private async Task CloseAfterAsync(List<RedisClient> clients, TimeSpan delay)
+        {
+            if (delay > TimeSpan.Zero) await Task.Delay(delay).ConfigureAwait(false);
+            foreach (var client in clients)
+            {
+                Log($"[{client}] closing connection after MOVING");
+                client.Kill();
+            }
+        }
 
         /// <summary>
         /// Sends one of the shard-scoped notifications. <paramref name="timeSeconds"/> is a remaining-time
@@ -252,7 +331,8 @@ namespace StackExchange.Redis.Server
             int? timeSeconds,
             int? sequenceId,
             EndPoint newEndpoint,
-            string extra)
+            string extra,
+            Action<RedisClient> onSent = null)
         {
             // [type, seqID, ...] - the sequence id is an integer, which is precisely why these frames could
             // not be treated as pub/sub: element 1 is not a channel name
@@ -262,7 +342,7 @@ namespace StackExchange.Redis.Server
             // records what was *sent*, so a test arranges it by sending the completion, not by poking state
             if (IsRetainedCompletion(kind)) _retainedCompletion = (kind, seq, extra);
 
-            return Dispatch(client, Build, requireOptIn: true);
+            return Dispatch(client, Build, requireOptIn: true, onSent);
 
             TypedRedisValue Build() => BuildShardNotification(kind, timeSeconds, seq, newEndpoint, extra);
         }
@@ -307,11 +387,12 @@ namespace StackExchange.Redis.Server
         /// broadcast therefore used to reach exactly one client, which is invisible in a single-node test and
         /// silently made multi-node fan-out untestable.
         /// </remarks>
-        private int Dispatch(RedisClient client, Func<TypedRedisValue> frameFactory, bool requireOptIn)
+        private int Dispatch(RedisClient client, Func<TypedRedisValue> frameFactory, bool requireOptIn, Action<RedisClient> onSent = null)
         {
             if (client is not null)
             {
                 client.AddOutbound(frameFactory());
+                onSent?.Invoke(client);
                 return 1;
             }
 
@@ -324,6 +405,7 @@ namespace StackExchange.Redis.Server
                 {
                     if (gated && !target.MaintenanceNotifications) return 0;
                     target.AddOutbound(frameFactory());
+                    onSent?.Invoke(target);
                     return 1;
                 });
         }
