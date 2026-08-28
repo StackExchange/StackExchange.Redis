@@ -811,7 +811,11 @@ namespace StackExchange.Redis.Server
             client.MaintenanceNotifications = on;
             client.MovingEndpointType = on ? movingEndpointType : null;
             client.MaintenanceNotificationOptInCount++;
-            if (on) OnMaintenanceOptIn();
+            if (on)
+            {
+                OnMaintenanceOptIn();
+                ReplayRetainedCompletion(client); // the catch-up channel, immediately after this +OK
+            }
             Log($"[{client}] maintenance notifications {(on ? "on" : "off")}, moving-endpoint-type: {movingEndpointType ?? "(server default)"}");
             return TypedRedisValue.OK;
         }

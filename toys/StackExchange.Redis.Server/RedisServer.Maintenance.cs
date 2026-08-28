@@ -56,6 +56,52 @@ namespace StackExchange.Redis.Server
 
         private int _maintenanceSequence;
         private int _maintenanceOptIns;
+        private (MaintenanceNotificationKind Kind, long Sequence, string ShardIds)? _retainedCompletion;
+
+        /// <summary>
+        /// Whether the server keeps the most recent shard-scoped *completion* and replays it to each
+        /// connection that opts in, as Redis Enterprise does.
+        /// </summary>
+        /// <remarks>
+        /// Observed on RS 8.0.22 (2026-08-28), and the boundary is sharp: <c>MIGRATED</c> and
+        /// <c>FAILED_OVER</c> are retained; <c>MIGRATING</c>, <c>FAILING_OVER</c>, <c>MOVING</c>,
+        /// <c>SMIGRATING</c> and <c>SMIGRATED</c> are not. The characterisation that fits all seven is the
+        /// completion of a *shard-scoped* event - the two that carry an affected-shards list - so
+        /// <c>SMIGRATED</c> (a slot-range triple) and <c>MOVING</c> (an endpoint) are excluded even though
+        /// <c>SMIGRATED</c> is also a completion.
+        /// <para>
+        /// The consequence is a design property worth stating: the catch-up channel can only ever say "a
+        /// disruption ended", never "one is starting". Nothing that demands action is replayed, so a
+        /// reconnecting client cannot be told to move by a stale frame.
+        /// </para>
+        /// <para>
+        /// Retained "most recent, replaced not accumulated" - one frame, never a queue - so a connection sees
+        /// at most one of these however many events went past.
+        /// </para>
+        /// </remarks>
+        public bool RetainCompletions { get; set; } = true;
+
+        /// <summary>
+        /// Whether this notification is one of the two the server retains for replay.
+        /// </summary>
+        private static bool IsRetainedCompletion(MaintenanceNotificationKind kind)
+            => kind is MaintenanceNotificationKind.Migrated or MaintenanceNotificationKind.FailedOver;
+
+        /// <summary>
+        /// Replays the retained completion, if any, to a client that has just opted in.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately *after* the <c>+OK</c> (see <see cref="RedisClient.AddOutboundAfterReply"/>), and with
+        /// the original sequence id rather than a fresh one: the id identifies the event, and a client using it
+        /// for dedup has to be able to recognize a completion it has already seen.
+        /// </remarks>
+        private void ReplayRetainedCompletion(RedisClient client)
+        {
+            if (!RetainCompletions || _retainedCompletion is not { } retained) return;
+
+            client.AddOutboundAfterReply(BuildShardNotification(retained.Kind, null, retained.Sequence, null, retained.ShardIds));
+            Log($"[{client}] replayed retained {GetName(retained.Kind)} (seq {retained.Sequence})");
+        }
 
         /// <summary>
         /// How many times a client has opted in, across the lifetime of the server. Per-client state goes away
@@ -210,33 +256,45 @@ namespace StackExchange.Redis.Server
         {
             // [type, seqID, ...] - the sequence id is an integer, which is precisely why these frames could
             // not be treated as pub/sub: element 1 is not a channel name
-            int count = 2 + (timeSeconds.HasValue ? 1 : 0) + (newEndpoint is not null || kind == MaintenanceNotificationKind.Moving ? 1 : 0) + (extra is not null ? 1 : 0);
             var seq = sequenceId ?? System.Threading.Interlocked.Increment(ref _maintenanceSequence);
+
+            // the retention is server-wide and replaces rather than accumulates, as a real one does; note it
+            // records what was *sent*, so a test arranges it by sending the completion, not by poking state
+            if (IsRetainedCompletion(kind)) _retainedCompletion = (kind, seq, extra);
+
             return Dispatch(client, Build, requireOptIn: true);
 
-            TypedRedisValue Build()
+            TypedRedisValue Build() => BuildShardNotification(kind, timeSeconds, seq, newEndpoint, extra);
+        }
+
+        private static TypedRedisValue BuildShardNotification(
+            MaintenanceNotificationKind kind,
+            int? timeSeconds,
+            long seq,
+            EndPoint newEndpoint,
+            string extra)
+        {
+            int count = 2 + (timeSeconds.HasValue ? 1 : 0) + (newEndpoint is not null || kind == MaintenanceNotificationKind.Moving ? 1 : 0) + (extra is not null ? 1 : 0);
+            var frame = TypedRedisValue.Rent(count, out var span, RespPrefix.Push);
+
+            int index = 0;
+            span[index++] = TypedRedisValue.BulkString(GetName(kind)); // bulk, as a real server sends
+            span[index++] = TypedRedisValue.Integer(seq);
+            if (timeSeconds.HasValue) span[index++] = TypedRedisValue.Integer(timeSeconds.GetValueOrDefault());
+            if (kind == MaintenanceNotificationKind.Moving)
             {
-                var frame = TypedRedisValue.Rent(count, out var span, RespPrefix.Push);
-
-                int index = 0;
-                span[index++] = TypedRedisValue.BulkString(GetName(kind)); // bulk, as a real server sends
-                span[index++] = TypedRedisValue.Integer(seq);
-                if (timeSeconds.HasValue) span[index++] = TypedRedisValue.Integer(timeSeconds.GetValueOrDefault());
-                if (kind == MaintenanceNotificationKind.Moving)
-                {
-                    // null rather than absent when there is no address: the client must cope with both
-                    span[index++] = newEndpoint is null
-                        ? TypedRedisValue.BulkString(RedisValue.Null)
-                        : TypedRedisValue.BulkString(Format.ToString(newEndpoint));
-                }
-                else if (newEndpoint is not null)
-                {
-                    span[index++] = TypedRedisValue.BulkString(Format.ToString(newEndpoint));
-                }
-                if (extra is not null) span[index] = TypedRedisValue.BulkString(extra);
-
-                return frame;
+                // null rather than absent when there is no address: the client must cope with both
+                span[index++] = newEndpoint is null
+                    ? TypedRedisValue.BulkString(RedisValue.Null)
+                    : TypedRedisValue.BulkString(Format.ToString(newEndpoint));
             }
+            else if (newEndpoint is not null)
+            {
+                span[index++] = TypedRedisValue.BulkString(Format.ToString(newEndpoint));
+            }
+            if (extra is not null) span[index] = TypedRedisValue.BulkString(extra);
+
+            return frame;
         }
 
         /// <summary>

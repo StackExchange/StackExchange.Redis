@@ -467,6 +467,141 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         }
     }
 
+    /// <summary>
+    /// The catch-up channel: Redis Enterprise retains the most recent shard-scoped *completion* and replays it
+    /// to each connection that opts in, so a client that connects after a disruption still learns it happened.
+    /// </summary>
+    /// <remarks>
+    /// Observed on RS 8.0.22 (2026-08-28), arriving coalesced into the same TCP read as the <c>+OK</c> for the
+    /// opt-in, at ~16 ms. These tests key on the *cause* of that rather than the framing: the frame is flushed
+    /// the instant the opt-in is processed, and our opt-in is pipelined early, so a retained frame always
+    /// arrives while the connection is still handshaking.
+    /// </remarks>
+    public class Retention(ITestOutputHelper log)
+    {
+        private static async Task<(InProcessTestServer Server, ConnectionMultiplexer Connection, EventCollector Events)> ConnectAsync(
+            ITestOutputHelper log,
+            Action<InProcessTestServer> beforeConnect)
+        {
+            var server = new InProcessTestServer(log);
+            beforeConnect(server); // the event happens *before* anybody connects: that is the whole point
+
+            var config = server.GetClientConfig(defaultOnly: true);
+            config.Protocol = RedisProtocol.Resp3;
+            config.MaintenanceNotifications = MaintenanceNotificationMode.Enabled;
+
+            var conn = await ConnectionMultiplexer.ConnectAsync(config);
+            return (server, conn, new EventCollector(conn));
+        }
+
+        [Theory]
+        [InlineData(MaintenanceNotificationKind.Migrated)]
+        [InlineData(MaintenanceNotificationKind.FailedOver)]
+        public async Task RetainedCompletionIsReplayedToANewConnection(MaintenanceNotificationKind kind)
+        {
+            var (server, conn, events) = await ConnectAsync(log, s =>
+                s.SendShardNotification(null, kind, timeSeconds: null, shardIds: "[\"27\"]", sequenceId: 5));
+
+            using (server)
+            await using (conn)
+            {
+                // the collector is attached *after* connecting, so this asserts the frame was handled rather
+                // than that the event fired - which is why the relaxed window is the observable here
+                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+                Assert.True(endpoint.IsMaintenanceRelaxed, "the replayed completion should have opened the post-event tail");
+                Assert.Equal(MaintenanceNotificationTypeFor(kind), endpoint.ActiveMaintenanceType);
+                log.WriteLine($"{kind} replayed; relaxed = {endpoint.IsMaintenanceRelaxed}");
+
+                // ...and it must not have disturbed the handshake it arrived in the middle of, which is the
+                // other half of what this test is for: a push frame interleaved with our own handshake
+                // replies must be dispatched out-of-band rather than matched against one of them
+                Assert.True(conn.IsConnected);
+                Assert.True(await conn.GetDatabase().PingAsync() >= TimeSpan.Zero);
+                GC.KeepAlive(events);
+            }
+        }
+
+        private static MaintenanceNotificationType MaintenanceNotificationTypeFor(MaintenanceNotificationKind kind) => kind switch
+        {
+            MaintenanceNotificationKind.Migrated => MaintenanceNotificationType.Migrated,
+            MaintenanceNotificationKind.FailedOver => MaintenanceNotificationType.FailedOver,
+            _ => MaintenanceNotificationType.None,
+        };
+
+        [Theory]
+        [InlineData(MaintenanceNotificationKind.Migrating)]
+        [InlineData(MaintenanceNotificationKind.FailingOver)]
+        [InlineData(MaintenanceNotificationKind.Moving)]
+        [InlineData(MaintenanceNotificationKind.SlotMigrating)]
+        [InlineData(MaintenanceNotificationKind.SlotMigrated)]
+        public async Task StartersAndSlotScopedEventsAreNotRetained(MaintenanceNotificationKind kind)
+        {
+            // The design property, asserted as a negative: the catch-up channel can only ever say "a
+            // disruption ended", never "one is starting". Nothing that demands action is replayed, so a
+            // reconnecting client cannot be told to move by a stale frame - which is what makes the MOVING
+            // handoff safe from replay by construction rather than by a guard.
+            var (server, conn, events) = await ConnectAsync(log, s =>
+            {
+                if (kind == MaintenanceNotificationKind.SlotMigrated)
+                {
+                    s.SendSlotMigrations(null, kind, [("127.0.0.1:7000", "127.0.0.1:7001", "50-60")], sequenceId: 5);
+                }
+                else
+                {
+                    s.SendShardNotification(null, kind, timeSeconds: 2, shardIds: "[\"27\"]", sequenceId: 5);
+                }
+            });
+
+            using (server)
+            await using (conn)
+            {
+                await events.AssertNoneAsync();
+                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+                Assert.False(endpoint.IsMaintenanceRelaxed, $"{kind} must not be retained, so nothing should have relaxed");
+            }
+        }
+
+        [Fact]
+        public async Task RetentionReplacesRatherThanAccumulates()
+        {
+            // "most recent completion", not a queue: a connection sees at most one of these however many
+            // events went past, which is why the client side needs no window or ring for the catch-up case
+            var (server, conn, events) = await ConnectAsync(log, s =>
+            {
+                s.SendShardNotification(null, MaintenanceNotificationKind.Migrated, null, "[\"1\"]", sequenceId: 5);
+                s.SendShardNotification(null, MaintenanceNotificationKind.FailedOver, null, "[\"2\"]", sequenceId: 6);
+            });
+
+            using (server)
+            await using (conn)
+            {
+                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+                Assert.True(endpoint.IsMaintenanceRelaxed);
+                Assert.Equal(MaintenanceNotificationType.FailedOver, endpoint.ActiveMaintenanceType); // the later one
+                GC.KeepAlive(events);
+            }
+        }
+
+        [Fact]
+        public async Task RetentionCanBeTurnedOff()
+        {
+            // not every deployment retains, and a test of the no-retention case should not have to reason
+            // about which notification kinds happen to be retained
+            var (server, conn, events) = await ConnectAsync(log, s =>
+            {
+                s.RetainCompletions = false;
+                s.SendShardNotification(null, MaintenanceNotificationKind.Migrated, null, "[\"27\"]", sequenceId: 5);
+            });
+
+            using (server)
+            await using (conn)
+            {
+                await events.AssertNoneAsync();
+                Assert.False(((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint).IsMaintenanceRelaxed);
+            }
+        }
+    }
+
     [Fact]
     public async Task MalformedTripletIsSkippedNotFatal()
     {
