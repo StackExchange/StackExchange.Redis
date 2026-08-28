@@ -16,14 +16,30 @@ namespace StackExchange.Redis.Maintenance;
 /// TTL. So resolving immediately returns <em>the address being retired</em>, in every run observed, and a
 /// client that treats the first answer as authoritative hands off to the node it was told to leave.
 /// <para>
+/// <b>DNS is not guaranteed to win the race.</b> On a second cluster the same notification with the same 15s
+/// grace saw the socket close at +15.7s and DNS update at +18.7s - three seconds <em>after</em> the close. So
+/// there are three outcomes here, not two, and the third is a normal one: the record may still be stale when
+/// the window runs out, and the only thing left is to reconnect after the close and resolve then. Do not
+/// "simplify" the null return away.
+/// </para>
+/// <para>
 /// There is no way to observe the intermediate state from outside: the endpoint has moved server-side well
 /// before DNS reflects it, and nothing tells a client which of those has happened. Probing until the answer
 /// changes is the only mechanism available, and the short TTL is what makes it work - several attempts fit
 /// inside the window.
 /// </para>
 /// <para>
-/// The rule is "take any address that is not the one being retired", and that is doing more work than it
-/// looks. A Redis Cloud hostname usually carries <em>several</em> A records - measured 2026-08-28: 2 for
+/// The rule is "take any address that is not the one being retired". Note it is deliberately *not* "prefer an
+/// address that has newly appeared", even though `MOVING` is emitted precisely when the address set gains a
+/// member (established across nine observations: it is silent whenever the set only loses members). A live
+/// sibling is at least as good a target as a newly joined node and is available *now*, whereas the new node
+/// only becomes visible when the record updates - which can be after the socket has already closed. Preferring
+/// the newcomer would mean waiting for it, and waiting is the thing to avoid. The one case where it would pay
+/// is a rolling operation, where the sibling we step to may take its own turn later; that costs one further
+/// handoff, bounded at one per connection per operation, which is cheaper than a lost window.
+/// </para>
+/// <para>
+/// This rule is also doing more work than it looks. A Redis Cloud hostname usually carries <em>several</em> A records - measured 2026-08-28: 2 for
 /// <c>all-nodes</c>, 3 for <c>all-master-shards</c>, 1 for <c>single</c>, all on a 5s TTL - and the count
 /// follows actual proxy *placement* rather than the policy name, so a multi-proxy database whose shards happen
 /// to share a node still resolves to one address. With several records the first resolution already names a
@@ -44,9 +60,11 @@ internal static class AdvertisedAddressProbe
     /// Polls DNS until it stops naming <paramref name="retiring"/>, or until the window runs out.
     /// </summary>
     /// <returns>
-    /// The replacement endpoint, or <c>null</c> if the window expired without DNS moving - in which case the
-    /// caller has learned something useful and should do nothing: the server will close the socket, and the
-    /// relaxed timeout window is what covers the reconnect that follows.
+    /// The replacement endpoint, or <c>null</c> if the window expired without DNS moving - a measured outcome
+    /// rather than a failure (see the type remarks: DNS has been seen updating three seconds after the socket
+    /// closed). The caller should then do nothing proactive: the server closes the socket, the reconnect that
+    /// follows re-resolves anyway because the endpoint is a hostname, and the relaxed timeout window covers
+    /// the gap. Guessing an address here would be strictly worse.
     /// </returns>
     internal static async Task<EndPoint?> ProbeAsync(
         DnsEndPoint endpoint,
