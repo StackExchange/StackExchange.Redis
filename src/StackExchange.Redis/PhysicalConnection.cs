@@ -830,7 +830,7 @@ namespace StackExchange.Redis
             {
                 foreach (var message in _writtenAwaitingResponse)
                 {
-                    if (!message.IsInternalCall) return true;
+                    if (message.IsCallerFacing) return true;
                 }
             }
             return false;
@@ -1315,7 +1315,7 @@ namespace StackExchange.Redis
                     {
                         foreach (var item in _writtenAwaitingResponse)
                         {
-                            if (!item.IsInternalCall) return true;
+                            if (item.IsCallerFacing) return true;
                         }
                     }
                     return false;

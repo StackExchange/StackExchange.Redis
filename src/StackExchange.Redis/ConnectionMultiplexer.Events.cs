@@ -91,8 +91,16 @@ public partial class ConnectionMultiplexer
 
     // recently-raised (type, sequence) pairs, so one logical event raises one event however many nodes told
     // us. Small and fixed: the copies arrive within milliseconds of each other, so a handful of slots covers
-    // any realistic proxy count even with other notifications interleaved
-    private readonly (Maintenance.MaintenanceNotificationType Type, long Sequence)[] _raisedMaintenanceEvents = new (Maintenance.MaintenanceNotificationType, long)[8];
+    // any realistic proxy count even with other notifications interleaved.
+    // A named struct rather than a tuple: this assembly must not reference System.ValueTuple, which breaks
+    // .NET Framework consumers - see SanityChecks.ValueTupleNotReferenced.
+    private readonly struct RaisedMaintenanceEvent(Maintenance.MaintenanceNotificationType type, long sequence)
+    {
+        public readonly Maintenance.MaintenanceNotificationType Type = type;
+        public readonly long Sequence = sequence;
+    }
+
+    private readonly RaisedMaintenanceEvent[] _raisedMaintenanceEvents = new RaisedMaintenanceEvent[8];
     private int _raisedMaintenanceEventIndex;
 
     /// <summary>
@@ -127,7 +135,7 @@ public partial class ConnectionMultiplexer
                 if (entry.Type == type && entry.Sequence == seq) return false;
             }
 
-            _raisedMaintenanceEvents[_raisedMaintenanceEventIndex] = (type, seq);
+            _raisedMaintenanceEvents[_raisedMaintenanceEventIndex] = new RaisedMaintenanceEvent(type, seq);
             _raisedMaintenanceEventIndex = (_raisedMaintenanceEventIndex + 1) % _raisedMaintenanceEvents.Length;
             return true;
         }

@@ -62,7 +62,10 @@ namespace StackExchange.Redis
             NoFlushFlag = (CommandFlags)1024,
             // "server specific" (bit 18): tied to a specific endpoint, never retry elsewhere. Not (yet) a
             // public CommandFlags member - see the note on the hidden bit-18 value in CommandFlags.cs.
-            CommandServerSpecific = (CommandFlags)(1 << 18);
+            CommandServerSpecific = (CommandFlags)(1 << 18),
+            // "probe" (bit 19): health-check traffic. Deliberately *not* InternalCallFlag, which also decides
+            // queuing - see IsCallerFacing.
+            ProbeFlag = (CommandFlags)(1 << 19);
 
         protected RedisCommand command;
 
@@ -92,7 +95,15 @@ namespace StackExchange.Redis
                                                          | CommandFlags.NoScriptCache
                                                          | MaskRetryCategory // caller may override the retry category...
                                                          | CommandServerSpecific // ...and the server-specific flag
-                                                         | NoFlushFlag; // we'll allow this one even though not advertised
+                                                         | NoFlushFlag // we'll allow this one even though not advertised
+                                                         // ...and the probe flag, which *has* to survive this
+                                                         // whitelist: health-check probes reach the pipeline
+                                                         // through the public API (HealthCheckContext.
+                                                         // ProbeFlags), so it arrives as caller-supplied flags
+                                                         // or not at all. A caller passing it deliberately only
+                                                         // opts their own command out of endpoint-idleness
+                                                         // accounting, which is harmless.
+                                                         | ProbeFlag;
 
         private IResultBox? resultBox;
 
@@ -270,6 +281,32 @@ namespace StackExchange.Redis
 
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
+
+        /// <summary>
+        /// Whether this is health-check traffic, issued by a <see cref="Availability.HealthCheckProbe"/>
+        /// rather than by a caller.
+        /// </summary>
+        public bool IsProbe => (Flags & ProbeFlag) != 0;
+
+        /// <summary>
+        /// Whether somebody outside the library is waiting on this message.
+        /// </summary>
+        /// <remarks>
+        /// The question idleness actually wants to ask. Our own traffic - handshakes, heartbeats,
+        /// autoconfigure, health probes - is work we chose to do, so counting it makes a server look busy
+        /// precisely because we are looking at it, and an endpoint that can never be retired is the result
+        /// (see the endpoint-retirement work).
+        /// <para>
+        /// A probe is a separate bit from <see cref="IsInternalCall"/> on purpose. The internal-call flag also
+        /// decides *queuing*: an internal call bypasses the backlog
+        /// (<c>PhysicalBridge.TryPushToBacklog</c>) and is queued while disconnected regardless of the backlog
+        /// policy (<c>QueueOrFailMessage</c>). Bypassing the backlog would make a health check unable to
+        /// observe the one thing it most needs to - a bridge whose queue is not draining - and that signal is
+        /// what drives failover in a geo-redundant deployment. So probes are excluded from *accounting* without
+        /// being given internal-call *routing*.
+        /// </para>
+        /// </remarks>
+        public bool IsCallerFacing => (Flags & (InternalCallFlag | ProbeFlag)) == 0;
 
         public IResultBox? ResultBox => resultBox;
 

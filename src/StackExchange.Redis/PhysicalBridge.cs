@@ -1040,7 +1040,7 @@ namespace StackExchange.Redis
 
             foreach (var message in _backlog) // snapshot enumeration; a concurrent queue is fine to walk
             {
-                if (!message.IsInternalCall) return true;
+                if (message.IsCallerFacing) return true;
             }
             return false;
         }
@@ -1334,7 +1334,7 @@ namespace StackExchange.Redis
             {
                 foreach (var item in _backlog) // non-consuming, thread-safe, etc
                 {
-                    if (!item.IsInternalCall) return true;
+                    if (item.IsCallerFacing) return true;
                 }
             }
             return physical?.HasPendingCallerFacingItems() ?? false;

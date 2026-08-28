@@ -174,3 +174,4 @@ override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> 
 [SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Source.get -> System.Net.EndPoint?
 [SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Target.get -> System.Net.EndPoint?
 [SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SlotMigrations.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.Maintenance.ClusterSlotMigration>!
+[SER007]StackExchange.Redis.Availability.HealthCheckContext.ProbeFlags.get -> StackExchange.Redis.CommandFlags
