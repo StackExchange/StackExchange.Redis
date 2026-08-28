@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests;
 /// which is the only way to exercise the case that actually happens: the first answer naming the address we
 /// were just told to leave.
 /// </summary>
-public class MovingEndpointProbeTests(ITestOutputHelper log)
+public class AdvertisedAddressProbeTests(ITestOutputHelper log)
 {
     private static readonly IPAddress Retiring = IPAddress.Parse("10.129.228.140");
     private static readonly IPAddress Replacement = IPAddress.Parse("10.252.90.18");
@@ -45,7 +45,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
             [Retiring],
             [Replacement]);
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10),
             resolve: resolver.ResolveAsync, log: log.WriteLine);
 
@@ -58,7 +58,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
     {
         var resolver = new ScriptedResolver([Replacement]);
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromSeconds(1),
             resolve: resolver.ResolveAsync, log: log.WriteLine);
 
@@ -73,7 +73,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
         // reconnect. Guessing an address here would be worse than doing nothing.
         var resolver = new ScriptedResolver([Retiring]);
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromMilliseconds(120), pollInterval: TimeSpan.FromMilliseconds(20),
             resolve: resolver.ResolveAsync, log: log.WriteLine);
 
@@ -88,7 +88,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
         // a connection that arrived mid-window
         var resolver = new ScriptedResolver([Replacement]);
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.Zero, pollInterval: TimeSpan.FromSeconds(1),
             resolve: resolver.ResolveAsync, log: log.WriteLine);
 
@@ -112,7 +112,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
             };
         }
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10),
             resolve: Resolve, log: log.WriteLine);
 
@@ -126,7 +126,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
         // a round-robin record can name both nodes at once mid-move
         var resolver = new ScriptedResolver([Retiring, Replacement]);
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromSeconds(1),
             resolve: resolver.ResolveAsync, log: log.WriteLine);
 
@@ -142,7 +142,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
         // the policy.
         var resolver = new ScriptedResolver([Retiring], [Retiring], [Replacement]);
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10),
             resolve: resolver.ResolveAsync, log: log.WriteLine);
 
@@ -159,12 +159,45 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
         var sibling = IPAddress.Parse("10.246.250.155");
         var resolver = new ScriptedResolver([Retiring, sibling]);
 
-        var result = await MovingEndpointProbe.ProbeAsync(
+        var result = await AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromSeconds(1),
             resolve: resolver.ResolveAsync, log: log.WriteLine);
 
         Assert.Equal(new IPEndPoint(sibling, 13486), result);
         Assert.Equal(1, resolver.Calls);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StillAdvertisedAnswersTheUnannouncedCase(bool present)
+    {
+        // The measured gap: a multi-proxy node taken out for maintenance announced only MIGRATING/MIGRATED,
+        // dropped the victim from DNS at +21.4s, and closed its socket silently at +34.7s. For thirteen
+        // seconds the condition was visible to anyone who asked, and no notification said so.
+        var sibling = IPAddress.Parse("10.246.250.155");
+        var resolver = new ScriptedResolver(present ? [Retiring, sibling] : [sibling, Replacement]);
+
+        var result = await AdvertisedAddressProbe.IsStillAdvertisedAsync(
+            Endpoint, Retiring, resolve: resolver.ResolveAsync, log: log.WriteLine);
+
+        Assert.Equal(present, result);
+    }
+
+    [Fact]
+    public async Task ResolutionFailureIsNotAReasonToAbandonAConnection()
+    {
+        // null rather than false, deliberately: "cannot tell" must not become "give it up", or a DNS blip
+        // recycles every healthy connection at once
+        Task<IPAddress[]> Throws(string host, CancellationToken cancellationToken)
+            => throw new System.Net.Sockets.SocketException(11001);
+
+        Assert.Null(await AdvertisedAddressProbe.IsStillAdvertisedAsync(
+            Endpoint, Retiring, resolve: Throws, log: log.WriteLine));
+
+        // and the same for a record that momentarily resolves to nothing at all
+        Assert.Null(await AdvertisedAddressProbe.IsStillAdvertisedAsync(
+            Endpoint, Retiring, resolve: (_, _) => Task.FromResult<IPAddress[]>([]), log: log.WriteLine));
     }
 
     [Fact]
@@ -173,7 +206,7 @@ public class MovingEndpointProbeTests(ITestOutputHelper log)
         using var cts = new CancellationTokenSource();
         var resolver = new ScriptedResolver([Retiring]);
 
-        var probe = MovingEndpointProbe.ProbeAsync(
+        var probe = AdvertisedAddressProbe.ProbeAsync(
             Endpoint, Retiring, window: TimeSpan.FromMinutes(1), pollInterval: TimeSpan.FromMilliseconds(10),
             resolve: resolver.ResolveAsync, log: log.WriteLine, cancellationToken: cts.Token);
 

@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis.Maintenance;
 
 /// <summary>
-/// Finds the address that replaces an endpoint being retired by a <c>MOVING</c> notification.
+/// Asks DNS the two questions a handoff needs: what replaces the address we are leaving, and are we still
+/// advertised at all.
 /// </summary>
 /// <remarks>
 /// A poll rather than a lookup, and that is the whole point. Measured on Redis Enterprise (2026-08-28), with
@@ -37,7 +38,7 @@ namespace StackExchange.Redis.Maintenance;
 /// belongs at the call site, where the existing refresh jitter lives.
 /// </para>
 /// </remarks>
-internal static class MovingEndpointProbe
+internal static class AdvertisedAddressProbe
 {
     /// <summary>
     /// Polls DNS until it stops naming <paramref name="retiring"/>, or until the window runs out.
@@ -122,5 +123,75 @@ internal static class MovingEndpointProbe
             var delay = (int)Math.Min(pollInterval.TotalMilliseconds, remaining);
             if (delay > 0) await Task.Delay(delay, cancellationToken).ForAwait();
         }
+    }
+
+    /// <summary>
+    /// Whether the address we are connected on is still one of the addresses the hostname advertises.
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> if still advertised, <c>false</c> if the record no longer names it, and <c>null</c> if DNS
+    /// could not be asked - which is *not* the same as "no": a resolution failure is no reason to give up a
+    /// working connection.
+    /// </returns>
+    /// <remarks>
+    /// The trigger that needs no notification, and the reason it matters is a measured gap. On a multi-proxy
+    /// database, taking a node out for maintenance announced only the data-movement pair - <c>MIGRATING</c> at
+    /// +4.3s and <c>MIGRATED</c> at +16.6s, to every proxy - and then dropped the victim from DNS at +21.4s and
+    /// closed its socket *silently* at +34.7s, while sibling connections stayed up past +90s. No
+    /// <c>MOVING</c> was ever sent.
+    /// <para>
+    /// So for thirteen seconds the condition was plainly visible to anybody who asked - our address is no
+    /// longer advertised - and the client's only other signal was the socket dying with no explanation. Asking
+    /// this question when a <c>MIGRATED</c> arrives converts that into a controlled handoff. Note
+    /// <c>MIGRATED</c> is also the notification the server *retains* and replays on connect, so a client that
+    /// arrives mid-operation gets the same prompt.
+    /// </para>
+    /// <para>
+    /// The same condition is what a support case turned on: a client kept dialling endpoints that no longer
+    /// existed for 37 hours, because nothing it could observe told it to stop. Two unrelated failures, one
+    /// detection rule.
+    /// </para>
+    /// </remarks>
+    internal static async Task<bool?> IsStillAdvertisedAsync(
+        DnsEndPoint endpoint,
+        IPAddress current,
+        Func<string, CancellationToken, Task<IPAddress[]>> resolve,
+        Action<string>? log = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
+        if (current is null) throw new ArgumentNullException(nameof(current));
+        if (resolve is null) throw new ArgumentNullException(nameof(resolve));
+
+        IPAddress[] addresses;
+        try
+        {
+            addresses = await resolve(endpoint.Host, cancellationToken).ForAwait();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"{endpoint.Host}: cannot tell whether {current} is still advertised: {ex.Message}");
+            return null;
+        }
+
+        // an empty answer is "cannot tell" rather than "no": a record that momentarily resolves to nothing is
+        // a DNS problem, not an instruction to abandon a connection that is working
+        if (addresses is null || addresses.Length == 0)
+        {
+            log?.Invoke($"{endpoint.Host}: resolved to nothing; treating {current} as still advertised");
+            return null;
+        }
+
+        foreach (var address in addresses)
+        {
+            if (address.Equals(current)) return true;
+        }
+
+        log?.Invoke($"{endpoint.Host}: no longer advertises {current}; it is being taken out of service");
+        return false;
     }
 }
