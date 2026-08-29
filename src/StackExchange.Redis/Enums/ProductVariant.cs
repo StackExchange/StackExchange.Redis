@@ -1,4 +1,4 @@
-// ReSharper disable once CheckNamespace
+﻿// ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;
 
 /// <summary>
@@ -23,6 +23,11 @@ public enum ProductVariant
     /// <a href="https://microsoft.github.io/garnet/">Garnet</a> is a Redis-compatible server from Microsoft.
     /// </summary>
     Garnet,
+
+    /// <summary>
+    /// <a href="https://www.dragonflydb.io/">Dragonfly</a>
+    /// </summary>
+    Dragonfly,
 
     // if you want to add another variant here, please open an issue with the details (variant name, INFO output, etc.)
 }

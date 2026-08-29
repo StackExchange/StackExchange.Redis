@@ -995,6 +995,10 @@ namespace StackExchange.Redis
                                     productVariant = ProductVariant.Valkey;
                                     productVersion = valSpan.ToString();
                                     break;
+                                case AutoConfigureInfoField.DragonflyVersion:
+                                    productVariant = ProductVariant.Dragonfly;
+                                    productVersion = valSpan.ToString();
+                                    break;
                             }
                         }
                         if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))

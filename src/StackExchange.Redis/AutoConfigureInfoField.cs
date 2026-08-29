@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using RESPite;
 
 namespace StackExchange.Redis;
@@ -37,6 +37,9 @@ internal enum AutoConfigureInfoField
 
     [AsciiHash("valkey_version")]
     ValkeyVersion,
+
+    [AsciiHash("dragonfly_version")]
+    DragonflyVersion,
 
     [AsciiHash("server_mode")]
     ServerMode,
