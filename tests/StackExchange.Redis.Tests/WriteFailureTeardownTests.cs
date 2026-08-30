@@ -46,6 +46,20 @@ public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(outp
     }
 
     [Fact]
+    public void ConnectionFailureRejectsCommandsThatCapturedTheOldPhysicalConnection()
+    {
+        using var stream = new MemoryStream();
+        using var connection = PhysicalConnection.Dummy(stream);
+        connection.RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+
+        var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"late-write");
+
+        var exception = Assert.Throws<RedisConnectionException>(() => connection.EnqueueInsideWriteLock(message, enforceMuxer: false));
+        Assert.Equal(ConnectionFailureType.SocketClosed, exception.FailureType);
+        Assert.Contains("closed before the command could be written", exception.Message);
+    }
+
+    [Fact]
     public async Task WriteFailure_TearsDownPhysicalConnection()
     {
         // We deliberately raise InternalError + ConnectionFailed events here, so don't fail

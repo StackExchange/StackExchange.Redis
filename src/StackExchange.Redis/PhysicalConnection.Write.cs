@@ -13,8 +13,9 @@ internal partial class PhysicalConnection
     private BufferedStreamWriter? _output;
 
     /// <summary>
-    /// Set by <see cref="Shutdown"/> before it discards <see cref="_output"/>, so a writer that finds the
-    /// output gone can tell the two cases apart; see <see cref="ThrowOutputUnavailable"/>.
+    /// Set when connection shutdown starts, before responses are failed or <see cref="_output"/> is discarded,
+    /// so writers cannot add new response expectations to a connection being torn down; see
+    /// <see cref="ThrowOutputUnavailable"/>.
     /// </summary>
     private volatile bool _isShutdown;
 
