@@ -409,10 +409,10 @@ namespace StackExchange.Redis
         Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEval(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvalLease(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluate(string, RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
@@ -428,10 +428,10 @@ namespace StackExchange.Redis
         Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvalReadOnly(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvalReadOnlyLease(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluateReadOnly(string, RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);

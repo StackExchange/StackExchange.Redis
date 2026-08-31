@@ -1663,7 +1663,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/eval"/>,
         /// <seealso href="https://redis.io/commands/evalsha"/>.
         /// </remarks>
-        RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a Lua script against the server.
@@ -1677,7 +1677,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/eval"/>,
         /// <seealso href="https://redis.io/commands/evalsha"/>.
         /// </remarks>
-        Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a Lua script against the server.
@@ -1744,7 +1744,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/eval_ro"/>,
         /// <seealso href="https://redis.io/commands/evalsha_ro"/>.
         /// </remarks>
-        RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read-only variant of the EVAL command that cannot execute commands that modify data, Execute a Lua script against the server.
@@ -1758,7 +1758,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/eval_ro"/>,
         /// <seealso href="https://redis.io/commands/evalsha_ro"/>.
         /// </remarks>
-        Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read-only variant of the EVAL command that cannot execute commands that modify data, Execute a Lua script against the server.

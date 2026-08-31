@@ -414,7 +414,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluate(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEval(script, ToInnerCopy(args), flags);
@@ -425,7 +425,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return result;
         }
 
-        public Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEvalLease(script, ToInnerCopy(args), flags);
@@ -452,7 +452,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateReadOnly(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEvalReadOnly(script, ToInnerCopy(args), flags);
@@ -463,7 +463,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return result;
         }
 
-        public Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEvalReadOnlyLease(script, ToInnerCopy(args), flags);

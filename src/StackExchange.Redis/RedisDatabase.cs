@@ -2047,7 +2047,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
-        public RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);
@@ -2062,7 +2062,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);
@@ -2108,7 +2108,7 @@ namespace StackExchange.Redis
             return script.Evaluate(this, parameters, withKeyPrefix: null, flags);
         }
 
-        public async Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public async Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);
@@ -2124,7 +2124,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public async Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public async Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);
@@ -2172,7 +2172,7 @@ namespace StackExchange.Redis
             return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
         }
 
-        public RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);
@@ -2187,7 +2187,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);
@@ -2223,7 +2223,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
-        public async Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public async Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);
@@ -2238,7 +2238,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public async Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public async Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, args);

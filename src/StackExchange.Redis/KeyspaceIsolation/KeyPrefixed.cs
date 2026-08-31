@@ -438,7 +438,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEvalAsync(script, ToInnerCopy(args), flags);
@@ -447,7 +447,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return lease != null ? ReturnAfterResult(result, lease) : result;
         }
 
-        public Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEvalLeaseAsync(script, ToInnerCopy(args), flags);
@@ -472,7 +472,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEvalReadOnlyAsync(script, ToInnerCopy(args), flags);
@@ -481,7 +481,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return lease != null ? ReturnAfterResult(result, lease) : result;
         }
 
-        public Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ScriptEvalReadOnlyLeaseAsync(script, ToInnerCopy(args), flags);
