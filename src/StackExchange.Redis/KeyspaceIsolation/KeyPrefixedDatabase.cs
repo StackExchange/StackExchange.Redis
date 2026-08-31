@@ -384,6 +384,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisResult Exec(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
         {
+            // You cannot return an array twice or an array that is not from the pool.
+            argsDisposer = null;
+
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.Exec(command, ToInnerCopy(args), argsDisposer, flags);
 
@@ -395,6 +398,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Lease<byte>? ExecLease(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
         {
+            // You cannot return an array twice or an array that is not from the pool.
+            argsDisposer = null;
+
             if ((flags & CommandFlags.FireAndForget) != 0)
                 return Inner.ExecLease(command, ToInnerCopy(args), argsDisposer, flags);
 
