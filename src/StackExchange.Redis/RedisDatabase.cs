@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -2006,6 +2005,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }
 
+        public RedisResult Exec(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args, argsDisposer);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult)!;
+        }
+
+        public Lease<byte>? ExecLease(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args, argsDisposer);
+            return ExecuteSync(msg, ResultProcessor.LeaseScript);
+        }
+
         public RedisResult Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
 
@@ -2013,6 +2024,18 @@ namespace StackExchange.Redis
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult)!;
+        }
+
+        public Task<RedisResult> ExecAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args, argsDisposer);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+        }
+
+        public Task<Lease<byte>?> ExecLeaseAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args, argsDisposer);
+            return ExecuteAsync(msg, ResultProcessor.LeaseScript);
         }
 
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
@@ -6052,6 +6075,127 @@ namespace StackExchange.Redis
                         }
                     }
                 }
+                return false;
+            }
+        }
+
+        internal sealed class ExecMessage : Message
+        {
+            private readonly ReadOnlyMemory<RedisKeyOrValue> _args;
+            private readonly IRequestDisposer? _argsDisposer;
+            private string _unknownCommand;
+
+            private static int RemoveDbIfNotRequired(int suggestedDb, string adhocCommand, out RedisCommand knownCommand)
+            {
+                // attempt to parse the ad-hoc command to a known command, so we can apply correct aliasing, etc
+                if (!RedisCommandMetadata.TryParseCI(adhocCommand, out knownCommand))
+                {
+                    knownCommand = RedisCommand.UNKNOWN;
+                }
+                if ((knownCommand is not RedisCommand.UNKNOWN & suggestedDb >= 0) && !Message.RequiresDatabase(knownCommand))
+                {
+                    // strip the DB; historically we didn't enforce this when IDatabase was
+                    // used to issue known commands as strings, so: don't complain now
+                    // (this is only an issue *because* we now recognise the known commands)
+                    suggestedDb = -1;
+                }
+                return suggestedDb;
+            }
+
+            public ExecMessage(CommandMap? map, int db, CommandFlags flags, string command, ReadOnlyMemory<RedisKeyOrValue> args, IRequestDisposer? argsDisposer)
+                : base(RemoveDbIfNotRequired(db, command, out var knownCommand), flags, knownCommand)
+            {
+                if (args.Length >= MessageWriter.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                {
+                    throw ExceptionFactory.TooManyArgs(command, args.Length);
+                }
+
+                // a redis command token never contains space, so a command like
+                // "ACL SETUSER x" is always a caller mistake (it gets sent as one unknown token
+                // and the server replies with an opaque error); fail fast with actionable guidance
+                if (command.IndexOf(' ') >= 0) throw ExceptionFactory.CommandHasWhitespace(command);
+
+                map ??= CommandMap.Default;
+                _unknownCommand = "";
+                if (Command is RedisCommand.UNKNOWN)
+                {
+                    _unknownCommand = command;
+                }
+                else if (!map.IsAvailable(Command))
+                {
+                    throw ExceptionFactory.CommandDisabled(command);
+                }
+                _args = args;
+                _argsDisposer = argsDisposer;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                if (Command is RedisCommand.UNKNOWN)
+                {
+                    writer.WriteHeader(_unknownCommand, _args.Length);
+                }
+                else
+                {
+                    writer.WriteHeader(Command, _args.Length);
+                }
+                foreach (ref readonly var arg in _args.Span)
+                {
+                    var value = arg.Value;
+                    if (!value.IsNull)
+                    {
+                        writer.WriteBulkString(value);
+                    }
+                    else
+                    {
+                        var key = arg.Key;
+                        if (!key.IsNull)
+                        {
+                            writer.Write(key);
+                        }
+                        else
+                        {
+                            Debug.Assert(arg.IsNull);
+                            throw new InvalidOperationException("A null is not valid in this context");
+                        }
+                    }
+                }
+                _argsDisposer?.Dispose(_args);
+            }
+
+            public override string CommandString => Command is RedisCommand.UNKNOWN ? _unknownCommand : base.CommandString;
+            public override string CommandAndKey => CommandString;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                foreach (ref readonly var arg in _args.Span)
+                {
+                    var key = arg.Key;
+                    if (!key.IsNull)
+                    {
+                        slot = serverSelectionStrategy.CombineSlot(slot, key);
+                    }
+                }
+                return slot;
+            }
+            public override int ArgCount => _args.Length;
+
+            protected override bool TryGetSubCommand(out SubCommand subCommand)
+            {
+                // the sub-command (if any) is the first argument after the command itself,
+                // e.g. CLIENT [GETNAME]; ad-hoc Execute args are boxed objects, so normalize
+                // the first one to a RedisValue before probing it against the known sub-commands
+                foreach (ref readonly var arg in _args.Span)
+                {
+                    var value = arg.Value;
+                    if (!value.IsNull)
+                    {
+                        return SubCommandMetadata.TryGetSubCommand(value, out subCommand);
+                    }
+                    break; // only the first argument is a sub-command candidate
+                }
+                subCommand = SubCommand.Unknown;
                 return false;
             }
         }

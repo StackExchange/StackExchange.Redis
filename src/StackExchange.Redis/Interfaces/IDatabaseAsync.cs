@@ -396,6 +396,12 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.Publish(RedisChannel, RedisValue, CommandFlags)"/>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.Exec(string, ReadOnlyMemory{RedisKeyOrValue}, IRequestDisposer, CommandFlags)"/>
+        Task<RedisResult> ExecAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.ExecLease(string, ReadOnlyMemory{RedisKeyOrValue}, IRequestDisposer, CommandFlags)"/>
+        Task<Lease<byte>?> ExecLeaseAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.Execute(string, object[])"/>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 

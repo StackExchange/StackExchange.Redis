@@ -382,6 +382,28 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.Publish(ToInner(channel), message, flags);
 
+        public RedisResult Exec(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.Exec(command, ToInnerCopy(args), argsDisposer, flags);
+
+            var result = Inner.Exec(command, ToInnerLease(args, out var lease), argsDisposer, flags);
+            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
+
+            return result;
+        }
+
+        public Lease<byte>? ExecLease(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.ExecLease(command, ToInnerCopy(args), argsDisposer, flags);
+
+            var result = Inner.ExecLease(command, ToInnerLease(args, out var lease), argsDisposer, flags);
+            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
+
+            return result;
+        }
+
         public RedisResult Execute(string command, params object[] args)
             => Inner.Execute(command, ToInner(args), CommandFlags.None);
 

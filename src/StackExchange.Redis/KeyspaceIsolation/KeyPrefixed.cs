@@ -410,6 +410,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.PublishAsync(ToInner(channel), message, flags);
 
+        public Task<RedisResult> ExecAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.ExecAsync(command, ToInnerCopy(args), argsDisposer, flags);
+
+            var result = Inner.ExecAsync(command, ToInnerLease(args, out var lease), argsDisposer, flags);
+            return lease != null ? ReturnAfterResult(result, lease) : result;
+        }
+
+        public Task<Lease<byte>?> ExecLeaseAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.ExecLeaseAsync(command, ToInnerCopy(args), argsDisposer, flags);
+
+            var result = Inner.ExecLeaseAsync(command, ToInnerLease(args, out var lease), argsDisposer, flags);
+            return lease != null ? ReturnAfterResult(result, lease) : result;
+        }
+
         public Task<RedisResult> ExecuteAsync(string command, params object[] args) =>
             Inner.ExecuteAsync(command, ToInner(args), CommandFlags.None);
 
