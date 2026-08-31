@@ -402,11 +402,11 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.Execute(string, ICollection{object}, CommandFlags)"/>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.ScriptEvaluateMemory(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<RedisResult> ScriptEvaluateMemoryAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.ScriptEval(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
+        Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.ScriptEvaluateMemoryLease(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<Lease<byte>?> ScriptEvaluateMemoryLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.ScriptEvalLease(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
+        Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluate(string, RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
@@ -421,11 +421,11 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.ScriptEvaluate(LoadedLuaScript, object?, CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.ScriptEvaluateMemoryReadOnly(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<RedisResult> ScriptEvaluateMemoryReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.ScriptEvalReadOnly(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
+        Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.ScriptEvaluateMemoryReadOnlyLease(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
-        Task<Lease<byte>?> ScriptEvaluateMemoryReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.ScriptEvalReadOnlyLease(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
+        Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluateReadOnly(string, RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);

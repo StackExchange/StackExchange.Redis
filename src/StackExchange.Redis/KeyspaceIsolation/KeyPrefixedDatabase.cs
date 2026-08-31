@@ -392,23 +392,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluate(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEvaluateMemory(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateMemory(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEval(script, ToInnerCopy(args), flags);
 
-            var result = Inner.ScriptEvaluateMemory(script, ToInnerLease(args, out var lease), flags);
+            var result = Inner.ScriptEval(script, ToInnerLease(args, out var lease), flags);
             if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
 
             return result;
         }
 
-        public Lease<byte>? ScriptEvaluateMemoryLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateMemoryLease(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEvalLease(script, ToInnerCopy(args), flags);
 
-            var result = Inner.ScriptEvaluateMemoryLease(script, ToInnerLease(args, out var lease), flags);
+            var result = Inner.ScriptEvalLease(script, ToInnerLease(args, out var lease), flags);
             if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
 
             return result;
@@ -430,23 +430,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateReadOnly(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEvaluateMemoryReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateMemoryReadOnly(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEvalReadOnly(script, ToInnerCopy(args), flags);
 
-            var result = Inner.ScriptEvaluateMemoryReadOnly(script, ToInnerLease(args, out var lease), flags);
+            var result = Inner.ScriptEvalReadOnly(script, ToInnerLease(args, out var lease), flags);
             if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
 
             return result;
         }
 
-        public Lease<byte>? ScriptEvaluateMemoryReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        public Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateMemoryReadOnlyLease(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEvalReadOnlyLease(script, ToInnerCopy(args), flags);
 
-            var result = Inner.ScriptEvaluateMemoryReadOnlyLease(script, ToInnerLease(args, out var lease), flags);
+            var result = Inner.ScriptEvalReadOnlyLease(script, ToInnerLease(args, out var lease), flags);
             if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
 
             return result;
