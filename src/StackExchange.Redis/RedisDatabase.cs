@@ -6181,12 +6181,28 @@ namespace StackExchange.Redis
                 _script = script ?? throw new ArgumentNullException(nameof(script));
 
                 int keysCount = 0;
-                foreach (ref readonly var arg in args.Span)
+                var span = args.Span;
+                foreach (ref readonly var arg in span)
                 {
-                    if (arg.IsNull) throw new ArgumentException("A null key or value is not valid in this context", nameof(args));
-                    if (arg.IsKey) keysCount++;
+                    if (arg.IsNull) throw new ArgumentException("A null is not valid in this context", nameof(args));
+                    if (arg.IsKey)
+                    {
+                        keysCount++;
+                    }
+                    else
+                    {
+                        Debug.Assert(arg.IsValue);
+                        break;
+                    }
                 }
 
+                if (span.Length > keysCount + 1)
+                {
+                    foreach (ref readonly var arg in span.Slice(keysCount + 1))
+                    {
+                        if (!arg.IsValue) throw new ArgumentException("A null or key is not valid in this context. Keys must come before values.", nameof(args));
+                    }
+                }
                 _args = args;
                 _keysCount = keysCount;
             }
@@ -6194,13 +6210,11 @@ namespace StackExchange.Redis
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                foreach (ref readonly var arg in _args.Span)
+                foreach (ref readonly var arg in _args.Span.Slice(0, _keysCount))
                 {
-                    var key = arg.Key;
-                    if (!key.IsNull)
-                    {
-                        slot = serverSelectionStrategy.CombineSlot(slot, key);
-                    }
+                    Debug.Assert(arg.IsKey);
+
+                    slot = serverSelectionStrategy.CombineSlot(slot, arg.Key);
                 }
                 return slot;
             }
@@ -6241,22 +6255,19 @@ namespace StackExchange.Redis
 
                 writer.WriteBulkString(_keysCount);
 
-                foreach (ref readonly var arg in _args.Span)
+                var span = _args.Span;
+                foreach (ref readonly var arg in span.Slice(0, _keysCount))
                 {
-                    var key = arg.Key;
-                    if (!key.IsNull)
-                    {
-                        writer.Write(key);
-                    }
+                    Debug.Assert(arg.IsKey);
+
+                    writer.Write(arg.Key);
                 }
 
-                foreach (ref readonly var arg in _args.Span)
+                foreach (ref readonly var arg in span.Slice(_keysCount))
                 {
-                    var value = arg.Value;
-                    if (!value.IsNull)
-                    {
-                        writer.WriteBulkString(value);
-                    }
+                    Debug.Assert(arg.IsValue);
+
+                    writer.WriteBulkString(arg.Value);
                 }
             }
             public override int ArgCount => 2 + _args.Length;
