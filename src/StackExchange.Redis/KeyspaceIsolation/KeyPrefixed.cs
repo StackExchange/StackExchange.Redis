@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -419,13 +420,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvaluateMemoryAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
-            // TODO: rented args?
-            Inner.ScriptEvaluateMemoryAsync(script, ToInnerCopy(args), flags);
+        public Task<RedisResult> ScriptEvaluateMemoryAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.ScriptEvaluateMemoryAsync(script, ToInnerCopy(args), flags);
 
-        public Task<Lease<byte>?> ScriptEvaluateMemoryLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
-            // TODO: rented args?
-            Inner.ScriptEvaluateMemoryLeaseAsync(script, ToInnerCopy(args), flags);
+            var result = Inner.ScriptEvaluateMemoryAsync(script, ToInnerLease(args, out var lease), flags);
+            return lease != null ? ReturnAfterResult(result, lease) : result;
+        }
+
+        public Task<Lease<byte>?> ScriptEvaluateMemoryLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.ScriptEvaluateMemoryLeaseAsync(script, ToInnerCopy(args), flags);
+
+            var result = Inner.ScriptEvaluateMemoryLeaseAsync(script, ToInnerLease(args, out var lease), flags);
+            return lease != null ? ReturnAfterResult(result, lease) : result;
+        }
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -443,13 +454,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvaluateMemoryReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
-            // TODO: rented args?
-            Inner.ScriptEvaluateMemoryReadOnlyAsync(script, ToInnerCopy(args), flags);
+        public Task<RedisResult> ScriptEvaluateMemoryReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.ScriptEvaluateMemoryReadOnlyAsync(script, ToInnerCopy(args), flags);
 
-        public Task<Lease<byte>?> ScriptEvaluateMemoryReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
-            // TODO: rented args?
-            Inner.ScriptEvaluateMemoryReadOnlyLeaseAsync(script, ToInnerCopy(args), flags);
+            var result = Inner.ScriptEvaluateMemoryReadOnlyAsync(script, ToInnerLease(args, out var lease), flags);
+            return lease != null ? ReturnAfterResult(result, lease) : result;
+        }
+
+        public Task<Lease<byte>?> ScriptEvaluateMemoryReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0)
+                return Inner.ScriptEvaluateMemoryReadOnlyLeaseAsync(script, ToInnerCopy(args), flags);
+
+            var result = Inner.ScriptEvaluateMemoryReadOnlyLeaseAsync(script, ToInnerLease(args, out var lease), flags);
+            return lease != null ? ReturnAfterResult(result, lease) : result;
+        }
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -998,6 +1019,50 @@ namespace StackExchange.Redis.KeyspaceIsolation
             }
 
             return outer;
+        }
+
+        protected ReadOnlyMemory<RedisKeyOrValue> ToInnerLease(ReadOnlyMemory<RedisKeyOrValue> outer, out RedisKeyOrValue[]? lease)
+        {
+            lease = null;
+            var length = outer.Length;
+            if (length > 0)
+            {
+                var span = outer.Span;
+                var i = 0;
+                foreach (ref readonly var item in span)
+                {
+                    var key = item.Key;
+                    if (!key.IsNull)
+                    {
+                        lease = ArrayPool<RedisKeyOrValue>.Shared.Rent(length);
+                        lease[i] = ToInner(key);
+                        span.Slice(0, i).CopyTo(lease);
+                        break;
+                    }
+                    i++;
+                }
+
+                if (lease != null)
+                {
+                    i++;
+                    foreach (ref readonly var item in span.Slice(i))
+                    {
+                        var key = item.Key;
+                        lease[i++] = key.IsNull ? item : ToInner(key);
+                    }
+
+                    return lease.AsMemory(0, length);
+                }
+            }
+
+            return outer;
+        }
+
+        private static async Task<T> ReturnAfterResult<T>(Task<T> task, RedisKeyOrValue[] lease)
+        {
+            var result = await task;
+            ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
+            return result;
         }
 
         [return: NotNullIfNotNull("outer")]
