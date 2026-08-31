@@ -19,6 +19,9 @@ internal abstract partial class ResultProcessor
     public static readonly ResultProcessor<Lease<byte>>
         LeaseFromArray = new LeaseFromArrayProcessor();
 
+    public static readonly ResultProcessor<Lease<byte>>
+        LeaseScript = new LeaseProcessor();
+
     private abstract class LeaseProcessor<T> : ResultProcessor<Lease<T>?>
     {
         protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)

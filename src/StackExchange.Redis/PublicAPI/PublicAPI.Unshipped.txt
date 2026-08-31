@@ -23,6 +23,37 @@ StackExchange.Redis.ClusterSlotAssignment.Primary.get -> StackExchange.Redis.Clu
 StackExchange.Redis.ClusterSlotAssignment.Replicas.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotNode!>!
 StackExchange.Redis.ClusterSlotAssignment.Slots.get -> StackExchange.Redis.SlotRange
 StackExchange.Redis.ClusterSlotNode
+StackExchange.Redis.IDatabase.ScriptEvaluateMemory(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
+StackExchange.Redis.IDatabaseAsync.ScriptEvaluateMemoryAsync(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
+StackExchange.Redis.IDatabase.ScriptEvaluateMemoryReadOnly(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
+StackExchange.Redis.IDatabaseAsync.ScriptEvaluateMemoryReadOnlyAsync(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
+StackExchange.Redis.IDatabase.ScriptEvaluateMemoryLease(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<byte>?
+StackExchange.Redis.IDatabaseAsync.ScriptEvaluateMemoryLeaseAsync(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<byte>?>!
+StackExchange.Redis.IDatabase.ScriptEvaluateMemoryReadOnlyLease(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<byte>?
+StackExchange.Redis.IDatabaseAsync.ScriptEvaluateMemoryReadOnlyLeaseAsync(string! script, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<byte>?>!
+StackExchange.Redis.RedisKeyOrValue
+StackExchange.Redis.RedisKeyOrValue.RedisKeyOrValue() -> void
+StackExchange.Redis.RedisKeyOrValue.RedisKeyOrValue(in StackExchange.Redis.RedisKey key) -> void
+StackExchange.Redis.RedisKeyOrValue.RedisKeyOrValue(in StackExchange.Redis.RedisValue value) -> void
+StackExchange.Redis.RedisKeyOrValue.IsNull.get -> bool
+StackExchange.Redis.RedisKeyOrValue.IsKey.get -> bool
+StackExchange.Redis.RedisKeyOrValue.Key.get -> StackExchange.Redis.RedisKey
+StackExchange.Redis.RedisKeyOrValue.IsValue.get -> bool
+StackExchange.Redis.RedisKeyOrValue.Value.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.RedisKeyOrValue.Equals(StackExchange.Redis.RedisKeyOrValue other) -> bool
+StackExchange.Redis.RedisKeyOrValue.Equals(StackExchange.Redis.RedisKey other) -> bool
+StackExchange.Redis.RedisKeyOrValue.Equals(StackExchange.Redis.RedisValue other) -> bool
+override StackExchange.Redis.RedisKeyOrValue.GetHashCode() -> int
+override StackExchange.Redis.RedisKeyOrValue.Equals(object? obj) -> bool
+override StackExchange.Redis.RedisKeyOrValue.ToString() -> string!
+static StackExchange.Redis.RedisKeyOrValue.FromKey(StackExchange.Redis.RedisKey key) -> StackExchange.Redis.RedisKeyOrValue
+static StackExchange.Redis.RedisKeyOrValue.FromValue(StackExchange.Redis.RedisValue value) -> StackExchange.Redis.RedisKeyOrValue
+static StackExchange.Redis.RedisKeyOrValue.operator ==(StackExchange.Redis.RedisKeyOrValue x, StackExchange.Redis.RedisKeyOrValue y) -> bool
+static StackExchange.Redis.RedisKeyOrValue.operator !=(StackExchange.Redis.RedisKeyOrValue x, StackExchange.Redis.RedisKeyOrValue y) -> bool
+static StackExchange.Redis.RedisKeyOrValue.implicit operator StackExchange.Redis.RedisKeyOrValue(StackExchange.Redis.RedisKey key) -> StackExchange.Redis.RedisKeyOrValue
+static StackExchange.Redis.RedisKeyOrValue.implicit operator StackExchange.Redis.RedisKeyOrValue(StackExchange.Redis.RedisValue value) -> StackExchange.Redis.RedisKeyOrValue
+static StackExchange.Redis.RedisKeyOrValue.explicit operator StackExchange.Redis.RedisKey(StackExchange.Redis.RedisKeyOrValue value) -> StackExchange.Redis.RedisKey
+static StackExchange.Redis.RedisKeyOrValue.explicit operator StackExchange.Redis.RedisValue(StackExchange.Redis.RedisKeyOrValue value) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.ClusterSlotNode.AnnouncedEndpoint.get -> string?
 StackExchange.Redis.ClusterSlotNode.EndPoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClusterSlotNode.Hostname.get -> string?
