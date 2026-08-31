@@ -393,11 +393,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisResult ScriptEvaluateMemory(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemory(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemory(script, ToInnerCopy(args), flags);
 
         public Lease<byte>? ScriptEvaluateMemoryLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemoryLease(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemoryLease(script, ToInnerCopy(args), flags);
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -417,11 +417,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisResult ScriptEvaluateMemoryReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemoryReadOnly(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemoryReadOnly(script, ToInnerCopy(args), flags);
 
         public Lease<byte>? ScriptEvaluateMemoryReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemoryReadOnlyLease(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemoryReadOnlyLease(script, ToInnerCopy(args), flags);
 
         public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?

@@ -421,11 +421,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisResult> ScriptEvaluateMemoryAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemoryAsync(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemoryAsync(script, ToInnerCopy(args), flags);
 
         public Task<Lease<byte>?> ScriptEvaluateMemoryLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemoryLeaseAsync(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemoryLeaseAsync(script, ToInnerCopy(args), flags);
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -445,11 +445,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisResult> ScriptEvaluateMemoryReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemoryReadOnlyAsync(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemoryReadOnlyAsync(script, ToInnerCopy(args), flags);
 
         public Task<Lease<byte>?> ScriptEvaluateMemoryReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None) =>
             // TODO: rented args?
-            Inner.ScriptEvaluateMemoryReadOnlyLeaseAsync(script, ToInner(args), flags);
+            Inner.ScriptEvaluateMemoryReadOnlyLeaseAsync(script, ToInnerCopy(args), flags);
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -963,26 +963,41 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return args;
         }
 
-        protected ReadOnlyMemory<RedisKeyOrValue> ToInner(ReadOnlyMemory<RedisKeyOrValue> outer)
+        protected ReadOnlyMemory<RedisKeyOrValue> ToInnerCopy(ReadOnlyMemory<RedisKeyOrValue> outer)
         {
-            if (outer.Length == 0)
+            if (outer.Length > 0)
             {
-                return outer;
-            }
-            else
-            {
-                // TODO: add rent
-                RedisKeyOrValue[] inner = new RedisKeyOrValue[outer.Length];
+                RedisKeyOrValue[] inner = [];
 
+                var span = outer.Span;
                 var i = 0;
-                foreach (ref readonly var item in outer.Span)
+                foreach (ref readonly var item in span)
                 {
                     var key = item.Key;
-                    inner[i++] = key.IsNull ? item : ToInner(key);
+                    if (!key.IsNull)
+                    {
+                        inner = new RedisKeyOrValue[outer.Length];
+                        inner[i] = ToInner(key);
+                        span.Slice(0, i).CopyTo(inner);
+                        break;
+                    }
+                    i++;
                 }
 
-                return inner;
+                if (inner.Length > 0)
+                {
+                    i++;
+                    foreach (ref readonly var item in span.Slice(i))
+                    {
+                        var key = item.Key;
+                        inner[i++] = key.IsNull ? item : ToInner(key);
+                    }
+
+                    return inner;
+                }
             }
+
+            return outer;
         }
 
         [return: NotNullIfNotNull("outer")]
