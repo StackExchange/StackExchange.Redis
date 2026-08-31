@@ -198,7 +198,7 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
     /// </summary>
     /// <param name="x">The first keyOrValue to compare.</param>
     /// <param name="y">The second keyOrValue to compare.</param>
-    public static bool operator !=(RedisKeyOrValue x, RedisKeyOrValue y) => x.Equals(y);
+    public static bool operator !=(RedisKeyOrValue x, RedisKeyOrValue y) => !x.Equals(y);
 
     /// <summary>Create a new instance representing a key.</summary>
     /// <param name="key">key.</param>
