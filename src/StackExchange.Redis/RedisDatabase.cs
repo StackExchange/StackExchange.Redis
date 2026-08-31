@@ -6200,7 +6200,8 @@ namespace StackExchange.Redis
                 {
                     foreach (ref readonly var arg in span.Slice(keysCount + 1))
                     {
-                        if (!arg.IsValue) throw new ArgumentException("A null or key is not valid in this context. Keys must come before values.", nameof(args));
+                        if (!arg.IsValue)
+                            throw new ArgumentException(arg.IsNull ? "A null is not valid in this context" : "A key is not valid in this context. Keys must come before values.", nameof(args));
                     }
                 }
                 _args = args;
