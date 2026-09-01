@@ -1811,6 +1811,12 @@ namespace StackExchange.Redis
             if (current is null) return false;
 
             Multiplexer.Trace($"recycling {ConnectionType} connection: {reason}", ToString());
+
+            // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
+            // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
+            // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
+            // also performs the disconnect, so the Dispose below is cleanup.
+            current.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
             current.Dispose();
             return true;
         }

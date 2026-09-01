@@ -669,6 +669,14 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             var optInsBefore = server.TotalMaintenanceOptIns;
             Assert.Equal(1, optInsBefore); // the handshake's own opt-in, so the increment below means something
 
+            // A handoff has to be *visible*: the replacement raises ConnectionRestored, so reporting nothing for
+            // the drop would leave a consumer tracking connection state with an unpaired restore.
+            var failures = new List<ConnectionFailureType>();
+            conn.ConnectionFailed += (_, e) =>
+            {
+                lock (failures) failures.Add(e.FailureType);
+            };
+
             server.SendMoving(null, timeSeconds: 2, newEndpoint: server.DefaultEndPoint, sequenceId: 0);
 
             var moving = await events.NextAsync();
@@ -681,6 +689,25 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 "the handoff should have replaced the connection without the server closing it");
 
             log.WriteLine($"opt-ins: {optInsBefore} -> {server.TotalMaintenanceOptIns}");
+
+            Assert.True(
+                await Poll.UntilAsync(
+                    () =>
+                    {
+                        lock (failures) return failures.Contains(ConnectionFailureType.MaintenanceHandoff);
+                    },
+                    timeoutMilliseconds: 5_000),
+                "the recycle should be reported as a MaintenanceHandoff rather than silently");
+
+            lock (failures)
+            {
+                log.WriteLine($"reported: {string.Join(", ", failures)}");
+
+                // and *only* as that: reporting it as a socket failure would put planned maintenance into
+                // everybody's fault dashboards
+                Assert.DoesNotContain(ConnectionFailureType.SocketFailure, failures);
+                Assert.DoesNotContain(ConnectionFailureType.SocketClosed, failures);
+            }
 
             // ...and the replacement is usable, which is the only outcome a caller cares about
             Assert.True(
