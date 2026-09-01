@@ -161,9 +161,13 @@ internal sealed partial class ServerEndPoint
     /// <summary>
     /// An announced disruption has started (or is still running): open or extend the relaxed window.
     /// </summary>
-    internal void OnMaintenanceWindowOpened(MaintenanceNotificationType type, long? sequenceId, TimeSpan? time)
+    /// <returns>
+    /// Whether this notification was new. A replay extends nothing and, importantly, must not be *acted* on -
+    /// see the handoff, where re-acting on a repeat is a feedback loop rather than merely wasted work.
+    /// </returns>
+    internal bool OnMaintenanceWindowOpened(MaintenanceNotificationType type, long? sequenceId, TimeSpan? time)
     {
-        if (!TryClaimSequenceId(type, sequenceId)) return;
+        if (!TryClaimSequenceId(type, sequenceId)) return false;
 
         var config = Multiplexer.RawConfig;
         var floor = config.MaintenanceRelaxedTimeout;
@@ -177,6 +181,7 @@ internal sealed partial class ServerEndPoint
 
         Volatile.Write(ref _relaxedType, (int)type);
         ExtendRelaxedWindow(duration, $"{type} for {duration.TotalSeconds}s");
+        return true;
     }
 
     /// <summary>
@@ -205,7 +210,21 @@ internal sealed partial class ServerEndPoint
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
 
-    private int _handoffInFlight;
+    private int _handoffInFlight, _handoffRecycles;
+    private volatile string? _lastHandoffOutcome;
+
+    /// <summary>
+    /// What the last <c>MOVING</c> handoff decided, and why.
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than only traced because <c>Multiplexer.Trace</c> is <c>[Conditional("VERBOSE")]</c> - it
+    /// compiles away in any normal build, so a handoff that misbehaves in production would leave no trace at
+    /// all. This is the minimum that survives: what was decided, readable afterwards.
+    /// </remarks>
+    internal string? LastHandoffOutcome => _lastHandoffOutcome;
+
+    /// <summary>How many times a handoff has replaced this server's connections.</summary>
+    internal int HandoffRecycles => Volatile.Read(ref _handoffRecycles);
 
     /// <summary>
     /// Acts on a <c>MOVING</c>: find where to go, then get off this connection before we are pushed.
@@ -261,6 +280,7 @@ internal sealed partial class ServerEndPoint
                 log: message => Multiplexer.Trace(message, ToString())).ForAwait();
 
             Multiplexer.Trace($"MOVING: {decision}", ToString());
+            _lastHandoffOutcome = decision.ToString();
             switch (decision.Action)
             {
                 case HandoffAction.Recycle:
@@ -312,6 +332,7 @@ internal sealed partial class ServerEndPoint
 
         var drained = !HasCallerWork();
         var recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
+        if (recycled) Interlocked.Increment(ref _handoffRecycles);
         Multiplexer.Trace(
             $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
             + (drained ? " (drained)" : " (still busy; the window ran out)"),

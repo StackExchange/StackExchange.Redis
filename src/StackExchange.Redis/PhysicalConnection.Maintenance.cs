@@ -130,13 +130,18 @@ internal sealed partial class PhysicalConnection
         {
             if (IsWindowOpening(type))
             {
-                server.OnMaintenanceWindowOpened(type, sequenceId, time);
+                var isNew = server.OnMaintenanceWindowOpened(type, sequenceId, time);
 
                 // ...and MOVING alone means "this endpoint is going away", which is worth acting on rather than
-                // waiting to be disconnected. Note this is safe from replayed notifications by construction:
-                // the server retains only shard-scoped *completions*, so a MOVING is never delivered as
-                // catch-up on a fresh connection - it always describes something happening now.
-                if (type == MaintenanceNotificationType.Moving)
+                // waiting to be disconnected.
+                //
+                // Only when the notification is *new*, and that is load-bearing rather than tidy. A server
+                // re-sends MOVING to a connection that opts in while the window is still open - measured, and
+                // the handoff replaces the connection, so acting on the repeat is a feedback loop: recycle,
+                // reconnect, get told again, recycle. It produced twelve recycles from one event on a real
+                // deployment before this guard. The per-server sequence dedup already knew it was a repeat; the
+                // handoff simply was not asking.
+                if (isNew && type == MaintenanceNotificationType.Moving)
                 {
                     server.OnMovingAnnounced(time, newEndPoint, this);
                 }
