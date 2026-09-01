@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
@@ -116,18 +116,38 @@ public abstract class FaultInjectorFixture(DatabaseShape shape) : IAsyncLifetime
             var port = BasePort + (attempt * 3);
             try
             {
-                var result = await Injector.RunActionAsync("create_database", Shape.ToCreateParameters(name, port));
+                // nested under database_config, not flattened: the injector answers a flat payload with
+                // "Invalid parameter 'database_config': got None"
+                var result = await Injector.RunActionAsync(
+                    "create_database",
+                    new Dictionary<string, object?> { ["database_config"] = Shape.ToCreateParameters(name, port) });
                 return ProvisionedDatabase.FromCreateResult(name, port, Shape, result, Environment);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (IsPortCollision(ex))
             {
                 last = ex;
-                Console.WriteLine($"create_database on port {port} failed, retrying higher: {ex.Message}");
+                Console.WriteLine($"create_database on port {port} collided, retrying higher");
             }
         }
 
         throw new InvalidOperationException($"could not create '{name}' after {Attempts} attempts", last);
     }
+
+    /// <summary>
+    /// Whether a create failure is worth trying a different port for.
+    /// </summary>
+    /// <remarks>
+    /// Only port collisions are: everything else - a malformed config, a cluster with no capacity - fails
+    /// identically on every port, and retrying eight times turns one clear error message into eight and delays
+    /// the report by half a minute. The first version of this retried everything, and buried
+    /// "missing shard_key_regex" under eight identical tracebacks.
+    /// </remarks>
+    private static bool IsPortCollision(Exception ex) =>
+        ex.Message.Contains("port", StringComparison.OrdinalIgnoreCase)
+        && (ex.Message.Contains("in use", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("already", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("taken", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("conflict", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Best-effort removal of databases left behind by earlier runs.

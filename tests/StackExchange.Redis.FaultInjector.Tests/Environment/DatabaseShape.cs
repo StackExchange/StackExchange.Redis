@@ -45,10 +45,14 @@ public sealed record DatabaseShape(
     /// The <c>create_database</c> parameters for this shape.
     /// </summary>
     /// <remarks>
+    /// Goes inside a <c>database_config</c> wrapper when it reaches the injector - a flat payload is rejected
+    /// with "Invalid parameter 'database_config': got None".
+    /// <para>
     /// Built as data rather than as a typed record, because these are the injector's wire names and its schema
     /// declares <c>parameters</c> as untyped. The names here are no longer guesses: they match the environment's
     /// own <c>bdb_config.json</c> and the <c>dbconfig</c> the injector itself publishes as a trigger requirement
     /// (<c>GET /topology-change-standalone?effect=...</c>), which is the authoritative list.
+    /// </para>
     /// </remarks>
     public Dictionary<string, object?> ToCreateParameters(string name, int port)
     {
@@ -64,6 +68,19 @@ public sealed record DatabaseShape(
             ["shards_placement"] = "sparse", // spreads shards across nodes, which is what makes proxy policy visible
             ["oss_cluster"] = OssCluster,
         };
+
+        if (ShardCount > 1)
+        {
+            // Required whenever sharding is on: Redis Enterprise rejects the database outright with
+            // "Invalid sharding configuration: missing shard_key_regex". These two patterns are the standard
+            // pair - an explicit hash tag if present, otherwise the whole key - and are what the environment's
+            // own bdb_config.json uses.
+            parameters["shard_key_regex"] = new[]
+            {
+                new Dictionary<string, object?> { ["regex"] = ".*\\{(?<tag>.*)\\}.*" },
+                new Dictionary<string, object?> { ["regex"] = "(?<tag>.*)" },
+            };
+        }
 
         // only when asked for: a database with no tls_mode serves plaintext, and setting it here without
         // certificates in place produces a database nothing can connect to

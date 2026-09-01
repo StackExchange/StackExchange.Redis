@@ -88,6 +88,19 @@ public sealed class ScenarioRun : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Sets a scenario up, ready to fire.
+    /// </summary>
+    /// <param name="setupTrigger">
+    /// The trigger for the *setup* leg, when it differs from the one being fired.
+    /// </param>
+    /// <remarks>
+    /// The two triggers are different questions, which the naming hides. The setup leg's trigger says how to
+    /// *provision* - <c>/slot-migrate/setup</c> accepts only <c>reshard</c>, because provisioning a cluster
+    /// database is all it does - while the run leg's trigger says how to cause the effect (<c>migrate</c>,
+    /// <c>maintenance_mode</c>, <c>failover</c>). Passing the run trigger to setup earns a
+    /// "Trigger 'migrate' is not supported by slot-migrate/setup (only 'reshard')".
+    /// </remarks>
     public static async Task<ScenarioRun> SetupAsync(
         FaultInjectorClient injector,
         string scenario,
@@ -95,16 +108,17 @@ public sealed class ScenarioRun : IAsyncDisposable
         string trigger,
         Action<string> log,
         IReadOnlyDictionary<string, string?>? extra = null,
+        string? setupTrigger = null,
         CancellationToken cancellationToken = default)
     {
         var run = new ScenarioRun(injector, scenario, effect, trigger, log);
-        var query = new Dictionary<string, string?> { ["effect"] = effect, ["trigger"] = trigger };
+        var query = new Dictionary<string, string?> { ["effect"] = effect, ["trigger"] = setupTrigger ?? trigger };
         if (extra is not null)
         {
             foreach (var pair in extra) query[pair.Key] = pair.Value;
         }
 
-        log($"setup {scenario}: effect={effect} trigger={trigger}");
+        log($"setup {scenario}: effect={effect} setup-trigger={setupTrigger ?? trigger} (firing '{trigger}')");
         run.SetupResult = await injector.PostScenarioAsync(scenario, "setup", query, cancellationToken: cancellationToken);
         run.SetupId = FindString(run.SetupResult, "setup_id");
         run.BdbId = FindInt(run.SetupResult, "bdb_id");
