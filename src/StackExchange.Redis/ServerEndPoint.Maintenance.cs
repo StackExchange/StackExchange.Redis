@@ -57,7 +57,22 @@ internal sealed partial class ServerEndPoint
     /// <summary>
     /// The wire value for the configured <c>moving-endpoint-type</c>, or null to send no preference.
     /// </summary>
-    private RedisValue MaintenanceMovingEndpointTypeLiteral => Multiplexer.RawConfig.MaintenanceMovingEndpointType switch
+    private RedisValue MaintenanceMovingEndpointTypeLiteral(PhysicalConnection connection)
+    {
+        var configured = Multiplexer.RawConfig.MaintenanceMovingEndpointType;
+        if (configured == MaintenanceEndpointType.Auto)
+        {
+            // classify the address we actually reached, not the endpoint we dialled - the latter is usually a
+            // name, and where it resolved to is what decides whether we are inside the deployment's network
+            configured = MaintenanceEndpointTypeResolver.Derive(
+                (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address,
+                connection.IsEncrypted);
+        }
+
+        return ToLiteral(configured);
+    }
+
+    private static RedisValue ToLiteral(MaintenanceEndpointType type) => type switch
     {
         MaintenanceEndpointType.InternalIp => RedisLiterals.internal_ip,
         MaintenanceEndpointType.InternalFqdn => RedisLiterals.internal_fqdn,

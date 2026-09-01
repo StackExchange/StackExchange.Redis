@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -33,6 +33,9 @@ public class MovingEndpointTypeScenarioTests(ExistingDatabaseFixture fixture, IT
     : IClassFixture<ExistingDatabaseFixture>
 {
     [Theory]
+    // Auto over a real socket to a public address with no TLS should derive external-ip, so the server should
+    // name an address rather than a hostname - which is the end-to-end proof of the derivation.
+    [InlineData(MaintenanceEndpointType.Auto)]
     [InlineData(MaintenanceEndpointType.ServerDefault)]
     [InlineData(MaintenanceEndpointType.ExternalFqdn)]
     [InlineData(MaintenanceEndpointType.ExternalIp)]
@@ -105,6 +108,15 @@ public class MovingEndpointTypeScenarioTests(ExistingDatabaseFixture fixture, IT
             foreach (var push in moving)
             {
                 log.WriteLine($"=> {type}: NewEndPoint = {push.NewEndPoint?.ToString() ?? "(null)"}; payload = {push.Payload ?? "(null)"}");
+            }
+
+            if (type == MaintenanceEndpointType.Auto)
+            {
+                // The scenario databases are reached over a public address with no TLS, so Auto should have
+                // derived external-ip: an address, not a hostname, and not null.
+                var named = moving[0].NewEndPoint;
+                Assert.NotNull(named);
+                Assert.IsType<System.Net.IPEndPoint>(named);
             }
 
             // The one thing worth asserting either way: whatever the server sent, we understood the frame.

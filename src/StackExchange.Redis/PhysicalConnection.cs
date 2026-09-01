@@ -84,6 +84,19 @@ namespace StackExchange.Redis
         private Socket? _socket;
         internal Socket? VolatileSocket => Volatile.Read(ref _socket);
 
+        /// <summary>
+        /// Whether this connection is encrypted, however that came about.
+        /// </summary>
+        /// <remarks>
+        /// Two routes, and both count: our own <see cref="SslStream"/>, or a tunnel-supplied transport that
+        /// reports it is already encrypted. Used to choose a <c>moving-endpoint-type</c>, where the question is
+        /// not "did the caller ask for TLS" but "is this connection actually encrypted" - because that is what
+        /// decides whether a certificate has to be validated against whatever address we are given next.
+        /// </remarks>
+        internal bool IsEncrypted =>
+            Volatile.Read(ref _transport)?.IsEncrypted == true
+            || Volatile.Read(ref _ioStream) is SslStream { IsEncrypted: true };
+
         // used for dummy test connections
         public PhysicalConnection(
             ConnectionType connectionType = ConnectionType.Interactive,

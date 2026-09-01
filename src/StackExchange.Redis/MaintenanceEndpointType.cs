@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
 namespace StackExchange.Redis;
@@ -32,6 +32,18 @@ public enum MaintenanceEndpointType
     /// replacement should ask for one explicitly.
     /// </remarks>
     ServerDefault = 0,
+
+    /// <summary>
+    /// Work out the right form per connection, and ask for it. The recommended setting.
+    /// </summary>
+    /// <remarks>
+    /// Derived from two facts about the connection as established: whether the address we actually reached is
+    /// private (so we want the internal forms) and whether the connection is encrypted (so we want the FQDN
+    /// forms, since a certificate generally cannot be validated against a bare address). Where there is no
+    /// socket address to classify - a tunnel, or a Unix domain socket - this resolves to
+    /// <see cref="None"/> rather than guessing.
+    /// </remarks>
+    Auto,
 
     /// <summary>A private address, for a client inside the deployment's network.</summary>
     InternalIp,

@@ -119,11 +119,12 @@ StackExchange.Redis.StringIndex
 [SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SlotMigrations.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.Maintenance.ClusterSlotMigration>!
 [SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.Time.get -> System.TimeSpan?
 [SER010]StackExchange.Redis.MaintenanceEndpointType
-[SER010]StackExchange.Redis.MaintenanceEndpointType.ExternalFqdn = 4 -> StackExchange.Redis.MaintenanceEndpointType
-[SER010]StackExchange.Redis.MaintenanceEndpointType.ExternalIp = 3 -> StackExchange.Redis.MaintenanceEndpointType
-[SER010]StackExchange.Redis.MaintenanceEndpointType.InternalFqdn = 2 -> StackExchange.Redis.MaintenanceEndpointType
-[SER010]StackExchange.Redis.MaintenanceEndpointType.InternalIp = 1 -> StackExchange.Redis.MaintenanceEndpointType
-[SER010]StackExchange.Redis.MaintenanceEndpointType.None = 5 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.Auto = 1 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.ExternalFqdn = 5 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.ExternalIp = 4 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.InternalFqdn = 3 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.InternalIp = 2 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.None = 6 -> StackExchange.Redis.MaintenanceEndpointType
 [SER010]StackExchange.Redis.MaintenanceEndpointType.ServerDefault = 0 -> StackExchange.Redis.MaintenanceEndpointType
 [SER010]StackExchange.Redis.MaintenanceNotificationMode
 [SER010]StackExchange.Redis.MaintenanceNotificationMode.Auto = 2 -> StackExchange.Redis.MaintenanceNotificationMode

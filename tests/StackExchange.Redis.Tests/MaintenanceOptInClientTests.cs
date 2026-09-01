@@ -269,6 +269,9 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
     [InlineData(MaintenanceEndpointType.ExternalIp, "external-ip")]
     [InlineData(MaintenanceEndpointType.ExternalFqdn, "external-fqdn")]
     [InlineData(MaintenanceEndpointType.None, "none")]
+    // Auto over the in-process transport: there is no socket to classify, so it resolves to "none" rather than
+    // guessing at a scope. Over a real socket to a loopback address it would derive internal-ip.
+    [InlineData(MaintenanceEndpointType.Auto, "none")]
     public async Task MovingEndpointTypeIsSentWhenAskedFor(MaintenanceEndpointType type, string? expected)
     {
         // The point of asking: every MOVING observed on a real deployment carried no address, and every one of

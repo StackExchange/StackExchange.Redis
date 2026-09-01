@@ -1373,7 +1373,7 @@ namespace StackExchange.Redis
 
                     // A bare ON leaves the endpoint type to the server, and every MOVING observed that way
                     // carried no address at all - so when a caller asks for a specific form, say so.
-                    var endpointType = MaintenanceMovingEndpointTypeLiteral;
+                    var endpointType = MaintenanceMovingEndpointTypeLiteral(connection);
                     msg = endpointType.IsNull
                         ? Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON)
                         : Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, [RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON, RedisLiterals.moving_endpoint_type, endpointType]);
