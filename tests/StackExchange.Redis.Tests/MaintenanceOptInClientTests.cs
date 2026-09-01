@@ -226,7 +226,12 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
 
         log.WriteLine($"opt-ins: {before} -> {server.TotalMaintenanceOptIns}");
         Assert.True(server.TotalMaintenanceOptIns > before, "the opt-in should be sent again on the new connection");
-        Assert.True(IsActive(conn, server));
+
+        // ...and then wait for *our* side of it. The count above is the server having processed the opt-in,
+        // whereas IsActive is us having processed its reply - a beat later, so asserting it directly is a race
+        // that only shows up when the runner is starved of cores.
+        await UntilCondition(() => IsActive(conn, server));
+        Assert.True(IsActive(conn, server), "the feature should be live again on the replacement connection");
     }
 
     private static async Task UntilCondition(System.Func<bool> condition, int timeoutMilliseconds = 5000)

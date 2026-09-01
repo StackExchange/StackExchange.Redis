@@ -89,6 +89,17 @@ public partial class ConnectionMultiplexer
     /// </summary>
     public event EventHandler<ServerMaintenanceEvent>? ServerMaintenanceEvent;
 
+    /// <summary>
+    /// How host names are resolved during a maintenance handoff.
+    /// </summary>
+    /// <remarks>
+    /// A seam rather than a call to <see cref="System.Net.Dns"/> directly, because no in-process fake can move a
+    /// DNS record: the handoff's whole decision turns on the answer *changing*, and the only way to test that
+    /// deterministically is to supply the answers. Defaults to real DNS.
+    /// </remarks>
+    internal Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task<System.Net.IPAddress[]>> AddressResolver { get; set; }
+        = Maintenance.AdvertisedAddressProbe.DefaultResolveAsync;
+
     // recently-raised (type, sequence) pairs, so one logical event raises one event however many nodes told
     // us. Small and fixed: the copies arrive within milliseconds of each other, so a handful of slots covers
     // any realistic proxy count even with other notifications interleaved.

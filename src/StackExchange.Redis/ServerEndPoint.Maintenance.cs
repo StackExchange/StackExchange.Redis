@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
@@ -160,9 +161,13 @@ internal sealed partial class ServerEndPoint
     /// <summary>
     /// An announced disruption has started (or is still running): open or extend the relaxed window.
     /// </summary>
-    internal void OnMaintenanceWindowOpened(MaintenanceNotificationType type, long? sequenceId, TimeSpan? time)
+    /// <returns>
+    /// Whether this notification was new. A replay extends nothing and, importantly, must not be *acted* on -
+    /// see the handoff, where re-acting on a repeat is a feedback loop rather than merely wasted work.
+    /// </returns>
+    internal bool OnMaintenanceWindowOpened(MaintenanceNotificationType type, long? sequenceId, TimeSpan? time)
     {
-        if (!TryClaimSequenceId(type, sequenceId)) return;
+        if (!TryClaimSequenceId(type, sequenceId)) return false;
 
         var config = Multiplexer.RawConfig;
         var floor = config.MaintenanceRelaxedTimeout;
@@ -176,6 +181,7 @@ internal sealed partial class ServerEndPoint
 
         Volatile.Write(ref _relaxedType, (int)type);
         ExtendRelaxedWindow(duration, $"{type} for {duration.TotalSeconds}s");
+        return true;
     }
 
     /// <summary>
@@ -203,6 +209,145 @@ internal sealed partial class ServerEndPoint
         Volatile.Write(ref _relaxedDeadlineTicks, deadline);
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
+
+    private int _handoffInFlight, _handoffRecycles;
+    private volatile string? _lastHandoffOutcome;
+
+    /// <summary>
+    /// What the last <c>MOVING</c> handoff decided, and why.
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than only traced because <c>Multiplexer.Trace</c> is <c>[Conditional("VERBOSE")]</c> - it
+    /// compiles away in any normal build, so a handoff that misbehaves in production would leave no trace at
+    /// all. This is the minimum that survives: what was decided, readable afterwards.
+    /// </remarks>
+    internal string? LastHandoffOutcome => _lastHandoffOutcome;
+
+    /// <summary>How many times a handoff has replaced this server's connections.</summary>
+    internal int HandoffRecycles => Volatile.Read(ref _handoffRecycles);
+
+    /// <summary>
+    /// Acts on a <c>MOVING</c>: find where to go, then get off this connection before we are pushed.
+    /// </summary>
+    /// <remarks>
+    /// The value here is entirely in the *timing*. Without it we already survive a <c>MOVING</c> - the socket
+    /// closes and we reconnect - but the reconnect happens when the server decides, and re-resolves to whatever
+    /// DNS says at that moment, which has been measured as still naming the node being retired. Measured on a
+    /// real deployment: <c>MOVING</c> arrives about six seconds in, DNS moves somewhere between four and
+    /// nineteen seconds later, and the socket closes seventeen to nineteen seconds after the notification. So
+    /// the window exists to be *used*, and using it means waiting for DNS to move and then choosing the moment.
+    /// <para>
+    /// Fire-and-forget by design: this runs while the connection it concerns is still serving commands, and the
+    /// notification is delivered on the read loop, which must not wait for a DNS poll.
+    /// </para>
+    /// </remarks>
+    internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, PhysicalConnection connection)
+    {
+        // One at a time per server. A rolling operation delivers one MOVING per connection, so a second one
+        // arriving while a handoff is in flight is a repeat or a much later event; either way, starting a
+        // second poll against the same endpoint achieves nothing.
+        if (Interlocked.CompareExchange(ref _handoffInFlight, 1, 0) != 0)
+        {
+            Multiplexer.Trace("MOVING: a handoff is already in flight", ToString());
+            return;
+        }
+
+        var budget = window is { } value && value > TimeSpan.Zero
+            ? value
+            : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
+        var current = (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address;
+
+        _ = HandoffAsync(budget, successor, current);
+    }
+
+    private async Task HandoffAsync(TimeSpan window, EndPoint? successor, IPAddress? currentAddress)
+    {
+        try
+        {
+            // Spread the fleet, but only by a fraction of the window - see MaintenanceHandoff.GetJitter for why
+            // a flat delay is wrong here.
+            var jitter = MaintenanceHandoff.GetJitter(window, RandomFor(this));
+            if (jitter > TimeSpan.Zero) await Task.Delay(jitter).ForAwait();
+
+            var remaining = window - jitter;
+            var decision = await MaintenanceHandoff.DecideAsync(
+                EndPoint,
+                successor,
+                currentAddress,
+                remaining,
+                pollInterval: TimeSpan.FromSeconds(1), // records carry a 5s TTL, so this is several looks per record
+                resolve: Multiplexer.AddressResolver,
+                log: message => Multiplexer.Trace(message, ToString())).ForAwait();
+
+            Multiplexer.Trace($"MOVING: {decision}", ToString());
+            _lastHandoffOutcome = decision.ToString();
+            switch (decision.Action)
+            {
+                case HandoffAction.Recycle:
+                    await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
+                    break;
+                case HandoffAction.Reconfigure:
+                    // A named successor is a different endpoint, so this is a topology question. Note no
+                    // observed deployment has ever named one, so this path has never run outside a test.
+                    Multiplexer.ReconfigureIfNeeded(EndPoint, fromBroadcast: false, "moving names a successor");
+                    await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
+                    break;
+                default:
+                    // Nothing to do is a legitimate outcome, not a failure: the server closes the socket, the
+                    // reconnect re-resolves, and the relaxed window covers the gap.
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Multiplexer.OnInternalError(ex, EndPoint);
+        }
+        finally
+        {
+            Volatile.Write(ref _handoffInFlight, 0);
+        }
+    }
+
+    /// <summary>
+    /// Lets in-flight caller work finish, then replaces the connections.
+    /// </summary>
+    /// <remarks>
+    /// Draining first because the socket is still working: anything already written may still be answered, and
+    /// dropping it would fail commands that were about to succeed. Bounded by what is left of the window,
+    /// because the server closes the socket at the end of it regardless - so anything not drained by then was
+    /// going to fail either way, and draining strictly dominates.
+    /// <para>
+    /// Both bridges, not just the one that was told. The measured blast radius is the *node*: four connections
+    /// to one proxy, differing only in handshake, all closed simultaneously, and only the ones that had opted in
+    /// were warned.
+    /// </para>
+    /// </remarks>
+    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
+    {
+        var watch = ValueStopwatch.StartNew();
+        while (HasCallerWork() && watch.ElapsedMilliseconds < budget.TotalMilliseconds)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
+        }
+
+        var drained = !HasCallerWork();
+        var recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
+        if (recycled) Interlocked.Increment(ref _handoffRecycles);
+        Multiplexer.Trace(
+            $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
+            + (drained ? " (drained)" : " (still busy; the window ran out)"),
+            ToString());
+    }
+
+    [ThreadStatic]
+    private static Random? _random;
+
+    /// <summary>
+    /// A per-thread <see cref="Random"/>, seeded so that two processes handing off at once do not pick the same
+    /// jitter.
+    /// </summary>
+    private static Random RandomFor(ServerEndPoint server) =>
+        _random ??= new Random(Environment.TickCount ^ server.GetHashCode());
 
     private void ExtendRelaxedWindow(TimeSpan duration, string cause)
     {
