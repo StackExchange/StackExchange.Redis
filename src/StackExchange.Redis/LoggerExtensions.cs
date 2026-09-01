@@ -771,4 +771,22 @@ internal static partial class LoggerExtensions
         EventId = 116,
         Message = "{Server}: Requesting maintenance notifications ({Mode})")]
     internal static partial void LogInformationRequestingMaintenanceNotifications(this ILogger logger, ServerEndPointLogValue server, MaintenanceNotificationMode mode);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 117,
+        Message = "{Server}: Maintenance notifications accepted")]
+    internal static partial void LogInformationMaintenanceNotificationsAccepted(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 118,
+        Message = "{Server}: Maintenance notifications refused ({Reason})")]
+    internal static partial void LogInformationMaintenanceNotificationsRefused(this ILogger logger, ServerEndPointLogValue server, string reason);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 119,
+        Message = "{Server}: Maintenance handoff: {Outcome}")]
+    internal static partial void LogInformationMaintenanceHandoff(this ILogger logger, ServerEndPointLogValue server, string outcome);
 }

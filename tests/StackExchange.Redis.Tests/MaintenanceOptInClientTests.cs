@@ -1,6 +1,8 @@
-﻿﻿using System.Collections.Generic;
+﻿﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using static StackExchange.Redis.Server.RedisServer;
 
@@ -206,6 +208,58 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
         Assert.Empty(OptedIn(server));
         Assert.False(IsActive(conn, server));
         Assert.Equal("value", await Set(conn));
+    }
+
+    /// <summary>
+    /// Captures log messages so a test can assert on what an operator would actually see.
+    /// </summary>
+    private sealed class CapturingLoggerFactory : ILoggerFactory, ILogger
+    {
+        public List<string> Messages { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public void AddProvider(ILoggerProvider provider) { }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (Messages) Messages.Add(formatter(state, exception));
+        }
+
+        public string All
+        {
+            get { lock (Messages) return string.Join("\n", Messages); }
+        }
+
+        public void Dispose() { }
+    }
+
+    [Theory]
+    [InlineData(MaintenanceNotificationSupport.Supported, "Maintenance notifications accepted")]
+    [InlineData(MaintenanceNotificationSupport.Disabled, "Maintenance notifications refused")]
+    public async Task TheLogSaysWhetherTheFeatureIsLive(MaintenanceNotificationSupport support, string expected)
+    {
+        // This is the diagnostic docs/ServerMaintenanceEvent.md tells people to use, so it is worth a test.
+        // It also guards a mistake that was live for a while: the refusal was reported via
+        // PhysicalConnection.OnDetailLog, which is [Conditional("PARSE_DETAIL")] and compiles away in any normal
+        // build - so the reason a server declined was invisible to everybody who was not debugging the parser.
+        Assert.SkipUnless(TestContext.Current.IsResp3(), "the opt-in is only sent under RESP3");
+
+        using var server = CreateServer(log);
+        server.MaintenanceNotifications = support;
+
+        var captured = new CapturingLoggerFactory();
+        var config = Config(server, MaintenanceNotificationMode.Auto);
+        config.LoggerFactory = captured;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+
+        log.WriteLine(captured.All);
+        Assert.Contains(expected, captured.All);
     }
 
     [Fact]
