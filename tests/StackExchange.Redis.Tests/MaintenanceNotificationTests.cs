@@ -677,11 +677,22 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 lock (failures) failures.Add(e.FailureType);
             };
 
-            server.SendMoving(null, timeSeconds: 2, newEndpoint: server.DefaultEndPoint, sequenceId: 0);
+            // a *different* address, so the handoff target is distinguishable from where we already are
+            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+            server.SendMoving(null, timeSeconds: 2, newEndpoint: successor, sequenceId: 0);
 
             var moving = await events.NextAsync();
             Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
-            Assert.Equal(server.DefaultEndPoint, moving.NewEndPoint);
+            Assert.Equal(successor, moving.NewEndPoint);
+
+            // The handoff should have recorded where to go next. Note the in-process transport routes by
+            // *endpoint* rather than by socket address, so the fake cannot observe the redirection itself -
+            // that is what the live scenario test covers. What is checked here is the intent.
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            Assert.True(
+                await Poll.UntilAsync(() => endpoint.HandoffTarget is not null || endpoint.HandoffRecycles > 0, timeoutMilliseconds: 10_000),
+                "the handoff should have taken the named successor");
+            log.WriteLine($"handoff target: {endpoint.HandoffTarget?.ToString() ?? "(cleared after reconnect)"}; recycles={endpoint.HandoffRecycles}");
 
             // a fresh connection re-sends the opt-in, which is how a recycle is visible from the server's side
             Assert.True(

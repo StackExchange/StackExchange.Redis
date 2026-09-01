@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,10 +68,11 @@ public class MaintenanceHandoffTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task NamedSuccessorAsksForAReconfigure()
+    public async Task NamedSuccessorIsUsedDirectly()
     {
-        // Never observed on any real deployment - eleven routes, all explicit nulls - so this exists because the
-        // contract has it, not because it fires.
+        // A named successor skips DNS entirely, which is the point of the field: DNS trails a MOVING by 4.4s to
+        // 18.7s while the socket closes at 15.7s to 19.1s, so waiting for it is sometimes waiting too long.
+        // Note the resolver here still reports the *old* address, and it is never consulted.
         var successor = new IPEndPoint(Replacement, 13486);
         var decision = await MaintenanceHandoff.DecideAsync(
             Hostname, successor, currentAddress: Retiring,
@@ -79,7 +80,7 @@ public class MaintenanceHandoffTests(ITestOutputHelper log)
             resolve: Resolves(Retiring), log: log.WriteLine);
 
         log.WriteLine(decision.ToString());
-        Assert.Equal(HandoffAction.Reconfigure, decision.Action);
+        Assert.Equal(HandoffAction.MoveTo, decision.Action);
         Assert.Equal(successor, decision.Target);
     }
 

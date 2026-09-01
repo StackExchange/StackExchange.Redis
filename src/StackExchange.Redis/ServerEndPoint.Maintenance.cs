@@ -254,7 +254,62 @@ internal sealed partial class ServerEndPoint
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
 
+    private volatile EndPoint? _handoffTarget;
+    private int _handoffTargetExpiryTicks;
     private int _handoffInFlight, _handoffRecycles;
+
+    /// <summary>
+    /// Where the next connection attempt should go, when a server has named a replacement.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a *connect* target rather than a new endpoint in the collection. This
+    /// <see cref="ServerEndPoint"/> keeps its identity, its place in server selection, and - the part that
+    /// matters most - its TLS host: certificate validation and SNI are derived from
+    /// <see cref="ServerEndPoint.EndPoint"/>, so moving the socket without moving the endpoint means a handoff
+    /// cannot perturb them. Adding the moved-to address as an endpoint would; that is a documented trap in the
+    /// cross-client contract.
+    /// <para>
+    /// Expires, and that is not decoration. Without it, a server that named an address which turns out to be
+    /// unreachable would pin this endpoint to it for the lifetime of the multiplexer, because every reconnect
+    /// would keep trying the same dead target. On expiry we fall back to resolving the endpoint normally, which
+    /// is what we would have done anyway.
+    /// </para>
+    /// </remarks>
+    internal EndPoint? HandoffTarget
+    {
+        get
+        {
+            var target = _handoffTarget;
+            if (target is null) return null;
+
+            if (unchecked(Environment.TickCount - Volatile.Read(ref _handoffTargetExpiryTicks)) >= 0)
+            {
+                _handoffTarget = null; // expired; resolve the endpoint the usual way from here on
+                return null;
+            }
+
+            return target;
+        }
+    }
+
+    /// <summary>
+    /// Points the next connection attempt at a named replacement, for as long as the announced window lasts.
+    /// </summary>
+    internal void SetHandoffTarget(EndPoint target, TimeSpan window)
+    {
+        Volatile.Write(ref _handoffTargetExpiryTicks, unchecked(Environment.TickCount + (int)Math.Max(window.TotalMilliseconds, 1000)));
+        _handoffTarget = target;
+    }
+
+    /// <summary>
+    /// Forgets any handoff target, once a connection has been established.
+    /// </summary>
+    /// <remarks>
+    /// Called on full establishment rather than on the connect attempt: if the attempt fails we want the next
+    /// one to try the target again, within its window. Once a connection is up, normal resolution resumes -
+    /// by then DNS has usually caught up anyway.
+    /// </remarks>
+    internal void ClearHandoffTarget() => _handoffTarget = null;
     private volatile string? _lastHandoffOutcome;
 
     /// <summary>
@@ -335,10 +390,12 @@ internal sealed partial class ServerEndPoint
                 case HandoffAction.Recycle:
                     await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
                     break;
-                case HandoffAction.Reconfigure:
-                    // A named successor is a different endpoint, so this is a topology question. Note no
-                    // observed deployment has ever named one, so this path has never run outside a test.
-                    Multiplexer.ReconfigureIfNeeded(EndPoint, fromBroadcast: false, "moving names a successor");
+                case HandoffAction.MoveTo when decision.Target is { } target:
+                    // Point the next connection at the named address and replace the connections. Previously
+                    // this only re-read the topology and recycled, which measurably did not work: we recycled
+                    // at +6.2s, landed back on the node being retired because DNS had not moved yet, and were
+                    // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
+                    SetHandoffTarget(target, remaining);
                     await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
                     break;
                 default:

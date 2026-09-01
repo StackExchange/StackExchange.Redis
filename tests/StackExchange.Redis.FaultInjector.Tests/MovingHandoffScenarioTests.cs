@@ -116,12 +116,22 @@ public class MovingHandoffScenarioTests(ExistingDatabaseFixture fixture, ITestOu
         Assert.Equal(1, endpoint.HandoffRecycles);
         Assert.NotNull(endpoint.LastHandoffOutcome);
 
-        // Recycle *or* Reconfigure: which one depends on whether the server named a replacement, and it only
-        // does that when we asked for an endpoint type. Asserting "Recycle" alone was an assumption from the
-        // era when the field was always null.
-        Assert.True(
-            endpoint.LastHandoffOutcome.Contains("Recycle") || endpoint.LastHandoffOutcome.Contains("Reconfigure"),
-            $"unexpected handoff outcome: {endpoint.LastHandoffOutcome}");
+        // Which outcome depends on whether the server named a replacement, and it only does that when we asked
+        // for an endpoint type: MoveTo when it did, Recycle when we had to find the new address via DNS.
+        var expectedOutcome = endpointType == MaintenanceEndpointType.ServerDefault ? "Recycle" : "MoveTo";
+        Assert.Contains(expectedOutcome, endpoint.LastHandoffOutcome);
+
+        if (endpointType != MaintenanceEndpointType.ServerDefault)
+        {
+            // The payoff, and the reason to ask for an endpoint type at all: with somewhere named to go we move
+            // immediately instead of waiting on DNS, so the server never has to close the connection out from
+            // under us. Measured before this worked: the handoff happened but landed back on the node being
+            // retired, and a SocketClosed followed ~15s later.
+            lock (failures)
+            {
+                Assert.DoesNotContain(ConnectionFailureType.SocketClosed, failures);
+            }
+        }
 
         Assert.True(
             await Poll.UntilAsync(

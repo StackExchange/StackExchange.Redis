@@ -191,6 +191,16 @@ namespace StackExchange.Redis
             var rawConfig = bridge.Multiplexer.RawConfig;
             var tunnel = rawConfig.Tunnel;
             var connectTo = endpoint;
+
+            // A MOVING may name where to go next; prefer it over resolving the endpoint again, since not
+            // waiting for DNS is the point. Note this changes only the *socket target*: the endpoint itself is
+            // untouched, so identity, server selection and - importantly - the TLS host and SNI (derived from
+            // ServerEndPoint.EndPoint below) all stay exactly as configured.
+            if (bridge.ServerEndPoint?.HandoffTarget is { } handoffTarget)
+            {
+                Trace($"handoff: connecting to {Format.ToString(handoffTarget)} in place of {Format.ToString(endpoint)}");
+                connectTo = handoffTarget;
+            }
             if (tunnel is not null)
             {
                 // A transport tunnel replaces the socket outright (the widest form of the existing
