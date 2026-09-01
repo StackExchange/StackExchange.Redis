@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
@@ -52,6 +52,19 @@ public class ExistingDatabaseFixture : IAsyncLifetime
         return database!;
     }
 
+    /// <summary>
+    /// Where fixture-level diagnostics go. Deliberately collected rather than written to
+    /// <see cref="Console"/>: a fixture has no test output helper, and anything it prints to the console is
+    /// easily lost - which is how a silently failing setup call survived a day of use.
+    /// </summary>
+    public List<string> SetupLog { get; } = [];
+
+    private void log(string message)
+    {
+        SetupLog.Add(message);
+        Console.WriteLine(message);
+    }
+
     public async ValueTask InitializeAsync()
     {
         if (FaultInjectorEnvironment.Current is null)
@@ -94,20 +107,32 @@ public class ExistingDatabaseFixture : IAsyncLifetime
     /// </remarks>
     private async Task EnsureMaintenanceNotificationsEnabledAsync()
     {
-        var flags = new Dictionary<string, object?>
+        // nested under "config", not flattened - the same shape create_database wants for "database_config".
+        // A flat payload is rejected with "Invalid parameter 'config': got None", and because this call is
+        // best-effort it failed *silently* for a whole day of testing without anybody noticing. The impact was
+        // small: the environment templates enable these flags at provision time, so this is a safety net rather
+        // than the mechanism, and the tests were passing on their own merits. It matters for an environment
+        // provisioned without them, where the alternative is every test failing at connect and blaming the
+        // client for a server-side setting.
+        var parameters = new Dictionary<string, object?>
         {
-            ["client_maint_notifications"] = true,       // proxy-routed databases
-            ["oss_cluster_client_maint_notifications"] = true, // oss_cluster databases
+            ["config"] = new Dictionary<string, object?>
+            {
+                ["client_maint_notifications"] = true,             // proxy-routed databases
+                ["oss_cluster_client_maint_notifications"] = true, // oss_cluster databases
+            },
         };
 
         try
         {
-            await Injector.RunActionAsync("update_cluster_config", flags, timeout: TimeSpan.FromMinutes(2));
-            Console.WriteLine("cluster maintenance-notification flags enabled");
+            await Injector.RunActionAsync("update_cluster_config", parameters, timeout: TimeSpan.FromMinutes(2));
+            log("cluster maintenance-notification flags enabled");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"could not set cluster maintenance-notification flags: {ex.Message}");
+            // Still best-effort - a cluster may not support the flags at all - but no longer silent: it goes to
+            // the test output, where the connect failure that follows can be attributed to it.
+            log($"could not set cluster maintenance-notification flags: {ScenarioSupport.Summarize(ex.Message)}");
         }
     }
 }
