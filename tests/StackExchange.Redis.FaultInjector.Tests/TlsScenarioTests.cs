@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.IO;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
@@ -29,8 +30,10 @@ namespace StackExchange.Redis.FaultInjector.Tests;
 public class TlsScenarioTests(ExistingDatabaseFixture fixture, ITestOutputHelper log)
     : IClassFixture<ExistingDatabaseFixture>
 {
-    [Fact]
-    public async Task NotificationsArriveOverTlsAndIdentityIsVerified()
+    [Theory]
+    [InlineData(1, "single_tls", false)]
+    [InlineData(2, "mtls", true)]
+    public async Task NotificationsArriveOverTlsAndIdentityIsVerified(int variantIndex, string expectedConfig, bool expectClientCertificate)
     {
         fixture.RequireAvailable();
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -56,10 +59,14 @@ public class TlsScenarioTests(ExistingDatabaseFixture fixture, ITestOutputHelper
             // trigger offers one variant ("single"), with include_tls two ("single", "single_tls"), and with
             // include_mtls a third ("mtls"). Passing include_tls alone provisions variant 0 and yields a
             // plaintext database, which is how this test first came to skip itself.
+            // include_tls / include_mtls widen the variant list; variant_index picks one. With no flags a
+            // trigger offers just "single"; include_tls adds "single_tls"; include_mtls adds "mtls", which is
+            // the same TLS database plus enforce_client_authentication.
             extra: new Dictionary<string, string?>
             {
                 ["include_tls"] = "true",
-                ["variant_index"] = "1",
+                ["include_mtls"] = expectClientCertificate ? "true" : null,
+                ["variant_index"] = variantIndex.ToString(),
             },
             cancellationToken: cancellationToken);
 
@@ -70,6 +77,22 @@ public class TlsScenarioTests(ExistingDatabaseFixture fixture, ITestOutputHelper
         if (!database.Tls)
         {
             Assert.Skip("the injector provisioned a plaintext database despite include_tls=true; nothing to test here");
+        }
+
+        Assert.Equal(expectedConfig, database.ProxyPolicy); // the setup reports which variant it built
+        if (expectClientCertificate)
+        {
+            // A database with enforce_client_authentication rejects a connection that offers no certificate, so
+            // the material has to be there: this is the client identity, issued by the injector's own
+            // intermediate CA, and a different trust root from the one validating the server.
+            Assert.NotNull(database.Mtls);
+            log.WriteLine($"presenting client certificate {database.Mtls.ClientCertificatePath}");
+            Assert.True(File.Exists(database.Mtls.ClientCertificatePath), $"missing {database.Mtls.ClientCertificatePath}");
+            Assert.True(File.Exists(database.Mtls.ClientKeyPath), $"missing {database.Mtls.ClientKeyPath}");
+        }
+        else
+        {
+            Assert.Null(database.Mtls);
         }
 
         var clock = Stopwatch.StartNew();
@@ -137,6 +160,18 @@ public class TlsScenarioTests(ExistingDatabaseFixture fixture, ITestOutputHelper
         {
             log.WriteLine($"  {events.Count} notification(s) over TLS");
             Assert.NotEmpty(events);
+
+            // The TLS half of the endpoint-type derivation, end to end: an encrypted connection asks for an
+            // FQDN form, so a MOVING should name a *host* rather than an address - which is the whole point,
+            // since a certificate carrying DNS names cannot validate a bare IP.
+            foreach (var moving in events.Where(e => e.NotificationType == MaintenanceNotificationType.Moving))
+            {
+                log.WriteLine($"  MOVING named: {moving.NewEndPoint?.ToString() ?? "(null)"}");
+                if (moving.NewEndPoint is not null)
+                {
+                    Assert.IsType<System.Net.DnsEndPoint>(moving.NewEndPoint);
+                }
+            }
         }
 
         // and the TLS handshake succeeds again on the *replacement* connection, which is the part a

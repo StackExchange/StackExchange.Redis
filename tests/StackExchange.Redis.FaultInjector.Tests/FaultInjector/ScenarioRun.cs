@@ -56,8 +56,17 @@ public sealed class ScenarioRun : IAsyncDisposable
     /// </remarks>
     public ScenarioDatabase? Database { get; private set; }
 
+    /// <summary>The client-side material an mTLS database requires.</summary>
+    /// <remarks>
+    /// Note these are the *client* identity, issued by the fault injector's own intermediate CA, and are a
+    /// different trust root from the certificate that validates the server: that one comes from the
+    /// environment's <c>ca.crt</c>. Conflating the two is the obvious way to get an mTLS test wrong.
+    /// The paths the setup response gives are relative to the config directory.
+    /// </remarks>
+    public sealed record MtlsMaterial(string ClientCertificatePath, string ClientKeyPath, string CaChainPath);
+
     /// <summary>The database a scenario provisioned for itself.</summary>
-    public sealed record ScenarioDatabase(string Name, int BdbId, string Host, int Port, bool Tls, string? Password, string? ProxyPolicy)
+    public sealed record ScenarioDatabase(string Name, int BdbId, string Host, int Port, bool Tls, string? Password, string? ProxyPolicy, MtlsMaterial? Mtls = null)
     {
         public override string ToString() => $"{Name} ({Host}:{Port}, bdb {BdbId}, policy {ProxyPolicy ?? "?"})";
 
@@ -82,6 +91,11 @@ public sealed class ScenarioRun : IAsyncDisposable
                 options.SslHost = Host;
                 options.TrustIssuer(environment.CertificateAuthorityPath
                     ?? throw new InvalidOperationException($"{Name} uses TLS but no CA certificate was found in {environment.ConfigDirectory.FullName}"));
+
+                // ...and if the database demands a client certificate, present one. Deliberately after
+                // TrustIssuer: that decides whether we accept the *server*, this decides what we offer about
+                // ourselves, and they use different trust roots.
+                if (Mtls is { } mtls) options.SetUserPemCertificate(mtls.ClientCertificatePath, mtls.ClientKeyPath);
             }
 
             return options;
@@ -122,7 +136,7 @@ public sealed class ScenarioRun : IAsyncDisposable
         run.SetupResult = await injector.PostScenarioAsync(scenario, "setup", query, cancellationToken: cancellationToken);
         run.SetupId = FindString(run.SetupResult, "setup_id");
         run.BdbId = FindInt(run.SetupResult, "bdb_id");
-        run.Database = ReadDatabase(run.SetupResult, run.BdbId);
+        run.Database = ReadDatabase(run.SetupResult, run.BdbId, FaultInjectorEnvironment.Current?.ConfigDirectory.FullName);
         log($"setup complete: setup_id={run.SetupId ?? "(none)"} database={run.Database?.ToString() ?? "(none)"}");
         return run;
     }
@@ -178,7 +192,25 @@ public sealed class ScenarioRun : IAsyncDisposable
         }
     }
 
-    private static ScenarioDatabase? ReadDatabase(JsonElement setup, int? bdbId)
+    /// <summary>
+    /// The mTLS material a setup reported, resolved against the config directory.
+    /// </summary>
+    private static MtlsMaterial? ReadMtls(JsonElement setup, string? configDirectory)
+    {
+        if (!setup.TryGetProperty("mtls_files", out var files) || files.ValueKind != JsonValueKind.Object) return null;
+
+        var cert = FindString(files, "client_cert");
+        var key = FindString(files, "client_key");
+        var chain = FindString(files, "ca_chain");
+        if (cert is null || key is null || chain is null || configDirectory is null) return null;
+
+        return new MtlsMaterial(
+            System.IO.Path.Combine(configDirectory, cert),
+            System.IO.Path.Combine(configDirectory, key),
+            System.IO.Path.Combine(configDirectory, chain));
+    }
+
+    private static ScenarioDatabase? ReadDatabase(JsonElement setup, int? bdbId, string? configDirectory)
     {
         if (bdbId is not { } id) return null;
 
@@ -198,7 +230,8 @@ public sealed class ScenarioRun : IAsyncDisposable
             port,
             setup.TryGetProperty("tls", out var tls) && tls.ValueKind == JsonValueKind.True,
             FindString(setup, "password"),
-            FindString(setup, "config"));
+            FindString(setup, "config"),
+            ReadMtls(setup, configDirectory));
     }
 
     private static string? FindString(JsonElement element, string name)
