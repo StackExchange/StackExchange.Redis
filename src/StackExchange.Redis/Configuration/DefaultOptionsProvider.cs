@@ -351,6 +351,17 @@ namespace StackExchange.Redis.Configuration
         public virtual MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Disabled;
 
         /// <summary>
+        /// Which form of address to ask a server to name when an endpoint moves.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="MaintenanceEndpointType.ServerDefault"/> - ask for nothing, and let the server decide.
+        /// A provider that knows how its deployment is reached can do better: an FQDN form is the right answer
+        /// wherever TLS is in play, because an address cannot be validated against a DNS-only certificate.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual MaintenanceEndpointType MaintenanceMovingEndpointType => MaintenanceEndpointType.ServerDefault;
+
+        /// <summary>
         /// Gets the value command timeouts are relaxed to during an announced disruption; 10 seconds, as the
         /// notification contract prescribes.
         /// </summary>

@@ -262,6 +262,50 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
         Assert.Contains(expected, captured.All);
     }
 
+    [Theory]
+    [InlineData(MaintenanceEndpointType.ServerDefault, null)]
+    [InlineData(MaintenanceEndpointType.InternalIp, "internal-ip")]
+    [InlineData(MaintenanceEndpointType.InternalFqdn, "internal-fqdn")]
+    [InlineData(MaintenanceEndpointType.ExternalIp, "external-ip")]
+    [InlineData(MaintenanceEndpointType.ExternalFqdn, "external-fqdn")]
+    [InlineData(MaintenanceEndpointType.None, "none")]
+    public async Task MovingEndpointTypeIsSentWhenAskedFor(MaintenanceEndpointType type, string? expected)
+    {
+        // The point of asking: every MOVING observed on a real deployment carried no address, and every one of
+        // those was requested with a bare ON - so the working theory is that the server default amounts to
+        // "none". ServerDefault keeps that behaviour (send nothing); anything else says so explicitly.
+        Assert.SkipUnless(TestContext.Current.IsResp3(), "the opt-in is only sent under RESP3");
+
+        using var server = CreateServer(log);
+        var config = Config(server, MaintenanceNotificationMode.Enabled);
+        config.MaintenanceMovingEndpointType = type;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        Assert.True(IsActive(conn, server), "the server should have accepted the opt-in");
+
+        var client = Assert.Single(OptedIn(server));
+        log.WriteLine($"{type} -> moving-endpoint-type: {client.MovingEndpointType ?? "(none sent)"}");
+        Assert.Equal(expected, client.MovingEndpointType);
+    }
+
+    [Fact]
+    public async Task UnsupportedMovingEndpointTypeIsRefusedNotFatal()
+    {
+        // A server that does not know a type answers with an error, and that is a refusal like any other: with
+        // Auto we carry on without the feature rather than failing the connection.
+        Assert.SkipUnless(TestContext.Current.IsResp3(), "the opt-in is only sent under RESP3");
+
+        using var server = CreateServer(log);
+        server.SupportedMovingEndpointTypes = ["external-fqdn"]; // this deployment offers one form only
+
+        var config = Config(server, MaintenanceNotificationMode.Auto);
+        config.MaintenanceMovingEndpointType = MaintenanceEndpointType.InternalIp;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        Assert.False(IsActive(conn, server), "an unsupported endpoint type is a refusal");
+        Assert.Equal("value", await Set(conn)); // ...and the connection is still perfectly usable
+    }
+
     [Fact]
     public async Task OptInIsReArmedOnReconnect()
     {

@@ -28,9 +28,10 @@ public class MovingHandoffScenarioTests(ExistingDatabaseFixture fixture, ITestOu
     : IClassFixture<ExistingDatabaseFixture>
 {
     [Theory]
-    [InlineData("conn_drop", "endpoint_rebind")]
-    [InlineData("data_movement_conn_drop", "maintenance_mode")]
-    public async Task HandoffBeatsTheServerToTheClose(string effect, string trigger)
+    [InlineData("conn_drop", "endpoint_rebind", MaintenanceEndpointType.ServerDefault)]
+    [InlineData("data_movement_conn_drop", "maintenance_mode", MaintenanceEndpointType.ServerDefault)]
+    [InlineData("conn_drop", "endpoint_rebind", MaintenanceEndpointType.ExternalFqdn)]
+    public async Task HandoffBeatsTheServerToTheClose(string effect, string trigger, MaintenanceEndpointType endpointType)
     {
         fixture.RequireAvailable();
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -51,7 +52,11 @@ public class MovingHandoffScenarioTests(ExistingDatabaseFixture fixture, ITestOu
             log.WriteLine(entry);
         }
 
-        await using var conn = await ConnectionMultiplexer.ConnectAsync(database.GetClientConfig(fixture.Environment));
+        var config = database.GetClientConfig(fixture.Environment);
+        config.MaintenanceMovingEndpointType = endpointType;
+        log.WriteLine($"moving-endpoint-type: {endpointType}");
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
         var muxer = (IInternalConnectionMultiplexer)conn;
         var endpoint = muxer.GetServerEndPoint(conn.GetEndPoints()[0]);
 
@@ -110,7 +115,13 @@ public class MovingHandoffScenarioTests(ExistingDatabaseFixture fixture, ITestOu
         // that would catch a regression.
         Assert.Equal(1, endpoint.HandoffRecycles);
         Assert.NotNull(endpoint.LastHandoffOutcome);
-        Assert.Contains("Recycle", endpoint.LastHandoffOutcome);
+
+        // Recycle *or* Reconfigure: which one depends on whether the server named a replacement, and it only
+        // does that when we asked for an endpoint type. Asserting "Recycle" alone was an assumption from the
+        // era when the field was always null.
+        Assert.True(
+            endpoint.LastHandoffOutcome.Contains("Recycle") || endpoint.LastHandoffOutcome.Contains("Reconfigure"),
+            $"unexpected handoff outcome: {endpoint.LastHandoffOutcome}");
 
         Assert.True(
             await Poll.UntilAsync(

@@ -54,6 +54,19 @@ internal sealed partial class ServerEndPoint
     /// only the *refusal* was logged, which meant a working feature left no trace and could only be inferred
     /// from the absence of a complaint - and that is indistinguishable from never having asked.
     /// </remarks>
+    /// <summary>
+    /// The wire value for the configured <c>moving-endpoint-type</c>, or null to send no preference.
+    /// </summary>
+    private RedisValue MaintenanceMovingEndpointTypeLiteral => Multiplexer.RawConfig.MaintenanceMovingEndpointType switch
+    {
+        MaintenanceEndpointType.InternalIp => RedisLiterals.internal_ip,
+        MaintenanceEndpointType.InternalFqdn => RedisLiterals.internal_fqdn,
+        MaintenanceEndpointType.ExternalIp => RedisLiterals.external_ip,
+        MaintenanceEndpointType.ExternalFqdn => RedisLiterals.external_fqdn,
+        MaintenanceEndpointType.None => RedisLiterals.none,
+        _ => RedisValue.Null, // ServerDefault: a bare ON, which is what we have always sent
+    };
+
     internal void OnMaintenanceNotificationsAccepted(PhysicalConnection connection)
     {
         _maintenanceNotificationsActive = true;

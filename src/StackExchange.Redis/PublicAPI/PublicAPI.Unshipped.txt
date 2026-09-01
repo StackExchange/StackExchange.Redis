@@ -1,20 +1,19 @@
 ﻿#nullable enable
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
-StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
-StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
-[SER009]StackExchange.Redis.Configuration.TlsOptions
-[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions() -> void
-[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions(StackExchange.Redis.ConfigurationOptions! options) -> void
-[SER009]StackExchange.Redis.Configuration.TlsOptions.IsEnabled.get -> bool
-[SER009]StackExchange.Redis.Configuration.TlsOptions.SslHost.get -> string?
-[SER009]StackExchange.Redis.Configuration.TlsOptions.SslProtocols.get -> System.Security.Authentication.SslProtocols?
-[SER009]StackExchange.Redis.Configuration.TlsOptions.CheckCertificateRevocation.get -> bool
-[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateValidationCallback.get -> System.Net.Security.RemoteCertificateValidationCallback?
-[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateSelectionCallback.get -> System.Net.Security.LocalCertificateSelectionCallback?
-[SER009]StackExchange.Redis.Configuration.TlsOptions.ResolveHost(System.Net.EndPoint! endpoint) -> string!
-[SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, StackExchange.Redis.Configuration.TlsOptions tls, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
-StackExchange.Redis.RedisFeatures.Hello.get -> bool
+StackExchange.Redis.BitFieldEncoding
+StackExchange.Redis.BitFieldEncoding.BitFieldEncoding() -> void
+StackExchange.Redis.BitFieldEncoding.Equals(StackExchange.Redis.BitFieldEncoding other) -> bool
+StackExchange.Redis.BitFieldEncoding.IsSigned.get -> bool
+StackExchange.Redis.BitFieldEncoding.Width.get -> int
+StackExchange.Redis.BitFieldOffset
+StackExchange.Redis.BitFieldOffset.BitFieldOffset() -> void
+StackExchange.Redis.BitFieldOffset.Equals(StackExchange.Redis.BitFieldOffset other) -> bool
+StackExchange.Redis.BitFieldOperation
+StackExchange.Redis.BitFieldOperation.BitFieldOperation() -> void
+StackExchange.Redis.BitFieldOperation.Equals(StackExchange.Redis.BitFieldOperation other) -> bool
+StackExchange.Redis.BitFieldOverflow
+StackExchange.Redis.BitFieldOverflow.Fail = 2 -> StackExchange.Redis.BitFieldOverflow
+StackExchange.Redis.BitFieldOverflow.Saturate = 1 -> StackExchange.Redis.BitFieldOverflow
+StackExchange.Redis.BitFieldOverflow.Wrap = 0 -> StackExchange.Redis.BitFieldOverflow
 StackExchange.Redis.ClusterNode.AuxFields.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string!>>!
 StackExchange.Redis.ClusterNode.ClusterBusPort.get -> int?
 StackExchange.Redis.ClusterNode.Hostname.get -> string?
@@ -32,14 +31,27 @@ StackExchange.Redis.ClusterSlotNode.NodeId.get -> string?
 StackExchange.Redis.ClusterSlotNode.Port.get -> int
 StackExchange.Redis.ClusterSlotsResult
 StackExchange.Redis.ClusterSlotsResult.Assignments.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotAssignment!>!
-StackExchange.Redis.IServer.ClusterSlots(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotsResult?
-StackExchange.Redis.IServer.ClusterSlotsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotsResult?>!
-[SER007]StackExchange.Redis.RedisErrorKind.UnknownRedirectTarget = 26 -> StackExchange.Redis.RedisErrorKind
-override StackExchange.Redis.ClusterSlotNode.ToString() -> string!
-StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
-StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.Configuration.RedisCloudOptionsProvider
+StackExchange.Redis.Configuration.RedisCloudOptionsProvider.RedisCloudOptionsProvider() -> void
+StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider
+StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.RedisEnterpriseOptionsProvider() -> void
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelPassword.set -> void
+StackExchange.Redis.ConfigurationOptions.SentinelUser.get -> string?
+StackExchange.Redis.ConfigurationOptions.SentinelUser.set -> void
+StackExchange.Redis.ConnectionFailureType.MaintenanceHandoff = 12 -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
+StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<long?>!
+StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamAddOptions options, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
+StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<long?>!>!
+StackExchange.Redis.IServer.ClusterSlots(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotsResult?
+StackExchange.Redis.IServer.ClusterSlotsAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotsResult?>!
+StackExchange.Redis.RedisFeatures.BitFieldReadOnly.get -> bool
+StackExchange.Redis.RedisFeatures.Hello.get -> bool
 StackExchange.Redis.StreamAddOptions
 StackExchange.Redis.StreamAddOptions.Approximate.get -> bool
 StackExchange.Redis.StreamAddOptions.Approximate.init -> void
@@ -59,67 +71,36 @@ StackExchange.Redis.StreamAddOptions.StreamAddOptions() -> void
 StackExchange.Redis.StreamAddOptions.TrimMode.get -> StackExchange.Redis.StreamTrimMode
 StackExchange.Redis.StreamAddOptions.TrimMode.init -> void
 StackExchange.Redis.StringIndex
-const StackExchange.Redis.StringIndex.Unbounded = -9223372036854775808 -> long
-override StackExchange.Redis.BitFieldEncoding.Equals(object? obj) -> bool
-override StackExchange.Redis.BitFieldEncoding.GetHashCode() -> int
-override StackExchange.Redis.BitFieldEncoding.ToString() -> string!
-override StackExchange.Redis.BitFieldOffset.Equals(object? obj) -> bool
-override StackExchange.Redis.BitFieldOffset.GetHashCode() -> int
-override StackExchange.Redis.BitFieldOffset.ToString() -> string!
-override StackExchange.Redis.BitFieldOperation.Equals(object? obj) -> bool
-override StackExchange.Redis.BitFieldOperation.GetHashCode() -> int
-override StackExchange.Redis.BitFieldOperation.ToString() -> string!
-StackExchange.Redis.BitFieldEncoding
-StackExchange.Redis.BitFieldEncoding.BitFieldEncoding() -> void
-StackExchange.Redis.BitFieldEncoding.Equals(StackExchange.Redis.BitFieldEncoding other) -> bool
-StackExchange.Redis.BitFieldEncoding.IsSigned.get -> bool
-StackExchange.Redis.BitFieldEncoding.Width.get -> int
-StackExchange.Redis.BitFieldOffset
-StackExchange.Redis.BitFieldOffset.BitFieldOffset() -> void
-StackExchange.Redis.BitFieldOffset.Equals(StackExchange.Redis.BitFieldOffset other) -> bool
-StackExchange.Redis.BitFieldOperation
-StackExchange.Redis.BitFieldOperation.BitFieldOperation() -> void
-StackExchange.Redis.BitFieldOperation.Equals(StackExchange.Redis.BitFieldOperation other) -> bool
-StackExchange.Redis.BitFieldOverflow
-StackExchange.Redis.BitFieldOverflow.Fail = 2 -> StackExchange.Redis.BitFieldOverflow
-StackExchange.Redis.BitFieldOverflow.Saturate = 1 -> StackExchange.Redis.BitFieldOverflow
-StackExchange.Redis.BitFieldOverflow.Wrap = 0 -> StackExchange.Redis.BitFieldOverflow
-StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long?>!
-StackExchange.Redis.IDatabaseAsync.StringBitFieldAsync(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<long?>!>!
-StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, StackExchange.Redis.BitFieldOperation operation, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long?
-StackExchange.Redis.IDatabase.StringBitField(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.BitFieldOperation> operations, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<long?>!
-StackExchange.Redis.RedisFeatures.BitFieldReadOnly.get -> bool
-static StackExchange.Redis.BitFieldEncoding.Int16.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.Int32.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.Int64.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.Int8.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.operator ==(StackExchange.Redis.BitFieldEncoding x, StackExchange.Redis.BitFieldEncoding y) -> bool
-static StackExchange.Redis.BitFieldEncoding.operator !=(StackExchange.Redis.BitFieldEncoding x, StackExchange.Redis.BitFieldEncoding y) -> bool
-static StackExchange.Redis.BitFieldEncoding.Signed(int width) -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.UInt16.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.UInt32.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.UInt63.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.UInt8.get -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldEncoding.Unsigned(int width) -> StackExchange.Redis.BitFieldEncoding
-static StackExchange.Redis.BitFieldOffset.Bit(long bit) -> StackExchange.Redis.BitFieldOffset
-static StackExchange.Redis.BitFieldOffset.implicit operator StackExchange.Redis.BitFieldOffset(long bit) -> StackExchange.Redis.BitFieldOffset
-static StackExchange.Redis.BitFieldOffset.Element(long element) -> StackExchange.Redis.BitFieldOffset
-static StackExchange.Redis.BitFieldOffset.operator ==(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
-static StackExchange.Redis.BitFieldOffset.operator !=(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
-static StackExchange.Redis.BitFieldOperation.Get(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset) -> StackExchange.Redis.BitFieldOperation
-static StackExchange.Redis.BitFieldOperation.IncrementBy(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
-static StackExchange.Redis.BitFieldOperation.operator ==(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
-static StackExchange.Redis.BitFieldOperation.operator !=(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
-static StackExchange.Redis.BitFieldOperation.Set(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
+[SER007]StackExchange.Redis.Availability.HealthCheckContext.ProbeFlags.get -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.RedisErrorKind.UnknownRedirectTarget = 26 -> StackExchange.Redis.RedisErrorKind
+[SER009]StackExchange.Redis.Configuration.TlsOptions
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateSelectionCallback.get -> System.Net.Security.LocalCertificateSelectionCallback?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CertificateValidationCallback.get -> System.Net.Security.RemoteCertificateValidationCallback?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.CheckCertificateRevocation.get -> bool
+[SER009]StackExchange.Redis.Configuration.TlsOptions.IsEnabled.get -> bool
+[SER009]StackExchange.Redis.Configuration.TlsOptions.ResolveHost(System.Net.EndPoint! endpoint) -> string!
+[SER009]StackExchange.Redis.Configuration.TlsOptions.SslHost.get -> string?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.SslProtocols.get -> System.Security.Authentication.SslProtocols?
+[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions() -> void
+[SER009]StackExchange.Redis.Configuration.TlsOptions.TlsOptions(StackExchange.Redis.ConfigurationOptions! options) -> void
+[SER009]virtual StackExchange.Redis.Configuration.Tunnel.ConnectTransportAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, StackExchange.Redis.Configuration.TlsOptions tls, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<RESPite.Transports.DuplexTransport?>
+[SER010]StackExchange.Redis.Availability.FaultContext.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceMovingEndpointType.get -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceMovingEndpointType.set -> void
 [SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
 [SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceNotifications.set -> void
-[SER010]StackExchange.Redis.MaintenanceNotificationMode
-[SER010]StackExchange.Redis.MaintenanceNotificationMode.Auto = 2 -> StackExchange.Redis.MaintenanceNotificationMode
-[SER010]StackExchange.Redis.MaintenanceNotificationMode.Disabled = 0 -> StackExchange.Redis.MaintenanceNotificationMode
-[SER010]StackExchange.Redis.MaintenanceNotificationMode.Enabled = 1 -> StackExchange.Redis.MaintenanceNotificationMode
-[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-[SER010]override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-[SER010]override StackExchange.Redis.Maintenance.PushMaintenanceEvent.ToString() -> string?
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.set -> void
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.ClusterSlotMigration() -> void
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.RawSlots.get -> string?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Slots.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.SlotRange>!
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Source.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Target.get -> System.Net.EndPoint?
 [SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType
 [SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.FailedOver = 5 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
 [SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.FailingOver = 4 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
@@ -135,44 +116,73 @@ static StackExchange.Redis.BitFieldOperation.Set(StackExchange.Redis.BitFieldEnc
 [SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.NotificationType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
 [SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.Payload.get -> string?
 [SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SequenceId.get -> long
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SlotMigrations.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.Maintenance.ClusterSlotMigration>!
 [SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.Time.get -> System.TimeSpan?
-override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.AbortOnConnectFail.get -> bool
-override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.ConfigurationChannel.get -> string!
-override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
-override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+[SER010]StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.ExternalFqdn = 4 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.ExternalIp = 3 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.InternalFqdn = 2 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.InternalIp = 1 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.None = 5 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceEndpointType.ServerDefault = 0 -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Auto = 2 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Disabled = 0 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Enabled = 1 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.RedisConnectionException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.RedisTimeoutException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
 [SER010]override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-StackExchange.Redis.Configuration.RedisCloudOptionsProvider
-StackExchange.Redis.Configuration.RedisCloudOptionsProvider.RedisCloudOptionsProvider() -> void
-virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Name.get -> string?
-override StackExchange.Redis.Configuration.AzureOptionsProvider.Name.get -> string!
-override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Name.get -> string!
-override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.Name.get -> string!
-override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.ConfigurationChannel.get -> string!
-override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Name.get -> string!
-override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
 [SER010]override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider
-StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.RedisEnterpriseOptionsProvider() -> void
-override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> string!
-[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan
-[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.set -> void
-[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.get -> System.TimeSpan
-[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.set -> void
-[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.get -> System.TimeSpan
-[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.set -> void
+[SER010]override StackExchange.Redis.Maintenance.ClusterSlotMigration.ToString() -> string!
+[SER010]override StackExchange.Redis.Maintenance.PushMaintenanceEvent.ToString() -> string?
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceMovingEndpointType.get -> StackExchange.Redis.MaintenanceEndpointType
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan?
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedTimeout.get -> System.TimeSpan
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedWindowMax.get -> System.TimeSpan?
-[SER010]StackExchange.Redis.Availability.FaultContext.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
-[SER010]StackExchange.Redis.RedisConnectionException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
-[SER010]StackExchange.Redis.RedisTimeoutException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
-[SER010]override StackExchange.Redis.Maintenance.ClusterSlotMigration.ToString() -> string!
-[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration
-[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.ClusterSlotMigration() -> void
-[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.RawSlots.get -> string?
-[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Slots.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.SlotRange>!
-[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Source.get -> System.Net.EndPoint?
-[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Target.get -> System.Net.EndPoint?
-[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SlotMigrations.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.Maintenance.ClusterSlotMigration>!
-[SER007]StackExchange.Redis.Availability.HealthCheckContext.ProbeFlags.get -> StackExchange.Redis.CommandFlags
-StackExchange.Redis.ConnectionFailureType.MaintenanceHandoff = 12 -> StackExchange.Redis.ConnectionFailureType
+const StackExchange.Redis.StringIndex.Unbounded = -9223372036854775808 -> long
+override StackExchange.Redis.BitFieldEncoding.Equals(object? obj) -> bool
+override StackExchange.Redis.BitFieldEncoding.GetHashCode() -> int
+override StackExchange.Redis.BitFieldEncoding.ToString() -> string!
+override StackExchange.Redis.BitFieldOffset.Equals(object? obj) -> bool
+override StackExchange.Redis.BitFieldOffset.GetHashCode() -> int
+override StackExchange.Redis.BitFieldOffset.ToString() -> string!
+override StackExchange.Redis.BitFieldOperation.Equals(object? obj) -> bool
+override StackExchange.Redis.BitFieldOperation.GetHashCode() -> int
+override StackExchange.Redis.BitFieldOperation.ToString() -> string!
+override StackExchange.Redis.ClusterSlotNode.ToString() -> string!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.AzureOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> string!
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.AbortOnConnectFail.get -> bool
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.ConfigurationChannel.get -> string!
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.ConfigurationChannel.get -> string!
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+static StackExchange.Redis.BitFieldEncoding.Int16.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Int32.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Int64.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Int8.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Signed(int width) -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt16.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt32.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt63.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.UInt8.get -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.Unsigned(int width) -> StackExchange.Redis.BitFieldEncoding
+static StackExchange.Redis.BitFieldEncoding.operator !=(StackExchange.Redis.BitFieldEncoding x, StackExchange.Redis.BitFieldEncoding y) -> bool
+static StackExchange.Redis.BitFieldEncoding.operator ==(StackExchange.Redis.BitFieldEncoding x, StackExchange.Redis.BitFieldEncoding y) -> bool
+static StackExchange.Redis.BitFieldOffset.Bit(long bit) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.Element(long element) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.implicit operator StackExchange.Redis.BitFieldOffset(long bit) -> StackExchange.Redis.BitFieldOffset
+static StackExchange.Redis.BitFieldOffset.operator !=(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
+static StackExchange.Redis.BitFieldOffset.operator ==(StackExchange.Redis.BitFieldOffset x, StackExchange.Redis.BitFieldOffset y) -> bool
+static StackExchange.Redis.BitFieldOperation.Get(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset) -> StackExchange.Redis.BitFieldOperation
+static StackExchange.Redis.BitFieldOperation.IncrementBy(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
+static StackExchange.Redis.BitFieldOperation.Set(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
+static StackExchange.Redis.BitFieldOperation.operator !=(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
+static StackExchange.Redis.BitFieldOperation.operator ==(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Name.get -> string?

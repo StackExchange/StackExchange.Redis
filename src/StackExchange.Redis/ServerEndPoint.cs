@@ -1370,7 +1370,13 @@ namespace StackExchange.Redis
                     // downgrade once the reply has been processed. A bare ON is explicitly valid: the server
                     // then picks the endpoint type, which is what we want until we derive one ourselves.
                     log?.LogInformationRequestingMaintenanceNotifications(new(this), MaintenanceMode);
-                    msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON);
+
+                    // A bare ON leaves the endpoint type to the server, and every MOVING observed that way
+                    // carried no address at all - so when a caller asks for a specific form, say so.
+                    var endpointType = MaintenanceMovingEndpointTypeLiteral;
+                    msg = endpointType.IsNull
+                        ? Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON)
+                        : Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, [RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON, RedisLiterals.moving_endpoint_type, endpointType]);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.MaintenanceNotifications).ForAwait();
                 }

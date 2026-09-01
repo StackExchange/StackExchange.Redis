@@ -755,6 +755,18 @@ namespace StackExchange.Redis.Server
         /// </summary>
         public MaintenanceNotificationSupport MaintenanceNotifications { get; set; }
 
+        /// <summary>
+        /// The <c>moving-endpoint-type</c> values this server accepts.
+        /// </summary>
+        /// <remarks>
+        /// Configurable because a deployment need not offer all of them - an internal address is meaningless to
+        /// a client outside the network, and a deployment with no public DNS cannot offer an external FQDN. A
+        /// client that asks for one it cannot have gets an error, and that is an ordinary refusal: the feature
+        /// stays off and the connection carries on.
+        /// </remarks>
+        public string[] SupportedMovingEndpointTypes { get; set; } =
+            ["internal-ip", "internal-fqdn", "external-ip", "external-fqdn", "none"];
+
         // CLIENT MAINT_NOTIFICATIONS <ON|OFF> [parameter value ...], where parameter names follow a
         // $type-$setting convention and moving-endpoint-type is the only one defined so far. A bare ON is
         // explicitly valid and means "use the server defaults", so the parameter list is optional and
@@ -790,16 +802,9 @@ namespace StackExchange.Redis.Server
                 if (IsKeyword(request, i, "moving-endpoint-type"))
                 {
                     movingEndpointType = request.GetString(i + 1)?.ToLowerInvariant();
-                    switch (movingEndpointType)
+                    if (movingEndpointType is null || Array.IndexOf(SupportedMovingEndpointTypes, movingEndpointType) < 0)
                     {
-                        case "internal-ip":
-                        case "internal-fqdn":
-                        case "external-ip":
-                        case "external-fqdn":
-                        case "none":
-                            break;
-                        default:
-                            return TypedRedisValue.Error($"ERR unsupported moving-endpoint-type '{movingEndpointType}'");
+                        return TypedRedisValue.Error($"ERR unsupported moving-endpoint-type '{movingEndpointType}'");
                     }
                 }
                 else

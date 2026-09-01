@@ -91,6 +91,15 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            internal static MaintenanceEndpointType ParseMaintenanceEndpointType(string key, string value)
+            {
+                if (!Enum.TryParse(value, true, out MaintenanceEndpointType tmp) || !Enum.IsDefined(typeof(MaintenanceEndpointType), tmp))
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a MaintenanceEndpointType value; the value '{value}' is not recognised.");
+                }
+                return tmp;
+            }
+
             /// <summary>
             /// Parses one of the maintenance durations, which are expressed in <em>seconds</em> - the unit the
             /// cross-client contract uses for <c>maintRelaxedTimeout</c>, so a documented value can be pasted
@@ -170,6 +179,7 @@ namespace StackExchange.Redis
                 Protocol = "protocol",
                 Defaults = "defaults",
                 MaintenanceNotifications = "maintNotifications",
+                MaintenanceMovingEndpointType = "maintMovingEndpointType",
                 MaintenanceRelaxedTimeout = "maintRelaxedTimeout",
                 MaintenanceRelaxedWindowMax = "maintRelaxedWindowMax",
                 MaintenancePostEventRelaxedDuration = "maintPostEventRelaxed",
@@ -211,6 +221,7 @@ namespace StackExchange.Redis
                 SetClientLibrary,
                 Protocol,
                 Defaults,
+                MaintenanceMovingEndpointType,
                 MaintenanceNotifications,
                 MaintenanceRelaxedTimeout,
                 MaintenanceRelaxedWindowMax,
@@ -271,6 +282,7 @@ namespace StackExchange.Redis
             ProtocolHasValue = 1UL << 33,
             AllowSimulateConnectionFailure = 1UL << 34,
             MaintenanceNotificationsHasValue = 1UL << 35,
+            MaintenanceMovingEndpointTypeHasValue = 1UL << 40,
             DefaultsHasValue = 1UL << 36,
             MaintenanceRelaxedTimeoutHasValue = 1UL << 37,
             MaintenanceRelaxedWindowMaxHasValue = 1UL << 38,
@@ -301,6 +313,7 @@ namespace StackExchange.Redis
 
         private RedisProtocol _protocol;
         private MaintenanceNotificationMode _maintenanceNotifications;
+        private MaintenanceEndpointType _maintenanceMovingEndpointType;
         private TimeSpan _maintenanceRelaxedTimeout, _maintenanceRelaxedWindowMax, _maintenancePostEventRelaxedDuration;
 
         private bool HasValue(OptionFlags hasValue) => (optionFlags & hasValue) != 0;
@@ -1173,6 +1186,7 @@ namespace StackExchange.Redis
             // the string, or re-parsing would pin a choice that was only ever a guess from the endpoints
             if (HasValue(OptionFlags.DefaultsHasValue) && defaultOptions?.Name is { } defaultsName) Append(sb, OptionKeys.Defaults, defaultsName);
             if (HasValue(OptionFlags.MaintenanceNotificationsHasValue)) Append(sb, OptionKeys.MaintenanceNotifications, _maintenanceNotifications.ToString());
+            if (HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)) Append(sb, OptionKeys.MaintenanceMovingEndpointType, _maintenanceMovingEndpointType.ToString());
             if (HasValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue)) Append(sb, OptionKeys.MaintenanceRelaxedTimeout, FormatMaintenanceSeconds(_maintenanceRelaxedTimeout));
             if (HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)) Append(sb, OptionKeys.MaintenanceRelaxedWindowMax, FormatMaintenanceSeconds(_maintenanceRelaxedWindowMax));
             if (HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)) Append(sb, OptionKeys.MaintenancePostEventRelaxedDuration, FormatMaintenanceSeconds(_maintenancePostEventRelaxedDuration));
@@ -1455,6 +1469,9 @@ namespace StackExchange.Redis
                         case OptionKeys.MaintenanceNotifications:
                             SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, OptionKeys.ParseMaintenanceNotifications(key, value));
                             break;
+                        case OptionKeys.MaintenanceMovingEndpointType:
+                            SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, OptionKeys.ParseMaintenanceEndpointType(key, value));
+                            break;
                         case OptionKeys.MaintenanceRelaxedTimeout:
                             SetWithValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue, ref _maintenanceRelaxedTimeout, OptionKeys.ParseMaintenanceSeconds(key, value));
                             break;
@@ -1532,6 +1549,25 @@ namespace StackExchange.Redis
         {
             get => HasValue(OptionFlags.MaintenanceNotificationsHasValue) ? _maintenanceNotifications : Defaults.MaintenanceNotifications;
             set => SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, value);
+        }
+
+        /// <summary>
+        /// Which form of address a server should name when it announces that an endpoint is moving.
+        /// </summary>
+        /// <remarks>
+        /// Sent as <c>moving-endpoint-type</c> on the maintenance-notification opt-in.
+        /// <see cref="MaintenanceEndpointType.ServerDefault"/> (the default) sends no preference at all, which
+        /// is what the client has always done - and every <c>MOVING</c> observed that way carried no address, so
+        /// a client that wants a named replacement should ask for one. Prefer an FQDN form under TLS: an address
+        /// cannot be validated against a certificate carrying only DNS names.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public MaintenanceEndpointType MaintenanceMovingEndpointType
+        {
+            get => HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)
+                ? _maintenanceMovingEndpointType
+                : Defaults.MaintenanceMovingEndpointType;
+            set => SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
         }
 
         /// <summary>

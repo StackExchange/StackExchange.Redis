@@ -62,6 +62,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(
             new[]
             {
+                "_maintenanceMovingEndpointType",
                 "_maintenanceNotifications",
                 "_maintenancePostEventRelaxedDuration",
                 "_maintenanceRelaxedTimeout",
