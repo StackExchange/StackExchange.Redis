@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using StackExchange.Redis.Availability;
 using Xunit;
 
@@ -6,6 +6,34 @@ namespace StackExchange.Redis.Tests;
 
 public class HealthCheckPolicyUnitTests
 {
+    /// <summary>
+    /// Probe traffic must not be counted as work a caller is waiting on, because idleness is what decides
+    /// whether an endpoint that has left the deployment can be given up - a probe that looks like caller work
+    /// makes a server appear busy precisely because we are watching it.
+    /// </summary>
+    /// <remarks>
+    /// The other half of this test is what it asserts is *false*: the probe must not become an internal call,
+    /// which would also change how it is queued - internal calls bypass the backlog. A health check that
+    /// bypasses the backlog cannot observe a bridge whose queue is not draining, which is exactly the signal
+    /// geo-redundant failover depends on.
+    /// </remarks>
+    [Fact]
+    public void ProbeTrafficIsNotCallerFacingButIsRoutedNormally()
+    {
+        var flags = new HealthCheckContext(null!, TimeSpan.FromSeconds(1)).ProbeFlags;
+        Assert.NotEqual(CommandFlags.None, flags);
+
+        var message = Message.Create(-1, flags, RedisCommand.PING);
+        Assert.True(message.IsProbe);
+        Assert.False(message.IsCallerFacing);
+        Assert.False(message.IsInternalCall);
+
+        // and an ordinary command is unaffected in both directions
+        var ordinary = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+        Assert.False(ordinary.IsProbe);
+        Assert.True(ordinary.IsCallerFacing);
+    }
+
     [Theory]
     [InlineData(0, 0, 5, HealthCheckResult.Inconclusive)] // No results yet
     [InlineData(1, 0, 0, HealthCheckResult.Healthy)] // One success, no more probes

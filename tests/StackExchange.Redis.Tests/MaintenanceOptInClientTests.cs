@@ -35,6 +35,38 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
         return found;
     }
 
+    /// <summary>
+    /// Asserts that <c>Enabled</c> refused: either the connect threw, or it returned a connection that does
+    /// not stay usable.
+    /// </summary>
+    /// <remarks>
+    /// Both outcomes are the same refusal, and which one a caller sees is a race: the reconcile records the
+    /// failure from the handshake-completion path, which can land either side of <c>ConnectAsync</c> deciding
+    /// it has a connection. Asserting only the throw made this flaky on a two-core runner, and asserting the
+    /// throw is not the point - not being left with a working connection is.
+    /// </remarks>
+    private static async Task AssertRefusedAsync(ConfigurationOptions config, ITestOutputHelper log)
+    {
+        ConnectionMultiplexer? conn = null;
+        try
+        {
+            conn = await ConnectionMultiplexer.ConnectAsync(config);
+        }
+        catch (RedisConnectionException ex)
+        {
+            log.WriteLine($"refused at connect: {ex.Message}");
+            return;
+        }
+
+        await using (conn)
+        {
+            var endpoint = conn.GetEndPoints().Single();
+            var unusable = await Poll.UntilAsync(() => !conn.GetServer(endpoint).IsConnected);
+            log.WriteLine($"connected, then unusable: {unusable}");
+            Assert.True(unusable, "the connection should not have stayed usable");
+        }
+    }
+
     [Fact]
     public async Task HandshakeOptsInWhenAuto()
     {
@@ -114,9 +146,7 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
         config.AbortOnConnectFail = true;
         config.ConnectRetry = 1;
 
-        var ex = await Assert.ThrowsAsync<RedisConnectionException>(
-            async () => await ConnectionMultiplexer.ConnectAsync(config));
-        log.WriteLine(ex.Message);
+        await AssertRefusedAsync(config, log);
     }
 
     [Fact]
@@ -146,9 +176,7 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
         config.AbortOnConnectFail = true;
         config.ConnectRetry = 1;
 
-        var ex = await Assert.ThrowsAsync<RedisConnectionException>(
-            async () => await ConnectionMultiplexer.ConnectAsync(config));
-        log.WriteLine(ex.Message);
+        await AssertRefusedAsync(config, log);
     }
 
     [Fact]
@@ -162,9 +190,7 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
         config.AbortOnConnectFail = true;
         config.ConnectRetry = 1;
 
-        var ex = await Assert.ThrowsAsync<RedisConnectionException>(
-            async () => await ConnectionMultiplexer.ConnectAsync(config));
-        log.WriteLine(ex.Message);
+        await AssertRefusedAsync(config, log);
     }
 
     [Fact]
@@ -200,7 +226,12 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
 
         log.WriteLine($"opt-ins: {before} -> {server.TotalMaintenanceOptIns}");
         Assert.True(server.TotalMaintenanceOptIns > before, "the opt-in should be sent again on the new connection");
-        Assert.True(IsActive(conn, server));
+
+        // ...and then wait for *our* side of it. The count above is the server having processed the opt-in,
+        // whereas IsActive is us having processed its reply - a beat later, so asserting it directly is a race
+        // that only shows up when the runner is starved of cores.
+        await UntilCondition(() => IsActive(conn, server));
+        Assert.True(IsActive(conn, server), "the feature should be live again on the replacement connection");
     }
 
     private static async Task UntilCondition(System.Func<bool> condition, int timeoutMilliseconds = 5000)

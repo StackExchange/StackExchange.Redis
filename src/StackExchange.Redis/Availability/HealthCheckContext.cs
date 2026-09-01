@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
@@ -27,4 +27,16 @@ public readonly struct HealthCheckContext(IServer server, TimeSpan probeTimeout)
     /// themselves (the caller applies it), but may use it to bound any state they create.
     /// </summary>
     public TimeSpan ProbeTimeout => probeTimeout;
+
+    /// <summary>
+    /// Gets flags that a probe should include on every command it issues.
+    /// </summary>
+    /// <remarks>
+    /// This marks the traffic as a health check rather than as work a caller is waiting on. It matters because
+    /// idleness is what decides whether an endpoint can be given up: a probe that looks like caller work makes
+    /// a server appear busy precisely because we are watching it, and an endpoint that has left the deployment
+    /// then never gets retired. The built-in probes pass this; a custom probe should too, and passing it
+    /// changes nothing else about how the command is routed or queued.
+    /// </remarks>
+    public CommandFlags ProbeFlags => Message.ProbeFlag;
 }

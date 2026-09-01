@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
 using RESPite;
@@ -34,18 +35,31 @@ internal sealed partial class PhysicalConnection
 
         // at most three elements follow the type in any defined shape; anything beyond that is ignored
         string? e1 = null, e2 = null, e3 = null;
+        List<ClusterSlotMigration>? migrations = null;
         int count = 0;
         while (reader.SafeTryMoveNext())
         {
+            count++;
             if (!reader.IsScalar)
             {
-                // no defined notification nests anything; give up rather than guess
-                Trace($"{kind}: non-scalar element {count + 1}");
+                // SMIGRATED nests: [type, seq, [[source, target, slots], ...]]. Everything else is flat, and
+                // nesting there means a frame we do not understand - so the guard stays for those, since
+                // guessing at an unknown shape is how a parser starts inventing data
+                if (kind is PushKind.SlotMigrated or PushKind.SlotMigrating && migrations is null)
+                {
+                    // note the reader has to be moved *past* the aggregate: enumerating the children does not
+                    // advance it, so without this the loop walks back into the triplets we just read and
+                    // mistakes them for further top-level elements
+                    migrations = ReadSlotMigrations(ref reader);
+                    continue;
+                }
+
+                Trace($"{kind}: non-scalar element {count}");
                 return OutOfBandResult.Handled;
             }
 
             var element = reader.IsNull ? null : reader.ReadString();
-            switch (++count)
+            switch (count)
             {
                 case 1: e1 = element; break;
                 case 2: e2 = element; break;
@@ -54,11 +68,16 @@ internal sealed partial class PhysicalConnection
         }
 
         var type = ToNotificationType(kind);
-        if (count == 0 || !TryParseInt64(e1, out var sequenceId))
+
+        // A missing or unreadable sequence id is *not* fatal. The specs say every shape carries one, but
+        // go-redis - which runs against real servers - length-checks these frames at two elements and reads
+        // no sequence number at all for the shard notifications. So a client that drops a frame for want of a
+        // seq is stricter than one that demonstrably works. Without it we lose only dedup, which is our own
+        // invention anyway; the disruption being announced is the part that matters.
+        long? sequenceId = TryParseInt64(e1, out var parsedSequenceId) ? parsedSequenceId : null;
+        if (sequenceId is null)
         {
-            // the sequence id is the one field every shape has; without it we know too little to report
-            OnMaintenanceNotificationDropped(type, $"no sequence id in a {count + 1}-element frame");
-            return OutOfBandResult.Handled;
+            OnMaintenanceNotificationDropped(type, $"no readable sequence id in a {count + 1}-element frame; continuing without dedup");
         }
 
         long? timeSeconds = null;
@@ -93,11 +112,8 @@ internal sealed partial class PhysicalConnection
         {
             // "?" and an empty host are the contract's placeholders for "no address", and are no more
             // dialable than the null form; they must never be taken to mean "the server that told us"
-            if (payload != "?" && Format.TryParseEndPoint(payload, out var parsed) && !IsPlaceholder(parsed))
-            {
-                newEndPoint = parsed;
-            }
-            else
+            newEndPoint = ParseMigrationEndPoint(payload);
+            if (newEndPoint is null)
             {
                 Trace($"{kind}: no usable endpoint in '{payload}'");
             }
@@ -108,17 +124,122 @@ internal sealed partial class PhysicalConnection
         Trace($"maintenance notification: {raw}");
         OnDetailLog($"maintenance notification: {raw}");
 
-        var evt = new PushMaintenanceEvent(type, sequenceId, server?.EndPoint, time, newEndPoint, payload, raw);
-        muxer.OnServerMaintenanceEvent(evt);
-        return OutOfBandResult.Handled;
-
-        static bool IsPlaceholder(EndPoint endpoint) => endpoint switch
+        // relax before reporting: the event handler is consumer code, and the window should already be open
+        // by the time anyone sees the notification that opened it
+        if (server is not null)
         {
-            DnsEndPoint dns => dns.Port == 0 || dns.Host is "" or "?",
-            IPEndPoint ip => ip.Port == 0,
-            _ => false,
-        };
+            if (IsWindowOpening(type))
+            {
+                var isNew = server.OnMaintenanceWindowOpened(type, sequenceId, time);
+
+                // ...and MOVING alone means "this endpoint is going away", which is worth acting on rather than
+                // waiting to be disconnected.
+                //
+                // Only when the notification is *new*, and that is load-bearing rather than tidy. A server
+                // re-sends MOVING to a connection that opts in while the window is still open - measured, and
+                // the handoff replaces the connection, so acting on the repeat is a feedback loop: recycle,
+                // reconnect, get told again, recycle. It produced twelve recycles from one event on a real
+                // deployment before this guard. The per-server sequence dedup already knew it was a repeat; the
+                // handoff simply was not asking.
+                if (isNew && type == MaintenanceNotificationType.Moving)
+                {
+                    server.OnMovingAnnounced(time, newEndPoint, this);
+                }
+            }
+            else if (IsWindowClosing(type))
+            {
+                server.OnMaintenanceWindowClosed(type, sequenceId);
+
+                // ...and if slots moved away from us, learn the new topology rather than waiting to be told
+                // by a -MOVED. Scoped and jittered inside OnSlotsMigratedAway; see its remarks for why this
+                // is the cluster family only
+                if (type == MaintenanceNotificationType.SlotMigrated && migrations is not null)
+                {
+                    server.OnSlotsMigratedAway(migrations);
+                }
+            }
+        }
+
+        // Per-server work above, one event below: relaxation is per-connection and every connection is told,
+        // but a consumer wants one callback per logical event rather than one per proxy that mentioned it
+        if (muxer.TryClaimMaintenanceEvent(type, sequenceId))
+        {
+            var evt = new PushMaintenanceEvent(type, sequenceId ?? 0, server?.EndPoint, time, newEndPoint, payload, raw, migrations);
+            muxer.OnServerMaintenanceEvent(evt);
+        }
+        else
+        {
+            Trace($"{kind} seq {sequenceId} already reported by another node; not raising again");
+        }
+
+        return OutOfBandResult.Handled;
     }
+
+    /// <summary>
+    /// Reads the nested <c>[[source, target, slots], ...]</c> form of a cluster slot-migration notification.
+    /// </summary>
+    /// <remarks>
+    /// A malformed triplet is skipped rather than abandoning the whole notification - the same choice go-redis
+    /// makes, and the right one: the other triplets are still actionable, and one bad entry should not lose a
+    /// migration we could have applied. The slot list is a flat comma-and-range string inside each triplet.
+    /// </remarks>
+    private List<ClusterSlotMigration> ReadSlotMigrations(ref RespReader reader)
+    {
+        var results = new List<ClusterSlotMigration>();
+        var outer = reader.AggregateChildren();
+        while (outer.MoveNext())
+        {
+            var triplet = outer.Value;
+            if (!triplet.IsAggregate)
+            {
+                Trace("slot migration: expected a triplet");
+                continue;
+            }
+
+            string? source = null, target = null, slots = null;
+            int index = 0;
+            var inner = triplet.AggregateChildren();
+            while (inner.MoveNext())
+            {
+                var child = inner.Value;
+                var text = child.IsScalar && !child.IsNull ? child.ReadString() : null;
+                switch (index++)
+                {
+                    case 0: source = text; break;
+                    case 1: target = text; break;
+                    case 2: slots = text; break;
+                }
+            }
+
+            if (index < 3)
+            {
+                Trace($"slot migration: {index}-element triplet, skipped");
+                continue;
+            }
+
+            var ranges = SlotRange.TryParseList(slots, out var parsed) ? parsed : [];
+            results.Add(new ClusterSlotMigration(ParseMigrationEndPoint(source), ParseMigrationEndPoint(target), ranges, slots));
+        }
+
+        // leave the caller's reader after the aggregate, so it can carry on with any trailing elements
+        outer.MovePast(out reader);
+        return results;
+    }
+
+    /// <summary>
+    /// Parses one end of a migration, treating the placeholder forms as "not named" rather than as an error.
+    /// </summary>
+    private static EndPoint? ParseMigrationEndPoint(string? value)
+        => string.IsNullOrEmpty(value) || value == "?" || !Format.TryParseEndPoint(value, out var parsed) || IsPlaceholderEndPoint(parsed)
+            ? null
+            : parsed;
+
+    private static bool IsPlaceholderEndPoint(EndPoint endpoint) => endpoint switch
+    {
+        DnsEndPoint dns => dns.Port == 0 || dns.Host is "" or "?",
+        IPEndPoint ip => ip.Port == 0,
+        _ => false,
+    };
 
     private void OnMaintenanceNotificationDropped(MaintenanceNotificationType type, string reason)
     {
@@ -130,6 +251,27 @@ internal sealed partial class PhysicalConnection
 
     private static bool TryParseInt64(string? value, out long result)
         => long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+
+    /// <summary>
+    /// Whether this notification announces a disruption starting (or still running).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MaintenanceNotificationType.Moving"/> is an opener with no closer: its window can only end
+    /// by the deadline the server gave us, or - later - by the handoff completing.
+    /// </remarks>
+    private static bool IsWindowOpening(MaintenanceNotificationType type) => type is
+        MaintenanceNotificationType.Moving
+        or MaintenanceNotificationType.Migrating
+        or MaintenanceNotificationType.FailingOver
+        or MaintenanceNotificationType.SlotMigrating;
+
+    /// <summary>
+    /// Whether this notification announces that a disruption has finished.
+    /// </summary>
+    private static bool IsWindowClosing(MaintenanceNotificationType type) => type is
+        MaintenanceNotificationType.Migrated
+        or MaintenanceNotificationType.FailedOver
+        or MaintenanceNotificationType.SlotMigrated;
 
     /// <summary>
     /// Whether the contract gives this notification a <c>time</c> element.
@@ -151,10 +293,10 @@ internal sealed partial class PhysicalConnection
         _ => MaintenanceNotificationType.None,
     };
 
-    private static string Describe(PushKind kind, long sequenceId, long? timeSeconds, string? payload)
+    private static string Describe(PushKind kind, long? sequenceId, long? timeSeconds, string? payload)
     {
         var sb = new System.Text.StringBuilder(kind.ToString().ToUpperInvariant());
-        sb.Append(" seq=").Append(sequenceId);
+        sb.Append(" seq=").Append(sequenceId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?");
         if (timeSeconds is { } seconds) sb.Append(" time=").Append(seconds).Append('s');
         if (payload is not null) sb.Append(' ').Append(payload);
         return sb.ToString();

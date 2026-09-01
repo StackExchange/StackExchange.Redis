@@ -154,3 +154,25 @@ override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Protoc
 StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider
 StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.RedisEnterpriseOptionsProvider() -> void
 override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> string!
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.set -> void
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan?
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedTimeout.get -> System.TimeSpan
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedWindowMax.get -> System.TimeSpan?
+[SER010]StackExchange.Redis.Availability.FaultContext.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.RedisConnectionException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.RedisTimeoutException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]override StackExchange.Redis.Maintenance.ClusterSlotMigration.ToString() -> string!
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.ClusterSlotMigration() -> void
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.RawSlots.get -> string?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Slots.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.SlotRange>!
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Source.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Target.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SlotMigrations.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.Maintenance.ClusterSlotMigration>!
+[SER007]StackExchange.Redis.Availability.HealthCheckContext.ProbeFlags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.ConnectionFailureType.MaintenanceHandoff = 12 -> StackExchange.Redis.ConnectionFailureType

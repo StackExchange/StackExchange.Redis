@@ -157,7 +157,12 @@ namespace StackExchange.Redis.Server
         }
 
         private int _activeSlot = ServerSelectionStrategy.NoSlot;
-        internal void ResetAfterRequest() => _activeSlot = ServerSelectionStrategy.NoSlot;
+        internal void ResetAfterRequest()
+        {
+            _activeSlot = ServerSelectionStrategy.NoSlot;
+            FlushDeferredOutbound(); // after the reply for this command, which the read loop has now queued
+        }
+
         public virtual void OnKey(in RedisKey key, KeyFlags flags)
         {
             if ((flags & KeyFlags.NoSlotCheck) == 0 & node.CheckCrossSlot)

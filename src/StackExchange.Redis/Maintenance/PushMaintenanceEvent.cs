@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using RESPite;
@@ -26,7 +27,8 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
         TimeSpan? time,
         EndPoint? newEndPoint,
         string? payload,
-        string rawMessage)
+        string rawMessage,
+        IReadOnlyList<ClusterSlotMigration>? slotMigrations = null)
     {
         NotificationType = notificationType;
         SequenceId = sequenceId;
@@ -35,6 +37,7 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
         NewEndPoint = newEndPoint;
         Payload = payload;
         RawMessage = rawMessage;
+        SlotMigrations = slotMigrations ?? [];
         if (time is { } value && value > TimeSpan.Zero)
         {
             StartTimeUtc = ReceivedTimeUtc + value;
@@ -50,15 +53,30 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
     /// The sequence number the server attached to this notification.
     /// </summary>
     /// <remarks>
-    /// No specification defines what these mean beyond being a number that goes up, so treat any use of them
-    /// as heuristic; in particular, do not assume that they are contiguous, or that they are scoped the same
-    /// way across notification types.
+    /// No specification defines these, but observation does: on Enterprise 8.6.2 they are monotonic per
+    /// database, start at zero on a fresh one, are shared *across* notification types (a
+    /// <see cref="MaintenanceNotificationType.SlotMigrating"/> at 16 followed by its
+    /// <see cref="MaintenanceNotificationType.SlotMigrated"/> at 17), and carry the same value on every node
+    /// that broadcasts a given event - so they identify the event rather than the connection that delivered
+    /// it. That makes them genuinely useful for spotting a replay.
+    /// <para>
+    /// Still treat cross-deployment use as heuristic: this is one build of one product, and nothing obliges a
+    /// different implementation to behave the same way.
+    /// </para>
     /// </remarks>
     public long SequenceId { get; }
 
     /// <summary>
     /// The server that sent the notification.
     /// </summary>
+    /// <remarks>
+    /// More precisely: whichever node told us first. Every node broadcasts a given event, so a three-proxy
+    /// deployment delivers one migration three times, on three connections, with the same
+    /// <see cref="SequenceId"/>. All three are acted on internally - the timeout relaxation is per-server, so
+    /// each connection genuinely has to see it - but the event is raised once, for the first arrival, and the
+    /// rest are dropped. Do not read this as "the node being maintained": for the cluster notifications it is
+    /// usually a bystander reporting someone else's movements (see <see cref="SlotMigrations"/>).
+    /// </remarks>
     public EndPoint? EndPoint { get; }
 
     /// <summary>
@@ -93,6 +111,15 @@ public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
     /// carried through for diagnostics rather than parsed into a model that the contract does not pin down.
     /// </remarks>
     public string? Payload { get; }
+
+    /// <summary>
+    /// For the cluster notifications, the slot movements described; empty for everything else.
+    /// </summary>
+    /// <remarks>
+    /// A notification carries several of these, and the node that sent it is not necessarily the source of
+    /// any of them - every node reports the same movements.
+    /// </remarks>
+    public IReadOnlyList<ClusterSlotMigration> SlotMigrations { get; }
 
     /// <inheritdoc/>
     public override string? ToString() => RawMessage;
