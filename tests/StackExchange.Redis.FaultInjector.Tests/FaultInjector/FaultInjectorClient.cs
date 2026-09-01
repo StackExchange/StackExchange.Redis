@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -167,9 +167,17 @@ public sealed class FaultInjectorClient(Uri baseAddress) : IDisposable
         throw new InvalidOperationException($"{what} failed: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
     }
 
+    /// <summary>
+    /// The id of a pollable action, if this response describes one.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <c>setup_id</c>: a scenario's setup returns a *handle* to state held in the injector,
+    /// which is passed back on the run and teardown legs, and is not something <c>/action/{id}</c> knows about.
+    /// Treating it as an action id polls a URL that does not exist.
+    /// </remarks>
     private static string? ReadActionId(JsonElement element)
     {
-        foreach (var name in new[] { "action_id", "id", "setup_id" })
+        foreach (var name in new[] { "action_id", "id" })
         {
             if (element.TryGetProperty(name, out var value))
             {

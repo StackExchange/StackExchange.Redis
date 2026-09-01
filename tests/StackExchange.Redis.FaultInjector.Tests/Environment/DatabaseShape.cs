@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace StackExchange.Redis.FaultInjector.Tests;
@@ -45,10 +45,10 @@ public sealed record DatabaseShape(
     /// The <c>create_database</c> parameters for this shape.
     /// </summary>
     /// <remarks>
-    /// Built as data rather than as a typed record on purpose: these key names are the injector's wire schema,
-    /// which is documented only as prose, so they belong in one visible place where they can be corrected
-    /// against the real thing (go-redis's <c>DatabaseConfig</c> is the closest reference implementation).
-    /// Treat every name here as unverified until a real run accepts it.
+    /// Built as data rather than as a typed record, because these are the injector's wire names and its schema
+    /// declares <c>parameters</c> as untyped. The names here are no longer guesses: they match the environment's
+    /// own <c>bdb_config.json</c> and the <c>dbconfig</c> the injector itself publishes as a trigger requirement
+    /// (<c>GET /topology-change-standalone?effect=...</c>), which is the authoritative list.
     /// </remarks>
     public Dictionary<string, object?> ToCreateParameters(string name, int port)
     {
@@ -56,18 +56,25 @@ public sealed record DatabaseShape(
         {
             ["name"] = name,
             ["port"] = port,
-            ["memory_size"] = 1024 * 1024 * 100, // 100MB: enough for a scenario, small enough to place anywhere
+            ["memory_size"] = 134_217_728, // 128MB, matching what the injector asks for in its own requirements
+            ["eviction_policy"] = "volatile-lru",
             ["replication"] = Replication,
             ["sharding"] = ShardCount > 1,
             ["shards_count"] = ShardCount,
-            ["tls_mode"] = Tls ? "enabled" : "disabled",
+            ["shards_placement"] = "sparse", // spreads shards across nodes, which is what makes proxy policy visible
+            ["oss_cluster"] = OssCluster,
         };
 
-        if (OssCluster)
+        // only when asked for: a database with no tls_mode serves plaintext, and setting it here without
+        // certificates in place produces a database nothing can connect to
+        if (Tls) parameters["tls_mode"] = "enabled";
+
+        if (OssCluster && EndpointType is not null)
         {
-            parameters["oss_cluster"] = true;
-            // what CLUSTER SLOTS advertises; decides whether a TLS client can validate the targets it is given
-            if (EndpointType is not null) parameters["oss_cluster_api_preferred_ip_type"] = EndpointType;
+            // Two distinct axes, easily conflated. "endpoint_type" is ip-versus-hostname - what CLUSTER SLOTS
+            // advertises, and therefore whether a verifying TLS client can check identity on the targets it is
+            // given. "ip_type" is internal-versus-external, which is about routing rather than identity.
+            parameters["oss_cluster_api_preferred_endpoint_type"] = EndpointType;
         }
 
         if (ProxyPolicy is not null) parameters["proxy_policy"] = ProxyPolicy;
