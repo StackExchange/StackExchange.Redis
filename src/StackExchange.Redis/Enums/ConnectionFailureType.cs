@@ -68,5 +68,22 @@ namespace StackExchange.Redis
         /// </summary>
         [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CircuitBreaker,
+
+        /// <summary>
+        /// The connection was replaced deliberately, to move off an endpoint the server announced it is
+        /// retiring.
+        /// </summary>
+        /// <remarks>
+        /// Not a fault: the connection was working, and we chose to replace it while a replacement address was
+        /// known rather than wait to be disconnected. Reported here because the alternative is worse - the
+        /// replacement raises <see cref="ConnectionMultiplexer.ConnectionRestored"/>, so without this a consumer
+        /// tracking connection state sees a restore with no matching failure, and no reason for the churn.
+        /// <para>
+        /// Consumers alerting on <see cref="ConnectionMultiplexer.ConnectionFailed"/> should filter this out:
+        /// it is expected during planned maintenance and says nothing is wrong. <see cref="CircuitBreaker"/> is
+        /// the precedent for a deliberate client action being reported this way.
+        /// </para>
+        /// </remarks>
+        MaintenanceHandoff,
     }
 }

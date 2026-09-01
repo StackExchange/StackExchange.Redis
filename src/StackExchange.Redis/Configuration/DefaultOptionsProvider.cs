@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RESPite;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -27,6 +29,10 @@ namespace StackExchange.Redis.Configuration
         {
             new AzureOptionsProvider(),
             new AzureManagedRedisOptionsProvider(),
+            new RedisCloudOptionsProvider(),
+
+            // matches nothing, so its position is irrelevant; it is here to be resolvable by name
+            new RedisEnterpriseOptionsProvider(),
         };
 
         /// <summary>
@@ -50,6 +56,68 @@ namespace StackExchange.Redis.Configuration
         /// Whether this options provider matches a given endpoint, for automatically selecting a provider based on what's being connected to.
         /// </summary>
         public virtual bool IsMatch(EndPoint endpoint) => false;
+
+        /// <summary>
+        /// The name this provider can be selected by in a configuration string, as <c>defaults={name}</c>;
+        /// <c>null</c> (the default) means it cannot be named, and can only be selected in code or by
+        /// <see cref="IsMatch(EndPoint)"/>.
+        /// </summary>
+        /// <remarks>
+        /// This exists for the deployments <see cref="IsMatch(EndPoint)"/> cannot recognize: an on-premise
+        /// Enterprise cluster has arbitrary DNS, and a hosted one reached through private DNS or a proxy no
+        /// longer looks like itself. Naming is also what makes a provider expressible in the connection string
+        /// an application is configured with, rather than only in code it would have to be rebuilt to change.
+        /// <para>
+        /// Only providers registered with <see cref="AddProvider(DefaultOptionsProvider)"/> or built in can be
+        /// resolved by name - deliberately, since a configuration string that could name an arbitrary type
+        /// would be a way to have one loaded, and would defeat trimming.
+        /// </para>
+        /// </remarks>
+        public virtual string? Name => null;
+
+        /// <summary>
+        /// The provider's <see cref="Name"/> where it has one, and the type name otherwise.
+        /// </summary>
+        /// <remarks>
+        /// Display only - a provider in a log should read as <c>amr</c> rather than as a namespace-qualified
+        /// type name. Note that serialization tests <see cref="Name"/> directly rather than going through
+        /// here: this never returns <c>null</c>, and an unnameable provider must not end up in a
+        /// configuration string.
+        /// </remarks>
+        public override string ToString() => Name ?? base.ToString()!;
+
+        /// <summary>
+        /// Finds a registered provider by its <see cref="Name"/>.
+        /// </summary>
+        internal static bool TryGetByName(string name, [NotNullWhen(true)] out DefaultOptionsProvider? provider)
+        {
+            foreach (var candidate in KnownProviders)
+            {
+                if (candidate.Name is { } candidateName && string.Equals(candidateName, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    provider = candidate;
+                    return true;
+                }
+            }
+
+            provider = null;
+            return false;
+        }
+
+        /// <summary>
+        /// The names that <c>defaults=</c> accepts, for diagnostics.
+        /// </summary>
+        internal static string GetKnownNames()
+        {
+            var names = new List<string>();
+            foreach (var candidate in KnownProviders)
+            {
+                if (candidate.Name is { } name && !names.Contains(name)) names.Add(name);
+            }
+
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return string.Join(", ", names);
+        }
 
         /// <summary>
         /// Gets a provider for the given endpoints, falling back to <see cref="DefaultOptionsProvider"/> if nothing more specific is found.
@@ -266,6 +334,50 @@ namespace StackExchange.Redis.Configuration
         /// Gets the preferred protocol to use for the connection.
         /// </summary>
         public virtual RedisProtocol? Protocol => null;
+
+        /// <summary>
+        /// Gets whether to ask servers to send maintenance notifications.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="MaintenanceNotificationMode.Disabled"/> here on purpose. The notification contract asks
+        /// clients to default to <c>auto</c>, and that is right for the deployments that emit them - but this
+        /// library is pointed at every RESP implementation there is, most of which have never heard of the
+        /// opt-in, and asking them all costs a handshake slot plus an error reply in their logs. Nor is the
+        /// server the only thing in the path: proxies sit in front of these deployments, and an unrecognized
+        /// <c>CLIENT</c> subcommand is not guaranteed to be answered as politely as a server would. A provider
+        /// that recognizes a deployment which supports the feature should override this.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Disabled;
+
+        /// <summary>
+        /// Gets the value command timeouts are relaxed to during an announced disruption; 10 seconds, as the
+        /// notification contract prescribes.
+        /// </summary>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual TimeSpan MaintenanceRelaxedTimeout => TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// Gets the longest a relaxed window may last, or <c>null</c> to derive it as three times the
+        /// <em>effective</em> <see cref="ConfigurationOptions.MaintenanceRelaxedTimeout"/>.
+        /// </summary>
+        /// <remarks>
+        /// Deriving is the default because the two have to stay coherent: a cap below the timeout it bounds is
+        /// nonsense, and it is the *configured* relaxed timeout that matters, which this type cannot see.
+        /// At the prescribed 10 seconds that gives 30 - the contract caps the <c>MOVING</c> budget at 15, so
+        /// there is ample room for a legitimate window while a stuck one is bounded to half a minute. Return a
+        /// value here to pin it regardless of the relaxed timeout.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual TimeSpan? MaintenanceRelaxedWindowMax => null;
+
+        /// <summary>
+        /// Gets how long timeouts stay relaxed after a disruption reports completion, or <c>null</c> to derive
+        /// it as twice the <em>effective</em> <see cref="ConfigurationOptions.MaintenanceRelaxedTimeout"/>
+        /// (which matches go-redis at the prescribed default).
+        /// </summary>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public virtual TimeSpan? MaintenancePostEventRelaxedDuration => null;
 
         /// <summary>
         /// Gets whether to enable TCP keep-alive when appropriate (endpoint- and platform-dependent).

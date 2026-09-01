@@ -111,3 +111,68 @@ static StackExchange.Redis.BitFieldOperation.IncrementBy(StackExchange.Redis.Bit
 static StackExchange.Redis.BitFieldOperation.operator ==(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
 static StackExchange.Redis.BitFieldOperation.operator !=(StackExchange.Redis.BitFieldOperation x, StackExchange.Redis.BitFieldOperation y) -> bool
 static StackExchange.Redis.BitFieldOperation.Set(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceNotifications.set -> void
+[SER010]StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Auto = 2 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Disabled = 0 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]StackExchange.Redis.MaintenanceNotificationMode.Enabled = 1 -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+[SER010]override StackExchange.Redis.Maintenance.PushMaintenanceEvent.ToString() -> string?
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.FailedOver = 5 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.FailingOver = 4 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.Migrated = 3 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.Migrating = 2 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.Moving = 1 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.None = 0 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.SlotMigrated = 7 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.MaintenanceNotificationType.SlotMigrating = 6 -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.EndPoint.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.NewEndPoint.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.NotificationType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.Payload.get -> string?
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SequenceId.get -> long
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.Time.get -> System.TimeSpan?
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.AbortOnConnectFail.get -> bool
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.ConfigurationChannel.get -> string!
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+[SER010]override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+StackExchange.Redis.Configuration.RedisCloudOptionsProvider
+StackExchange.Redis.Configuration.RedisCloudOptionsProvider.RedisCloudOptionsProvider() -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Name.get -> string?
+override StackExchange.Redis.Configuration.AzureOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.ConfigurationChannel.get -> string!
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Name.get -> string!
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+[SER010]override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider
+StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.RedisEnterpriseOptionsProvider() -> void
+override StackExchange.Redis.Configuration.DefaultOptionsProvider.ToString() -> string!
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenancePostEventRelaxedDuration.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedTimeout.set -> void
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.get -> System.TimeSpan
+[SER010]StackExchange.Redis.ConfigurationOptions.MaintenanceRelaxedWindowMax.set -> void
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenancePostEventRelaxedDuration.get -> System.TimeSpan?
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedTimeout.get -> System.TimeSpan
+[SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceRelaxedWindowMax.get -> System.TimeSpan?
+[SER010]StackExchange.Redis.Availability.FaultContext.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.RedisConnectionException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]StackExchange.Redis.RedisTimeoutException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
+[SER010]override StackExchange.Redis.Maintenance.ClusterSlotMigration.ToString() -> string!
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.ClusterSlotMigration() -> void
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.RawSlots.get -> string?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Slots.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.SlotRange>!
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Source.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.ClusterSlotMigration.Target.get -> System.Net.EndPoint?
+[SER010]StackExchange.Redis.Maintenance.PushMaintenanceEvent.SlotMigrations.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.Maintenance.ClusterSlotMigration>!
+[SER007]StackExchange.Redis.Availability.HealthCheckContext.ProbeFlags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.ConnectionFailureType.MaintenanceHandoff = 12 -> StackExchange.Redis.ConnectionFailureType

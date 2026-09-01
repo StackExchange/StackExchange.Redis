@@ -62,7 +62,9 @@ public partial class RedisServer
         var slot = ServerSelectionStrategy.GetClusterSlot((byte[])channel);
         if (!node.HasSlot(slot)) KeyMovedException.Throw(slot);
 
-        PublishPair pair = new(channel, request.GetValue(2));
+        // note the node: without it pair.Node is null, ReferenceEquals never matches, and sharded publish
+        // silently delivers to nobody - which is how it behaved until 2026-08-26
+        PublishPair pair = new(channel, request.GetValue(2), node);
         int count = ForAllClients(pair, static (client, pair) =>
             ReferenceEquals(client.Node, pair.Node) ? client.Publish(pair.Channel, pair.Value) : 0);
         return TypedRedisValue.Integer(count);
@@ -278,6 +280,38 @@ public partial class RedisClient
         re = re.Replace(@"\?", ".").Replace(@"\*", ".*")
             .Replace(@"\[",  "[").Replace(@"\]", "]"); // not perfect, but good enough for now
         return new Regex(re, RegexOptions.CultureInvariant);
+    }
+
+    /// <summary>
+    /// Drops this client's sharded subscriptions whose channel hashes into <paramref name="hashSlot"/>,
+    /// pushing the unsolicited <c>sunsubscribe</c> a real server sends when a slot moves away.
+    /// </summary>
+    /// <returns>How many subscriptions were dropped.</returns>
+    internal int UnsubscribeMigratedSlot(int hashSlot)
+    {
+        var subs = SubscriptionsIfAny;
+        if (subs is null) return 0;
+
+        List<RedisChannel> affected = null;
+        lock (subs)
+        {
+            foreach (var pair in subs)
+            {
+                var channel = pair.Key;
+                if (channel.IsSharded && ServerSelectionStrategy.GetClusterSlot((byte[])channel) == hashSlot)
+                {
+                    (affected ??= new()).Add(channel);
+                }
+            }
+        }
+
+        if (affected is null) return 0;
+        foreach (var channel in affected)
+        {
+            Unsubscribe(channel); // removes it *and* sends the push, exactly as a client-issued one would
+        }
+
+        return affected.Count;
     }
 
     internal void Unsubscribe(RedisChannel channel)

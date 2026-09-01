@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
@@ -765,4 +765,10 @@ internal static partial class LoggerExtensions
         EventId = 110,
         Message = "{BridgeName}: Transport connected (encrypted: {IsEncrypted})")]
     internal static partial void LogInformationTransportConnected(this ILogger logger, string bridgeName, bool isEncrypted);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 116,
+        Message = "{Server}: Requesting maintenance notifications ({Mode})")]
+    internal static partial void LogInformationRequestingMaintenanceNotifications(this ILogger logger, ServerEndPointLogValue server, MaintenanceNotificationMode mode);
 }

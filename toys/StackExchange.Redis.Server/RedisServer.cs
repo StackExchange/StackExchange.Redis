@@ -112,6 +112,12 @@ namespace StackExchange.Redis.Server
                         throw new KeyNotFoundException($"Unable to remove slot {hashSlot} from old owner");
                     }
                     target.AddSlot(hashSlot);
+
+                    if (NotifyOnMigrate)
+                    {
+                        AnnounceMigration(hashSlot, pair.Value, target);
+                    }
+
                     return true;
                 }
             }
@@ -309,6 +315,38 @@ namespace StackExchange.Redis.Server
                 throw new ArgumentException($"Node already exists: {Format.ToString(endpoint)}", nameof(endpoint));
             }
             return endpoint;
+        }
+
+        /// <summary>
+        /// Removes a node from the cluster entirely, as <c>CLUSTER FORGET</c> does: it stops appearing in
+        /// <c>CLUSTER SLOTS</c> and in <c>CLUSTER NODES</c>, and any name it answered to stops resolving.
+        /// </summary>
+        /// <remarks>
+        /// Refuses while it still owns slots, which is also what a real cluster does - a node has to have its
+        /// slots migrated away before it can be forgotten, and allowing it here would produce a topology with
+        /// unowned slots that says nothing useful about client behaviour.
+        /// <para>
+        /// This exists to distinguish the two conditions a client has to tell apart: a node that currently
+        /// serves nothing is still a cluster member and may be given slots again, whereas a node that has
+        /// *left* is one whose connection should be given up.
+        /// </para>
+        /// </remarks>
+        public bool RemoveNode(EndPoint endpoint)
+        {
+            if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
+            if (!_nodes.TryGetValue(endpoint, out var node)) return false;
+            if (node.HasAnySlot) throw new InvalidOperationException($"Node still owns slots: {Format.ToString(endpoint)}");
+
+            if (!_nodes.TryRemove(endpoint, out _)) return false;
+
+            // and every alias that pointed at it, or a stale name would resolve to a node that is gone
+            foreach (var pair in _aliases)
+            {
+                if (ReferenceEquals(pair.Value, node)) _aliases.TryRemove(pair.Key, out _);
+            }
+
+            Log($"node removed from the cluster: {Format.ToString(endpoint)}");
+            return true;
         }
 
         public EndPoint AddEmptyNode(NodeFlags flags = NodeFlags.None)
@@ -722,6 +760,9 @@ namespace StackExchange.Redis.Server
         // explicitly valid and means "use the server defaults", so the parameter list is optional and
         // unrecognized parameters are an error rather than something to ignore - the client is asking the
         // server to do something specific, and silently not doing it would be worse than refusing
+        private static bool IsKeyword(in RedisRequest request, int index, string keyword)
+            => string.Equals(request.GetString(index), keyword, StringComparison.OrdinalIgnoreCase);
+
         [RedisCommand(-3, nameof(RedisCommand.CLIENT), "maint_notifications", LockFree = true)]
         protected virtual TypedRedisValue ClientMaintNotifications(RedisClient client, in RedisRequest request)
         {
@@ -733,9 +774,12 @@ namespace StackExchange.Redis.Server
                     return TypedRedisValue.Error("ERR maintenance notifications are disabled on this server");
             }
 
+            // keywords are matched case-insensitively, as a real server does; clients differ here (go-redis
+            // sends lowercase, we send the same uppercase form we use for every other keyword), and a fake
+            // that only accepted one of them would fail a client for something a real server allows
             bool on;
-            if (request.IsString(2, "on"u8)) on = true;
-            else if (request.IsString(2, "off"u8)) on = false;
+            if (IsKeyword(request, 2, "on")) on = true;
+            else if (IsKeyword(request, 2, "off")) on = false;
             else return TypedRedisValue.Error("ERR syntax error");
 
             string movingEndpointType = null;
@@ -743,9 +787,9 @@ namespace StackExchange.Redis.Server
             {
                 if (i + 1 >= request.Count) return TypedRedisValue.Error("ERR syntax error");
 
-                if (request.IsString(i, "moving-endpoint-type"u8))
+                if (IsKeyword(request, i, "moving-endpoint-type"))
                 {
-                    movingEndpointType = request.GetString(i + 1);
+                    movingEndpointType = request.GetString(i + 1)?.ToLowerInvariant();
                     switch (movingEndpointType)
                     {
                         case "internal-ip":
@@ -767,6 +811,11 @@ namespace StackExchange.Redis.Server
             client.MaintenanceNotifications = on;
             client.MovingEndpointType = on ? movingEndpointType : null;
             client.MaintenanceNotificationOptInCount++;
+            if (on)
+            {
+                OnMaintenanceOptIn();
+                ReplayRetainedCompletion(client); // the catch-up channel, immediately after this +OK
+            }
             Log($"[{client}] maintenance notifications {(on ? "on" : "off")}, moving-endpoint-type: {movingEndpointType ?? "(server default)"}");
             return TypedRedisValue.OK;
         }
@@ -1080,6 +1129,12 @@ namespace StackExchange.Redis.Server
             }
 
             public void UpdateSlots(SlotRange[] slots) => _slots = slots;
+
+            /// <summary>
+            /// Whether this node serves anything at all; note a <c>null</c> slot set means "all slots"
+            /// (the single-node default), not "none".
+            /// </summary>
+            public bool HasAnySlot => _slots is null || _slots.Length != 0;
             public ReadOnlySpan<SlotRange> Slots => _slots ?? SlotRange.SharedAllSlots;
             public bool CheckCrossSlot => _server.CheckCrossSlot;
 

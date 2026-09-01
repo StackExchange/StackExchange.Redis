@@ -812,6 +812,31 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Whether any message awaiting a response was issued by a *caller* rather than by us.
+        /// </summary>
+        /// <remarks>
+        /// The distinction matters wherever we ask "is anyone using this server": our own handshake,
+        /// autoconfigure and keep-alive traffic is not use, and treating it as such makes a server we are
+        /// probing look busy *because* we are probing it.
+        /// <para>
+        /// A predicate rather than a count, because every caller only asks whether the answer is zero - and
+        /// this way the common case (a caller's message at the head of the queue) costs one iteration instead
+        /// of walking a queue that a stalled server can leave thousands of entries long.
+        /// </para>
+        /// </remarks>
+        internal bool HasCallerMessagesAwaitingResponse()
+        {
+            lock (_writtenAwaitingResponse)
+            {
+                foreach (var message in _writtenAwaitingResponse)
+                {
+                    if (message.IsCallerFacing) return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Runs on every heartbeat for a bridge, timing out any commands that are overdue and returning an integer of how many we timed out.
         /// </summary>
         /// <param name="asyncTimeoutDetected">How many async commands were overdue and threw timeout exceptions.</param>
@@ -829,7 +854,9 @@ namespace StackExchange.Redis
                 {
                     var server = bridge.ServerEndPoint;
                     var multiplexer = bridge.Multiplexer;
-                    var timeout = multiplexer.AsyncTimeoutMilliseconds;
+
+                    // relaxed while this server has announced a disruption; a floor, never a reduction
+                    var timeout = server.GetEffectiveTimeoutMilliseconds(multiplexer.AsyncTimeoutMilliseconds);
                     foreach (var msg in _writtenAwaitingResponse)
                     {
                         // We only handle async timeouts here, synchronous timeouts are handled upstream.
@@ -1272,6 +1299,7 @@ namespace StackExchange.Redis
             ResetArena,
             ProcessBufferComplete,
             PubSubUnsubscribe,
+            MaintenanceNotification,
             NA = -1,
         }
 
@@ -1287,7 +1315,7 @@ namespace StackExchange.Redis
                     {
                         foreach (var item in _writtenAwaitingResponse)
                         {
-                            if (!item.IsInternalCall) return true;
+                            if (item.IsCallerFacing) return true;
                         }
                     }
                     return false;

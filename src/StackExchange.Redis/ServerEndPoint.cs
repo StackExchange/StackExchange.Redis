@@ -331,7 +331,22 @@ namespace StackExchange.Redis
             => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
             && (subscription?.SubscriptionCount ?? 0) == 0
             && (interactive?.SubscriptionCount ?? 0) == 0
-            && GetOutstandingCount() == 0;
+            && !HasCallerWork();
+
+        /// <summary>
+        /// Whether a *caller* is waiting on anything here, which is the only kind of work that should stop us
+        /// retiring a server.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately not <see cref="GetOutstandingCount"/>, which counts everything. A node the topology has
+        /// stopped listing still receives our autoconfigure probes on every pass, and nothing answers them, so
+        /// they accumulate in its backlog: measured at ~170 per pass, growing without bound. Counting those
+        /// made the node look busy *because* we were looking for it, so it could never be retired - the
+        /// precondition defeated itself in exactly the case pruning exists for. Keep-alive traffic has the same
+        /// property, and is excluded by the same test, since both set the internal-call flag.
+        /// </remarks>
+        internal bool HasCallerWork()
+            => interactive?.HasCallerWork() == true || subscription?.HasCallerWork() == true;
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
@@ -360,18 +375,23 @@ namespace StackExchange.Redis
             SetUnselectable(UnselectableFlags.Retiring);
             log?.LogInformationRetiringServer(new(EndPoint), reason);
 
+            // Drain what a *caller* is waiting for, not everything outstanding. Our own probes to a node that
+            // has gone away will never be answered, so draining on the total means always waiting out the full
+            // timeout before letting go - measured: a departed node accumulates our autoconfigure traffic
+            // indefinitely (500+ and climbing), so the drain never once completed early. Callers are who the
+            // drain exists for; nobody is waiting on our keep-alives.
             // Stopwatch rather than TickCount64: the latter does not exist on the down-level targets
             var watch = ValueStopwatch.StartNew();
-            int outstanding;
-            while ((outstanding = GetOutstandingCount()) > 0 && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
+            while (HasCallerWork() && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
 
-            if (outstanding > 0)
+            if (HasCallerWork())
             {
-                // deliberately reported: an abandoned command is exactly what a caller will be asking about
-                log?.LogInformationRetiringServerAbandoned(new(EndPoint), outstanding);
+                // deliberately reported: an abandoned command is exactly what a caller will be asking about.
+                // The count is the total, since that is what is actually being dropped on the floor
+                log?.LogInformationRetiringServerAbandoned(new(EndPoint), GetOutstandingCount());
             }
 
             Dispose();
@@ -926,6 +946,11 @@ namespace StackExchange.Redis
 
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
+
+                    if (connection is not null && bridge == interactive)
+                    {
+                        ReconcileMaintenanceNotifications(connection);
+                    }
                     if (bridge == subscription || isResp3)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
@@ -1241,6 +1266,10 @@ namespace StackExchange.Redis
                 // forget what the previous connection's HELLO told us; re-established below, if this one repeats it
                 // (the subscription handshake is deliberately left out of this: it doesn't do the discovery step)
                 RoleKnownFromHello = false;
+
+                // likewise per-connection: re-armed from this handshake's reply, if we ask
+                _maintenanceNotificationsActive = _maintenanceNotificationsRequested = false;
+                _maintenanceNotificationsRefusal = null;
             }
 
             // HELLO serves two purposes: negotiating RESP3, and reporting details we would otherwise need INFO or
@@ -1332,6 +1361,19 @@ namespace StackExchange.Redis
                 msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.ID);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+
+                if (ShouldRequestMaintenanceNotifications(isInteractive, negotiateResp3))
+                {
+                    _maintenanceNotificationsRequested = true;
+                    // speculative in the same way as the AUTH above: we don't yet know what HELLO negotiated,
+                    // so we ask whenever we asked for RESP3, and ReconcileMaintenanceNotifications sorts out a
+                    // downgrade once the reply has been processed. A bare ON is explicitly valid: the server
+                    // then picks the endpoint type, which is what we want until we derive one ourselves.
+                    log?.LogInformationRequestingMaintenanceNotifications(new(this), MaintenanceMode);
+                    msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON);
+                    msg.SetInternalCall();
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.MaintenanceNotifications).ForAwait();
+                }
             }
 
             var bridge = connection.BridgeCouldBeNull;

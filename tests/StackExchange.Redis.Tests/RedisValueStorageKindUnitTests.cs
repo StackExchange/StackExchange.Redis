@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -107,6 +107,6 @@ public class RedisValueStorageKindUnitTests(ITestOutputHelper output, InProcServ
         // only two storage flavors should ever appear; a third means something new crept in (e.g. a numeric
         // literal => Int64), which we want to notice
         Assert.Equal(2, byKind.Count);
-        Assert.Equal(22, Count(RedisValue.StorageType.ByteArray)); // literals > 8 bytes
+        Assert.Equal(23, Count(RedisValue.StorageType.ByteArray)); // literals > 8 bytes
     }
 }
