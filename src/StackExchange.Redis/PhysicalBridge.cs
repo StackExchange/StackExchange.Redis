@@ -1794,6 +1794,27 @@ namespace StackExchange.Redis
             physical?.SimulateConnectionFailure(failureType);
         }
 
+        /// <summary>
+        /// Drops the current connection so that a fresh one is established.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately just a dispose: that routes through <c>RecordConnectionFailed</c> to
+        /// <see cref="OnDisconnected"/>, which reconnects immediately by itself, so there is no new lifecycle
+        /// here to get wrong. Used by the <c>MOVING</c> handoff, where the point is to choose *when* the
+        /// connection is replaced - after the replacement address is known - rather than waiting for the server
+        /// to close it and re-resolving to whatever DNS says at that moment, which has been measured as still
+        /// naming the node being retired.
+        /// </remarks>
+        internal bool RecycleConnection(string reason)
+        {
+            var current = physical;
+            if (current is null) return false;
+
+            Multiplexer.Trace($"recycling {ConnectionType} connection: {reason}", ToString());
+            current.Dispose();
+            return true;
+        }
+
         internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;
     }
 }

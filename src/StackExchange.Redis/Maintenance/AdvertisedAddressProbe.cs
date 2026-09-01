@@ -59,6 +59,16 @@ namespace StackExchange.Redis.Maintenance;
 internal static class AdvertisedAddressProbe
 {
     /// <summary>
+    /// Ordinary DNS, which is what everything but a test uses.
+    /// </summary>
+    internal static Task<IPAddress[]> DefaultResolveAsync(string host, CancellationToken cancellationToken) =>
+#if NET
+        Dns.GetHostAddressesAsync(host, cancellationToken);
+#else
+        Dns.GetHostAddressesAsync(host);
+#endif
+
+    /// <summary>
     /// Polls DNS until it stops naming <paramref name="retiring"/>, or until the window runs out.
     /// </summary>
     /// <returns>

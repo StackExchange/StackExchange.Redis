@@ -131,6 +131,15 @@ internal sealed partial class PhysicalConnection
             if (IsWindowOpening(type))
             {
                 server.OnMaintenanceWindowOpened(type, sequenceId, time);
+
+                // ...and MOVING alone means "this endpoint is going away", which is worth acting on rather than
+                // waiting to be disconnected. Note this is safe from replayed notifications by construction:
+                // the server retains only shard-scoped *completions*, so a MOVING is never delivered as
+                // catch-up on a fresh connection - it always describes something happening now.
+                if (type == MaintenanceNotificationType.Moving)
+                {
+                    server.OnMovingAnnounced(time, newEndPoint, this);
+                }
             }
             else if (IsWindowClosing(type))
             {
