@@ -3214,7 +3214,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
 
                 if (reader.IsScalar && Literals.OK.Hash.IsCS(reader.TryGetSpan(out var span) ? span : reader.Buffer(stackalloc byte[16])))
                 {
-                    server?.OnMaintenanceNotificationsAccepted();
+                    server?.OnMaintenanceNotificationsAccepted(connection);
                     SetResult(message, true);
                     return true;
                 }

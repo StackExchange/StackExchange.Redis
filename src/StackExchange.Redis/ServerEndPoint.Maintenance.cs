@@ -46,7 +46,19 @@ internal sealed partial class ServerEndPoint
         && MaintenanceMode != MaintenanceNotificationMode.Disabled
         && Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT);
 
-    internal void OnMaintenanceNotificationsAccepted() => _maintenanceNotificationsActive = true;
+    /// <summary>
+    /// The server agreed to send them.
+    /// </summary>
+    /// <remarks>
+    /// Logged as well as recorded, so that the connect log answers "is this actually on?" outright. Previously
+    /// only the *refusal* was logged, which meant a working feature left no trace and could only be inferred
+    /// from the absence of a complaint - and that is indistinguishable from never having asked.
+    /// </remarks>
+    internal void OnMaintenanceNotificationsAccepted(PhysicalConnection connection)
+    {
+        _maintenanceNotificationsActive = true;
+        Multiplexer.Logger?.LogInformationMaintenanceNotificationsAccepted(new(this));
+    }
 
     /// <summary>
     /// The server declined our request. Recorded rather than acted on: whether that matters is a question for
@@ -56,7 +68,11 @@ internal sealed partial class ServerEndPoint
     {
         _maintenanceNotificationsActive = false;
         _maintenanceNotificationsRefusal = reason;
-        connection.OnDetailLog($"maintenance notifications refused: {reason}");
+
+        // via the configured logger, not OnDetailLog: that is [Conditional("PARSE_DETAIL")] and compiles away
+        // in any normal build, so for as long as it was the only report of a refusal, the reason a server
+        // declined was invisible to everybody who was not debugging the parser.
+        Multiplexer.Logger?.LogInformationMaintenanceNotificationsRefused(new(this), reason);
     }
 
     /// <summary>
@@ -281,6 +297,11 @@ internal sealed partial class ServerEndPoint
 
             Multiplexer.Trace($"MOVING: {decision}", ToString());
             _lastHandoffOutcome = decision.ToString();
+
+            // Trace is [Conditional("VERBOSE")], so without this a handoff leaves no record in a normal build -
+            // and a handoff replaces connections, which is exactly the kind of thing somebody needs to be able
+            // to find afterwards.
+            Multiplexer.Logger?.LogInformationMaintenanceHandoff(new(this), _lastHandoffOutcome);
             switch (decision.Action)
             {
                 case HandoffAction.Recycle:
