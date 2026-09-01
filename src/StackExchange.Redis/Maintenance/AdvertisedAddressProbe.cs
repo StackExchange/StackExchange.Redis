@@ -30,8 +30,10 @@ namespace StackExchange.Redis.Maintenance;
 /// </para>
 /// <para>
 /// The rule is "take any address that is not the one being retired". Note it is deliberately *not* "prefer an
-/// address that has newly appeared", even though `MOVING` is emitted precisely when the address set gains a
-/// member (established across nine observations: it is silent whenever the set only loses members). A live
+/// address that has newly appeared", even though a <c>MOVING</c> implies one exists - it is emitted when the
+/// connection's own proxy *leaves* the endpoint's address set **and** the set gains a member (established
+/// across thirteen observations: a pure reduction takes the proxy away without announcing anything, and a pure
+/// widening adds addresses while leaving the connection's proxy in place, which is equally silent). A live
 /// sibling is at least as good a target as a newly joined node and is available *now*, whereas the new node
 /// only becomes visible when the record updates - which can be after the socket has already closed. Preferring
 /// the newcomer would mean waiting for it, and waiting is the thing to avoid. The one case where it would pay
@@ -56,6 +58,16 @@ namespace StackExchange.Redis.Maintenance;
 /// </remarks>
 internal static class AdvertisedAddressProbe
 {
+    /// <summary>
+    /// Ordinary DNS, which is what everything but a test uses.
+    /// </summary>
+    internal static Task<IPAddress[]> DefaultResolveAsync(string host, CancellationToken cancellationToken) =>
+#if NET
+        Dns.GetHostAddressesAsync(host, cancellationToken);
+#else
+        Dns.GetHostAddressesAsync(host);
+#endif
+
     /// <summary>
     /// Polls DNS until it stops naming <paramref name="retiring"/>, or until the window runs out.
     /// </summary>

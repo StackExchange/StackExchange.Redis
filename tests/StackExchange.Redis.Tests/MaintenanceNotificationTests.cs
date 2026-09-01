@@ -652,6 +652,83 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task MovingRecyclesTheConnectionBeforeTheServerCloses()
+    {
+        // The point of D6: today a MOVING is survivable because the socket eventually closes and we reconnect,
+        // but the announced window goes unused. Here nothing closes the connection - MovingClosesConnection is
+        // deliberately left off - so the *only* thing that can replace it is our own handoff.
+        //
+        // The named-successor branch is what is exercised, because the in-process transport has no socket and so
+        // no current address for the DNS branch to compare against; the deciding half of that branch is covered
+        // by MaintenanceHandoffTests against a supplied resolver. What this proves is the acting half: drain,
+        // drop, and come back.
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            var optInsBefore = server.TotalMaintenanceOptIns;
+            Assert.Equal(1, optInsBefore); // the handshake's own opt-in, so the increment below means something
+
+            // A handoff has to be *visible*: the replacement raises ConnectionRestored, so reporting nothing for
+            // the drop would leave a consumer tracking connection state with an unpaired restore.
+            var failures = new List<ConnectionFailureType>();
+            conn.ConnectionFailed += (_, e) =>
+            {
+                lock (failures) failures.Add(e.FailureType);
+            };
+
+            server.SendMoving(null, timeSeconds: 2, newEndpoint: server.DefaultEndPoint, sequenceId: 0);
+
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+            Assert.Equal(server.DefaultEndPoint, moving.NewEndPoint);
+
+            // a fresh connection re-sends the opt-in, which is how a recycle is visible from the server's side
+            Assert.True(
+                await Poll.UntilAsync(() => server.TotalMaintenanceOptIns > optInsBefore, timeoutMilliseconds: 15_000),
+                "the handoff should have replaced the connection without the server closing it");
+
+            log.WriteLine($"opt-ins: {optInsBefore} -> {server.TotalMaintenanceOptIns}");
+
+            Assert.True(
+                await Poll.UntilAsync(
+                    () =>
+                    {
+                        lock (failures) return failures.Contains(ConnectionFailureType.MaintenanceHandoff);
+                    },
+                    timeoutMilliseconds: 5_000),
+                "the recycle should be reported as a MaintenanceHandoff rather than silently");
+
+            lock (failures)
+            {
+                log.WriteLine($"reported: {string.Join(", ", failures)}");
+
+                // and *only* as that: reporting it as a socket failure would put planned maintenance into
+                // everybody's fault dashboards
+                Assert.DoesNotContain(ConnectionFailureType.SocketFailure, failures);
+                Assert.DoesNotContain(ConnectionFailureType.SocketClosed, failures);
+            }
+
+            // ...and the replacement is usable, which is the only outcome a caller cares about
+            Assert.True(
+                await Poll.UntilAsync(
+                    () =>
+                    {
+                        try
+                        {
+                            return conn.IsConnected && conn.GetDatabase().Ping() >= TimeSpan.Zero;
+                        }
+                        catch (Exception ex) when (ex is RedisException or TimeoutException)
+                        {
+                            return false;
+                        }
+                    },
+                    timeoutMilliseconds: 15_000),
+                "the client should be serving commands on the replacement connection");
+        }
+    }
+
+    [Fact]
     public async Task MalformedTripletIsSkippedNotFatal()
     {
         // one bad entry must not lose the migrations we could have applied - the same choice go-redis makes
