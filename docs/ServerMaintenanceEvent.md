@@ -129,6 +129,34 @@ options.MaintenanceNotifications = MaintenanceNotificationMode.Auto;
 
 `Auto` is the right choice almost always: asking costs one command during the handshake, and a server that accepts and then never sends anything costs nothing at all. `Enabled` exists for the case where running without advance warning is worse than not running: it turns a silent absence into a startup failure, which also makes it a useful way to prove the feature is live in a staging environment.
 
+### Asking where to go next
+
+When an endpoint is being replaced, the server can name its replacement - but only if asked. The client asks by
+default (`maintMovingEndpointType=Auto`), working out the right form per connection:
+
+| | connected address is private | otherwise |
+|---|---|---|
+| **without TLS** | `internal-ip` | `external-ip` |
+| **with TLS** | `internal-fqdn` | `external-fqdn` |
+
+The TLS split is about certificate validation: a certificate carrying DNS names cannot validate a bare address,
+so an encrypted connection asks for names. Where there is no address to classify - a tunnel, a custom transport,
+a Unix domain socket - the client asks for `none` rather than guessing, and falls back to reconnecting the way it
+originally connected.
+
+This matters more than it sounds. Without a named replacement, a handoff has to wait for DNS to be repointed,
+and DNS has been measured trailing the notification by anywhere from 4 to 19 seconds while the socket closes at
+about 16 to 19 seconds - so on a bad run the connection is gone before DNS is ready. With a named replacement
+the client moves within a second and the server never has to close anything.
+
+Override it if your deployment needs a specific form:
+
+```
+maintMovingEndpointType=ExternalFqdn
+```
+
+or `ServerDefault` to ask for nothing at all, which is what earlier versions did.
+
 ## What the client does without your involvement
 
 | Notification | What the client does |

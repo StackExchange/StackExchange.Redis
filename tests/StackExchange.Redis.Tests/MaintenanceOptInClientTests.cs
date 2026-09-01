@@ -85,8 +85,12 @@ public class MaintenanceOptInClientTests(ITestOutputHelper log)
 
         if (resp3)
         {
-            // a bare ON, so the server chooses; nothing here invents an endpoint type
-            Assert.Null(Assert.Single(OptedIn(server)).MovingEndpointType);
+            // The endpoint type now defaults to Auto, and over the in-process transport there is no socket
+            // address to classify - so it resolves to "none", meaning "send me no address, I will reconnect the
+            // way I connected". That is the honest answer where the scope cannot be determined, and it is what
+            // a tunnel or a Unix domain socket gets. Over a real socket this would be one of the four
+            // ip/fqdn forms; see MaintenanceEndpointTypeResolverTests.
+            Assert.Equal("none", Assert.Single(OptedIn(server)).MovingEndpointType);
         }
 
         // ...and the connection is entirely usable either way

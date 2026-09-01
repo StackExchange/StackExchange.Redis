@@ -354,12 +354,20 @@ namespace StackExchange.Redis.Configuration
         /// Which form of address to ask a server to name when an endpoint moves.
         /// </summary>
         /// <remarks>
-        /// <see cref="MaintenanceEndpointType.ServerDefault"/> - ask for nothing, and let the server decide.
-        /// A provider that knows how its deployment is reached can do better: an FQDN form is the right answer
-        /// wherever TLS is in play, because an address cannot be validated against a DNS-only certificate.
+        /// <see cref="MaintenanceEndpointType.Auto"/>: derive it per connection, and ask. A bare opt-in leaves
+        /// the choice to the server, and measurement showed what that means in practice - every <c>MOVING</c>
+        /// observed that way named no replacement at all, so a handoff had to wait for DNS, which trails the
+        /// notification by anywhere from four to nineteen seconds. Asking produces an address immediately.
+        /// <para>
+        /// Safe to ask for: a server whose metadata lacks the parameter, or lacks the specific form requested,
+        /// answers with a null endpoint rather than an error - which is exactly the behaviour of not asking. So
+        /// the downside of the request is nothing, and the upside is a handoff that does not race DNS. If a
+        /// deployment is ever seen *refusing* the parameter outright, the fix is to remember that per server and
+        /// fall back to a bare opt-in; nothing observed so far needs it.
+        /// </para>
         /// </remarks>
         [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-        public virtual MaintenanceEndpointType MaintenanceMovingEndpointType => MaintenanceEndpointType.ServerDefault;
+        public virtual MaintenanceEndpointType MaintenanceMovingEndpointType => MaintenanceEndpointType.Auto;
 
         /// <summary>
         /// Gets the value command timeouts are relaxed to during an announced disruption; 10 seconds, as the
