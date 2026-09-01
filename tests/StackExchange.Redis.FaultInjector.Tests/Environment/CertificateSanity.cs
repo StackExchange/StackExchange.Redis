@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using Xunit;
@@ -36,33 +38,57 @@ internal static class CertificateSanity
         if (!File.Exists(leafPath)) return;
 
         var leaf = X509CertificateLoader.LoadCertificateFromFile(leafPath);
-        var names = leaf.GetNameInfo(X509NameType.DnsName, forIssuer: false) ?? "(none)";
-        log($"environment server certificate covers '{names}'; cluster is '{clusterName}'");
+        var names = ReadDnsNames(leaf);
+        log($"environment server certificate covers [{string.Join(", ", names)}]; cluster is '{clusterName}'");
 
-        if (!CoversHost(names, clusterName))
+        if (!names.Any(name => CoversClusterEndpoints(name, clusterName)))
         {
             Assert.Skip(
-                $"the environment's TLS certificates were issued for '{names}' but this cluster is "
+                $"the environment's TLS certificates cover [{string.Join(", ", names)}] but this cluster is "
                 + $"'{clusterName}' - they are left over from an earlier provision, so a TLS test here would "
                 + "only be measuring the mismatch. Re-provision with certificate generation enabled to run it.");
         }
     }
 
     /// <summary>
-    /// Whether a certificate name - possibly a wildcard - covers a host.
+    /// Every DNS name a certificate carries, not just the first.
     /// </summary>
-    private static bool CoversHost(string certificateName, string host)
+    /// <remarks>
+    /// <c>GetNameInfo</c> returns one name, which is not enough: these certificates carry both a wildcard and
+    /// the bare cluster name, and which one comes back decides the answer. Reading the SAN extension properly is
+    /// the difference between a check that works and one that skips a perfectly good environment - as the first
+    /// version of this did.
+    /// </remarks>
+    private static List<string> ReadDnsNames(X509Certificate2 certificate)
+    {
+        foreach (var extension in certificate.Extensions)
+        {
+            if (extension is X509SubjectAlternativeNameExtension san)
+            {
+                return [.. san.EnumerateDnsNames()];
+            }
+        }
+
+        var subject = certificate.GetNameInfo(X509NameType.DnsName, forIssuer: false);
+        return subject is null ? [] : [subject];
+    }
+
+    /// <summary>
+    /// Whether a certificate name covers the endpoints of a given cluster.
+    /// </summary>
+    /// <remarks>
+    /// The hosts actually dialled are *database* endpoints - <c>redis-13500.&lt;cluster&gt;</c> - so a wildcard
+    /// whose parent is the cluster name is exactly right, even though (correctly) it does not match the bare
+    /// cluster name itself. An exact SAN for the cluster name also counts, since that is what the REST API is
+    /// reached by.
+    /// </remarks>
+    private static bool CoversClusterEndpoints(string certificateName, string clusterName)
     {
         if (certificateName.StartsWith("*.", StringComparison.Ordinal))
         {
-            // a wildcard matches one label, so compare the parent domains
-            var suffix = certificateName[1..]; // ".domain"
-            var dot = host.IndexOf('.');
-            var parent = dot >= 0 ? host[dot..] : host;
-            return string.Equals(suffix, parent, StringComparison.OrdinalIgnoreCase)
-                || host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(certificateName[2..], clusterName, StringComparison.OrdinalIgnoreCase);
         }
 
-        return string.Equals(certificateName, host, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(certificateName, clusterName, StringComparison.OrdinalIgnoreCase);
     }
 }

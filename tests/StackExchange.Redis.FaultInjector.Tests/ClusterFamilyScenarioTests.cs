@@ -33,15 +33,12 @@ public class ClusterFamilyScenarioTests(ExistingDatabaseFixture fixture, ITestOu
     /// ways a slot map can go stale, and only one of them (shuffle) leaves the endpoint set alone.
     /// </remarks>
     /// <remarks>
-    /// <c>remove-add</c> is absent deliberately: the discovery endpoint offers it, but
-    /// <c>/slot-migrate/setup</c> cannot provision for it (its effect enum is only
-    /// <c>slot-shuffle</c>/<c>add</c>/<c>remove</c>), so it would need a database built by hand with
-    /// <c>create_database</c>. The three here already cover the ways a slot map goes stale.
+    /// Only <c>remove</c> here. The other effects need a database the setup leg will not provision, and get
+    /// their own fixture below rather than skipping: <c>add</c> and <c>slot-shuffle</c> need a node holding
+    /// several shards, and <c>remove-add</c> is not in <c>/slot-migrate/setup</c>'s effect enum at all.
     /// </remarks>
     [Theory]
     [InlineData("remove", "migrate")]
-    [InlineData("add", "migrate")]
-    [InlineData("slot-shuffle", "migrate")]
     public async Task SlotMigrationIsAnnouncedAndActedOn(string effect, string trigger)
     {
         fixture.RequireAvailable();

@@ -20,7 +20,9 @@ public sealed record DatabaseShape(
     bool Tls = false,
     bool Replication = false,
     int ShardCount = 1,
-    string? EndpointType = null)
+    string? EndpointType = null,
+    string ShardsPlacement = "sparse",
+    string IpType = "external")
 {
     /// <summary>A proxied standalone database: the shape <c>MOVING</c> actually fires on.</summary>
     public static readonly DatabaseShape ProxiedStandalone = new("proxied-standalone", ProxyPolicy: "single");
@@ -30,6 +32,22 @@ public sealed record DatabaseShape(
 
     /// <summary>OSS cluster API: the family that emits <c>SMIGRATING</c>/<c>SMIGRATED</c> instead.</summary>
     public static readonly DatabaseShape OssClusterApi = new("oss-cluster", OssCluster: true, ProxyPolicy: "all-master-shards", ShardCount: 2);
+
+    /// <summary>
+    /// An OSS cluster whose shards are packed, so some node holds more than one.
+    /// </summary>
+    /// <remarks>
+    /// Exists to reach the <c>add</c> and <c>slot-shuffle</c> migrations, which need a node holding several
+    /// shards to have something to move. The scenario setup legs cannot produce that - they provision one shard
+    /// per node - so those effects looked like an environment limitation until this was tried: six shards with
+    /// <c>dense</c> placement over three nodes gives two per node, and both effects then run.
+    /// <para>
+    /// Note it also demonstrates the placement-versus-policy point from the other direction: packed masters mean
+    /// <c>all-master-shards</c> advertises a *single* address, because the count follows placement.
+    /// </para>
+    /// </remarks>
+    public static readonly DatabaseShape OssClusterDense = new(
+        "oss-cluster-dense", OssCluster: true, ProxyPolicy: "all-master-shards", ShardCount: 6, ShardsPlacement: "dense");
 
     /// <summary>
     /// TLS with hostname-advertised endpoints - the documented coverage gap.
@@ -65,7 +83,7 @@ public sealed record DatabaseShape(
             ["replication"] = Replication,
             ["sharding"] = ShardCount > 1,
             ["shards_count"] = ShardCount,
-            ["shards_placement"] = "sparse", // spreads shards across nodes, which is what makes proxy policy visible
+            ["shards_placement"] = ShardsPlacement,
             ["oss_cluster"] = OssCluster,
         };
 
@@ -85,6 +103,16 @@ public sealed record DatabaseShape(
         // only when asked for: a database with no tls_mode serves plaintext, and setting it here without
         // certificates in place produces a database nothing can connect to
         if (Tls) parameters["tls_mode"] = "enabled";
+
+        if (OssCluster)
+        {
+            // Which addresses CLUSTER SLOTS advertises, and it is not cosmetic: the default is *internal*, so a
+            // cluster database created without this advertises VPC-private addresses. A client outside the VPC
+            // then connects to the seed, discovers nodes at 10.x, and cannot reach any of them - which is
+            // exactly how the first dense-cluster run failed. Distinct from EndpointType (ip versus hostname),
+            // which is about identity rather than routing.
+            parameters["oss_cluster_api_preferred_ip_type"] = IpType;
+        }
 
         if (OssCluster && EndpointType is not null)
         {
