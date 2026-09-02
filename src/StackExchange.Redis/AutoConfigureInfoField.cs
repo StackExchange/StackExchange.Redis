@@ -41,6 +41,12 @@ internal enum AutoConfigureInfoField
     [AsciiHash("dragonfly_version")]
     DragonflyVersion,
 
+    [AsciiHash("memurai_version")]
+    MemuraiVersion,
+
+    [AsciiHash("redict_version")]
+    RedictVersion,
+
     [AsciiHash("server_mode")]
     ServerMode,
 }

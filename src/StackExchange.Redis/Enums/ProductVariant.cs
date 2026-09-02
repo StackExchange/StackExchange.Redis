@@ -29,5 +29,15 @@ public enum ProductVariant
     /// </summary>
     Dragonfly,
 
+    /// <summary>
+    /// <a href="https://www.memurai.com/">Memurai</a>
+    /// </summary>
+    Memurai,
+
+    /// <summary>
+    /// <a href="https://redict.io/">Redict</a>
+    /// </summary>
+    Redict,
+
     // if you want to add another variant here, please open an issue with the details (variant name, INFO output, etc.)
 }
