@@ -390,6 +390,13 @@ internal sealed partial class ServerEndPoint
                 case HandoffAction.Recycle:
                     await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
                     break;
+                case HandoffAction.RecycleAtHalfWindow:
+                    // The contract's rule for "no replacement named", applied where there is nothing better to
+                    // go on. Half of the *announced* window, less whatever the jitter already spent.
+                    var half = TimeSpan.FromTicks(window.Ticks / 2) - jitter;
+                    if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
+                    await DrainThenRecycleAsync(window - jitter - (half > TimeSpan.Zero ? half : TimeSpan.Zero), decision.Reason).ForAwait();
+                    break;
                 case HandoffAction.MoveTo when decision.Target is { } target:
                     // Point the next connection at the named address and replace the connections. Previously
                     // this only re-read the topology and recycled, which measurably did not work: we recycled

@@ -53,18 +53,19 @@ public class MaintenanceHandoffTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task AddressEndpointWithNoSuccessorHasNothingToDo()
+    public async Task AddressEndpointWithNoSuccessorReconnectsOnTheClock()
     {
-        // An address cannot be re-resolved, and nothing was named: there is no handoff to make. This is the
-        // case a cluster deployment would hit, and it is why MOVING must not simply reuse endpoint retirement -
-        // there would be nothing to retire *to*.
+        // An address cannot be re-resolved and nothing was named, so a change is undetectable from here - which
+        // is exactly the case the contract's half-window rule was written for. The address may be a stable
+        // front for a backend that has already moved, and waiting passively means being closed mid-command
+        // instead of choosing the moment.
         var decision = await MaintenanceHandoff.DecideAsync(
             new IPEndPoint(Retiring, 13486), successor: null, currentAddress: Retiring,
             window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10),
             resolve: Resolves(Replacement), log: log.WriteLine);
 
         log.WriteLine(decision.ToString());
-        Assert.Equal(HandoffAction.None, decision.Action);
+        Assert.Equal(HandoffAction.RecycleAtHalfWindow, decision.Action);
     }
 
     [Fact]
@@ -85,17 +86,35 @@ public class MaintenanceHandoffTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task UnknownCurrentAddressDoesNothingRatherThanGuessing()
+    public async Task UnknownCurrentAddressReconnectsOnTheClockRatherThanPolling()
     {
-        // Recycling here would mean accepting whatever DNS says *now*, which for the first several seconds is
-        // the address being retired - so we would hand off to the node we were told to leave.
+        // With no idea where we are, "has it moved?" is unanswerable, so there is nothing to poll for. A
+        // tunnel or a Unix domain socket lands here, and for a tunnel the target genuinely may have moved
+        // underneath us - so the half-window reconnect is the only tool, and better than waiting to be closed.
         var decision = await MaintenanceHandoff.DecideAsync(
             Hostname, successor: null, currentAddress: null,
             window: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10),
             resolve: Resolves(Replacement), log: log.WriteLine);
 
         log.WriteLine(decision.ToString());
-        Assert.Equal(HandoffAction.None, decision.Action);
+        Assert.Equal(HandoffAction.RecycleAtHalfWindow, decision.Action);
+    }
+
+    [Fact]
+    public async Task PollingBeatsTheClockWhenWeCanSeeTheAddress()
+    {
+        // The deliberate divergence from the contract's half-window rule, and the reason for it. Where DNS can
+        // be polled we wait for it to actually move rather than reconnecting on a timer: measured across three
+        // runs, DNS had moved by half of a 15s window only once (+4.4s), and lagged well past it otherwise
+        // (+9.7s, +18.7s) - so reconnecting on the clock would usually land back on the node being retired.
+        // Doing nothing when it never moves is also deliberate: the server closes the socket, the reconnect
+        // re-resolves, and the relaxed window covers the gap.
+        var stillOld = await MaintenanceHandoff.DecideAsync(
+            Hostname, successor: null, currentAddress: Retiring,
+            window: TimeSpan.FromMilliseconds(120), pollInterval: TimeSpan.FromMilliseconds(20),
+            resolve: Resolves(Retiring), log: log.WriteLine);
+
+        Assert.Equal(HandoffAction.None, stillOld.Action);
     }
 
     [Theory]

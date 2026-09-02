@@ -13,6 +13,24 @@ internal enum HandoffAction
     /// <summary>Nothing useful is available; let the server close the socket and reconnect then.</summary>
     None,
 
+    /// <summary>
+    /// Replace the connections once half the announced window has passed, without looking for a better target.
+    /// </summary>
+    /// <remarks>
+    /// The contract's rule for a notification that names no replacement: "schedule a graceful reconnect to its
+    /// currently configured endpoint after *half* of the grace period is over" - not immediately, and not at the
+    /// deadline. Used only where there is nothing better to go on, because measurement shows it is premature
+    /// when there is: at half of a 15s window, DNS had moved in one of three observed runs, so reconnecting on
+    /// the clock alone would usually land back on the node being retired.
+    /// <para>
+    /// Where it *is* right: an address endpoint, or a connection whose address we cannot see. Those cannot be
+    /// re-resolved, so a change is undetectable from here - but the address may well be a stable front for a
+    /// backend that has already moved, which is exactly the case the rule was written for. Waiting passively
+    /// instead means being closed mid-command rather than choosing the moment.
+    /// </para>
+    /// </remarks>
+    RecycleAtHalfWindow,
+
     /// <summary>Drop our connections so they re-establish against the replacement address.</summary>
     Recycle,
 
@@ -93,16 +111,17 @@ internal static class MaintenanceHandoff
         if (endpoint is not DnsEndPoint dns)
         {
             return new HandoffDecision(
-                HandoffAction.None,
+                HandoffAction.RecycleAtHalfWindow,
                 null,
                 $"{Format.ToString(endpoint)} is an address, not a name, and no replacement was named: nothing to re-resolve");
         }
 
         if (currentAddress is null)
         {
-            // Without knowing where we are, "has it moved" is unanswerable - and guessing would mean recycling
-            // onto whatever DNS says right now, which for the first several seconds is the address being retired.
-            return new HandoffDecision(HandoffAction.None, null, "the address of the current connection is unknown");
+            // Without knowing where we are, "has it moved" is unanswerable, so there is nothing to poll for -
+            // which is precisely when the contract's half-window reconnect is the right tool.
+            return new HandoffDecision(
+                HandoffAction.RecycleAtHalfWindow, null, "the address of the current connection is unknown");
         }
 
         var replacement = await AdvertisedAddressProbe.ProbeAsync(
