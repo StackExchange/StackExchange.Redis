@@ -11,7 +11,7 @@ namespace StackExchange.Redis;
 [StructLayout(LayoutKind.Explicit)]
 public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable<RedisKey>, IEquatable<RedisValue>
 {
-    private enum StorageType
+    internal enum StorageType
     {
         Null,
         Key,
@@ -24,7 +24,7 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
     [FieldOffset(8)] private readonly object? _obj;
 #pragma warning restore SA1134
 
-    private StorageType Type
+    internal StorageType Type
     {
         get
         {
@@ -35,7 +35,7 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
         }
     }
 
-    private RedisKey UnsafeKey
+    internal RedisKey UnsafeKey
     {
         get
         {
@@ -45,7 +45,7 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
         }
     }
 
-    private RedisValue UnsafeValue
+    internal RedisValue UnsafeValue
     {
         get
         {

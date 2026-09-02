@@ -6141,23 +6141,19 @@ namespace StackExchange.Redis
                 }
                 foreach (ref readonly var arg in _args.Span)
                 {
-                    var value = arg.Value;
-                    if (!value.IsNull)
+                    var type = arg.Type;
+                    if (type == RedisKeyOrValue.StorageType.Value)
                     {
-                        writer.WriteBulkString(value);
+                        writer.WriteBulkString(arg.UnsafeValue);
+                    }
+                    else if (type == RedisKeyOrValue.StorageType.Key)
+                    {
+                        writer.Write(arg.UnsafeKey);
                     }
                     else
                     {
-                        var key = arg.Key;
-                        if (!key.IsNull)
-                        {
-                            writer.Write(key);
-                        }
-                        else
-                        {
-                            Debug.Assert(arg.IsNull);
-                            throw new InvalidOperationException("A null is not valid in this context");
-                        }
+                        Debug.Assert(type == RedisKeyOrValue.StorageType.Null);
+                        throw new InvalidOperationException("A null is not valid in this context");
                     }
                 }
                 _argsDisposer?.Dispose(_args);
@@ -6328,14 +6324,15 @@ namespace StackExchange.Redis
                 var span = args.Span;
                 foreach (ref readonly var arg in span)
                 {
-                    if (arg.IsNull) throw new ArgumentException("A null is not valid in this context", nameof(args));
-                    if (arg.IsKey)
+                    var type = arg.Type;
+                    if (type == RedisKeyOrValue.StorageType.Null) throw new ArgumentException("A null is not valid in this context", nameof(args));
+                    if (type == RedisKeyOrValue.StorageType.Key)
                     {
                         keysCount++;
                     }
                     else
                     {
-                        Debug.Assert(arg.IsValue);
+                        Debug.Assert(type == RedisKeyOrValue.StorageType.Value);
                         break;
                     }
                 }
@@ -6344,8 +6341,9 @@ namespace StackExchange.Redis
                 {
                     foreach (ref readonly var arg in span.Slice(keysCount + 1))
                     {
-                        if (!arg.IsValue)
-                            throw new ArgumentException(arg.IsNull ? "A null is not valid in this context" : "A key is not valid in this context. Keys must come before values.", nameof(args));
+                        var type = arg.Type;
+                        if (type != RedisKeyOrValue.StorageType.Value)
+                            throw new ArgumentException(type == RedisKeyOrValue.StorageType.Null ? "A null is not valid in this context" : "A key is not valid in this context. Keys must come before values.", nameof(args));
                     }
                 }
                 _args = args;
