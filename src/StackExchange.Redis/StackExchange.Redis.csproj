@@ -61,6 +61,8 @@
     <InternalsVisibleTo Include="StackExchange.Redis.Server" />
     <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
     <InternalsVisibleTo Include="StackExchange.Redis.FaultInjector.Tests" />
+    <!-- the soak asserts on internal state: relaxed windows, the dedup ring, handoff flags -->
+    <InternalsVisibleTo Include="StackExchange.Redis.MaintenanceSoak" />
   </ItemGroup>
 
   <ItemGroup>
