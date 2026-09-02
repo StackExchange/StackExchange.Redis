@@ -39,5 +39,10 @@ public enum ProductVariant
     /// </summary>
     Redict,
 
+    /// <summary>
+    /// <a href="https://keydb.dev">KeyDB</a>
+    /// </summary>
+    KeyDB,
+
     // if you want to add another variant here, please open an issue with the details (variant name, INFO output, etc.)
 }

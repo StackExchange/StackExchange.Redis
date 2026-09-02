@@ -49,6 +49,9 @@ internal enum AutoConfigureInfoField
 
     [AsciiHash("server_mode")]
     ServerMode,
+
+    [AsciiHash("executable")]
+    Executable,
 }
 
 /// <summary>

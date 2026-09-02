@@ -1007,6 +1007,12 @@ namespace StackExchange.Redis
                                     productVariant = ProductVariant.Redict;
                                     productVersion = valSpan.ToString();
                                     break;
+                                case AutoConfigureInfoField.Executable:
+                                    if (valSpan.EndsWith("/keydb-server"))
+                                    {
+                                        productVariant = ProductVariant.KeyDB;
+                                    }
+                                    break;
                             }
                         }
                         if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
