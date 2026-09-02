@@ -71,9 +71,15 @@ public class MovingHandoffScenarioTests(ExistingDatabaseFixture fixture, ITestOu
             Note($"disconnect: {e.FailureType}");
         };
         conn.ConnectionRestored += (_, _) => Note("reconnected");
+        var movingSequences = new HashSet<long>();
         conn.ServerMaintenanceEvent += (_, e) =>
         {
-            if (e is PushMaintenanceEvent push) Note($"{push.NotificationType} seq={push.SequenceId} time={push.Time?.TotalSeconds.ToString() ?? "-"}");
+            if (e is not PushMaintenanceEvent push) return;
+            Note($"{push.NotificationType} seq={push.SequenceId} time={push.Time?.TotalSeconds.ToString() ?? "-"}");
+            if (push.NotificationType == MaintenanceNotificationType.Moving)
+            {
+                lock (movingSequences) movingSequences.Add(push.SequenceId);
+            }
         };
 
         clock.Restart();
@@ -108,12 +114,21 @@ public class MovingHandoffScenarioTests(ExistingDatabaseFixture fixture, ITestOu
             // invisible, which is worth knowing in its own right and is why HandoffRecycles exists.
         }
 
-        // Exactly one handoff per notification. More than one is the feedback loop this test found on its first
-        // live run: a server re-sends MOVING to a connection that opts in while the window is still open, and
-        // since the handoff replaces the connection, acting on the repeat produces another one - twelve
-        // recycles from a single event. The per-server sequence dedup now gates it, and this is the assertion
-        // that would catch a regression.
-        Assert.Equal(1, endpoint.HandoffRecycles);
+        // Exactly one handoff per distinct notification - not one overall, which is what this asserted until a
+        // live run proved the scenario can announce twice. The `maintenance_mode` trigger reports
+        // `automatically_clean_mm: false`, so the node stays in maintenance mode after the effect lands and
+        // coming back out of it moves the shard again: MOVING seq=2 at +14.9s and seq=3 at +97.0s, one recycle
+        // each, and the client was right both times.
+        //
+        // What the count still catches is the feedback loop this test found on its first live run: a server
+        // re-sends MOVING to a connection that opts in while the window is still open, and since the handoff
+        // replaces the connection, acting on the repeat produces another one - twelve recycles from *one*
+        // event. A replay repeats the sequence number, so keying on the sequence keeps that sharp while
+        // letting a genuine second event through.
+        int announced;
+        lock (movingSequences) announced = movingSequences.Count;
+        Assert.True(announced > 0, "no MOVING was announced, so this test would prove nothing");
+        Assert.Equal(announced, endpoint.HandoffRecycles);
         Assert.NotNull(endpoint.LastHandoffOutcome);
 
         // Which outcome depends on whether the server named a replacement, and it only does that when we asked
