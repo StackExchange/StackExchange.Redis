@@ -20,6 +20,30 @@ it already holds the cluster credentials (`env_output.json`), the CA certificate
 has to be hand-carried into the test run. `FAULT_INJECTION_API_URL` overrides the injector URL
 (default `http://127.0.0.1:20324`).
 
+## The one test that is opt-in even here
+
+`RetentionAgeScenarioTests` measures how long the server retains a completion for replay to a
+newly-opted-in connection - the last unmeasured property of the catch-up channel. It fires one failover and
+then probes on a ladder (1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240 minutes), so it runs for as long as
+you let it and skips unless you ask for it:
+
+```bash
+export SER_FI_RETENTION_AGE_MINUTES=180        # trims the ladder; absent means skip
+export SER_FI_RETENTION_AGE_LOG=/tmp/age.log   # optional; defaults under the temp directory
+```
+
+Two details that are not incidental:
+
+- **Progress is written to a file, flushed per line.** `ITestOutputHelper` is buffered until the test ends, so
+  over three hours a run in progress and a run that has wedged look identical through the normal channel.
+- **Two probes per rung.** If the first sees the replay and the second does not, the server clears the retained
+  item on delivery - in which case later rungs are measuring an empty channel rather than an expired one. That
+  confound is invisible with one probe per rung and looks exactly like an early expiry. (Measured 2026-09-02:
+  both probes see it, so retention is not consumed on delivery.)
+- A probe that cannot connect is recorded as **inconclusive, not as a miss**: the run outlives its cluster's
+  lease easily, and counting a dead environment as "no replay" would report an expiry at whatever minute the
+  cluster went away.
+
 ## Three states, deliberately distinct
 
 | state | behaviour |
