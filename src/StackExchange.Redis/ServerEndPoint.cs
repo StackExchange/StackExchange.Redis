@@ -934,6 +934,61 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// How many consecutive failures to connect justify re-reading the topology.
+        /// </summary>
+        /// <remarks>
+        /// Three: enough to rule out a single transient refusal, few enough that recovery is seconds. The
+        /// number matters less than that there *is* one - the failure this addresses lasted 37 hours.
+        /// </remarks>
+        private const int ConnectFailuresBeforeRefresh = 3;
+
+        private int _lastConnectFailureRefreshTicks;
+
+        /// <summary>
+        /// Called when a connection attempt to this endpoint has failed, with the consecutive failure count.
+        /// </summary>
+        /// <remarks>
+        /// The gap this closes: every existing path that re-reads the topology needs somebody *else* to notice
+        /// first - a notification, a <c>MOVED</c> from a reachable node, a peer's config broadcast. A client
+        /// with quiet healthy connections and one endpoint that only ever refuses has nobody to tell it, so it
+        /// dials the dead address indefinitely. That is not hypothetical: a customer's client did exactly that
+        /// for 37 hours across a Redis Cloud node replacement.
+        /// <para>
+        /// Rate-limited to <see cref="ConfigurationOptions.ConfigCheckSeconds"/>, deliberately reusing the
+        /// knob that already means "how often may we re-read configuration" rather than inventing one. The
+        /// limit is the part that makes this safe: the existing gate exists to stop a stampede - a dead
+        /// endpoint, times a retry loop, times every client in a fleet, each issuing <c>CLUSTER NODES</c> - and
+        /// removing the gate without replacing the restraint would trade a stuck client for a thundering herd.
+        /// </para>
+        /// <para>
+        /// It repeats rather than firing once, because one refresh is not guaranteed to help: the topology may
+        /// not have been updated server-side yet. A permanently dead endpoint therefore prompts a re-read at
+        /// most once per interval until something changes, which is what makes recovery eventual rather than
+        /// lucky.
+        /// </para>
+        /// </remarks>
+        internal void OnRepeatedConnectFailure(int consecutiveFailures)
+        {
+            if (consecutiveFailures < ConnectFailuresBeforeRefresh || isDisposed) return;
+
+            // nothing to learn about an endpoint we have already decided to let go of
+            if ((unselectableReasons & UnselectableFlags.Retiring) != 0) return;
+
+            var interval = Math.Max(Multiplexer.RawConfig.ConfigCheckSeconds, 5) * 1000;
+            var now = Environment.TickCount;
+            var last = Volatile.Read(ref _lastConnectFailureRefreshTicks);
+            if (last != 0 && unchecked(now - last) < interval) return;
+
+            if (Interlocked.CompareExchange(ref _lastConnectFailureRefreshTicks, NudgeFromZeroTicks(now), last) != last) return;
+
+            Multiplexer.Logger?.LogInformationRefreshingAfterConnectFailures(new(this), consecutiveFailures);
+            Multiplexer.ReconfigureIfNeeded(EndPoint, fromBroadcast: false, $"{consecutiveFailures} consecutive connect failures");
+        }
+
+        /// <summary>Zero means "never", so a tick count that lands on it moves by one.</summary>
+        private static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
+
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             try

@@ -802,4 +802,10 @@ internal static partial class LoggerExtensions
         EventId = 119,
         Message = "{Server}: Maintenance handoff: {Outcome}")]
     internal static partial void LogInformationMaintenanceHandoff(this ILogger logger, ServerEndPointLogValue server, string outcome);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 120,
+        Message = "{Server}: Re-reading topology after {Failures} consecutive connect failures")]
+    internal static partial void LogInformationRefreshingAfterConnectFailures(this ILogger logger, ServerEndPointLogValue server, int failures);
 }

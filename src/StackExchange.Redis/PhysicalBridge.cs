@@ -507,9 +507,20 @@ namespace StackExchange.Redis
                 }
                 ServerEndPoint.OnDisconnected(this);
 
-                if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
+                if (!isDisposed)
                 {
-                    TryConnect(null); // try to connect immediately
+                    var consecutive = Interlocked.Increment(ref failConnectCount);
+                    if (consecutive == 1)
+                    {
+                        TryConnect(null); // try to connect immediately
+                    }
+
+                    // An endpoint we cannot even connect to is evidence that what we believe about the
+                    // deployment may be wrong - and until now nothing acted on that. The reconfigure-on-failure
+                    // path is gated on reconfigureNextFailure, which is only ever set once a connection has
+                    // been *established*, so a node that has only ever refused could be retried forever
+                    // without anybody re-reading the topology. Measured in the field: 37 hours.
+                    ServerEndPoint.OnRepeatedConnectFailure(consecutive);
                 }
             }
             else if (physical == null)
