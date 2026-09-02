@@ -56,6 +56,33 @@ namespace StackExchange.Redis.Server
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 
+        /// <summary>
+        /// An artificial delay applied before each reply, to make command timeouts happen on demand.
+        /// </summary>
+        /// <remarks>
+        /// This is how "does relaxation actually save a command?" gets tested. The obvious alternative - the
+        /// fault injector's <c>network_latency</c> action against a real cluster - turns out to be the wrong
+        /// tool: it applies netem to a whole *node's* interface, so it delays the cluster's internal traffic
+        /// and its DNS as well as the client's, and 200ms across two of three nodes was enough to take a
+        /// working deployment offline. Its <c>duration_seconds</c> did not revert either. A per-connection
+        /// delay here is precise, instant, and cannot break anything.
+        /// <para>
+        /// Applies to *every* reply on the connection, including a handshake, so set it after connecting
+        /// unless a slow handshake is what is being tested.
+        /// </para>
+        /// </remarks>
+        public TimeSpan ResponseDelay { get; set; }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Not an <c>async</c> method: the base signature takes the request by <c>in</c>, which async forbids.
+        /// </remarks>
+        protected override ValueTask ClientPauseAsync(RedisClient client, in RedisRequest request)
+        {
+            var delay = ResponseDelay;
+            return delay > TimeSpan.Zero ? new ValueTask(Task.Delay(delay)) : default;
+        }
+
         private int _maintenanceSequence;
         private int _maintenanceOptIns;
         private (MaintenanceNotificationKind Kind, long Sequence, string ShardIds)? _retainedCompletion;
