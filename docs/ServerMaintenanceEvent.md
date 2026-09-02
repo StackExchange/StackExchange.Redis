@@ -175,7 +175,7 @@ Redis Enterprise **retains the most recent completion** - `MIGRATED` or `FAILED_
 * Only completions are replayed. Starters (`MIGRATING`, `FAILING_OVER`) are not, and neither is `MOVING` - so a replay can never demand that you move.
 * One item, most-recent-replaces; there is no queue.
 * It arrives within milliseconds of the opt-in being accepted, which is *during* connection establishment - so an event handler attached after `ConnectAsync` returns will usually not see it.
-* **It can be very old.** The same `FAILED_OVER` was still being replayed to fresh connections 90 minutes after the failover, with no expiry observed, and a completion carries no time field - so nothing in the notification says how old it is.
+* **It can be very old.** The same `FAILED_OVER` was still being replayed to fresh connections **three hours** after the failover - the longest anybody has measured, and it had not expired then - and a completion carries no time field, so nothing in the notification says how old it is.
 
 Because of that last point, a completion that arrives while the connection is still being established does **not** relax timeouts: it is history, not news. A completion that arrives on a live connection does, as the table above says. If you act on these events yourself, treat one that arrives at connection time as "this happened at some point", not "this is happening".
 

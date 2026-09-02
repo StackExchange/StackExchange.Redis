@@ -248,7 +248,7 @@ internal sealed partial class ServerEndPoint
 
         // A completion delivered while we were still connecting is the server's catch-up channel, and
         // measurement says that channel has no age limit: the same FAILED_OVER was replayed to fresh
-        // connections 90 minutes after the failover, and completions carry no time field, so nothing in the
+        // connections three hours after the failover, and completions carry no time field, so nothing in the
         // frame distinguishes "just happened" from "happened this morning". Without this, every new
         // connection to a database that had ever failed over began life with the full post-event tail of
         // relaxed timeouts, and reported any timeout inside it as caused by maintenance that was long over.

@@ -115,7 +115,7 @@ public class MaintenanceRelaxationTests(ITestOutputHelper log)
     public async Task ACatchUpCompletionOpensNoTail()
     {
         // Measured on a live deployment: a completion is retained and replayed to whoever opts in next, with
-        // no age limit found (the same FAILED_OVER came back at least 90 minutes later), and completions carry
+        // no age limit found (the same FAILED_OVER came back three hours later), and completions carry
         // no time field - so nothing in the frame says how old it is. Relaxing on one would mean every new
         // connection to a database that had ever failed over started life patient about timeouts, and
         // reporting any that expired as caused by maintenance long since finished.

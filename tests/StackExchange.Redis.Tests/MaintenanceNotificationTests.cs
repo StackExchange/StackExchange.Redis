@@ -559,7 +559,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 Assert.Contains("(catch-up)", received);
 
                 // ...and it did *not* relax anything. Measured on a live deployment: the same completion is
-                // replayed to fresh connections at least 90 minutes after the event, and completions carry no
+                // replayed to fresh connections three hours after the event, and completions carry no
                 // time field, so relaxing here would mean every new connection to a database that had ever
                 // failed over began life patient about timeouts, and attributing any of them to maintenance
                 // that was long finished.

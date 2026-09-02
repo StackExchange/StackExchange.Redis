@@ -126,7 +126,7 @@ internal sealed partial class PhysicalConnection
 
         // A notification that arrives before the bridge reports established is the server's *catch-up* copy:
         // it retains the completion of a shard-scoped event and replays it to whoever opts in next, with no
-        // measured age limit (the same FAILED_OVER came back 90 minutes later). Distinguishing the two matters
+        // measured age limit (the same FAILED_OVER came back three hours later). Distinguishing the two matters
         // for the completions, which otherwise relax timeouts on a brand-new connection for an event that
         // finished long ago; the starters are unaffected, since nothing retains them.
         var isCatchUp = BridgeCouldBeNull?.IsConnected != true;
