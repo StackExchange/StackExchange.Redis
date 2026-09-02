@@ -179,6 +179,8 @@ Redis Enterprise **retains the most recent completion** - `MIGRATED` or `FAILED_
 
 Because of that last point, a completion that arrives while the connection is still being established does **not** relax timeouts: it is history, not news. A completion that arrives on a live connection does, as the table above says. If you act on these events yourself, treat one that arrives at connection time as "this happened at some point", not "this is happening".
 
+That applies to completions only. A *starter* arriving as you connect is not a replay - nothing retains those - so it still relaxes timeouts: it is the server telling a late-joining connection what is left of a disruption already in progress, which is when patience is most useful.
+
 Note that a deliberate handoff appears as a `ConnectionFailed` event with `FailureType == ConnectionFailureType.MaintenanceHandoff`. That is expected during planned maintenance and does not indicate a fault; if you alert on `ConnectionFailed`, filter it out.
 
 ## Watching the events
