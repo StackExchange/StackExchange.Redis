@@ -236,9 +236,31 @@ internal sealed partial class ServerEndPoint
     /// previously said about duration is stale - but the tail still applies, because completion is when every
     /// other client that received the same notification re-engages.
     /// </remarks>
-    internal void OnMaintenanceWindowClosed(MaintenanceNotificationType type, long? sequenceId)
+    /// <param name="type">Which completion this is.</param>
+    /// <param name="sequenceId">The server's sequence number, for repeat detection.</param>
+    /// <param name="isCatchUp">
+    /// Whether this arrived as part of establishing the connection rather than on a live one - in which case
+    /// it is the server's retained copy of an event that has already finished, and gets no tail.
+    /// </param>
+    internal void OnMaintenanceWindowClosed(MaintenanceNotificationType type, long? sequenceId, bool isCatchUp)
     {
         if (!TryClaimSequenceId(type, sequenceId)) return;
+
+        // A completion delivered while we were still connecting is the server's catch-up channel, and
+        // measurement says that channel has no age limit: the same FAILED_OVER was replayed to fresh
+        // connections 90 minutes after the failover, and completions carry no time field, so nothing in the
+        // frame distinguishes "just happened" from "happened this morning". Without this, every new
+        // connection to a database that had ever failed over began life with the full post-event tail of
+        // relaxed timeouts, and reported any timeout inside it as caused by maintenance that was long over.
+        //
+        // Note this declines to *open* a window rather than closing one. Relaxation belongs to the
+        // ServerEndPoint and is shared by both bridges, so a catch-up arriving on a reconnecting subscription
+        // bridge must not cancel a window that a live notification opened on the established interactive one.
+        if (isCatchUp)
+        {
+            Multiplexer.Trace($"{type}: catch-up copy of a finished event; no relaxation", ToString());
+            return;
+        }
 
         Volatile.Write(ref _relaxedType, (int)type);
         var tail = Multiplexer.RawConfig.MaintenancePostEventRelaxedDuration;

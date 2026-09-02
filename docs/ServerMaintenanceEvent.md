@@ -168,6 +168,17 @@ or `ServerDefault` to ask for nothing at all, which is what earlier versions did
 
 So an application that does nothing at all still benefits: commands that would have timed out during a migration are given more room, a moved slot is learned without waiting to be redirected, and a `MOVING` is acted on before the server closes the socket.
 
+### Notifications that arrive as you connect
+
+Redis Enterprise **retains the most recent completion** - `MIGRATED` or `FAILED_OVER` - and replays it to each connection that opts in, so a client that connects after a disruption still learns that it happened. Measured behaviour, worth knowing if you handle these events yourself:
+
+* Only completions are replayed. Starters (`MIGRATING`, `FAILING_OVER`) are not, and neither is `MOVING` - so a replay can never demand that you move.
+* One item, most-recent-replaces; there is no queue.
+* It arrives within milliseconds of the opt-in being accepted, which is *during* connection establishment - so an event handler attached after `ConnectAsync` returns will usually not see it.
+* **It can be very old.** The same `FAILED_OVER` was still being replayed to fresh connections 90 minutes after the failover, with no expiry observed, and a completion carries no time field - so nothing in the notification says how old it is.
+
+Because of that last point, a completion that arrives while the connection is still being established does **not** relax timeouts: it is history, not news. A completion that arrives on a live connection does, as the table above says. If you act on these events yourself, treat one that arrives at connection time as "this happened at some point", not "this is happening".
+
 Note that a deliberate handoff appears as a `ConnectionFailed` event with `FailureType == ConnectionFailureType.MaintenanceHandoff`. That is expected during planned maintenance and does not indicate a fault; if you alert on `ConnectionFailed`, filter it out.
 
 ## Watching the events
@@ -206,6 +217,8 @@ Three settings control the relaxed window, all in seconds:
 | `maintRelaxedWindowMax` | 3x the relaxed timeout | the longest a single window may last, in case a closing notification never arrives |
 | `maintPostEventRelaxed` | 2x the relaxed timeout | how long timeouts stay relaxed *after* the disruption ends |
 
+The tail applies to a completion that arrives on a live connection. A completion replayed as you connect gets no tail at all, for the reasons above.
+
 The announced duration is clamped rather than honoured literally. Windows as short as two seconds have been observed in practice, which is not long enough to cover a client reconnecting, and a client that trusted the announced value would stop being patient exactly when it mattered. The tail exists for the same reason in reverse: after a handoff, servers and other clients are still settling.
 
 If a command does time out during a window, the exception carries the reason: `RedisTimeoutException.MaintenanceType` (and the same property on `RedisConnectionException`) names the notification that was in effect, which distinguishes "the deployment was moving" from "this query is slow".
@@ -229,6 +242,16 @@ or, when the server declines, the reason it gave:
 ```
 10.0.0.1:6379: Maintenance notifications refused (ERR maintenance notifications are disabled on this server)
 ```
+
+Received notifications are logged too, which is the quickest way to answer "did anything actually arrive?" - and, when a new connection is unexpectedly patient about timeouts, "was that a replay?":
+
+```
+10.0.0.1:6379: Maintenance notification: FailingOver seq=41
+10.0.0.1:6379: Maintenance notification: FailedOver seq=42
+10.0.0.2:6379: Maintenance notification: FailedOver seq=42 (catch-up)
+```
+
+The last line is the retained copy described above, delivered to a connection that opted in afterwards.
 
 A handoff is reported the same way, which is worth knowing because it replaces connections:
 

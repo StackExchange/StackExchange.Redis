@@ -124,10 +124,24 @@ internal sealed partial class PhysicalConnection
         Trace($"maintenance notification: {raw}");
         OnDetailLog($"maintenance notification: {raw}");
 
+        // A notification that arrives before the bridge reports established is the server's *catch-up* copy:
+        // it retains the completion of a shard-scoped event and replays it to whoever opts in next, with no
+        // measured age limit (the same FAILED_OVER came back 90 minutes later). Distinguishing the two matters
+        // for the completions, which otherwise relax timeouts on a brand-new connection for an event that
+        // finished long ago; the starters are unaffected, since nothing retains them.
+        var isCatchUp = BridgeCouldBeNull?.IsConnected != true;
+
         // relax before reporting: the event handler is consumer code, and the window should already be open
         // by the time anyone sees the notification that opened it
         if (server is not null)
         {
+            // Logged, not merely traced: Trace is [Conditional("VERBOSE")], so until now a received
+            // notification was invisible in an ordinary deployment - including to the log-based verification
+            // our own documentation recommends. This is the line that answers "why is my new connection
+            // relaxed?", so it names the catch-up case explicitly.
+            muxer.Logger?.LogInformationMaintenanceNotificationReceived(
+                new(server), type, sequenceId ?? -1, isCatchUp ? " (catch-up)" : string.Empty);
+
             if (IsWindowOpening(type))
             {
                 var isNew = server.OnMaintenanceWindowOpened(type, sequenceId, time);
@@ -148,7 +162,7 @@ internal sealed partial class PhysicalConnection
             }
             else if (IsWindowClosing(type))
             {
-                server.OnMaintenanceWindowClosed(type, sequenceId);
+                server.OnMaintenanceWindowClosed(type, sequenceId, isCatchUp);
 
                 // ...and if slots moved away from us, learn the new topology rather than waiting to be told
                 // by a -MOVED. Scoped and jittered inside OnSlotsMigratedAway; see its remarks for why this

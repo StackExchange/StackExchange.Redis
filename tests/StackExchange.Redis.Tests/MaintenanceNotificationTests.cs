@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Maintenance;
 using Xunit;
 using static StackExchange.Redis.Server.RedisServer;
@@ -481,7 +482,8 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     {
         private static async Task<(InProcessTestServer Server, ConnectionMultiplexer Connection, EventCollector Events)> ConnectAsync(
             ITestOutputHelper log,
-            Action<InProcessTestServer> beforeConnect)
+            Action<InProcessTestServer> beforeConnect,
+            NotificationLog? notifications = null)
         {
             var server = new InProcessTestServer(log);
             beforeConnect(server); // the event happens *before* anybody connects: that is the whole point
@@ -489,9 +491,49 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             var config = server.GetClientConfig(defaultOnly: true);
             config.Protocol = RedisProtocol.Resp3;
             config.MaintenanceNotifications = MaintenanceNotificationMode.Enabled;
+            config.LoggerFactory = notifications;
 
             var conn = await ConnectionMultiplexer.ConnectAsync(config);
             return (server, conn, new EventCollector(conn));
+        }
+
+        /// <summary>
+        /// Captures the library's own "maintenance notification" log lines.
+        /// </summary>
+        /// <remarks>
+        /// The only observable that works here. A retained frame arrives while the connection is still
+        /// handshaking, so a handler attached after <c>ConnectAsync</c> has already missed it - and the relaxed
+        /// window, which these tests used to key on, is deliberately *not* opened for a catch-up any more. A
+        /// logger can be attached through the configuration before connecting, so it sees everything, and it
+        /// asserts on the notification itself rather than on a side-effect of it.
+        /// </remarks>
+        private sealed class NotificationLog : ILoggerFactory, ILogger
+        {
+            private readonly List<string> _received = [];
+
+            public IReadOnlyList<string> Received
+            {
+                get { lock (_received) return _received.ToArray(); }
+            }
+
+            public ILogger CreateLogger(string categoryName) => this;
+
+            public void AddProvider(ILoggerProvider provider) { }
+
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                var message = formatter(state, exception);
+                if (message.Contains("Maintenance notification:", StringComparison.Ordinal))
+                {
+                    lock (_received) _received.Add(message);
+                }
+            }
+
+            public void Dispose() { }
         }
 
         [Theory]
@@ -499,18 +541,31 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         [InlineData(MaintenanceNotificationKind.FailedOver)]
         public async Task RetainedCompletionIsReplayedToANewConnection(MaintenanceNotificationKind kind)
         {
-            var (server, conn, events) = await ConnectAsync(log, s =>
-                s.SendShardNotification(null, kind, timeSeconds: null, shardIds: "[\"27\"]", sequenceId: 5));
+            var notifications = new NotificationLog();
+            var (server, conn, events) = await ConnectAsync(
+                log,
+                s => s.SendShardNotification(null, kind, timeSeconds: null, shardIds: "[\"27\"]", sequenceId: 5),
+                notifications);
 
             using (server)
             await using (conn)
             {
-                // the collector is attached *after* connecting, so this asserts the frame was handled rather
-                // than that the event fired - which is why the relaxed window is the observable here
+                // The frame was received and understood - asserted from the library's own log, because the
+                // event collector is attached after connecting and has therefore already missed it.
+                var received = Assert.Single(notifications.Received);
+                log.WriteLine(received);
+                Assert.Contains(MaintenanceNotificationTypeFor(kind).ToString(), received);
+                Assert.Contains("seq=5", received);
+                Assert.Contains("(catch-up)", received);
+
+                // ...and it did *not* relax anything. Measured on a live deployment: the same completion is
+                // replayed to fresh connections at least 90 minutes after the event, and completions carry no
+                // time field, so relaxing here would mean every new connection to a database that had ever
+                // failed over began life patient about timeouts, and attributing any of them to maintenance
+                // that was long finished.
                 var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
-                Assert.True(endpoint.IsMaintenanceRelaxed, "the replayed completion should have opened the post-event tail");
-                Assert.Equal(MaintenanceNotificationTypeFor(kind), endpoint.ActiveMaintenanceType);
-                log.WriteLine($"{kind} replayed; relaxed = {endpoint.IsMaintenanceRelaxed}");
+                Assert.False(endpoint.IsMaintenanceRelaxed, "a catch-up completion should not open the post-event tail");
+                Assert.Equal(MaintenanceNotificationType.None, endpoint.ActiveMaintenanceType);
 
                 // ...and it must not have disturbed the handshake it arrived in the middle of, which is the
                 // other half of what this test is for: a push frame interleaved with our own handshake
@@ -540,22 +595,31 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             // disruption ended", never "one is starting". Nothing that demands action is replayed, so a
             // reconnecting client cannot be told to move by a stale frame - which is what makes the MOVING
             // handoff safe from replay by construction rather than by a guard.
-            var (server, conn, events) = await ConnectAsync(log, s =>
-            {
-                if (kind == MaintenanceNotificationKind.SlotMigrated)
+            var notifications = new NotificationLog();
+            var (server, conn, events) = await ConnectAsync(
+                log,
+                s =>
                 {
-                    s.SendSlotMigrations(null, kind, [("127.0.0.1:7000", "127.0.0.1:7001", "50-60")], sequenceId: 5);
-                }
-                else
-                {
-                    s.SendShardNotification(null, kind, timeSeconds: 2, shardIds: "[\"27\"]", sequenceId: 5);
-                }
-            });
+                    if (kind == MaintenanceNotificationKind.SlotMigrated)
+                    {
+                        s.SendSlotMigrations(null, kind, [("127.0.0.1:7000", "127.0.0.1:7001", "50-60")], sequenceId: 5);
+                    }
+                    else
+                    {
+                        s.SendShardNotification(null, kind, timeSeconds: 2, shardIds: "[\"27\"]", sequenceId: 5);
+                    }
+                },
+                notifications);
 
             using (server)
             await using (conn)
             {
                 await events.AssertNoneAsync();
+
+                // Asserted from the log rather than from the relaxed window: a catch-up no longer relaxes
+                // anything, so "nothing relaxed" would now be true whether the frame was retained or not, and
+                // this test would pass without exercising the property it exists for.
+                Assert.Empty(notifications.Received);
                 var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
                 Assert.False(endpoint.IsMaintenanceRelaxed, $"{kind} must not be retained, so nothing should have relaxed");
             }
@@ -566,18 +630,24 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         {
             // "most recent completion", not a queue: a connection sees at most one of these however many
             // events went past, which is why the client side needs no window or ring for the catch-up case
-            var (server, conn, events) = await ConnectAsync(log, s =>
-            {
-                s.SendShardNotification(null, MaintenanceNotificationKind.Migrated, null, "[\"1\"]", sequenceId: 5);
-                s.SendShardNotification(null, MaintenanceNotificationKind.FailedOver, null, "[\"2\"]", sequenceId: 6);
-            });
+            var notifications = new NotificationLog();
+            var (server, conn, events) = await ConnectAsync(
+                log,
+                s =>
+                {
+                    s.SendShardNotification(null, MaintenanceNotificationKind.Migrated, null, "[\"1\"]", sequenceId: 5);
+                    s.SendShardNotification(null, MaintenanceNotificationKind.FailedOver, null, "[\"2\"]", sequenceId: 6);
+                },
+                notifications);
 
             using (server)
             await using (conn)
             {
-                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
-                Assert.True(endpoint.IsMaintenanceRelaxed);
-                Assert.Equal(MaintenanceNotificationType.FailedOver, endpoint.ActiveMaintenanceType); // the later one
+                // one replay, and it is the later event - not both, and not the earlier one
+                var received = Assert.Single(notifications.Received);
+                log.WriteLine(received);
+                Assert.Contains(nameof(MaintenanceNotificationType.FailedOver), received);
+                Assert.Contains("seq=6", received);
                 GC.KeepAlive(events);
             }
         }
@@ -587,16 +657,21 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         {
             // not every deployment retains, and a test of the no-retention case should not have to reason
             // about which notification kinds happen to be retained
-            var (server, conn, events) = await ConnectAsync(log, s =>
-            {
-                s.RetainCompletions = false;
-                s.SendShardNotification(null, MaintenanceNotificationKind.Migrated, null, "[\"27\"]", sequenceId: 5);
-            });
+            var notifications = new NotificationLog();
+            var (server, conn, events) = await ConnectAsync(
+                log,
+                s =>
+                {
+                    s.RetainCompletions = false;
+                    s.SendShardNotification(null, MaintenanceNotificationKind.Migrated, null, "[\"27\"]", sequenceId: 5);
+                },
+                notifications);
 
             using (server)
             await using (conn)
             {
                 await events.AssertNoneAsync();
+                Assert.Empty(notifications.Received); // nothing arrived at all, which is the point
                 Assert.False(((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint).IsMaintenanceRelaxed);
             }
         }

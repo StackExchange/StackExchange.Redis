@@ -112,6 +112,52 @@ public class MaintenanceRelaxationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task ACatchUpCompletionOpensNoTail()
+    {
+        // Measured on a live deployment: a completion is retained and replayed to whoever opts in next, with
+        // no age limit found (the same FAILED_OVER came back at least 90 minutes later), and completions carry
+        // no time field - so nothing in the frame says how old it is. Relaxing on one would mean every new
+        // connection to a database that had ever failed over started life patient about timeouts, and
+        // reporting any that expired as caused by maintenance long since finished.
+        var (server, conn) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            var endpoint = Endpoint(conn, server);
+            endpoint.OnMaintenanceWindowClosed(MaintenanceNotificationType.FailedOver, sequenceId: 41, isCatchUp: true);
+
+            Assert.False(endpoint.IsMaintenanceRelaxed, "a catch-up completion should not relax anything");
+            Assert.Equal(MaintenanceNotificationType.None, endpoint.ActiveMaintenanceType);
+            Assert.Equal(1234, endpoint.GetEffectiveTimeoutMilliseconds(1234));
+        }
+    }
+
+    [Fact]
+    public async Task ACatchUpCompletionDoesNotCancelALiveWindow()
+    {
+        // The reason the catch-up path declines to *open* a window rather than closing one. Relaxation belongs
+        // to the ServerEndPoint and is shared by both bridges, so a subscription bridge that reconnects
+        // mid-disruption - and is handed the retained completion of some *earlier* event on the way in - must
+        // not cancel the window the live notification opened on the interactive bridge. Driven through the
+        // internals because the transport-level version of this needs one bridge to reconnect while another
+        // stays up, which is a lot of scaffolding to assert a state-machine rule.
+        var (server, conn) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            var endpoint = Endpoint(conn, server);
+            server.SendShardNotification(null, MaintenanceNotificationKind.FailingOver, timeSeconds: 60);
+            Assert.True(await UntilRelaxedAsync(endpoint, true), "the live notification should have opened a window");
+
+            // an unrelated, older completion arrives as catch-up on a reconnecting bridge
+            endpoint.OnMaintenanceWindowClosed(MaintenanceNotificationType.Migrated, sequenceId: 7, isCatchUp: true);
+
+            Assert.True(endpoint.IsMaintenanceRelaxed, "the live window should have survived the catch-up");
+            Assert.Equal(MaintenanceNotificationType.FailingOver, endpoint.ActiveMaintenanceType);
+        }
+    }
+
+    [Fact]
     public async Task ClosingNotificationEndsItWhenThereIsNoTail()
     {
         var (server, conn) = await ConnectAsync(log, config => config.MaintenancePostEventRelaxedDuration = TimeSpan.Zero);
