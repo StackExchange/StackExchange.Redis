@@ -392,9 +392,19 @@ namespace StackExchange.Redis.Configuration
 
         /// <summary>
         /// Gets how long timeouts stay relaxed after a disruption reports completion, or <c>null</c> to derive
-        /// it as twice the <em>effective</em> <see cref="ConfigurationOptions.MaintenanceRelaxedTimeout"/>
-        /// (which matches go-redis at the prescribed default).
+        /// it as twice the <em>effective</em> <see cref="ConfigurationOptions.MaintenanceRelaxedTimeout"/>.
         /// </summary>
+        /// <remarks>
+        /// A completing notification says the server-side operation finished, not that the server is back to
+        /// normal latency - and the moment after one is precisely when every client that received the same
+        /// notification re-engages at once. That herd is the reason for a tail, and it scales with client
+        /// count, which is not something a client can observe.
+        /// <para>
+        /// Note this is a deliberate divergence: go-redis and node-redis both treat a completion as
+        /// "stop being relaxed" and keep no tail at all (confirmed by their maintainers, 2026-09-02). Set this
+        /// to <see cref="TimeSpan.Zero"/> for that behaviour.
+        /// </para>
+        /// </remarks>
         [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public virtual TimeSpan? MaintenancePostEventRelaxedDuration => null;
 
