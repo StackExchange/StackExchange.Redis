@@ -467,7 +467,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the parent node of the current node.
         /// </summary>
-        public ClusterNode? Parent => (parent is not null) ? parent = configuration[ParentNodeId!] : null;
+        public ClusterNode? Parent => ParentNodeId is null ? null : (parent ??= configuration[ParentNodeId]);
 
         /// <summary>
         /// Gets the unique node-id of the parent of the current node.
