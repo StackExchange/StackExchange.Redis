@@ -19,7 +19,15 @@ namespace StackExchange.Redis.FaultInjector.Tests;
 /// </remarks>
 public sealed class FaultInjectorClient(Uri baseAddress) : IDisposable
 {
-    private readonly HttpClient _http = new() { BaseAddress = baseAddress, Timeout = TimeSpan.FromMinutes(2) };
+    /// <remarks>
+    /// No <see cref="HttpClient.Timeout"/>, deliberately. The injector *queues* actions, so a request can
+    /// legitimately sit for many minutes when anything else is in flight - and a two-minute limit here failed
+    /// twenty of twenty-six tests the first time the whole suite ran together, all of them reported as a
+    /// cancelled HTTP request rather than as what they were. Bounding belongs to the caller's cancellation
+    /// token and to <see cref="WaitForActionAsync"/>, which can tell "still working" from "wedged"; a blanket
+    /// client timeout cannot.
+    /// </remarks>
+    private readonly HttpClient _http = new() { BaseAddress = baseAddress, Timeout = Timeout.InfiniteTimeSpan };
 
     /// <summary>
     /// Statuses that mean "still going". Both of them, which is the point.

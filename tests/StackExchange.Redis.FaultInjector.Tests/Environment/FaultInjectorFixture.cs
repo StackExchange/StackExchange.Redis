@@ -107,7 +107,9 @@ public abstract class FaultInjectorFixture(DatabaseShape shape) : IAsyncLifetime
     /// </remarks>
     private async Task<ProvisionedDatabase> CreateDatabaseAsync()
     {
-        const int BasePort = 13500, Attempts = 8;
+        // Well clear of the 13xxx range the scenario setups pick from, so our own databases are not competing
+        // with theirs for ports in the first place.
+        const int BasePort = 14500, Attempts = 8;
         var name = $"{NamePrefix}{Shape.Label}-{RunId}";
         Exception? last = null;
 
@@ -143,11 +145,16 @@ public abstract class FaultInjectorFixture(DatabaseShape shape) : IAsyncLifetime
     /// "missing shard_key_regex" under eight identical tracebacks.
     /// </remarks>
     private static bool IsPortCollision(Exception ex) =>
-        ex.Message.Contains("port", StringComparison.OrdinalIgnoreCase)
-        && (ex.Message.Contains("in use", StringComparison.OrdinalIgnoreCase)
-            || ex.Message.Contains("already", StringComparison.OrdinalIgnoreCase)
-            || ex.Message.Contains("taken", StringComparison.OrdinalIgnoreCase)
-            || ex.Message.Contains("conflict", StringComparison.OrdinalIgnoreCase));
+        // "port_unavailable" is what Redis Enterprise actually answers, with the prose "Unavailable or invalid
+        // port" - which matched none of the phrases the first version of this looked for, so a perfectly
+        // retryable collision failed the whole fixture instead of moving up a port.
+        ex.Message.Contains("port_unavailable", StringComparison.OrdinalIgnoreCase)
+        || (ex.Message.Contains("port", StringComparison.OrdinalIgnoreCase)
+            && (ex.Message.Contains("in use", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("already", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("taken", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("unavailable", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("conflict", StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>
     /// Best-effort removal of databases left behind by earlier runs.
