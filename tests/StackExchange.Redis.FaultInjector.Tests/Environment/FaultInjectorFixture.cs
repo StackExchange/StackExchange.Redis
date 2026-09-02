@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,6 +33,23 @@ public abstract class FaultInjectorFixture(DatabaseShape shape) : IAsyncLifetime
     /// deletes production-shaped things on a shared cluster.
     /// </remarks>
     public const string NamePrefix = "sertest-";
+
+    /// <summary>
+    /// Name prefixes the sweep will remove, beyond our own.
+    /// </summary>
+    /// <remarks>
+    /// A scenario's <c>setup</c> leg creates its *own* database, named by the injector - <c>tcs-</c> for
+    /// topology-change, <c>sm-</c> for slot-migrate - so those leaks are not ours to name but are ours to clean
+    /// up. And they do leak: cancelling the setup request does not cancel the injector's work, so a run killed
+    /// mid-setup leaves a database nothing holds a handle to. That happened, 22 times, and needed clearing by
+    /// hand because the sweep only knew about databases we had created ourselves.
+    /// <para>
+    /// Safe on the assumption this is a dedicated test environment - which the tier already assumes, since it
+    /// creates and destroys databases and reshapes the cluster. Databases named in <c>endpoints.json</c> (the
+    /// template's own) are never touched, whatever their prefix.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] SweepablePrefixes = [NamePrefix, "tcs-", "sm-"];
 
     private static readonly string RunId = Guid.NewGuid().ToString("n")[..6];
 
@@ -176,10 +194,16 @@ public abstract class FaultInjectorFixture(DatabaseShape shape) : IAsyncLifetime
 
         try
         {
+            // Never touch the environment's own databases. Matched by bdb id rather than by name: endpoints.json
+            // keys them by the name they were configured with, and relying on that key equalling the database's
+            // actual name is an assumption worth not making when the consequence is deleting the wrong thing.
+            var template = ExistingDatabase.ReadAll(Environment).Values.Select(d => d.BdbId).ToHashSet();
+
             using var rest = new ClusterRestClient(cluster, Environment.CertificateAuthorityPath);
             foreach (var (bdbId, name) in await rest.ListDatabasesAsync())
             {
-                if (!name.StartsWith(NamePrefix, StringComparison.Ordinal)) continue; // never anything but ours
+                if (template.Contains(bdbId)) continue;
+                if (!SweepablePrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal))) continue;
 
                 Console.WriteLine($"sweeping orphaned test database {name} (bdb {bdbId})");
                 await Injector.RunActionAsync("delete_database", new Dictionary<string, object?> { ["bdb_id"] = bdbId });
