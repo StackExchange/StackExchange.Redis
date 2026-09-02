@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
@@ -219,19 +220,36 @@ public class RetentionAgeScenarioTests(ReplicatedDatabaseFixture fixture, ITestO
     /// One fresh connection, and what the server told it on the way in.
     /// </summary>
     /// <remarks>
-    /// The observable is the endpoint's relaxed state, not the <c>ServerMaintenanceEvent</c>, and that is not a
+    /// The observable is the client's own log, not the <c>ServerMaintenanceEvent</c>, and that is not a
     /// convenience: a retained completion arrives within ~17ms of the opt-in being accepted, which is *inside*
-    /// <c>ConnectAsync</c>, so a handler attached after connecting has already missed it. The relaxed window it
-    /// opened is still there to be read.
+    /// <c>ConnectAsync</c>, so a handler attached after connecting has already missed it. A logger can be
+    /// attached through the configuration beforehand.
+    /// <para>
+    /// It used to read the endpoint's relaxed window instead, which was simpler and is no longer true: since a
+    /// catch-up completion is history rather than news, it deliberately opens no window - a change this
+    /// measurement is what prompted. Reading the window would now report "not replayed" at every rung, which
+    /// would look exactly like an expiry at the first one.
+    /// </para>
     /// </remarks>
     private async Task<Probe> ProbeAsync(ProvisionedDatabase database, int minutes, string label, CancellationToken cancellationToken)
     {
         try
         {
-            await using var conn = await ConnectionMultiplexer.ConnectAsync(database.GetClientConfig());
+            var options = database.GetClientConfig();
+            var notifications = new NotificationLog();
+            options.LoggerFactory = notifications;
+
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
             var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(conn.GetEndPoints()[0]);
-            var relaxed = endpoint.IsMaintenanceRelaxed;
-            var type = endpoint.ActiveMaintenanceType;
+            var received = notifications.Received;
+            var relaxed = received.Count != 0;
+            var type = received.Count == 0 ? MaintenanceNotificationType.None : TypeOf(received[0]);
+            if (endpoint.IsMaintenanceRelaxed)
+            {
+                // not expected on a fresh connection any more; if it happens, something arrived *live* while
+                // we were connecting, and the rung is measuring that instead
+                Note($"  probe {minutes}m/{label}: note - the window is open ({endpoint.ActiveMaintenanceType}), so a live event may be in play");
+            }
 
             // a live event arriving *during* the probe would also relax the window, so record anything that
             // shows up while we are here; the witness sees it too, and the two together tell them apart
@@ -247,6 +265,11 @@ public class RetentionAgeScenarioTests(ReplicatedDatabaseFixture fixture, ITestO
             lock (live)
             {
                 notes = live.Count == 0 ? string.Empty : $"also received live: {string.Join(", ", live)}";
+            }
+
+            if (received.Count != 0)
+            {
+                notes = string.IsNullOrEmpty(notes) ? received[0] : $"{received[0]}; {notes}";
             }
 
             Note($"  probe {minutes}m/{label}: relaxed={relaxed} type={type} {notes}");
@@ -268,6 +291,51 @@ public class RetentionAgeScenarioTests(ReplicatedDatabaseFixture fixture, ITestO
     {
         log.WriteLine(message);
         _progress?.WriteLine(message.Length == 0 ? message : $"{DateTime.UtcNow:HH:mm:ss} {message}");
+    }
+
+    /// <summary>Reads the notification type back out of the log line, which is the only place it is stated.</summary>
+    private static MaintenanceNotificationType TypeOf(string logLine)
+    {
+        foreach (var candidate in Enum.GetValues<MaintenanceNotificationType>())
+        {
+            if (candidate != MaintenanceNotificationType.None
+                && logLine.Contains(candidate.ToString(), StringComparison.Ordinal))
+            {
+                return candidate;
+            }
+        }
+
+        return MaintenanceNotificationType.None;
+    }
+
+    /// <summary>Captures the client's own "maintenance notification" lines, attached before connecting.</summary>
+    private sealed class NotificationLog : ILoggerFactory, ILogger
+    {
+        private readonly List<string> _received = [];
+
+        public List<string> Received
+        {
+            get { lock (_received) return [.. _received]; }
+        }
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public void AddProvider(ILoggerProvider provider) { }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            var message = formatter(state, exception);
+            if (message.Contains("Maintenance notification:", StringComparison.Ordinal))
+            {
+                lock (_received) _received.Add(message);
+            }
+        }
+
+        public void Dispose() { }
     }
 
     private static bool IsCompletion(MaintenanceNotificationType type)
