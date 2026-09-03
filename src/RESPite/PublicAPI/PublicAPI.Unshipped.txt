@@ -13,3 +13,5 @@
 [SER009]abstract RESPite.Transports.TransportReceiver.OnReceived(System.ReadOnlySpan<byte> payload) -> bool
 [SER009]virtual RESPite.Transports.TransportReceiver.OnBatchEnd() -> void
 [SER009]virtual RESPite.Transports.TransportReceiver.OnClosed(System.Exception? fault) -> void
+RESPite.Messages.RespReader.TryGetRawSpan(out System.ReadOnlySpan<byte> value) -> bool
+RESPite.Messages.RespReader.CopyRawTo(scoped System.Span<byte> target) -> int

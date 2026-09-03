@@ -382,32 +382,31 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.Publish(ToInner(channel), message, flags);
 
-        public RedisResult Exec(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
-            // You cannot return an array twice or an array that is not from the pool.
-            argsDisposer = null;
-
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.Exec(command, ToInnerCopy(args), argsDisposer, flags);
+                return Inner.ExecuteResp(command, ToInnerCopy(args), flags);
 
-            var result = Inner.Exec(command, ToInnerLease(args, out var lease), argsDisposer, flags);
-            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
-
-            return result;
+            var inner = ToInnerLease(args, out var lease);
+            return lease != null
+                ? InvokeAndReturnLease(new ExecuteRespState(Inner, command, inner, flags), static s => s.Inner.ExecuteResp(s.Command, s.Args, s.Flags), lease)
+                : Inner.ExecuteResp(command, inner, flags);
         }
 
-        public Lease<byte>? ExecLease(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        private readonly struct ExecuteRespState
         {
-            // You cannot return an array twice or an array that is not from the pool.
-            argsDisposer = null;
+            public ExecuteRespState(IDatabase inner, string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags)
+            {
+                Inner = inner;
+                Command = command;
+                Args = args;
+                Flags = flags;
+            }
 
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ExecLease(command, ToInnerCopy(args), argsDisposer, flags);
-
-            var result = Inner.ExecLease(command, ToInnerLease(args, out var lease), argsDisposer, flags);
-            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
-
-            return result;
+            public readonly IDatabase Inner;
+            public readonly string Command;
+            public readonly ReadOnlyMemory<RedisKeyOrValue> Args;
+            public readonly CommandFlags Flags;
         }
 
         public RedisResult Execute(string command, params object[] args)
@@ -420,26 +419,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluate(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEval(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
+        public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
+            // note the Resp API explicitly doesn't unprefix keys
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEval(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEvaluateResp(script, ToInnerCopy(keys), values, flags);
 
-            var result = Inner.ScriptEval(script, ToInnerLease(args, out var lease), flags);
-            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
-
-            return result;
-        }
-
-        public Lease<byte>? ScriptEvalLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
-        {
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvalLease(script, ToInnerCopy(args), flags);
-
-            var result = Inner.ScriptEvalLease(script, ToInnerLease(args, out var lease), flags);
-            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
-
-            return result;
+            var inner = ToInnerLease(keys, out var lease);
+            return lease != null
+                ? InvokeAndReturnLease(new ScriptEvaluateRespState(Inner, script, inner, values, flags), static s => s.Inner.ScriptEvaluateResp(s.Script, s.Keys, s.Values, s.Flags), lease)
+                : Inner.ScriptEvaluateResp(script, inner, values, flags);
         }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
@@ -458,26 +447,34 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateReadOnly(hash, ToInner(keys), values, flags);
 
-        public RedisResult ScriptEvalReadOnly(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
+        public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
+            // note the Resp API explicitly doesn't unprefix keys
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvalReadOnly(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEvaluateReadOnlyResp(script, ToInnerCopy(keys), values, flags);
 
-            var result = Inner.ScriptEvalReadOnly(script, ToInnerLease(args, out var lease), flags);
-            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
-
-            return result;
+            var inner = ToInnerLease(keys, out var lease);
+            return lease != null
+                ? InvokeAndReturnLease(new ScriptEvaluateRespState(Inner, script, inner, values, flags), static s => s.Inner.ScriptEvaluateReadOnlyResp(s.Script, s.Keys, s.Values, s.Flags), lease)
+                : Inner.ScriptEvaluateReadOnlyResp(script, inner, values, flags);
         }
 
-        public Lease<byte>? ScriptEvalReadOnlyLease(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
+        private readonly struct ScriptEvaluateRespState
         {
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvalReadOnlyLease(script, ToInnerCopy(args), flags);
+            public ScriptEvaluateRespState(IDatabase inner, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags)
+            {
+                Inner = inner;
+                Script = script;
+                Keys = keys;
+                Values = values;
+                Flags = flags;
+            }
 
-            var result = Inner.ScriptEvalReadOnlyLease(script, ToInnerLease(args, out var lease), flags);
-            if (lease != null) ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
-
-            return result;
+            public readonly IDatabase Inner;
+            public readonly string Script;
+            public readonly ReadOnlyMemory<RedisKey> Keys;
+            public readonly ReadOnlyMemory<RedisValue> Values;
+            public readonly CommandFlags Flags;
         }
 
         public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>

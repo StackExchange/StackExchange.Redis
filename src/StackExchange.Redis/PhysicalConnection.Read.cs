@@ -707,7 +707,7 @@ internal sealed partial class PhysicalConnection
                 [DoesNotReturn]
                 static void Throw(ReadOnlySpan<byte> frame, ConnectionType connection, RedisProtocol protocol)
                 {
-                    var prefix = RespReaderExtensions.GetRespPrefix(frame);
+                    var prefix = RespReaderInternalExtensions.GetRespPrefix(frame);
                     throw new InvalidOperationException($"Received {connection}/{protocol} response with no message waiting: " + prefix.ToString());
                 }
             }
@@ -718,7 +718,7 @@ internal sealed partial class PhysicalConnection
         _readStatus = ReadStatus.ComputeResult;
         var reader = new RespReader(frame);
 
-        OnDetailLog($"computing result for {msg.CommandAndKey} ({RespReaderExtensions.GetRespPrefix(frame)})");
+        OnDetailLog($"computing result for {msg.CommandAndKey} ({RespReaderInternalExtensions.GetRespPrefix(frame)})");
 
         // need to capture HIT promptly, as -MOVED could cause a resend with a new high-integrity token
         // (a lazy approach would be to not rotate, but: we'd rather avoid that; the -MOVED case is rare)

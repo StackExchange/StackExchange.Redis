@@ -410,27 +410,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.PublishAsync(ToInner(channel), message, flags);
 
-        public Task<RedisResult> ExecAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
+        public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
-            // You cannot return an array twice or an array that is not from the pool.
-            argsDisposer = null;
-
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ExecAsync(command, ToInnerCopy(args), argsDisposer, flags);
+                return Inner.ExecuteRespAsync(command, ToInnerCopy(args), flags);
 
-            var result = Inner.ExecAsync(command, ToInnerLease(args, out var lease), argsDisposer, flags);
-            return lease != null ? ReturnAfterResult(result, lease) : result;
-        }
-
-        public Task<Lease<byte>?> ExecLeaseAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args = default, IRequestDisposer? argsDisposer = null, CommandFlags flags = CommandFlags.None)
-        {
-            // You cannot return an array twice or an array that is not from the pool.
-            argsDisposer = null;
-
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ExecLeaseAsync(command, ToInnerCopy(args), argsDisposer, flags);
-
-            var result = Inner.ExecLeaseAsync(command, ToInnerLease(args, out var lease), argsDisposer, flags);
+            var result = Inner.ExecuteRespAsync(command, ToInnerLease(args, out var lease), flags);
             return lease != null ? ReturnAfterResult(result, lease) : result;
         }
 
@@ -444,21 +429,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvalAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
+        public Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvalAsync(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEvaluateRespAsync(script, ToInnerCopy(keys), values, flags);
 
-            var result = Inner.ScriptEvalAsync(script, ToInnerLease(args, out var lease), flags);
-            return lease != null ? ReturnAfterResult(result, lease) : result;
-        }
-
-        public Task<Lease<byte>?> ScriptEvalLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
-        {
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvalLeaseAsync(script, ToInnerCopy(args), flags);
-
-            var result = Inner.ScriptEvalLeaseAsync(script, ToInnerLease(args, out var lease), flags);
+            var result = Inner.ScriptEvaluateRespAsync(script, ToInnerLease(keys, out var lease), values, flags);
             return lease != null ? ReturnAfterResult(result, lease) : result;
         }
 
@@ -478,21 +455,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
 
-        public Task<RedisResult> ScriptEvalReadOnlyAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
+        public Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvalReadOnlyAsync(script, ToInnerCopy(args), flags);
+                return Inner.ScriptEvaluateReadOnlyRespAsync(script, ToInnerCopy(keys), values, flags);
 
-            var result = Inner.ScriptEvalReadOnlyAsync(script, ToInnerLease(args, out var lease), flags);
-            return lease != null ? ReturnAfterResult(result, lease) : result;
-        }
-
-        public Task<Lease<byte>?> ScriptEvalReadOnlyLeaseAsync(string script, ReadOnlyMemory<RedisKeyOrValue> args = default, CommandFlags flags = CommandFlags.None)
-        {
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvalReadOnlyLeaseAsync(script, ToInnerCopy(args), flags);
-
-            var result = Inner.ScriptEvalReadOnlyLeaseAsync(script, ToInnerLease(args, out var lease), flags);
+            var result = Inner.ScriptEvaluateReadOnlyRespAsync(script, ToInnerLease(keys, out var lease), values, flags);
             return lease != null ? ReturnAfterResult(result, lease) : result;
         }
 
@@ -1082,11 +1051,86 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return outer;
         }
 
-        private static async Task<T> ReturnAfterResult<T>(Task<T> task, RedisKeyOrValue[] lease)
+        // the pooled buffer can only be recycled once we know the server has fully received and
+        // processed the write; success and RedisServerException both give that guarantee (the latter
+        // is still a server response, just an error one) - other exceptions (timeouts, connection
+        // failures) may mean the write is still in flight for a retry, so the buffer must survive.
+        private static async Task<TResult> ReturnAfterResult<TResult, TElement>(Task<TResult> task, TElement[] lease)
         {
-            var result = await task;
-            ArrayPool<RedisKeyOrValue>.Shared.Return(lease, clearArray: true);
-            return result;
+            var returnLease = true;
+            try
+            {
+                return await task;
+            }
+            catch (RedisServerException)
+            {
+                throw;
+            }
+            catch
+            {
+                returnLease = false;
+                throw;
+            }
+            finally
+            {
+                if (returnLease) ArrayPool<TElement>.Shared.Return(lease, clearArray: true);
+            }
+        }
+
+        // sync counterpart of ReturnAfterResult - see that method for the return-eligibility rationale.
+        // takes state + a (typically static) delegate rather than a capturing lambda, so callers can
+        // avoid allocating a closure and delegate per call; TState carries what the delegate needs
+        // instead (plain struct, not ValueTuple - this type still targets net461/netstandard2.0).
+        protected static TResult InvokeAndReturnLease<TState, TResult, TElement>(TState state, Func<TState, TResult> invoke, TElement[] lease)
+        {
+            var returnLease = true;
+            try
+            {
+                return invoke(state);
+            }
+            catch (RedisServerException)
+            {
+                throw;
+            }
+            catch
+            {
+                returnLease = false;
+                throw;
+            }
+            finally
+            {
+                if (returnLease) ArrayPool<TElement>.Shared.Return(lease, clearArray: true);
+            }
+        }
+
+        protected ReadOnlyMemory<RedisKey> ToInnerCopy(ReadOnlyMemory<RedisKey> outer)
+        {
+            if (outer.Length == 0) return outer;
+
+            var inner = new RedisKey[outer.Length];
+            var span = outer.Span;
+            for (int i = 0; i < span.Length; i++)
+            {
+                inner[i] = ToInner(span[i]);
+            }
+            return inner;
+        }
+
+        protected ReadOnlyMemory<RedisKey> ToInnerLease(ReadOnlyMemory<RedisKey> outer, out RedisKey[]? lease)
+        {
+            if (outer.Length == 0)
+            {
+                lease = null;
+                return outer;
+            }
+
+            lease = ArrayPool<RedisKey>.Shared.Rent(outer.Length);
+            var span = outer.Span;
+            for (int i = 0; i < span.Length; i++)
+            {
+                lease[i] = ToInner(span[i]);
+            }
+            return lease.AsMemory(0, outer.Length);
         }
 
         [return: NotNullIfNotNull("outer")]

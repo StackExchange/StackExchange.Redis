@@ -1,190 +1,120 @@
-﻿using System;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using System;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents a key or value that can be stored in redis.
 /// </summary>
-[StructLayout(LayoutKind.Explicit)]
 public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable<RedisKey>, IEquatable<RedisValue>
 {
-    internal enum StorageType
-    {
-        Null,
-        Key,
-        Value,
-    }
-
-#pragma warning disable SA1134
-    [FieldOffset(0)] private readonly int _index;
-    [FieldOffset(4)] private readonly int _length;
-    [FieldOffset(8)] private readonly object? _obj;
-#pragma warning restore SA1134
-
-    internal StorageType Type
-    {
-        get
-        {
-            var obj = _obj;
-            if (obj == null) return StorageType.Null;
-            if ((obj is byte[] || obj is string) && _index < 0) return StorageType.Key;
-            return StorageType.Value;
-        }
-    }
-
-    internal RedisKey UnsafeKey
-    {
-        get
-        {
-            Debug.Assert(IsKey);
-
-            return new RedisKey(null, _obj);
-        }
-    }
-
-    internal RedisValue UnsafeValue
-    {
-        get
-        {
-            Debug.Assert(IsValue);
-
-            var copy = this;
-            return Unsafe.As<RedisKeyOrValue, RedisValue>(ref copy);
-        }
-    }
+    // _keyPrefix is non-null (possibly empty) when this represents a key - it is the key's own prefix
+    // bytes, if any; the key's remaining payload (its "KeyValue") sits directly in _value, using
+    // RedisValue's own byte[]/string storage rather than a separate copy. _keyPrefix is null when this
+    // represents a value (or a genuine null - see IsNull/IsKey/IsValue below, which are deliberately
+    // independent checks rather than a single tri-state tag, but remain mutually exclusive in practice).
+    private readonly RedisValue _value;
+    private readonly byte[]? _keyPrefix;
 
     /// <summary>
     /// IsNull.
     /// </summary>
-    public bool IsNull => _obj is null;
+    public bool IsNull => _value.IsNull;
 
     /// <summary>
     /// IsKey.
     /// </summary>
-    public bool IsKey => Type == StorageType.Key;
+    public bool IsKey => _keyPrefix is not null;
 
     /// <summary>
     /// Key.
     /// </summary>
-    public RedisKey Key => Type == StorageType.Key ? new RedisKey(null, _obj) : default;
+    public RedisKey Key => IsKey ? new RedisKey(_keyPrefix, _value.DirectObject) : default;
 
     /// <summary>
     /// IsValue.
     /// </summary>
-    public bool IsValue => Type == StorageType.Value;
+    public bool IsValue => _keyPrefix is null && !_value.IsNull;
 
     /// <summary>
     /// Value.
     /// </summary>
-    public RedisValue Value
-    {
-        get
-        {
-            if (Type != StorageType.Value) return default;
+    public RedisValue Value => IsKey ? default : _value;
 
-            var copy = this;
-            return Unsafe.As<RedisKeyOrValue, RedisValue>(ref copy);
-        }
+    // Construction is deliberately funneled through FromKey/FromValue and the implicit operators only,
+    // not public constructors: with both RedisKey and RedisValue implicitly constructible from a bare
+    // literal (e.g. a string), a public RedisKeyOrValue(RedisKey)/(RedisValue) ctor pair would make
+    // `new RedisKeyOrValue("abc")` ambiguous between the two.
+    private RedisKeyOrValue(in RedisKey key)
+    {
+        // an empty (rather than null) prefix still marks this as a key - see IsKey - and RedisKey's own
+        // constructor normalizes a zero-length prefix back to null, so nothing is lost by using it here.
+        _keyPrefix = key.KeyPrefix ?? Array.Empty<byte>();
+
+        // KeyValue is only ever null/byte[]/string; assign it directly (never via a repacking
+        // conversion such as RedisValue.FromRaw) so DirectObject can hand the exact object back later.
+        _value = key.KeyValue switch
+        {
+            null => default,
+            byte[] bytes => bytes,
+            // .AsRedisValue(), not the bare implicit conversion: this is a deliberate, intentional
+            // wrap of the key's own payload, not a string read off the wire (see StringToRedisValue.md).
+            string str => str.AsRedisValue(),
+            _ => throw new ArgumentException("Unrecognized key type", nameof(key)),
+        };
     }
 
-    /// <summary>
-    /// Key.
-    /// </summary>
-    /// <param name="key">key.</param>
-    public RedisKeyOrValue(in RedisKey key)
+    private RedisKeyOrValue(in RedisValue value)
     {
-        var keyValue = key.KeyValue;
-        var keyPrefix = key.KeyPrefix;
-        if (keyPrefix != null)
-        {
-            if (keyValue != null)
-                keyPrefix = (byte[]?)key ?? throw new InvalidOperationException("keyPrefix is null");
-
-            _obj = keyPrefix;
-            _index = -1;
-            _length = keyPrefix.Length;
-        }
-        else if (keyValue == null)
-        {
-            this = default;
-        }
-        else if (keyValue is byte[] bytes)
-        {
-            _obj = bytes;
-            _index = -1;
-            _length = bytes.Length;
-        }
-        else if (keyValue is string str)
-        {
-            _obj = str;
-            _index = -1;
-            _length = str.Length;
-        }
-        else
-        {
-            throw new ArgumentException("Unrecognized key type", nameof(key));
-        }
-    }
-
-    /// <summary>
-    /// Value.
-    /// </summary>
-    /// <param name="value">value.</param>
-    public RedisKeyOrValue(in RedisValue value)
-    {
-        var copy = value;
-        this = Unsafe.As<RedisValue, RedisKeyOrValue>(ref copy);
+        _keyPrefix = null;
+        _value = value;
     }
 
     /// <inheritdoc/>
-    public override int GetHashCode() => Type switch
+    public override int GetHashCode()
     {
-        StorageType.Key => UnsafeKey.GetHashCode(),
-        StorageType.Value => UnsafeValue.GetHashCode(),
-        _ => 0,
-    };
+        if (IsKey) return Key.GetHashCode();
+        if (IsValue) return _value.GetHashCode();
+        return 0;
+    }
 
     /// <inheritdoc/>
     public override bool Equals(object? obj) => obj switch
     {
         RedisKeyOrValue other => Equals(other),
-        RedisKey key => Type == StorageType.Key && UnsafeKey.Equals(key),
-        RedisValue value => Type == StorageType.Value && UnsafeValue.Equals(value),
+        RedisKey key => IsKey && Key.Equals(key),
+        RedisValue value => IsValue && _value.Equals(value),
         _ => false,
     };
 
     /// <inheritdoc/>
-    public override string ToString() => Type switch
+    public override string ToString()
     {
-        StorageType.Key => UnsafeKey.ToString(),
-        StorageType.Value => UnsafeValue.ToString(),
-        _ => "(null)",
-    };
+        if (IsKey) return Key.ToString();
+        if (IsValue) return _value.ToString();
+        return "(null)";
+    }
 
     /// <inheritdoc/>
-    public bool Equals(RedisKeyOrValue other) => Type switch
+    public bool Equals(RedisKeyOrValue other)
     {
-        StorageType.Key => other.Type == StorageType.Key && UnsafeKey.Equals(other.UnsafeKey),
-        StorageType.Value => other.Type == StorageType.Value && UnsafeValue.Equals(other.UnsafeValue),
-        _ => other.Type == Type,
-    };
+        if (IsKey) return other.IsKey && Key.Equals(other.Key);
+        if (IsValue) return other.IsValue && _value.Equals(other._value);
+        return other is { IsKey: false, IsNull: true }; // both a genuine null, not merely a null-valued key
+    }
 
     /// <inheritdoc/>
-    public bool Equals(RedisKey other) => Type == StorageType.Key && UnsafeKey.Equals(other);
+    public bool Equals(RedisKey other) => IsKey && Key.Equals(other);
 
     /// <inheritdoc/>
-    public bool Equals(RedisValue other) => Type == StorageType.Value && UnsafeValue.Equals(other);
+    public bool Equals(RedisValue other) => IsValue && _value.Equals(other);
 
     /// <summary>Create a new instance representing a key.</summary>
     /// <param name="key">key.</param>
-    public static RedisKeyOrValue FromKey(RedisKey key) => new RedisKeyOrValue(in key);
+    public static RedisKeyOrValue FromKey(in RedisKey key) => new(in key);
 
     /// <summary>Create a new instance representing a value.</summary>
     /// <param name="value">value.</param>
-    public static RedisKeyOrValue FromValue(RedisValue value) => new RedisKeyOrValue(in value);
+    public static RedisKeyOrValue FromValue(in RedisValue value) => new(in value);
 
     /// <summary>
     /// Compares two values for equality.
@@ -212,21 +142,18 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
     /// <param name="value">value.</param>
     public static explicit operator RedisKey(RedisKeyOrValue value)
     {
-        if (value.Type != StorageType.Key)
-            ThrowInvalidCast(value.Type);
-
-        return value.UnsafeKey;
+        if (!value.IsKey) ThrowInvalidCast(value);
+        return value.Key;
     }
 
     /// <summary>Obtains the underlying payload as a value.</summary>
     /// <param name="value">value.</param>
     public static explicit operator RedisValue(RedisKeyOrValue value)
     {
-        if (value.Type != StorageType.Value)
-            ThrowInvalidCast(value.Type);
-
-        return value.UnsafeValue;
+        if (!value.IsValue) ThrowInvalidCast(value);
+        return value._value;
     }
 
-    private static void ThrowInvalidCast(StorageType type) => throw new InvalidCastException($"Operation not valid on {type} value.");
+    private static void ThrowInvalidCast(in RedisKeyOrValue value) =>
+        throw new InvalidCastException($"Operation not valid on {(value.IsKey ? "Key" : value.IsValue ? "Value" : "Null")} value.");
 }

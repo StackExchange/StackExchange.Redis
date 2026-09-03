@@ -79,6 +79,8 @@ public class NamingTests(ITestOutputHelper output) : TestBase(output)
                 case nameof(IDatabaseAsync.PublishAsync):
                 case nameof(IDatabase.Execute):
                 case nameof(IDatabaseAsync.ExecuteAsync):
+                case nameof(IDatabase.ExecuteResp):
+                case nameof(IDatabaseAsync.ExecuteRespAsync):
                 case nameof(IDatabase.ScriptEvaluate):
                 case nameof(IDatabaseAsync.ScriptEvaluateAsync):
                 case nameof(IDatabase.StreamRead):

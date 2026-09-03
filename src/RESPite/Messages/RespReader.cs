@@ -22,7 +22,6 @@ namespace RESPite.Messages;
 /// <summary>
 /// Provides low level RESP parsing functionality.
 /// </summary>
-[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public ref partial struct RespReader
 {
     [Flags]
@@ -81,6 +80,80 @@ public ref partial struct RespReader
 
         value = default;
         return IsNullScalar;
+    }
+
+    /// <summary>
+    /// Attempt to get all remaining protocol bytes - raw and undecoded, with no regard to RESP structure -
+    /// as a single contiguous span. Unlike <see cref="TryGetSpan"/>, this is not limited to the current
+    /// scalar; called at the start of a message, this returns the entire message, header bytes included.
+    /// </summary>
+    /// <returns><c>True</c> if the remaining data is a single contiguous span, otherwise <c>False</c>.</returns>
+    /// <remarks>If this reports <c>False</c>, <see cref="CopyRawTo"/> can be used instead.</remarks>
+    /// <param name="value">When <c>True</c>, the remaining raw bytes.</param>
+    public readonly bool TryGetRawSpan(out ReadOnlySpan<byte> value)
+    {
+        if (_tail is null)
+        {
+            value = CurrentSpan();
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Copies all remaining protocol bytes - raw and undecoded, with no regard to RESP structure - into the
+    /// supplied <paramref name="target"/>, or as much as can be copied; the reader is not advanced. Unlike
+    /// <see cref="CopyTo(Span{byte})"/>, this is not limited to the current scalar; called at the start of a
+    /// message, this copies the entire message, header bytes included.
+    /// </summary>
+    /// <param name="target">The destination for the copy operation.</param>
+    /// <returns>The number of bytes successfully copied; this is <see cref="ProtocolBytesRemaining"/>, or less if <paramref name="target"/> is too small.</returns>
+    public readonly int CopyRawTo(scoped Span<byte> target)
+    {
+        if (TryGetRawSpan(out var span))
+        {
+            if (target.Length < span.Length) span = span.Slice(0, target.Length);
+            span.CopyTo(target);
+            return span.Length;
+        }
+
+        var current = CurrentSpan();
+        if (target.Length <= current.Length)
+        {
+            current.Slice(0, target.Length).CopyTo(target);
+            return target.Length;
+        }
+        current.CopyTo(target);
+        int totalBytes = current.Length;
+        target = target.Slice(current.Length);
+
+        var tail = _tail;
+        var remainingTailLength = _remainingTailLength;
+        while (tail is not null && remainingTailLength > 0 && !target.IsEmpty)
+        {
+            var memory = tail.Memory;
+            tail = tail.Next;
+            if (memory.IsEmpty) continue;
+
+            var tailSpan = memory.Span;
+            if (tailSpan.Length > remainingTailLength)
+            {
+                tailSpan = tailSpan.Slice(0, (int)remainingTailLength);
+            }
+            remainingTailLength -= tailSpan.Length;
+
+            if (target.Length <= tailSpan.Length)
+            {
+                tailSpan.Slice(0, target.Length).CopyTo(target);
+                return totalBytes + target.Length;
+            }
+            tailSpan.CopyTo(target);
+            totalBytes += tailSpan.Length;
+            target = target.Slice(tailSpan.Length);
+        }
+        return totalBytes;
     }
 
     /// <summary>
