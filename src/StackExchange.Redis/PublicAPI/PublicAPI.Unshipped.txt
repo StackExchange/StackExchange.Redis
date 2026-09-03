@@ -149,3 +149,7 @@ static StackExchange.Redis.RespReaderExtensions.ReadRedisValue(this in RESPite.M
 static StackExchange.Redis.RespReaderExtensions.ReadLease(this in RESPite.Messages.RespReader reader, System.Buffers.MemoryPool<byte>? pool = null) -> StackExchange.Redis.Lease<byte>?
 static StackExchange.Redis.RespReaderExtensions.ReadRedisResult(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.RedisResult!
 static StackExchange.Redis.RespReaderExtensions.ReadRedisKey(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.RedisKey
+StackExchange.Redis.ProductVariant.Dragonfly = 3 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Memurai = 4 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Redict = 5 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.KeyDB = 6 -> StackExchange.Redis.ProductVariant

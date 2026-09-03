@@ -995,6 +995,21 @@ namespace StackExchange.Redis
                                     productVariant = ProductVariant.Valkey;
                                     productVersion = valSpan.ToString();
                                     break;
+                                case AutoConfigureInfoField.DragonflyVersion:
+                                    productVariant = ProductVariant.Dragonfly;
+                                    productVersion = valSpan.ToString();
+                                    break;
+                                case AutoConfigureInfoField.MemuraiVersion:
+                                    productVariant = ProductVariant.Memurai;
+                                    productVersion = valSpan.ToString();
+                                    break;
+                                case AutoConfigureInfoField.RedictVersion:
+                                    productVariant = ProductVariant.Redict;
+                                    productVersion = valSpan.ToString();
+                                    break;
+                                case AutoConfigureInfoField.Executable when valSpan.EndsWith("/keydb-server"):
+                                    productVariant = ProductVariant.KeyDB;
+                                    break;
                             }
                         }
                         if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
