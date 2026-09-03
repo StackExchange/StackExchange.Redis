@@ -338,6 +338,8 @@ before; they can additionally be named in a configuration string if they overrid
 
 ## Maintenance notifications
 
+Server-native maintenance notifications - *smart client handoffs*, also called *hitless upgrades* - are configured with the keys below; [ServerMaintenanceEvent](ServerMaintenanceEvent) is the guide to what they do.
+
 Redis Enterprise and Redis Cloud can warn a connected client *before* a disruptive event - a shard migration, a
 failover, or an endpoint being replaced - so the client can act ahead of it rather than discover it by way of a
 broken connection. This requires RESP3, and the client asks for it per connection:

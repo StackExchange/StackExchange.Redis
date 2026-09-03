@@ -45,7 +45,7 @@ Documentation
 - [Pub/Sub Key Notifications](KeyspaceNotifications) - how to use keyspace and keyevent notifications
 - [Hot Keys](HotKeys) - how to use `HOTKEYS` profiling
 - [Using RESP3](Resp3) - information on using RESP3
-- [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance, including the server-native notifications sent by Redis Enterprise and Redis Cloud
+- [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance, including the server-native notifications sent by Redis Enterprise and Redis Cloud (known elsewhere as *smart client handoffs* or *hitless upgrades*)
 - [Streams](Streams) - how to use the Stream data type
 - [Arrays](Arrays) - how to use Redis Arrays as sparse arrays of values
 - [Vector Sets](VectorSets) - how to use Vector Sets for similarity search with embeddings
