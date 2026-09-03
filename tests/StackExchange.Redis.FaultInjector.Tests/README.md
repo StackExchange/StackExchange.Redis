@@ -15,6 +15,12 @@ export E2E_SCENARIO_TESTS=true          # explicit opt-in: these create and dele
 dotnet test tests/StackExchange.Redis.FaultInjector.Tests
 ```
 
+**Point it at the *current* environment.** A stale directory passes every check we make: the credentials are
+only checked for being well-formed, and node discovery and database provisioning both go through the injector,
+which is configured separately - so the only thing that fails is the template databases, which belong to a
+cluster that no longer exists. If `endpoints.json` names a different cluster than the one the injector is
+driving, that directory is not the one you want.
+
 One path is the whole configuration. That directory is the one mounted into the injector as `/app/config`, so
 it already holds the cluster credentials (`env_output.json`), the CA certificate, and the compose file; nothing
 has to be hand-carried into the test run. `FAULT_INJECTION_API_URL` overrides the injector URL
