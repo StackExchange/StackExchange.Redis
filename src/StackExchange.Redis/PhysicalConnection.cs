@@ -413,6 +413,15 @@ namespace StackExchange.Redis
             bool isInitialConnect = false,
             Stream? connectingStream = null)
         {
+            // Close the response queue to new writers before detaching the bridge or failing messages.
+            // A writer may already hold a reference to this physical connection; without this gate it can
+            // enqueue against the old socket after the failure path has drained the queue. A reply already in
+            // flight can then be matched to that newer command, permanently shifting response ownership.
+            lock (_writtenAwaitingResponse)
+            {
+                _isShutdown = true;
+            }
+
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -676,6 +685,14 @@ namespace StackExchange.Redis
             bool wasEmpty;
             lock (_writtenAwaitingResponse)
             {
+                if (_isShutdown)
+                {
+                    throw new RedisConnectionException(
+                        ConnectionFailureType.SocketClosed,
+                        next.Flags,
+                        "The connection was closed before the command could be written");
+                }
+
                 wasEmpty = _writtenAwaitingResponse.Count == 0;
                 _writtenAwaitingResponse.Enqueue(next);
             }
