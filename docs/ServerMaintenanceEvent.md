@@ -177,9 +177,9 @@ Redis Enterprise **retains the most recent completion** - `MIGRATED` or `FAILED_
 * It arrives within milliseconds of the opt-in being accepted, which is *during* connection establishment - so an event handler attached after `ConnectAsync` returns will usually not see it.
 * **It can be very old.** The same `FAILED_OVER` was still being replayed to fresh connections **three hours** after the failover - the longest anybody has measured, and it had not expired then - and a completion carries no time field, so nothing in the notification says how old it is.
 
-Because of that last point, a completion that arrives while the connection is still being established does **not** relax timeouts: it is history, not news. A completion that arrives on a live connection does, as the table above says. If you act on these events yourself, treat one that arrives at connection time as "this happened at some point", not "this is happening".
+Because of that last point, a replayed completion is **not surfaced at all**: it does not relax timeouts, and `ServerMaintenanceEvent` is not raised for it. Nothing in the frame says whether the failover was seconds or hours ago, so any action taken on it would be a guess - and it is not ignored quietly, it is logged (see below), which is the right place for "here is what the server mentioned on the way in".
 
-That applies to completions only. A *starter* arriving as you connect is not a replay - nothing retains those - so it still relaxes timeouts: it is the server telling a late-joining connection what is left of a disruption already in progress, which is when patience is most useful.
+That applies to the retained kinds only - `MIGRATED` and `FAILED_OVER`. A *starter* arriving as you connect is not a replay, and neither is `SMIGRATED`; nothing retains those, so one arriving mid-handshake is the server telling a late-joining connection about a disruption in progress. Those are raised and do relax timeouts, which is when patience is most useful.
 
 Note that a deliberate handoff appears as a `ConnectionFailed` event with `FailureType == ConnectionFailureType.MaintenanceHandoff`. That is expected during planned maintenance and does not indicate a fault; if you alert on `ConnectionFailed`, filter it out.
 

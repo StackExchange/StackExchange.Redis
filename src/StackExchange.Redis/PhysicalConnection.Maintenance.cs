@@ -124,12 +124,16 @@ internal sealed partial class PhysicalConnection
         Trace($"maintenance notification: {raw}");
         OnDetailLog($"maintenance notification: {raw}");
 
-        // A notification that arrives before the bridge reports established is the server's *catch-up* copy:
-        // it retains the completion of a shard-scoped event and replays it to whoever opts in next, with no
-        // measured age limit (the same FAILED_OVER came back three hours later). Distinguishing the two matters
-        // for the completions, which otherwise relax timeouts on a brand-new connection for an event that
-        // finished long ago; the starters are unaffected, since nothing retains them.
-        var isCatchUp = BridgeCouldBeNull?.IsConnected != true;
+        // A *retained* notification arriving before the bridge reports established is the server's catch-up
+        // copy: Enterprise keeps the most recent shard-scoped completion and replays it to whoever opts in
+        // next, with no measured age limit (the same FAILED_OVER came back three hours later).
+        //
+        // Both halves of the test are load-bearing. "Before established" is the only signal available, since a
+        // completion carries no time; and restricting it to the retained kinds is what keeps a *live*
+        // notification that merely happens to land mid-handshake from being mistaken for history - a
+        // late-joining connection can legitimately be told about a disruption in progress, and `SMIGRATED` is
+        // not retained at all, so one arriving here is news.
+        var isCatchUp = IsRetained(type) && BridgeCouldBeNull?.IsConnected != true;
 
         // relax before reporting: the event handler is consumer code, and the window should already be open
         // by the time anyone sees the notification that opened it
@@ -172,6 +176,17 @@ internal sealed partial class PhysicalConnection
                     server.OnSlotsMigratedAway(migrations);
                 }
             }
+        }
+
+        // A catch-up copy is not reported at all. We ignore it internally - it opens no window, because it is
+        // history rather than news - and raising it anyway would hand a consumer a notification it cannot
+        // date: nothing in the frame says whether the failover was seconds or hours ago, so any action taken
+        // on it is a guess. It stays visible in the log (with "(catch-up)" against it), which is the right
+        // place for "here is what the server mentioned on the way in".
+        if (isCatchUp)
+        {
+            Trace($"{kind} seq {sequenceId} is a retained copy of a finished event; not raising it");
+            return OutOfBandResult.Handled;
         }
 
         // Per-server work above, one event below: relaxation is per-connection and every connection is told,
@@ -286,6 +301,19 @@ internal sealed partial class PhysicalConnection
         MaintenanceNotificationType.Migrated
         or MaintenanceNotificationType.FailedOver
         or MaintenanceNotificationType.SlotMigrated;
+
+    /// <summary>
+    /// Whether the server retains this notification and replays it to connections that opt in later.
+    /// </summary>
+    /// <remarks>
+    /// Measured on Redis Enterprise rather than specified: the most recent shard-scoped *completion* is
+    /// retained, most-recent-replaces, and nothing else is - not the starters, not <c>MOVING</c>, and not the
+    /// slot-scoped cluster forms. That is what makes a replay unable to demand action, and it is why only
+    /// these two kinds can arrive as history.
+    /// </remarks>
+    private static bool IsRetained(MaintenanceNotificationType type) => type is
+        MaintenanceNotificationType.Migrated
+        or MaintenanceNotificationType.FailedOver;
 
     /// <summary>
     /// Whether the contract gives this notification a <c>time</c> element.

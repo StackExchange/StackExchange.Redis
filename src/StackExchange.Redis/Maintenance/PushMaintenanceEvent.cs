@@ -12,10 +12,17 @@ namespace StackExchange.Redis.Maintenance;
 /// notification: the payloads are near-identical, and it keeps the handling in one place.
 /// </summary>
 /// <remarks>
-/// Observation only at present: receiving one of these raises
-/// <see cref="ConnectionMultiplexer.ServerMaintenanceEvent"/> and does nothing else. Acting on them - relaxing
-/// timeouts, then moving off a doomed endpoint - is deliberately separate work, so a consumer can watch what
-/// its servers are announcing before any behaviour depends on it.
+/// The client acts on these itself - relaxing timeouts for the duration, learning a new topology, and moving
+/// off an endpoint that says it is going away - so an application that only watches is watching work that has
+/// already happened. See the <c>ServerMaintenanceEvent</c> documentation for what each notification does.
+/// <para>
+/// One notification is raised once, however many nodes announced it: every node broadcasts a given event, so
+/// the copies are collapsed on their sequence number and <see cref="EndPoint"/> names whichever node arrived
+/// first. And one case is deliberately *not* raised: a completion that the server retained and replayed to a
+/// connection opting in later. That is history rather than news - it carries no time, so its age is
+/// unknowable - and it is recorded in the log instead of being handed to a consumer who could only guess at
+/// what to do with it.
+/// </para>
 /// </remarks>
 [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
 public sealed class PushMaintenanceEvent : ServerMaintenanceEvent

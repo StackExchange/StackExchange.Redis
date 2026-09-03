@@ -596,6 +596,11 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 Assert.False(endpoint.IsMaintenanceRelaxed, "a catch-up completion should not open the post-event tail");
                 Assert.Equal(MaintenanceNotificationType.None, endpoint.ActiveMaintenanceType);
 
+                // ...and it is not reported to consumers either, which is the same decision applied
+                // consistently: we ignore it, so we do not hand somebody a notification they cannot date and
+                // therefore cannot act on correctly. The log line above is where it stays visible.
+                await events.AssertNoneAsync();
+
                 // ...and it must not have disturbed the handshake it arrived in the middle of, which is the
                 // other half of what this test is for: a push frame interleaved with our own handshake
                 // replies must be dispatched out-of-band rather than matched against one of them
@@ -677,7 +682,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 log.WriteLine(received);
                 Assert.Contains(nameof(MaintenanceNotificationType.FailedOver), received);
                 Assert.Contains("seq=6", received);
-                GC.KeepAlive(events);
+                await events.AssertNoneAsync(); // received, but not reported
             }
         }
 
