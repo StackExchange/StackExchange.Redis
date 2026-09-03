@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -48,37 +48,10 @@ public class ConnectFailureRefreshTests(ITestOutputHelper log)
         }
     }
 
-    /// <summary>
-    /// Hands every endpoint except one to the in-process server, and lets that one fall through to a real
-    /// socket against a port nothing is listening on. The point is that the node is a perfectly good member of
-    /// the topology the client was told about, and is refused on every attempt, without a single notification -
-    /// so nothing but the client's own persistence can notice.
-    /// </summary>
-    private sealed class BlackHoleTunnel(Tunnel inner, EndPoint blackHoled) : Tunnel
-    {
-        public override ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken)
-            => blackHoled.Equals(endpoint)
-                ? base.GetSocketConnectEndpointAsync(endpoint, cancellationToken)
-                : inner.GetSocketConnectEndpointAsync(endpoint, cancellationToken);
-
-        public override ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
-            => blackHoled.Equals(endpoint)
-                ? base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken)
-                : inner.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
-    }
-
-    /// <summary>A loopback port that has been bound and released, so connecting to it is refused rather than dropped.</summary>
-    private static IPEndPoint GetRefusingEndPoint()
-    {
-        using var probe = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        probe.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-        return (IPEndPoint)probe.LocalEndPoint!;
-    }
-
     private (CountingServer Server, ConfigurationOptions Config, EndPoint Doomed, CapturingLogger Logger) Arrange(int configCheckSeconds)
     {
         var server = new CountingServer(log) { ServerType = ServerType.Cluster };
-        var doomed = GetRefusingEndPoint();
+        var doomed = BlackHoleTunnel.GetRefusingEndPoint();
 
         // a real member of the topology - it holds a slot, and CLUSTER SLOTS advertises it - that simply
         // cannot be reached; the client learns about it from the healthy node and then dials it forever
@@ -91,7 +64,9 @@ public class ConnectFailureRefreshTests(ITestOutputHelper log)
         config.ConfigCheckSeconds = configCheckSeconds; // the refresh rate limit reuses this
         config.ConnectTimeout = 2000;
         config.ReconnectRetryPolicy = new LinearRetry(500); // else the default backoff makes this a minutes-long test
-        config.Tunnel = new BlackHoleTunnel(server.Tunnel, doomed);
+        var tunnel = new BlackHoleTunnel(server.Tunnel);
+        tunnel.BlackHole(doomed); // refused from the outset: this endpoint never accepts a connection at all
+        config.Tunnel = tunnel;
         var logger = new CapturingLogger();
         config.LoggerFactory = logger;
         return (server, config, doomed, logger);

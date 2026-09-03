@@ -42,54 +42,11 @@ namespace StackExchange.Redis.Tests;
 [Collection(NonParallelCollection.Name)]
 public class RetirementUnderMaintenanceTests(ITestOutputHelper log)
 {
-    /// <summary>
-    /// Sends chosen endpoints to a real socket instead of to the in-process server, so they are refused.
-    /// </summary>
-    /// <remarks>
-    /// Removing a node from the fake is not enough to model a node that has gone away: the tunnel only
-    /// intercepts endpoints <c>TryGetNode</c> still resolves, but an already-established in-process pipe
-    /// survives the removal, so the client never reconnects and so never fails. Falling through to a real
-    /// socket against a loopback port that was bound and released gives connection-refused on every attempt,
-    /// which is what the field failure actually did.
-    /// </remarks>
-    private sealed class BlackHoleTunnel(Tunnel inner) : Tunnel
-    {
-        private readonly HashSet<EndPoint> _blackHoled = [];
-
-        public void BlackHole(EndPoint endpoint)
-        {
-            lock (_blackHoled) _blackHoled.Add(endpoint);
-        }
-
-        private bool IsBlackHoled(EndPoint endpoint)
-        {
-            lock (_blackHoled) return _blackHoled.Contains(endpoint);
-        }
-
-        public override ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken)
-            => IsBlackHoled(endpoint)
-                ? base.GetSocketConnectEndpointAsync(endpoint, cancellationToken)
-                : inner.GetSocketConnectEndpointAsync(endpoint, cancellationToken);
-
-        public override ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint endpoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
-            => IsBlackHoled(endpoint)
-                ? base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken)
-                : inner.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
-    }
-
-    /// <summary>A loopback port that has been bound and released, so connecting to it is refused rather than dropped.</summary>
-    private static IPEndPoint GetRefusingEndPoint()
-    {
-        using var probe = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        probe.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-        return (IPEndPoint)probe.LocalEndPoint!;
-    }
-
     [Fact]
     public async Task ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired()
     {
         using var server = new InProcessTestServer(log) { ServerType = ServerType.Cluster };
-        var doomed = GetRefusingEndPoint();
+        var doomed = BlackHoleTunnel.GetRefusingEndPoint();
         server.AddEmptyNode(doomed);
 
         // the channel has to live on the doomed node, so pin it there by slot rather than by hope
