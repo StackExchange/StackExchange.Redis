@@ -87,6 +87,135 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Theory]
+    [InlineData("amr", typeof(AzureManagedRedisOptionsProvider))]
+    [InlineData("AMR", typeof(AzureManagedRedisOptionsProvider))] // names are case-insensitive, like every other key
+    [InlineData("azure", typeof(AzureOptionsProvider))]
+    [InlineData("rediscloud", typeof(RedisCloudOptionsProvider))]
+    [InlineData("enterprise", typeof(RedisEnterpriseOptionsProvider))]
+    public void DefaultsProviderCanBeNamedInAConfigurationString(string name, Type expected)
+    {
+        // the on-premise case is why this exists: an Enterprise cluster has whatever DNS its operator gave it,
+        // so IsMatch can never recognize it, and until now the only way to select a provider was to write code
+        var options = ConfigurationOptions.Parse($"localhost,defaults={name}");
+        Assert.IsType(expected, options.Defaults);
+
+        // and it round-trips, because it was chosen rather than inferred
+        var text = options.ToString();
+        Output.WriteLine(text);
+        Assert.Contains($"defaults={name.ToLowerInvariant()}", text);
+        Assert.IsType(expected, ConfigurationOptions.Parse(text).Defaults);
+    }
+
+    [Fact]
+    public void ProviderToStringPrefersTheName()
+    {
+        // for logs: "amr" rather than a namespace-qualified type name
+        Assert.Equal("amr", new AzureManagedRedisOptionsProvider().ToString());
+        Assert.Equal("enterprise", new RedisEnterpriseOptionsProvider().ToString());
+
+        // ...and an unnameable one still says something useful, which is exactly why serialization tests
+        // Name rather than ToString: this is never null
+        var custom = new TestOptionsProvider(".custom");
+        Assert.Null(custom.Name);
+        Assert.Contains(nameof(TestOptionsProvider), custom.ToString());
+    }
+
+    [Fact]
+    public void UnknownDefaultsProviderNameIsRejectedWithTheAlternatives()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("localhost,defaults=sideways"));
+        Output.WriteLine(ex.Message);
+        Assert.Contains("enterprise", ex.Message); // the message lists what it would have accepted
+        Assert.Contains("rediscloud", ex.Message);
+    }
+
+    [Fact]
+    public void AnInferredDefaultsProviderIsNotSerialized()
+    {
+        // the trap this guards: the Defaults getter memoizes an inferred provider into the same field an
+        // explicit set writes, so without tracking *how* it got there, merely reading the property would make
+        // an endpoint-derived guess look like a decision - and re-parsing the string would then pin it
+        var options = ConfigurationOptions.Parse("contoso.cloud.redislabs.com");
+        Assert.IsType<RedisCloudOptionsProvider>(options.Defaults); // inferred, and memoized by that read
+
+        Assert.DoesNotContain("defaults=", options.ToString());
+        Assert.DoesNotContain("defaults=", options.Clone().ToString());
+    }
+
+    [Fact]
+    public void AnExplicitDefaultsProviderSurvivesCloning()
+    {
+        var options = ConfigurationOptions.Parse("localhost,defaults=enterprise");
+        var clone = options.Clone();
+
+        Assert.IsType<RedisEnterpriseOptionsProvider>(clone.Defaults);
+        Assert.Contains("defaults=enterprise", clone.ToString());
+    }
+
+    [Fact]
+    public void AnUnnameableProviderIsNotSerializedEvenWhenExplicit()
+    {
+        // a custom provider is still perfectly usable in code; it just cannot be expressed as a string, the
+        // same way an inbuilt tunnel can be and a custom one cannot
+        var options = ConfigurationOptions.Parse("localhost");
+        options.Defaults = new TestOptionsProvider(".unnameable");
+
+        Assert.Null(options.Defaults.Name);
+        Assert.DoesNotContain("defaults=", options.ToString());
+    }
+
+    [Theory]
+    [InlineData("redis-12345.c1.eu-west-1-2.ec2.cloud.redislabs.com")]
+    [InlineData("contoso.CLOUD.REDISLABS.COM")] // case-insensitive, as the sibling providers are
+    [InlineData("redis-12345.c1.us-east-1-2.ec2.cloud.redis.io")] // newer routing scheme
+    [InlineData("contoso.redislabs.com")] // older subscriptions, addressed directly
+    public void IsMatchOnRedisCloudDomain(string hostName)
+    {
+        var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
+        var provider = DefaultOptionsProvider.GetProvider(epc);
+        Assert.IsType<RedisCloudOptionsProvider>(provider);
+    }
+
+    [Fact]
+    public void RedisCloudDoesNotInheritTheAzureManagedAssumptions()
+    {
+        // the two deployments look similar and are not: AMR is TLS-only with a 7.4 floor, Redis Cloud is
+        // neither, so copying those two would break plaintext databases and over-claim the server version
+        var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint("contoso.cloud.redislabs.com", 0) });
+        var cloud = DefaultOptionsProvider.GetProvider(epc);
+        var amr = new AzureManagedRedisOptionsProvider();
+
+        Assert.True(amr.GetDefaultSsl(epc));
+        Assert.False(cloud.GetDefaultSsl(epc));
+        Assert.Equal(RedisFeatures.v7_4_0, amr.DefaultVersion);
+        Assert.Equal(DefaultOptionsProvider.BaseDefaultVersion, cloud.DefaultVersion);
+
+        // ...but it does share the parts that are about being a proxied, hosted deployment
+        Assert.Equal(RedisProtocol.Resp3, cloud.Protocol);
+        Assert.Equal("", cloud.ConfigurationChannel);
+        Assert.False(cloud.AbortOnConnectFail);
+    }
+
+    [Theory]
+    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Auto)] // AMR asks, pre-emptively
+    [InlineData("contoso.cloud.redislabs.com", MaintenanceNotificationMode.Auto)] // and Redis Cloud, which emits them
+    [InlineData("contoso.redis.cache.windows.net", MaintenanceNotificationMode.Disabled)] // classic Azure does not
+    [InlineData("contoso.example.com", MaintenanceNotificationMode.Disabled)] // and neither does anything else
+    public void MaintenanceNotificationDefaultPerProvider(string hostName, MaintenanceNotificationMode expected)
+    {
+        // Auto rather than Enabled is what makes the pre-emptive default safe: AMR does not emit these yet,
+        // so until the server side ships the opt-in is refused and the feature simply stays off
+        var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
+        var provider = DefaultOptionsProvider.GetProvider(epc);
+        Output.WriteLine($"{hostName} -> {provider.GetType().Name}");
+        Assert.Equal(expected, provider.MaintenanceNotifications);
+
+        // ...and it arrives through the options, not just off the provider
+        var options = new ConfigurationOptions { EndPoints = { new DnsEndPoint(hostName, 0) } };
+        Assert.Equal(expected, options.MaintenanceNotifications);
+    }
+
+    [Theory]
     [InlineData(RedisProtocol.Resp2)]
     [InlineData(RedisProtocol.Resp3)]
     public async Task AzureManagedRedisConnectsWithoutSubscriptionConnection(RedisProtocol protocol)

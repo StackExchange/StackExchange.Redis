@@ -26,6 +26,32 @@ public static class TestConfig
     public static int MinTimeoutMilliseconds { get; } =
         int.TryParse(Environment.GetEnvironmentVariable("REDIS_TESTS_MIN_TIMEOUT_MS"), out var ms) && ms > 0 ? ms : 0;
 
+    /// <summary>
+    /// A suite-wide maintenance-notification mode, from <c>REDIS_TESTS_MAINT_NOTIFICATIONS</c>
+    /// (<c>disabled</c>/<c>enabled</c>/<c>auto</c>); <c>null</c> (the default) leaves the library's own
+    /// default alone.
+    /// </summary>
+    /// <remarks>
+    /// The point is to be able to run the *whole* suite with the opt-in on, rather than to test the feature:
+    /// most servers we test against never send a notification, and that is the expected outcome - the opt-in
+    /// must be invisible to everything else. Applied only where a test has not asked for a specific mode.
+    /// </remarks>
+    public static MaintenanceNotificationMode? MaintenanceNotifications { get; } =
+        Enum.TryParse<MaintenanceNotificationMode>(Environment.GetEnvironmentVariable("REDIS_TESTS_MAINT_NOTIFICATIONS"), ignoreCase: true, out var mode)
+            ? mode : null;
+
+    /// <summary>
+    /// Applies <see cref="MaintenanceNotifications"/>, if set. Call before any test-specific override.
+    /// </summary>
+    public static ConfigurationOptions ApplyMaintenanceDefault(ConfigurationOptions config)
+    {
+        if (MaintenanceNotifications is { } mode)
+        {
+            config.MaintenanceNotifications = mode;
+        }
+        return config;
+    }
+
 #if NET
     private static int _db = 17;
 #else

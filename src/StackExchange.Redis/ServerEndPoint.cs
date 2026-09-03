@@ -331,7 +331,22 @@ namespace StackExchange.Redis
             => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
             && (subscription?.SubscriptionCount ?? 0) == 0
             && (interactive?.SubscriptionCount ?? 0) == 0
-            && GetOutstandingCount() == 0;
+            && !HasCallerWork();
+
+        /// <summary>
+        /// Whether a *caller* is waiting on anything here, which is the only kind of work that should stop us
+        /// retiring a server.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately not <see cref="GetOutstandingCount"/>, which counts everything. A node the topology has
+        /// stopped listing still receives our autoconfigure probes on every pass, and nothing answers them, so
+        /// they accumulate in its backlog: measured at ~170 per pass, growing without bound. Counting those
+        /// made the node look busy *because* we were looking for it, so it could never be retired - the
+        /// precondition defeated itself in exactly the case pruning exists for. Keep-alive traffic has the same
+        /// property, and is excluded by the same test, since both set the internal-call flag.
+        /// </remarks>
+        internal bool HasCallerWork()
+            => interactive?.HasCallerWork() == true || subscription?.HasCallerWork() == true;
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
@@ -360,18 +375,23 @@ namespace StackExchange.Redis
             SetUnselectable(UnselectableFlags.Retiring);
             log?.LogInformationRetiringServer(new(EndPoint), reason);
 
+            // Drain what a *caller* is waiting for, not everything outstanding. Our own probes to a node that
+            // has gone away will never be answered, so draining on the total means always waiting out the full
+            // timeout before letting go - measured: a departed node accumulates our autoconfigure traffic
+            // indefinitely (500+ and climbing), so the drain never once completed early. Callers are who the
+            // drain exists for; nobody is waiting on our keep-alives.
             // Stopwatch rather than TickCount64: the latter does not exist on the down-level targets
             var watch = ValueStopwatch.StartNew();
-            int outstanding;
-            while ((outstanding = GetOutstandingCount()) > 0 && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
+            while (HasCallerWork() && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
 
-            if (outstanding > 0)
+            if (HasCallerWork())
             {
-                // deliberately reported: an abandoned command is exactly what a caller will be asking about
-                log?.LogInformationRetiringServerAbandoned(new(EndPoint), outstanding);
+                // deliberately reported: an abandoned command is exactly what a caller will be asking about.
+                // The count is the total, since that is what is actually being dropped on the floor
+                log?.LogInformationRetiringServerAbandoned(new(EndPoint), GetOutstandingCount());
             }
 
             Dispose();
@@ -914,6 +934,61 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// How many consecutive failures to connect justify re-reading the topology.
+        /// </summary>
+        /// <remarks>
+        /// Three: enough to rule out a single transient refusal, few enough that recovery is seconds. The
+        /// number matters less than that there *is* one - the failure this addresses lasted 37 hours.
+        /// </remarks>
+        private const int ConnectFailuresBeforeRefresh = 3;
+
+        private int _lastConnectFailureRefreshTicks;
+
+        /// <summary>
+        /// Called when a connection attempt to this endpoint has failed, with the consecutive failure count.
+        /// </summary>
+        /// <remarks>
+        /// The gap this closes: every existing path that re-reads the topology needs somebody *else* to notice
+        /// first - a notification, a <c>MOVED</c> from a reachable node, a peer's config broadcast. A client
+        /// with quiet healthy connections and one endpoint that only ever refuses has nobody to tell it, so it
+        /// dials the dead address indefinitely. That is not hypothetical: a customer's client did exactly that
+        /// for 37 hours across a Redis Cloud node replacement.
+        /// <para>
+        /// Rate-limited to <see cref="ConfigurationOptions.ConfigCheckSeconds"/>, deliberately reusing the
+        /// knob that already means "how often may we re-read configuration" rather than inventing one. The
+        /// limit is the part that makes this safe: the existing gate exists to stop a stampede - a dead
+        /// endpoint, times a retry loop, times every client in a fleet, each issuing <c>CLUSTER NODES</c> - and
+        /// removing the gate without replacing the restraint would trade a stuck client for a thundering herd.
+        /// </para>
+        /// <para>
+        /// It repeats rather than firing once, because one refresh is not guaranteed to help: the topology may
+        /// not have been updated server-side yet. A permanently dead endpoint therefore prompts a re-read at
+        /// most once per interval until something changes, which is what makes recovery eventual rather than
+        /// lucky.
+        /// </para>
+        /// </remarks>
+        internal void OnRepeatedConnectFailure(int consecutiveFailures)
+        {
+            if (consecutiveFailures < ConnectFailuresBeforeRefresh || isDisposed) return;
+
+            // nothing to learn about an endpoint we have already decided to let go of
+            if ((unselectableReasons & UnselectableFlags.Retiring) != 0) return;
+
+            var interval = Math.Max(Multiplexer.RawConfig.ConfigCheckSeconds, 5) * 1000;
+            var now = Environment.TickCount;
+            var last = Volatile.Read(ref _lastConnectFailureRefreshTicks);
+            if (last != 0 && unchecked(now - last) < interval) return;
+
+            if (Interlocked.CompareExchange(ref _lastConnectFailureRefreshTicks, NudgeFromZeroTicks(now), last) != last) return;
+
+            Multiplexer.Logger?.LogInformationRefreshingAfterConnectFailures(new(this), consecutiveFailures);
+            Multiplexer.ReconfigureIfNeeded(EndPoint, fromBroadcast: false, $"{consecutiveFailures} consecutive connect failures");
+        }
+
+        /// <summary>Zero means "never", so a tick count that lands on it moves by one.</summary>
+        private static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
+
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             try
@@ -924,8 +999,16 @@ namespace StackExchange.Redis
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
 
+                    // whatever a handoff pointed us at, we are connected now: resume normal resolution
+                    ClearHandoffTarget();
+
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
+
+                    if (connection is not null && bridge == interactive)
+                    {
+                        ReconcileMaintenanceNotifications(connection);
+                    }
                     if (bridge == subscription || isResp3)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
@@ -1241,6 +1324,10 @@ namespace StackExchange.Redis
                 // forget what the previous connection's HELLO told us; re-established below, if this one repeats it
                 // (the subscription handshake is deliberately left out of this: it doesn't do the discovery step)
                 RoleKnownFromHello = false;
+
+                // likewise per-connection: re-armed from this handshake's reply, if we ask
+                _maintenanceNotificationsActive = _maintenanceNotificationsRequested = false;
+                _maintenanceNotificationsRefusal = null;
             }
 
             // HELLO serves two purposes: negotiating RESP3, and reporting details we would otherwise need INFO or
@@ -1332,6 +1419,25 @@ namespace StackExchange.Redis
                 msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.ID);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+
+                if (ShouldRequestMaintenanceNotifications(isInteractive, negotiateResp3))
+                {
+                    _maintenanceNotificationsRequested = true;
+                    // speculative in the same way as the AUTH above: we don't yet know what HELLO negotiated,
+                    // so we ask whenever we asked for RESP3, and ReconcileMaintenanceNotifications sorts out a
+                    // downgrade once the reply has been processed. A bare ON is explicitly valid: the server
+                    // then picks the endpoint type, which is what we want until we derive one ourselves.
+                    log?.LogInformationRequestingMaintenanceNotifications(new(this), MaintenanceMode);
+
+                    // A bare ON leaves the endpoint type to the server, and every MOVING observed that way
+                    // carried no address at all - so when a caller asks for a specific form, say so.
+                    var endpointType = MaintenanceMovingEndpointTypeLiteral(connection);
+                    msg = endpointType.IsNull
+                        ? Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON)
+                        : Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, [RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON, RedisLiterals.moving_endpoint_type, endpointType]);
+                    msg.SetInternalCall();
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.MaintenanceNotifications).ForAwait();
+                }
             }
 
             var bridge = connection.BridgeCouldBeNull;

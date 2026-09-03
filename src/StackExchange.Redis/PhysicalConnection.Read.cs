@@ -508,11 +508,36 @@ internal sealed partial class PhysicalConnection
         PUnsubscribe,
         [AsciiHash("sunsubscribe")]
         SUnsubscribe,
+
+        // the maintenance-notification family; these are *not* pub/sub - element 1 is a sequence number
+        // rather than a channel, so they must be dispatched before anything reads a channel name. The specs
+        // write them uppercase while the pub/sub kinds above are lowercase, hence the case-insensitive match
+        [AsciiHash("MOVING")]
+        Moving,
+        [AsciiHash("MIGRATING")]
+        Migrating,
+        [AsciiHash("MIGRATED")]
+        Migrated,
+        [AsciiHash("FAILING_OVER")]
+        FailingOver,
+        [AsciiHash("FAILED_OVER")]
+        FailedOver,
+        [AsciiHash("SMIGRATING")]
+        SlotMigrating,
+        [AsciiHash("SMIGRATED")]
+        SlotMigrated,
     }
 
     internal static partial class PushKindMetadata
     {
-        [AsciiHash]
+        /// <summary>
+        /// Identifies a push frame from its first element.
+        /// </summary>
+        /// <remarks>
+        /// Case-insensitive: the pub/sub kinds are lowercase on the wire and the maintenance kinds are
+        /// uppercase, and no specification anywhere is careful about it - so don't bake in an assumption.
+        /// </remarks>
+        [AsciiHash(CaseSensitive = false)]
         internal static partial bool TryParse(ReadOnlySpan<byte> value, out PushKind result);
     }
 
@@ -561,6 +586,12 @@ internal sealed partial class PhysicalConnection
             unsafe
             {
                 if (!reader.TryParseScalar(&PushKindMetadata.TryParse, out kind)) kind = PushKind.None;
+            }
+
+            if (kind is >= PushKind.Moving and <= PushKind.SlotMigrated)
+            {
+                // not pub/sub: dispatch before anything tries to read element 1 as a channel name
+                return OnMaintenanceNotification(muxer, kind, ref reader);
             }
 
             RedisChannel.RedisChannelOptions channelOptions = kind switch

@@ -390,6 +390,14 @@ namespace StackExchange.Redis
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
+                    // Normally the PING - observed against a 7.0 server, answered with the two-element array
+                    // pong rather than +PONG (OnResponseFrame's IsArrayPong is what keeps that out of the
+                    // out-of-band path so it still matches this message). The UNSUBSCRIBE fallback is not just
+                    // for pre-3.0 servers: the condition also fails when PING is disabled or renamed in the
+                    // CommandMap, or fronted by something that does not support it.
+                    //
+                    // Neither needs SetInternalCall here: the common path below flags whatever the switch
+                    // produced, so any tracer added later is covered without remembering to.
                     if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
@@ -499,9 +507,20 @@ namespace StackExchange.Redis
                 }
                 ServerEndPoint.OnDisconnected(this);
 
-                if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
+                if (!isDisposed)
                 {
-                    TryConnect(null); // try to connect immediately
+                    var consecutive = Interlocked.Increment(ref failConnectCount);
+                    if (consecutive == 1)
+                    {
+                        TryConnect(null); // try to connect immediately
+                    }
+
+                    // An endpoint we cannot even connect to is evidence that what we believe about the
+                    // deployment may be wrong - and until now nothing acted on that. The reconfigure-on-failure
+                    // path is gated on reconfigureNextFailure, which is only ever set once a connection has
+                    // been *established*, so a node that has only ever refused could be retried forever
+                    // without anybody re-reading the topology. Measured in the field: 37 hours.
+                    ServerEndPoint.OnRepeatedConnectFailure(consecutive);
                 }
             }
             else if (physical == null)
@@ -673,8 +692,12 @@ namespace StackExchange.Redis
 
                             // This is an "always" check - we always want to evaluate a dead connection from a non-responsive sever regardless of the need to heartbeat above
                             var totalTimeoutThisHeartbeat = asyncTimeoutThisHeartbeat + syncTimeoutThisHeartbeat;
-                            bool deadConnectionOnAsync = asyncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4);
-                            bool deadConnectionOnSync = syncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.TimeoutMilliseconds * 4);
+                            // note these track the *effective* timeout: this heuristic is derived from the
+                            // command timeout, so if relaxation says "be patient for 60s" while this says
+                            // "dead after 4x5s", we would tear down the connection relaxation was protecting.
+                            // Socket-level failure detection is untouched and still notices a dead server.
+                            bool deadConnectionOnAsync = asyncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (ServerEndPoint.GetEffectiveTimeoutMilliseconds(tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds ?? 0) * 4);
+                            bool deadConnectionOnSync = syncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (ServerEndPoint.GetEffectiveTimeoutMilliseconds(tmp.BridgeCouldBeNull?.Multiplexer.TimeoutMilliseconds ?? 0) * 4);
                             if (deadConnectionOnAsync || deadConnectionOnSync)
                             {
                                 // If we've received *NOTHING* on the pipe in 4 timeouts worth of time and we're timing out commands, issue a connection failure so that we reconnect
@@ -1019,10 +1042,29 @@ namespace StackExchange.Redis
         /// Crawls from the head of the backlog queue, consuming anything that should have timed out
         /// and pruning it accordingly (these messages will get timeout exceptions).
         /// </summary>
+        /// <summary>
+        /// Whether this bridge owes a *caller* anything, ignoring our own internal traffic.
+        /// </summary>
+        internal bool HasCallerWork()
+        {
+            if (physical?.HasCallerMessagesAwaitingResponse() == true) return true;
+
+            foreach (var message in _backlog) // snapshot enumeration; a concurrent queue is fine to walk
+            {
+                if (message.IsCallerFacing) return true;
+            }
+            return false;
+        }
+
         private void CheckBacklogForTimeouts()
         {
             var now = Environment.TickCount;
-            var timeout = _singleWriter.TimeoutMilliseconds;
+
+            // deliberately *not* _singleWriter.TimeoutMilliseconds, which is the write-lock acquisition
+            // timeout: that is about contention between writers, and relaxing it during maintenance is not
+            // something anybody asked for. This is the age at which a queued command is considered timed out,
+            // relaxed while the server has announced a disruption.
+            var timeout = ServerEndPoint.GetEffectiveTimeoutMilliseconds(Multiplexer.TimeoutMilliseconds);
 
             // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
@@ -1303,7 +1345,7 @@ namespace StackExchange.Redis
             {
                 foreach (var item in _backlog) // non-consuming, thread-safe, etc
                 {
-                    if (!item.IsInternalCall) return true;
+                    if (item.IsCallerFacing) return true;
                 }
             }
             return physical?.HasPendingCallerFacingItems() ?? false;
@@ -1761,6 +1803,33 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
             physical?.SimulateConnectionFailure(failureType);
+        }
+
+        /// <summary>
+        /// Drops the current connection so that a fresh one is established.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately just a dispose: that routes through <c>RecordConnectionFailed</c> to
+        /// <see cref="OnDisconnected"/>, which reconnects immediately by itself, so there is no new lifecycle
+        /// here to get wrong. Used by the <c>MOVING</c> handoff, where the point is to choose *when* the
+        /// connection is replaced - after the replacement address is known - rather than waiting for the server
+        /// to close it and re-resolving to whatever DNS says at that moment, which has been measured as still
+        /// naming the node being retired.
+        /// </remarks>
+        internal bool RecycleConnection(string reason)
+        {
+            var current = physical;
+            if (current is null) return false;
+
+            Multiplexer.Trace($"recycling {ConnectionType} connection: {reason}", ToString());
+
+            // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
+            // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
+            // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
+            // also performs the disconnect, so the Dispose below is cleanup.
+            current.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
+            current.Dispose();
+            return true;
         }
 
         internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;

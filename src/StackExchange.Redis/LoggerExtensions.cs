@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis;
 
@@ -765,4 +766,46 @@ internal static partial class LoggerExtensions
         EventId = 110,
         Message = "{BridgeName}: Transport connected (encrypted: {IsEncrypted})")]
     internal static partial void LogInformationTransportConnected(this ILogger logger, string bridgeName, bool isEncrypted);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 116,
+        Message = "{Server}: Requesting maintenance notifications ({Mode})")]
+    internal static partial void LogInformationRequestingMaintenanceNotifications(this ILogger logger, ServerEndPointLogValue server, MaintenanceNotificationMode mode);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 117,
+        Message = "{Server}: Maintenance notifications accepted")]
+    internal static partial void LogInformationMaintenanceNotificationsAccepted(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 118,
+        Message = "{Server}: Maintenance notifications refused ({Reason})")]
+    internal static partial void LogInformationMaintenanceNotificationsRefused(this ILogger logger, ServerEndPointLogValue server, string reason);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 122,
+        Message = "{Server}: Maintenance handoff did not establish a replacement within the announced {WindowMilliseconds}ms (interactive: {Interactive}, subscription: {Subscription})")]
+    internal static partial void LogWarningMaintenanceHandoffMissedDeadline(this ILogger logger, ServerEndPointLogValue server, long windowMilliseconds, bool interactive, bool subscription);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 121,
+        Message = "{Server}: Maintenance notification: {Type} seq={Sequence}{CatchUp}")]
+    internal static partial void LogInformationMaintenanceNotificationReceived(this ILogger logger, ServerEndPointLogValue server, MaintenanceNotificationType type, long sequence, string catchUp);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 119,
+        Message = "{Server}: Maintenance handoff: {Outcome}")]
+    internal static partial void LogInformationMaintenanceHandoff(this ILogger logger, ServerEndPointLogValue server, string outcome);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 120,
+        Message = "{Server}: Re-reading topology after {Failures} consecutive connect failures")]
+    internal static partial void LogInformationRefreshingAfterConnectFailures(this ILogger logger, ServerEndPointLogValue server, int failures);
 }
