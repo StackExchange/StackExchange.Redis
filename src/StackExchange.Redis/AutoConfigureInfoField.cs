@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using RESPite;
 
 namespace StackExchange.Redis;
@@ -38,8 +38,20 @@ internal enum AutoConfigureInfoField
     [AsciiHash("valkey_version")]
     ValkeyVersion,
 
+    [AsciiHash("dragonfly_version")]
+    DragonflyVersion,
+
+    [AsciiHash("memurai_version")]
+    MemuraiVersion,
+
+    [AsciiHash("redict_version")]
+    RedictVersion,
+
     [AsciiHash("server_mode")]
     ServerMode,
+
+    [AsciiHash("executable")]
+    Executable,
 }
 
 /// <summary>
