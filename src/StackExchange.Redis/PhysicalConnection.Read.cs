@@ -680,6 +680,16 @@ internal sealed partial class PhysicalConnection
     {
         Trace("Matching result...");
 
+        if (IsWriteFaulted)
+        {
+            // a write failed part-way and we could not complete teardown, so the queue may be out of
+            // step with the wire; matching *anything* now risks handing a reply to the wrong caller.
+            // bail out instead - the read loop records the failure, which fails everything queued.
+            // the sentinel is pre-allocated: we may be here precisely because we are out of memory.
+            _readStatus = ReadStatus.Faulted;
+            throw WriteFaultedSentinel;
+        }
+
         Message? msg = null;
         // check whether we're waiting for a high-integrity mode post-response checksum (using cheap null-check first)
         if (_awaitingToken is not null && (msg = Interlocked.Exchange(ref _awaitingToken, null)) is not null)

@@ -46,6 +46,36 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
+        private volatile bool _writeFaulted;
+
+        /// <summary>
+        /// Indicates that a write against this connection failed part-way through, so the messages in
+        /// <see cref="_writtenAwaitingResponse"/> may no longer line up with the replies on the wire.
+        /// </summary>
+        internal bool IsWriteFaulted => _writeFaulted;
+
+        /// <summary>
+        /// Marks this connection as untrustworthy for response matching.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately allocation-free and infallible. The richer teardown in
+        /// <see cref="RecordConnectionFailed"/> is reached via callers that allocate first (building
+        /// failure messages and exceptions), and those callers only run *because* something already
+        /// failed - under memory exhaustion they can fail again, skipping teardown and leaving a
+        /// queued-but-unwritten message at the head of the queue. From that point every reply matches
+        /// the wrong message, silently and permanently. See #2919.
+        /// </remarks>
+        internal void PoisonWrite() => _writeFaulted = true;
+
+        /// <summary>
+        /// Pre-allocated so that it can be thrown from the read loop when we are poisoned - which may
+        /// well be because we are out of memory. See <see cref="PoisonWrite"/>.
+        /// </summary>
+        private static readonly Exception WriteFaultedSentinel = new RedisConnectionException(
+            ConnectionFailureType.ProtocolFailure,
+            CommandFlags.None,
+            "A write failed part-way and the connection could not be torn down cleanly; the request and response queues may be out of step, so this connection has been abandoned.");
+
         private Message? _awaitingToken;
 
         private readonly string _physicalName;
