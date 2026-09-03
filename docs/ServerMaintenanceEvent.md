@@ -153,7 +153,7 @@ multiplexer.ServerMaintenanceEvent += (sender, e) =>
 Two things are worth knowing before you build on the detail:
 
 * **`EndPoint` is whichever node told us first.** Every node broadcasts a given event, so the client collapses the copies and raises one event; it is not necessarily the node being maintained, and for the cluster notifications it is usually a bystander reporting somebody else's movements.
-* **`SequenceId` is observed behaviour, not a contract.** No specification defines it. In practice it is monotonic per database and shared across notification types, which makes it useful for spotting a replay, but do not depend on it across deployments or versions.
+* **`SequenceId` identifies the event, not the delivery.** Every node that broadcasts a given event carries the same value, so the same notification arriving from several proxies - or replayed after a reconnect - is recognisable as one event. Ids are allocated per database and shared across notification types, so a `SMIGRATING` at 16 is followed by its `SMIGRATED` at 17. Use it for correlation and de-duplication rather than as an arithmetic sequence: gaps are normal, because a client only sees the events relevant to it.
 
 `Time` is what the server announced, and may legitimately be zero or negative for a connection that arrived mid-window, meaning "this is happening now".
 
