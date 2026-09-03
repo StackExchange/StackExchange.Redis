@@ -68,4 +68,5 @@ public sealed class ClusterRestClient : IDisposable
 
         return results;
     }
+
 }

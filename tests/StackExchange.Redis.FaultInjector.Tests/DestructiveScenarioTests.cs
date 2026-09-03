@@ -51,6 +51,95 @@ public class DestructiveScenarioTests(ReplicatedDatabaseFixture fixture, ITestOu
     private static bool Enabled =>
         string.Equals(Environment.GetEnvironmentVariable(EnableVariable), "true", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Kills the node that actually serves this database, rather than an arbitrary one.
+    /// </summary>
+    /// <remarks>
+    /// The version of the test below that means something. Measured 2026-09-03: <c>node_failure</c> against a
+    /// node we were not connected through produced zero connection drops - the deployment absorbed it and the
+    /// client never noticed - so a green run proved nothing about our recovery. Resolving the endpoint to a
+    /// node first is what makes the failure land where the client can see it.
+    /// </remarks>
+    [Fact]
+    public async Task KillingTheNodeThatServesUsIsSurvived()
+    {
+        if (!Enabled) Assert.Skip($"set {EnableVariable}=true to run the destructive scenarios; they damage the cluster");
+
+        fixture.RequireAvailable();
+        var database = fixture.Database;
+        Assert.NotNull(database);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var nodes = await ClusterNodes.ListAsync(fixture.Injector, database.BdbId, cancellationToken);
+        log.WriteLine($"cluster nodes: {string.Join(", ", nodes.Select(n => $"{n.Id}={n.Role}@{n.ExternalAddress}"))}");
+
+        var serving = await ClusterNodes.FindServingAsync(fixture.Injector, database.BdbId, database.Host, cancellationToken);
+        if (serving is null) Assert.Skip($"could not map {database.Host} to a node, so this would kill an arbitrary one");
+
+        log.WriteLine($"{database} is served by node {serving.Id} ({serving.Role}@{serving.ExternalAddress})");
+
+        var clock = Stopwatch.StartNew();
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(database.GetClientConfig());
+        var db = conn.GetDatabase();
+        const string Key = "fi-node-failure-targeted";
+        await db.StringSetAsync(Key, "before");
+
+        var drops = new List<ConnectionFailureType>();
+        conn.ConnectionFailed += (_, e) =>
+        {
+            lock (drops) drops.Add(e.FailureType);
+            log.WriteLine($"  +{clock.Elapsed.TotalSeconds,6:0.0}s  failed: {e.FailureType}");
+        };
+        conn.ConnectionRestored += (_, _) => log.WriteLine($"  +{clock.Elapsed.TotalSeconds,6:0.0}s  restored");
+        conn.ServerMaintenanceEvent += (_, e) =>
+        {
+            if (e is PushMaintenanceEvent push)
+            {
+                log.WriteLine($"  +{clock.Elapsed.TotalSeconds,6:0.0}s  {push.NotificationType} seq={push.SequenceId}");
+            }
+        };
+
+        clock.Restart();
+        try
+        {
+            await fixture.Injector.RunActionAsync(
+                "node_failure",
+                new Dictionary<string, object?> { ["node_id"] = serving.Id.ToString() },
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Assert.Skip($"the injector would not run 'node_failure' against node {serving.Id}: {ScenarioSupport.Summarize(ex.Message)}");
+        }
+
+        log.WriteLine($"  +{clock.Elapsed.TotalSeconds,6:0.0}s  injector reports node_failure finished");
+
+        var recovered = await Poll.UntilAsync(
+            () =>
+            {
+                try
+                {
+                    return db.StringGet(Key) == "before";
+                }
+                catch (Exception ex) when (ex is RedisException or TimeoutException)
+                {
+                    return false;
+                }
+            },
+            timeoutMilliseconds: 180_000,
+            pollMilliseconds: 1000);
+
+        lock (drops)
+        {
+            log.WriteLine(
+                $"  +{clock.Elapsed.TotalSeconds,6:0.0}s  recovered={recovered} after {drops.Count} drop(s): "
+                + (drops.Count == 0 ? "(none)" : string.Join(", ", drops.Distinct())));
+        }
+
+        Assert.True(recovered, "the client should recover on its own after the node serving it is killed");
+        Assert.Equal("before", await db.StringGetAsync(Key));
+    }
+
     [Theory]
     [InlineData("shard_failure", "bdb_id")]
     [InlineData("proxy_failure", "bdb_id")]
