@@ -24,15 +24,44 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     /// The notifications are RESP3 push frames, so every test here forces RESP3 rather than running per
     /// protocol: under RESP2 there is nothing to receive, which is covered by the opt-in tests instead.
     /// </summary>
-    private static async Task<(InProcessTestServer Server, ConnectionMultiplexer Connection, EventCollector Events)> ConnectAsync(ITestOutputHelper log)
+    private static async Task<(InProcessTestServer Server, ConnectionMultiplexer Connection, EventCollector Events)> ConnectAsync(
+        ITestOutputHelper log,
+        ILoggerFactory? loggerFactory = null)
     {
         var server = new InProcessTestServer(log);
         var config = server.GetClientConfig(defaultOnly: true);
         config.Protocol = RedisProtocol.Resp3;
         config.MaintenanceNotifications = MaintenanceNotificationMode.Enabled; // must be live, or the test is vacuous
+        config.LoggerFactory = loggerFactory;
 
         var conn = await ConnectionMultiplexer.ConnectAsync(config);
         return (server, conn, new EventCollector(conn));
+    }
+
+    /// <summary>Captures the library's own log lines, so a test can assert on one it emits.</summary>
+    private sealed class CapturingLoggerFactory : ILoggerFactory, ILogger
+    {
+        private readonly List<string> _lines = [];
+
+        public IReadOnlyList<string> Lines
+        {
+            get { lock (_lines) return [.. _lines]; }
+        }
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public void AddProvider(ILoggerProvider provider) { }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (_lines) _lines.Add(formatter(state, exception));
+        }
+
+        public void Dispose() { }
     }
 
     private sealed class EventCollector
@@ -727,6 +756,51 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task AHandoffThatMissesTheWindowSaysSo()
+    {
+        // The contract asks for the replacement to be *fully established* before the announced window runs
+        // out, and to report it when that is exceeded. Worth having because the two outcomes are otherwise
+        // indistinguishable from outside: commands succeed either way, since the relaxed window covers the
+        // gap, so a handoff that quietly took three times its budget looks exactly like one that worked.
+        //
+        // Provoked by making the *handshake* slow rather than the socket unreachable: the in-process transport
+        // routes by logical endpoint, so a named successor still connects here (which is why the sibling test
+        // checks intent rather than redirection). A reply-delaying server means the replacement connects but
+        // cannot finish establishing inside the window, which is precisely the case the warning is for.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            // Slowed *before* the notification, deliberately. Setting the latency afterwards races the
+            // handoff: the jitter on a short window can be almost nothing and an in-process reconnect takes
+            // about a millisecond, so the replacement can be established before the latency lands - a correct
+            // no-warning outcome, and a test that fails on a loaded machine. Measured: it did, once, in a
+            // two-core whole-suite run.
+            server.SetLatency(TimeSpan.FromSeconds(5));
+
+            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+            server.SendMoving(null, timeSeconds: 2, newEndpoint: successor, sequenceId: 0);
+
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+            Assert.True(
+                await Poll.UntilAsync(
+                    () => logs.Lines.Any(l => l.Contains("did not establish a replacement", StringComparison.Ordinal)),
+                    timeoutMilliseconds: 20_000),
+                "a handoff that misses the announced window should be reported as a warning");
+
+            var warning = logs.Lines.First(l => l.Contains("did not establish a replacement", StringComparison.Ordinal));
+            log.WriteLine(warning);
+            Assert.Contains("2000ms", warning); // the window it was given, so the log says what was missed
+
+            // let the server answer normally again, so teardown is not fighting the latency
+            server.SetLatency(TimeSpan.Zero);
+        }
+    }
+
+    [Fact]
     public async Task MovingRecyclesTheConnectionBeforeTheServerCloses()
     {
         // The point of D6: today a MOVING is survivable because the socket eventually closes and we reconnect,
@@ -737,7 +811,8 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         // no current address for the DNS branch to compare against; the deciding half of that branch is covered
         // by MaintenanceHandoffTests against a supplied resolver. What this proves is the acting half: drain,
         // drop, and come back.
-        var (server, conn, events) = await ConnectAsync(log);
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
         using (server)
         await using (conn)
         {
@@ -784,6 +859,10 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                     },
                     timeoutMilliseconds: 5_000),
                 "the recycle should be reported as a MaintenanceHandoff rather than silently");
+
+            // ...and the deadline warning stays silent, which is the other half of AHandoffThatMissesTheWindow-
+            // SaysSo: a warning that fires on the path that worked is noise rather than a diagnostic.
+            Assert.DoesNotContain(logs.Lines, l => l.Contains("did not establish a replacement", StringComparison.Ordinal));
 
             lock (failures)
             {

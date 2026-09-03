@@ -267,12 +267,14 @@ internal sealed partial class ServerEndPoint
         if (tail <= TimeSpan.Zero)
         {
             Volatile.Write(ref _relaxedDeadlineTicks, 0);
+            Volatile.Write(ref _relaxedEndedTicks, NudgeFromZero(Environment.TickCount));
             Multiplexer.Trace($"{type}: relaxation ended", ToString());
             return;
         }
 
         var deadline = NudgeFromZero(unchecked(Environment.TickCount + (int)tail.TotalMilliseconds));
         Volatile.Write(ref _relaxedDeadlineTicks, deadline);
+        Volatile.Write(ref _relaxedEndedTicks, deadline);
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
 
@@ -383,6 +385,8 @@ internal sealed partial class ServerEndPoint
 
     private async Task HandoffAsync(TimeSpan window, EndPoint? successor, IPAddress? currentAddress)
     {
+        var watch = ValueStopwatch.StartNew();
+        var replaced = false;
         try
         {
             // Spread the fleet, but only by a fraction of the window - see MaintenanceHandoff.GetJitter for why
@@ -411,6 +415,7 @@ internal sealed partial class ServerEndPoint
             {
                 case HandoffAction.Recycle:
                     await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
+                    replaced = true;
                     break;
                 case HandoffAction.RecycleAtHalfWindow:
                     // The contract's rule for "no replacement named", applied where there is nothing better to
@@ -418,6 +423,7 @@ internal sealed partial class ServerEndPoint
                     var half = TimeSpan.FromTicks(window.Ticks / 2) - jitter;
                     if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
                     await DrainThenRecycleAsync(window - jitter - (half > TimeSpan.Zero ? half : TimeSpan.Zero), decision.Reason).ForAwait();
+                    replaced = true;
                     break;
                 case HandoffAction.MoveTo when decision.Target is { } target:
                     // Point the next connection at the named address and replace the connections. Previously
@@ -426,12 +432,15 @@ internal sealed partial class ServerEndPoint
                     // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
                     SetHandoffTarget(target, remaining);
                     await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
+                    replaced = true;
                     break;
                 default:
                     // Nothing to do is a legitimate outcome, not a failure: the server closes the socket, the
                     // reconnect re-resolves, and the relaxed window covers the gap.
                     break;
             }
+
+            if (replaced) await WarnIfNotEstablishedInTimeAsync(watch, window).ForAwait();
         }
         catch (Exception ex)
         {
@@ -474,6 +483,39 @@ internal sealed partial class ServerEndPoint
             ToString());
     }
 
+    /// <summary>
+    /// Warns when a replacement connection is not fully established by the time the announced window ends.
+    /// </summary>
+    /// <remarks>
+    /// The contract asks for the new connection to be *fully established* - handshake complete, not merely
+    /// socket-connected - before the deadline, and to say so when that is exceeded. It is the difference
+    /// between a handoff that worked and one the server finished for us by closing the socket, and from the
+    /// outside those look identical: commands succeed either way, because the relaxed window covers the gap.
+    /// <para>
+    /// Only reached when connections were actually replaced. Where the decision was to do nothing, waiting for
+    /// the server to close the socket *is* the plan, so reconnecting after the deadline is the intended path
+    /// rather than a miss, and warning about it would be noise.
+    /// </para>
+    /// </remarks>
+    private async Task WarnIfNotEstablishedInTimeAsync(ValueStopwatch watch, TimeSpan window)
+    {
+        var deadline = window.TotalMilliseconds;
+        while (watch.ElapsedMilliseconds < deadline)
+        {
+            if (isDisposed) return; // nothing to report about an endpoint that has gone away
+            if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions)) return; // in time
+            await Task.Delay(50).ForAwait();
+        }
+
+        if (isDisposed || (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions))) return;
+
+        Multiplexer.Logger?.LogWarningMaintenanceHandoffMissedDeadline(
+            new(this),
+            (long)window.TotalMilliseconds,
+            IsConnected,
+            IsSubscriberConnected);
+    }
+
     [ThreadStatic]
     private static Random? _random;
 
@@ -496,10 +538,62 @@ internal sealed partial class ServerEndPoint
             if (current != 0 && unchecked(candidate - current) <= 0) return;
             if (Interlocked.CompareExchange(ref _relaxedDeadlineTicks, candidate, current) == current)
             {
+                Volatile.Write(ref _relaxedEndedTicks, candidate);
                 Multiplexer.Trace($"timeouts relaxed: {cause}", ToString());
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// When the most recent window was due to end, whether or not it has; zero if there has never been one.
+    /// </summary>
+    /// <remarks>
+    /// A mirror of the deadline rather than a record of when it was cleared, which is what makes it cheap:
+    /// expiry is lazy (it happens on the next read), so there is no single moment at which to stamp "the
+    /// window closed", and the deadline already *is* that moment.
+    /// </remarks>
+    private int _relaxedEndedTicks;
+
+    /// <summary>How long after a window closes a fault may still be attributed to it, at minimum.</summary>
+    /// <remarks>
+    /// The bridge heartbeat raises timeouts on roughly a one-second cadence rather than at the deadline, so a
+    /// timeout can be reported up to about a second after the moment it actually expired.
+    /// </remarks>
+    private const int FaultAttributionFloorMilliseconds = 1000;
+
+    /// <summary>
+    /// Which notification to blame for a fault, which is a different question from
+    /// <see cref="ActiveMaintenanceType"/>.
+    /// </summary>
+    /// <remarks>
+    /// A command that timed out was outstanding for its whole timeout before anybody noticed, and the
+    /// heartbeat that notices runs about once a second - so by the time an exception is built, a window that
+    /// covered the command's entire life may already have closed. Reading the *active* type then reports
+    /// <see cref="MaintenanceNotificationType.None"/> for a timeout that maintenance plainly caused, which is
+    /// the opposite of what this property exists for.
+    /// <para>
+    /// So a window that closed no longer ago than the command could have been waiting still counts. That is
+    /// the tightest bound that catches every genuine case, and it is deliberately a bound rather than a
+    /// certainty: without per-message state - which the timeout sweeps rule out, see
+    /// <see cref="GetEffectiveTimeoutMilliseconds"/> - a client cannot know whether *this* command overlapped
+    /// the window, only whether it could have.
+    /// </para>
+    /// </remarks>
+    /// <param name="timeoutMilliseconds">The timeout that applied to the faulted command.</param>
+    internal MaintenanceNotificationType GetMaintenanceTypeForFault(int timeoutMilliseconds)
+    {
+        var active = ActiveMaintenanceType;
+        if (active != MaintenanceNotificationType.None) return active;
+
+        var ended = Volatile.Read(ref _relaxedEndedTicks);
+        if (ended == 0) return MaintenanceNotificationType.None; // never had a window at all
+
+        var since = unchecked(Environment.TickCount - ended);
+        var grace = Math.Max(timeoutMilliseconds, FaultAttributionFloorMilliseconds);
+        return since >= 0 && since <= grace
+            ? (MaintenanceNotificationType)Volatile.Read(ref _relaxedType)
+            : MaintenanceNotificationType.None;
     }
 
     /// <summary>

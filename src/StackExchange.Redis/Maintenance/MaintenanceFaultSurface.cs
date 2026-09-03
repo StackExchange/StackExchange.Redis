@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using StackExchange.Redis.Maintenance;
 
@@ -25,6 +25,14 @@ public sealed partial class RedisTimeoutException
     /// happened inside that window - including the tail after the disruption reported completion. It does not
     /// promise that the maintenance *caused* the timeout, only that the two coincided; that is still the most
     /// useful thing to know when reading a log after the fact.
+    /// <para>
+    /// "Inside that window" is deliberately generous at the trailing edge. Timeouts are raised by a
+    /// once-a-second sweep rather than at the instant they expire, and a command that timed out had already
+    /// been waiting for its whole timeout before that - so a window covering the command's entire life can
+    /// have closed before anybody built this exception. A window that closed no longer ago than the command
+    /// could have been waiting therefore still counts, which catches every genuine case at the cost of
+    /// occasionally naming a window that a *different*, later command merely followed.
+    /// </para>
     /// </remarks>
     [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     public MaintenanceNotificationType MaintenanceType { get; internal init; }

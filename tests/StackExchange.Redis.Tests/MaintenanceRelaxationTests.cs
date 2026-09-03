@@ -112,6 +112,59 @@ public class MaintenanceRelaxationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task AFaultIsStillAttributedToAWindowThatHasJustClosed()
+    {
+        // Async timeouts are raised by the bridge heartbeat, not at the deadline, so a command that timed out
+        // was already outstanding for its whole timeout before anybody looked - and a window covering its
+        // entire life can have closed by the time the exception is built. Reading the *active* type then
+        // reports None for a timeout maintenance plainly caused, which is the opposite of the point.
+        var (server, conn) = await ConnectAsync(log, config => config.MaintenancePostEventRelaxedDuration = TimeSpan.Zero);
+        using (server)
+        await using (conn)
+        {
+            var endpoint = Endpoint(conn, server);
+            server.SendShardNotification(null, MaintenanceNotificationKind.Migrating, timeSeconds: 1);
+            Assert.True(await UntilRelaxedAsync(endpoint, true));
+
+            server.SendShardNotification(null, MaintenanceNotificationKind.Migrated, timeSeconds: 0);
+            Assert.False(await UntilRelaxedAsync(endpoint, false), "the window should have closed");
+
+            // closed, so nothing is relaxed any more...
+            Assert.Equal(MaintenanceNotificationType.None, endpoint.ActiveMaintenanceType);
+            Assert.Equal(1234, endpoint.GetEffectiveTimeoutMilliseconds(1234));
+
+            // ...but a command with a 30s timeout could easily have spanned it, so a fault is still its doing
+            Assert.Equal(MaintenanceNotificationType.Migrated, endpoint.GetMaintenanceTypeForFault(30_000));
+            log.WriteLine($"attributed to {endpoint.GetMaintenanceTypeForFault(30_000)} after the window closed");
+        }
+    }
+
+    [Fact]
+    public async Task AFaultIsNotAttributedToALongClosedWindow()
+    {
+        // The other half: the lookback is bounded by how long the command could have been waiting, so a
+        // short-timeout command that fails well after a window closed is not blamed on it. Without a bound
+        // this would attribute every timeout for the rest of the process to the last maintenance event.
+        var (server, conn) = await ConnectAsync(log, config => config.MaintenancePostEventRelaxedDuration = TimeSpan.Zero);
+        using (server)
+        await using (conn)
+        {
+            var endpoint = Endpoint(conn, server);
+            server.SendShardNotification(null, MaintenanceNotificationKind.Migrating, timeSeconds: 1);
+            Assert.True(await UntilRelaxedAsync(endpoint, true));
+            server.SendShardNotification(null, MaintenanceNotificationKind.Migrated, timeSeconds: 0);
+            Assert.False(await UntilRelaxedAsync(endpoint, false));
+
+            // past the one-second floor that covers the heartbeat's own imprecision
+            await Task.Delay(1500);
+            Assert.Equal(MaintenanceNotificationType.None, endpoint.GetMaintenanceTypeForFault(100));
+
+            // ...while a command that *could* have been outstanding that long still is attributed
+            Assert.Equal(MaintenanceNotificationType.Migrated, endpoint.GetMaintenanceTypeForFault(30_000));
+        }
+    }
+
+    [Fact]
     public async Task ACatchUpCompletionOpensNoTail()
     {
         // Measured on a live deployment: a completion is retained and replayed to whoever opts in next, with

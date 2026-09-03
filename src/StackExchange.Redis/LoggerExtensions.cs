@@ -786,6 +786,12 @@ internal static partial class LoggerExtensions
     internal static partial void LogInformationMaintenanceNotificationsRefused(this ILogger logger, ServerEndPointLogValue server, string reason);
 
     [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 122,
+        Message = "{Server}: Maintenance handoff did not establish a replacement within the announced {WindowMilliseconds}ms (interactive: {Interactive}, subscription: {Subscription})")]
+    internal static partial void LogWarningMaintenanceHandoffMissedDeadline(this ILogger logger, ServerEndPointLogValue server, long windowMilliseconds, bool interactive, bool subscription);
+
+    [LoggerMessage(
         Level = LogLevel.Information,
         EventId = 121,
         Message = "{Server}: Maintenance notification: {Type} seq={Sequence}{CatchUp}")]

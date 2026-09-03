@@ -223,7 +223,15 @@ The tail applies to a completion that arrives on a live connection. A completion
 
 The announced duration is clamped rather than honoured literally. Windows as short as two seconds have been observed in practice, which is not long enough to cover a client reconnecting, and a client that trusted the announced value would stop being patient exactly when it mattered. The tail exists for the same reason in reverse: after a handoff, servers and other clients are still settling.
 
-If a command does time out during a window, the exception carries the reason: `RedisTimeoutException.MaintenanceType` (and the same property on `RedisConnectionException`) names the notification that was in effect, which distinguishes "the deployment was moving" from "this query is slow".
+If a command does time out during a window, the exception carries the reason: `RedisTimeoutException.MaintenanceType` (and the same property on `RedisConnectionException`) names the notification that was in effect, which distinguishes "the deployment was moving" from "this query is slow". A window that closed very recently still counts, because timeouts are reported by a once-a-second sweep and the command had already been waiting for its whole timeout before that - so the window that caused a timeout is often over by the time you see the exception.
+
+A handoff that does not get a replacement connection fully established before the announced window runs out is reported as a warning:
+
+```
+10.0.0.1:6379: Maintenance handoff did not establish a replacement within the announced 15000ms (interactive: False, subscription: True)
+```
+
+Worth watching for, because it is otherwise invisible: commands succeed either way, since the relaxed window covers the gap, so a handoff that took three times its budget looks exactly like one that worked.
 
 ## Checking that it is working
 

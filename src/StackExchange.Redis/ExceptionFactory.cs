@@ -319,9 +319,19 @@ namespace StackExchange.Redis
             // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
             // and we have a more direct cause: we had no connection to send it on.
             var msgFlags = message?.Flags ?? CommandFlags.CommandRetryNever;
-            // if the server had announced a disruption, say so on the fault: "timeout" and "timeout during an
-            // announced failover" call for very different reactions from whoever reads the log
-            var maintenanceType = server?.ActiveMaintenanceType ?? Maintenance.MaintenanceNotificationType.None;
+            // If the server had announced a disruption, say so on the fault: "timeout" and "timeout during an
+            // announced failover" call for very different reactions from whoever reads the log.
+            //
+            // Deliberately not the *active* type. A command that timed out was outstanding for its whole
+            // timeout before the heartbeat noticed, so a window covering its entire life can already have
+            // closed by the time this runs - which used to report None for a timeout maintenance plainly
+            // caused. The timeout that applied is the bound on how far back to look; take the async one when
+            // this message was awaited, since the two can be configured very differently.
+            var applicableTimeout = message?.ResultBoxIsAsync == true
+                ? multiplexer.AsyncTimeoutMilliseconds
+                : multiplexer.TimeoutMilliseconds;
+            var maintenanceType = server?.GetMaintenanceTypeForFault(applicableTimeout)
+                ?? Maintenance.MaintenanceNotificationType.None;
             Exception ex = logConnectionException && lastConnectionException is not null
                 ? new RedisConnectionException(lastConnectionException.FailureType, msgFlags, sb.ToString(), lastConnectionException, message?.Status ?? CommandStatus.Unknown)
                 {
