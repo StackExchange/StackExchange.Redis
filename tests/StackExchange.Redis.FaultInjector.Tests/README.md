@@ -44,6 +44,30 @@ Two details that are not incidental:
   lease easily, and counting a dead environment as "no replay" would report an expiry at whatever minute the
   cluster went away.
 
+## The destructive scenarios, behind a second gate
+
+`DestructiveScenarioTests` breaks things rather than moving them - a shard, a node, or a proxy is killed - so
+it needs its own opt-in on top of the tier's:
+
+```bash
+export SER_FI_DESTRUCTIVE=true      # absent means skip
+export SER_FI_NODE_TO_KILL=2        # optional; which node node_failure kills (default 2, never 1)
+```
+
+`E2E_SCENARIO_TESTS` says "you may create and delete databases"; it does not say "you may kill nodes", and a
+cluster that has to be re-provisioned is 10-15 minutes of somebody's afternoon. Run these at the end of a
+cluster's life, watching.
+
+Two things measured on 2026-09-03 that change how you read a green run:
+
+- **The scope differs per action**, and the injector's schema does not say so: `shard_failure` and
+  `proxy_failure` take `bdb_id`, `node_failure` takes `node_id` and rejects a `bdb_id` outright.
+- **Only `proxy_failure` was visible to the client** (one `SocketClosed`, restored ~8s later). `shard_failure`
+  on a replicated database and `node_failure` against a node we were not connected through both produced zero
+  drops - the deployment absorbed them. That is worth knowing and is *not* coverage of our recovery path, so
+  the test says so in its output when it sees no drops. Node 1 is avoided by default because cluster
+  management usually lives there, and killing it takes the fault injector's own access with it.
+
 ## Three states, deliberately distinct
 
 | state | behaviour |
