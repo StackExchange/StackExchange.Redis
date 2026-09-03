@@ -60,8 +60,22 @@ cluster's life, watching.
 
 Two things measured on 2026-09-03 that change how you read a green run:
 
-- **The scope differs per action**, and the injector's schema does not say so: `shard_failure` and
-  `proxy_failure` take `bdb_id`, `node_failure` takes `node_id` and rejects a `bdb_id` outright.
+- **The scope differs per action**, and the injector's schema does not say so. Learned by being told:
+
+  | action | parameter |
+  |---|---|
+  | `shard_failure`, `proxy_failure` | `bdb_id` |
+  | `node_failure`, `node_remove` | `node_id` |
+  | `cluster_failure` | `node_ids` (a list) |
+  | `execute_rladmin_command` | `bdb_id` *and* `rladmin_command` |
+
+- **`SER_FI_CLUSTER_FAILURE=true` is a separate gate, and it ends the deployment.** `cluster_failure` stops
+  the nodes you name and restores nothing, so naming them all leaves the cluster down for good - `rladmin`
+  stops answering and the environment needs re-provisioning. Run it last or not at all.
+- **Node-scoped actions need the *right* node.** `ClusterNodes.FindServingAsync` resolves the database
+  hostname and matches it against `rladmin status nodes`, because killing an arbitrary node usually proves
+  nothing: the deployment absorbs it and the client never notices. Node discovery goes through the injector
+  rather than the cluster's REST API on 9443, which is not reachable from outside the deployment's network.
 - **Only `proxy_failure` was visible to the client** (one `SocketClosed`, restored ~8s later). `shard_failure`
   on a replicated database and `node_failure` against a node we were not connected through both produced zero
   drops - the deployment absorbed them. That is worth knowing and is *not* coverage of our recovery path, so
