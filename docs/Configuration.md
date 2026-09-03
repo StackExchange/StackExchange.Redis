@@ -265,6 +265,29 @@ Both options can be customized or disabled (set to `""`), via the `.Configuratio
 
 These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to primary/replica changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
 
+## Refreshing the topology after repeated connect failures
+
+An endpoint that refuses every connection is evidence that what the client believes about the deployment may
+be wrong, so after **three consecutive** failed connection attempts to the same endpoint, the client re-reads
+the topology - the same refresh a `MOVED` or a configuration announcement would have caused, jittered and
+coalesced in the same way.
+
+This closes a real gap rather than a theoretical one. Every other path that re-reads the topology needs
+somebody *else* to notice first: a redirect from a reachable node, a peer's configuration announcement, or a
+maintenance notification. The internal flag that drives a refresh-on-failure is only set once a connection has
+been *established*, so an endpoint that has never connected - because it was replaced while the client was
+running, or was already gone at startup - could be retried indefinitely with nobody to say otherwise. Measured
+in the field: a client dialled three removed nodes for around 37 hours.
+
+The re-read is rate-limited to `configCheckSeconds` (default 60), deliberately reusing the knob that already
+means "how often may we re-read configuration" rather than adding one. That restraint is what makes it safe:
+a permanently dead endpoint, times a retry loop, times every client in a fleet would otherwise be a great
+many topology reads, so a dead endpoint prompts at most one re-read per interval until something changes.
+
+Note that `configCheckSeconds` on its own is *not* a periodic topology refresh - it drives an
+`INFO replication` on an established connection, which is a replication-role check. This is the path that
+notices an endpoint nobody can reach.
+
 ## ReconnectRetryPolicy
 
 StackExchange.Redis automatically tries to reconnect in the background when the connection is lost for any reason. It keeps retrying  until the connection has been restored. It would use ReconnectRetryPolicy to decide how long it should wait between the retries.
