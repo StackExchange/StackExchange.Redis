@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using RESPite.Buffers;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
@@ -62,7 +63,23 @@ public static class RespReaderExtensions
     /// <summary>
     /// Read a scalar value as a <see cref="Lease{T}"/>.
     /// </summary>
-    public static Lease<byte>? ReadLease(this in RespReader reader, MemoryPool<byte>? pool = null)
+    /// <remarks>
+    /// <para>
+    /// Whether the lease shares the underlying buffer or takes a copy depends on where the reader came
+    /// from, not on the caller. When the source can hand out a counted reservation over a contiguous
+    /// payload - as <see cref="RespResult"/> does - the lease points into that buffer and shares its
+    /// lifetime; otherwise, and for a payload that is not contiguous, the value is copied into a buffer of
+    /// its own. Either way the lease belongs to the caller and must be disposed.
+    /// </para>
+    /// <para>
+    /// In the sharing case the reply stays rented until the lease is disposed, so a short value taken from
+    /// a large reply keeps the whole reply alive. That is the right trade for the case this exists for -
+    /// retrieving a large payload without copying it - but it means leases should be disposed promptly,
+    /// and that a small part of a large reply is better copied out (<c>RespReader.CopyTo</c>)
+    /// than retained as a lease.
+    /// </para>
+    /// </remarks>
+    public static Lease<byte>? ReadLease(this in RespReader reader)
     {
         reader.DemandScalar();
         if (reader.IsNull) return null;
@@ -70,7 +87,20 @@ public static class RespReaderExtensions
         var length = reader.ScalarLength();
         if (length == 0) return Lease<byte>.Empty;
 
-        var lease = Lease<byte>.Create(length, pool, clear: false);
+        // if the payload is a single contiguous run inside a buffer that supports counted reservations,
+        // point at it rather than copying; the lease then keeps that buffer alive until it is disposed,
+        // which means a small payload can pin the whole reply - deliberate, and cheaper than the copy
+        if (reader.TryReservePayload(out var reservation))
+        {
+            Debug.Assert(reservation.Length == length, "reserved length mismatch");
+            return Lease<byte>.Create(reservation.Owner, reservation.Offset, reservation.Length);
+        }
+
+        // otherwise copy - renting from the same pool the data came from, which the reader knows about
+        // via its services; there is deliberately no pool argument, because on the sharing path above
+        // any such argument would be silently ignored
+        reader.TryGetService<IBufferPoolProvider>(out var pools);
+        var lease = Lease<byte>.Create(length, pools?.BufferPool, clear: false);
         if (reader.TryGetSpan(out var span))
         {
             span.CopyTo(lease.Span);

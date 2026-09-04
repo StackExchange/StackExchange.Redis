@@ -37,13 +37,28 @@ if (!result.IsNull)
     byte[] buffer = new byte[reader.ScalarLength()];
     int written = reader.CopyTo(buffer);
 
-    // or, if you want an owned, poolable copy to hold on to for a while:
+    // or, as an owned, poolable handle on the value - note this usually shares the reply's buffer
+    // rather than copying, so dispose it promptly (see below):
     using Lease<byte>? lease = reader.ReadLease();
 
     // or, if you just want the usual RedisValue/string:
     RedisValue value = reader.ReadRedisValue();
 }
 ```
+
+Whether `ReadLease()` shares the underlying buffer or takes a copy depends on where the reader came from,
+not on how you call it. Reading from a `RespResult` - as above - the reply's buffer is reference-counted,
+so the lease points straight into it and no copy is made. Elsewhere, including the `Lease<byte>`-returning
+commands like `HashGetLease` and any `RespReader` you build over your own bytes, you get an independent
+copy. Either way the lease is yours and must be disposed, so calling code does not need to know which it
+got.
+
+The distinction does matter for how long you hold it. In the sharing case the reply stays rented until
+both the `RespResult` and every lease taken from it have been disposed, so a short value taken from a
+large reply keeps the whole reply alive. That is the right trade for the case this exists for - pulling
+back a large blob without copying it - but dispose leases promptly, and if you want to keep a small part
+of a large reply around for a long time, copy it out (`CopyTo` into your own buffer) rather than holding
+the lease.
 
 A `RespResult` is never itself a `null` C# reference - the reply is always a real, non-null `RespResult`, and `IsNull` tells you whether the underlying RESP reply itself was a null (there are three distinct null encodings on the wire; `RespResult` preserves which one you got via `Prefix`, rather than collapsing them). This also leaves room for RESP3 attribute metadata on a null reply in future.
 

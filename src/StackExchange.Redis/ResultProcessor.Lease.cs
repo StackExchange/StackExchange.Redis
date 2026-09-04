@@ -163,7 +163,7 @@ internal abstract partial class ResultProcessor
         {
             if (reader.IsScalar)
             {
-                SetResult(message, reader.AsLease(connection)!);
+                SetResult(message, reader.ReadLease()!);
                 return true;
             }
             return false;
@@ -178,7 +178,7 @@ internal abstract partial class ResultProcessor
                 && reader.TryMoveNext() && reader.IsScalar)
             {
                 // treat an array of 1 like a single reply
-                SetResult(message, reader.AsLease(connection)!);
+                SetResult(message, reader.ReadLease()!);
                 return true;
             }
             return false;

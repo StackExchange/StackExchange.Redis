@@ -46,6 +46,10 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
+        // services offered to every reader we create over this connection's buffers; null for a
+        // detached/dummy connection, where readers simply fall back to shared defaults
+        private readonly ReaderServices? _readerServices;
+
         private Message? _awaitingToken;
 
         private readonly string _physicalName;
@@ -110,6 +114,9 @@ namespace StackExchange.Redis
             connectionType = bridge.ConnectionType;
             WriteMode = writeMode;
             _bridge = new WeakReference(bridge);
+            // resolved once here rather than per frame: readers are created for every reply, and the
+            // route to the multiplexer is a weak reference plus two hops
+            _readerServices = bridge.Multiplexer.ReaderServices;
             ChannelPrefix = bridge.Multiplexer.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;

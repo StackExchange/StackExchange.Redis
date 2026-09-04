@@ -146,7 +146,7 @@ static StackExchange.Redis.BitFieldOperation.operator !=(StackExchange.Redis.Bit
 static StackExchange.Redis.BitFieldOperation.Set(StackExchange.Redis.BitFieldEncoding encoding, StackExchange.Redis.BitFieldOffset offset, long value, StackExchange.Redis.BitFieldOverflow overflow = StackExchange.Redis.BitFieldOverflow.Wrap) -> StackExchange.Redis.BitFieldOperation
 StackExchange.Redis.RespReaderExtensions
 static StackExchange.Redis.RespReaderExtensions.ReadRedisValue(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.RedisValue
-static StackExchange.Redis.RespReaderExtensions.ReadLease(this in RESPite.Messages.RespReader reader, System.Buffers.MemoryPool<byte>? pool = null) -> StackExchange.Redis.Lease<byte>?
+static StackExchange.Redis.RespReaderExtensions.ReadLease(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.Lease<byte>?
 static StackExchange.Redis.RespReaderExtensions.ReadRedisResult(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.RedisResult!
 static StackExchange.Redis.RespReaderExtensions.ReadRedisKey(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.RedisKey
 StackExchange.Redis.ProductVariant.Dragonfly = 3 -> StackExchange.Redis.ProductVariant

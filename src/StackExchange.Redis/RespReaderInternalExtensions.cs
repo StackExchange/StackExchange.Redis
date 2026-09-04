@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
@@ -7,9 +7,6 @@ internal static class RespReaderInternalExtensions
 {
     extension(in RespReader reader)
     {
-        internal Lease<byte>? AsLease(PhysicalConnection? connection)
-            => reader.ReadLease(connection?.BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseBufferPool);
-
         internal string DebugReadTruncatedString(int maxChars)
         {
             if (!reader.IsScalar) return "";

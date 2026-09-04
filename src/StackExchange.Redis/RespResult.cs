@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite;
+using RESPite.Buffers;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
@@ -33,28 +34,18 @@ public sealed class RespResult : IDisposable
     internal static readonly RespResult NullReply = CreateNullSingleton(RespPrefix.Null, "_\r\n"u8);
 
     private static RespResult CreateNullSingleton(RespPrefix prefix, ReadOnlySpan<byte> raw) =>
-        new(prefix, isNull: true, raw.ToArray(), raw.Length, noReturn: true);
+        new(prefix, isNull: true, RefCountedBuffer.CreateFixed(raw.ToArray()));
 
-    // the high bit of _length flags a buffer that must never be returned to a pool (the shared null
-    // singletons above, sitting on a fixed byte[]); Length masks it back off. Real captures never set
-    // it themselves - the length always comes from a checked cast of a non-negative byte count.
-    private const int NoReturnFlag = 1 << 31;
+    // reference-counted, so that a Lease taken from this reply (see RespReaderExtensions.ReadLease) can
+    // point back into this buffer rather than copying out of it; the buffer returns to its pool when this
+    // result and every lease taken from it have been disposed.
+    private RefCountedBuffer? _buffer;
 
-    // either a byte[] (from ArrayPool<byte>.Shared, or one of the fixed null singletons) or an
-    // IMemoryOwner<byte> (from a custom pool); sitting directly on this - rather than wrapping a
-    // Lease<byte> - avoids an extra allocation.
-    private object? _buffer;
-    private readonly int _length;
-
-    private RespResult(RespPrefix prefix, bool isNull, object buffer, int length, bool noReturn = false)
+    private RespResult(RespPrefix prefix, bool isNull, RefCountedBuffer buffer)
     {
-        // length must not already occupy the high bit reserved for NoReturnFlag, or Length/NoReturn below
-        // would misread the buffer's real size and disposal-eligibility, respectively.
-        Debug.Assert(length >= 0, "length must be non-negative");
         Prefix = prefix;
         IsNull = isNull;
         _buffer = buffer;
-        _length = noReturn ? length | NoReturnFlag : length;
     }
 
     internal static RespResult Capture(RespPrefix prefix, bool isNull, ref RespReader reader, int length, MemoryPool<byte>? pool)
@@ -69,8 +60,9 @@ public sealed class RespResult : IDisposable
             };
         }
 
-        object buffer = pool is null ? ArrayPool<byte>.Shared.Rent(length) : pool.Rent(length);
-        var result = new RespResult(prefix, isNull: false, buffer, length);
+        Debug.Assert(length >= 0, "length must be non-negative");
+        var buffer = RefCountedBuffer.Rent(length, pool);
+        var result = new RespResult(prefix, isNull: false, buffer);
         var copied = reader.CopyRawTo(result.RawSpan);
         Debug.Assert(copied == length, "raw frame capture length mismatch");
         return result;
@@ -86,23 +78,10 @@ public sealed class RespResult : IDisposable
     /// </summary>
     public bool IsNull { get; }
 
-    private int BufferLength => _length & ~NoReturnFlag;
-
-    private bool NoReturn => (_length & NoReturnFlag) != 0;
-
-    private Span<byte> RawSpan
-    {
-        get
-        {
-            var buffer = _buffer;
-            if (buffer is byte[] arr) return new Span<byte>(arr, 0, BufferLength);
-            if (buffer is IMemoryOwner<byte> owner) return owner.Memory.Span.Slice(0, BufferLength);
-            return ThrowDisposed();
-        }
-    }
+    private Span<byte> RawSpan => (_buffer ?? ThrowDisposed()).GetSpan();
 
     [DoesNotReturn]
-    private static Span<byte> ThrowDisposed() => throw new ObjectDisposedException(nameof(RespResult));
+    private static RefCountedBuffer ThrowDisposed() => throw new ObjectDisposedException(nameof(RespResult));
 
     /// <summary>
     /// Obtains a reader over the contents of this reply, positioned at the top-level element; this
@@ -110,7 +89,8 @@ public sealed class RespResult : IDisposable
     /// </summary>
     public RespReader Read()
     {
-        var reader = new RespReader(RawSpan);
+        var buffer = _buffer ?? ThrowDisposed();
+        var reader = new RespReader(buffer.GetSpan(), buffer);
         reader.MoveNext();
         return reader;
     }
@@ -121,7 +101,8 @@ public sealed class RespResult : IDisposable
     /// </summary>
     public RespReader ReadScalar()
     {
-        var reader = new RespReader(RawSpan);
+        var buffer = _buffer ?? ThrowDisposed();
+        var reader = new RespReader(buffer.GetSpan(), buffer);
         reader.MoveNextScalar();
         return reader;
     }
@@ -131,9 +112,17 @@ public sealed class RespResult : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (NoReturn) return; // one of the shared null singletons; never disposed
-        var buffer = Interlocked.Exchange(ref _buffer, null);
-        if (buffer is byte[] arr) ArrayPool<byte>.Shared.Return(arr);
-        else if (buffer is IMemoryOwner<byte> owner) owner.Dispose();
+        // one of the shared null singletons: never counted down, and the field must stay put - these
+        // instances are handed out again and again for the lifetime of the process
+        if (_buffer is { IsFixed: true }) return;
+
+        // exchange-to-null makes this once-only, however many times a caller disposes us; any leases
+        // still holding a reservation keep the buffer alive until they are disposed in turn
+        Interlocked.Exchange(ref _buffer, null)?.Release();
     }
+
+    /// <summary>
+    /// The number of live references to the underlying buffer; for tests.
+    /// </summary>
+    internal int RefCount => _buffer?.RefCount ?? 0;
 }
