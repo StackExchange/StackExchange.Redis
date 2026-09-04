@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -2006,6 +2005,12 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }
 
+        public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            return ExecuteSync(msg, ResultProcessor.RespResult)!;
+        }
+
         public RedisResult Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
 
@@ -2013,6 +2018,12 @@ namespace StackExchange.Redis
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult)!;
+        }
+
+        public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            return ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply);
         }
 
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
@@ -2024,10 +2035,25 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
-        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            try
+            {
+                return ExecuteSync(msg, ResultProcessor.RespResult)!;
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return ExecuteSync(msg, ResultProcessor.RespResult)!;
+            }
+        }
+
+        public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
+            var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
             try
             {
                 return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
@@ -2041,7 +2067,7 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA, hash, keys, values);
+            var msg = new ScriptEvaluateMessage(Database, flags, RedisCommand.EVALSHA, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -2055,10 +2081,26 @@ namespace StackExchange.Redis
             return script.Evaluate(this, parameters, withKeyPrefix: null, flags);
         }
 
-        public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public async Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+
+            try
+            {
+                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
+            }
+        }
+
+        public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
+            var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
 
             try
             {
@@ -2073,7 +2115,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA, hash, keys, values);
+            var msg = new ScriptEvaluateMessage(Database, flags, RedisCommand.EVALSHA, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -2087,10 +2129,25 @@ namespace StackExchange.Redis
             return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
         }
 
-        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            try
+            {
+                return ExecuteSync(msg, ResultProcessor.RespResult)!;
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return ExecuteSync(msg, ResultProcessor.RespResult)!;
+            }
+        }
+
+        public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
             try
             {
                 return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
@@ -2104,20 +2161,43 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
+            var msg = new ScriptEvaluateMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
-        public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        public async Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+            try
+            {
+                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
+            }
+        }
+
+        public async Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
+            try
+            {
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
+            }
+            catch (RedisServerException) when (msg.IsScriptUnavailable)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
+            var msg = new ScriptEvaluateMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -5926,6 +6006,119 @@ namespace StackExchange.Redis
             }
         }
 
+        internal sealed class ExecMessage : Message
+        {
+            private readonly ReadOnlyMemory<RedisKeyOrValue> _args;
+            private string _unknownCommand;
+
+            private static int RemoveDbIfNotRequired(int suggestedDb, string adhocCommand, out RedisCommand knownCommand)
+            {
+                // attempt to parse the ad-hoc command to a known command, so we can apply correct aliasing, etc
+                if (!RedisCommandMetadata.TryParseCI(adhocCommand, out knownCommand))
+                {
+                    knownCommand = RedisCommand.UNKNOWN;
+                }
+                if ((knownCommand is not RedisCommand.UNKNOWN & suggestedDb >= 0) && !Message.RequiresDatabase(knownCommand))
+                {
+                    // strip the DB; historically we didn't enforce this when IDatabase was
+                    // used to issue known commands as strings, so: don't complain now
+                    // (this is only an issue *because* we now recognise the known commands)
+                    suggestedDb = -1;
+                }
+                return suggestedDb;
+            }
+
+            public ExecMessage(CommandMap? map, int db, CommandFlags flags, string command, ReadOnlyMemory<RedisKeyOrValue> args)
+                : base(RemoveDbIfNotRequired(db, command, out var knownCommand), flags, knownCommand)
+            {
+                if (args.Length >= MessageWriter.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                {
+                    throw ExceptionFactory.TooManyArgs(command, args.Length);
+                }
+
+                // a redis command token never contains space, so a command like
+                // "ACL SETUSER x" is always a caller mistake (it gets sent as one unknown token
+                // and the server replies with an opaque error); fail fast with actionable guidance
+                if (command.IndexOf(' ') >= 0) throw ExceptionFactory.CommandHasWhitespace(command);
+
+                map ??= CommandMap.Default;
+                _unknownCommand = "";
+                if (Command is RedisCommand.UNKNOWN)
+                {
+                    _unknownCommand = command;
+                }
+                else if (!map.IsAvailable(Command))
+                {
+                    throw ExceptionFactory.CommandDisabled(command);
+                }
+                _args = args;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                if (Command is RedisCommand.UNKNOWN)
+                {
+                    writer.WriteHeader(_unknownCommand, _args.Length);
+                }
+                else
+                {
+                    writer.WriteHeader(Command, _args.Length);
+                }
+                foreach (ref readonly var arg in _args.Span)
+                {
+                    if (arg.IsKey)
+                    {
+                        writer.Write(arg.Key);
+                    }
+                    else if (arg.IsValue)
+                    {
+                        writer.WriteBulkString(arg.Value);
+                    }
+                    else
+                    {
+                        Debug.Assert(arg.IsNull);
+                        throw new InvalidOperationException("A null is not valid in this context");
+                    }
+                }
+            }
+
+            public override string CommandString => Command is RedisCommand.UNKNOWN ? _unknownCommand : base.CommandString;
+            public override string CommandAndKey => CommandString;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                foreach (ref readonly var arg in _args.Span)
+                {
+                    var key = arg.Key;
+                    if (!key.IsNull)
+                    {
+                        slot = serverSelectionStrategy.CombineSlot(slot, key);
+                    }
+                }
+                return slot;
+            }
+            public override int ArgCount => _args.Length;
+
+            protected override bool TryGetSubCommand(out SubCommand subCommand)
+            {
+                // the sub-command (if any) is the first argument after the command itself,
+                // e.g. CLIENT [GETNAME]; ad-hoc Execute args are boxed objects, so normalize
+                // the first one to a RedisValue before probing it against the known sub-commands
+                foreach (ref readonly var arg in _args.Span)
+                {
+                    var value = arg.Value;
+                    if (!value.IsNull)
+                    {
+                        return SubCommandMetadata.TryGetSubCommand(value, out subCommand);
+                    }
+                    break; // only the first argument is a sub-command candidate
+                }
+                subCommand = SubCommand.Unknown;
+                return false;
+            }
+        }
+
         internal sealed class ExecuteMessage : Message
         {
             private readonly ICollection<object> _args;
@@ -6041,26 +6234,99 @@ namespace StackExchange.Redis
 
         private sealed class ScriptEvalMessage : Message, IMultiMessage
         {
+            private readonly ReadOnlyMemory<RedisKey> _keys;
+            private readonly ReadOnlyMemory<RedisValue> _values;
+            private readonly string _script;
+            private byte[]? asciiHash;
+            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values)
+                : base(db, flags, command)
+            {
+                _script = script ?? throw new ArgumentNullException(nameof(script));
+                _keys = keys;
+                _values = values;
+            }
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                foreach (ref readonly var key in _keys.Span)
+                {
+                    slot = serverSelectionStrategy.CombineSlot(slot, key);
+                }
+                return slot;
+            }
+
+            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            {
+                PhysicalBridge? bridge;
+                if ((bridge = connection.BridgeCouldBeNull) != null
+                    && bridge.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
+                    && (Flags & CommandFlags.NoScriptCache) == 0)
+                {
+                    // a script was provided (rather than a hash); check it is known and supported
+                    asciiHash = bridge.ServerEndPoint.GetScriptHash(_script, command);
+
+                    if (asciiHash == null)
+                    {
+                        var msg = new ScriptLoadMessage(Flags, _script);
+                        msg.SetInternalCall();
+                        msg.SetSource(ResultProcessor.ScriptLoad, null);
+                        yield return msg;
+                    }
+                }
+                yield return this;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                if (asciiHash != null)
+                {
+                    writer.WriteHeader(RedisCommand.EVALSHA, 2 + _keys.Length + _values.Length);
+                    writer.WriteBulkString(asciiHash);
+                }
+                else
+                {
+                    writer.WriteHeader(RedisCommand.EVAL, 2 + _keys.Length + _values.Length);
+                    writer.WriteBulkString(_script);
+                }
+
+                writer.WriteBulkString(_keys.Length);
+
+                foreach (ref readonly var key in _keys.Span)
+                {
+                    writer.Write(key);
+                }
+
+                foreach (ref readonly var value in _values.Span)
+                {
+                    writer.WriteBulkString(value);
+                }
+            }
+            public override int ArgCount => 2 + _keys.Length + _values.Length;
+        }
+
+        private sealed class ScriptEvaluateMessage : Message, IMultiMessage
+        {
             private readonly RedisKey[] keys;
             private readonly string? script;
             private readonly RedisValue[] values;
             private byte[]? asciiHash;
             private readonly byte[]? hexHash;
 
-            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey[]? keys, RedisValue[]? values)
+            public ScriptEvaluateMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey[]? keys, RedisValue[]? values)
                 : this(db, flags, command, script, null, keys, values)
             {
                 if (script == null) throw new ArgumentNullException(nameof(script));
             }
 
-            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, byte[] hash, RedisKey[]? keys, RedisValue[]? values)
+            public ScriptEvaluateMessage(int db, CommandFlags flags, RedisCommand command, byte[] hash, RedisKey[]? keys, RedisValue[]? values)
                 : this(db, flags, command, null, hash, keys, values)
             {
                 if (hash == null) throw new ArgumentNullException(nameof(hash));
                 if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength) throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");
             }
 
-            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string? script, byte[]? hexHash, RedisKey[]? keys, RedisValue[]? values)
+            private ScriptEvaluateMessage(int db, CommandFlags flags, RedisCommand command, string? script, byte[]? hexHash, RedisKey[]? keys, RedisValue[]? values)
                 : base(db, flags, command)
             {
                 this.script = script;

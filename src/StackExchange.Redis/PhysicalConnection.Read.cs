@@ -474,7 +474,7 @@ internal sealed partial class PhysicalConnection
                     case ArrayPong_UC_Bulk.HashCS when payload.StartsWith(ArrayPong_UC_Bulk.U8):
                     case ArrayPong_LC_Simple.HashCS when payload.StartsWith(ArrayPong_LC_Simple.U8):
                     case ArrayPong_UC_Simple.HashCS when payload.StartsWith(ArrayPong_UC_Simple.U8):
-                        var reader = new RespReader(payload);
+                        var reader = new RespReader(payload); // no services needed: never leases
                         return reader.SafeTryMoveNext() // have root
                                && reader.Prefix == RespPrefix.Array // root is array
                                && reader.SafeTryMoveNext() // have first child
@@ -550,7 +550,7 @@ internal sealed partial class PhysicalConnection
         var muxer = BridgeCouldBeNull?.Multiplexer;
         if (muxer is null) return OutOfBandResult.Handled; // consume it blindly
 
-        var reader = new RespReader(payload);
+        var reader = new RespReader(payload, _readerServices);
 
         // read the message kind from the first element
         if (reader.SafeTryMoveNext() & reader.IsAggregate & !reader.IsStreaming
@@ -707,7 +707,7 @@ internal sealed partial class PhysicalConnection
                 [DoesNotReturn]
                 static void Throw(ReadOnlySpan<byte> frame, ConnectionType connection, RedisProtocol protocol)
                 {
-                    var prefix = RespReaderExtensions.GetRespPrefix(frame);
+                    var prefix = RespReaderInternalExtensions.GetRespPrefix(frame);
                     throw new InvalidOperationException($"Received {connection}/{protocol} response with no message waiting: " + prefix.ToString());
                 }
             }
@@ -716,9 +716,9 @@ internal sealed partial class PhysicalConnection
 
         Trace("Response to: " + msg);
         _readStatus = ReadStatus.ComputeResult;
-        var reader = new RespReader(frame);
+        var reader = new RespReader(frame, _readerServices);
 
-        OnDetailLog($"computing result for {msg.CommandAndKey} ({RespReaderExtensions.GetRespPrefix(frame)})");
+        OnDetailLog($"computing result for {msg.CommandAndKey} ({RespReaderInternalExtensions.GetRespPrefix(frame)})");
 
         // need to capture HIT promptly, as -MOVED could cause a resend with a new high-integrity token
         // (a lazy approach would be to not rotate, but: we'd rather avoid that; the -MOVED case is rare)
@@ -750,7 +750,7 @@ internal sealed partial class PhysicalConnection
         static bool ProcessHighIntegrityResponseToken(Message message, ReadOnlySpan<byte> frame, PhysicalConnection? connection)
         {
             bool isValid = false;
-            var reader = new RespReader(frame);
+            var reader = new RespReader(frame); // no services needed: never leases
             if ((reader.SafeTryMoveNext() & reader.IsScalar)
                 && reader.ScalarLength() is 4)
             {
@@ -876,7 +876,7 @@ internal sealed partial class PhysicalConnection
     [Conditional("DEBUG")]
     private static void DebugValidateSingleFrame(ReadOnlySpan<byte> payload)
     {
-        var reader = new RespReader(payload);
+        var reader = new RespReader(payload); // debug validation only: never leases
         if (!reader.TryMoveNext(checkError: false))
         {
             throw new InvalidOperationException("No root RESP element");

@@ -396,11 +396,17 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.Publish(RedisChannel, RedisValue, CommandFlags)"/>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.ExecuteResp(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
+        Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.Execute(string, object[])"/>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
         /// <inheritdoc cref="IDatabase.Execute(string, ICollection{object}, CommandFlags)"/>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.ScriptEvaluateResp(string, ReadOnlyMemory{RedisKey}, ReadOnlyMemory{RedisValue}, CommandFlags)"/>
+        Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluate(string, RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
@@ -420,6 +426,9 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluateReadOnly(byte[], RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.ScriptEvaluateReadOnlyResp(string, ReadOnlyMemory{RedisKey}, ReadOnlyMemory{RedisValue}, CommandFlags)"/>
+        Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.SetAdd(RedisKey, RedisValue, CommandFlags)"/>
         Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);

@@ -1612,6 +1612,17 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The raw, undecoded reply (dispose when done); check <see cref="RespResult.IsNull"/> for a RESP null.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
+        RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for executing modules,
+        /// but may also be used to provide access to new features that lack a direct API.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
         /// <returns>A dynamic representation of the command's result.</returns>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         RedisResult Execute(string command, params object[] args);
@@ -1626,6 +1637,21 @@ namespace StackExchange.Redis
         /// <returns>A dynamic representation of the command's result.</returns>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against (available to the script as <c>KEYS</c>).</param>
+        /// <param name="values">The values to execute against (available to the script as <c>ARGV</c>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The raw, undecoded reply (dispose when done); check <see cref="RespResult.IsNull"/> for a RESP null.</returns>
+        /// <remarks>
+        /// See
+        /// <seealso href="https://redis.io/commands/eval"/>,
+        /// <seealso href="https://redis.io/commands/evalsha"/>.
+        /// </remarks>
+        RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a Lua script against the server.
@@ -1705,6 +1731,21 @@ namespace StackExchange.Redis
         /// <returns>A dynamic representation of the script's result.</returns>
         /// <remarks><seealso href="https://redis.io/commands/evalsha_ro"/></remarks>
         RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read-only variant of the EVAL command that cannot execute commands that modify data.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against (available to the script as <c>KEYS</c>).</param>
+        /// <param name="values">The values to execute against (available to the script as <c>ARGV</c>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The raw, undecoded reply (dispose when done); check <see cref="RespResult.IsNull"/> for a RESP null.</returns>
+        /// <remarks>
+        /// See
+        /// <seealso href="https://redis.io/commands/eval_ro"/>,
+        /// <seealso href="https://redis.io/commands/evalsha_ro"/>.
+        /// </remarks>
+        RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Add the specified member to the set stored at key.

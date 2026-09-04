@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
+using RESPite.Buffers;
 using RESPite.Internal;
 
 #if NET
@@ -22,7 +23,6 @@ namespace RESPite.Messages;
 /// <summary>
 /// Provides low level RESP parsing functionality.
 /// </summary>
-[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public ref partial struct RespReader
 {
     [Flags]
@@ -46,6 +46,10 @@ public ref partial struct RespReader
 
     // the current buffer that we're observing
     private int _bufferIndex; // after TryRead, this should be positioned immediately before the actual data
+
+    // optional services offered by whoever owns the buffer we are reading; deliberately one field
+    // holding either the service itself or an IServiceProvider, rather than a field per service
+    private object? _services;
 
     // the position in a multi-segment payload
     private long _positionBase; // total data we've already moved past in *previous* buffers
@@ -81,6 +85,80 @@ public ref partial struct RespReader
 
         value = default;
         return IsNullScalar;
+    }
+
+    /// <summary>
+    /// Attempt to get all remaining protocol bytes - raw and undecoded, with no regard to RESP structure -
+    /// as a single contiguous span. Unlike <see cref="TryGetSpan"/>, this is not limited to the current
+    /// scalar; called at the start of a message, this returns the entire message, header bytes included.
+    /// </summary>
+    /// <returns><c>True</c> if the remaining data is a single contiguous span, otherwise <c>False</c>.</returns>
+    /// <remarks>If this reports <c>False</c>, <see cref="CopyRawTo"/> can be used instead.</remarks>
+    /// <param name="value">When <c>True</c>, the remaining raw bytes.</param>
+    public readonly bool TryGetRawSpan(out ReadOnlySpan<byte> value)
+    {
+        if (_tail is null)
+        {
+            value = CurrentSpan();
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Copies all remaining protocol bytes - raw and undecoded, with no regard to RESP structure - into the
+    /// supplied <paramref name="target"/>, or as much as can be copied; the reader is not advanced. Unlike
+    /// <see cref="CopyTo(Span{byte})"/>, this is not limited to the current scalar; called at the start of a
+    /// message, this copies the entire message, header bytes included.
+    /// </summary>
+    /// <param name="target">The destination for the copy operation.</param>
+    /// <returns>The number of bytes successfully copied; this is <see cref="ProtocolBytesRemaining"/>, or less if <paramref name="target"/> is too small.</returns>
+    public readonly int CopyRawTo(scoped Span<byte> target)
+    {
+        if (TryGetRawSpan(out var span))
+        {
+            if (target.Length < span.Length) span = span.Slice(0, target.Length);
+            span.CopyTo(target);
+            return span.Length;
+        }
+
+        var current = CurrentSpan();
+        if (target.Length <= current.Length)
+        {
+            current.Slice(0, target.Length).CopyTo(target);
+            return target.Length;
+        }
+        current.CopyTo(target);
+        int totalBytes = current.Length;
+        target = target.Slice(current.Length);
+
+        var tail = _tail;
+        var remainingTailLength = _remainingTailLength;
+        while (tail is not null && remainingTailLength > 0 && !target.IsEmpty)
+        {
+            var memory = tail.Memory;
+            tail = tail.Next;
+            if (memory.IsEmpty) continue;
+
+            var tailSpan = memory.Span;
+            if (tailSpan.Length > remainingTailLength)
+            {
+                tailSpan = tailSpan.Slice(0, (int)remainingTailLength);
+            }
+            remainingTailLength -= tailSpan.Length;
+
+            if (target.Length <= tailSpan.Length)
+            {
+                tailSpan.Slice(0, target.Length).CopyTo(target);
+                return totalBytes + target.Length;
+            }
+            tailSpan.CopyTo(target);
+            totalBytes += tailSpan.Length;
+            target = target.Slice(tailSpan.Length);
+        }
+        return totalBytes;
     }
 
     /// <summary>
@@ -1056,15 +1134,68 @@ public ref partial struct RespReader
     /// Initializes a new instance of the <see cref="RespReader"/> struct.
     /// </summary>
     /// <param name="value">The raw contents to parse with this instance.</param>
-    public RespReader(ReadOnlySpan<byte> value)
+    public RespReader(ReadOnlySpan<byte> value) : this(value, services: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RespReader"/> struct, offering services from whoever
+    /// owns <paramref name="value"/>; see <see cref="TryGetService{T}"/>.
+    /// </summary>
+    /// <param name="value">The raw contents to parse with this instance.</param>
+    /// <param name="services">The service - or <see cref="IServiceProvider"/> - associated with the buffer.</param>
+    internal RespReader(ReadOnlySpan<byte> value, object? services)
     {
         _length = 0;
         _flags = RespFlags.None;
         _prefix = RespPrefix.None;
+        _services = services;
         SetCurrent(value);
 
         _remainingTailLength = _positionBase = 0;
         _tail = null;
+    }
+
+    /// <summary>
+    /// Obtain a service offered by whoever owns the buffer being read, if any.
+    /// </summary>
+    /// <remarks>
+    /// The reader carries a single service slot; that slot either *is* the requested service (the common
+    /// case, resolved by a type test) or is an <see cref="IServiceProvider"/> able to supply services that
+    /// the reader does not know about in advance.
+    /// </remarks>
+    internal readonly bool TryGetService<T>([NotNullWhen(true)] out T? service)
+        where T : class
+    {
+        switch (_services)
+        {
+            case T typed:
+                service = typed;
+                return true;
+            case IServiceProvider provider when provider.GetService(typeof(T)) is T resolved:
+                service = resolved;
+                return true;
+            default:
+                service = null;
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// If the current element is a contiguous payload inside a buffer whose owner supports counted
+    /// reservations, take a reservation against it, so the payload can be retained without copying.
+    /// </summary>
+    /// <remarks>Callers must fall back to copying when this reports <c>False</c>.</remarks>
+    internal readonly bool TryReservePayload(out PayloadReservation reservation)
+    {
+        if (TryGetSpan(out var payload) && !payload.IsEmpty
+            && TryGetService<IPayloadReservationProvider>(out var provider))
+        {
+            return provider.TryReserve(payload, out reservation);
+        }
+
+        reservation = default;
+        return false;
     }
 
     private void MovePastCurrent()

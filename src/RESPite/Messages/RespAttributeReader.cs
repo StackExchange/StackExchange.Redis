@@ -1,12 +1,9 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace RESPite.Messages;
+﻿namespace RESPite.Messages;
 
 /// <summary>
 /// Allows attribute data to be parsed conveniently.
 /// </summary>
 /// <typeparam name="T">The type of data represented by this reader.</typeparam>
-[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public abstract class RespAttributeReader<T>
 {
     /// <summary>

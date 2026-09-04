@@ -180,6 +180,13 @@ namespace StackExchange.Redis
         // ReSharper restore ConvertToAutoProperty
 #pragma warning restore RCS1085 // use auto-prop
 
+        // Raw access to the underlying object, with zero interpretation. Safe to read on any instance
+        // (Simplify() never mutates - it only ever returns a *new* value), but only meaningful to the
+        // caller if this instance was itself built without going through a repacking path such as
+        // FromRaw (which can fold a short byte[]/string payload into the inline ShortBlob form, in which
+        // case DirectObject is a shared sentinel, not the original byte[]/string).
+        internal object? DirectObject => _obj;
+
         private static readonly object Sentinel_SignedInteger = new();
         private static readonly object Sentinel_UnsignedInteger = new();
         private static readonly object Sentinel_Double = new();
