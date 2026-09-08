@@ -60,7 +60,24 @@ back a large blob without copying it - but dispose leases promptly, and if you w
 of a large reply around for a long time, copy it out (`CopyTo` into your own buffer) rather than holding
 the lease.
 
-A `RespResult` is never itself a `null` C# reference - the reply is always a real, non-null `RespResult`, and `IsNull` tells you whether the underlying RESP reply itself was a null (there are three distinct null encodings on the wire; `RespResult` preserves which one you got via `Prefix`, rather than collapsing them). This also leaves room for RESP3 attribute metadata on a null reply in future.
+A `RespResult` is never itself a `null` C# reference - the reply is always a real, non-null `RespResult`, and `IsNull` tells you whether the underlying RESP reply itself was a null. There are three distinct null encodings on the wire and `RespResult` preserves which one you got rather than collapsing them, but `IsNull` is the test you want; see below. This also leaves room for RESP3 attribute metadata on a null reply in future.
+
+### Testing what came back
+
+Prefer the category tests - `IsScalar`, `IsAggregate`, `IsNull`, `IsError` - over comparing `Prefix` against a specific `RespPrefix`. The category is stable; the specific prefix is not, because the same command can be encoded differently under RESP2 and RESP3, and which protocol you get depends on the server version and on configuration rather than on your code:
+
+```csharp
+var reader = result.Read();
+if (reader.IsNull) { /* no value */ }
+else if (reader.IsScalar) { RedisValue value = reader.ReadRedisValue(); }
+else if (reader.IsAggregate) { /* walk it - see below */ }
+```
+
+This matters most for **aggregates**. RESP2 has exactly one aggregate encoding - `*`, the array - so under RESP2 everything aggregate-shaped arrives as `Array`. RESP3 splits that into several: `HGETALL` and `CONFIG GET` come back as a map (`%`), `SMEMBERS` and the other set-returning commands as a set (`~`), and pub/sub delivery as a push (`>`). Code written as `Prefix == RespPrefix.Array` therefore works perfectly against a RESP2 connection and silently stops matching the moment the same code talks RESP3 - whereas `IsAggregate` is true for all of them.
+
+Scalars vary too, just less dramatically: RESP3 adds `,` (double), `#` (boolean), `(` (big integer) and `=` (verbatim string) where RESP2 would have sent a bulk string or an integer - `ZSCORE`, for example, is a bulk string under RESP2 and a double under RESP3. Nulls are the same story: RESP2 has a null bulk string (`$-1`) and a null array (`*-1`), RESP3 has the single `_`, which is why `IsNull` is the test rather than any prefix comparison. Note that a script is subject to this as well whenever its reply passes the protocol through - for example after `redis.setresp(3)`.
+
+`Prefix` remains available for when the exact wire encoding genuinely is what you care about - telling a verbatim string from a bulk string, say, or logging what actually arrived - but that is the exception, and reaching for it as a general shape test is the common way to write code that breaks on protocol upgrade.
 
 If the script can return a tree (an array, or a mix of shapes depending on input), `RespResult.Read()` gives you a `RespReader` positioned at the root. `.ReadRedisResult()` is the convenient option - it falls back to the familiar `RedisResult` materialization for the whole value, at the cost of allocating that same wrapper-object-per-node tree the low-allocation APIs elsewhere in this doc are trying to avoid. If efficiency actually matters for a tree-shaped reply, walk the `RespReader` directly instead: it's a forwards-only iterator over the raw reply, with the same low-level accessors (`ReadRedisValue`, `ReadLease`, `CopyTo`, `ScalarLength`, ...) available at each node, so you can read exactly what you need without materializing the rest of the tree:
 

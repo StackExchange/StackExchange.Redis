@@ -38,7 +38,9 @@ if (!result.IsNull)
 // even that allocation, by copying straight into a buffer you already own
 ```
 
-See [Scripting](Scripting#reading-the-result-respresult-vs-redisresult) for the full rundown of `RespResult` - `IsNull`/`Prefix`, `ReadScalar()`/`Read()`, and the `ReadRedisValue`/`ReadLease`/`ReadRedisResult` accessors - it applies identically here; `ExecuteResp` and `ScriptEvaluateResp` share the same response-reading API, only the request differs (a command name instead of a script).
+See [Scripting](Scripting#reading-the-result-respresult-vs-redisresult) for the full rundown of `RespResult` - `IsNull`/`IsScalar`/`IsAggregate`, `ReadScalar()`/`Read()`, and the `ReadRedisValue`/`ReadLease`/`ReadRedisResult` accessors - it applies identically here; `ExecuteResp` and `ScriptEvaluateResp` share the same response-reading API, only the request differs (a command name instead of a script).
+
+Test the shape of a reply with the category tests (`IsScalar`, `IsAggregate`, `IsNull`), not by comparing `Prefix` to a specific `RespPrefix` - see [Testing what came back](Scripting#testing-what-came-back). Ad-hoc commands are where this bites hardest, because you are handed whatever the command actually returns: `HGETALL` and `CONFIG GET` are arrays under RESP2 and maps under RESP3, `SMEMBERS` is an array under RESP2 and a set under RESP3, and so on. `IsAggregate` covers all of those; `Prefix == RespPrefix.Array` covers only the RESP2 spelling.
 
 Measured effect
 ---
