@@ -151,6 +151,7 @@ namespace StackExchange.Redis
                 ChannelPrefix = "channelPrefix",
                 ConfigChannel = "configChannel",
                 ConfigCheckSeconds = "configCheckSeconds",
+                TopologyRefreshSeconds = "topologyRefreshSeconds",
                 ConnectRetry = "connectRetry",
                 ConnectTimeout = "connectTimeout",
                 DefaultDatabase = "defaultDatabase",
@@ -195,6 +196,7 @@ namespace StackExchange.Redis
                 ClientName,
                 ConfigChannel,
                 ConfigCheckSeconds,
+                TopologyRefreshSeconds,
                 ConnectRetry,
                 ConnectTimeout,
                 DefaultDatabase,
@@ -287,6 +289,7 @@ namespace StackExchange.Redis
             MaintenanceRelaxedTimeoutHasValue = 1UL << 37,
             MaintenanceRelaxedWindowMaxHasValue = 1UL << 38,
             MaintenancePostEventRelaxedDurationHasValue = 1UL << 39,
+            TopologyRefreshSecondsHasValue = 1UL << 41,
         }
 
         private OptionFlags optionFlags;
@@ -300,6 +303,7 @@ namespace StackExchange.Redis
         private Version? defaultVersion;
 
         private int keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, connectRetry, configCheckSeconds, defaultDatabase;
+        private int topologyRefreshSeconds;
 
         private Proxy proxy;
 
@@ -1023,6 +1027,33 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Re-read the deployment's topology every n seconds even when nothing has gone wrong, or <c>0</c> to
+        /// never do so (every 30 minutes by default).
+        /// </summary>
+        /// <remarks>
+        /// A backstop, not the primary mechanism. Topology is normally learned from something happening: a
+        /// redirect from a reachable node, a configuration announcement, a maintenance notification, or a
+        /// connection failing. Each of those needs *somebody* to notice, and the case none of them covers is an
+        /// endpoint that is reachable, answers a handshake, and is no longer part of the deployment - no
+        /// failure, no redirect, nothing announced.
+        /// <para>
+        /// The default is deliberately long, and each refresh is spread by up to 30 seconds of jitter, because
+        /// the cost of this is paid per client: a fleet of them re-reading configuration on the same schedule
+        /// is exactly the stampede that the failure-driven paths are careful to avoid. If you want it off, set
+        /// it to zero.
+        /// </para>
+        /// <para>
+        /// Distinct from <see cref="ConfigCheckSeconds"/>, which despite its name does not re-read topology -
+        /// it sends an <c>INFO replication</c> on an established connection to check a server's role.
+        /// </para>
+        /// </remarks>
+        public int TopologyRefreshSeconds
+        {
+            get => HasValue(OptionFlags.TopologyRefreshSecondsHasValue) ? topologyRefreshSeconds : (int)Defaults.TopologyRefreshInterval.TotalSeconds;
+            set => SetWithValue(OptionFlags.TopologyRefreshSecondsHasValue, ref topologyRefreshSeconds, value);
+        }
+
+        /// <summary>
         /// Parse the configuration from a comma-delimited configuration string.
         /// </summary>
         /// <param name="configuration">The configuration string to parse.</param>
@@ -1071,6 +1102,7 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618 // Type or member is obsolete
             connectRetry = connectRetry,
             configCheckSeconds = configCheckSeconds,
+            topologyRefreshSeconds = topologyRefreshSeconds,
             responseTimeout = responseTimeout,
             defaultDatabase = defaultDatabase,
             reconnectRetryPolicy = reconnectRetryPolicy,
@@ -1177,6 +1209,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConnectRetry, OptionFlags.ConnectRetryHasValue, in connectRetry);
             Append(sb, OptionKeys.Proxy, OptionFlags.ProxyHasValue, in proxy);
             Append(sb, OptionKeys.ConfigCheckSeconds, OptionFlags.ConfigCheckSecondsHasValue, in configCheckSeconds);
+            Append(sb, OptionKeys.TopologyRefreshSeconds, OptionFlags.TopologyRefreshSecondsHasValue, in topologyRefreshSeconds);
             Append(sb, OptionKeys.ResponseTimeout, OptionFlags.ResponseTimeoutHasValue, in responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, OptionFlags.DefaultDatabaseHasValue, in defaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
@@ -1389,6 +1422,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.ConnectRetry:
                             ConnectRetry = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.TopologyRefreshSeconds:
+                            TopologyRefreshSeconds = OptionKeys.ParseInt32(key, value);
                             break;
                         case OptionKeys.ConfigCheckSeconds:
                             ConfigCheckSeconds = OptionKeys.ParseInt32(key, value);

@@ -78,6 +78,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                                                       |
 | configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                                            |
 | configCheckSeconds={int} | `ConfigCheckSeconds` | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.     |
+| topologyRefreshSeconds={int} | `TopologyRefreshSeconds` | `1800`                   | Time (seconds) between unprompted topology re-reads, or `0` to never do so. Jittered by up to 30 seconds.          |
 | defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                                                       |
 | keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                     |
 | tcpKeepAlive={bool}    | `TcpKeepAlive`         | `true`                       | Enables TCP keep-alive when appropriate (endpoint- and platform-dependent)                                |
@@ -287,6 +288,22 @@ many topology reads, so a dead endpoint prompts at most one re-read per interval
 Note that `configCheckSeconds` on its own is *not* a periodic topology refresh - it drives an
 `INFO replication` on an established connection, which is a replication-role check. This is the path that
 notices an endpoint nobody can reach.
+
+### ...and the backstop for one nobody can fault
+
+Repeated connect failures cover an endpoint that refuses or never finishes a handshake. What they cannot cover
+is an endpoint that is *reachable*, answers a handshake, and is no longer part of the deployment: a re-bound
+port now serving something else produces no failure, no redirect, and nothing announced, so no event-driven
+path asks the question.
+
+`topologyRefreshSeconds` is the answer to that, and only that: every 30 minutes by default, the client
+re-reads the topology whether or not anything appears to be wrong. Two things keep it cheap. The interval is
+long, and each client picks its own phase within a 30-second jitter on every cycle, so a fleet started
+together does not stay in step. Set it to `0` to turn it off.
+
+It is deliberately a backstop rather than the mechanism. Topology is normally learned from something
+happening - a redirect, an announcement, a maintenance notification, a connection failing - and those react in
+seconds where this reacts in minutes.
 
 ## ReconnectRetryPolicy
 

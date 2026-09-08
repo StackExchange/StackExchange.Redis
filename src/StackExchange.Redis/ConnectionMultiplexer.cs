@@ -1332,6 +1332,57 @@ namespace StackExchange.Redis
             }
         }
 
+        private int _nextTopologyRefreshTicks; // 0 until the first heartbeat schedules one
+
+        /// <summary>How far apart two clients' refreshes are spread; not configurable, because nobody needs to tune it.</summary>
+        private const int TopologyRefreshJitterMilliseconds = 30_000;
+
+        /// <summary>
+        /// Re-reads the topology on a long timer, as a backstop for a change that nothing reported.
+        /// </summary>
+        /// <remarks>
+        /// Every other refresh path is event-driven: a redirect, an announcement, a notification, or a
+        /// connection failing. They cover almost everything between them - the case left over is an endpoint
+        /// that is reachable, completes a handshake, and is no longer part of the deployment, which produces
+        /// none of those signals and so was previously invisible for the lifetime of the multiplexer.
+        /// <para>
+        /// Two things keep the cost honest. The interval is long (30 minutes by default), and each client
+        /// picks its own phase within a 30-second jitter on every cycle, so a fleet started together does not
+        /// stay in step. Beyond that this is the ordinary refresh path, which already declines while another
+        /// is in flight.
+        /// </para>
+        /// <para>
+        /// The first interval is measured from the first heartbeat rather than from construction, so nothing
+        /// is read on behalf of a multiplexer that is created, used briefly and disposed.
+        /// </para>
+        /// </remarks>
+        private void CheckTopologyRefreshDue(int now)
+        {
+            var seconds = RawConfig.TopologyRefreshSeconds;
+            if (seconds <= 0 || _isDisposed) return;
+
+            var next = Volatile.Read(ref _nextTopologyRefreshTicks);
+            if (next == 0)
+            {
+                Interlocked.CompareExchange(ref _nextTopologyRefreshTicks, ScheduleTopologyRefresh(now, seconds), 0);
+                return;
+            }
+
+            if (unchecked(now - next) < 0) return; // not due yet
+
+            // reschedule *before* refreshing, and only if nobody else got there first: a refresh that takes
+            // longer than a heartbeat must not queue a second one behind it
+            if (Interlocked.CompareExchange(ref _nextTopologyRefreshTicks, ScheduleTopologyRefresh(now, seconds), next) != next) return;
+
+            ReconfigureIfNeeded(null, fromBroadcast: false, "periodic topology refresh");
+        }
+
+        private static int ScheduleTopologyRefresh(int now, int seconds)
+        {
+            var due = unchecked(now + (seconds * 1000) + ServerSelectionStrategy.SharedRandom.Next(TopologyRefreshJitterMilliseconds));
+            return due == 0 ? 1 : due; // zero means "not scheduled", so never land on it
+        }
+
         internal void OnHeartbeat()
         {
             try
@@ -1340,6 +1391,8 @@ namespace StackExchange.Redis
                 Interlocked.Exchange(ref lastHeartbeatTicks, now);
                 Interlocked.Exchange(ref lastGlobalHeartbeatTicks, now);
                 Trace("heartbeat");
+
+                CheckTopologyRefreshDue(now);
 
                 var tmp = GetServerSnapshot();
                 int token = 0;

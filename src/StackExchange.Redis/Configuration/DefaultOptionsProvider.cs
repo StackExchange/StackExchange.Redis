@@ -284,6 +284,16 @@ namespace StackExchange.Redis.Configuration
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
         /// <summary>
+        /// Gets how often to re-read the deployment's topology when nothing has gone wrong, or
+        /// <see cref="TimeSpan.Zero"/> to never do so.
+        /// </summary>
+        /// <remarks>
+        /// Long by design: this is a backstop for a topology change that produced no failure, no redirect and
+        /// no announcement, and its cost is paid by every client on the schedule at once.
+        /// </remarks>
+        public virtual TimeSpan TopologyRefreshInterval => TimeSpan.FromMinutes(30);
+
+        /// <summary>
         /// The username to use to authenticate with the server.
         /// </summary>
         public virtual string? User => null;
