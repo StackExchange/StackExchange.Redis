@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using RESPite.Messages;
 
 // ReSharper disable once CheckNamespace
@@ -23,6 +23,10 @@ internal abstract partial class ResultProcessor
 
             if (probe.IsError)
             {
+                // an EVALSHA can come back NOSCRIPT at any time - the server may have been flushed,
+                // restarted, or failed over - and the callers of this processor retry on that, but only
+                // if we tell them; see NoteIfScriptUnavailable
+                NoteIfScriptUnavailable(connection, message, in probe);
                 return base.SetResult(connection, message, ref reader);
             }
 
