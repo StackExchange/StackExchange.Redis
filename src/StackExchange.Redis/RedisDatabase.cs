@@ -2129,9 +2129,44 @@ namespace StackExchange.Redis
             return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
         }
 
+        /// <summary>
+        /// Pick the command to identify a read-only script request by, honouring the command map. The
+        /// server-version half of the decision cannot happen here - we do not know yet which server this
+        /// will go to - so that is resolved at write time; see <c>CanUseReadOnlyScripts</c>.
+        /// </summary>
+        /// <remarks>
+        /// When we fall back, the retry category is pinned to the read-only one first. EVAL_RO defaults to
+        /// CommandRetryReadOnly and EVAL to CommandRetryWriteAccumulating, so simply swapping the command
+        /// would quietly make a script the caller asked for read-only retry like a write. Falling back is
+        /// about what the server will accept, not about what the caller asked for.
+        /// </remarks>
+        /// <summary>
+        /// For tests: build the message a read-only script request would use, without sending it.
+        /// </summary>
+        internal Message GetReadOnlyScriptMessageForTests(string script, CommandFlags flags)
+        {
+            var command = ForReadOnlyScript(
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
+            return new ScriptEvaluateMessage(Database, flags, command, script, null, null);
+        }
+
+        private RedisCommand ForReadOnlyScript(RedisCommand readOnlyCommand, ref CommandFlags flags)
+        {
+            // both, for the same reason CanUseReadOnlyScripts wants both: hash-vs-script is decided later
+            var map = multiplexer.CommandMap;
+            if (map.IsAvailable(RedisCommand.EVAL_RO) && map.IsAvailable(RedisCommand.EVALSHA_RO))
+            {
+                return readOnlyCommand;
+            }
+
+            flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+            return readOnlyCommand == RedisCommand.EVALSHA_RO ? RedisCommand.EVALSHA : RedisCommand.EVAL;
+        }
+
         public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
-            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var command = ForReadOnlyScript(
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2146,7 +2181,8 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var command = ForReadOnlyScript(
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2161,13 +2197,15 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvaluateMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
+            var command = ForReadOnlyScript(RedisCommand.EVALSHA_RO, ref flags);
+            var msg = new ScriptEvaluateMessage(Database, flags, command, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
         public async Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
-            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var command = ForReadOnlyScript(
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2182,7 +2220,8 @@ namespace StackExchange.Redis
 
         public async Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO;
+            var command = ForReadOnlyScript(
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2197,7 +2236,8 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvaluateMessage(Database, flags, RedisCommand.EVALSHA_RO, hash, keys, values);
+            var command = ForReadOnlyScript(RedisCommand.EVALSHA_RO, ref flags);
+            var msg = new ScriptEvaluateMessage(Database, flags, command, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -6232,12 +6272,39 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Whether the read-only script commands can be used against this connection. EVAL_RO/EVALSHA_RO
+        /// need server 7.0+, and - like any command - can be disabled or renamed via the command map; when
+        /// either does not hold we fall back to plain EVAL/EVALSHA, which is what the read-only APIs have
+        /// always sent in practice.
+        /// </summary>
+        /// <remarks>
+        /// Both are required, not just the one we expect to send: whether a given attempt writes EVAL_RO or
+        /// EVALSHA_RO depends on whether the script's hash is cached at the moment of writing, which can
+        /// differ between the first attempt and a retry.
+        /// </remarks>
+        private static bool CanUseReadOnlyScripts(PhysicalConnection connection)
+        {
+            if (connection.BridgeCouldBeNull is not { } bridge) return false;
+            var map = bridge.Multiplexer.CommandMap;
+            return bridge.ServerEndPoint.GetFeatures().ReadOnlyScripts
+                && map.IsAvailable(RedisCommand.EVAL_RO)
+                && map.IsAvailable(RedisCommand.EVALSHA_RO);
+        }
+
+        /// <summary>
+        /// Indicates whether this message came from one of the read-only script APIs.
+        /// </summary>
+        private static bool IsReadOnlyScript(RedisCommand command)
+            => command is RedisCommand.EVAL_RO or RedisCommand.EVALSHA_RO;
+
         private sealed class ScriptEvalMessage : Message, IMultiMessage
         {
             private readonly ReadOnlyMemory<RedisKey> _keys;
             private readonly ReadOnlyMemory<RedisValue> _values;
             private readonly string _script;
             private byte[]? asciiHash;
+            private bool useReadOnly;
             public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values)
                 : base(db, flags, command)
             {
@@ -6258,6 +6325,9 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
+                // resolved per connection, and re-resolved if we end up talking to a different server
+                useReadOnly = IsReadOnlyScript(command) && CanUseReadOnlyScripts(connection);
+
                 PhysicalBridge? bridge;
                 if ((bridge = connection.BridgeCouldBeNull) != null
                     && bridge.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
@@ -6281,12 +6351,12 @@ namespace StackExchange.Redis
             {
                 if (asciiHash != null)
                 {
-                    writer.WriteHeader(RedisCommand.EVALSHA, 2 + _keys.Length + _values.Length);
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, 2 + _keys.Length + _values.Length);
                     writer.WriteBulkString(asciiHash);
                 }
                 else
                 {
-                    writer.WriteHeader(RedisCommand.EVAL, 2 + _keys.Length + _values.Length);
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL, 2 + _keys.Length + _values.Length);
                     writer.WriteBulkString(_script);
                 }
 
@@ -6312,6 +6382,7 @@ namespace StackExchange.Redis
             private readonly RedisValue[] values;
             private byte[]? asciiHash;
             private readonly byte[]? hexHash;
+            private bool useReadOnly;
 
             public ScriptEvaluateMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey[]? keys, RedisValue[]? values)
                 : this(db, flags, command, script, null, keys, values)
@@ -6342,6 +6413,9 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
+                // resolved per connection, and re-resolved if we end up talking to a different server
+                useReadOnly = IsReadOnlyScript(command) && CanUseReadOnlyScripts(connection);
+
                 PhysicalBridge? bridge;
                 if (script != null && (bridge = connection.BridgeCouldBeNull) != null
                     && bridge.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
@@ -6365,17 +6439,17 @@ namespace StackExchange.Redis
             {
                 if (hexHash != null)
                 {
-                    writer.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
                     writer.WriteSha1AsHex(hexHash);
                 }
                 else if (asciiHash != null)
                 {
-                    writer.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
                     writer.WriteBulkString(asciiHash);
                 }
                 else
                 {
-                    writer.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL, 2 + keys.Length + values.Length);
                     writer.WriteBulkString(script);
                 }
                 writer.WriteBulkString(keys.Length);
