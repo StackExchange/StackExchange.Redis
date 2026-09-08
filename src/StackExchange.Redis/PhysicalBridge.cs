@@ -1445,6 +1445,10 @@ namespace StackExchange.Redis
 
         private WriteResult HandleWriteException(PhysicalConnection? physical, Message message, Exception ex)
         {
+            // FIRST, before anything that can allocate - see the note in WriteMessageToServerInsideWriteLock.
+            physical?.PoisonWrite();
+            MarkNeedsReconnect();
+
             var failureType = PhysicalConnection.ClassifyWriteFailure(ex, physical);
             var inner = new RedisConnectionException(failureType, message.Flags, "Failed to write", ex);
             message.SetExceptionAndComplete(inner, physical);
@@ -1452,6 +1456,7 @@ namespace StackExchange.Redis
             // wire, and continuing to use the same socket would let the next reply match the wrong message
             // in the response queue. Forcing a reconnect drains the in-flight queue with failures and
             // restores wire-level synchronization.
+            Multiplexer.OnBeforeWriteTeardown();
             physical?.RecordConnectionFailed(failureType, inner);
             return WriteResult.WriteFailure;
         }
@@ -1589,6 +1594,12 @@ namespace StackExchange.Redis
                 return WriteResult.Success; // for some definition of success
             }
 
+            if (connection.IsWriteFaulted)
+            {
+                // never add to the response queue of a connection whose queue we no longer trust
+                return WriteResult.WriteFailure;
+            }
+
             bool isQueued = false;
             try
             {
@@ -1721,6 +1732,13 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
+                // FIRST, before anything that can allocate: mark the connection untrustworthy. Everything
+                // below here allocates, and it only runs because something already failed; under memory
+                // exhaustion it can fail again, and then we would never reach RecordConnectionFailed and
+                // would leave a queued-but-unwritten message desyncing every later reply (#2919).
+                connection?.PoisonWrite();
+                MarkNeedsReconnect();
+
                 Trace("Write failed: " + ex.Message);
 
                 // Most likely an IOException, or the connection being torn down underneath us
@@ -1729,6 +1747,7 @@ namespace StackExchange.Redis
                 message.Complete(connection);
 
                 // We don't know how far the write got; kill the connection
+                Multiplexer.OnBeforeWriteTeardown();
                 connection?.RecordConnectionFailed(failureType, ex);
                 return WriteResult.WriteFailure;
             }

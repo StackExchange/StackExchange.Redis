@@ -17,6 +17,73 @@ public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(outp
         protected override void WriteImpl(in MessageWriter writer) => throw toThrow;
     }
 
+    /// <summary>
+    /// A write that fails after the message has been queued for a response, where the teardown that
+    /// is supposed to clean up *also* fails - which is what an OutOfMemoryException does in practice,
+    /// because the failure path allocates and it only runs because an allocation already failed.
+    /// Without the poison flag this desyncs the response queue permanently and every caller on the
+    /// connection silently receives somebody else's reply. See #2919.
+    /// </summary>
+    [Fact]
+    public async Task WriteFailure_WhenTeardownAlsoFails_DoesNotMisrouteResponses()
+    {
+        // we deliberately provoke write failures and connection teardown here
+        SetExpectedAmbientFailureCount(-1);
+
+        await using var conn = Create(shared: false, allowAdmin: true, syncTimeout: 3000);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+
+        const int Keys = 8;
+        for (int i = 0; i < Keys; i++)
+        {
+            await db.StringSetAsync(prefix + i, "v" + i);
+        }
+
+        var muxer = conn.UnderlyingMultiplexer;
+        var server = muxer.GetServerSnapshot()[0];
+
+        // simulate the OOM landing in the failure path itself, so *neither* teardown attempt completes
+        muxer.BeforeWriteTeardown = static () => throw new OutOfMemoryException("simulated: teardown cannot allocate");
+        try
+        {
+            var boom = new ThrowingMessage(new InvalidOperationException("simulated WriteImpl failure"));
+            muxer.CheckMessage(boom);
+            await Assert.ThrowsAnyAsync<Exception>(
+                async () => await muxer.ExecuteAsyncImpl(boom, ResultProcessor.ResponseTimer, state: null, server));
+        }
+        finally
+        {
+            muxer.BeforeWriteTeardown = null;
+        }
+
+        // now hammer the connection with concurrent, individually-identifiable reads. Failing is fine -
+        // the connection may well be being recycled - but answering the *wrong question* is not.
+        for (int round = 0; round < 10; round++)
+        {
+            var pending = new Task<RedisValue>[Keys];
+            for (int i = 0; i < Keys; i++)
+            {
+                pending[i] = db.StringGetAsync(prefix + i);
+            }
+
+            for (int i = 0; i < Keys; i++)
+            {
+                RedisValue actual;
+                try
+                {
+                    actual = await pending[i];
+                }
+                catch (RedisException)
+                {
+                    continue; // an error is an acceptable outcome; bad data is not
+                }
+
+                Assert.Equal("v" + i, (string?)actual);
+            }
+        }
+    }
+
     [Fact]
     public void WriteTo_PropagatesWriteImplException()
     {
