@@ -77,7 +77,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | connectRetry={int}     | `ConnectRetry`         | `3`                          | The number of times to repeat connect attempts during initial `Connect`                                   |
 | connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                                                       |
 | configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                                            |
-| configCheckSeconds={int} | `ConfigCheckSeconds` | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.     |
+| configCheckSeconds={int} | `ConfigCheckSeconds` | `60`                         | Time (seconds) between re-checks of each connected server's replication role, via `INFO replication`; also acts as a keep-alive for interactive sockets. Not a topology re-read: see `topologyRefreshSeconds` |
 | topologyRefreshSeconds={int} | `TopologyRefreshSeconds` | `1800`                   | Time (seconds) between unprompted topology re-reads, or `0` to never do so. Jittered by up to 30 seconds.          |
 | defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                                                       |
 | keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                     |

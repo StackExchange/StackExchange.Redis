@@ -279,8 +279,13 @@ namespace StackExchange.Redis.Configuration
         public virtual string TieBreaker => "__Booksleeve_TieBreak";
 
         /// <summary>
-        /// Check configuration every n interval.
+        /// Gets how often to re-check the replication role of each connected server, or
+        /// <see cref="TimeSpan.Zero"/> to never do so.
         /// </summary>
+        /// <remarks>
+        /// An <c>INFO replication</c> on each established interactive connection, which also serves as the
+        /// keep-alive for those sockets. Not a topology re-read - see <see cref="TopologyRefreshInterval"/>.
+        /// </remarks>
         public virtual TimeSpan ConfigCheckInterval => TimeSpan.FromMinutes(1);
 
         /// <summary>

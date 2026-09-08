@@ -1018,8 +1018,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Check configuration every n seconds (every minute by default).
+        /// How often to re-check the replication role of each connected server, in seconds (every minute by
+        /// default), or <c>0</c> to never do so.
         /// </summary>
+        /// <remarks>
+        /// Sends an <c>INFO replication</c> on each *established* interactive connection. That is how a
+        /// primary/replica change is noticed on a deployment that does not announce one, and it doubles as the
+        /// keep-alive for those sockets, which is why the interval is short.
+        /// <para>
+        /// Despite the name, this is not a topology re-read. It asks a server we are already talking to what it
+        /// says about itself, so it reveals nothing about servers we cannot reach, about endpoints that have
+        /// left the deployment, or about cluster slot ownership. <see cref="TopologyRefreshSeconds"/> is the
+        /// setting for that, and is deliberately much less frequent because it costs much more.
+        /// </para>
+        /// </remarks>
         public int ConfigCheckSeconds
         {
             get => HasValue(OptionFlags.ConfigCheckSecondsHasValue) ? configCheckSeconds : (int)Defaults.ConfigCheckInterval.TotalSeconds;
