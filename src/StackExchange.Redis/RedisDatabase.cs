@@ -6134,6 +6134,18 @@ namespace StackExchange.Redis
                 subCommand = _hasSubCommand ? _subCommand : SubCommand.Unknown;
                 return _hasSubCommand;
             }
+
+            public override void Complete(PhysicalConnection? connection)
+            {
+                // Status flips to Sent strictly *after* WriteImpl returns (see WriteMessageToServerInsideWriteLock),
+                // but a message is enqueued into _writtenAwaitingResponse - making it eligible for the async-timeout
+                // heartbeat's SetExceptionAndComplete - *before* that write actually happens. Recycling on that
+                // premature completion would race an in-flight WriteImpl reading the same buffer. If the write did
+                // land, the real reply's own later Complete() call recycles once Status has caught up; if it never
+                // gets sent at all, the buffer leaks rather than risking corruption - the lesser evil.
+                if (Status == CommandStatus.Sent) RenderedArgs.Recycle(ref _args);
+                base.Complete(connection);
+            }
         }
 
         internal sealed class ExecuteMessage : Message
@@ -6340,6 +6352,13 @@ namespace StackExchange.Redis
             }
 
             public override int ArgCount => 2 + _args.Count;
+
+            public override void Complete(PhysicalConnection? connection)
+            {
+                // see ExecMessage.Complete for why this is gated on Status rather than unconditional
+                if (Status == CommandStatus.Sent) RenderedArgs.Recycle(ref _args);
+                base.Complete(connection);
+            }
         }
 
         private sealed class ScriptEvaluateMessage : Message, IMultiMessage

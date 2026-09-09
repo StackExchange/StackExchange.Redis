@@ -536,7 +536,12 @@ namespace StackExchange.Redis
             return true;
         }
 
-        public void Complete(PhysicalConnection? connection)
+        // virtual so a subclass owning a rented request buffer (e.g. RenderedArgs) can recycle it here:
+        // every path that terminally finishes a message - normal completion, high-integrity validation,
+        // and the RecordConnectionFailed drain - runs through this (via SetExceptionAndComplete, for the
+        // last one), and PrepareToResend/caller-side timeouts never call it at all, which is exactly the
+        // "message is definitely never touched again" boundary the buffer needs.
+        public virtual void Complete(PhysicalConnection? connection)
         {
             // Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
