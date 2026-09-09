@@ -2007,7 +2007,7 @@ namespace StackExchange.Redis
 
         public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args, multiplexer?.RawConfig?.RequestBufferPool);
             return ExecuteSync(msg, ResultProcessor.RespResult)!;
         }
 
@@ -2022,7 +2022,7 @@ namespace StackExchange.Redis
 
         public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            var msg = new ExecMessage(multiplexer?.CommandMap, Database, flags, command, args, multiplexer?.RawConfig?.RequestBufferPool);
             return ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply);
         }
 
@@ -2038,7 +2038,7 @@ namespace StackExchange.Redis
         public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
-            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
             try
             {
                 return ExecuteSync(msg, ResultProcessor.RespResult)!;
@@ -2084,7 +2084,7 @@ namespace StackExchange.Redis
         public async Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
-            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
 
             try
             {
@@ -2158,7 +2158,7 @@ namespace StackExchange.Redis
                 multiplexer.CommandMap,
                 ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
                 ref flags);
-            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
             try
             {
                 return ExecuteSync(msg, ResultProcessor.RespResult)!;
@@ -2201,7 +2201,7 @@ namespace StackExchange.Redis
                 multiplexer.CommandMap,
                 ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
                 ref flags);
-            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
+            var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
             try
             {
                 return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
@@ -6045,7 +6045,11 @@ namespace StackExchange.Redis
 
         internal sealed class ExecMessage : Message
         {
-            private readonly ReadOnlyMemory<RedisKeyOrValue> _args;
+            // not readonly: RenderedArgs.Recycle swaps the buffer out, and cannot do that through a
+            // defensive copy - see RenderedArgs
+            private RenderedArgs _args;
+            private readonly bool _hasSubCommand;
+            private readonly SubCommand _subCommand;
             private string _unknownCommand;
 
             private static int RemoveDbIfNotRequired(int suggestedDb, string adhocCommand, out RedisCommand knownCommand)
@@ -6065,7 +6069,7 @@ namespace StackExchange.Redis
                 return suggestedDb;
             }
 
-            public ExecMessage(CommandMap? map, int db, CommandFlags flags, string command, ReadOnlyMemory<RedisKeyOrValue> args)
+            public ExecMessage(CommandMap? map, int db, CommandFlags flags, string command, ReadOnlyMemory<RedisKeyOrValue> args, MemoryPool<byte>? pool)
                 : base(RemoveDbIfNotRequired(db, command, out var knownCommand), flags, knownCommand)
             {
                 if (args.Length >= MessageWriter.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
@@ -6088,71 +6092,47 @@ namespace StackExchange.Redis
                 {
                     throw ExceptionFactory.CommandDisabled(command);
                 }
-                _args = args;
+
+                // resolved now, while we still have the arguments as values; only the first one is a
+                // sub-command candidate, which is what the old write-time loop amounted to
+                if (args.Length != 0)
+                {
+                    ref readonly var first = ref args.Span[0];
+                    if (first.IsValue) _hasSubCommand = SubCommandMetadata.TryGetSubCommand(first.Value, out _subCommand);
+                }
+
+                _args = RenderedArgs.Create(args.Span, pool);
             }
 
             protected override void WriteImpl(in MessageWriter writer)
             {
                 if (Command is RedisCommand.UNKNOWN)
                 {
-                    writer.WriteHeader(_unknownCommand, _args.Length);
+                    writer.WriteHeader(_unknownCommand, _args.Count);
                 }
                 else
                 {
-                    writer.WriteHeader(Command, _args.Length);
+                    writer.WriteHeader(Command, _args.Count);
                 }
-                foreach (ref readonly var arg in _args.Span)
-                {
-                    if (arg.IsKey)
-                    {
-                        writer.Write(arg.Key);
-                    }
-                    else if (arg.IsValue)
-                    {
-                        writer.WriteBulkString(arg.Value);
-                    }
-                    else
-                    {
-                        Debug.Assert(arg.IsNull);
-                        throw new InvalidOperationException("A null is not valid in this context");
-                    }
-                }
+
+                // keys already carry their prefix, and a key and a value are the same thing on the wire
+                _args.WriteTo(writer);
             }
 
             public override string CommandString => Command is RedisCommand.UNKNOWN ? _unknownCommand : base.CommandString;
             public override string CommandAndKey => CommandString;
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-            {
-                int slot = ServerSelectionStrategy.NoSlot;
-                foreach (ref readonly var arg in _args.Span)
-                {
-                    var key = arg.Key;
-                    if (!key.IsNull)
-                    {
-                        slot = serverSelectionStrategy.CombineSlot(slot, key);
-                    }
-                }
-                return slot;
-            }
-            public override int ArgCount => _args.Length;
+                => _args.GetHashSlot(serverSelectionStrategy);
+
+            public override int ArgCount => _args.Count;
 
             protected override bool TryGetSubCommand(out SubCommand subCommand)
             {
-                // the sub-command (if any) is the first argument after the command itself,
-                // e.g. CLIENT [GETNAME]; ad-hoc Execute args are boxed objects, so normalize
-                // the first one to a RedisValue before probing it against the known sub-commands
-                foreach (ref readonly var arg in _args.Span)
-                {
-                    var value = arg.Value;
-                    if (!value.IsNull)
-                    {
-                        return SubCommandMetadata.TryGetSubCommand(value, out subCommand);
-                    }
-                    break; // only the first argument is a sub-command candidate
-                }
-                subCommand = SubCommand.Unknown;
-                return false;
+                // resolved in the constructor: by now the arguments are rendered bytes, and this needs
+                // them as values
+                subCommand = _hasSubCommand ? _subCommand : SubCommand.Unknown;
+                return _hasSubCommand;
             }
         }
 
@@ -6297,28 +6277,24 @@ namespace StackExchange.Redis
 
         private sealed class ScriptEvalMessage : Message, IMultiMessage
         {
-            private readonly ReadOnlyMemory<RedisKey> _keys;
-            private readonly ReadOnlyMemory<RedisValue> _values;
+            // not readonly: RenderedArgs.Recycle swaps the buffer out, and cannot do that through a
+            // defensive copy - see RenderedArgs. The script itself stays out of the buffer: it is needed
+            // intact for hash lookup and SCRIPT LOAD, and being a string it carries no lifetime hazard.
+            private RenderedArgs _args;
+            private readonly int _keyCount;
             private readonly string _script;
             private byte[]? asciiHash;
             private bool useReadOnly;
-            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values)
+            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, MemoryPool<byte>? pool)
                 : base(db, flags, command)
             {
                 _script = script ?? throw new ArgumentNullException(nameof(script));
-                _keys = keys;
-                _values = values;
+                _keyCount = keys.Length;
+                _args = RenderedArgs.Create(keys.Span, values.Span, pool);
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-            {
-                int slot = ServerSelectionStrategy.NoSlot;
-                foreach (ref readonly var key in _keys.Span)
-                {
-                    slot = serverSelectionStrategy.CombineSlot(slot, key);
-                }
-                return slot;
-            }
+                => _args.GetHashSlot(serverSelectionStrategy);
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
@@ -6348,28 +6324,22 @@ namespace StackExchange.Redis
             {
                 if (asciiHash != null)
                 {
-                    writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, 2 + _keys.Length + _values.Length);
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, ArgCount);
                     writer.WriteBulkString(asciiHash);
                 }
                 else
                 {
-                    writer.WriteHeader(useReadOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL, 2 + _keys.Length + _values.Length);
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL, ArgCount);
                     writer.WriteBulkString(_script);
                 }
 
-                writer.WriteBulkString(_keys.Length);
+                writer.WriteBulkString(_keyCount);
 
-                foreach (ref readonly var key in _keys.Span)
-                {
-                    writer.Write(key);
-                }
-
-                foreach (ref readonly var value in _values.Span)
-                {
-                    writer.WriteBulkString(value);
-                }
+                // rendered keys-then-values, in the order EVAL wants them; keys already carry their prefix
+                _args.WriteTo(writer);
             }
-            public override int ArgCount => 2 + _keys.Length + _values.Length;
+
+            public override int ArgCount => 2 + _args.Count;
         }
 
         private sealed class ScriptEvaluateMessage : Message, IMultiMessage

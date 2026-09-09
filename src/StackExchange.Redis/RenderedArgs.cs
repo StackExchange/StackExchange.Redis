@@ -54,6 +54,9 @@ namespace StackExchange.Redis
             int total = 0;
             foreach (ref readonly var arg in args)
             {
+                // rejected here rather than at write time: the caller finds out on the call that made
+                // the mistake, instead of from a background writer some time later
+                if (arg.IsNull) throw new InvalidOperationException("A null is not valid in this context");
                 total += PrefixLength + (arg.IsKey ? arg.Key.TotalLength() : arg.Value.GetByteCount());
             }
 
@@ -74,8 +77,16 @@ namespace StackExchange.Redis
         public static RenderedArgs Create(ReadOnlySpan<RedisKey> keys, ReadOnlySpan<RedisValue> values, MemoryPool<byte>? pool)
         {
             int total = 0;
-            foreach (ref readonly var key in keys) total += PrefixLength + key.TotalLength();
-            foreach (ref readonly var value in values) total += PrefixLength + value.GetByteCount();
+            foreach (ref readonly var key in keys)
+            {
+                key.AssertNotNull();
+                total += PrefixLength + key.TotalLength();
+            }
+            foreach (ref readonly var value in values)
+            {
+                value.AssertNotNull();
+                total += PrefixLength + value.GetByteCount();
+            }
 
             var result = Rent(keys.Length + values.Length, total, pool);
             var target = result.Buffer;
