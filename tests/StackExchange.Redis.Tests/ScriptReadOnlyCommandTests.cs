@@ -96,20 +96,40 @@ public class ScriptReadOnlyCommandTests(ITestOutputHelper output) : TestBase(out
     }
 
     [Fact]
-    public async Task FallingBackKeepsTheReadOnlyRetryCategory()
+    public void FallingBackKeepsTheReadOnlyRetryCategory()
     {
         // EVAL_RO defaults to CommandRetryReadOnly and EVAL to CommandRetryWriteAccumulating, so a
-        // fallback that just swapped the command would quietly change how the call retries
-        await using var conn = Create(disabledCommands: ["eval_ro", "evalsha_ro"]);
-        var db = (RedisDatabase)conn.GetDatabase();
+        // fallback that only swapped the command would quietly change how the call retries. This is
+        // message state rather than anything that reaches the wire, so it is asserted directly.
+        var unavailable = CommandMap.Create(["eval_ro", "evalsha_ro"], available: false);
 
-        var msg = db.GetReadOnlyScriptMessageForTests("return 1", CommandFlags.None);
-        Assert.Equal(RedisCommand.EVAL, msg.Command); // fell back...
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, msg.Flags & Message.MaskRetryCategory); // ...but still read-only
+        var flags = CommandFlags.None;
+        var command = RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
+        Assert.Equal(RedisCommand.EVAL, command); // fell back...
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & Message.MaskRetryCategory); // ...but still read-only
 
-        // and an explicit category from the caller still wins over both
-        var explicitly = db.GetReadOnlyScriptMessageForTests("return 1", CommandFlags.CommandRetryNever);
-        Assert.Equal(CommandFlags.CommandRetryNever, explicitly.Flags & Message.MaskRetryCategory);
+        flags = CommandFlags.None;
+        command = RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVALSHA_RO, ref flags);
+        Assert.Equal(RedisCommand.EVALSHA, command);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & Message.MaskRetryCategory);
+
+        // an explicit category from the caller still wins over the fallback's
+        flags = CommandFlags.CommandRetryNever;
+        RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
+        Assert.Equal(CommandFlags.CommandRetryNever, flags & Message.MaskRetryCategory);
+
+        // and where the commands are available, the read-only form is kept as-is
+        flags = CommandFlags.None;
+        Assert.Equal(RedisCommand.EVAL_RO, RedisDatabase.ForReadOnlyScript(CommandMap.Default, RedisCommand.EVAL_RO, ref flags));
+
+        // the pin above is only worth anything because Message's own defaulting leaves an already-chosen
+        // category alone; without that, EVAL's default would overwrite it right back to write-accumulating
+        Assert.Equal(
+            CommandFlags.CommandRetryReadOnly,
+            CommandFlags.CommandRetryReadOnly.WithDefaultCategory(RedisCommand.EVAL) & Message.MaskRetryCategory);
+        Assert.Equal(
+            CommandFlags.CommandRetryWriteAccumulating,
+            CommandFlags.None.WithDefaultCategory(RedisCommand.EVAL) & Message.MaskRetryCategory);
     }
 
     [Fact]

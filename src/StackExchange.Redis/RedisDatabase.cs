@@ -2140,20 +2140,9 @@ namespace StackExchange.Redis
         /// would quietly make a script the caller asked for read-only retry like a write. Falling back is
         /// about what the server will accept, not about what the caller asked for.
         /// </remarks>
-        /// <summary>
-        /// For tests: build the message a read-only script request would use, without sending it.
-        /// </summary>
-        internal Message GetReadOnlyScriptMessageForTests(string script, CommandFlags flags)
-        {
-            var command = ForReadOnlyScript(
-                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
-            return new ScriptEvaluateMessage(Database, flags, command, script, null, null);
-        }
-
-        private RedisCommand ForReadOnlyScript(RedisCommand readOnlyCommand, ref CommandFlags flags)
+        internal static RedisCommand ForReadOnlyScript(CommandMap map, RedisCommand readOnlyCommand, ref CommandFlags flags)
         {
             // both, for the same reason CanUseReadOnlyScripts wants both: hash-vs-script is decided later
-            var map = multiplexer.CommandMap;
             if (map.IsAvailable(RedisCommand.EVAL_RO) && map.IsAvailable(RedisCommand.EVALSHA_RO))
             {
                 return readOnlyCommand;
@@ -2166,7 +2155,9 @@ namespace StackExchange.Redis
         public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ForReadOnlyScript(
-                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
+                multiplexer.CommandMap,
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
+                ref flags);
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2182,7 +2173,9 @@ namespace StackExchange.Redis
         public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var command = ForReadOnlyScript(
-                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
+                multiplexer.CommandMap,
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
+                ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2197,7 +2190,7 @@ namespace StackExchange.Redis
 
         public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var command = ForReadOnlyScript(RedisCommand.EVALSHA_RO, ref flags);
+            var command = ForReadOnlyScript(multiplexer.CommandMap, RedisCommand.EVALSHA_RO, ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
@@ -2205,7 +2198,9 @@ namespace StackExchange.Redis
         public async Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var command = ForReadOnlyScript(
-                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
+                multiplexer.CommandMap,
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
+                ref flags);
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2221,7 +2216,9 @@ namespace StackExchange.Redis
         public async Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var command = ForReadOnlyScript(
-                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO, ref flags);
+                multiplexer.CommandMap,
+                ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
+                ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
             try
             {
@@ -2236,7 +2233,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
-            var command = ForReadOnlyScript(RedisCommand.EVALSHA_RO, ref flags);
+            var command = ForReadOnlyScript(multiplexer.CommandMap, RedisCommand.EVALSHA_RO, ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
