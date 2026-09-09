@@ -148,6 +148,38 @@ internal static class RedisArgsMutatorExtensions
         return arr;
     }
 
+    // ScriptEvaluateResp's keys parameter - every element is a key (unlike RedisKeyOrValue below),
+    // mirroring the RedisKey[]? overload above but for the ReadOnlyMemory<T> shape.
+    public static ReadOnlyMemory<RedisKey> Map(this IRedisArgsMutator mutator, ReadOnlyMemory<RedisKey> keys)
+    {
+        if (keys.Length is 0) return keys;
+        var arr = new RedisKey[keys.Length];
+        var span = keys.Span;
+        for (int i = 0; i < arr.Length; i++)
+        {
+            arr[i] = mutator.Map(span[i]);
+        }
+        return arr;
+    }
+
+    // the ExecuteResp escape hatch mixes keys and values in one collection (mirroring KeyPrefixed.ToInner);
+    // rewrite only the key-shaped entries, copying only when there is something to rewrite so the common
+    // all-values call allocates nothing.
+    public static ReadOnlyMemory<RedisKeyOrValue> Map(this IRedisArgsMutator mutator, ReadOnlyMemory<RedisKeyOrValue> args)
+    {
+        if (args.Length is 0) return args;
+        var span = args.Span;
+        RedisKeyOrValue[]? copy = null;
+        for (int i = 0; i < span.Length; i++)
+        {
+            if (span[i].IsKey)
+            {
+                (copy ??= span.ToArray())[i] = RedisKeyOrValue.FromKey(mutator.Map(span[i].Key));
+            }
+        }
+        return copy ?? args;
+    }
+
     [return: NotNullIfNotNull("pairs")]
     public static KeyValuePair<RedisKey, RedisValue>[]? Map(
         this IRedisArgsMutator mutator,

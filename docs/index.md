@@ -53,7 +53,8 @@ Documentation
 - [Hash Tags and Slots](HashTags) - co-locating keys in the same cluster slot for multi-key operations
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
-- [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement
+- [Scripting](Scripting) - running Lua scripts, including the low-allocation `ScriptEvalLease` API
+- [Ad-hoc commands](Execute) - running commands without a dedicated API, including the low-allocation `ExecLease` API
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems

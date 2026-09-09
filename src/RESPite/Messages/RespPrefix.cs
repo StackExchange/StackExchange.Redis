@@ -1,11 +1,8 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace RESPite.Messages;
+﻿namespace RESPite.Messages;
 
 /// <summary>
 /// RESP protocol prefix.
 /// </summary>
-[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public enum RespPrefix : byte
 {
     /// <summary>

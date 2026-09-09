@@ -165,6 +165,12 @@ namespace StackExchange.Redis
         internal bool ReadOnlySort => Version.IsAtLeast(v7_0_0_rc1);
 
         /// <summary>
+        /// Does this support <see href="https://redis.io/commands/eval_ro">EVAL_RO</see> and
+        /// <see href="https://redis.io/commands/evalsha_ro">EVALSHA_RO</see>?
+        /// </summary>
+        internal bool ReadOnlyScripts => Version.IsAtLeast(v7_0_0_rc1);
+
+        /// <summary>
         /// Is <see href="https://redis.io/commands/scan/">SCAN</see> (cursor-based scanning) available?
         /// </summary>
         public bool Scan => Version.IsAtLeast(v2_8_0);

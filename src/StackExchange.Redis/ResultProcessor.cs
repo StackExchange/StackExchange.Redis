@@ -16,6 +16,25 @@ namespace StackExchange.Redis
 {
     internal abstract partial class ResultProcessor
     {
+        /// <summary>
+        /// If a reply is a NOSCRIPT error, note it on the message so the caller can re-issue as EVAL, and
+        /// drop our cached hashes for the server.
+        /// </summary>
+        /// <remarks>
+        /// Every processor that can be the target of an EVALSHA needs this, not just the one returning
+        /// <see cref="RedisResult"/>: without it the retry filters on <c>IsScriptUnavailable</c> can never
+        /// match, and the NOSCRIPT surfaces to the caller.
+        /// </remarks>
+        private protected static void NoteIfScriptUnavailable(PhysicalConnection connection, Message message, in RespReader errorReader)
+        {
+            if (errorReader.IsError && RedisErrorKindMetadata.Classify(errorReader) == RedisErrorKind.NoScript)
+            {
+                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
+                connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
+                message.SetScriptUnavailable();
+            }
+        }
+
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
             DemandOK = new ExpectBasicStringProcessor(Literals.OK.Hash),
@@ -2303,11 +2322,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
             {
                 var copy = reader;
                 reader.MovePastBof();
-                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.NoScript)
-                { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
-                    connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
-                    message.SetScriptUnavailable();
-                }
+                NoteIfScriptUnavailable(connection, message, in reader);
                 // and apply usual processing for the rest
                 return base.SetResult(connection, message, ref copy);
             }
