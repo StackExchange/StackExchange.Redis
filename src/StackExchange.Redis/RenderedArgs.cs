@@ -1,0 +1,176 @@
+using System;
+using System.Buffers;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading;
+
+namespace StackExchange.Redis
+{
+    /// <summary>
+    /// The keys and values of a request, rendered once into a single pooled buffer at the point of the
+    /// call, so that the request no longer refers to any memory the caller owns.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Callers can pass keys and values backed by their own arrays - and are encouraged to, for the sake
+    /// of allocation - but the request is not necessarily written before the call returns: it may be
+    /// queued in the backlog, or in a batch, and fire-and-forget callers get no completion signal at all.
+    /// Rendering here means the caller's buffers are theirs again the moment the call returns, and it also
+    /// moves the formatting off the writer thread, where it would otherwise be done while holding the
+    /// single-writer lock.
+    /// </para>
+    /// <para>
+    /// Entries are laid out back to back as a 4-byte little-endian length followed by that many payload
+    /// bytes. A negative length marks a key, with <c>~length</c> giving the real size; the complement
+    /// rather than negation so that a zero-length key is still distinguishable from a zero-length value.
+    /// </para>
+    /// <para>
+    /// <b>This type owns a pooled buffer, so it must live in exactly one place and must never be copied.</b>
+    /// Copying it duplicates the ownership and gets the buffer returned to the pool twice, which is a
+    /// silent corruption rather than a loud failure. Note also that the field holding it must not be
+    /// <c>readonly</c> - see <see cref="Recycle"/>.
+    /// </para>
+    /// </remarks>
+    internal struct RenderedArgs
+    {
+        // deliberately not readonly: Recycle swaps this out atomically. Either a byte[] from
+        // ArrayPool<byte>.Shared or an IMemoryOwner<byte> from the configured RequestBufferPool - the
+        // same shape RespResult and Lease<T> use, so that a caller who supplies a pool gets it honoured
+        // on the request side too.
+        private object _buffer;
+        private int _count, _length;
+
+        /// <summary>The number of entries rendered.</summary>
+        public readonly int Count => _count;
+
+        private const int PrefixLength = sizeof(int);
+
+        /// <summary>
+        /// Render the arguments of an ad-hoc command, which may be a mix of keys and values.
+        /// </summary>
+        public static RenderedArgs Create(ReadOnlySpan<RedisKeyOrValue> args, MemoryPool<byte>? pool)
+        {
+            int total = 0;
+            foreach (ref readonly var arg in args)
+            {
+                total += PrefixLength + (arg.IsKey ? arg.Key.TotalLength() : arg.Value.GetByteCount());
+            }
+
+            var result = Rent(args.Length, total, pool);
+            var target = result.Buffer;
+            foreach (ref readonly var arg in args)
+            {
+                target = arg.IsKey ? WriteKey(target, arg.Key) : WriteValue(target, arg.Value);
+            }
+
+            Debug.Assert(target.IsEmpty, "should have filled the buffer exactly");
+            return result;
+        }
+
+        /// <summary>
+        /// Render the keys and values of a script invocation; keys are emitted first, as EVAL expects.
+        /// </summary>
+        public static RenderedArgs Create(ReadOnlySpan<RedisKey> keys, ReadOnlySpan<RedisValue> values, MemoryPool<byte>? pool)
+        {
+            int total = 0;
+            foreach (ref readonly var key in keys) total += PrefixLength + key.TotalLength();
+            foreach (ref readonly var value in values) total += PrefixLength + value.GetByteCount();
+
+            var result = Rent(keys.Length + values.Length, total, pool);
+            var target = result.Buffer;
+            foreach (ref readonly var key in keys) target = WriteKey(target, key);
+            foreach (ref readonly var value in values) target = WriteValue(target, value);
+
+            Debug.Assert(target.IsEmpty, "should have filled the buffer exactly");
+            return result;
+        }
+
+        private static RenderedArgs Rent(int count, int length, MemoryPool<byte>? pool) => new RenderedArgs
+        {
+            _buffer = length == 0 ? Array.Empty<byte>()
+                : pool is null ? ArrayPool<byte>.Shared.Rent(length) : pool.Rent(length),
+            _count = count,
+            _length = length,
+        };
+
+        // the rented buffer is usually larger than we asked for; only the used span is ours
+        private readonly Span<byte> Buffer => _buffer switch
+        {
+            byte[] arr => new Span<byte>(arr, 0, _length),
+            IMemoryOwner<byte> owner => owner.Memory.Span.Slice(0, _length),
+            _ => default,
+        };
+
+        private static Span<byte> WriteKey(Span<byte> target, scoped in RedisKey key)
+        {
+            var length = key.TotalLength();
+            Unsafe.WriteUnaligned(ref target[0], ~length);
+            var written = key.CopyTo(target.Slice(PrefixLength));
+            Debug.Assert(written == length, "key length disagreed with itself");
+            return target.Slice(PrefixLength + length);
+        }
+
+        private static Span<byte> WriteValue(Span<byte> target, scoped in RedisValue value)
+        {
+            var length = value.GetByteCount();
+            Unsafe.WriteUnaligned(ref target[0], length);
+            var written = value.CopyTo(target.Slice(PrefixLength));
+            Debug.Assert(written == length, "value length disagreed with itself");
+            return target.Slice(PrefixLength + length);
+        }
+
+        /// <summary>
+        /// Walks the rendered entries in order.
+        /// </summary>
+        public readonly Enumerator GetEnumerator() => new Enumerator(Buffer);
+
+        /// <summary>
+        /// Return the buffer to the pool; safe to call repeatedly, and from multiple threads - only the
+        /// first caller sees the buffer.
+        /// </summary>
+        /// <remarks>
+        /// Taken by <c>ref</c> on purpose. As an instance method this would compile perfectly happily
+        /// against a <c>readonly</c> field and silently operate on a defensive copy, leaving the real
+        /// buffer stranded; as a <c>ref</c> parameter, that same mistake is CS0192 at build time.
+        /// </remarks>
+        public static void Recycle(ref RenderedArgs args)
+        {
+            var buffer = Interlocked.Exchange(ref args._buffer, Array.Empty<byte>());
+            args._length = args._count = 0;
+
+            // null when never rendered, empty when already recycled or nothing to render
+            if (buffer is byte[] { Length: > 0 } arr) ArrayPool<byte>.Shared.Return(arr);
+            else if (buffer is IMemoryOwner<byte> owner) owner.Dispose();
+        }
+
+        /// <summary>Walks rendered entries.</summary>
+        internal ref struct Enumerator(Span<byte> remaining)
+        {
+            private Span<byte> _remaining = remaining;
+
+            /// <summary>The payload of the current entry.</summary>
+            public ReadOnlySpan<byte> Current { get; private set; }
+
+            /// <summary>Whether the current entry was supplied as a key rather than a value.</summary>
+            public bool IsKey { get; private set; }
+
+            /// <summary>Move to the next entry.</summary>
+            public bool MoveNext()
+            {
+                if (_remaining.IsEmpty)
+                {
+                    Current = default;
+                    IsKey = false;
+                    return false;
+                }
+
+                var prefix = Unsafe.ReadUnaligned<int>(ref _remaining[0]);
+                IsKey = prefix < 0;
+                var length = IsKey ? ~prefix : prefix;
+                Current = _remaining.Slice(PrefixLength, length);
+                _remaining = _remaining.Slice(PrefixLength + length);
+                return true;
+            }
+        }
+    }
+}
