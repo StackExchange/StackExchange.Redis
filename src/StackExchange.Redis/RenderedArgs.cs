@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace StackExchange.Redis
@@ -183,9 +184,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>Walks rendered entries.</summary>
-        internal ref struct Enumerator(Span<byte> remaining)
+        internal ref struct Enumerator(ReadOnlySpan<byte> remaining)
         {
-            private Span<byte> _remaining = remaining;
+            // read-only: walking never writes to the rendered buffer, it only slices through it
+            private ReadOnlySpan<byte> _remaining = remaining;
 
             /// <summary>The payload of the current entry.</summary>
             public ReadOnlySpan<byte> Current { get; private set; }
@@ -203,7 +205,7 @@ namespace StackExchange.Redis
                     return false;
                 }
 
-                var prefix = Unsafe.ReadUnaligned<int>(ref _remaining[0]);
+                var prefix = Unsafe.ReadUnaligned<int>(ref MemoryMarshal.GetReference(_remaining));
                 IsKey = prefix < 0;
                 var length = IsKey ? ~prefix : prefix;
                 Current = _remaining.Slice(PrefixLength, length);
