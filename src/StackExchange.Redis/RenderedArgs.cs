@@ -120,6 +120,45 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Write every entry as a RESP bulk string, in the order they were rendered.
+        /// </summary>
+        /// <remarks>
+        /// Keys and values are indistinguishable on the wire - the flag exists for slot routing, not for
+        /// framing - so this writes them identically.
+        /// </remarks>
+        public readonly void WriteTo(in MessageWriter writer)
+        {
+            var iter = GetEnumerator();
+            while (iter.MoveNext())
+            {
+                writer.WriteBulkString(iter.Current);
+            }
+        }
+
+        /// <summary>
+        /// The combined cluster slot of the keys, or <see cref="ServerSelectionStrategy.NoSlot"/> when
+        /// there are none, or <see cref="ServerSelectionStrategy.MultipleSlots"/> when they disagree.
+        /// </summary>
+        /// <remarks>
+        /// Values are skipped: only arguments the caller declared as keys take part in routing. Note this
+        /// hashes the rendered bytes directly, where <see cref="ServerSelectionStrategy.GetHashSlot"/> has
+        /// to copy the key out first - we already have exactly the bytes it would have produced.
+        /// </remarks>
+        public readonly int GetHashSlot(ServerSelectionStrategy strategy)
+        {
+            if (strategy.ServerType is ServerType.Standalone) return ServerSelectionStrategy.NoSlot;
+
+            var slot = ServerSelectionStrategy.NoSlot;
+            var iter = GetEnumerator();
+            while (iter.MoveNext())
+            {
+                if (!iter.IsKey) continue;
+                slot = ServerSelectionStrategy.CombineSlot(slot, ServerSelectionStrategy.GetClusterSlot(iter.Current));
+            }
+            return slot;
+        }
+
+        /// <summary>
         /// Walks the rendered entries in order.
         /// </summary>
         public readonly Enumerator GetEnumerator() => new Enumerator(Buffer);
