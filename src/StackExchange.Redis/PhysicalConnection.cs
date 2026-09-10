@@ -46,6 +46,40 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
+        // services offered to every reader we create over this connection's buffers; null for a
+        // detached/dummy connection, where readers simply fall back to shared defaults
+        private readonly ReaderServices? _readerServices;
+
+        private volatile bool _writeFaulted;
+
+        /// <summary>
+        /// Indicates that a write against this connection failed part-way through, so the messages in
+        /// <see cref="_writtenAwaitingResponse"/> may no longer line up with the replies on the wire.
+        /// </summary>
+        internal bool IsWriteFaulted => _writeFaulted;
+
+        /// <summary>
+        /// Marks this connection as untrustworthy for response matching.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately allocation-free and infallible. The richer teardown in
+        /// <see cref="RecordConnectionFailed"/> is reached via callers that allocate first (building
+        /// failure messages and exceptions), and those callers only run *because* something already
+        /// failed - under memory exhaustion they can fail again, skipping teardown and leaving a
+        /// queued-but-unwritten message at the head of the queue. From that point every reply matches
+        /// the wrong message, silently and permanently. See #2919.
+        /// </remarks>
+        internal void PoisonWrite() => _writeFaulted = true;
+
+        /// <summary>
+        /// Pre-allocated so that it can be thrown from the read loop when we are poisoned - which may
+        /// well be because we are out of memory. See <see cref="PoisonWrite"/>.
+        /// </summary>
+        private static readonly Exception WriteFaultedSentinel = new RedisConnectionException(
+            ConnectionFailureType.ProtocolFailure,
+            CommandFlags.None,
+            "A write failed part-way and the connection could not be torn down cleanly; the request and response queues may be out of step, so this connection has been abandoned.");
+
         private Message? _awaitingToken;
 
         private readonly string _physicalName;
@@ -123,6 +157,9 @@ namespace StackExchange.Redis
             connectionType = bridge.ConnectionType;
             WriteMode = writeMode;
             _bridge = new WeakReference(bridge);
+            // resolved once here rather than per frame: readers are created for every reply, and the
+            // route to the multiplexer is a weak reference plus two hops
+            _readerServices = bridge.Multiplexer.ReaderServices;
             ChannelPrefix = bridge.Multiplexer.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
@@ -436,6 +473,15 @@ namespace StackExchange.Redis
             bool isInitialConnect = false,
             Stream? connectingStream = null)
         {
+            // Close the response queue to new writers before detaching the bridge or failing messages.
+            // A writer may already hold a reference to this physical connection; without this gate it can
+            // enqueue against the old socket after the failure path has drained the queue. A reply already in
+            // flight can then be matched to that newer command, permanently shifting response ownership.
+            lock (_writtenAwaitingResponse)
+            {
+                _isShutdown = true;
+            }
+
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -699,6 +745,14 @@ namespace StackExchange.Redis
             bool wasEmpty;
             lock (_writtenAwaitingResponse)
             {
+                if (_isShutdown)
+                {
+                    throw new RedisConnectionException(
+                        ConnectionFailureType.SocketClosed,
+                        next.Flags,
+                        "The connection was closed before the command could be written");
+                }
+
                 wasEmpty = _writtenAwaitingResponse.Count == 0;
                 _writtenAwaitingResponse.Enqueue(next);
             }

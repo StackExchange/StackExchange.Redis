@@ -16,9 +16,41 @@ namespace StackExchange.Redis
 {
     internal abstract partial class ResultProcessor
     {
+        /// <summary>
+        /// If a reply is a NOSCRIPT error, note it on the message so the caller can re-issue as EVAL, and
+        /// drop our cached hashes for the server.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Every processor that can be the target of an EVALSHA needs this, not just the one returning
+        /// <see cref="RedisResult"/>: without it the retry filters on <c>IsScriptUnavailable</c> can never
+        /// match, and the NOSCRIPT surfaces to the caller.
+        /// </para>
+        /// <para>
+        /// Returns whether <em>this</em> reply was a NOSCRIPT, which is not the same question as
+        /// <c>message.IsScriptUnavailable</c>: that flag is set once and never cleared, so on a retry that
+        /// comes back with some other error it still reads true. Callers deciding something about the reply
+        /// in hand - rather than about the message's history - want this.
+        /// </para>
+        /// </remarks>
+        /// <returns><c>true</c> if this reply was a NOSCRIPT error.</returns>
+        private protected static bool NoteIfScriptUnavailable(PhysicalConnection connection, Message message, in RespReader errorReader)
+        {
+            if (errorReader.IsError && RedisErrorKindMetadata.Classify(errorReader) == RedisErrorKind.NoScript)
+            {
+                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
+                connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
+                message.SetScriptUnavailable();
+                return true;
+            }
+
+            return false;
+        }
+
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
             DemandOK = new ExpectBasicStringProcessor(Literals.OK.Hash),
+            HashImportOK = HashImportProcessor.Instance,
             DemandPONG = new ExpectBasicStringProcessor(Literals.PONG.Hash),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
@@ -1387,6 +1419,31 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// As <see cref="DemandOK"/>, but also releases the message's rendered request buffer.
+        /// </summary>
+        /// <remarks>
+        /// A dedicated processor rather than a change to the shared one: HIMPORT is the only command whose
+        /// message renders its arguments up front *and* has no notion of being re-issued, so any reply at
+        /// all - success or error - is the end of the road for its buffer. Releasing from the reply rather
+        /// than from completion for the same reason as everything else here: a reply proves the write
+        /// finished, which completion on its own does not.
+        /// </remarks>
+        private sealed class HashImportProcessor : ResultProcessor<bool>
+        {
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
+                return DemandOK.SetResult(connection, message, ref reader);
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader) =>
+                throw new NotSupportedException(); // SetResult is fully overridden above
+
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1801", Justification = "n/a")]
+            internal static readonly HashImportProcessor Instance = new();
+        }
+
         private sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
             private readonly AsciiHash _expected;
@@ -2304,11 +2361,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
             {
                 var copy = reader;
                 reader.MovePastBof();
-                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.NoScript)
-                { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
-                    connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
-                    message.SetScriptUnavailable();
-                }
+                NoteIfScriptUnavailable(connection, message, in reader);
                 // and apply usual processing for the rest
                 return base.SetResult(connection, message, ref copy);
             }

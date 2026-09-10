@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using StackExchange.Redis.Interfaces;
@@ -381,6 +382,23 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>
             Inner.Publish(ToInner(channel), message, flags);
 
+        public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            // the callee renders the arguments before it returns, so the lease is ours again the moment
+            // the call comes back - however it comes back. No fire-and-forget special case (that path
+            // renders too, it just does not wait for a reply) and no suppressing the return on unexpected
+            // exceptions, which is what the old shape had to do when it could not know.
+            var inner = ToInnerLease(args, out var lease);
+            try
+            {
+                return Inner.ExecuteResp(command, inner, flags);
+            }
+            finally
+            {
+                ReturnLease(lease);
+            }
+        }
+
         public RedisResult Execute(string command, params object[] args)
             => Inner.Execute(command, ToInner(args), CommandFlags.None);
 
@@ -390,6 +408,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluate(hash, ToInner(keys), values, flags);
+
+        public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        {
+            // note the Resp API explicitly doesn't unprefix keys
+            // see ExecuteResp
+            var inner = ToInnerLease(keys, out var lease);
+            try
+            {
+                return Inner.ScriptEvaluateResp(script, inner, values, flags);
+            }
+            finally
+            {
+                ReturnLease(lease);
+            }
+        }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -406,6 +439,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateReadOnly(hash, ToInner(keys), values, flags);
+
+        public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        {
+            // note the Resp API explicitly doesn't unprefix keys
+            // see ExecuteResp
+            var inner = ToInnerLease(keys, out var lease);
+            try
+            {
+                return Inner.ScriptEvaluateReadOnlyResp(script, inner, values, flags);
+            }
+            finally
+            {
+                ReturnLease(lease);
+            }
+        }
 
         public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?

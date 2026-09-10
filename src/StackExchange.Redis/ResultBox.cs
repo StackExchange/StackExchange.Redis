@@ -9,6 +9,20 @@ namespace StackExchange.Redis
         Exception? Fault { get; }
         bool IsAsync { get; }
         bool IsFaulted { get; }
+
+        /// <summary>
+        /// Indicates that <see cref="ActivateContinuations"/> has completed, i.e. the completing thread
+        /// has finished with this box.
+        /// </summary>
+        /// <remarks>
+        /// This - not <see cref="IsFaulted"/> - is the signal a synchronous waiter must use. The fault is
+        /// published (unlocked) by <c>ResultProcessor.SetException</c>, but the matching pulse only happens
+        /// later, in <c>Message.Complete</c>; a waiter that stops on <see cref="IsFaulted"/> can therefore
+        /// recycle the box while a pulse is still inbound, and that pulse then lands on whatever operation
+        /// next borrows the box from the thread-static pool.
+        /// </remarks>
+        bool IsCompleted { get; }
+
         void SetException(Exception ex);
         void ActivateContinuations();
         void Cancel();
@@ -22,9 +36,11 @@ namespace StackExchange.Redis
     internal abstract class SimpleResultBox : IResultBox
     {
         private volatile Exception? _exception;
+        private volatile bool _completed;
 
         bool IResultBox.IsAsync => false;
         bool IResultBox.IsFaulted => _exception != null;
+        bool IResultBox.IsCompleted => _completed;
         Exception? IResultBox.Fault => _exception;
         void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
         void IResultBox.Cancel() => _exception = CancelledException;
@@ -33,9 +49,19 @@ namespace StackExchange.Redis
         {
             lock (this)
             { // tell the waiting thread that we're done
+                // note this is set *inside* the lock, so a waiter that only leaves on _completed cannot
+                // exit (and recycle the box) while this pulse is still inbound
+                _completed = true;
                 Monitor.PulseAll(this);
             }
             ConnectionMultiplexer.TraceWithoutContext("Pulsed", "Result");
+        }
+
+        /// <summary>Clears the per-operation state so the box can be handed to another operation.</summary>
+        protected void ResetForRecycle()
+        {
+            _exception = null;
+            _completed = false;
         }
 
         // in theory nobody should directly observe this; the only things
@@ -44,11 +70,7 @@ namespace StackExchange.Redis
         // about any confusion in stack-trace
         internal static readonly Exception CancelledException = new TaskCanceledException();
 
-        protected Exception? Exception
-        {
-            get => _exception;
-            set => _exception = value;
-        }
+        protected Exception? Exception => _exception;
     }
 
     internal sealed class SimpleResultBox<T> : SimpleResultBox, IResultBox<T>
@@ -62,8 +84,10 @@ namespace StackExchange.Redis
         public static IResultBox<T> Create() => new SimpleResultBox<T>();
         public static IResultBox<T> Get() // includes recycled boxes; used from sync, so makes re-use easy
         {
-            var obj = _perThreadInstance ?? new SimpleResultBox<T>();
+            var obj = _perThreadInstance;
+            if (obj is null) return new SimpleResultBox<T>();
             _perThreadInstance = null; // in case of oddness; only set back when recycled
+            obj.ResetForRecycle(); // belt and braces; the recycle already did this
             return obj;
         }
 
@@ -75,7 +99,8 @@ namespace StackExchange.Redis
             ex = Exception;
             if (canRecycle)
             {
-                Exception = null;
+                // only ever reached once the box is IsCompleted, so no other thread is still touching it
+                ResetForRecycle();
                 _value = default!;
                 _perThreadInstance = this;
             }
@@ -97,6 +122,7 @@ namespace StackExchange.Redis
         bool IResultBox.IsAsync => true;
 
         bool IResultBox.IsFaulted => _exception != null;
+        bool IResultBox.IsCompleted => Task.IsCompleted;
         Exception? IResultBox.Fault => _exception;
 
         void IResultBox.Cancel() => _exception = SimpleResultBox.CancelledException;

@@ -61,6 +61,30 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the full history
+      # Surfaced early, and before restore/build, so the version to release is visible even if
+      # something later in this (long) job fails. Cutting a release means creating a GitHub Release
+      # tagged with whatever this prints; release.yml then verifies the tag agrees with nbgv.
+      - name: Report computed version
+        run: |
+          dotnet tool install --global nbgv
+          $version = nbgv get-version --project src/StackExchange.Redis --variable NuGetPackageVersion
+          "### Computed package version: ``$version``" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "Computed package version: $version"
+      # Restore is ~80s of the build step on a cold runner, and the package set changes rarely.
+      #
+      # Keep this immediately after checkout, and *before* the WSL/redis steps. The key globs the whole
+      # workspace for **/*.csproj, and once the servers are up there are sixteen redis processes writing
+      # into that same tree through DrvFs - rdb files into RedisConfigs/Temp, nodes-*.conf into
+      # RedisConfigs/Cluster, and BGSAVE's temp-<pid>.rdb appearing and being renamed under the walk.
+      # Enumerating a tree that is changing underneath you is how you get an intermittent
+      # "hashFiles(...) failed. Fail to hash files under directory ...", which is exactly what this job
+      # started doing. Nothing here needs redis, so hash a still checkout instead.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
       - uses: Vampire/setup-wsl@v7 # v7 is the first version running on Node 24
         with:
           distribution: Ubuntu-22.04
@@ -165,13 +189,6 @@ jobs:
             exit 1
           fi
 
-      # Restore is ~80s of the build step on a cold runner, and the package set changes rarely.
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
-          restore-keys: ${{ runner.os }}-nuget-
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
       # The analyzer and the props that configures it reach consumers only through the package, and a
@@ -226,10 +243,3 @@ jobs:
           name: test-results-windows
           path: test-results/*.trx
           retention-days: 14
-      # Package and upload to MyGet only on pushes to main/v3, not on PRs
-      - name: .NET Pack
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3')
-        run: dotnet pack Build.csproj --no-build -c Release /p:PackageOutputPath=${env:GITHUB_WORKSPACE}\.nupkgs /p:CI=true
-      - name: Upload to MyGet
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3')
-        run: dotnet nuget push ${env:GITHUB_WORKSPACE}\.nupkgs\*.nupkg -s https://www.myget.org/F/stackoverflow/api/v2/package -k ${{ secrets.MYGET_API_KEY }}

@@ -11,10 +11,8 @@ For all documentation, [see here](https://seredis.dev/).
 
 #### Package Status
 
-MyGet Pre-release feed: https://www.myget.org/gallery/stackoverflow
-
-| Package | NuGet Stable | NuGet Pre-release | Downloads | MyGet |
-| ------- | ------------ | ----------------- | --------- | ----- |
-| [StackExchange.Redis](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/absoluteLatest) | [![StackExchange.Redis](https://img.shields.io/nuget/dt/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
+| Package | NuGet Stable | NuGet Pre-release | Downloads |
+| ------- | ------------ | ----------------- | --------- |
+| [StackExchange.Redis](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/absoluteLatest) | [![StackExchange.Redis](https://img.shields.io/nuget/dt/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) |
 
 Release notes at: [GitHub Releases](https://github.com/StackExchange/StackExchange.Redis/releases) (3.0 onwards; [earlier releases](https://seredis.dev/ReleaseNotes))

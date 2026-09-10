@@ -2549,39 +2549,50 @@ namespace StackExchange.Redis
 #pragma warning disable CS0618 // Type or member is obsolete
                     result = TryPushMessageToBridgeSync(message, processor, source, ref server);
 #pragma warning restore CS0618
-                    if (!source.IsFaulted) // if we faulted while writing, we don't need to wait
+                    // Note this tests IsCompleted, *not* IsFaulted: the write path can fault and complete the
+                    // message inline on this thread (the lock is ours, so its PulseAll had no waiter and is
+                    // gone) - in which case there is nothing to wait for. But a fault published by *another*
+                    // thread always still owes us a pulse, and leaving early on that would let the pulse
+                    // arrive after we have recycled the box, landing on the next operation to borrow it.
+                    if (!source.IsCompleted)
                     {
                         if (result != WriteResult.Success)
                         {
                             throw GetException(result, message, server);
                         }
 
-                        // Unlike the async sweeps, which re-read the effective timeout on every heartbeat, a
-                        // sync caller commits to a duration when it parks - so if maintenance relaxation
-                        // begins while we are waiting, we have to notice by re-waiting rather than failing at
-                        // the original deadline. Without this a sync caller in flight when a MIGRATING
-                        // arrives times out at the strict timeout while its async neighbour is relaxed.
-                        var watch = ValueStopwatch.StartNew();
-                        bool completed = Monitor.Wait(source, server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds);
-                        while (!completed)
+                        // Wait for the *completion*, not merely for a pulse: a pulse we did not cause must
+                        // not be allowed to shorten this wait (#3212).
+                        //
+                        // The deadline is not fixed, either. A sync caller commits to a duration when it
+                        // parks, so if maintenance relaxation begins while we are waiting we have to notice by
+                        // re-reading the budget rather than failing at the original deadline - without that, a
+                        // sync caller in flight when a MIGRATING arrives times out at the strict timeout while
+                        // its async neighbour is relaxed. It can shrink back too: when a window closes the
+                        // effective timeout drops to the configured value, and we stop at that.
+                        var startedAt = Environment.TickCount;
+                        var remaining = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
+                        while (true)
                         {
-                            var elapsed = watch.ElapsedMilliseconds;
-                            var revised = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
-
-                            // also the path back: if a window closed while we waited, revised drops to the
-                            // configured value and we stop
-                            if (revised <= elapsed) break;
-                            completed = Monitor.Wait(source, revised - elapsed);
-                        }
-
-                        if (completed)
-                        {
-                            Trace("Timely response to " + message);
-                        }
-                        else
-                        {
-                            Trace("Timeout performing " + message);
-                            timeout = true;
+                            if (!Monitor.Wait(source, remaining))
+                            {
+                                Trace("Timeout performing " + message);
+                                timeout = true;
+                                break;
+                            }
+                            if (source.IsCompleted)
+                            {
+                                Trace("Timely response to " + message);
+                                break;
+                            }
+                            var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
+                            remaining = budget - unchecked(Environment.TickCount - startedAt);
+                            if (remaining <= 0)
+                            {
+                                Trace("Timeout performing " + message);
+                                timeout = true;
+                                break;
+                            }
                         }
                     }
                 }
