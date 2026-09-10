@@ -107,6 +107,8 @@ await Task.WhenAll(pending);
 
 One caveat, for values built over memory you own: a `RedisValue` can wrap a `ReadOnlyMemory<byte>`, and rendering copies the *value*, not the bytes behind it. Returning the `RedisKeyOrValue[]` is safe; overwriting the byte buffer a `RedisValue` points at, before the request has been written, is not. Values built from `string`, `byte[]` you don't then mutate, or numbers are unaffected.
 
+This last gap is known, and is expected to close in a future update: the same work that moves serialization onto the calling thread consumes the payload bytes before the call returns too, at which point the rule becomes simply "everything you passed is yours again when the call returns", with no exception for memory-backed values.
+
 The original `Execute`/`ExecuteAsync` overload
 ---
 

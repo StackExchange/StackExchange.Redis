@@ -133,7 +133,7 @@ finally
 }
 ```
 
-The arguments are rendered into the request before the call returns - before the task is handed back, for the async form - so the library is not reading your arrays afterwards, whether the call succeeded, threw, or was fire-and-forget. See [Leasing the argument buffer](Execute#leasing-the-argument-buffer) for the async and batched shapes, and for the one caveat: a `RedisValue` wrapping a `ReadOnlyMemory<byte>` is rendered by value, so the array is yours again but the bytes behind such a value are not.
+The arguments are rendered into the request before the call returns - before the task is handed back, for the async form - so the library is not reading your arrays afterwards, whether the call succeeded, threw, or was fire-and-forget. See [Leasing the argument buffer](Execute#leasing-the-argument-buffer) for the async and batched shapes, and for the one caveat: a `RedisValue` wrapping a `ReadOnlyMemory<byte>` is rendered by value, so the array is yours again but the bytes behind such a value are not - a known gap, expected to close in a future update.
 
 Ad-hoc commands
 ---
