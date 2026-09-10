@@ -21,18 +21,30 @@ namespace StackExchange.Redis
         /// drop our cached hashes for the server.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Every processor that can be the target of an EVALSHA needs this, not just the one returning
         /// <see cref="RedisResult"/>: without it the retry filters on <c>IsScriptUnavailable</c> can never
         /// match, and the NOSCRIPT surfaces to the caller.
+        /// </para>
+        /// <para>
+        /// Returns whether <em>this</em> reply was a NOSCRIPT, which is not the same question as
+        /// <c>message.IsScriptUnavailable</c>: that flag is set once and never cleared, so on a retry that
+        /// comes back with some other error it still reads true. Callers deciding something about the reply
+        /// in hand - rather than about the message's history - want this.
+        /// </para>
         /// </remarks>
-        private protected static void NoteIfScriptUnavailable(PhysicalConnection connection, Message message, in RespReader errorReader)
+        /// <returns><c>true</c> if this reply was a NOSCRIPT error.</returns>
+        private protected static bool NoteIfScriptUnavailable(PhysicalConnection connection, Message message, in RespReader errorReader)
         {
             if (errorReader.IsError && RedisErrorKindMetadata.Classify(errorReader) == RedisErrorKind.NoScript)
             {
                 // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
                 connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                 message.SetScriptUnavailable();
+                return true;
             }
+
+            return false;
         }
 
         public static readonly ResultProcessor<bool>

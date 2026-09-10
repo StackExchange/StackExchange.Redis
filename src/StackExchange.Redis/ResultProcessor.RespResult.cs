@@ -26,11 +26,14 @@ internal abstract partial class ResultProcessor
                 // an EVALSHA can come back NOSCRIPT at any time - the server may have been flushed,
                 // restarted, or failed over - and the callers of this processor retry on that, but only
                 // if we tell them; see NoteIfScriptUnavailable
-                NoteIfScriptUnavailable(connection, message, in probe);
+                var isNoScript = NoteIfScriptUnavailable(connection, message, in probe);
 
                 // every other error is the end of the road for this message; a NOSCRIPT is not, because
-                // the caller re-issues this same instance, and it still needs its request buffer
-                if (!message.IsScriptUnavailable && message is IRenderedArgsOwner errorOwner) errorOwner.ReleaseRenderedArgs();
+                // the caller re-issues this same instance, and it still needs its request buffer.
+                // Note this asks about *this* reply rather than reading message.IsScriptUnavailable: that
+                // flag is sticky, so a retry that fails with some other error would still look like a
+                // NOSCRIPT and the buffer would never come back.
+                if (!isNoScript && message is IRenderedArgsOwner errorOwner) errorOwner.ReleaseRenderedArgs();
 
                 return base.SetResult(connection, message, ref reader);
             }
