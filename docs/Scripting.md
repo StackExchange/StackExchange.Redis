@@ -110,6 +110,31 @@ RedisValue[]? values = parent.ReadPastArray(static (ref r) => r.ReadRedisValue()
 
 This is equivalent to the manual loop above, just without needing to write it out yourself, and capturing the results as an array.
 
+Leasing the keys and values
+---
+
+`ScriptEvaluateResp` takes its keys and values as `ReadOnlyMemory<>`, so on a hot path you can rent those arrays rather than allocating a pair per call - and return them as soon as the call returns, with no conditions attached:
+
+```csharp
+var keys = ArrayPool<RedisKey>.Shared.Rent(1);
+var values = ArrayPool<RedisValue>.Shared.Rent(2);
+try
+{
+    keys[0] = "mykey";
+    values[0] = 123;
+    values[1] = 456;
+    using RespResult result = db.ScriptEvaluateResp(script, keys.AsMemory(0, 1), values.AsMemory(0, 2));
+    // use result...
+}
+finally
+{
+    ArrayPool<RedisKey>.Shared.Return(keys, clearArray: true);
+    ArrayPool<RedisValue>.Shared.Return(values, clearArray: true);
+}
+```
+
+The arguments are rendered into the request before the call returns - before the task is handed back, for the async form - so the library is not reading your arrays afterwards, whether the call succeeded, threw, or was fire-and-forget. See [Leasing the argument buffer](Execute#leasing-the-argument-buffer) for the async and batched shapes, and for the one caveat: a `RedisValue` wrapping a `ReadOnlyMemory<byte>` is rendered by value, so the array is yours again but the bytes behind such a value are not.
+
 Ad-hoc commands
 ---
 

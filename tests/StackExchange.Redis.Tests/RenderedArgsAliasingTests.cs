@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
@@ -106,6 +107,52 @@ public class RenderedArgsAliasingTests(ITestOutputHelper output) : TestBase(outp
         {
             Assert.Equal("v" + i, (string?)await db.HashGetAsync((RedisKey)(Me() + ":" + i), "f"));
         }
+    }
+
+    /// <summary>
+    /// The shape the docs recommend: rent, issue the calls, return the buffer to the pool, and only then
+    /// await. Queued through a batch so the writes are genuinely still pending when the buffer goes back -
+    /// against the open database an uncontended write lock writes each call inline, so returning the array
+    /// afterwards would prove nothing (a read-late implementation passes that version).
+    /// </summary>
+    [Fact]
+    public async Task ArgumentsMayBeReturnedToThePoolBeforeAwaiting()
+    {
+        await using var conn = Create(shared: false);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var batch = db.CreateBatch();
+        var args = ArrayPool<RedisKeyOrValue>.Shared.Rent(3);
+        var pending = new List<Task<RespResult>>(Iterations);
+        try
+        {
+            for (int i = 0; i < Iterations; i++)
+            {
+                args[0] = key;
+                args[1] = (RedisValue)("f" + i);
+                args[2] = (RedisValue)("v" + i);
+                pending.Add(batch.ExecuteRespAsync("HSET", args.AsMemory(0, 3)));
+            }
+        }
+        finally
+        {
+            ArrayPool<RedisKeyOrValue>.Shared.Return(args, clearArray: true);
+        }
+
+        // and behave like the next renter: take it back and fill it with something else entirely
+        var stomp = ArrayPool<RedisKeyOrValue>.Shared.Rent(3);
+        for (int i = 0; i < 3; i++) stomp[i] = (RedisValue)"stomped";
+
+        batch.Execute();
+        foreach (var task in pending)
+        {
+            using var result = await task;
+        }
+
+        ArrayPool<RedisKeyOrValue>.Shared.Return(stomp, clearArray: true);
+        await AssertHashIsIntact(db, key);
     }
 
     private async Task AssertHashIsIntact(IDatabase db, RedisKey key)

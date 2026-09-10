@@ -50,33 +50,62 @@ For a single scalar (blob) reply, reading it via `ExecuteResp`/`ScriptEvaluateRe
 Leasing the argument buffer
 ---
 
-The examples above allocate a fresh `RedisKeyOrValue[]` per call, which rather defeats the point of an API whose main selling point is low allocation. On a hot path, rent the array from `ArrayPool<RedisKeyOrValue>.Shared` instead - but the buffer can only be recycled once you know the server has fully received the write. For a synchronous call, that's once `ExecuteResp` has returned successfully *or* thrown `RedisServerException` (the server still definitely got the command - it just responded with an error). Any other exception (a timeout, a dropped connection) can mean a retry is still using the same buffer, so don't recycle it in that case:
+The examples above allocate a fresh `RedisKeyOrValue[]` per call, which rather defeats the point of an API whose main selling point is low allocation. On a hot path, rent the array from `ArrayPool<RedisKeyOrValue>.Shared` instead - and you can return it as soon as the call returns:
 
 ```csharp
 var args = ArrayPool<RedisKeyOrValue>.Shared.Rent(1); // usually larger!
-args[0] = (RedisKey)"mykey";
-var canReturn = true;
 try
 {
+    args[0] = (RedisKey)"mykey";
     using RespResult result = db.ExecuteResp("GET", args.AsMemory(0, 1));
     // use result...
 }
-catch (RedisServerException)
-{
-    throw; // the server responded - still safe to recycle below
-}
-catch
-{
-    canReturn = false; // e.g. a timeout/connection failure - a retry may still need this buffer
-    throw;
-}
 finally
 {
-    if (canReturn) ArrayPool<RedisKeyOrValue>.Shared.Return(args, clearArray: true);
+    ArrayPool<RedisKeyOrValue>.Shared.Return(args, clearArray: true);
 }
 ```
 
-The same rule applies to `ExecuteRespAsync` - just `await` the call before deciding whether it's safe to return the lease.
+No conditions, and nothing to work out from the exception that came back: the arguments are rendered into the request before the call returns, so the library is not looking at your array afterwards. That holds for a call that succeeds, one that throws for any reason at all, and a fire-and-forget call that never waits for a reply.
+
+The async form is the same, and does *not* need the `await` to happen first - `ExecuteRespAsync` renders the arguments before it hands back the task, so the buffer is yours again the moment the method returns:
+
+```csharp
+var args = ArrayPool<RedisKeyOrValue>.Shared.Rent(1);
+Task<RespResult> pending;
+try
+{
+    args[0] = (RedisKey)"mykey";
+    pending = db.ExecuteRespAsync("GET", args.AsMemory(0, 1));
+}
+finally
+{
+    ArrayPool<RedisKeyOrValue>.Shared.Return(args, clearArray: true); // before awaiting, deliberately
+}
+
+using RespResult result = await pending;
+```
+
+That also means one buffer can be refilled and reused across a whole run of queued calls - a batch, say - without waiting for any of them:
+
+```csharp
+var batch = db.CreateBatch();
+var args = ArrayPool<RedisKeyOrValue>.Shared.Rent(3);
+var pending = new List<Task<RespResult>>();
+for (int i = 0; i < count; i++)
+{
+    args[0] = key;
+    args[1] = (RedisValue)("field" + i);
+    args[2] = (RedisValue)("value" + i);
+    pending.Add(batch.ExecuteRespAsync("HSET", args.AsMemory(0, 3))); // rendered here, not at Execute()
+}
+
+ArrayPool<RedisKeyOrValue>.Shared.Return(args, clearArray: true);
+batch.Execute();
+await Task.WhenAll(pending);
+```
+
+One caveat, for values built over memory you own: a `RedisValue` can wrap a `ReadOnlyMemory<byte>`, and rendering copies the *value*, not the bytes behind it. Returning the `RedisKeyOrValue[]` is safe; overwriting the byte buffer a `RedisValue` points at, before the request has been written, is not. Values built from `string`, `byte[]` you don't then mutate, or numbers are unaffected.
 
 The original `Execute`/`ExecuteAsync` overload
 ---
