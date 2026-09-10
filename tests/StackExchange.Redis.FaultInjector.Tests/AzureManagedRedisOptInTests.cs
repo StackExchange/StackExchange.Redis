@@ -101,10 +101,15 @@ public class AzureManagedRedisOptInTests(ITestOutputHelper log)
         Assert.Equal("alignment-check", (string?)await db.ExecuteAsync("ECHO", "alignment-check"));
         Assert.True(await db.PingAsync() >= TimeSpan.Zero);
 
-        foreach (var line in logs.Lines.Where(l => l.Contains("aintenance", StringComparison.Ordinal)))
+        // SER_AMR_VERBOSE dumps the whole connect log, which is how endpoint discovery is traced when an
+        // AMR instance turns out to advertise more endpoints than you configured.
+        var verbose = string.Equals(Environment.GetEnvironmentVariable("SER_AMR_VERBOSE"), "true", StringComparison.OrdinalIgnoreCase);
+        foreach (var line in logs.Lines.Where(l => verbose || l.Contains("aintenance", StringComparison.Ordinal)))
         {
             log.WriteLine(line);
         }
+
+        log.WriteLine($"endpoints: {string.Join(", ", conn.GetEndPoints().Select(e => e.ToString()))}");
 
         Assert.Contains(logs.Lines, l => l.Contains("Requesting maintenance notifications", StringComparison.Ordinal));
 
