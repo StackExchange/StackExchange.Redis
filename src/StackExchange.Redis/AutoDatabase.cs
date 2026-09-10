@@ -11,6 +11,18 @@ namespace StackExchange.Redis;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false)]
 internal sealed class AutoDatabaseAttribute : Attribute
 {
+    /// <summary>
+    /// Whether the owning database can invoke a captured operation more than once, i.e. it replays.
+    /// </summary>
+    /// <remarks>
+    /// A replaying database outlives the call it captured: it re-invokes with the same captured arguments
+    /// after the caller has long since regained control. Arguments passed as <c>Memory</c>/<c>ReadOnlyMemory</c>
+    /// still belong to the caller, who is entitled to reuse that buffer once the call returns - so a replay
+    /// would read whatever is in it by then. When this is set, the generated capture takes a pooled shallow
+    /// copy of those arguments and the funnel disposes it; when it is not, the arguments are captured as-is,
+    /// because a single forward cannot outlive the call.
+    /// </remarks>
+    public bool Replays { get; set; }
 }
 
 // Implemented by a generated captured-arguments struct only when the owning auto-database implements

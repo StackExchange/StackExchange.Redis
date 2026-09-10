@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ParamInfo = (string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default);
 using MethodInfo = (string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs);
 using InterfaceInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces KnownType, StackExchange.Redis.Build.BasicArray<(string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs)> Methods);
-using ClassInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces Interfaces, bool IsMutator);
+using ClassInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces Interfaces, bool IsMutator, bool Replays);
 
 namespace StackExchange.Redis.Build;
 
@@ -219,8 +219,20 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             }
         }
 
+        // [AutoDatabase(Replays = true)] - the owning database can invoke a captured operation more than
+        // once, so captured Memory<T> arguments have to be copies rather than the caller's own buffer
+        bool replays = false;
+        foreach (var attrib in cls.GetAttributes())
+        {
+            if (attrib.AttributeClass?.Name is not ("AutoDatabaseAttribute" or "AutoDatabase")) continue;
+            foreach (var named in attrib.NamedArguments)
+            {
+                if (named.Key == "Replays" && named.Value.Value is bool b) replays = b;
+            }
+        }
+
         var ns = cls.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        return (cls.Name, ns, known, isMutator);
+        return (cls.Name, ns, known, isMutator, replays);
     }
 
     [Flags]
@@ -243,6 +255,17 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
     //    not a replayable server command; wrappers want their own behaviour here (e.g. a connection-group
     //    resolving against the currently-active member and returning null when there is none)
     //  - streaming returns (IEnumerable<T> / IAsyncEnumerable<T>) whose execution is deferred
+    // Memory<T>/ReadOnlyMemory<T> arguments still belong to the caller once the call returns; a database
+    // that replays has to capture a copy. Matched on the open generic prefix so a nullable or an array *of*
+    // them - neither of which is the caller's own buffer in the same way - does not match.
+    private static bool IsMemoryArg(string type)
+        => type.StartsWith("System.ReadOnlyMemory<", StringComparison.Ordinal)
+        || type.StartsWith("System.Memory<", StringComparison.Ordinal);
+
+    // the element type, for the ArrayPool we rent the copy from
+    private static string MemoryElement(string type)
+        => type.Substring(type.IndexOf('<') + 1, type.Length - type.IndexOf('<') - 2);
+
     private static bool SkipMethod(MethodInfo method)
         => !method.TypeArgs.IsEmpty
         || method.Name.Contains("Wait")
@@ -501,12 +524,22 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     if (flagsArg >= 0)
                     {
                         writer.Append(firstBase ? " : " : ", ").Append("global::StackExchange.Redis.IFlaggedRedisArgs");
+                        firstBase = false;
+                    }
+
+                    // a replaying funnel constrains its TState to IDisposable so it can give cloned
+                    // arguments back; every one of its captures implements it, most as a no-op
+                    if (cls.Replays)
+                    {
+                        writer.Append(firstBase ? " : " : ", ").Append("global::System.IDisposable");
                     }
                     writer.NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
+                        var clone = cls.Replays && IsMemoryArg(parameters[p].Type);
                         writer.NewLine().Append("public ").Append(cls.IsMutator && NeedsMap(parameters[p].Type) ? "" : "readonly ").Append(parameters[p].Type)
-                            .Append(" Arg").Append(p).Append(" = arg").Append(p).Append(";");
+                            .Append(" Arg").Append(p).Append(" = ")
+                            .Append(clone ? "global::StackExchange.Redis.CapturedArgs.Clone(arg" : "arg").Append(p).Append(clone ? ");" : ";");
                     }
 
                     if (flagsArg >= 0)
@@ -516,6 +549,19 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                         writer.NewLine().Append(cls.IsMutator ? "readonly " : "")
                             .Append("global::StackExchange.Redis.CommandFlags global::StackExchange.Redis.IFlaggedRedisArgs.Flags => Arg")
                             .Append(flagsArg).Append(";");
+                    }
+
+                    if (cls.Replays)
+                    {
+                        // emitted even when there is nothing to give back: the funnel's TState constraint
+                        // needs every capture to satisfy it, and an empty one inlines away
+                        writer.NewLine().Append(cls.IsMutator ? "readonly " : "").Append("public void Dispose()").NewLine().Append("{").Indent();
+                        for (int p = 0; p < parameters.Length; p++)
+                        {
+                            if (!IsMemoryArg(parameters[p].Type)) continue;
+                            writer.NewLine().Append("global::StackExchange.Redis.CapturedArgs.Release(in Arg").Append(p).Append(");");
+                        }
+                        writer.Outdent().NewLine().Append("}");
                     }
 
                     if (!cls.IsMutator)

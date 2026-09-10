@@ -20,6 +20,12 @@ namespace StackExchange.Redis.Availability;
 // interface can move to a retrying database without rewriting their transaction code; the synchronous
 // Execute is sync-over-async (see below). Note that ITransaction : IBatch : IDatabaseAsync, so the only
 // members this adds over ITransactionAsync are the two Execute overloads.
+// NOTE: deliberately not Replays = true yet. It does replay - the recorded ops are re-run as a unit - so it
+// wants the same captured-argument copies as RetryDatabase, arguably more since a queued op is held from
+// capture until Execute. But there is no single point here that means "this op will not run again": ops end
+// via ForwardSuccess, Fault or Observe, and the whole list is replayed together, so nothing can dispose a
+// capture without first working out that lifetime properly. Marking it without that would swap an aliasing
+// bug for a guaranteed leak.
 [AutoDatabase]
 internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 {
