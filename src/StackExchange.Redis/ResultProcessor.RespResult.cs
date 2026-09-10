@@ -27,11 +27,17 @@ internal abstract partial class ResultProcessor
                 // restarted, or failed over - and the callers of this processor retry on that, but only
                 // if we tell them; see NoteIfScriptUnavailable
                 NoteIfScriptUnavailable(connection, message, in probe);
+
+                // every other error is the end of the road for this message; a NOSCRIPT is not, because
+                // the caller re-issues this same instance, and it still needs its request buffer
+                if (!message.IsScriptUnavailable) message.OnFinalReply();
+
                 return base.SetResult(connection, message, ref reader);
             }
 
             var pool = connection.BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseBufferPool;
             SetResult(message, StackExchange.Redis.RespResult.Capture(probe.Prefix, probe.IsNull, ref reader, totalBytes, pool));
+            message.OnFinalReply();
             return true;
         }
 

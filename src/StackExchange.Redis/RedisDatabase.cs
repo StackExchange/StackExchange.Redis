@@ -6135,17 +6135,10 @@ namespace StackExchange.Redis
                 return _hasSubCommand;
             }
 
-            public override void Complete(PhysicalConnection? connection)
-            {
-                // Status flips to Sent strictly *after* WriteImpl returns (see WriteMessageToServerInsideWriteLock),
-                // but a message is enqueued into _writtenAwaitingResponse - making it eligible for the async-timeout
-                // heartbeat's SetExceptionAndComplete - *before* that write actually happens. Recycling on that
-                // premature completion would race an in-flight WriteImpl reading the same buffer. If the write did
-                // land, the real reply's own later Complete() call recycles once Status has caught up; if it never
-                // gets sent at all, the buffer leaks rather than risking corruption - the lesser evil.
-                if (Status == CommandStatus.Sent) RenderedArgs.Recycle(ref _args);
-                base.Complete(connection);
-            }
+            // driven by the reply rather than by completion: the reply proves the write finished, so there
+            // is no in-flight WriteImpl left to race, and a message that is going to be re-issued simply
+            // never gets one
+            internal override void OnFinalReply() => RenderedArgs.Recycle(ref _args);
         }
 
         internal sealed class ExecuteMessage : Message
@@ -6353,20 +6346,9 @@ namespace StackExchange.Redis
 
             public override int ArgCount => 2 + _args.Count;
 
-            public override void Complete(PhysicalConnection? connection)
-            {
-                // see ExecMessage.Complete for why this is gated on Status rather than unconditional.
-                //
-                // IsScriptUnavailable is the other half: a NOSCRIPT reply completes this message and then
-                // the caller re-issues *this same instance* as EVAL (see ScriptEvaluateResp and friends),
-                // so completion is not the end of the road here at all - recycling now would leave the
-                // retry writing from a buffer that has already gone back to the pool. The flag is set by
-                // the result processor before the completion that carries the error, so it is visible by
-                // the time we get here. If the retry does not happen after all, the buffer leaks - the
-                // same trade as above.
-                if (Status == CommandStatus.Sent && !IsScriptUnavailable) RenderedArgs.Recycle(ref _args);
-                base.Complete(connection);
-            }
+            // see ExecMessage.OnFinalReply; for scripts this is also what keeps a NOSCRIPT retry working,
+            // since that reply is not a final one and so never reaches here
+            internal override void OnFinalReply() => RenderedArgs.Recycle(ref _args);
         }
 
         private sealed class ScriptEvaluateMessage : Message, IMultiMessage

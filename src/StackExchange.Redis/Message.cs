@@ -199,6 +199,20 @@ namespace StackExchange.Redis
             SetName,
         }
 
+        /// <summary>
+        /// Called once a reply for this message has arrived and is known to be the final one, i.e. the
+        /// message will not be re-issued. Anything held only for the benefit of writing the request can go.
+        /// </summary>
+        /// <remarks>
+        /// The arrival of a reply is what makes this safe: it proves the write completed, which completion
+        /// alone does not - a message becomes visible to the async-timeout heartbeat when it is queued,
+        /// before WriteImpl has run. Implementations must be idempotent; a redirect or a NOSCRIPT retry
+        /// re-issues this same instance, so those replies deliberately do not call it.
+        /// </remarks>
+        internal virtual void OnFinalReply()
+        {
+        }
+
         protected virtual bool TryGetSubCommand(out SubCommand subCommand)
         {
             subCommand = SubCommand.Unknown;
@@ -536,12 +550,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        // virtual so a subclass owning a rented request buffer (e.g. RenderedArgs) can recycle it here:
-        // every path that terminally finishes a message - normal completion, high-integrity validation,
-        // and the RecordConnectionFailed drain - runs through this (via SetExceptionAndComplete, for the
-        // last one), and PrepareToResend/caller-side timeouts never call it at all, which is exactly the
-        // "message is definitely never touched again" boundary the buffer needs.
-        public virtual void Complete(PhysicalConnection? connection)
+        public void Complete(PhysicalConnection? connection)
         {
             // Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
