@@ -412,11 +412,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ExecuteRespAsync(command, ToInnerCopy(args), flags);
-
-            var result = Inner.ExecuteRespAsync(command, ToInnerLease(args, out var lease), flags);
-            return lease != null ? ReturnAfterResult(result, lease) : result;
+            // the callee renders the arguments before it hands back the task, so the lease comes
+            // home immediately rather than being held for the whole round trip - and there is no
+            // fire-and-forget special case left, since that path renders too
+            var inner = ToInnerLease(args, out var lease);
+            try
+            {
+                return Inner.ExecuteRespAsync(command, inner, flags);
+            }
+            finally
+            {
+                ReturnLease(lease);
+            }
         }
 
         public Task<RedisResult> ExecuteAsync(string command, params object[] args) =>
@@ -432,11 +439,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateRespAsync(script, ToInnerCopy(keys), values, flags);
-
-            var result = Inner.ScriptEvaluateRespAsync(script, ToInnerLease(keys, out var lease), values, flags);
-            return lease != null ? ReturnAfterResult(result, lease) : result;
+            // the callee renders the arguments before it hands back the task, so the lease comes
+            // home immediately rather than being held for the whole round trip - and there is no
+            // fire-and-forget special case left, since that path renders too
+            var inner = ToInnerLease(keys, out var lease);
+            try
+            {
+                return Inner.ScriptEvaluateRespAsync(script, inner, values, flags);
+            }
+            finally
+            {
+                ReturnLease(lease);
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
@@ -458,11 +472,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateReadOnlyRespAsync(script, ToInnerCopy(keys), values, flags);
-
-            var result = Inner.ScriptEvaluateReadOnlyRespAsync(script, ToInnerLease(keys, out var lease), values, flags);
-            return lease != null ? ReturnAfterResult(result, lease) : result;
+            // the callee renders the arguments before it hands back the task, so the lease comes
+            // home immediately rather than being held for the whole round trip - and there is no
+            // fire-and-forget special case left, since that path renders too
+            var inner = ToInnerLease(keys, out var lease);
+            try
+            {
+                return Inner.ScriptEvaluateReadOnlyRespAsync(script, inner, values, flags);
+            }
+            finally
+            {
+                ReturnLease(lease);
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
@@ -1081,26 +1102,22 @@ namespace StackExchange.Redis.KeyspaceIsolation
         // takes state + a (typically static) delegate rather than a capturing lambda, so callers can
         // avoid allocating a closure and delegate per call; TState carries what the delegate needs
         // instead (plain struct, not ValueTuple - this type still targets net461/netstandard2.0).
-        protected static TResult InvokeAndReturnLease<TState, TResult, TElement>(TState state, Func<TState, TResult> invoke, TElement[] lease)
+
+        /// <summary>
+        /// Hand a rented argument buffer back. Safe to call with <c>null</c>, which is what
+        /// <c>ToInnerLease</c> reports when there was nothing worth renting for.
+        /// </summary>
+        /// <remarks>
+        /// Unconditional on purpose. The APIs this is used for render their arguments before returning, so
+        /// there is no longer any question of the callee reading the buffer later - which is what the old
+        /// shape had to guard against by abandoning the lease whenever an unexpected exception made the
+        /// answer unknowable.
+        /// </remarks>
+        /// <typeparam name="TElement">The element type of the rented buffer.</typeparam>
+        /// <param name="lease">The buffer to return, if any.</param>
+        protected static void ReturnLease<TElement>(TElement[]? lease)
         {
-            var returnLease = true;
-            try
-            {
-                return invoke(state);
-            }
-            catch (RedisServerException)
-            {
-                throw;
-            }
-            catch
-            {
-                returnLease = false;
-                throw;
-            }
-            finally
-            {
-                if (returnLease) ArrayPool<TElement>.Shared.Return(lease, clearArray: true);
-            }
+            if (lease is not null) ArrayPool<TElement>.Shared.Return(lease, clearArray: true);
         }
 
         protected ReadOnlyMemory<RedisKey> ToInnerCopy(ReadOnlyMemory<RedisKey> outer)
