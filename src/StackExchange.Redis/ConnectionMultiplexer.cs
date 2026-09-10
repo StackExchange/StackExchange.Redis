@@ -66,6 +66,16 @@ namespace StackExchange.Redis
         internal Availability.CircuitBreaker? GroupCircuitBreaker { get; private set; }
 
         /// <summary>
+        /// Whether this multiplexer is one member of a multi-group (geo-redundant) connection.
+        /// </summary>
+        /// <remarks>
+        /// Not the same as having a group circuit breaker: that is optional configuration, while this is
+        /// membership, and something that must not run inside a group needs to know regardless of how the
+        /// group was configured.
+        /// </remarks>
+        internal bool IsGroupMember { get; private set; }
+
+        /// <summary>
         /// The circuit-breaker that physical connections for this multiplexer should use, if any.
         /// </summary>
         internal Availability.CircuitBreaker? EffectiveCircuitBreaker => GroupCircuitBreaker ?? RawConfig.CircuitBreaker;
@@ -182,9 +192,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false)
         {
-            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints, groupCircuitBreaker);
+            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints, groupCircuitBreaker) { IsGroupMember = isGroupMember };
             connectHandler = null;
             if (log is not null)
             {
@@ -619,17 +629,18 @@ namespace StackExchange.Redis
                 return ApplyAfterConnectAsync(SentinelPrimaryConnectAsync(configuration, log), groupCircuitBreaker);
             }
 
-            return ConnectImplAsync(configuration, log, groupCircuitBreaker: groupCircuitBreaker);
+            return ConnectImplAsync(configuration, log, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: true);
 
             static async Task<ConnectionMultiplexer> ApplyAfterConnectAsync(Task<ConnectionMultiplexer> pending, Availability.CircuitBreaker? groupCircuitBreaker)
             {
                 var muxer = await pending.ForAwait();
                 muxer.GroupCircuitBreaker = groupCircuitBreaker;
+                muxer.IsGroupMember = true;
                 return muxer;
             }
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false)
         {
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
@@ -641,7 +652,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 log?.LogInformationConnectingAsync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
 
-                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker);
+                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: isGroupMember);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, log, null, "connect").ObserveErrors().ForAwait();

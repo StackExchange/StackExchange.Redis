@@ -24,9 +24,28 @@ internal sealed partial class ServerEndPoint
     /// </remarks>
     internal bool MaintenanceNotificationsActive => _maintenanceNotificationsActive;
 
+    /// <summary>
+    /// The effective mode for this server, which is not always the configured one.
+    /// </summary>
+    /// <remarks>
+    /// Forced to <see cref="MaintenanceNotificationMode.Disabled"/> inside a multi-group (geo-redundant)
+    /// connection, **including when a caller asked for it explicitly**. How maintenance notifications and
+    /// cross-region failover should interact is not yet defined - upstream disables the feature alongside
+    /// geographic failover, and until there is an agreed answer, acting on a handoff in one region while a
+    /// group is deciding whether to fail away from it is a risk with no test behind it.
+    /// <para>
+    /// This is deliberately the *one* place that decides, because everything else keys off this property:
+    /// whether the opt-in is sent, and whether
+    /// <see cref="MaintenanceNotificationMode.Enabled"/>'s "reject the connection" rule applies. Suppressing
+    /// the request without also suppressing that rule would turn an explicit opt-in into a connection that
+    /// cannot be made.
+    /// </para>
+    /// </remarks>
     [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     private MaintenanceNotificationMode MaintenanceMode
-        => Multiplexer.RawConfig.MaintenanceNotifications;
+        => Multiplexer.IsGroupMember
+            ? MaintenanceNotificationMode.Disabled
+            : Multiplexer.RawConfig.MaintenanceNotifications;
 
     /// <summary>
     /// Whether to ask this server for maintenance notifications during handshake.

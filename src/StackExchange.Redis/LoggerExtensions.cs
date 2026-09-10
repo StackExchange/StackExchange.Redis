@@ -787,6 +787,12 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Warning,
+        EventId = 123,
+        Message = "{Server}: Maintenance notifications ({Mode}) are not requested: this connection is a member of a multi-group configuration, where the feature is not yet supported")]
+    internal static partial void LogWarningMaintenanceNotificationsSuppressedForGroup(this ILogger logger, ServerEndPointLogValue server, MaintenanceNotificationMode mode);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
         EventId = 122,
         Message = "{Server}: Maintenance handoff did not establish a replacement within the announced {WindowMilliseconds}ms (interactive: {Interactive}, subscription: {Subscription})")]
     internal static partial void LogWarningMaintenanceHandoffMissedDeadline(this ILogger logger, ServerEndPointLogValue server, long windowMilliseconds, bool interactive, bool subscription);

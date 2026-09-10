@@ -1420,6 +1420,16 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
 
+                // A suppressed opt-in has to be visible: a caller who wrote maintNotifications=Enabled asked for
+                // a guarantee and is not getting it, and the alternative to saying so is a deployment where
+                // the feature is silently absent and nothing explains why.
+                if (isInteractive && Multiplexer.IsGroupMember
+                    && Multiplexer.RawConfig.MaintenanceNotifications != MaintenanceNotificationMode.Disabled)
+                {
+                    log?.LogWarningMaintenanceNotificationsSuppressedForGroup(
+                        new(this), Multiplexer.RawConfig.MaintenanceNotifications);
+                }
+
                 if (ShouldRequestMaintenanceNotifications(isInteractive, negotiateResp3))
                 {
                     _maintenanceNotificationsRequested = true;

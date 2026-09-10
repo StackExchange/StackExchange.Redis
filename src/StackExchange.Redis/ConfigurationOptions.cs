@@ -1591,6 +1591,13 @@ namespace StackExchange.Redis
         /// Requires RESP3, and only Redis Enterprise and Redis Cloud emit them - so the default is
         /// <see cref="MaintenanceNotificationMode.Disabled"/> rather than spending an extra handshake command
         /// asking every server in existence a question almost none of them understand.
+        /// <para>
+        /// One exception to <see cref="MaintenanceNotificationMode.Enabled"/> meaning "reject the connection":
+        /// inside a multi-group (geo-redundant) connection the feature is not activated at all, whatever this
+        /// is set to, because how it should interact with cross-region failover is not yet defined. The
+        /// connection succeeds without it, and a warning says so - failing instead would make an explicit
+        /// opt-in impossible to configure for a group.
+        /// </para>
         /// </remarks>
         [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public MaintenanceNotificationMode MaintenanceNotifications
