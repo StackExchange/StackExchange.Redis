@@ -116,6 +116,7 @@ public class Issue3167Tests(ITestOutputHelper output) : TestBase(output)
 
             var outputPipeFaults = new ConcurrentQueue<Exception>();
             var internalFailures = new ConcurrentQueue<Exception>();
+            var responseIntegrityFailures = new ConcurrentQueue<Exception>();
             var internalErrors = new ConcurrentQueue<Exception>();
             long totalOps = 0, totalFaults = 0;
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -130,11 +131,21 @@ public class Issue3167Tests(ITestOutputHelper output) : TestBase(output)
                     outputPipeFaults.Enqueue(ex);
                 }
 
+                if (ex.ToString().Contains("response with no message waiting", StringComparison.OrdinalIgnoreCase)
+                    || ex.ToString().Contains("Unexpected response to", StringComparison.OrdinalIgnoreCase))
+                {
+                    responseIntegrityFailures.Enqueue(ex);
+                }
+
                 for (Exception? walk = ex; walk is not null; walk = walk.InnerException)
                 {
                     if (walk is RedisConnectionException { FailureType: ConnectionFailureType.InternalFailure })
                     {
                         internalFailures.Enqueue(ex);
+                    }
+                    else if (walk is RedisConnectionException { FailureType: ConnectionFailureType.ResponseIntegrityFailure })
+                    {
+                        responseIntegrityFailures.Enqueue(ex);
                     }
                 }
             }
@@ -187,7 +198,7 @@ public class Issue3167Tests(ITestOutputHelper output) : TestBase(output)
 
             var ops = Volatile.Read(ref totalOps);
             Log($"ops: {ops}, faults: {Volatile.Read(ref totalFaults)}, kills: {kills}");
-            Log($"internal failures: {internalFailures.Count}, output-pipe faults: {outputPipeFaults.Count}, internal errors: {internalErrors.Count}");
+            Log($"internal failures: {internalFailures.Count}, response-integrity failures: {responseIntegrityFailures.Count}, output-pipe faults: {outputPipeFaults.Count}, internal errors: {internalErrors.Count}");
 
             void Dump(string label, ConcurrentQueue<Exception> queue)
             {
@@ -200,6 +211,7 @@ public class Issue3167Tests(ITestOutputHelper output) : TestBase(output)
 
             Dump("output-pipe fault", outputPipeFaults);
             Dump("internal failure", internalFailures);
+            Dump("response-integrity failure", responseIntegrityFailures);
 
             // this only means anything if we actually raced teardown; if these trip, the writers or the kill
             // loop stopped doing their job, rather than the bug being fixed
@@ -209,6 +221,7 @@ public class Issue3167Tests(ITestOutputHelper output) : TestBase(output)
 
             Assert.Empty(outputPipeFaults);
             Assert.Empty(internalFailures);
+            Assert.Empty(responseIntegrityFailures);
         }
         finally
         {
