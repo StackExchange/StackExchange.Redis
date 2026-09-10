@@ -384,29 +384,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
         {
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ExecuteResp(command, ToInnerCopy(args), flags);
-
+            // the callee renders the arguments before it returns, so the lease is ours again the moment
+            // the call comes back - however it comes back. No fire-and-forget special case (that path
+            // renders too, it just does not wait for a reply) and no suppressing the return on unexpected
+            // exceptions, which is what the old shape had to do when it could not know.
             var inner = ToInnerLease(args, out var lease);
-            return lease != null
-                ? InvokeAndReturnLease(new ExecuteRespState(Inner, command, inner, flags), static s => s.Inner.ExecuteResp(s.Command, s.Args, s.Flags), lease)
-                : Inner.ExecuteResp(command, inner, flags);
-        }
-
-        private readonly struct ExecuteRespState
-        {
-            public ExecuteRespState(IDatabase inner, string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags)
+            try
             {
-                Inner = inner;
-                Command = command;
-                Args = args;
-                Flags = flags;
+                return Inner.ExecuteResp(command, inner, flags);
             }
-
-            public readonly IDatabase Inner;
-            public readonly string Command;
-            public readonly ReadOnlyMemory<RedisKeyOrValue> Args;
-            public readonly CommandFlags Flags;
+            finally
+            {
+                ReturnLease(lease);
+            }
         }
 
         public RedisResult Execute(string command, params object[] args)
@@ -422,13 +412,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             // note the Resp API explicitly doesn't unprefix keys
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateResp(script, ToInnerCopy(keys), values, flags);
-
+            // see ExecuteResp
             var inner = ToInnerLease(keys, out var lease);
-            return lease != null
-                ? InvokeAndReturnLease(new ScriptEvaluateRespState(Inner, script, inner, values, flags), static s => s.Inner.ScriptEvaluateResp(s.Script, s.Keys, s.Values, s.Flags), lease)
-                : Inner.ScriptEvaluateResp(script, inner, values, flags);
+            try
+            {
+                return Inner.ScriptEvaluateResp(script, inner, values, flags);
+            }
+            finally
+            {
+                ReturnLease(lease);
+            }
         }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
@@ -450,31 +443,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             // note the Resp API explicitly doesn't unprefix keys
-            if ((flags & CommandFlags.FireAndForget) != 0)
-                return Inner.ScriptEvaluateReadOnlyResp(script, ToInnerCopy(keys), values, flags);
-
+            // see ExecuteResp
             var inner = ToInnerLease(keys, out var lease);
-            return lease != null
-                ? InvokeAndReturnLease(new ScriptEvaluateRespState(Inner, script, inner, values, flags), static s => s.Inner.ScriptEvaluateReadOnlyResp(s.Script, s.Keys, s.Values, s.Flags), lease)
-                : Inner.ScriptEvaluateReadOnlyResp(script, inner, values, flags);
-        }
-
-        private readonly struct ScriptEvaluateRespState
-        {
-            public ScriptEvaluateRespState(IDatabase inner, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags)
+            try
             {
-                Inner = inner;
-                Script = script;
-                Keys = keys;
-                Values = values;
-                Flags = flags;
+                return Inner.ScriptEvaluateReadOnlyResp(script, inner, values, flags);
             }
-
-            public readonly IDatabase Inner;
-            public readonly string Script;
-            public readonly ReadOnlyMemory<RedisKey> Keys;
-            public readonly ReadOnlyMemory<RedisValue> Values;
-            public readonly CommandFlags Flags;
+            finally
+            {
+                ReturnLease(lease);
+            }
         }
 
         public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
