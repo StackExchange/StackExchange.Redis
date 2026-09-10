@@ -9,6 +9,30 @@ using System.Threading;
 namespace StackExchange.Redis
 {
     /// <summary>
+    /// Implemented by a message that holds a <see cref="RenderedArgs"/> for the lifetime of its request.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately an interface rather than a virtual on <c>Message</c>: only the handful of messages that
+    /// render their arguments up front care, and the one processor that calls this is used by nothing else,
+    /// so the type test always hits. No reason to put a slot on the base type of every command in the
+    /// library for it.
+    /// </remarks>
+    internal interface IRenderedArgsOwner
+    {
+        /// <summary>
+        /// Called once a reply has arrived that is known to be the final one for this message, so the
+        /// request buffer will not be needed again.
+        /// </summary>
+        /// <remarks>
+        /// The arrival of a reply is what makes this safe: it proves the write completed, which completion
+        /// alone does not - a message becomes visible to the async-timeout heartbeat when it is queued,
+        /// before WriteImpl has run. Must be idempotent; a redirect or a NOSCRIPT retry re-issues the same
+        /// instance, so those replies deliberately do not call it.
+        /// </remarks>
+        void ReleaseRenderedArgs();
+    }
+
+    /// <summary>
     /// The keys and values of a request, rendered once into a single pooled buffer at the point of the
     /// call, so that the request no longer refers to any memory the caller owns.
     /// </summary>

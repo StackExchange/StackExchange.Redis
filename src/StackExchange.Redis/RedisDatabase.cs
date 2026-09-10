@@ -6043,7 +6043,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal sealed class ExecMessage : Message
+        internal sealed class ExecMessage : Message, IRenderedArgsOwner
         {
             // not readonly: RenderedArgs.Recycle swaps the buffer out, and cannot do that through a
             // defensive copy - see RenderedArgs
@@ -6138,7 +6138,7 @@ namespace StackExchange.Redis
             // driven by the reply rather than by completion: the reply proves the write finished, so there
             // is no in-flight WriteImpl left to race, and a message that is going to be re-issued simply
             // never gets one
-            internal override void OnFinalReply() => RenderedArgs.Recycle(ref _args);
+            void IRenderedArgsOwner.ReleaseRenderedArgs() => RenderedArgs.Recycle(ref _args);
         }
 
         internal sealed class ExecuteMessage : Message
@@ -6280,7 +6280,7 @@ namespace StackExchange.Redis
         private static bool IsReadOnlyScript(RedisCommand command)
             => command is RedisCommand.EVAL_RO or RedisCommand.EVALSHA_RO;
 
-        private sealed class ScriptEvalMessage : Message, IMultiMessage
+        private sealed class ScriptEvalMessage : Message, IMultiMessage, IRenderedArgsOwner
         {
             // not readonly: RenderedArgs.Recycle swaps the buffer out, and cannot do that through a
             // defensive copy - see RenderedArgs. The script itself stays out of the buffer: it is needed
@@ -6348,7 +6348,7 @@ namespace StackExchange.Redis
 
             // see ExecMessage.OnFinalReply; for scripts this is also what keeps a NOSCRIPT retry working,
             // since that reply is not a final one and so never reaches here
-            internal override void OnFinalReply() => RenderedArgs.Recycle(ref _args);
+            void IRenderedArgsOwner.ReleaseRenderedArgs() => RenderedArgs.Recycle(ref _args);
         }
 
         private sealed class ScriptEvaluateMessage : Message, IMultiMessage

@@ -30,14 +30,14 @@ internal abstract partial class ResultProcessor
 
                 // every other error is the end of the road for this message; a NOSCRIPT is not, because
                 // the caller re-issues this same instance, and it still needs its request buffer
-                if (!message.IsScriptUnavailable) message.OnFinalReply();
+                if (!message.IsScriptUnavailable && message is IRenderedArgsOwner errorOwner) errorOwner.ReleaseRenderedArgs();
 
                 return base.SetResult(connection, message, ref reader);
             }
 
             var pool = connection.BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseBufferPool;
             SetResult(message, StackExchange.Redis.RespResult.Capture(probe.Prefix, probe.IsNull, ref reader, totalBytes, pool));
-            message.OnFinalReply();
+            if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
             return true;
         }
 
