@@ -1594,9 +1594,9 @@ namespace StackExchange.Redis
         /// <para>
         /// One exception to <see cref="MaintenanceNotificationMode.Enabled"/> meaning "reject the connection":
         /// inside a multi-group (geo-redundant) connection the feature is not activated at all, whatever this
-        /// is set to, because how it should interact with cross-region failover is not yet defined. The
-        /// connection succeeds without it, and a warning says so - failing instead would make an explicit
-        /// opt-in impossible to configure for a group.
+        /// is set to. Combining the two is in development and not yet supported, so the connection succeeds
+        /// without it and a warning says so - failing instead would make an explicit opt-in impossible to
+        /// configure for a group. Expect the restriction to be lifted.
         /// </para>
         /// </remarks>
         [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]

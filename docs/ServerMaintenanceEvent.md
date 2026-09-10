@@ -221,7 +221,9 @@ Alternatively set `MaintenanceNotifications = Enabled` in a test or staging envi
 
 ## Which deployments send these
 
-**Not in a multi-group connection.** Inside a geo-redundant (`ConnectGroupAsync`) connection the feature is not activated at all, whatever `maintNotifications` says, because how it should interact with cross-region failover is not yet defined: acting on a handoff in one region while the group is deciding whether to fail away from that region is not something anybody has specified. The connection succeeds without it and logs a warning; `Enabled` does *not* reject the connection in this case, since that would make an explicit opt-in impossible to configure for a group.
+**Not in a multi-group connection, for now.** Inside a [geographic failover](Failover) group (`ConnectGroupAsync`) maintenance notifications are **disabled**, whatever `maintNotifications` says. Combining the two is in development and not yet supported: a handoff moves one endpoint while the group is separately deciding whether to fail away from that whole region, and the two mechanisms have to agree about who is in charge before it is safe to let them both act.
+
+So for now the connection succeeds *without* the feature and logs a warning saying so. Note this is the one case where `Enabled` does not reject the connection - it would otherwise be impossible to configure an explicit opt-in for a group at all. Expect this restriction to be lifted; if you are relying on maintenance notifications today, use a single-group connection.
 
 Redis Enterprise and Redis Cloud send them, subject to the feature being enabled on the cluster. Azure Managed Redis is configured to ask for them ahead of its own rollout, so the setting is harmless until their servers begin emitting. Redis Open Source, Valkey and other servers do not send them at all, and the setting is simply inert there: the opt-in is refused and the client carries on.
 
