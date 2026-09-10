@@ -20,13 +20,12 @@ namespace StackExchange.Redis.Availability;
 // interface can move to a retrying database without rewriting their transaction code; the synchronous
 // Execute is sync-over-async (see below). Note that ITransaction : IBatch : IDatabaseAsync, so the only
 // members this adds over ITransactionAsync are the two Execute overloads.
-// NOTE: deliberately not Replays = true yet. It does replay - the recorded ops are re-run as a unit - so it
-// wants the same captured-argument copies as RetryDatabase, arguably more since a queued op is held from
-// capture until Execute. But there is no single point here that means "this op will not run again": ops end
-// via ForwardSuccess, Fault or Observe, and the whole list is replayed together, so nothing can dispose a
-// capture without first working out that lifetime properly. Marking it without that would swap an aliasing
-// bug for a guaranteed leak.
-[AutoDatabase]
+// Replays: the recorded operations are re-run as a unit on every attempt, and a capture is held from the
+// moment it is recorded until Execute - longer than RetryDatabase holds one - so the captured arguments must
+// be copies of the caller's memory rather than the caller's own buffer. They are released in ExecuteAsync,
+// which is the only point that knows an operation will not be replayed again; a transaction that is never
+// executed keeps its captures, and nothing here could know otherwise.
+[AutoDatabase(Replays = true)]
 internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 {
     // Note: the *command* surface is async-only, exactly like RetryDatabase - retrying is inherently
@@ -34,7 +33,11 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     private readonly IDatabaseAsync _source;
     private readonly RetryController _controller;
 
-    private readonly List<IRecordedOp> _ops = new();
+    // not readonly, and null until something is recorded: ExecuteAsync takes it and clears it, so the
+    // replay loop below runs over a list nothing else can still be adding to. A caller doing something
+    // strange - recording from another thread while executing - then gets an empty transaction rather than
+    // a collection mutated mid-enumeration, and the captures it recorded are its own to lose.
+    private List<IRecordedOp>? _ops;
     private List<RecordedCondition>? _conditions;
     private int _executed;
     private volatile bool _watchConflict;
@@ -61,20 +64,20 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     // overloads, capturing the arguments in a generated state struct plus a cacheable static projection
     // (no per-call closure). Here we simply *record* them and return a durable proxy task.
     private Task<TResult> ExecuteAsync<TState, TResult>(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
-        where TState : struct
+        where TState : struct, IDisposable
     {
         CheckNotExecuted();
         var op = new RecordedOp<TState, TResult>(state, operation, IsFireAndForget(in state));
-        _ops.Add(op);
+        (_ops ??= new List<IRecordedOp>()).Add(op);
         return op.Proxy;
     }
 
     private Task ExecuteAsync<TState>(in TState state, AutoDatabaseAsyncOperation<TState> operation)
-        where TState : struct
+        where TState : struct, IDisposable
     {
         CheckNotExecuted();
         var op = new RecordedVoidOp<TState>(state, operation, IsFireAndForget(in state));
-        _ops.Add(op);
+        (_ops ??= new List<IRecordedOp>()).Add(op);
         return op.Proxy;
     }
 
@@ -127,12 +130,36 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             throw new InvalidOperationException("This transaction has already been executed");
         }
 
+        // take the recordings off the instance before replaying any of them, so the loops below run over
+        // lists nothing else can still be adding to; a caller recording from another thread mid-execution
+        // then gets left out rather than mutating a collection under enumeration. The operations' captured
+        // arguments are released once we are done with them, however that turns out - though a transaction
+        // that is never executed keeps its captures, since nothing here could know.
+        var ops = _ops;
+        var conditions = _conditions;
+        _ops = null;
+        _conditions = null;
+        try
+        {
+            return await ExecuteAsync(flags, ops ?? EmptyOps, conditions).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (ops is not null)
+            {
+                foreach (var op in ops) op.Release();
+            }
+        }
+    }
+
+    private static readonly List<IRecordedOp> EmptyOps = new();
+
+    private async Task<bool> ExecuteAsync(CommandFlags flags, List<IRecordedOp> ops, List<RecordedCondition>? conditions)
+    {
         int attempt = 0;
         // capture the next-failover token *before* the first attempt - otherwise a failover between a
         // failed attempt and re-reading the token could be missed
         CancellationToken failover = _controller.TracksFailover ? _source.GetNextFailover() : CancellationToken.None;
-
-        var conditions = _conditions;
 
         // watch contention gets its own budget; only meaningful when there are conditions to WATCH
         int watchAttempt = 0;
@@ -148,7 +175,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             {
                 foreach (var c in conditions) c.Replay(inner);
             }
-            foreach (var op in _ops) op.Replay(inner);
+            foreach (var op in ops) op.Replay(inner);
 
             // inject the aggregate retry category onto the EXEC flags so the resulting fault carries it, and
             // the shared RetryPolicy/FaultContext logic gates the whole transaction exactly like one command
@@ -170,7 +197,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
                     && _watchConflict
                     && ++watchAttempt < maxWatchAttempts)
                 {
-                    foreach (var op in _ops) op.Observe();
+                    foreach (var op in ops) op.Observe();
                     await _controller.WatchConflictDelayAsync().ConfigureAwait(false);
                     continue;
                 }
@@ -181,7 +208,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
                 {
                     foreach (var c in conditions) c.ForwardSuccess();
                 }
-                foreach (var op in _ops) op.ForwardSuccess();
+                foreach (var op in ops) op.ForwardSuccess();
                 return committed;
             }
             catch (Exception ex)
@@ -190,13 +217,13 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
                 {
                     // discard this attempt; observe its faulted per-attempt tasks so they don't surface as
                     // unobserved, then wait / failover and replay from the recorded snapshot
-                    foreach (var op in _ops) op.Observe();
+                    foreach (var op in ops) op.Observe();
                     await _controller.FailoverOrDelayAsync(delay).ConfigureAwait(false);
                     continue;
                 }
 
                 // out of road: fault the durable proxies and surface the failure to the caller
-                foreach (var op in _ops) op.Fault(ex);
+                foreach (var op in ops) op.Fault(ex);
                 throw;
             }
         }
@@ -250,12 +277,19 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         void ForwardSuccess();
         void Fault(Exception ex);
         void Observe();
+
+        /// <summary>
+        /// Give back anything the captured arguments own. Called once, after the transaction has finished
+        /// with this operation for good - not per attempt, since every attempt replays the same capture.
+        /// </summary>
+        void Release();
     }
 
     private sealed class RecordedOp<TState, TResult> : IRecordedOp
-        where TState : struct
+        where TState : struct, IDisposable
     {
-        private readonly TState _state;
+        // not readonly: releasing clears the capture in place, which a defensive copy would not
+        private TState _state;
         private readonly AutoDatabaseAsyncOperation<TState, TResult> _operation;
         private readonly TaskCompletionSource<TResult>? _proxy;
         private Task<TResult>? _attempt;
@@ -329,12 +363,15 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         }
 
         public void Observe() => _ = _attempt?.Exception;
+
+        public void Release() => _state.Dispose();
     }
 
     private sealed class RecordedVoidOp<TState> : IRecordedOp
-        where TState : struct
+        where TState : struct, IDisposable
     {
-        private readonly TState _state;
+        // not readonly: releasing clears the capture in place, which a defensive copy would not
+        private TState _state;
         private readonly AutoDatabaseAsyncOperation<TState> _operation;
         private readonly TaskCompletionSource<bool>? _proxy;
         private Task? _attempt;
@@ -392,6 +429,8 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         }
 
         public void Observe() => _ = _attempt?.Exception;
+
+        public void Release() => _state.Dispose();
     }
 
     private sealed class RecordedCondition
