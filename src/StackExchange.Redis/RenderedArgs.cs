@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -140,12 +141,26 @@ namespace StackExchange.Redis
         /// </remarks>
         public readonly void WriteTo(in MessageWriter writer)
         {
+            var written = 0;
             var iter = GetEnumerator();
             while (iter.MoveNext())
             {
                 writer.WriteBulkString(iter.Current);
+                written++;
             }
+
+            // deliberately not a Debug.Assert: the header has already declared Count arguments, so writing
+            // a different number puts a malformed frame on the wire, and the server's complaint arrives
+            // later and somewhere else. If the buffer went away underneath us - recycled early, or torn by
+            // a race - fail here, loudly, attached to the request that caused it.
+            if (written != _count) ThrowArgCountMismatch(written, _count);
         }
+
+        [DoesNotReturn]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ThrowArgCountMismatch(int written, int expected) =>
+            throw new InvalidOperationException(
+                $"Rendered arguments were expected to write {expected} value(s), but wrote {written}; the request buffer is no longer valid.");
 
         /// <summary>
         /// The combined cluster slot of the keys, or <see cref="ServerSelectionStrategy.NoSlot"/> when
@@ -186,8 +201,17 @@ namespace StackExchange.Redis
         /// </remarks>
         public static void Recycle(ref RenderedArgs args)
         {
+            // length first, and before the exchange: a reader derives its span from _buffer and then
+            // _length, so anything that observes the swapped-out buffer is guaranteed to see a length of
+            // zero, and anything still holding the old buffer may see it too. Losing this race then writes
+            // nothing - which WriteTo turns into a loud count mismatch - instead of writing whatever the
+            // next renter has since put in that array. The exchange below is the barrier that orders it.
+            args._length = 0;
+
             var buffer = Interlocked.Exchange(ref args._buffer, Array.Empty<byte>());
-            args._length = args._count = 0;
+
+            // _count is deliberately left alone: it is what WriteTo checks itself against, and zeroing it
+            // would make a write after recycling look perfectly consistent while emitting nothing.
 
             // null when never rendered, empty when already recycled or nothing to render
             if (buffer is byte[] { Length: > 0 } arr) ArrayPool<byte>.Shared.Return(arr);

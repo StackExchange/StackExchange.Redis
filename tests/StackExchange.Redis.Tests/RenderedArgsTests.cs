@@ -109,8 +109,24 @@ public class RenderedArgsTests
         RenderedArgs.Recycle(ref args);
 
         Assert.Equal(1, pool.Returned); // and not three
-        Assert.Equal(0, args.Count);
-        Assert.Empty(Drain(in args)); // reading after recycling is empty rather than a fault
+
+        // Count is deliberately retained: it is what WriteTo checks itself against, so zeroing it here
+        // would make a write after recycling look consistent while emitting nothing
+        Assert.Equal(1, args.Count);
+        Assert.Empty(Drain(in args)); // walking after recycling is empty rather than a fault
+    }
+
+    [Fact]
+    public void WritingAfterRecyclingFailsLoudlyRatherThanSilently()
+    {
+        // the header has already declared Count arguments by the time WriteTo runs, so quietly writing
+        // fewer would put a malformed frame on the wire and the server would complain later, somewhere
+        // else - this is the shape of a use-after-recycle, and it should fail here instead
+        var args = RenderedArgs.Create([(RedisKey)"key", (RedisValue)"value"], pool: null);
+        RenderedArgs.Recycle(ref args);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => Write(in args));
+        Assert.Contains("2 value(s), but wrote 0", ex.Message);
     }
 
     [Fact]

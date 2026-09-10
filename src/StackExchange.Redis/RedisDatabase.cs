@@ -6355,8 +6355,16 @@ namespace StackExchange.Redis
 
             public override void Complete(PhysicalConnection? connection)
             {
-                // see ExecMessage.Complete for why this is gated on Status rather than unconditional
-                if (Status == CommandStatus.Sent) RenderedArgs.Recycle(ref _args);
+                // see ExecMessage.Complete for why this is gated on Status rather than unconditional.
+                //
+                // IsScriptUnavailable is the other half: a NOSCRIPT reply completes this message and then
+                // the caller re-issues *this same instance* as EVAL (see ScriptEvaluateResp and friends),
+                // so completion is not the end of the road here at all - recycling now would leave the
+                // retry writing from a buffer that has already gone back to the pool. The flag is set by
+                // the result processor before the completion that carries the error, so it is visible by
+                // the time we get here. If the retry does not happen after all, the buffer leaks - the
+                // same trade as above.
+                if (Status == CommandStatus.Sent && !IsScriptUnavailable) RenderedArgs.Recycle(ref _args);
                 base.Complete(connection);
             }
         }

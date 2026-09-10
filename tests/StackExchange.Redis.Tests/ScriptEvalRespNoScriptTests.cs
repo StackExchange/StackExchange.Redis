@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class ScriptEvalRespNoScriptTests(ITestOutputHelper output) : TestBase(output)
 {
+    private const string ArgScript = "return ARGV[1] .. '|' .. ARGV[2]";
     private const string Script = "return 'hello from ScriptEvalRespNoScriptTests'";
     private const string Expected = "hello from ScriptEvalRespNoScriptTests";
 
@@ -27,6 +28,7 @@ public class ScriptEvalRespNoScriptTests(ITestOutputHelper output) : TestBase(ou
     {
         var conn = Create(shared: false, allowAdmin: true);
         conn.GetServerSnapshot()[0].AddScript(Script, UnknownHash);
+        conn.GetServerSnapshot()[0].AddScript(ArgScript, UnknownHash);
         return conn;
     }
 
@@ -66,6 +68,28 @@ public class ScriptEvalRespNoScriptTests(ITestOutputHelper output) : TestBase(ou
     /// Control: the classic RedisResult-returning path already copes, so this shows the difference is the
     /// result processor rather than anything about the message or the test setup.
     /// </summary>
+    /// <summary>
+    /// The retry re-issues the *same message instance*, so anything the message released on completion has
+    /// to still be there for the second write. With no keys or values there is nothing to release and
+    /// nothing to notice - which is why the cases above missed this - so this one carries arguments.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RecoversFromNoScript_WithArguments(bool readOnly)
+    {
+        await using var conn = ConnectWithStaleHash();
+        var db = conn.GetDatabase();
+        RedisKey[] keys = [Me()];
+        RedisValue[] values = ["alpha", "beta"];
+
+        using var result = readOnly
+            ? await db.ScriptEvaluateReadOnlyRespAsync(ArgScript, keys, values)
+            : await db.ScriptEvaluateRespAsync(ArgScript, keys, values);
+
+        Assert.Equal("alpha|beta", (string?)result.ReadScalar().ReadRedisValue());
+    }
+
     [Fact]
     public async Task ScriptEvaluate_Classic_RecoversFromNoScript()
     {
