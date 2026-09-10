@@ -1026,10 +1026,10 @@ namespace StackExchange.Redis
         }
 
         public void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => ExecuteSync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
+            => ExecuteSync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.HashImportOK);
 
         public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => ExecuteAsync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
+            => ExecuteAsync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.HashImportOK);
 
         private HashImportSetMessage GetHashImportMessage(in RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags)
         {
@@ -1052,7 +1052,7 @@ namespace StackExchange.Redis
             {
                 throw new NotSupportedException("HashImport is not supported inside a transaction; the connection-local HIMPORT PREPARE cannot be injected into a MULTI/EXEC without desyncing the EXEC result array.");
             }
-            return new HashImportSetMessage(Database, flags, fieldSet, key, values);
+            return new HashImportSetMessage(Database, flags, fieldSet, key, values, multiplexer?.RawConfig?.RequestBufferPool);
         }
 
         public Task<bool> HashSetIfNotExistsAsync(RedisKey key, RedisValue hashField, RedisValue value, CommandFlags flags)

@@ -80,6 +80,34 @@ public class RenderedArgsAliasingTests(ITestOutputHelper output) : TestBase(outp
         await AssertHashIsIntact(db, key);
     }
 
+    [Fact]
+    public async Task HashImport_SurvivesTheCallerMutatingOneSharedValuesArray()
+    {
+        await using var conn = Create(shared: false, require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        await db.KeyDeleteAsync(key);
+
+        // the per-row bulk-import shape: one field-set, one values buffer, refilled for every row
+        using var fieldSet = HashImport.Create("f");
+        var batch = db.CreateBatch();
+        var values = new RedisValue[1];
+        var pending = new List<Task>(Iterations);
+        for (int i = 0; i < Iterations; i++)
+        {
+            values[0] = "v" + i;
+            pending.Add(batch.HashImportAsync((RedisKey)(Me() + ":" + i), fieldSet, values));
+        }
+
+        batch.Execute();
+        await Task.WhenAll(pending);
+
+        for (int i = 0; i < Iterations; i++)
+        {
+            Assert.Equal("v" + i, (string?)await db.HashGetAsync((RedisKey)(Me() + ":" + i), "f"));
+        }
+    }
+
     private async Task AssertHashIsIntact(IDatabase db, RedisKey key)
     {
         // if any call had been written from the array *after* a later iteration overwrote it, that call

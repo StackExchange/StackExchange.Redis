@@ -50,6 +50,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
             DemandOK = new ExpectBasicStringProcessor(Literals.OK.Hash),
+            HashImportOK = HashImportProcessor.Instance,
             DemandPONG = new ExpectBasicStringProcessor(Literals.PONG.Hash),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
@@ -1415,6 +1416,31 @@ namespace StackExchange.Redis
                 }
                 return false;
             }
+        }
+
+        /// <summary>
+        /// As <see cref="DemandOK"/>, but also releases the message's rendered request buffer.
+        /// </summary>
+        /// <remarks>
+        /// A dedicated processor rather than a change to the shared one: HIMPORT is the only command whose
+        /// message renders its arguments up front *and* has no notion of being re-issued, so any reply at
+        /// all - success or error - is the end of the road for its buffer. Releasing from the reply rather
+        /// than from completion for the same reason as everything else here: a reply proves the write
+        /// finished, which completion on its own does not.
+        /// </remarks>
+        private sealed class HashImportProcessor : ResultProcessor<bool>
+        {
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
+                return DemandOK.SetResult(connection, message, ref reader);
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader) =>
+                throw new NotSupportedException(); // SetResult is fully overridden above
+
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1801", Justification = "n/a")]
+            internal static readonly HashImportProcessor Instance = new();
         }
 
         private sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
