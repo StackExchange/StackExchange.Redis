@@ -2485,21 +2485,42 @@ namespace StackExchange.Redis
 #pragma warning disable CS0618 // Type or member is obsolete
                     result = TryPushMessageToBridgeSync(message, processor, source, ref server);
 #pragma warning restore CS0618
-                    if (!source.IsFaulted) // if we faulted while writing, we don't need to wait
+                    // Note this tests IsCompleted, *not* IsFaulted: the write path can fault and complete the
+                    // message inline on this thread (the lock is ours, so its PulseAll had no waiter and is
+                    // gone) - in which case there is nothing to wait for. But a fault published by *another*
+                    // thread always still owes us a pulse, and leaving early on that would let the pulse
+                    // arrive after we have recycled the box, landing on the next operation to borrow it.
+                    if (!source.IsCompleted)
                     {
                         if (result != WriteResult.Success)
                         {
                             throw GetException(result, message, server);
                         }
 
-                        if (Monitor.Wait(source, TimeoutMilliseconds))
+                        // wait for the *completion*, not merely for a pulse; a pulse that we did not cause
+                        // must not be allowed to shorten this wait, so keep the original deadline
+                        var remaining = TimeoutMilliseconds;
+                        var startedAt = Environment.TickCount;
+                        while (true)
                         {
-                            Trace("Timely response to " + message);
-                        }
-                        else
-                        {
-                            Trace("Timeout performing " + message);
-                            timeout = true;
+                            if (!Monitor.Wait(source, remaining))
+                            {
+                                Trace("Timeout performing " + message);
+                                timeout = true;
+                                break;
+                            }
+                            if (source.IsCompleted)
+                            {
+                                Trace("Timely response to " + message);
+                                break;
+                            }
+                            remaining = TimeoutMilliseconds - unchecked(Environment.TickCount - startedAt);
+                            if (remaining <= 0)
+                            {
+                                Trace("Timeout performing " + message);
+                                timeout = true;
+                                break;
+                            }
                         }
                     }
                 }
