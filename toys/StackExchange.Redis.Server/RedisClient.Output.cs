@@ -27,6 +27,30 @@ public partial class RedisClient
 
     private readonly Channel<VersionedResponse> _replies = Channel.CreateUnbounded<VersionedResponse>(s_replyChannelOptions);
 
+    private TypedRedisValue _deferred = TypedRedisValue.Nil;
+
+    /// <summary>
+    /// Queues a frame to be sent *after* the reply to the command currently being executed.
+    /// </summary>
+    /// <remarks>
+    /// Needed because the read loop enqueues a command's reply once <c>Execute</c> has returned, so a handler
+    /// that calls <see cref="AddOutbound"/> directly puts its frame *before* its own reply. A real server does
+    /// the opposite - the retained maintenance notification arrives immediately after the <c>+OK</c> for the
+    /// opt-in, in the same TCP segment - and the ordering is the whole point of modelling this.
+    /// </remarks>
+    public void AddOutboundAfterReply(in TypedRedisValue message)
+    {
+        FlushDeferredOutbound(); // one slot is enough for any real case; do not lose an earlier frame
+        _deferred = message;
+    }
+
+    internal void FlushDeferredOutbound()
+    {
+        var pending = _deferred;
+        _deferred = TypedRedisValue.Nil;
+        if (!pending.IsNil) AddOutbound(pending);
+    }
+
     public void AddOutbound(in TypedRedisValue message)
     {
         if (message.IsNil)
@@ -139,6 +163,9 @@ public partial class RedisClient
         }
         catch (Exception ex)
         {
+            // this used to vanish into the pipe: a serialization bug in a fake server's *outbound* path
+            // presents as "the client never received it", with a reconnect covering the tracks. Log it
+            Node?.Server?.Log($"[{this}] write loop faulted: {ex.Message}");
             await writer.CompleteAsync(ex);
         }
     }

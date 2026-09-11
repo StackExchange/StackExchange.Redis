@@ -42,6 +42,7 @@
 
     <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
+    <Compile Update="ServerEndPoint.*.cs" DependentUpon="ServerEndPoint.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -59,6 +60,9 @@
     <InternalsVisibleTo Include="StackExchange.Redis.Benchmarks" />
     <InternalsVisibleTo Include="StackExchange.Redis.Server" />
     <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
+    <InternalsVisibleTo Include="StackExchange.Redis.FaultInjector.Tests" />
+    <!-- the soak asserts on internal state: relaxed windows, the dedup ring, handoff flags -->
+    <InternalsVisibleTo Include="StackExchange.Redis.MaintenanceSoak" />
   </ItemGroup>
 
   <ItemGroup>
