@@ -65,9 +65,9 @@ namespace StackExchange.Redis
             var guid = Guid.NewGuid();
             if (server.ServerType is ServerType.Cluster)
             {
-                var hashTag = multiplexer.ServerSelectionStrategy.GetHashTag(server);
-                if (string.IsNullOrEmpty(hashTag)) return RedisKey.Null;
-                return prefix.Append($"{guid}:{{{hashTag}}}");
+                var slot = server.GetServableSlot();
+                if (slot is null) return RedisKey.Null;
+                return ServerSelectionStrategy.CreateKeyForSlot(slot.Value, guid.ToString()).Prepend(prefix);
             }
             return prefix.Append(guid.ToString());
         }

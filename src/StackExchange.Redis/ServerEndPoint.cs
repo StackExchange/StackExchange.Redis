@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -65,6 +64,8 @@ namespace StackExchange.Redis
         private bool isDisposed, replicaReadOnly, isReplica, allowReplicaWrites;
         private bool? supportsDatabases, supportsPrimaryWrites;
         private ServerType serverType;
+        private RedisKey tracerKey;
+        private int? tracerKeySlot = ServerSelectionStrategy.MultipleSlots;
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
 
@@ -514,7 +515,7 @@ namespace StackExchange.Redis
 
         public void UpdateNodeRelations(ClusterConfiguration configuration)
         {
-            var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint?.Equals(EndPoint) == true);
+            var thisNode = GetClusterNode(configuration);
             if (thisNode != null)
             {
                 Multiplexer.Trace($"Updating node relations for {Format.ToString(thisNode.EndPoint)}...");
@@ -536,6 +537,16 @@ namespace StackExchange.Redis
                 Primary = primary;
                 Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
             }
+        }
+
+        private ClusterNode? GetClusterNode(ClusterConfiguration? configuration) =>
+            configuration?[EndPoint];
+
+        internal int? GetServableSlot()
+        {
+            if (ServerType != ServerType.Cluster || GetClusterNode(ClusterConfiguration) is not { } node) return null;
+            if (node.Slots.Count == 0 && node.Parent is { } parent) node = parent;
+            return node.Slots.Count == 0 ? null : node.Slots[0].From;
         }
 
         public void SetUnselectable(UnselectableFlags flags)
@@ -661,7 +672,13 @@ namespace StackExchange.Redis
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
             }
-            else if (commandMap.IsAvailable(RedisCommand.SET) && !(helloPending || RoleKnownFromHello))
+            // Cluster replicas return MOVED rather than READONLY for writes to their primary's slots, so no
+            // hash tag can make this role probe reliable; skip it whenever cluster mode is already known.
+            // On the first handshake, serverType is seeded as Standalone until the CLUSTER NODES reply is
+            // processed, so neither this guard nor the tie-breaker GET guard below suppresses their initial probes.
+            else if (commandMap.IsAvailable(RedisCommand.SET)
+                && !(helloPending || RoleKnownFromHello)
+                && ServerType != ServerType.Cluster)
             {
                 // This is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 // (note we only get here when HELLO isn't going to tell us: the HELLO reply carries "role", and
@@ -691,7 +708,9 @@ namespace StackExchange.Redis
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
-            if (Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
+            if (ServerType != ServerType.Cluster
+                && Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey)
+                && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
             {
                 log?.LogInformationRequestingTieBreak(new(EndPoint), tieBreakerKey);
                 msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
@@ -836,10 +855,23 @@ namespace StackExchange.Redis
             else
             {
                 map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId);
+                msg = Message.Create(0, flags, RedisCommand.EXISTS, GetTracerKey());
             }
             msg.SetInternalCall();
             return msg;
+        }
+
+        internal RedisKey GetTracerKey()
+        {
+            var slot = GetServableSlot();
+            if (tracerKeySlot != slot)
+            {
+                tracerKey = slot is int value
+                    ? ServerSelectionStrategy.CreateKeyForSlot(value, Multiplexer.UniqueId)
+                    : Multiplexer.UniqueId;
+                tracerKeySlot = slot;
+            }
+            return tracerKey;
         }
 
         internal UnselectableFlags GetUnselectableFlags() => unselectableReasons;
