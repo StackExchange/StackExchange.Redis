@@ -239,6 +239,13 @@ private static partial Resp FooBar => new("$3\r\nFOO\r\n$3\r\nBAR\r\n"u8, 2);
 Partial properties are C# 13, and `LangVersion 14` is repo-wide; verified compiling on
 `netstandard2.0`/`net472`/`net8.0`, since like everything else here they are pure compiler lowering.
 
+**Multi-token fragments are not hypothetical — they are the dominant shape.** Container commands, whose
+first argument is a fixed subcommand token, account for roughly 140 call sites in `src/`: `CONFIG` (22),
+`CLIENT` (22), `SCRIPT` (16), `XGROUP` (14), `PUBSUB` (13), `OBJECT` (12), `LATENCY` (12), `CLUSTER`
+(11), `SLOWLOG` (10), `MEMORY` (10), `XINFO` (8). `CLIENT SETINFO LIB-NAME` is three tokens; `MAXLEN ~`
+in `XADD`/`XTRIM` is two. So `ArgCount` is load-bearing rather than defensive — without it the handler's
+argument count silently disagrees with the frame.
+
 **This is an existing pattern in the tree, not a new one.** `AsciiHashGenerator` already does it with
 partial *classes*:
 
@@ -1004,9 +1011,11 @@ A working spike, all `internal`, so there is no public API commitment yet.
 | `src/StackExchange.Redis/Interpolated/RespCommandHandler.cs` | renders the frame, folds the slot, marks keys |
 | `src/StackExchange.Redis/Interpolated/RespFrame.cs` | rendered frame + slot + key marks + `KeyRange` |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 41 tests |
+| `src/StackExchange.Redis/Interpolated/RespFragment.cs` | pre-framed token runs + the `[Resp]` marker |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterDemo.cs` | 7 worked examples, each asserting the exact frame |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterFragmentTests.cs` | 5 tests; both halves of the partial-property pattern, hand-written |
 
-Green on net10.0 and net8.0 (48 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
+Green on net10.0 and net8.0 (53 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
 clean.
 
 `InterpolatedWriterDemo` is the readable end-to-end example — each case asserts the exact rendered frame,

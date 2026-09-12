@@ -152,6 +152,23 @@ namespace StackExchange.Redis.Interpolated
             _argIndex++;
         }
 
+        /// <summary>
+        /// Write an already-framed fragment verbatim. Note the argument counters advance by
+        /// <see cref="RespFragment.ArgCount"/>, not by one, so a multi-token fragment does not shift the
+        /// key-mark bit positions of everything after it.
+        /// </summary>
+        public void AppendFormatted(RespFragment value)
+        {
+            DemandCommand();
+
+            var bytes = value.Bytes;
+            Ensure(bytes.Length);
+            bytes.CopyTo(_buffer.AsSpan(_offset));
+            _offset += bytes.Length;
+            _args += value.ArgCount;
+            _argIndex += value.ArgCount;
+        }
+
         public void AppendFormatted(RedisValue value)
         {
             DemandCommand();
