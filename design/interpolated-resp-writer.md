@@ -259,6 +259,29 @@ from `AsciiHashAttribute` transfer directly: the token is **inferred from the me
 attribute overrides it, and the attribute is `[Conditional("DEBUG")]` so it evaporates from shipped
 metadata while the generator still sees it in source.
 
+##### Casing
+
+**Default to upper-case; the attribute gives verbatim control.** Counting the tokens `RedisLiterals`
+actually sends: **138 upper-case, 31 lower-case, 0 mixed**, out of 165. So an inferred token — one with
+no attribute, taken from the member name — should be upper-cased, which is right ~84% of the time and
+matches what `CommandMap` already does to command names for the canonicality reason in §6.3.
+
+The lower-case minority is not arbitrary, which is why a single rule is not enough: those tokens are
+**values rather than keywords**. `yes`/`no`, `lib-name`/`lib-ver`, `replica`/`slave`/`sentinel`/`pubsub`,
+config parameter names such as `databases`/`timeout`, the geo units `km`/`mi`/`ft`/`m`, and the markers
+`#`/`-`/`+`/`*`.
+
+So: **a token given in the attribute is used verbatim.** One rule, no extra flag, and it handles the case
+that forces the issue — a single fragment containing both:
+
+```csharp
+[Resp("SETINFO", "lib-name")]   // keyword upper, attribute name lower - as sent today
+```
+
+`CLIENT SETINFO lib-name` is the shape the library sends now; emitting `LIB-NAME` would be a gratuitous
+change to the wire format. Worth noting only because a generator that upper-cased everything
+unconditionally would make exactly that mistake silently.
+
 **It largely removes the need for the raw-fragment analyzer rules (§7.1-3).** Those exist to validate
 hand-written `u8`: framing, matching length prefixes, uppercase tokens. A generator emits all three
 correctly *by construction* — there is nothing left to check. The rule becomes "don't hand-write these"

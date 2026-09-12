@@ -23,24 +23,29 @@ public class InterpolatedWriterFragmentTests
         internal static partial RespFragment EX { get; }
 
         /// <summary>The subcommand of <c>CONFIG GET</c> - one argument, name would not suffice.</summary>
-        [Resp("get")]
+        [Resp("GET")]
         internal static partial RespFragment ConfigGet { get; }
 
-        /// <summary><c>SETINFO LIB-NAME</c>, the two arguments following <c>CLIENT</c>.</summary>
-        [Resp("setinfo", "lib-name")]
+        /// <summary>
+        /// <c>SETINFO lib-name</c>, the two arguments following <c>CLIENT</c>. Note the mixed casing: the
+        /// subcommand is a keyword and upper-cased, the attribute name is a value and is not - which is
+        /// what RedisLiterals sends today, and why tokens given in the attribute are taken verbatim.
+        /// </summary>
+        [Resp("SETINFO", "lib-name")]
         internal static partial RespFragment SetInfoLibName { get; }
 
         /// <summary><c>MAXLEN ~</c>, the two arguments preceding an XADD/XTRIM threshold.</summary>
-        [Resp("maxlen", "~")]
+        [Resp("MAXLEN", "~")]
         internal static partial RespFragment MaxLenApprox { get; }
 
         /// <summary><c>LEFT RIGHT</c>, the fixed pair ending an <c>LMOVE</c>.</summary>
-        [Resp("left", "right")]
+        [Resp("LEFT", "RIGHT")]
         internal static partial RespFragment LeftRight { get; }
     }
 
     // ---- half 2: what the GENERATOR would emit ----------------------------------------------------
-    // Tokens upper-cased for cache-key canonicality, exactly as CommandMap already does for commands.
+    // A token inferred from the member name is upper-cased; a token given in the attribute is verbatim,
+    // because the library sends both cases and the distinction is semantic - see the design notes.
 
     internal static partial class RespLiterals
     {
@@ -48,7 +53,7 @@ public class InterpolatedWriterFragmentTests
 
         internal static partial RespFragment ConfigGet => new("$3\r\nGET\r\n"u8);
 
-        internal static partial RespFragment SetInfoLibName => new("$7\r\nSETINFO\r\n$8\r\nLIB-NAME\r\n"u8, 2);
+        internal static partial RespFragment SetInfoLibName => new("$7\r\nSETINFO\r\n$8\r\nlib-name\r\n"u8, 2);
 
         internal static partial RespFragment MaxLenApprox => new("$6\r\nMAXLEN\r\n$1\r\n~\r\n"u8, 2);
 
@@ -74,7 +79,7 @@ public class InterpolatedWriterFragmentTests
         var ctx = new RespContext();
         using var frame = ctx.Execute(RedisCommand.CLIENT, $"{RespLiterals.SetInfoLibName} {(RedisValue)"StackExchange.Redis"}");
 
-        Assert.Equal("*4|$6|CLIENT|$7|SETINFO|$8|LIB-NAME|$19|StackExchange.Redis|", Frame(frame));
+        Assert.Equal("*4|$6|CLIENT|$7|SETINFO|$8|lib-name|$19|StackExchange.Redis|", Frame(frame));
 
         // the fragment is TWO arguments: *4, not *3 - this is what ArgCount exists for
         Assert.Equal(4, frame.ArgCount);
