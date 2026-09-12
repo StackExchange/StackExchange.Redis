@@ -482,9 +482,36 @@ The *lifetime* half is not a judgement call: a well-behaved caller can hold the 
 `ReadOnlyMemory<byte>` past eviction, or past the pooled array being recycled, with no misuse at all.
 That is §6.4 again, and over-sizing does nothing for it.
 
-If this is adopted it needs a comment and a test, because deliberately over-allocating to defeat an
-optimisation reads as waste to anyone who finds it later — and "not exact-size-backed" is directly
-assertable.
+**Better variant: start at index 1.** Breaking the `_index is 0` half instead costs exactly one byte and
+is a property of how the `RedisValue` is *constructed* — fully under our control — rather than depending
+on the allocator having over-sized the array.
+
+Note it is **not** already true for response-derived values. `RedisValue.FromRaw` copies anything over
+`MaxInlineBytes` (8) into an exactly-sized array at index 0:
+
+```csharp
+internal static RedisValue FromRaw(ReadOnlySpan<byte> bytes)
+{
+    if (bytes.IsEmpty) return EmptyString;
+    if (bytes.Length <= MaxInlineBytes) return new RedisValue(bytes);   // inline
+    return bytes.ToArray();                                             // exact-size, index 0
+}
+```
+
+So every response payload over 8 bytes is exactly the aliasing case — which also means
+`byte[] blob = db.StringGet(key)` is **zero-copy today**. Applying index-1 blanket in `FromRaw` would
+turn that common pattern into a copy per call: a real pessimisation, not a free byte.
+
+Applied at *cache insert* rather than universally, though, it is better than an eager defensive copy,
+because **it makes the copy lazy**: a cache hit that never asks for `byte[]` pays nothing, and one that
+does pays exactly the copy it needed for safety anyway.
+
+The `ReadOnlyMemory<byte>` caveat above is unchanged either way — that conversion windows into the array
+at any index.
+
+If this is adopted it needs a comment and a test, because a deliberate off-by-one (or a deliberate
+over-allocation) reads as waste or as a bug to anyone who finds it later — and both "not
+exact-size-backed" and "not index 0" are directly assertable.
 
 Array returns are common across this API, and they are exactly the poisoning hazard that blob-by-default
 exists to prevent, so the default matters more here than it might elsewhere.
