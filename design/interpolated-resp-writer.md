@@ -451,8 +451,9 @@ does the same via `TryGetSimpleBuffer`). Every other branch copies. So a caller 
 mutate it, and poison every other holder of the same cached instance.
 
 **`MemoryManager`/`Sequence` are a different hazard.** These reference memory the `RedisValue` does not
-own, which may be a pooled lease that is later recycled. That is unsafe to *retain* at all, regardless
-of mutation — the same lifetime problem as §6.4, arriving from the other direction.
+own, which may be a pooled lease that is later recycled. Unsafe to *retain* — unless the lease is pinned,
+which is exactly what §6.4 has the cache entry doing. See "windows, not copies" below: under pinning
+these stop being a hazard and become the preferred representation.
 
 So the eligibility test wants to be a value-oriented predicate over `StorageType`, not a type-level
 marker — cheap to evaluate, but evaluated per value. The alternative is to copy on the way in for the
@@ -509,9 +510,31 @@ does pays exactly the copy it needed for safety anyway.
 The `ReadOnlyMemory<byte>` caveat above is unchanged either way — that conversion windows into the array
 at any index.
 
-If this is adopted it needs a comment and a test, because a deliberate off-by-one (or a deliberate
-over-allocation) reads as waste or as a bug to anyone who finds it later — and both "not
-exact-size-backed" and "not index 0" are directly assertable.
+#### Better still: windows, not copies — and the hack disappears
+
+If the cache entry pins the buffer (§6.4), a cached value need not be copied out of it *at all*. The
+payload is a slice of the frame, sitting between `$len\r\n` and the trailing `\r\n` — so a `RedisValue`
+constructed over that buffer has `_index > 0` **and** `_length < arr.Length`. Both halves of the aliasing
+condition fail on their own, because the trim was required regardless. No deliberate off-by-one, no
+deliberate over-allocation, nothing to explain to a future reader.
+
+The machinery already exists: the `ReadOnlyMemory<byte>` constructor takes exactly this shape
+(`MemoryMarshal.TryGetArray` → `_index = segment.Offset; _length = segment.Count; _obj = segment.Array`),
+and values of 8 bytes or fewer still go inline as a self-contained `ShortBlob`, so the small case has no
+coupling at all.
+
+This also collapses the blob-versus-value distinction for blob-shaped payloads: a `RedisValue` windowed
+onto the cached buffer *is* both. Re-materialising it is an offset computation rather than a parse, so
+the "re-run the parser" default costs almost nothing — and the immutability question that motivated
+value-caching does not arise, because nothing was ever copied out to alias.
+
+What remains is lifetime, and it is sharper rather than softer: the handed-out value now points *into*
+the entry's lease, so a caller holding a `RedisValue` across eviction is looking at recycled memory. Note
+the conversions are on our side here — `(byte[])` and `(string)` both copy out of a windowed value — so
+the danger is narrowly a caller who retains the `RedisValue` itself and materialises later.
+
+That is the same §6.4 problem, but concentrated in one place (the entry's lease) rather than spread
+across copies, which is probably where you want it.
 
 Array returns are common across this API, and they are exactly the poisoning hazard that blob-by-default
 exists to prevent, so the default matters more here than it might elsewhere.
