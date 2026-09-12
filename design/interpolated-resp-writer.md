@@ -86,8 +86,8 @@ ctx.Execute($"SET {key} {value}")                 // rejected - "SET " is not a 
 ctx.Execute($"{cmd}  {key}")                      // rejected - two spaces
 ```
 
-The space earns its place on readability alone: `$"{RedisCommand.SET} {key} {value}"` mirrors how the
-command is written everywhere else, and costs nothing — `AppendLiteral` is an empty method.
+The space earns its place on readability: `$"{RedisCommand.SET} {key} {value}"` mirrors how the command
+is written everywhere else, for ~1.4 ns per space (measured below).
 
 **Why reject the rest:** with no literal segments, the compiler-supplied `formattedCount` *is* the argument
 count, as a compile-time constant — so `*N\r\n` can be written in the constructor with no counting
@@ -160,8 +160,20 @@ tight  : args=3 literals=0 formattedCount=3 literalLength=0
 spaced : args=3 literals=2 formattedCount=3 literalLength=2
 ```
 
-**Nor does it cost anything.** With the check removed, `AppendLiteral` is empty and the call is
-eliminated — see the `Separators` benchmark. (It cost 0.45 ns per space while the runtime check existed.)
+**It costs about 1.4 ns per space** — less than expected, but not nothing, and notably *not* zero even
+with an empty `AppendLiteral`. The `Separators` benchmark renders the same four-argument command spaced
+and unspaced:
+
+```
+Separators_None     62.62 ns   1.00
+Separators_Spaced   66.87 ns   1.07
+```
+
+Consistent across both jobs with low deviation, so the `ldstr` and the call are not being fully
+eliminated despite the method body being empty. That is ~7% of the render, and a far smaller share of the
+operation around it — but "the JIT will nuke it" turned out to be optimistic, and the figure is recorded
+rather than assumed.
+
 Both spellings render byte-identically, since the space is discarded, so cache identity (§6.2) is
 unaffected.
 
