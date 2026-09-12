@@ -978,8 +978,8 @@ Rules:
 5. **No keys inside a `Raw`** — invisible to the handler, so they would never be registered for
    invalidation or counted for routing.
 6. **Shape** — at least one hole; first hole is a `RedisCommand`.
-7. **Inline literal tokens** — reject, with a fixer offering `{RespLiterals.Nx}` (or offering to declare
-   it first). See §2.1.
+7. **Inline literal tokens** — reject, with a fixer offering `{RespLiterals.Nx}`. See §2.1. **Implemented**
+   as `SER309` (`RespInterpolationAnalyzer` + `RespLiteralCodeFixProvider`).
 8. Possibly: a better diagnostic than `CS1503` for an unsupported hole type.
 
 Rules 1–3 have mechanical code fixes, which is presumably what the CodeFixes assembly is for.
@@ -1321,6 +1321,40 @@ Two honest qualifications:
   response. A dispatching implementation needs per-command state too, so the end-to-end delta will not
   stay 136 B → 0. What the zero does establish is that *formatting itself* need not allocate, which is
   the half this replaces.
+
+---
+
+### 9.3 The generator, the analyzer and the fixer
+
+Built, so the authoring story is no longer hand-waved:
+
+| | |
+| --- | --- |
+| `RespFragmentGenerator` | implements `[Resp]` partial properties — framing, length prefixes, casing and `ArgCount` by construction |
+| `RespInterpolationAnalyzer` | `SER309`: literal text in a RESP command is discarded, not sent. **Error** |
+| `RespLiteralCodeFixProvider` | rewrites `$"{key} nx"` to `$"{key} {RespLiterals.Nx}"` |
+
+The fragment tests now declare only the properties; the generator supplies the bodies, and the exact-frame
+assertions pass unchanged — which is the real check, since it means `EX` was inferred and upper-cased,
+`lib-name` came through verbatim, and `SETINFO lib-name` counted as two arguments.
+
+The emitted file suppresses `SER010` and `SER011` at source and nowhere wider, which is the pattern §9.1
+describes: the generator is the sanctioned construction site.
+
+**The fix is only offered when a declaration already exists.** Declaring one on the caller's behalf would
+mean choosing a type to put it in, which the fix cannot judge — so the "declare it and use it" variant
+sketched in §2.1 is not implemented. Multi-token fragments are deliberately not offered for a single inline
+token either, and neither is a run of several tokens, which has no single answer.
+
+Notes from building it, in case they bite again:
+
+- The analyzer project targets `netstandard2.0` against Roslyn 4.3, so: no records (no `IsExternalInit`),
+  and `LanguageVersion.CSharp11` has to come from the existing `LanguageVersions` shim.
+- Detection is by **converted type** on the interpolated string rather than
+  `OperationKind.InterpolatedStringHandlerCreation`, which keeps it working against that Roslyn floor.
+- `ToMinimalDisplayString` on a *property* includes its type, yielding `RespFragment RespLiterals.Nx`; build
+  the name from the containing type instead.
+- The code-fix test harness runs analyzers, not generators, so its sources spell out both halves.
 
 ---
 

@@ -470,6 +470,7 @@ public class InterpolatedWriterUnitTests
         Assert.Equal(new[] { "k" }, Keys(spaced));
     }
 
+#pragma warning disable SER309 // deliberately exercising the discard path the analyzer exists to prevent
     [Fact]
     public void LiteralsAreDiscardedNotRejectedAtRuntime()
     {
@@ -495,4 +496,5 @@ public class InterpolatedWriterUnitTests
         var ctx = new RespContext();
         Assert.Throws<InvalidOperationException>(() => ctx.Execute($"SET {(RedisKey)"k"}").Dispose());
     }
+#pragma warning restore SER309
 }

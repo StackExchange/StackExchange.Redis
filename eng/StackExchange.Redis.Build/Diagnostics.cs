@@ -310,5 +310,30 @@ internal static class Diagnostics
         isEnabledByDefault: true,
         helpLinkUri: HelpLink("SER350"));
 
+    /// <summary>
+    /// Literal text inside a RESP interpolated command, which is discarded rather than sent.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An error, because the code cannot do what it plainly says: <c>$"{key} nx {val}"</c> reads as though
+    /// <c>nx</c> is an argument, and it is silently dropped. The handler's <c>AppendLiteral</c> is a deliberate
+    /// no-op, so there is no runtime check to fall back on - by design, because the failure is local (a
+    /// well-formed frame missing an argument) rather than protocol-damaging.
+    /// </para>
+    /// <para>
+    /// A single space is allowed and discarded, so <c>$"{cmd} {key} {value}"</c> can read the way the command
+    /// is written everywhere else. Everything else - two spaces, punctuation, a bare command name - is this.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor RespLiteralNotSent = new(
+        id: "SER309",
+        title: "Literal text in a RESP command is discarded, not sent",
+        messageFormat: "Literal text \"{0}\" is discarded rather than sent as an argument; declare it as a [Resp] fragment and use a hole, or delete it",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Only interpolation holes become RESP arguments; literal text between them is discarded, so a command written with inline tokens silently omits them. A single space is permitted as a separator.",
+        helpLinkUri: HelpLink("SER309"));
+
     private static string HelpLink(string id) => string.Format(HelpLinkFormat, id);
 }
