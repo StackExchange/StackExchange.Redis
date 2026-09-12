@@ -458,6 +458,34 @@ So the eligibility test wants to be a value-oriented predicate over `StorageType
 marker — cheap to evaluate, but evaluated per value. The alternative is to copy on the way in for the
 unsafe kinds, which costs an allocation exactly where value-caching was supposed to save one.
 
+#### Idea: never hand the cache an exact-size array
+
+The aliasing branch fires only on `_index is 0 && _length == arr.Length`, so ensuring a cached value is
+never backed by an exactly-sized array forces the copying branch instead. That is structural rather than
+incidental — `byte[]` cannot express a partial view, so the operator *has* to copy — and it is close to
+free, because a pooled rent is over-sized by construction.
+
+It defends one route, though, not the invariant:
+
+| Route | Over-sizing defends? | Why |
+| --- | --- | --- |
+| `(byte[])` | **yes** | `byte[]` cannot be a partial view, so the operator must copy |
+| `(ReadOnlyMemory<byte>)` | no | returns `new ReadOnlyMemory<byte>(arr, _index, _length)` at any size (`RedisValue.cs:1353`) |
+| `(ReadOnlySequence<byte>)` | no | delegates to the above |
+
+`ReadOnlyMemory<byte>` is read-only only by convention: `MemoryMarshal.AsMemory` makes it mutable in one
+call, with no `unsafe`. Whether that counts is a judgement call — reaching for `MemoryMarshal` to mutate
+someone else's read-only memory is arguably "you broke it, you own it", and on that reading over-sizing
+does close the practical *mutation* surface.
+
+The *lifetime* half is not a judgement call: a well-behaved caller can hold the returned
+`ReadOnlyMemory<byte>` past eviction, or past the pooled array being recycled, with no misuse at all.
+That is §6.4 again, and over-sizing does nothing for it.
+
+If this is adopted it needs a comment and a test, because deliberately over-allocating to defeat an
+optimisation reads as waste to anyone who finds it later — and "not exact-size-backed" is directly
+assertable.
+
 Array returns are common across this API, and they are exactly the poisoning hazard that blob-by-default
 exists to prevent, so the default matters more here than it might elsewhere.
 
