@@ -158,6 +158,43 @@ The cost is the compile-time guarantee, discussed above: enforcement moves to a 
 analyzer. Formatters are a third hazard alongside the two already noted — nothing stops a tool
 normalising whitespace inside an interpolated string.
 
+#### Inline tokens: rejected, with a fixer
+
+`$"{key} nx {val} withsave"` reads well, and `nx`/`withsave` are arguments rather than separators — so the
+question is whether literal runs should be split into tokens. **No.** They stay rejected, and the analyzer
+carries the ergonomics instead: a diagnostic on the offending literal plus a **code fixer** that rewrites
+it to the declared form.
+
+```
+$"{key} nx {val}"   ->   fix   ->   $"{key} {RespLiterals.Nx} {val}"
+```
+
+Two fixes, since the token may not be declared yet:
+
+- *"Use `RespLiterals.Nx`"* when a matching `[Resp]` declaration exists.
+- *"Declare `Nx` and use it"* when it does not — the fixer adds the partial property, and the generator
+  fills in the body.
+
+You type it the natural way and take the fix; the committed code is the strict form. The ergonomic gap
+closes at authoring time, which is where it is actually felt.
+
+**Why not make it work at runtime.** It is achievable: `AppendLiteral(" nx ")` could split on spaces and
+resolve each token, and the resolution need not be a lazy dictionary — this repo already generates
+precisely that lookup as a hash-dispatched switch, `[AsciiHash(CaseSensitive = false)] static partial bool
+TryParseCI(...)`, which is allocation-free, lock-free, and case-insensitive (so `nx` in source would still
+yield the canonical `NX` bytes). The cost is not the lookup:
+
+- **`*N` stops being a compile-time constant.** Inline tokens are literal segments, not holes, so
+  `formattedCount` is no longer the argument count — and the loss applies to every call site using the
+  sugar, not only the complex ones.
+- **It is a second mechanism** to document, analyze and explain, alongside `RespFragment`.
+
+`{Nx}` costs a declaration; `nx` costs an invariant.
+
+**The analyzer and the generator are one piece of work**, not two: both are driven by the set of `[Resp]`
+declarations. The generator emits the fragment bodies from them; the analyzer validates literals against
+the same set, and the fixer needs it to know which member to offer.
+
 **Non-interpolated strings do *not* bind to the handler.** If a `string` overload exists alongside,
 `Write(buf, "plain literal")` silently takes it while `Write(buf, $"GET {key}")` takes the handler.
 Either don't provide a `string` overload, or accept that callers must write `$"PING"`.
@@ -918,7 +955,9 @@ Rules:
 5. **No keys inside a `Raw`** — invisible to the handler, so they would never be registered for
    invalidation or counted for routing.
 6. **Shape** — at least one hole; first hole is a `RedisCommand`.
-7. Possibly: a better diagnostic than `CS1503` for an unsupported hole type.
+7. **Inline literal tokens** — reject, with a fixer offering `{RespLiterals.Nx}` (or offering to declare
+   it first). See §2.1.
+8. Possibly: a better diagnostic than `CS1503` for an unsupported hole type.
 
 Rules 1–3 have mechanical code fixes, which is presumably what the CodeFixes assembly is for.
 
