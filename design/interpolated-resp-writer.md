@@ -403,22 +403,51 @@ Two neighbours, which resolve differently.
 **The multiplexer**, if a process talks to more than one deployment: free by scoping, assuming the cache
 is per-multiplexer. Worth not hoisting it somewhere more shared without revisiting.
 
-**The protocol version** is not an identity input, despite RESP2 and RESP3 response shapes differing.
+**The protocol version is not an identity input**, despite RESP2 and RESP3 response shapes differing.
 It is negotiated per `PhysicalConnection` (`SetProtocol`, `PhysicalConnection.cs:372`, propagated to the
 bridge; `ServerEndPoint.cs:148` reads it back from the interactive connection), so mixed protocols
-within one multiplexer are structurally reachable *simultaneously* — a cluster mid-upgrade, or a primary
-and replica at different versions — not merely over time.
+within one multiplexer are reachable *simultaneously* — a cluster mid-upgrade, or a primary and replica
+at different versions.
 
-That is fine, because in any deployment where it can happen the result processors must already be
-shape-tolerant, which RESP3 support requires of them generally; a cached response in either shape still
-parses. What remains is a **hit-rate** question, not correctness: both shapes can end up cached for the
-same logical `(frame, database)`, costing duplicate entries while a deployment is mixed.
+That is still not a reason to key on it. Since the key is `(frame, database)`, both shapes collide on
+the same entry: there is exactly one, holding whichever protocol wrote it last, and any reader parses it
+because the result processors have to be shape-tolerant anyway — which RESP3 support requires of them
+generally. No duplicate entries, no hit-rate cost; the protocol simply does not participate.
 
-It disappears entirely if the cache stores *parsed results* rather than raw response bytes. Worth
-deciding deliberately, since that is the difference between the protocol being a non-issue and being a
-standing hit-rate tax.
+### 6.3 Caching the result: blob by default, value by exception
 
-### 6.3 Buffer ownership
+`HybridCache` is the model worth copying. Its default is to cache the serialized **blob** and re-run the
+deserializer per read; it caches the **value** only when the type is detectably immutable or the caller
+has explicitly said so — which is a large win for strings.
+
+Applied here, the default is to cache the raw RESP response bytes and re-run the `ResultProcessor<T>`.
+That is safe for any `T`, and it is the same property that makes §6.2 work: the processor is the single
+place that tolerates RESP2 versus RESP3, so a cached blob is readable whichever shape it holds.
+
+Value-caching is then the optimisation, and eligibility here is subtler than `HybridCache`'s, because it
+is **instance**-dependent rather than purely type-dependent:
+
+| | By value? |
+| --- | --- |
+| `string`, `long`, `bool`, `double` | yes, unconditionally |
+| `RedisValue`, `RedisKey` | **only sometimes** — see below |
+| `RedisValue[]`, `RedisKey[]`, `RedisResult` | no |
+
+`RedisValue` and `RedisKey` are `readonly struct`s, but they are not *deeply* immutable: the `byte[]`
+conversion returns the **internal array** when the value is fully array-backed
+(`RedisValue.cs:1198-1200`; `RedisKey` via `TryGetSimpleBuffer`), rather than a copy. A caller can take
+that array and mutate it, poisoning every other holder of the same cached instance. `StorageType`
+distinguishes the cases — string-, integer-, double- and short-blob-backed values either copy or never
+expose an array; only the full-array case leaks — so the check is cheap, but it is a check on the
+*value*, not on `typeof(T)`.
+
+Array returns are common across this API, and they are exactly the poisoning hazard that blob-by-default
+exists to prevent, so the default matters more here than it might elsewhere.
+
+Nothing in the repo is annotated for this today — no `[ImmutableObject]`, no `HybridCache` reference — so
+the explicit opt-in marker would be new.
+
+### 6.4 Buffer ownership
 
 A pooled buffer **must not** be retained as a dictionary key without ownership transfer — `ArrayPool`
 reuse would mutate live cache keys, and the failure mode is wrong data served from cache, not a crash.
@@ -441,7 +470,7 @@ whole lifetime, so keys can be recovered lazily from a cached entry without re-r
 would have forced rebasing them by the frame-start delta — the same off-by-a-few-bytes hazard as §5.2,
 reintroduced at a second site.
 
-### 6.4 Exception paths
+### 6.5 Exception paths
 
 The lowering puts construction and all `Append` calls in the *caller's* frame, before `Execute` is
 entered:
