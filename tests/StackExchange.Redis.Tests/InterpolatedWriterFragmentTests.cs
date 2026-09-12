@@ -177,4 +177,43 @@ public partial class InterpolatedWriterFragmentTests
 
         Assert.Equal("*3|$9|FT.SEARCH|$3|idx|$1|*|", Frame(frame));
     }
+
+    // ---- the sanctioned runtime route --------------------------------------------------------------
+
+    [Fact]
+    public void CreateValidatedAcceptsWellFormedBytes()
+    {
+        var fragment = RespFragment.CreateValidated("$2\r\nEX\r\n"u8);
+        Assert.Equal(1, fragment.ArgCount);
+
+        var two = RespFragment.CreateValidated("$6\r\nMAXLEN\r\n$1\r\n~\r\n"u8, 2);
+        Assert.Equal(2, two.ArgCount);
+    }
+
+    [Theory]
+    // the failure modes that would otherwise desync the connection, each caught here instead
+    [InlineData("2\r\nEX\r\n", 1)]                 // no '$'
+    [InlineData("$\r\nEX\r\n", 1)]                 // no length
+    [InlineData("$2EX\r\n", 1)]                      // no CRLF after the length
+    [InlineData("$3\r\nEX\r\n", 1)]                // length disagrees with the payload
+    [InlineData("$2\r\nEX", 1)]                      // truncated
+    [InlineData("$2\r\nEXXX", 1)]                    // no CRLF after the payload
+    [InlineData("$2\r\nEX\r\n$2\r\nNX\r\n", 1)] // two fragments declared as one
+    [InlineData("$2\r\nEX\r\n", 2)]                // one fragment declared as two
+    public void CreateValidatedRejectsMalformedBytes(string raw, int argCount)
+    {
+        var bytes = Encoding.UTF8.GetBytes(raw);
+        var error = Assert.Throws<ArgumentException>(() => RespFragment.CreateValidated(bytes, argCount));
+        Assert.Contains("well-formed", error.Message);
+    }
+
+    [Fact]
+    public void ValidatedFragmentsWriteLikeGeneratedOnes()
+    {
+        var ctx = new RespContext();
+        using var generated = ctx.Execute(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespLiterals.EX}");
+        using var validated = ctx.Execute(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespFragment.CreateValidated("$2\r\nEX\r\n"u8)}");
+
+        Assert.True(generated.Span.SequenceEqual(validated.Span));
+    }
 }

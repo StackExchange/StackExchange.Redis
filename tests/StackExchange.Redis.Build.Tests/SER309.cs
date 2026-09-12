@@ -73,6 +73,32 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" nx "),
         Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(1).WithArguments(" xx"));
 
+    [Fact]
+    public Task LeadingSpace_IsFlagged() => VerifyAsync(
+        Using + """
+        class C
+        {
+            void M(RespContext ctx, RedisKey key)
+            {
+                using var frame = ctx.Execute("GET", $"{|#0: |}{key}");
+            }
+        }
+        """,
+        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" "));
+
+    [Fact]
+    public Task TrailingSpace_IsFlagged() => VerifyAsync(
+        Using + """
+        class C
+        {
+            void M(RespContext ctx, RedisKey key)
+            {
+                using var frame = ctx.Execute("GET", $"{key}{|#0: |}");
+            }
+        }
+        """,
+        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" "));
+
     // ---- negatives ---------------------------------------------------------------------------------
 
     [Fact]

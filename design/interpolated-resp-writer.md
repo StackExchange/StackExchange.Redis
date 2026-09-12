@@ -1127,7 +1127,7 @@ A working spike. The surface is public but gated behind `SER010`/`SER011` — se
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 41 tests |
 | `src/StackExchange.Redis/Interpolated/RespFragment.cs` | pre-framed token runs + the `[Resp]` marker |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterDemo.cs` | 7 worked examples, each asserting the exact frame |
-| `tests/StackExchange.Redis.Tests/InterpolatedWriterFragmentTests.cs` | 6 tests; both halves of the partial-property pattern, hand-written |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterFragmentTests.cs` | 16 tests; declarations only - the generator supplies the bodies |
 
 Green on net10.0 and net8.0 (58 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
 clean.
@@ -1333,6 +1333,7 @@ Built, so the authoring story is no longer hand-waved:
 | `RespFragmentGenerator` | implements `[Resp]` partial properties — framing, length prefixes, casing and `ArgCount` by construction |
 | `RespInterpolationAnalyzer` | `SER309`: literal text in a RESP command is discarded, not sent. **Error** |
 | `RespLiteralCodeFixProvider` | rewrites `$"{key} nx"` to `$"{key} {RespLiterals.Nx}"` |
+| `RespFragment.CreateValidated` | the sanctioned runtime route: checks framing and the argument count |
 
 The fragment tests now declare only the properties; the generator supplies the bodies, and the exact-frame
 assertions pass unchanged — which is the real check, since it means `EX` was inferred and upper-cased,
@@ -1340,6 +1341,17 @@ assertions pass unchanged — which is the real check, since it means `EX` was i
 
 The emitted file suppresses `SER010` and `SER011` at source and nowhere wider, which is the pattern §9.1
 describes: the generator is the sanctioned construction site.
+
+`CreateValidated` is the precondition §9.1 names for ever making hand-construction impossible: it walks the
+bytes, checks every `$len\r\n…\r\n` and that the count matches, and throws otherwise. Not gated, because the
+check is the point — the cost is irrelevant when it runs once at startup, and it is the difference between a
+mistake that throws at the call and one that desyncs the connection somewhere unrelated. Eight malformed
+shapes are covered by tests, each of which would otherwise have corrupted the stream.
+
+**The `#error` half is deliberately NOT built.** The generator could detect a hand-written
+`new RespFragment(...)` and emit `#error`, and §9.1 records how — but that forecloses the escape hatch, so
+`CreateValidated` had to exist first. Whether to take the next step is a judgement about how hostile to be,
+which is worth making deliberately rather than as a side effect of me being on a roll.
 
 **The fix is only offered when a declaration already exists.** Declaring one on the caller's behalf would
 mean choosing a type to put it in, which the fix cannot judge — so the "declare it and use it" variant

@@ -43,6 +43,67 @@ namespace StackExchange.Redis.Interpolated
             ArgCount = argCount;
         }
 
+        /// <summary>
+        /// Create a fragment from bytes, <b>checking</b> that they are well-formed RESP and that they contain
+        /// exactly <paramref name="argCount"/> bulk strings.
+        /// </summary>
+        /// <param name="bytes">The candidate bytes.</param>
+        /// <param name="argCount">How many bulk strings <paramref name="bytes"/> should contain.</param>
+        /// <exception cref="ArgumentException">The bytes are not well-formed, or the count disagrees.</exception>
+        /// <remarks>
+        /// The sanctioned route for a fragment assembled at runtime — typically once, at startup, from
+        /// configuration. Not gated, because the check is the point; the cost is irrelevant when it runs once,
+        /// and it is the difference between a mistake that throws here and one that desyncs the connection
+        /// somewhere unrelated. Prefer a generated <c>[Resp]</c> declaration whenever the tokens are known at
+        /// compile time, which is almost always.
+        /// </remarks>
+        public static RespFragment CreateValidated(ReadOnlySpan<byte> bytes, int argCount = 1)
+        {
+            if (argCount < 1) throw new ArgumentOutOfRangeException(nameof(argCount));
+
+            var found = 0;
+            var offset = 0;
+            while (offset < bytes.Length)
+            {
+                if (bytes[offset] != (byte)'$') throw Malformed($"expected '$' at offset {offset}");
+
+                // length digits
+                var start = ++offset;
+                long length = 0;
+                while (offset < bytes.Length && bytes[offset] >= (byte)'0' && bytes[offset] <= (byte)'9')
+                {
+                    length = (length * 10) + (bytes[offset] - (byte)'0');
+                    if (length > int.MaxValue) throw Malformed($"length overflow at offset {start}");
+                    offset++;
+                }
+
+                if (offset == start) throw Malformed($"missing length at offset {start}");
+                if (offset + 1 >= bytes.Length || bytes[offset] != (byte)'\r' || bytes[offset + 1] != (byte)'\n')
+                {
+                    throw Malformed($"expected CRLF after the length at offset {offset}");
+                }
+
+                offset += 2;
+                if (offset + length + 2 > bytes.Length) throw Malformed($"payload of {length} runs past the end");
+
+                offset += (int)length;
+                if (bytes[offset] != (byte)'\r' || bytes[offset + 1] != (byte)'\n')
+                {
+                    throw Malformed($"expected CRLF after the payload at offset {offset}");
+                }
+
+                offset += 2;
+                found++;
+            }
+
+            if (found != argCount) throw Malformed($"contains {found} bulk string(s), but {argCount} was declared");
+
+            return new RespFragment(bytes, argCount);
+        }
+
+        private static ArgumentException Malformed(string detail)
+            => new($"Not a well-formed run of RESP bulk strings: {detail}.", "bytes");
+
         /// <summary>The pre-framed bytes, including every <c>$len</c> prefix and trailing CRLF.</summary>
         public ReadOnlySpan<byte> Bytes { get; }
 

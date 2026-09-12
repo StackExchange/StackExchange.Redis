@@ -56,12 +56,16 @@ public sealed class RespInterpolationAnalyzer : DiagnosticAnalyzer
         var converted = context.SemanticModel.GetTypeInfo(node, context.CancellationToken).ConvertedType;
         if (!SymbolEqualityComparer.Default.Equals(converted, handler)) return;
 
-        foreach (var content in node.Contents)
+        var contents = node.Contents;
+        for (var i = 0; i < contents.Count; i++)
         {
-            if (content is not InterpolatedStringTextSyntax text) continue;
+            if (contents[i] is not InterpolatedStringTextSyntax text) continue;
 
             var value = text.TextToken.ValueText;
-            if (value == " ") continue; // the one permitted separator
+
+            // a single space is permitted, but only BETWEEN holes: a leading or trailing one separates
+            // nothing, and satisfying "exactly one space" is not the same as being a separator
+            if (value == " " && i > 0 && i < contents.Count - 1) continue;
 
             var token = value.Trim();
             var properties = ImmutableDictionary<string, string?>.Empty.Add(TokenProperty, token);
