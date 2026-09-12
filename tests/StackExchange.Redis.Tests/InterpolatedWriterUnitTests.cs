@@ -402,4 +402,55 @@ public class InterpolatedWriterUnitTests
         Assert.StartsWith("*12\r\n", Encoding.UTF8.GetString(frame.Span.ToArray()));
         Assert.Equal(new[] { "k" }, Keys(frame)); // offset survived the two-digit header
     }
+
+    // ---- initializing with the command as a real argument -----------------------------------------
+
+    [Fact]
+    public void ComposeWithCommandArgument()
+    {
+        var ctx = new RespContext();
+        var cmd = ctx.Compose(RedisCommand.SET, $"{(RedisKey)"k"}{(RedisValue)"v"}");
+        using var frame = ctx.Execute(ref cmd);
+
+        Assert.Equal(new[] { "SET", "k", "v" }, Parse(frame.Span));
+        Assert.Equal(new[] { "k" }, Keys(frame));
+    }
+
+    [Fact]
+    public void ExecuteWithCommandArgument()
+    {
+        var ctx = new RespContext(serverType: ServerType.Cluster);
+        using var frame = ctx.Execute(RedisCommand.GET, $"{(RedisKey)"foo"}");
+
+        Assert.Equal(new[] { "GET", "foo" }, Parse(frame.Span));
+        Assert.Equal(12182, frame.Slot);
+    }
+
+    [Fact]
+    public void ComposeWithNoInterpolationAtAll()
+    {
+        // fully dynamic argument list - variadic DEL over a runtime-sized set of keys
+        var keys = new RedisKey[] { "a", "b", "c" };
+        var ctx = new RespContext();
+        var cmd = ctx.Compose(RedisCommand.DEL, keys.Length);
+        foreach (var key in keys) cmd.AppendFormatted(key);
+        using var frame = ctx.Execute(ref cmd);
+
+        Assert.Equal(new[] { "DEL", "a", "b", "c" }, Parse(frame.Span));
+        Assert.Equal(4, frame.ArgCount);
+        Assert.True(frame.KeysNeedScan); // three keys exceeds the two inline offsets
+    }
+
+    [Fact]
+    public void DisabledCommandThrowsFromBothInitializerForms()
+    {
+        // Note the command-as-argument form resolves the map before renting, while the hole form rents
+        // first and discovers it on the first append - but a throwing interpolation abandoning its buffer
+        // is accepted behaviour either way; DefaultInterpolatedStringHandler does exactly the same.
+        var map = CommandMap.Create(new Dictionary<string, string?> { ["get"] = null });
+        var ctx = new RespContext(map);
+
+        Assert.Throws<RedisCommandException>(() => ctx.Compose(RedisCommand.GET, 0).Dispose());
+        Assert.Throws<RedisCommandException>(() => ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}").Dispose());
+    }
 }

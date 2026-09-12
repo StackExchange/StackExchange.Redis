@@ -429,6 +429,25 @@ using var frame = ctx.Execute(ref cmd);
 ```
 
 `Compose` carries `[InterpolatedStringHandlerArgument("")]` and simply returns the handler.
+
+Three initializer forms exist, all returning the builder:
+
+| Form | When |
+| --- | --- |
+| `ctx.Compose($"{cmd}{a}{b}")` | command as the first hole |
+| `ctx.Compose(cmd, $"{a}{b}")` | **preferred** — command as a real argument (§3.1), so the map is consulted before the rent |
+| `ctx.Compose(cmd, argHint)` | no interpolated part at all, for a fully dynamic argument list |
+
+The last is for the variadic case — `DEL` over a runtime-sized key array, where there is no fixed prefix
+to interpolate:
+
+```csharp
+var cmd = ctx.Compose(RedisCommand.DEL, keys.Length);
+foreach (var key in keys) cmd.AppendFormatted(key);
+using var frame = ctx.Execute(ref cmd);
+```
+
+`argHint` only sizes the initial rent; it is not a promise, and appending more simply grows the buffer.
 **`Execute(ref cmd)` needs no new overload** — and could not have one, since the attribute does not change
 the signature: it binds to the same `Execute`, because the interpolated-string-handler conversion applies
 only when the argument *is* an interpolated string. Passing a real variable by `ref` is an ordinary
@@ -759,15 +778,22 @@ Execute(h, handler);         // consumer's using/try-finally only starts HERE
 ```
 
 So on a throw in that window there is no handler for the consumer to dispose. Dropping the buffer is
-the only available behaviour, and it is fine: `MemoryTrackedPool` is a thin wrapper over
-`ArrayPool<T>.Shared` (`MemoryTrackedPool.cs:34`) with no outstanding-rental tracking and no budget,
-so a dropped buffer is simply garbage.
+the only available behaviour, and that is **accepted, not merely tolerated**: `DefaultInterpolatedStringHandler`
+does exactly the same — it rents from `ArrayPool<char>.Shared` and abandons the rental if an
+interpolation throws, because the compiler emits no `try`/`finally` around the append sequence. Broken
+usage dumping an incomplete buffer is the established behaviour of the pattern.
+
+It is also harmless here: `MemoryTrackedPool` is a thin wrapper over `ArrayPool<T>.Shared`
+(`MemoryTrackedPool.cs:34`) with no outstanding-rental tracking and no budget, so a dropped buffer is
+simply garbage.
 
 Two notes:
 
-- **Validate the command before renting.** A CommandMap-disabled command is both the most likely throw
-  here and the most likely to *repeat* (config-driven, so every call). In the argument form `command`
-  reaches the constructor, so it can be checked before the rent.
+- **Validate the command before renting** where it is free to do so. A CommandMap-disabled command is
+  both the most likely throw here and the most likely to *repeat*, being configuration-driven. The
+  command-as-argument form (§4.1) gets this for nothing, since `command` reaches the constructor. This is
+  a tidiness win rather than a correctness one — see the `DefaultInterpolatedStringHandler` precedent
+  above — so it is not worth contorting the API for.
 - **A bounded custom pool would invalidate this.** Dropping into `ArrayPool.Shared` is free because
   Shared doesn't track; dropping a chunk from a bounded free-list permanently removes capacity and
   silently degrades to allocating every time. `CycleBuffer.AppendOrRecycle(segment, maxDepth: 2)` shows
@@ -947,7 +973,7 @@ A working spike, all `internal`, so there is no public API commitment yet.
 | `src/StackExchange.Redis/Interpolated/RespContext.cs` | CommandMap, KeyPrefix, ChannelPrefix, Database, ServerType, CancellationToken; `With*` clones; `Execute` |
 | `src/StackExchange.Redis/Interpolated/RespCommandHandler.cs` | renders the frame, folds the slot, marks keys |
 | `src/StackExchange.Redis/Interpolated/RespFrame.cs` | rendered frame + slot + key marks + `KeyRange` |
-| `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 35 tests |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 39 tests |
 
 Green on net10.0 and net8.0; net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true` clean.
 
@@ -970,7 +996,9 @@ What the tests pin, grouped by the section they belong to:
 - **Cancellation (§3.3)** — `CancellationIsObservedAndTheBufferIsReturned`,
   `CancellationTokenFlowsThroughWithClones`.
 - **Deferred composition (§4.1)** — `ComposeThenConditionallyAppend` (theory over the four
-  ttl/nx combinations), `ComposedKeysStillTrackAndRoute`, `ComposedHeaderGrowsWithLateArguments`.
+  ttl/nx combinations), `ComposedKeysStillTrackAndRoute`, `ComposedHeaderGrowsWithLateArguments`,
+  `ComposeWithCommandArgument`, `ExecuteWithCommandArgument`, `ComposeWithNoInterpolationAtAll`,
+  `DisabledCommandThrowsFromBothInitializerForms`.
 
 **What the spike does not do:** it stops at "the right bytes were rendered, and we know which arguments
 were keys". Nothing dispatches, nothing caches, and the read half (§8.4) is untouched — so the claim

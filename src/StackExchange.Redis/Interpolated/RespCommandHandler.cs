@@ -41,6 +41,35 @@ namespace StackExchange.Redis.Interpolated
             _hasCommand = false;
         }
 
+        /// <summary>
+        /// Initialize with the command supplied as a real argument rather than as the first hole, so that
+        /// the interpolation carries only the arguments.
+        /// </summary>
+        /// <remarks>
+        /// Preferred over the command-as-a-hole form: the command map is consulted <b>before</b> the buffer
+        /// is rented, so a disabled command - the most likely throw in this window, and the most likely to
+        /// repeat, being configuration-driven - drops nothing on the floor. See
+        /// <c>design/interpolated-resp-writer.md</c> section 6.5.
+        /// </remarks>
+        public RespCommandHandler(int literalLength, int formattedCount, RespContext context, RedisCommand command)
+        {
+            // resolve FIRST: this throws before anything is rented
+            var resp = context.CommandMap.GetResp(command);
+            if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+
+            _context = context;
+            _buffer = ArrayPool<byte>.Shared.Rent(HeaderMax + 64 + resp.Length + literalLength + (formattedCount * 24));
+            _offset = HeaderMax;
+            _slot = ServerSelectionStrategy.NoSlot;
+            _keyMarks = 0;
+
+            resp.CopyTo(_buffer.AsSpan(_offset));
+            _offset += resp.Length;
+            _hasCommand = true;
+            _args = 1;
+            _argIndex = 1;
+        }
+
         [Obsolete("Every part must be a hole, so that the argument count is known at compile time; write $\"{RedisCommand.SET}{key}{value}\", not $\"SET{key}{value}\".", error: true)]
         public void AppendLiteral(string value) => throw new NotSupportedException();
 

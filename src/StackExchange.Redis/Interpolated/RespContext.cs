@@ -124,6 +124,43 @@ namespace StackExchange.Redis.Interpolated
         public RespCommandHandler Compose([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
             => handler;
 
+        /// <summary>
+        /// As <see cref="Compose(ref RespCommandHandler)"/>, but with the command supplied as a real
+        /// argument rather than as the first hole:
+        /// <code>
+        /// var cmd = ctx.Compose(RedisCommand.SET, $"{key}{value}");
+        /// </code>
+        /// </summary>
+        /// <remarks>
+        /// <c>("", nameof(command))</c> passes the receiver <b>and</b> the command into the handler's
+        /// constructor, which lets the command map be consulted before the buffer is rented.
+        /// </remarks>
+        public RespCommandHandler Compose(
+            RedisCommand command,
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            => handler;
+
+        /// <summary>
+        /// Initialize a builder with no interpolated part at all, for a fully dynamic argument list:
+        /// <code>
+        /// var cmd = ctx.Compose(RedisCommand.DEL, keys.Length);
+        /// foreach (var key in keys) cmd.AppendFormatted(key);
+        /// using var frame = ctx.Execute(ref cmd);
+        /// </code>
+        /// </summary>
+        /// <param name="command">The command to issue.</param>
+        /// <param name="argHint">Expected number of arguments, used only to size the initial rent.</param>
+        public RespCommandHandler Compose(RedisCommand command, int argHint = 0)
+            => new(0, argHint < 0 ? 0 : argHint, this, command);
+
+        /// <summary>
+        /// As <see cref="Execute(ref RespCommandHandler)"/>, with the command as a real argument.
+        /// </summary>
+        public RespFrame Execute(
+            RedisCommand command,
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            => Execute(ref handler);
+
         public RespFrame Execute([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
         {
             if (CancellationToken.IsCancellationRequested)
