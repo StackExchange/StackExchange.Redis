@@ -25,6 +25,11 @@ This is intended to **replace the writer half of the `marc/respite` v3 PoC spike
 
 ## 1. Is the handler pattern usable down-level?
 
+**Spec:** [Improved Interpolated Strings](https://github.com/dotnet/csharplang/blob/main/proposals/csharp-10.0/improved-interpolated-strings.md)
+(C# 10 feature spec). Quoted below where it settles a question; the empirical checks agree with it
+throughout. Notably it imposes **no requirement that the attributes come from corelib** — they are
+recognised by name — which is what makes the polyfill legitimate rather than a trick that happens to work.
+
 **Yes, with no runtime support at all.** Interpolated string handlers are 100% compiler lowering,
 and the marker attributes are matched *by full name*, so declaring them `internal` in our own source
 works exactly like the existing `SkipLocalsInit` (`src/RESPite/Shared/SkipLocalsInit.cs`) and
@@ -50,6 +55,18 @@ Verified by compiling across `netstandard2.0` / `net472` / `net8.0`:
 
 `net461` was not tested (no reference assemblies to hand) but uses the same compiler path; the only
 dependency is `ReadOnlySpan<byte>`, which RESPite already has there via `System.Memory`.
+
+The spec text behind three of those rows, since they shape the design elsewhere:
+
+- **Constructor** — *"The first two arguments are integer constants, representing the literal length of
+  `i`, and the number of interpolation components in `i`, respectively."* Extra parameters come from
+  `InterpolatedStringHandlerArgumentAttribute`, and the trailing `out bool` is optional: *"If no
+  applicable constructors were found, step 3 is retried, removing the final `bool` parameter."*
+- **Short-circuiting** — *"If `Fax` returns a `bool`, the result is logically anded with all preceding
+  `Fax` calls."* So `bool` returns genuinely stop later holes being evaluated (§2.4 rejects this for the
+  disabled-command case, which must throw rather than quietly truncate).
+- **`AppendFormatted` shapes** — the value by itself; plus an `int alignment` when the hole carries
+  `,N`; plus a `string format` when it carries `:F`. See §2.3 for why the `format` route was not used.
 
 **`InlineArray` is the one thing that is *not* polyfillable** — it needs .NET 8+ runtime layout
 support, and down-level the attribute is inert, silently giving a one-element struct. Use
@@ -83,9 +100,14 @@ and no back-fill.
 stays a hole. Confirmed both at runtime and by the fact that it compiles against a handler that has
 no `AppendLiteral` at all.
 
-**The compiler always passes a `string`, never u8.** Literal segments arrive as a `string` constant;
-there is no route to having the compiler hand you UTF8 bytes for them. Verified across the three
-plausible overload shapes:
+**The compiler always passes a `string`, never u8.** The spec is explicit, and one rule accounts for
+every case below:
+
+> The argument list `Al` is constructed with one value parameter of type `string`. Traditional method
+> invocation resolution is performed with method group `Ml` and argument list `Al`.
+
+So the argument is *always* a `string`, and binding is then ordinary overload resolution. Verified across
+the three plausible overload shapes:
 
 | `AppendLiteral` overload | Binds to a literal segment? |
 | --- | --- |
@@ -93,13 +115,18 @@ plausible overload shapes:
 | `ReadOnlySpan<char>` | yes, via the implicit `string` → span conversion |
 | `ReadOnlySpan<byte>` | **no** — `CS1503: cannot convert from 'string' to 'System.ReadOnlySpan<byte>'` |
 
-The `ReadOnlySpan<char>` form buys nothing (the argument is a constant `string` either way), and the
-absence of a `u8` route is one more reason to ban literals rather than encode them at runtime.
+All three follow from the rule: `string`→`ReadOnlySpan<char>` is an applicable conversion, `string`→
+`ReadOnlySpan<byte>` is not, and there is no step at which the compiler would UTF8-encode. The
+`ReadOnlySpan<char>` form buys nothing (the argument is a constant `string` either way), and the absence
+of a `u8` route is one more reason to ban literals rather than encode them at runtime.
+
+("Traditional method invocation resolution" is also why the ban holds: see below.)
 
 **The ban does not leak.** With *both* an obsolete `AppendLiteral(string)` and a non-obsolete
 `AppendLiteral(ReadOnlySpan<char>)`, the **obsolete one still wins** — `CS0619`, not a silent bind to
-the span overload. Exact match beats the span conversion, and `[Obsolete]` is a post-resolution
-diagnostic rather than a candidate filter, so adding overloads cannot bypass the ban.
+the span overload. That is the "traditional method invocation resolution" rule again: the exact `string`
+match beats the span conversion, and `[Obsolete]` is a post-resolution diagnostic rather than a candidate
+filter. Adding overloads therefore cannot bypass the ban.
 
 The corollary is the guard rail worth knowing: the ban depends on the obsolete `string` overload
 continuing to *exist*. Delete it and leave only a span overload, and literal segments silently start
@@ -169,6 +196,13 @@ assertion.
 Ship `Resp()` and `Resp(int argCount)` as **separate overloads**, not one optional parameter —
 adding an optional parameter later is a binary break (AGENTS.md).
 
+**Considered and dropped: a format specifier.** The compiler supports `{value:R}`, binding to
+`AppendFormatted(T value, string format)`, so a hole could have been *marked* raw rather than typed raw.
+It was tried and works, but loses on three counts: the specifier is only checked at runtime, so `{x:r}`
+or `{x:Raw}` compiles and silently falls through to whatever the default branch does; it cannot carry
+`ArgCount`; and once raw fragments are a distinct type the marker is redundant anyway. The typed wrapper
+gives compile-time dispatch and a place to put the arg count, so `:R` earns nothing.
+
 ### 2.4 `RedisCommand` and CommandMap
 
 The command must be a `RedisCommand` so it routes through `CommandMap` (renaming/disabling per server
@@ -222,7 +256,8 @@ Prefer the argument form. Its terseness advantage is small and the receiver is t
 ### 3.3 The receiver, and a context object
 
 `[InterpolatedStringHandlerArgument("")]` passes the **receiver** of the call into the handler's
-constructor. Verified working in every shape that matters — concrete receiver, receiver via an
+constructor — per the spec, *"The empty string is matched to the receiver of `M1`."* Verified working in
+every shape that matters — concrete receiver, receiver via an
 interface, implicit `this` from inside the type, an `object`-typed ctor parameter, and extension
 methods (where the receiver is the first parameter, so `nameof(db)` rather than `""`).
 
