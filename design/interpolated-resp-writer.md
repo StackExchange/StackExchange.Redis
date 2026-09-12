@@ -132,6 +132,43 @@ The corollary is the guard rail worth knowing: the ban depends on the obsolete `
 continuing to *exist*. Delete it and leave only a span overload, and literal segments silently start
 binding again.
 
+#### Idea: relax the ban to allow exactly one space
+
+`$"{RedisCommand.SET} {key} {value}"` reads as `SET key value` — the form every Redis doc and
+`redis-cli` session uses — where `$"{RedisCommand.SET}{key}{value}"` does not. Permitting a single
+space, discarded at runtime, buys that.
+
+**It does not cost the `*N` constant**, which is the ban's main justification. Spaces are literal
+segments, not holes, so `formattedCount` is unchanged; only `literalLength` moves, which merely nudges
+the buffer size hint. Measured:
+
+```
+tight  : args=3 literals=0 formattedCount=3 literalLength=0
+spaced : args=3 literals=2 formattedCount=3 literalLength=2
+```
+
+**Nor does it cost anything measurable.** 0.45 ns per space, against an 8.6 ns baseline of pure handler
+machinery in a synthetic loop that does no buffer work at all; a real render is tens to hundreds of ns,
+and the operation around it is orders beyond that. Both spellings also render byte-identically, since
+the space is discarded — so cache identity (§6.2) is unaffected.
+
+**What it does cost is the compile-time guarantee.** `AppendLiteral` can no longer be
+`[Obsolete(error: true)]`, so `$"SET{key}"` becomes an exception on first execution rather than a build
+break. The analyzer (§7) can restore that, and it is already required for the `Resp.Raw` rules, so this
+is one more rule on existing machinery rather than new machinery — with the runtime check demoted to a
+backstop.
+
+Three cases the analyzer must cover, because a runtime check handles them badly:
+
+- **Two spaces look exactly like one.** Throwing on `$"{a}  {b}"` is correct but arrives at the worst
+  moment, and the defect is invisible on the page.
+- **Position.** "Exactly one space" also permits `$" {a}"` and `$"{a} "`; the rule wanted is *between*
+  holes.
+- **Formatters.** Nothing stops a tool normalising whitespace inside an interpolated string.
+
+Note this also retires the "ban does not leak" property below: with no obsolete overload there is no
+overload-resolution argument to lean on, and enforcement rests on the analyzer plus the runtime check.
+
 **Non-interpolated strings do *not* bind to the handler.** If a `string` overload exists alongside,
 `Write(buf, "plain literal")` silently takes it while `Write(buf, $"GET {key}")` takes the handler.
 Either don't provide a `string` overload, or accept that callers must write `$"PING"`.
