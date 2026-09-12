@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Text;
+using RESPite;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -14,7 +17,8 @@ namespace StackExchange.Redis.Interpolated
     /// compiler-supplied <c>formattedCount</c> the argument count. See <c>design/interpolated-resp-writer.md</c>.
     /// </remarks>
     [InterpolatedStringHandler]
-    internal ref struct RespCommandHandler
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public ref struct RespCommandHandler
     {
         /// <summary>'*' plus up to nine digits plus CRLF; reserved at the front so the header can be
         /// back-filled right-aligned once the final argument count is known.</summary>
@@ -29,6 +33,10 @@ namespace StackExchange.Redis.Interpolated
         private ulong _keyMarks;
         private bool _hasCommand;
 
+        /// <summary>Initialize with the command supplied as the first hole.</summary>
+        /// <param name="literalLength">Total length of the literal segments; compiler-supplied.</param>
+        /// <param name="formattedCount">Number of holes; compiler-supplied.</param>
+        /// <param name="context">The receiver of the call, supplying the command map and prefixes.</param>
         public RespCommandHandler(int literalLength, int formattedCount, RespContext context)
         {
             _context = context;
@@ -51,7 +59,7 @@ namespace StackExchange.Redis.Interpolated
         /// repeat, being configuration-driven - drops nothing on the floor. See
         /// <c>design/interpolated-resp-writer.md</c> section 6.5.
         /// </remarks>
-        public RespCommandHandler(int literalLength, int formattedCount, RespContext context, RedisCommand command)
+        internal RespCommandHandler(int literalLength, int formattedCount, RespContext context, RedisCommand command)
         {
             // resolve FIRST: this throws before anything is rented
             var resp = context.CommandMap.GetResp(command);
@@ -68,6 +76,48 @@ namespace StackExchange.Redis.Interpolated
             _hasCommand = true;
             _args = 1;
             _argIndex = 1;
+        }
+
+        /// <summary>
+        /// Initialize from a command <b>name</b>, for callers without access to the internal
+        /// <c>RedisCommand</c> enum. The name is speculatively parsed to a known command so command-map
+        /// aliasing and disabling still apply; anything unrecognised is framed verbatim, matching how
+        /// <c>IDatabase.Execute(string, ...)</c> already behaves.
+        /// </summary>
+        public RespCommandHandler(int literalLength, int formattedCount, RespContext context, string command)
+        {
+            if (command is null) throw new ArgumentNullException(nameof(command));
+
+            ReadOnlySpan<byte> resp = default;
+            var known = RedisCommandMetadata.TryParseCI(command.AsSpan(), out var parsed) && parsed != RedisCommand.UNKNOWN;
+            if (known)
+            {
+                resp = context.CommandMap.GetResp(parsed);
+                if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(parsed);
+            }
+
+            var nameBytes = known ? 0 : Encoding.UTF8.GetByteCount(command);
+            _context = context;
+            _buffer = ArrayPool<byte>.Shared.Rent(HeaderMax + 64 + resp.Length + nameBytes + literalLength + (formattedCount * 24));
+            _offset = HeaderMax;
+            _slot = ServerSelectionStrategy.NoSlot;
+            _keyMarks = 0;
+            _hasCommand = true;
+            _args = 1;
+            _argIndex = 1;
+
+            if (known)
+            {
+                resp.CopyTo(_buffer.AsSpan(_offset));
+                _offset += resp.Length;
+            }
+            else
+            {
+                var payloadOffset = 0;
+                WriteBulk(nameBytes, out payloadOffset);
+                Encoding.UTF8.GetBytes(command, 0, command.Length, _buffer, _offset + payloadOffset);
+                CommitBulk(payloadOffset, nameBytes);
+            }
         }
 
         /// <summary>
@@ -95,7 +145,7 @@ namespace StackExchange.Redis.Interpolated
             + "Write $\"{RedisCommand.SET} {key} {value}\", not $\"SET {key} {value}\".",
             nameof(value));
 
-        public void AppendFormatted(RedisCommand value)
+        internal void AppendFormatted(RedisCommand value)
         {
             if (_hasCommand) throw new InvalidOperationException("The command must be the first argument, and may only be given once.");
 
@@ -110,6 +160,8 @@ namespace StackExchange.Redis.Interpolated
             _argIndex++;
         }
 
+        /// <summary>Append a key: prefixed, marked for invalidation, and folded into the cluster slot.</summary>
+        /// <param name="value">The key to append.</param>
         public void AppendFormatted(RedisKey value)
         {
             DemandCommand();
@@ -133,6 +185,8 @@ namespace StackExchange.Redis.Interpolated
             _argIndex++;
         }
 
+        /// <summary>Append a channel, applying the channel prefix unless the channel opts out.</summary>
+        /// <param name="value">The channel to append.</param>
         public void AppendFormatted(RedisChannel value)
         {
             DemandCommand();
@@ -169,6 +223,8 @@ namespace StackExchange.Redis.Interpolated
             _argIndex += value.ArgCount;
         }
 
+        /// <summary>Append a value; not a key, and not marked as one.</summary>
+        /// <param name="value">The value to append.</param>
         public void AppendFormatted(RedisValue value)
         {
             DemandCommand();
@@ -201,6 +257,7 @@ namespace StackExchange.Redis.Interpolated
             return frame;
         }
 
+        /// <summary>Return the buffer to the pool, if it has not already been handed to a frame.</summary>
         public void Dispose()
         {
             var buffer = _buffer;

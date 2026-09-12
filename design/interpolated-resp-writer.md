@@ -1054,7 +1054,7 @@ keyspace notifications, and script/`Execute` results.
 
 ## 9. The spike in this repo
 
-A working spike, all `internal`, so there is no public API commitment yet.
+A working spike. The surface is public but gated behind `SER010`/`SER011` — see §9.1.
 
 | File | What it is |
 | --- | --- |
@@ -1067,7 +1067,7 @@ A working spike, all `internal`, so there is no public API commitment yet.
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterDemo.cs` | 7 worked examples, each asserting the exact frame |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterFragmentTests.cs` | 6 tests; both halves of the partial-property pattern, hand-written |
 
-Green on net10.0 and net8.0 (54 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
+Green on net10.0 and net8.0 (58 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
 clean.
 
 `InterpolatedWriterDemo` is the readable end-to-end example — each case asserts the exact rendered frame,
@@ -1111,6 +1111,52 @@ What the tests pin, grouped by the section they belong to:
 **What the spike does not do:** it stops at "the right bytes were rendered, and we know which arguments
 were keys". Nothing dispatches, nothing caches, and the read half (§8.4) is untouched — so the claim
 that the context can be threaded through to result processing is design, not demonstration.
+
+---
+
+### 9.1 Public API, and the `RedisCommand` problem
+
+The surface is public but **experimental**, under two diagnostic IDs:
+
+| | |
+| --- | --- |
+| `SER010` | the feature as a whole; in the repo-wide `NoWarn`, so internal use is quiet |
+| `SER011` | **hand-constructing a `RespFragment`**; deliberately NOT in `NoWarn` |
+
+`SER011` exists because nothing validates the bytes handed to `new RespFragment(...)`: a length prefix
+that disagrees with its payload, a missing CRLF, or an `ArgCount` that does not match the `$` runs will
+corrupt the connection for every command that follows, with the first symptom appearing somewhere
+unrelated. So the ctor is gated, and *generated* code suppresses it at the emit site and nowhere wider:
+
+```csharp
+#pragma warning disable SER011 // this half stands in for the generator
+internal static partial RespFragment EX => new("$2\r\nEX\r\n"u8);
+#pragma warning restore SER011
+```
+
+Verified that it fires unsuppressed, as an error carrying the docs link
+(`https://seredis.dev/exp/SER011`).
+
+One portability note: `ExperimentalAttribute.Message` is .NET 9+, so a custom message cannot be used
+while this targets net461 through net10.0. The explanation lives in `docs/exp/SER011.md`, which
+`UrlFormat` links to — which is the existing convention here anyway.
+
+**The blocker was `RedisCommand`, which is `internal`.** The whole design routes commands through it for
+`CommandMap` aliasing, but the public surface deliberately exposes commands as typed methods or
+`Execute(string command, ...)`; making that enum public would be a large, permanent commitment to an
+implementation detail.
+
+Resolved by giving public callers a **string overload that speculatively parses**, which is exactly what
+`Execute(string)` already does (`RedisDatabase.cs:6149-6155`):
+
+```csharp
+if (!RedisCommandMetadata.TryParseCI(adhocCommand, out knownCommand))
+    knownCommand = RedisCommand.UNKNOWN;
+```
+
+So a recognised name still gets command-map aliasing and disabling; anything unrecognised is framed
+verbatim. `RedisCommand` stays internal, and those overloads stay internal alongside it. Behaviour is
+consistent with the existing ad-hoc command path rather than a second set of rules.
 
 ---
 

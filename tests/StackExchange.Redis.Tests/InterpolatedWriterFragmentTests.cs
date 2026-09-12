@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -44,9 +45,13 @@ public class InterpolatedWriterFragmentTests
     }
 
     // ---- half 2: what the GENERATOR would emit ----------------------------------------------------
+    //
+    // Constructing a RespFragment by hand is gated behind SER011 precisely because nothing validates the
+    // bytes. Generated code suppresses it AT THE EMIT SITE and nowhere wider, which is what this shows.
     // A token inferred from the member name is upper-cased; a token given in the attribute is verbatim,
     // because the library sends both cases and the distinction is semantic - see the design notes.
 
+#pragma warning disable SER011 // hand-constructed RespFragment: this half stands in for the generator
     internal static partial class RespLiterals
     {
         internal static partial RespFragment EX => new("$2\r\nEX\r\n"u8);
@@ -59,6 +64,7 @@ public class InterpolatedWriterFragmentTests
 
         internal static partial RespFragment LeftRight => new("$4\r\nLEFT\r\n$5\r\nRIGHT\r\n"u8, 2);
     }
+#pragma warning restore SER011
 
     private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
@@ -147,5 +153,49 @@ public class InterpolatedWriterFragmentTests
         using var frame = ctx.Execute(RedisCommand.CONFIG, $"{RespLiterals.ConfigGet} {(RedisValue)"maxmemory"}");
 
         Assert.Equal("*3|$6|CONFIG|$3|GET|$9|maxmemory|", Frame(frame));
+    }
+
+    // ---- the public, string-based command overload -------------------------------------------------
+
+    [Fact]
+    public void StringCommandIsSpeculativelyParsedAndAliased()
+    {
+        // a recognised name goes through the command map, so renames still apply
+        var map = CommandMap.Create(new Dictionary<string, string?> { ["get"] = "xget" });
+        var ctx = new RespContext(map);
+        using var frame = ctx.Execute("get", $"{(RedisKey)"k"}");
+
+        Assert.Equal("*2|$4|XGET|$1|k|", Frame(frame));
+    }
+
+    [Fact]
+    public void StringCommandIsCaseInsensitive()
+    {
+        var ctx = new RespContext();
+        using var upper = ctx.Execute("GET", $"{(RedisKey)"k"}");
+        using var lower = ctx.Execute("get", $"{(RedisKey)"k"}");
+
+        Assert.Equal("*2|$3|GET|$1|k|", Frame(upper));
+        Assert.True(upper.Span.SequenceEqual(lower.Span));
+    }
+
+    [Fact]
+    public void StringCommandRespectsDisabledCommands()
+    {
+        var map = CommandMap.Create(new Dictionary<string, string?> { ["get"] = null });
+        var ctx = new RespContext(map);
+
+        Assert.Throws<RedisCommandException>(() => ctx.Execute("get", $"{(RedisKey)"k"}").Dispose());
+    }
+
+    [Fact]
+    public void UnrecognisedStringCommandIsFramedVerbatim()
+    {
+        // not a known command: no aliasing to apply, so the name goes out as written - matching
+        // IDatabase.Execute(string, ...) behaviour for ad-hoc commands
+        var ctx = new RespContext();
+        using var frame = ctx.Execute("FT.SEARCH", $"{(RedisValue)"idx"}{(RedisValue)"*"}");
+
+        Assert.Equal("*3|$9|FT.SEARCH|$3|idx|$1|*|", Frame(frame));
     }
 }

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -7,7 +9,8 @@ namespace StackExchange.Redis.Interpolated
     /// EXPERIMENTAL SPIKE. A rendered RESP frame, plus the routing and invalidation metadata that was
     /// folded while it was being written.
     /// </summary>
-    internal struct RespFrame : IDisposable
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public struct RespFrame : IDisposable
     {
         // key marks: MSB clear => up to two 31-bit BUFFER-ABSOLUTE byte offsets, resolvable with no scan;
         // MSB set => the frame must be walked to recover keys. Zero means "no keys" - offset 0 can never be
@@ -81,6 +84,7 @@ namespace StackExchange.Redis.Interpolated
             return new KeyRange(i + 2, length);
         }
 
+        /// <summary>Return the underlying buffer to the pool; safe to call more than once.</summary>
         public void Dispose()
         {
             var buffer = _buffer;
@@ -97,16 +101,22 @@ namespace StackExchange.Redis.Interpolated
     /// must be internal (a public one would collide with the real type on newer targets), so it cannot
     /// appear in API that a consumer might one day see.
     /// </remarks>
-    internal readonly struct KeyRange
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public readonly struct KeyRange
     {
+        /// <summary>Create a range over a payload within a frame's buffer.</summary>
+        /// <param name="offset">Buffer-absolute offset of the payload.</param>
+        /// <param name="length">Payload length in bytes.</param>
         public KeyRange(int offset, int length)
         {
             Offset = offset;
             Length = length;
         }
 
+        /// <summary>Buffer-absolute offset of the payload.</summary>
         public int Offset { get; }
 
+        /// <summary>Payload length, in bytes.</summary>
         public int Length { get; }
     }
 }

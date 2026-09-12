@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using RESPite;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -24,9 +26,10 @@ namespace StackExchange.Redis.Interpolated
     /// (via <see cref="RedisKey.WithPrefix"/>) rather than conflict.
     /// </para>
     /// </remarks>
-    internal readonly struct RespContext
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public readonly struct RespContext
     {
-        public RespContext(
+        internal RespContext(
             CommandMap? commandMap = null,
             RedisKey keyPrefix = default,
             RedisChannel channelPrefix = default,
@@ -59,20 +62,30 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>The key prefix as raw bytes, so the writer never pays a conversion per command.</summary>
         internal ReadOnlySpan<byte> KeyPrefixSpan => _keyPrefix;
 
+        /// <summary>The prefix applied to channels written through this context.</summary>
         public RedisChannel ChannelPrefix { get; }
 
+        /// <summary>The database index; part of cache identity, and NOT part of the rendered frame.</summary>
         public int Database { get; }
 
+        /// <summary>The server type; cluster slots are only computed when this is a cluster.</summary>
         public ServerType ServerType { get; }
 
+        /// <summary>Cancellation for operations issued through this context.</summary>
         public CancellationToken CancellationToken { get; }
 
+        /// <summary>A copy of this context with a different cancellation token.</summary>
+        /// <param name="cancellationToken">The token to use.</param>
         public RespContext WithCancellationToken(CancellationToken cancellationToken)
             => new(CommandMap, KeyPrefix, ChannelPrefix, Database, ServerType, cancellationToken);
 
+        /// <summary>A copy of this context targeting a different database.</summary>
+        /// <param name="database">The database index.</param>
         public RespContext WithDatabase(int database)
             => new(CommandMap, KeyPrefix, ChannelPrefix, database, ServerType, CancellationToken);
 
+        /// <summary>A copy of this context with a different server type.</summary>
+        /// <param name="serverType">The server type.</param>
         public RespContext WithServerType(ServerType serverType)
             => new(CommandMap, KeyPrefix, ChannelPrefix, Database, serverType, CancellationToken);
 
@@ -90,6 +103,8 @@ namespace StackExchange.Redis.Interpolated
                 ServerType,
                 CancellationToken);
 
+        /// <summary>A copy of this context with a different channel prefix.</summary>
+        /// <param name="channelPrefix">The prefix to apply to channels.</param>
         public RespContext WithChannelPrefix(RedisChannel channelPrefix)
             => new(CommandMap, KeyPrefix, channelPrefix, Database, ServerType, CancellationToken);
 
@@ -135,7 +150,7 @@ namespace StackExchange.Redis.Interpolated
         /// <c>("", nameof(command))</c> passes the receiver <b>and</b> the command into the handler's
         /// constructor, which lets the command map be consulted before the buffer is rented.
         /// </remarks>
-        public RespCommandHandler Compose(
+        internal RespCommandHandler Compose(
             RedisCommand command,
             [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
             => handler;
@@ -150,17 +165,48 @@ namespace StackExchange.Redis.Interpolated
         /// </summary>
         /// <param name="command">The command to issue.</param>
         /// <param name="argHint">Expected number of arguments, used only to size the initial rent.</param>
-        public RespCommandHandler Compose(RedisCommand command, int argHint = 0)
+        internal RespCommandHandler Compose(RedisCommand command, int argHint = 0)
             => new(0, argHint < 0 ? 0 : argHint, this, command);
+
+        /// <summary>
+        /// As the <c>RedisCommand</c> overload, taking a command <b>name</b>. The name is speculatively
+        /// parsed to a known command so aliasing and disabling still apply; anything unrecognised is framed
+        /// verbatim, as <c>IDatabase.Execute(string, ...)</c> does.
+        /// </summary>
+        /// <param name="command">The command name to issue.</param>
+        /// <param name="handler">The interpolated arguments.</param>
+        public RespCommandHandler Compose(
+            string command,
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            => handler;
+
+        /// <summary>As the <c>RedisCommand</c> overload, taking a command <b>name</b>.</summary>
+        /// <param name="command">The command name to issue.</param>
+        /// <param name="handler">The interpolated arguments.</param>
+        public RespFrame Execute(
+            string command,
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            => Execute(ref handler);
 
         /// <summary>
         /// As <see cref="Execute(ref RespCommandHandler)"/>, with the command as a real argument.
         /// </summary>
-        public RespFrame Execute(
+        internal RespFrame Execute(
             RedisCommand command,
             [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
             => Execute(ref handler);
 
+        /// <summary>
+        /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into
+        /// the handler's constructor; that is how the handler reaches the command map, the prefixes, and the
+        /// server type.
+        /// </summary>
+        /// <remarks>
+        /// A real Execute would go on to dispatch the frame; this spike stops at "the right bytes were
+        /// rendered, and we know which arguments were keys".
+        /// </remarks>
+        /// <param name="handler">The interpolated command and arguments.</param>
+        /// <returns>The rendered frame, with routing and key metadata.</returns>
         public RespFrame Execute([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
         {
             if (CancellationToken.IsCancellationRequested)
