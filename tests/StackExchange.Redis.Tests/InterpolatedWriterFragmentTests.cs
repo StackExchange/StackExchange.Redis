@@ -33,6 +33,10 @@ public class InterpolatedWriterFragmentTests
         /// <summary><c>MAXLEN ~</c>, the two arguments preceding an XADD/XTRIM threshold.</summary>
         [Resp("maxlen", "~")]
         internal static partial RespFragment MaxLenApprox { get; }
+
+        /// <summary><c>LEFT RIGHT</c>, the fixed pair ending an <c>LMOVE</c>.</summary>
+        [Resp("left", "right")]
+        internal static partial RespFragment LeftRight { get; }
     }
 
     // ---- half 2: what the GENERATOR would emit ----------------------------------------------------
@@ -47,6 +51,8 @@ public class InterpolatedWriterFragmentTests
         internal static partial RespFragment SetInfoLibName => new("$7\r\nSETINFO\r\n$8\r\nLIB-NAME\r\n"u8, 2);
 
         internal static partial RespFragment MaxLenApprox => new("$6\r\nMAXLEN\r\n$1\r\n~\r\n"u8, 2);
+
+        internal static partial RespFragment LeftRight => new("$4\r\nLEFT\r\n$5\r\nRIGHT\r\n"u8, 2);
     }
 
     private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
@@ -96,12 +102,29 @@ public class InterpolatedWriterFragmentTests
     }
 
     [Fact]
-    public void FragmentAfterAKeyStillTracksLaterKeys()
+    public void TwoKeysThenATwoTokenFragment()
     {
-        // a key, then a two-token fragment, then another key: the second key must still be marked
+        // LMOVE source destination LEFT RIGHT - a real command ending in a fixed two-token pair
+        var ctx = new RespContext();
+        using var frame = ctx.Execute(RedisCommand.LMOVE, $"{(RedisKey)"src"} {(RedisKey)"dst"} {RespLiterals.LeftRight}");
+
+        Assert.Equal("*5|$5|LMOVE|$3|src|$3|dst|$4|LEFT|$5|RIGHT|", Frame(frame));
+        Assert.Equal(5, frame.ArgCount);
+
+        Span<KeyRange> ranges = stackalloc KeyRange[2];
+        Assert.Equal(2, frame.TryGetKeys(ranges));
+        Assert.Equal("src", Encoding.UTF8.GetString(frame.GetKey(ranges[0]).ToArray()));
+        Assert.Equal("dst", Encoding.UTF8.GetString(frame.GetKey(ranges[1]).ToArray()));
+    }
+
+    [Fact]
+    public void KeyAfterAMultiTokenFragmentIsStillTracked()
+    {
+        // Synthetic: no standard command puts a two-token fragment BETWEEN two keys. The cursor arithmetic
+        // has to hold regardless, since ArgCount is what keeps later key-mark positions correct.
         var ctx = new RespContext();
         var cmd = ctx.Compose(RedisCommand.SMOVE, $"{(RedisKey)"src"}");
-        cmd.AppendFormatted(RespLiterals.MaxLenApprox);   // not meaningful for SMOVE; exercises the cursor
+        cmd.AppendFormatted(RespLiterals.MaxLenApprox);
         cmd.AppendFormatted((RedisKey)"dst");
         using var frame = ctx.Execute(ref cmd);
 

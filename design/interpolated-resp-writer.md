@@ -270,12 +270,41 @@ The optional `argCount` defaulting to 1 is fine here, despite the binary-compat 
 parameters — that rule is about *shipped public* API, and if the constructor stays internal with
 `.Resp()` as the public factory (§2.3), the generated call site is inside the assembly.
 
-**Considered and dropped: a format specifier.** The compiler supports `{value:R}`, binding to
-`AppendFormatted(T value, string format)`, so a hole could have been *marked* raw rather than typed raw.
-It was tried and works, but loses on three counts: the specifier is only checked at runtime, so `{x:r}`
-or `{x:Raw}` compiles and silently falls through to whatever the default branch does; it cannot carry
-`ArgCount`; and once raw fragments are a distinct type the marker is redundant anyway. The typed wrapper
-gives compile-time dispatch and a place to put the arg count, so `:R` earns nothing.
+#### Format specifiers: wrong for "raw", right for units
+
+Two different uses, with opposite answers.
+
+**Dropped — `{blob:R}` to mark a hole as pre-framed.** This is an assertion about the argument's
+*nature*, which a type expresses better. It was tried and works, but the specifier is only checked at
+runtime (`{x:r}` or `{x:Raw}` compiles and falls through silently), it cannot carry `ArgCount`, and once
+raw fragments are a distinct type (`RespFragment`) the marker is redundant.
+
+**Kept — `{ttl:s}` to choose an encoding the type cannot determine.** `TimeSpan` has no single correct
+RESP encoding: `EXPIRE`/`EX` want seconds, `PEXPIRE`/`PX` want milliseconds. Likewise `DateTime` for
+`EXPIREAT` versus `PEXPIREAT`, and `bool` for `0`/`1` versus the `yes`/`no` that `CONFIG SET` takes
+(`RedisLiterals.yes`/`no` already exist). This is what format specifiers are *for*.
+
+**The specifier can be made mandatory, by the compiler.** Declare only
+`AppendFormatted(TimeSpan, string format)` and omit the one-argument overload, and `$"{ttl}"` fails to
+compile (`CS1503`). So for a type with no safe default the unit is *required*, enforced by overload
+resolution rather than by the analyzer — which answers the objection that sank `:R`: the dangerous case
+is not a mistyped specifier but an absent one, and absence is a build error. Types that do have a safe
+default (`int`, `RedisValue`) simply keep their one-argument overload and are unaffected. Verified:
+
+```
+{ttl:s}  -> 300        {ttl:ms} -> 300000      {ttl} -> does not compile
+{42}     -> 42         {true}   -> 1           {true:yn} -> yes
+```
+
+**The catch is that the unit is coupled to the command**, and the compiler cannot see that. Today's code
+picks both together — `useSeconds = milliseconds % 1000 == 0`, then `HEXPIRE` versus `HPEXPIRE`
+(`RedisDatabase.cs:447-449`). So `$"{RedisCommand.PEXPIRE} {key} {ttl:s}"` would compile and be wrong.
+That is an analyzer rule, and a new *kind* of rule: relating a specifier to the value of another hole.
+Tractable, because the command is normally a literal at the call site, but more involved than the
+per-hole checks in §7.
+
+A mistyped-but-present specifier still falls through to a runtime `FormatException`, so the analyzer
+should also pin the valid set per type.
 
 ### 2.4 `RedisCommand` and CommandMap
 
@@ -1013,9 +1042,9 @@ A working spike, all `internal`, so there is no public API commitment yet.
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 41 tests |
 | `src/StackExchange.Redis/Interpolated/RespFragment.cs` | pre-framed token runs + the `[Resp]` marker |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterDemo.cs` | 7 worked examples, each asserting the exact frame |
-| `tests/StackExchange.Redis.Tests/InterpolatedWriterFragmentTests.cs` | 5 tests; both halves of the partial-property pattern, hand-written |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterFragmentTests.cs` | 6 tests; both halves of the partial-property pattern, hand-written |
 
-Green on net10.0 and net8.0 (53 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
+Green on net10.0 and net8.0 (54 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
 clean.
 
 `InterpolatedWriterDemo` is the readable end-to-end example — each case asserts the exact rendered frame,
