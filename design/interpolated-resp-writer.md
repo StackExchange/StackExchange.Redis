@@ -1159,12 +1159,30 @@ Two objections that look like blockers are not:
 
 | | Job | Suppressible |
 | --- | --- | --- |
-| `[Experimental(SER011)]` | squiggle at the call site, link, code fix — teaches | yes |
-| generator emits `#error` | the build fails regardless — guarantees | no |
+| `[Experimental(SER011)]` | code fix — "convert to a `[Resp]` partial property" | yes |
+| generator emits `#error` | the build fails regardless | no |
 
 The generator does not need to know whether the diagnostic was suppressed; it emits `#error` for every
 construction it did not emit itself. So suppressing `SER011` removes the squiggle and changes nothing
 about the outcome, which is honest — the suppression stops claiming to achieve something it does not.
+
+**`#error` is not stuck at "right here":** `#line` redirects it, so the generator can report *at the
+offending call site*, in a file it never wrote. Both forms verified, reporting into a `Consumer.cs` that
+does not exist:
+
+```csharp
+#line 42 "Consumer.cs"                      // -> Consumer.cs(42,8)
+#line (12, 34) - (12, 58) 1 "Consumer.cs"   // -> Consumer.cs(12,40), the C# 10 span form
+#error RespFragment constructed by hand; see https://seredis.dev/exp/SER011
+#line default
+```
+
+The span form is the one added in C# 10 for generators. Note the mapped column derives from the physical
+column in the *generated* file adjusted by the `charOffset` argument — asking for column 34 gave 40 — so
+landing it exactly means laying the emitted line out deliberately, not merely stating the offsets.
+
+Since generators run in the IDE, this gives a live squiggle in the right place, which leaves the code fix
+as the analyzer's only unique contribution.
 
 **This only works with a sanctioned escape hatch, and it has to exist first.** A
 `RespFragment.CreateValidated(bytes, argCount)` that checks framing at runtime, which the generator
@@ -1172,12 +1190,12 @@ ignores. Then "you cannot hand-roll a fragment" is a true statement with a suppo
 startup-built case from §2.3, rather than a dead end. Without it, the absolute block is the hostile
 version.
 
-So the reasons to be careful are about judgement rather than mechanism:
-
-- **It fails this repo's own bar for an error.** `Diagnostics.cs` reserves `DiagnosticSeverity.Error` for
-  code that *cannot work* — "there is no arrangement of the surrounding code that makes it work" — and
-  warns that "an error that can be wrong is a broken build on correct code, which is a far worse trade
-  than a warning that can be wrong". A hand-built fragment with correct bytes works.
+The one remaining tension is with this repo's own bar for an error. `Diagnostics.cs` reserves
+`DiagnosticSeverity.Error` for code that *cannot work*, and a hand-built fragment with correct bytes
+works. The counter-argument, which carries here: **the blast radius is not the caller's own code.**
+Malformed RESP desyncs the connection for every *subsequent* command, so the damage is unbounded and
+lands somewhere unrelated. That is a different class of hazard from "you get a wrong answer", and it is
+what justifies the asymmetry.
 - **It forecloses the legitimate case** in §2.3 unless `CreateValidated` ships alongside it — which is
   why that is a precondition rather than a nicety.
 
