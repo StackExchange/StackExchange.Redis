@@ -416,16 +416,23 @@ generally. No duplicate entries, no hit-rate cost; the protocol simply does not 
 
 ### 6.3 Caching the result: blob by default, value by exception
 
-`HybridCache` is the model worth copying. Its default is to cache the serialized **blob** and re-run the
-deserializer per read; it caches the **value** only when the type is detectably immutable or the caller
-has explicitly said so — which is a large win for strings.
+`HybridCache` is the model worth copying — see
+[Reuse objects](https://learn.microsoft.com/aspnet/core/performance/caching/hybrid?view=aspnetcore-10.0#reuse-objects).
+
+Its default is that every retrieval deserializes, so each concurrent caller gets a **separate instance**.
+That is deliberate: it preserves the `IDistributedCache` behaviour most callers are migrating from, so
+adopting `HybridCache` cannot introduce concurrency bugs. (`string` and `byte[]` are handled internally;
+everything else goes through a serializer.) Reuse is opt-in, and requires **both**:
+
+- the type is `sealed`, and
+- the type carries `[ImmutableObject(true)]`.
 
 Applied here, the default is to cache the raw RESP response bytes and re-run the `ResultProcessor<T>`.
 That is safe for any `T`, and it is the same property that makes §6.2 work: the processor is the single
 place that tolerates RESP2 versus RESP3, so a cached blob is readable whichever shape it holds.
 
-Value-caching is then the optimisation, and eligibility here is subtler than `HybridCache`'s, because it
-is **instance**-dependent rather than purely type-dependent:
+Value-caching is then the optimisation — and **the `HybridCache` opt-in does not port directly**, because
+eligibility here is *instance*-dependent rather than type-dependent:
 
 | | By value? |
 | --- | --- |
@@ -433,19 +440,34 @@ is **instance**-dependent rather than purely type-dependent:
 | `RedisValue`, `RedisKey` | **only sometimes** — see below |
 | `RedisValue[]`, `RedisKey[]`, `RedisResult` | no |
 
-`RedisValue` and `RedisKey` are `readonly struct`s, but they are not *deeply* immutable: the `byte[]`
-conversion returns the **internal array** when the value is fully array-backed
-(`RedisValue.cs:1198-1200`; `RedisKey` via `TryGetSimpleBuffer`), rather than a copy. A caller can take
-that array and mutate it, poisoning every other holder of the same cached instance. `StorageType`
-distinguishes the cases — string-, integer-, double- and short-blob-backed values either copy or never
-expose an array; only the full-array case leaks — so the check is cheap, but it is a check on the
-*value*, not on `typeof(T)`.
+`RedisValue` and `RedisKey` are `readonly struct`s, so the `sealed` half is trivially satisfied — but
+they are not *deeply* immutable, so `[ImmutableObject(true)]` would be a lie. The `byte[]` conversion
+returns the **internal array** when the value is fully array-backed (`RedisValue.cs:1198-1200`;
+`RedisKey` via `TryGetSimpleBuffer`) rather than a copy, so a caller can take that array, mutate it, and
+poison every other holder of the same cached instance. `StorageType` distinguishes the cases —
+string-, integer-, double- and short-blob-backed values either copy or never expose an array; only the
+full-array case leaks — so the check is cheap, but it is a check on the *value*, not on `typeof(T)`.
+
+A type-level attribute therefore cannot express it. Either the eligibility test is a runtime predicate
+over the value, or array-backed values are copied on the way into the cache.
 
 Array returns are common across this API, and they are exactly the poisoning hazard that blob-by-default
 exists to prevent, so the default matters more here than it might elsewhere.
 
-Nothing in the repo is annotated for this today — no `[ImmutableObject]`, no `HybridCache` reference — so
-the explicit opt-in marker would be new.
+Nothing in the repo is annotated for this today — no `[ImmutableObject]`, no `HybridCache` reference.
+
+### 6.3.1 The same trick, already anticipated
+
+`HybridCache`'s own cache-key guidance recommends writing the key as an interpolated string *inline at
+the call site*:
+
+> Notice that the inline interpolated string syntax (`$"..."` [...]) is directly inside the
+> `GetOrCreateAsync` call. This syntax is recommended when using `HybridCache`, as it allows for planned
+> future improvements that bypass the need to allocate a `string` for the key in many scenarios.
+
+That is this document's technique, in the public guidance of the library whose caching model §6.3 is
+copying: keep the interpolation at the call site so a handler can consume the parts without ever
+materialising a `string`. Worth knowing that the shape is already established rather than novel.
 
 ### 6.4 Buffer ownership
 
