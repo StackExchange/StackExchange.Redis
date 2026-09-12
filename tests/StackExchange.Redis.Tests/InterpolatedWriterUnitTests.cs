@@ -132,6 +132,21 @@ public class InterpolatedWriterUnitTests
     }
 
     [Fact]
+    public void DatabaseIsNotPartOfTheRenderedFrame()
+    {
+        // SELECT is a separate command on the connection, so the same logical command renders IDENTICALLY
+        // on different databases. Cache identity therefore needs (frame, database) - the frame alone is not
+        // enough, which is easy to miss because everything else that matters (prefix, renamed command,
+        // arguments) IS in the bytes.
+        using var a = new RespContext(database: 0).Execute($"{RedisCommand.GET}{(RedisKey)"k"}");
+        using var b = new RespContext(database: 3).Execute($"{RedisCommand.GET}{(RedisKey)"k"}");
+
+        Assert.True(a.Span.SequenceEqual(b.Span));
+        Assert.Equal(0, new RespContext(database: 0).Database);
+        Assert.Equal(3, new RespContext(database: 3).Database);
+    }
+
+    [Fact]
     public void BothPrefixMechanismsRenderIdenticalBytes()
     {
         // decorator-applied prefix (rides on the key) vs context-applied prefix (applied at write time).

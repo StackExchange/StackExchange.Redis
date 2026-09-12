@@ -386,7 +386,24 @@ All O(1) state, all during the write, none needing a second pass:
 
 A lookup is then hash → bucket → `SequenceEqual`, with no walk unless a real collision.
 
-### 6.2 Buffer ownership
+### 6.2 The database number is not in the frame
+
+`SELECT` is a separate command on the connection, so `GET foo` on database 0 and database 3 render
+**byte-identically**. Cache identity is therefore `(frame, database)`, never the frame alone.
+
+This is obvious once stated and very easy to overlook, precisely because everything *else* that affects
+identity is already in the bytes — the key prefix, a renamed command from the `CommandMap`, every
+argument — so the frame feels self-sufficient. The context already carries `Database`, so the fix is to
+fold it into the hash alongside the bytes; the cost is remembering to.
+
+Pinned by `DatabaseIsNotPartOfTheRenderedFrame`.
+
+Two neighbours worth checking when the cache is built: the protocol version, if what is cached is raw
+*response* bytes (RESP2 and RESP3 shapes differ), and the multiplexer itself, if a process talks to
+more than one deployment. Both are naturally scoped per-connection or per-multiplexer, so they are
+likely free — but by scoping, not by being in the frame.
+
+### 6.3 Buffer ownership
 
 A pooled buffer **must not** be retained as a dictionary key without ownership transfer — `ArrayPool`
 reuse would mutate live cache keys, and the failure mode is wrong data served from cache, not a crash.
@@ -409,7 +426,7 @@ whole lifetime, so keys can be recovered lazily from a cached entry without re-r
 would have forced rebasing them by the frame-start delta — the same off-by-a-few-bytes hazard as §5.2,
 reintroduced at a second site.
 
-### 6.3 Exception paths
+### 6.4 Exception paths
 
 The lowering puts construction and all `Append` calls in the *caller's* frame, before `Execute` is
 entered:
