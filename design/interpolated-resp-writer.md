@@ -245,6 +245,51 @@ If the context is unavailable for some path, command resolution can be **deferre
 handler stores the `RedisCommand` and the concrete implementation resolves it at `Close`/`Execute`.
 That is the same mechanism §3.2 already needs, and it keeps mocks working.
 
+### 3.4 The context is not a new idea — it is `MessageWriter`'s parameter list
+
+Long term this replaces `MessageWriter`, and that is the clearest way to see what the context is for:
+`MessageWriter`'s constructor **already takes it**.
+
+```csharp
+public MessageWriter(byte[]? channelPrefix, CommandMap? map, IBufferWriter<byte> writer)
+```
+
+`TestHarness` — already `[Experimental]`, already built for "render RESP and inspect the bytes" — goes
+one further and carries all three prefixes:
+
+```csharp
+public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPrefix = default, RedisKey keyPrefix = default)
+```
+
+So the context is that triple plus the routing and cancellation state (`Database`, `ServerType`,
+`CancellationToken`). `TestHarness` is the closest thing to a prototype already in the tree.
+
+**The two prefixes reach the wire by different routes today**, which is the asymmetry the context is
+meant to end:
+
+| | How it is applied today | Conditional? |
+| --- | --- | --- |
+| `ChannelPrefix` | writer state, applied at write time (`MessageWriter.cs:77`) | yes — skipped when `channel.IgnoreChannelPrefix` |
+| `KeyPrefix` | rides on the `RedisKey` itself, put there upstream by the `KeyPrefixed*` decorators | no |
+
+`TestHarness` mirrors that split exactly — it hands `ChannelPrefix` to the `MessageWriter` but simulates
+the decorator for keys by rewriting the arguments (`TestHarness.cs:133`).
+
+`IgnoreChannelPrefix` is not incidental: keyspace and keyevent notification channels are server-generated
+names and opt out (`RedisChannel.cs:336`, `:422`), so `AppendFormatted(RedisChannel)` has to honour it
+rather than prefixing unconditionally. The read side already strips the channel prefix
+(`PhysicalConnection.Read.cs:817`); keys never got the equivalent, which is §8.4's read-half problem.
+
+### 3.5 A struct context must be valid in its `default` state
+
+If the context is a `struct`, `new RespContext()` binds the **implicit parameterless constructor** that
+zeroes every field — *not* an all-optional-arguments constructor, however tempting that looks. So no
+field may be assumed non-null, and `CommandMap` has to fall back to `CommandMap.Default` on read.
+
+Found the hard way: every test in the spike threw `NullReferenceException` at the first
+`AppendFormatted(RedisCommand)`. It fails at the first command rather than at construction, which is the
+wrong end to debug from.
+
 ---
 
 ## 4. Deferred composition
@@ -541,7 +586,7 @@ exists to prevent, so the default matters more here than it might elsewhere.
 
 Nothing in the repo is annotated for this today — no `[ImmutableObject]`, no `HybridCache` reference.
 
-### 6.3.1 The same trick, already anticipated
+#### The same trick, already anticipated
 
 `HybridCache`'s own cache-key guidance recommends writing the key as an interpolated string *inline at
 the call site*:
@@ -715,7 +760,7 @@ before both the write and the slot (§5.1).
 
 ---
 
-## 8.4 Key prefixes: both mechanisms, permanently
+### 8.4 Key prefixes: both mechanisms, permanently
 
 The two prefix mechanisms coexist for good — the context's prefix, and the prefix a `RedisKey` already
 carries from a `KeyPrefixed*` decorator. That is awkward conceptually but free in the writer:
@@ -733,7 +778,7 @@ render byte-identically — pinned by `BothPrefixMechanismsRenderIdenticalBytes`
 rendered frame serve as a cache key (§6): cache identity must come off the frame, never off the key
 object.
 
-### The new `KeyPrefixedDatabase`
+#### The new `KeyPrefixedDatabase`
 
 The write half collapses to `localCtx = downstreamCtx.WithKeyPrefix(prefix)` with no per-method
 overrides — roughly 2600 lines of forwarding in `KeyspaceIsolation/` become one context clone.
@@ -768,7 +813,46 @@ keyspace notifications, and script/`Execute` results.
 
 ---
 
-## 9. Open questions
+## 9. The spike in this repo
+
+A working spike, all `internal`, so there is no public API commitment yet.
+
+| File | What it is |
+| --- | --- |
+| `src/StackExchange.Redis/FrameworkShims.InterpolatedStringHandler.cs` | the attribute polyfill (§1), same shape as the `IsExternalInit` shim |
+| `src/StackExchange.Redis/Interpolated/RespContext.cs` | CommandMap, KeyPrefix, ChannelPrefix, Database, ServerType, CancellationToken; `With*` clones; `Execute` |
+| `src/StackExchange.Redis/Interpolated/RespCommandHandler.cs` | renders the frame, folds the slot, marks keys |
+| `src/StackExchange.Redis/Interpolated/RespFrame.cs` | rendered frame + slot + key marks + `KeyRange` |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 26 tests |
+
+Green on net10.0 and net8.0; net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true` clean.
+
+What the tests pin, grouped by the section they belong to:
+
+- **Framing** — `RendersCommandKeyAndValue`, `RendersExactBytes`, `MultiByteAndEmptyPayloadsRoundTrip`,
+  `LargePayloadForcesBufferGrowthMidBuild` (forces a pool regrow *after* the prologue is reserved).
+- **Header back-fill (§4)** — `HeaderBackfillIsRightAligned`, theory over 1/9/10/120 extra arguments, so
+  the frame start moves as `*N` gains digits; it also asserts the key offset survives that.
+- **CommandMap (§2.4)** — `CommandMapRenamesAreApplied`, `DisabledCommandThrows`, `CommandMustComeFirst`.
+- **Prefixes (§3.4, §8.4)** — `KeyPrefixIsAppliedToTheWire`, `KeyPrefixComposesWithAKeyThatAlreadyHasOne`,
+  `NestedWithKeyPrefixComposes`, `BothPrefixMechanismsRenderIdenticalBytes`,
+  `ComposingBothPrefixMechanismsDoesNotAllocate`, `ChannelPrefixIsApplied`,
+  `ChannelPrefixIsSkippedWhenTheChannelOptsOut`.
+- **Keys and routing (§5)** — `NoKeysMeansNoSlotAndNoMarks`, `OneAndTwoKeysResolveWithoutScanning`,
+  `ThreeKeysFallBackToScanning`, `StandaloneSkipsSlotComputation`,
+  `ClusterFoldsTheSlotFromTheWrittenBytes`, `SharedHashTagGivesOneSlot`, `CrossSlotKeysAreDetected`,
+  `SlotIsComputedFromThePrefixedKey`.
+- **Cache identity (§6.2)** — `DatabaseIsNotPartOfTheRenderedFrame`.
+- **Cancellation (§3.3)** — `CancellationIsObservedAndTheBufferIsReturned`,
+  `CancellationTokenFlowsThroughWithClones`.
+
+**What the spike does not do:** it stops at "the right bytes were rendered, and we know which arguments
+were keys". Nothing dispatches, nothing caches, and the read half (§8.4) is untouched — so the claim
+that the context can be threaded through to result processing is design, not demonstration.
+
+---
+
+## 10. Open questions
 
 - **`Raw` multi-arg and the bit cursor.** A fragment with `ArgCount > 1` must advance the key-mark bit
   cursor by its arg count, not by 1. Either forbid keys in `Raw` (rule 5) or have `Raw` carry its own
@@ -790,11 +874,11 @@ keyspace notifications, and script/`Execute` results.
 
 ---
 
-## 10. Verification log
+## 11. Verification log
 
-Everything above marked "verified" was compiled and, where runtime behaviour was in question, run.
-Scratch projects multi-target `netstandard2.0;net472;net8.0`, `LangVersion 14`, referencing the real
-`src/RESPite` and `src/StackExchange.Redis`.
+Everything above marked "verified" was compiled and, where runtime behaviour was in question, run —
+first in throwaway scratch projects multi-targeting `netstandard2.0;net472;net8.0` against the real
+`src/RESPite` and `src/StackExchange.Redis`, and then in the in-repo spike of §9.
 
 Generated frames were validated by parsing them back with RESPite's own `RespReader`, including
 `DemandEnd()` so the frame must be exactly consumed — over- and under-run both fail.
