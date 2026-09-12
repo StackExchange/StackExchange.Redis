@@ -974,8 +974,23 @@ A working spike, all `internal`, so there is no public API commitment yet.
 | `src/StackExchange.Redis/Interpolated/RespCommandHandler.cs` | renders the frame, folds the slot, marks keys |
 | `src/StackExchange.Redis/Interpolated/RespFrame.cs` | rendered frame + slot + key marks + `KeyRange` |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 39 tests |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterDemo.cs` | 7 worked examples, each asserting the exact frame |
 
-Green on net10.0 and net8.0; net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true` clean.
+Green on net10.0 and net8.0 (46 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
+clean.
+
+`InterpolatedWriterDemo` is the readable end-to-end example — each case asserts the exact rendered frame,
+so it doubles as documentation of what the shapes produce:
+
+```
+FixedArity                *2|$3|GET|$6|user:1|                        slot=10778  keys=user:1
+KeyAndValue               *3|$3|SET|$6|user:1|$4|marc|                slot=10778  keys=user:1
+KeyspaceIsolation         *2|$3|GET|$9|t7:user:1|                     slot=13865  keys=t7:user:1
+OptionalArguments         *5|$3|SET|$6|user:1|$4|marc|$2|EX|$3|300|   slot=10778  keys=user:1
+VariadicWithSharedHashTag *4|$3|DEL|$5|{u}:a|$5|{u}:b|$5|{u}:c|       slot=11826  keys=<scan>
+CrossSlotIsDetected       *3|$3|DEL|$5|alpha|$4|beta|                 slot=MULTI  keys=alpha,beta
+ChannelPrefix             *3|$7|PUBLISH|$8|app:news|$2|hi|            slot=5631   keys=<none>
+```
 
 What the tests pin, grouped by the section they belong to:
 
@@ -1008,6 +1023,11 @@ that the context can be threaded through to result processing is design, not dem
 
 ## 10. Open questions
 
+- **Should a `RedisChannel` fold into the same slot as keys?** The spike folds it unconditionally, which
+  suits sharded pub/sub (`SPUBLISH`) but is meaningless for plain `PUBLISH`, where the channel does not
+  route by slot. `RedisChannel` carries a `KeyRouted` option (`Subscription.cs:83`) that presumably ought
+  to gate it, and sharing one `_slot` field between keys and channels conflates two different things.
+  Visible in the worked example as `ChannelPrefix` reporting `slot=5631` for a plain `PUBLISH`.
 - **`Raw` multi-arg and the bit cursor.** A fragment with `ArgCount > 1` must advance the key-mark bit
   cursor by its arg count, not by 1. Either forbid keys in `Raw` (rule 5) or have `Raw` carry its own
   bitmap to shift and OR in.
