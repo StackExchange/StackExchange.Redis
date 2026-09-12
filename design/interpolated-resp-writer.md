@@ -1,7 +1,9 @@
 # Interpolated-string RESP writer
 
-Design notes for the v3 writer work. **Nothing here is implemented** — this records what was
-verified empirically, what follows from it, and what is still open.
+Design notes for the v3 writer work. This records what was verified empirically, what follows from it,
+and what is still open. A working spike lives in `src/StackExchange.Redis/Interpolated/` with unit tests
+in `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs`; everything there is `internal`, so
+there is no public API commitment yet.
 
 The idea: let command construction read as
 
@@ -542,6 +544,59 @@ So "the execution API that replaces `KeyPrefixedDatabase`" is the *pattern* — 
 context threaded through with `With*` clones, instead of a decorator object per prefix — rather than
 something finished. Wiring it is part of this work: `AppendFormatted(RedisKey)` applies the prefix
 before both the write and the slot (§5.1).
+
+---
+
+## 8.4 Key prefixes: both mechanisms, permanently
+
+The two prefix mechanisms coexist for good — the context's prefix, and the prefix a `RedisKey` already
+carries from a `KeyPrefixed*` decorator. That is awkward conceptually but free in the writer:
+`RedisKey.WithPrefix` only allocates in its *"two prefixes; darn"* branch because it must hand back a
+`RedisKey`; the handler needs only the combined *bytes*, and `TotalLength()`/`CopyTo()` already include
+the key's own prefix. So writing the context prefix immediately ahead of them composes both with no
+intermediate object. Verified: **0 bytes allocated over 128 renders** with both prefixes in play.
+
+The context normalises its key prefix to bytes once at construction, so a string-backed prefix does not
+re-convert per command. `WithKeyPrefix` still composes eagerly via `WithPrefix`, but that is once per
+context clone, not per command.
+
+The two mechanisms stay distinguishable as *values* (`RedisKey.Equals` compares the carried prefix) but
+render byte-identically — pinned by `BothPrefixMechanismsRenderIdenticalBytes`. That is what lets the
+rendered frame serve as a cache key (§6): cache identity must come off the frame, never off the key
+object.
+
+### The new `KeyPrefixedDatabase`
+
+The write half collapses to `localCtx = downstreamCtx.WithKeyPrefix(prefix)` with no per-method
+overrides — roughly 2600 lines of forwarding in `KeyspaceIsolation/` become one context clone.
+
+**The read half is the open part**, and today it is largely unhandled rather than merely imperfect:
+
+- `KeyRandom`/`KeyRandomAsync` **throw** `NotSupportedException`, documented in the `WithKeyPrefix`
+  remarks (`DatabaseExtension.cs`).
+- Script and `Execute` results carry prefixed keys — seven `// TODO: ... might make sense to 'unprefix'`
+  sites, and the public docs state the caveat.
+- RESP APIs opt out deliberately: `// note the Resp API explicitly doesn't unprefix keys`.
+- Multi-key pop results (`ListPopResult` from `ListLeftPopAsync(RedisKey[], long)`) forward unstripped,
+  not even TODO'd.
+
+The decorator *cannot* fix this: it sits above the database with no hook into result processing, so
+stripping would mean wrapping every return value. A prefix on the context, threaded through to the
+result processor, makes it one concern in one place. `ChannelPrefix` already has exactly this shape on
+the read side (`PhysicalConnection.Read.cs:817`); keys never got the equivalent.
+
+Two constraints on doing it:
+
+- **Strip at the API boundary, never in the cache or routing layer.** Invalidation pushes carry key
+  names, and the cache is keyed on rendered frames, which contain *prefixed* keys — so an invalidation
+  in prefixed form matches as-is. Stripping earlier would silently stop invalidations matching: stale
+  reads, no error.
+- **Stripping must be conditional.** A script can return a key it built itself that never carried the
+  prefix, so it has to be "starts with the prefix → strip, else leave", and documented as such.
+
+Commands that return key names, and so need this: `RANDOMKEY`, `KEYS`, `SCAN`, the blocking and multi
+pops (`BLPOP`/`BRPOP`/`LMPOP`/`ZMPOP`/`BZPOPMIN`/`BZPOPMAX`), `XREAD`/`XREADGROUP` stream names,
+keyspace notifications, and script/`Execute` results.
 
 ---
 
