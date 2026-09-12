@@ -70,8 +70,30 @@ namespace StackExchange.Redis.Interpolated
             _argIndex = 1;
         }
 
-        [Obsolete("Every part must be a hole, so that the argument count is known at compile time; write $\"{RedisCommand.SET}{key}{value}\", not $\"SET{key}{value}\".", error: true)]
-        public void AppendLiteral(string value) => throw new NotSupportedException();
+        /// <summary>
+        /// Literal text is rejected, with one exception: a single space, which is discarded. That keeps
+        /// <c>$"{RedisCommand.SET} {key} {value}"</c> readable - it mirrors how the command is written
+        /// everywhere else - without the space becoming an argument.
+        /// </summary>
+        /// <remarks>
+        /// Rejecting literals is what makes the compiler-supplied <c>formattedCount</c> the argument count,
+        /// so the <c>*N</c> header can be a compile-time constant. A discarded space does not affect that:
+        /// spaces are literal segments, not holes. See <c>design/interpolated-resp-writer.md</c> section 2.1.
+        /// <para>
+        /// This is a runtime check; the analyzer is expected to catch it at build time, which it must, since
+        /// two spaces look exactly like one.
+        /// </para>
+        /// </remarks>
+        public void AppendLiteral(string value)
+        {
+            if (value is not " ") ThrowNotSeparator(value);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ThrowNotSeparator(string value) => throw new ArgumentException(
+            $"Only a single space may separate arguments; every other part must be a hole. Saw \"{value}\". "
+            + "Write $\"{RedisCommand.SET} {key} {value}\", not $\"SET {key} {value}\".",
+            nameof(value));
 
         public void AppendFormatted(RedisCommand value)
         {

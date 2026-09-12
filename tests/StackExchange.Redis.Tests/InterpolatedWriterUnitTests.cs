@@ -453,4 +453,31 @@ public class InterpolatedWriterUnitTests
         Assert.Throws<RedisCommandException>(() => ctx.Compose(RedisCommand.GET, 0).Dispose());
         Assert.Throws<RedisCommandException>(() => ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}").Dispose());
     }
+
+    // ---- the single-space relaxation ---------------------------------------------------------------
+
+    [Fact]
+    public void SingleSpacesAreAllowedAndDiscarded()
+    {
+        var ctx = new RespContext();
+        using var spaced = ctx.Execute($"{RedisCommand.SET} {(RedisKey)"k"} {(RedisValue)"v"}");
+        using var tight = ctx.Execute($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
+
+        // identical bytes: the space is a literal segment, not an argument
+        Assert.True(spaced.Span.SequenceEqual(tight.Span));
+        Assert.Equal(3, spaced.ArgCount);
+        Assert.Equal(new[] { "SET", "k", "v" }, Parse(spaced.Span));
+        Assert.Equal(new[] { "k" }, Keys(spaced));
+    }
+
+    [Fact]
+    public void OtherLiteralsAreRejected()
+    {
+        var ctx = new RespContext();
+
+        // two spaces look identical to one on the page; this is why the analyzer has to carry the rule
+        Assert.Throws<ArgumentException>(() => ctx.Execute($"{RedisCommand.GET}  {(RedisKey)"k"}").Dispose());
+        Assert.Throws<ArgumentException>(() => ctx.Execute($"{RedisCommand.GET}-{(RedisKey)"k"}").Dispose());
+        Assert.Throws<ArgumentException>(() => ctx.Execute($"SET {(RedisKey)"k"}").Dispose());
+    }
 }

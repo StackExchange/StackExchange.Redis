@@ -76,21 +76,20 @@ support, and down-level the attribute is inert, silently giving a one-element st
 
 ## 2. Shape
 
-### 2.1 Literals are banned
+### 2.1 Literals are rejected, except a single space
 
-`AppendLiteral` is declared but marked `[Obsolete(..., error: true)]`, so every part of the command
-must be a hole:
+Every part of the command must be a hole, with one exception: a **single space**, which is discarded.
 
 ```csharp
-// error CS0619: All parts must be holes: $"{RedisCommand.SET}{key}{value}"
-$"SET{key}{value}"
+ctx.Execute(RedisCommand.SET, $"{key} {value}")   // ok - the space is discarded
+ctx.Execute($"SET {key} {value}")                 // rejected - "SET " is not a separator
+ctx.Execute($"{cmd}  {key}")                      // rejected - two spaces
 ```
 
-Two options were compared. *Omitting* `AppendLiteral` also rejects literals, but produces a
-confusing pair of diagnostics (`CS1061` plus a bogus `CS8941` "does not return void or bool").
-`[Obsolete]` produces one error carrying our own message. Use `[Obsolete]`.
+The space earns its place on readability alone: `$"{RedisCommand.SET} {key} {value}"` mirrors how the
+command is written everywhere else, and costs 0.45 ns (measured below).
 
-**Why ban them:** with no literal segments, the compiler-supplied `formattedCount` *is* the argument
+**Why reject the rest:** with no literal segments, the compiler-supplied `formattedCount` *is* the argument
 count, as a compile-time constant — so `*N\r\n` can be written in the constructor with no counting
 and no back-fill.
 
@@ -122,23 +121,26 @@ of a `u8` route is one more reason to ban literals rather than encode them at ru
 
 ("Traditional method invocation resolution" is also why the ban holds: see below.)
 
-**The ban does not leak.** With *both* an obsolete `AppendLiteral(string)` and a non-obsolete
-`AppendLiteral(ReadOnlySpan<char>)`, the **obsolete one still wins** — `CS0619`, not a silent bind to
-the span overload. That is the "traditional method invocation resolution" rule again: the exact `string`
-match beats the span conversion, and `[Obsolete]` is a post-resolution diagnostic rather than a candidate
-filter. Adding overloads therefore cannot bypass the ban.
+**Enforcement is a runtime check, and wants an analyzer.** An earlier revision marked
+`AppendLiteral(string)` as `[Obsolete(..., error: true)]`, which made *any* literal a compile error —
+strictly stronger, but incompatible with allowing the space. Two findings from that revision, recorded
+because they bear on the alternative:
 
-The corollary is the guard rail worth knowing: the ban depends on the obsolete `string` overload
-continuing to *exist*. Delete it and leave only a span overload, and literal segments silently start
-binding again.
+- *Omitting* `AppendLiteral` also rejects literals, but produces a confusing pair of diagnostics
+  (`CS1061` plus a bogus `CS8941` "does not return void or bool") where `[Obsolete]` gives one error
+  carrying our own message.
+- The obsolete ban did **not** leak: with both an obsolete `AppendLiteral(string)` and a non-obsolete
+  `AppendLiteral(ReadOnlySpan<char>)`, the obsolete one still won (`CS0619`), because the exact `string`
+  match beats the span conversion and `[Obsolete]` applies after resolution.
 
-#### Idea: relax the ban to allow exactly one space
+Allowing the space trades that compile-time guarantee for readability, so the analyzer (§7) has to carry
+the rule instead — in particular because **two spaces look exactly like one** on the page, and a runtime
+throw arrives at the worst possible moment. It also has to reject leading and trailing spaces, which
+satisfy "exactly one space" but are not separators.
 
-`$"{RedisCommand.SET} {key} {value}"` reads as `SET key value` — the form every Redis doc and
-`redis-cli` session uses — where `$"{RedisCommand.SET}{key}{value}"` does not. Permitting a single
-space, discarded at runtime, buys that.
+#### Why the space costs nothing
 
-**It does not cost the `*N` constant**, which is the ban's main justification. Spaces are literal
+**It does not cost the `*N` constant**, which is the main justification for rejecting literals. Spaces are literal
 segments, not holes, so `formattedCount` is unchanged; only `literalLength` moves, which merely nudges
 the buffer size hint. Measured:
 
@@ -152,22 +154,9 @@ machinery in a synthetic loop that does no buffer work at all; a real render is 
 and the operation around it is orders beyond that. Both spellings also render byte-identically, since
 the space is discarded — so cache identity (§6.2) is unaffected.
 
-**What it does cost is the compile-time guarantee.** `AppendLiteral` can no longer be
-`[Obsolete(error: true)]`, so `$"SET{key}"` becomes an exception on first execution rather than a build
-break. The analyzer (§7) can restore that, and it is already required for the `Resp.Raw` rules, so this
-is one more rule on existing machinery rather than new machinery — with the runtime check demoted to a
-backstop.
-
-Three cases the analyzer must cover, because a runtime check handles them badly:
-
-- **Two spaces look exactly like one.** Throwing on `$"{a}  {b}"` is correct but arrives at the worst
-  moment, and the defect is invisible on the page.
-- **Position.** "Exactly one space" also permits `$" {a}"` and `$"{a} "`; the rule wanted is *between*
-  holes.
-- **Formatters.** Nothing stops a tool normalising whitespace inside an interpolated string.
-
-Note this also retires the "ban does not leak" property below: with no obsolete overload there is no
-overload-resolution argument to lean on, and enforcement rests on the analyzer plus the runtime check.
+The cost is the compile-time guarantee, discussed above: enforcement moves to a runtime check plus the
+analyzer. Formatters are a third hazard alongside the two already noted — nothing stops a tool
+normalising whitespace inside an interpolated string.
 
 **Non-interpolated strings do *not* bind to the handler.** If a `string` overload exists alongside,
 `Write(buf, "plain literal")` silently takes it while `Write(buf, $"GET {key}")` takes the handler.
@@ -973,10 +962,10 @@ A working spike, all `internal`, so there is no public API commitment yet.
 | `src/StackExchange.Redis/Interpolated/RespContext.cs` | CommandMap, KeyPrefix, ChannelPrefix, Database, ServerType, CancellationToken; `With*` clones; `Execute` |
 | `src/StackExchange.Redis/Interpolated/RespCommandHandler.cs` | renders the frame, folds the slot, marks keys |
 | `src/StackExchange.Redis/Interpolated/RespFrame.cs` | rendered frame + slot + key marks + `KeyRange` |
-| `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 39 tests |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 41 tests |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterDemo.cs` | 7 worked examples, each asserting the exact frame |
 
-Green on net10.0 and net8.0 (46 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
+Green on net10.0 and net8.0 (48 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
 clean.
 
 `InterpolatedWriterDemo` is the readable end-to-end example — each case asserts the exact rendered frame,
@@ -994,6 +983,8 @@ ChannelPrefix             *3|$7|PUBLISH|$8|app:news|$2|hi|            slot=5631 
 
 What the tests pin, grouped by the section they belong to:
 
+- **Literals (§2.1)** — `SingleSpacesAreAllowedAndDiscarded` (spaced and unspaced render identical
+  bytes), `OtherLiteralsAreRejected` (two spaces, a hyphen, a leading command name).
 - **Framing** — `RendersCommandKeyAndValue`, `RendersExactBytes`, `MultiByteAndEmptyPayloadsRoundTrip`,
   `LargePayloadForcesBufferGrowthMidBuild` (forces a pool regrow *after* the prologue is reserved).
 - **Header back-fill (§4)** — `HeaderBackfillIsRightAligned`, theory over 1/9/10/120 extra arguments, so

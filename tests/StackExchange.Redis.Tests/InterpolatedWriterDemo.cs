@@ -40,7 +40,7 @@ public class InterpolatedWriterDemo
     [Fact]
     public void KeyAndValue()
     {
-        using var frame = Cluster.Execute(RedisCommand.SET, $"{(RedisKey)"user:1"}{(RedisValue)"marc"}");
+        using var frame = Cluster.Execute(RedisCommand.SET, $"{(RedisKey)"user:1"} {(RedisValue)"marc"}");
 
         Assert.Equal("*3|$3|SET|$6|user:1|$4|marc|", Frame(frame));
         Assert.Equal("user:1", Keys(frame)); // the value is not a key, and is not marked as one
@@ -63,7 +63,7 @@ public class InterpolatedWriterDemo
     [Fact]
     public void OptionalArguments()
     {
-        var cmd = Cluster.Compose(RedisCommand.SET, $"{(RedisKey)"user:1"}{(RedisValue)"marc"}");
+        var cmd = Cluster.Compose(RedisCommand.SET, $"{(RedisKey)"user:1"} {(RedisValue)"marc"}");
         cmd.AppendFormatted((RedisValue)"EX");
         cmd.AppendFormatted((RedisValue)300);
         using var frame = Cluster.Execute(ref cmd);
@@ -102,7 +102,7 @@ public class InterpolatedWriterDemo
     {
         var pub = Cluster.WithChannelPrefix(new RedisChannel("app:", RedisChannel.PatternMode.Literal));
         var channel = new RedisChannel("news", RedisChannel.PatternMode.Literal);
-        using var frame = pub.Execute(RedisCommand.PUBLISH, $"{channel}{(RedisValue)"hi"}");
+        using var frame = pub.Execute(RedisCommand.PUBLISH, $"{channel} {(RedisValue)"hi"}");
 
         Assert.Equal("*3|$7|PUBLISH|$8|app:news|$2|hi|", Frame(frame));
         Assert.Equal("", Keys(frame)); // a channel is not a key
