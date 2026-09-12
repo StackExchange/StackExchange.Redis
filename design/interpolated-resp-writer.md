@@ -39,6 +39,7 @@ Verified by compiling across `netstandard2.0` / `net472` / `net8.0`:
 | C# 14 extension members (`extension(...) { }`) | works | also pure lowering |
 | `[OverloadResolutionPriority]` | works | polyfill the attribute in source |
 | `scoped` on span params | works | `ScopedRefAttribute` is compiler-synthesized |
+| `System.Index` / `System.Range` | works, but **`internal` only** | public polyfill would collide on newer TFMs; unusable in public API |
 
 `net461` was not tested (no reference assemblies to hand) but uses the same compiler path; the only
 dependency is `ReadOnlySpan<byte>`, which RESPite already has there via `System.Memory`.
@@ -189,6 +190,50 @@ loses the receiver, which means:
 
 Prefer the argument form. Its terseness advantage is small and the receiver is the thing you need.
 
+### 3.3 The receiver, and a context object
+
+`[InterpolatedStringHandlerArgument("")]` passes the **receiver** of the call into the handler's
+constructor. Verified working in every shape that matters — concrete receiver, receiver via an
+interface, implicit `this` from inside the type, an `object`-typed ctor parameter, and extension
+methods (where the receiver is the first parameter, so `nameof(db)` rather than `""`).
+
+**Rule:** the receiver's *static type at the call site* must be convertible to the ctor parameter
+type. Declaring `Execute` on `IDatabase` therefore forces the ctor to accept `IDatabase`.
+
+That is a problem, because `CommandMap` is not reachable from there — it is not on
+`IConnectionMultiplexer` and is not public API at all; `IDatabase` reaches only
+`IConnectionMultiplexer Multiplexer` (`IRedisAsync.cs:14`). A downcast would work inside the
+assembly but **breaks every `IDatabase` mock**, and breaks it during command *construction*, in the
+caller's frame, before the mock's `Execute` is reached.
+
+**Resolution: a dedicated context type as the receiver** — `ctx.Execute($"...")` — carrying:
+
+| Shared per multiplexer | Varies per instance |
+| --- | --- |
+| CommandMap, buffer manager, client-side cache, `ServerType` | `KeyPrefix`, database index |
+
+`ServerType` matters: `HashSlot` short-circuits to `NoSlot` for standalone
+(`ServerSelectionStrategy.cs:101-102`), so without it the handler computes CRC16 over every key for
+standalone deployments that never use the result.
+
+That granularity is one context per *(multiplexer, db, prefix)* — what `RedisDatabase` already has —
+so cache one per database instance rather than allocating per command. Make it a **class**: a struct
+with five or six fields is copied into the handler on every command, a reference is one field.
+
+**Cost: the context type must be public.** The accessibility chain is forced, and verified
+cross-assembly — an `internal` handler constructor fails at the consumer call site with
+`CS1729: does not contain a constructor that takes 3 arguments`, because it is the *consumer's*
+lowered code that constructs the handler. Public ctor therefore implies a public parameter type.
+
+Its **members can all be internal**, though: a `public sealed class` whose `CommandMap`/`KeyPrefix`/
+`BufferManager` are internal works cross-assembly and gives consumers a name they can neither
+construct nor read from. Verified. That is a small commitment, but a permanent one, so it belongs in
+`PublicAPI.Shipped.txt` deliberately rather than being noticed at pack time.
+
+If the context is unavailable for some path, command resolution can be **deferred** instead — the
+handler stores the `RedisCommand` and the concrete implementation resolves it at `Close`/`Execute`.
+That is the same mechanism §3.2 already needs, and it keeps mocks working.
+
 ---
 
 ## 4. Deferred composition
@@ -288,6 +333,11 @@ PASS single key, 2-digit count (frame start moved) keys(no scan)=[user:1]
      three keys                                    -> scan required (as designed)
 PASS zero keys                                     keys(no scan)=[]
 ```
+
+**Do not expose `System.Range` in the key-resolution API.** `Index`/`Range` polyfill fine down-level
+(the compiler matches them by name), but the polyfill must be `internal` — public would collide with
+the real types on newer TFMs. A public method taking `Span<Range>` then fails with
+`CS0051: Inconsistent accessibility`. Use a purpose-built `(offset, length)` struct.
 
 **Open seam:** on promotion to bitmap mode the two stored *offsets* must become *arg indices*, which
 were never recorded, and there aren't spare bits to carry both (1 + 31 + 31 leaves one). Pragmatic
