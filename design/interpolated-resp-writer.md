@@ -14,6 +14,10 @@ building a `Message` + argument array. The handler is pure formatting: it runs o
 thread, ahead of the critical section, and the bytes it produces double as the client-side cache
 key before anything touches the muxer core. It is never near a connection.
 
+This is intended to **replace the writer half of the `marc/respite` v3 PoC spike** — its manual
+`RespWriter` + `RespOperationBuilder`. The execution API around it (`RespContext`, cancellation,
+`RespContextDatabase`) is good and carries over unchanged. See §8.
+
 ---
 
 ## 1. Is the handler pattern usable down-level?
@@ -217,8 +221,12 @@ caller's frame, before the mock's `Execute` is reached.
 standalone deployments that never use the result.
 
 That granularity is one context per *(multiplexer, db, prefix)* — what `RedisDatabase` already has —
-so cache one per database instance rather than allocating per command. Make it a **class**: a struct
-with five or six fields is copied into the handler on every command, a reference is one field.
+so cache one per database instance rather than allocating per command.
+
+**Class or struct:** a context that *stores* all of the above wants to be a class, since a five- or
+six-field struct is copied into the handler on every command. But it does not have to store them —
+see §8, where the `marc/respite` spike keeps `RespContext` to four fields and derives `CommandMap`
+through the connection. That factoring is better and keeps a `readonly struct` viable.
 
 **Cost: the context type must be public.** The accessibility chain is forced, and verified
 cross-assembly — an `internal` handler constructor fails at the consumer call site with
@@ -462,7 +470,82 @@ Rules 1–3 have mechanical code fixes, which is presumably what the CodeFixes a
 
 ---
 
-## 8. Open questions
+## 8. Prior art: the `marc/respite` spike
+
+`origin/marc/respite` is the v3 PoC spike — a tip (nothing contains it), 117 commits ahead of `main`,
+370 files under `src/`, last commit `2026-03-06` *"support WriteMode"*. Siblings from the same push:
+`marc/localwriter` (2026-03-06) and `marc/resp-reader` (2026-03-13). `marc/respite-weekend`
+(2025-09-22) is a sub-branch that merged into it, not the spike itself.
+
+Projects: `RESP.Core`, `RESPite`, `RESPite.Redis`, `RESPite.StackExchange.Redis`,
+`RESPite.Benchmark`, alongside `StackExchange.Redis`.
+
+**This document replaces the spike's *writer* half only.** The execution API around it is good and
+carries over.
+
+### 8.1 What carries over
+
+`RespContext` — a `readonly struct` of four fields:
+
+```csharp
+private readonly RespConnection _connection;
+public readonly CancellationToken CancellationToken;
+private readonly int _database;
+private readonly RespContextFlags _flags;
+
+public RespCommandMap CommandMap => _connection.NonDefaultCommandMap ?? RespCommandMap.Default;
+```
+
+- `With*` clone surface — `WithCancellationToken`, `WithDatabase`, `WithConnection`, `WithFlags`,
+  `With(db, flags)`, `With(db, flags, mask)`, `ConfigureAwait` — each copying the struct and assigning
+  through `Unsafe.AsRef(in clone._x)`.
+- Cancellation: `WithCombineCancellationToken` / `WithCombineTimeout` / `WithCombine` return a
+  `Lifetime : IDisposable` owning the linked CTS, with the no-op fast paths handled (uncancellable
+  token, already-equal token, no existing token to link).
+- `RespContextFlags` is bit-aligned with `CommandFlags`, so `RespContextDatabase.Context(flags)` is a
+  cast plus a mask — no mapping table.
+- `RespContextDatabase` implements `IDatabase` over an `IRespContextSource`, split across the usual
+  per-type partials.
+
+**This is the context object §3.3 arrives at independently**, and its factoring is better than what
+§3.3 first proposed: it *derives* `CommandMap` from the connection rather than storing it, which is
+what keeps it to four fields and makes the `With*` clone pattern affordable. Adopt that — store the
+connection, derive the rest — rather than a class holding CommandMap + prefix + buffer manager +
+cache + `ServerType`.
+
+### 8.2 What the handler replaces
+
+The spike's writer is a manual builder: `RespOperationBuilder<T>` from
+`RespContextExtensions.Command<T>()`, then `Send`/`SendAsync`/`CreateOperation`, with the frame
+assembled by hand through `RespWriter`. Three specific things get better:
+
+| Spike | Handler |
+| --- | --- |
+| `WriteCommand(command, args)` — caller states the arg count | `formattedCount` is a compile-time constant |
+| `WriteKey(...)` — a plain alias for `WriteBulkString`, no behaviour | `AppendFormatted(RedisKey)` — prefix, slot fold, key marks |
+| `public RespCommandMap? CommandMap { get; set; }` on the writer | supplied via the receiver; immutable, cannot be forgotten |
+
+The first is the substantive one. A hand-maintained argument count can disagree with the writes that
+follow it, which is exactly the failure `RenderedArgs.ThrowArgCountMismatch` exists to catch on `main`
+— a runtime check for something the handler makes unrepresentable.
+
+The second matters because `WriteKey` is where routing and invalidation have to attach. The spike cut
+the seam in the right place and left it empty.
+
+### 8.3 The key-prefix gap
+
+The spike has `RespConfiguration.KeyPrefix` (`ReadOnlySpan<byte>`, settable as `string` or `byte[]`
+on the builder) *and* distinct `WriteKey` overloads on `RespWriter` — but nothing connects them; the
+prefix is never applied, and `KeyspaceIsolation/KeyPrefixed*.cs` is still present on the branch.
+
+So "the execution API that replaces `KeyPrefixedDatabase`" is the *pattern* — a cheap value-type
+context threaded through with `With*` clones, instead of a decorator object per prefix — rather than
+something finished. Wiring it is part of this work: `AppendFormatted(RedisKey)` applies the prefix
+before both the write and the slot (§5.1).
+
+---
+
+## 9. Open questions
 
 - **`Raw` multi-arg and the bit cursor.** A fragment with `ArgCount > 1` must advance the key-mark bit
   cursor by its arg count, not by 1. Either forbid keys in `Raw` (rule 5) or have `Raw` carry its own
@@ -484,7 +567,7 @@ Rules 1–3 have mechanical code fixes, which is presumably what the CodeFixes a
 
 ---
 
-## 9. Verification log
+## 10. Verification log
 
 Everything above marked "verified" was compiled and, where runtime behaviour was in question, run.
 Scratch projects multi-target `netstandard2.0;net472;net8.0`, `LangVersion 14`, referencing the real
