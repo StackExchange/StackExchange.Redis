@@ -222,6 +222,47 @@ assertion.
 Ship `Resp()` and `Resp(int argCount)` as **separate overloads**, not one optional parameter —
 adding an optional parameter later is a binary break (AGENTS.md).
 
+#### Authoring raw fragments: generated partial properties
+
+Rather than hand-writing `u8` blobs, declare the fragment and let a generator emit it:
+
+```csharp
+// what the author writes
+[Resp]                private static partial Resp Ex    { get; }   // token inferred: "EX"
+[Resp("foo", "bar")]  private static partial Resp FooBar { get; }   // two tokens, ArgCount 2
+
+// what the generator emits
+private static partial Resp Ex     => new("$2\r\nEX\r\n"u8);
+private static partial Resp FooBar => new("$3\r\nFOO\r\n$3\r\nBAR\r\n"u8, 2);
+```
+
+Partial properties are C# 13, and `LangVersion 14` is repo-wide; verified compiling on
+`netstandard2.0`/`net472`/`net8.0`, since like everything else here they are pure compiler lowering.
+
+**This is an existing pattern in the tree, not a new one.** `AsciiHashGenerator` already does it with
+partial *classes*:
+
+```csharp
+[AsciiHash("__keyspace@")]
+private static partial class KeyspaceChannelPrefix { }   // generator emits .HashCS and .U8
+```
+
+Partial properties are simply the tidier shape — one member rather than a nested type. Two conventions
+from `AsciiHashAttribute` transfer directly: the token is **inferred from the member name** unless the
+attribute overrides it, and the attribute is `[Conditional("DEBUG")]` so it evaporates from shipped
+metadata while the generator still sees it in source.
+
+**It largely removes the need for the raw-fragment analyzer rules (§7.1-3).** Those exist to validate
+hand-written `u8`: framing, matching length prefixes, uppercase tokens. A generator emits all three
+correctly *by construction* — there is nothing left to check. The rule becomes "don't hand-write these"
+rather than "validate what you hand-wrote", which is both easier to enforce and impossible to get subtly
+wrong. It also settles the canonicality requirement from §6.3 at the source: the generator uppercases,
+as `AsciiHash` already does.
+
+The optional `argCount` defaulting to 1 is fine here, despite the binary-compat rule against optional
+parameters — that rule is about *shipped public* API, and if the constructor stays internal with
+`.Resp()` as the public factory (§2.3), the generated call site is inside the assembly.
+
 **Considered and dropped: a format specifier.** The compiler supports `{value:R}`, binding to
 `AppendFormatted(T value, string format)`, so a hole could have been *marked* raw rather than typed raw.
 It was tried and works, but loses on three counts: the specifier is only checked at runtime, so `{x:r}`
