@@ -83,6 +83,28 @@ and no back-fill.
 stays a hole. Confirmed both at runtime and by the fact that it compiles against a handler that has
 no `AppendLiteral` at all.
 
+**The compiler always passes a `string`, never u8.** Literal segments arrive as a `string` constant;
+there is no route to having the compiler hand you UTF8 bytes for them. Verified across the three
+plausible overload shapes:
+
+| `AppendLiteral` overload | Binds to a literal segment? |
+| --- | --- |
+| `string` | yes — this is what the compiler passes |
+| `ReadOnlySpan<char>` | yes, via the implicit `string` → span conversion |
+| `ReadOnlySpan<byte>` | **no** — `CS1503: cannot convert from 'string' to 'System.ReadOnlySpan<byte>'` |
+
+The `ReadOnlySpan<char>` form buys nothing (the argument is a constant `string` either way), and the
+absence of a `u8` route is one more reason to ban literals rather than encode them at runtime.
+
+**The ban does not leak.** With *both* an obsolete `AppendLiteral(string)` and a non-obsolete
+`AppendLiteral(ReadOnlySpan<char>)`, the **obsolete one still wins** — `CS0619`, not a silent bind to
+the span overload. Exact match beats the span conversion, and `[Obsolete]` is a post-resolution
+diagnostic rather than a candidate filter, so adding overloads cannot bypass the ban.
+
+The corollary is the guard rail worth knowing: the ban depends on the obsolete `string` overload
+continuing to *exist*. Delete it and leave only a span overload, and literal segments silently start
+binding again.
+
 **Non-interpolated strings do *not* bind to the handler.** If a `string` overload exists alongside,
 `Write(buf, "plain literal")` silently takes it while `Write(buf, $"GET {key}")` takes the handler.
 Either don't provide a `string` overload, or accept that callers must write `$"PING"`.
