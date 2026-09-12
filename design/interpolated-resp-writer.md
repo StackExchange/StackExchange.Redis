@@ -1234,6 +1234,34 @@ consistent with the existing ad-hoc command path rather than a second set of rul
 
 ---
 
+### 9.2 Measured against the existing writer
+
+`InterpolatedWriterBenchmarks` compares rendering the same command three ways, formatting only — no
+server, no dispatch — all writing into the same pre-allocated `IBufferWriter`:
+
+| Method | What it is | Mean | Allocated | Ratio |
+| --- | --- | ---: | ---: | ---: |
+| `KeyValue_Message` | `Message.Create` + `WriteTo` — the typed path `db.StringSet` uses | 63.97 ns | 136 B | 1.00 |
+| `KeyValue_Adhoc` | `ExecuteMessage` over `object[]` — what `Execute(string, ...)` does | 89.69 ns | 152 B | 1.40 |
+| `KeyValue_Interpolated` | this | **41.72 ns** | **0 B** | **0.65** |
+| `Expiry_Message` | four arguments, typed path | 90.91 ns | 168 B | 1.00 |
+| `Expiry_Interpolated` | four arguments, this | **69.83 ns** | **0 B** | **0.77** |
+
+So roughly **a third faster than the typed path and twice as fast as the ad-hoc string path**, with no
+managed allocation where both existing paths allocate 136-168 bytes per command. The ad-hoc row is the
+relevant comparison for the public string overload (§9.1), since that is what it competes with.
+
+Two honest qualifications:
+
+- **The comparison is conservative on time.** The interpolated path renders into a rented buffer and then
+  copies into the target; `Message` writes straight through. Removing that copy would widen the gap.
+- **The 0 B will not survive dispatch.** `Message` allocates partly because it is *retained* for the
+  response. A dispatching implementation needs per-command state too, so the end-to-end delta will not
+  stay 136 B → 0. What the zero does establish is that *formatting itself* need not allocate, which is
+  the half this replaces.
+
+---
+
 ## 10. Open questions
 
 - **Should a `RedisChannel` fold into the same slot as keys?** The spike folds it unconditionally, which
