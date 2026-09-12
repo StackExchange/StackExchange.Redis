@@ -471,13 +471,28 @@ public class InterpolatedWriterUnitTests
     }
 
     [Fact]
-    public void OtherLiteralsAreRejected()
+    public void LiteralsAreDiscardedNotRejectedAtRuntime()
     {
+        // AppendLiteral is a no-op: rejection is the ANALYZER's job, as an error with a fix. A runtime
+        // check would add nothing, because discarding a literal leaves a well-formed frame with an
+        // argument missing - the command is wrong, but the connection is not. Literals never contributed
+        // to *N, so the header stays correct either way.
         var ctx = new RespContext();
 
-        // two spaces look identical to one on the page; this is why the analyzer has to carry the rule
-        Assert.Throws<ArgumentException>(() => ctx.Execute($"{RedisCommand.GET}  {(RedisKey)"k"}").Dispose());
-        Assert.Throws<ArgumentException>(() => ctx.Execute($"{RedisCommand.GET}-{(RedisKey)"k"}").Dispose());
-        Assert.Throws<ArgumentException>(() => ctx.Execute($"SET {(RedisKey)"k"}").Dispose());
+        using var twoSpaces = ctx.Execute($"{RedisCommand.GET}  {(RedisKey)"k"}");
+        using var hyphen = ctx.Execute($"{RedisCommand.GET}-{(RedisKey)"k"}");
+
+        Assert.Equal(new[] { "GET", "k" }, Parse(twoSpaces.Span));
+        Assert.Equal(new[] { "GET", "k" }, Parse(hyphen.Span));
+        Assert.Equal(2, twoSpaces.ArgCount);
+    }
+
+    [Fact]
+    public void ALiteralCommandStillFailsBecauseThereIsNoCommandHole()
+    {
+        // $"SET {key}" discards "SET ", so nothing ever supplied a command - which IS caught, because the
+        // handler cannot frame a key before it has one
+        var ctx = new RespContext();
+        Assert.Throws<InvalidOperationException>(() => ctx.Execute($"SET {(RedisKey)"k"}").Dispose());
     }
 }

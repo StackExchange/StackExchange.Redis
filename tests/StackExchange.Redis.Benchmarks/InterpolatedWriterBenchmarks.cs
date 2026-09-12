@@ -87,6 +87,24 @@ public class InterpolatedWriterBenchmarks
         return _target.Written;
     }
 
+    // ---- does the no-op AppendLiteral actually vanish? ---------------------------------------------
+    // Separators are literal segments, discarded by an empty AppendLiteral. If the JIT eliminates the
+    // call, these two are the same work; any gap is what the readable form costs.
+
+    [BenchmarkCategory("Separators"), Benchmark(Baseline = true)]
+    public int Separators_None()
+    {
+        using var frame = _ctx.Execute(RedisCommand.SET, $"{_key}{_value}{(RedisValue)"EX"}{(RedisValue)300}");
+        return frame.ArgCount;
+    }
+
+    [BenchmarkCategory("Separators"), Benchmark]
+    public int Separators_Spaced()
+    {
+        using var frame = _ctx.Execute(RedisCommand.SET, $"{_key} {_value} {(RedisValue)"EX"} {(RedisValue)300}");
+        return frame.ArgCount;
+    }
+
     /// <summary>A trivial reusable buffer writer, so buffer management is not part of the measurement.</summary>
     private sealed class Reusable : IBufferWriter<byte>
     {

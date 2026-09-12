@@ -87,7 +87,7 @@ ctx.Execute($"{cmd}  {key}")                      // rejected - two spaces
 ```
 
 The space earns its place on readability alone: `$"{RedisCommand.SET} {key} {value}"` mirrors how the
-command is written everywhere else, and costs 0.45 ns (measured below).
+command is written everywhere else, and costs nothing — `AppendLiteral` is an empty method.
 
 **Why reject the rest:** with no literal segments, the compiler-supplied `formattedCount` *is* the argument
 count, as a compile-time constant — so `*N\r\n` can be written in the constructor with no counting
@@ -121,7 +121,18 @@ of a `u8` route is one more reason to ban literals rather than encode them at ru
 
 ("Traditional method invocation resolution" is also why the ban holds: see below.)
 
-**Enforcement is a runtime check, and wants an analyzer.** An earlier revision marked
+**Enforcement is the analyzer's, exclusively. `AppendLiteral` is a no-op with no check at all**, so the
+JIT eliminates the call. That is not laziness — a runtime check would buy nothing the analyzer does not,
+because *discarding a literal is benign in the way that matters*: the frame stays **well-formed**, with
+an argument missing. Literals never contributed to `*N`, so the header remains correct; the server sees
+a wrong command and errors, or does the wrong thing, and the connection is unaffected.
+
+Compare `RespFragment` (§9.1), where bad bytes desync the connection for every *subsequent* command. The
+principle running through both: **guard strength proportional to blast radius** — an analyzer error here,
+an analyzer error *plus* a generator-emitted `#error` there. Ignoring the analyzer here is user error with
+local consequences; ignoring it there corrupts other people's commands.
+
+An earlier revision marked
 `AppendLiteral(string)` as `[Obsolete(..., error: true)]`, which made *any* literal a compile error —
 strictly stronger, but incompatible with allowing the space. Two findings from that revision, recorded
 because they bear on the alternative:
@@ -149,14 +160,14 @@ tight  : args=3 literals=0 formattedCount=3 literalLength=0
 spaced : args=3 literals=2 formattedCount=3 literalLength=2
 ```
 
-**Nor does it cost anything measurable.** 0.45 ns per space, against an 8.6 ns baseline of pure handler
-machinery in a synthetic loop that does no buffer work at all; a real render is tens to hundreds of ns,
-and the operation around it is orders beyond that. Both spellings also render byte-identically, since
-the space is discarded — so cache identity (§6.2) is unaffected.
+**Nor does it cost anything.** With the check removed, `AppendLiteral` is empty and the call is
+eliminated — see the `Separators` benchmark. (It cost 0.45 ns per space while the runtime check existed.)
+Both spellings render byte-identically, since the space is discarded, so cache identity (§6.2) is
+unaffected.
 
-The cost is the compile-time guarantee, discussed above: enforcement moves to a runtime check plus the
-analyzer. Formatters are a third hazard alongside the two already noted — nothing stops a tool
-normalising whitespace inside an interpolated string.
+The cost is the compile-time guarantee, discussed above: enforcement rests entirely on the analyzer.
+Formatters are a third hazard alongside the two already noted — nothing stops a tool normalising
+whitespace inside an interpolated string.
 
 #### Inline tokens: rejected, with a fixer
 

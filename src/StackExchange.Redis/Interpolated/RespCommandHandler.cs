@@ -136,14 +136,18 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public void AppendLiteral(string value)
         {
-            if (value is not " ") ThrowNotSeparator(value);
+            // Deliberately empty, with no check: the JIT eliminates the call entirely.
+            //
+            // Enforcement belongs to the analyzer, which reports literal text as an ERROR and offers a fix
+            // rewriting it to a declared fragment. A runtime check would buy nothing the analyzer does not,
+            // because the failure mode here is benign in the way that matters: a discarded literal produces
+            // a WELL-FORMED frame with an argument missing. The server errors, or does the wrong thing, and
+            // the connection is unaffected - literals never contributed to *N, so the header stays correct.
+            //
+            // Contrast RespFragment (SER011), where bad bytes desync the connection for every subsequent
+            // command. Guard strength is proportional to blast radius: analyzer error here, analyzer plus a
+            // generator-emitted #error there.
         }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ThrowNotSeparator(string value) => throw new ArgumentException(
-            $"Only a single space may separate arguments; every other part must be a hole. Saw \"{value}\". "
-            + "Write $\"{RedisCommand.SET} {key} {value}\", not $\"SET {key} {value}\".",
-            nameof(value));
 
         internal void AppendFormatted(RedisCommand value)
         {
