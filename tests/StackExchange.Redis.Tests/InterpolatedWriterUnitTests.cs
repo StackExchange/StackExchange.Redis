@@ -342,4 +342,64 @@ public class InterpolatedWriterUnitTests
         // the reserved prologue and the key offset must survive the regrow
         Assert.Equal(new[] { "k" }, Keys(frame));
     }
+
+    // ---- deferred composition: optional / contextual arguments -------------------------------------
+
+    [Theory]
+    [InlineData(false, false, "SET|k|v")]
+    [InlineData(true, false, "SET|k|v|EX|300")]
+    [InlineData(false, true, "SET|k|v|NX")]
+    [InlineData(true, true, "SET|k|v|EX|300|NX")]
+    public void ComposeThenConditionallyAppend(bool withTtl, bool withNx, string expected)
+    {
+        var ctx = new RespContext();
+        var cmd = ctx.Compose($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
+        try
+        {
+            if (withTtl)
+            {
+                cmd.AppendFormatted((RedisValue)"EX");
+                cmd.AppendFormatted((RedisValue)300);
+            }
+
+            if (withNx) cmd.AppendFormatted((RedisValue)"NX");
+
+            using var frame = ctx.Execute(ref cmd);
+            Assert.Equal(expected, string.Join("|", Parse(frame.Span)));
+            Assert.Equal(expected.Split('|').Length, frame.ArgCount);
+        }
+        catch
+        {
+            cmd.Dispose(); // Execute takes ownership on success; this covers the throwing window
+            throw;
+        }
+    }
+
+    [Fact]
+    public void ComposedKeysStillTrackAndRoute()
+    {
+        var ctx = new RespContext(serverType: ServerType.Cluster);
+        var cmd = ctx.Compose($"{RedisCommand.SMOVE}{(RedisKey)"{u}:src"}");
+        cmd.AppendFormatted((RedisKey)"{u}:dst");   // second key arrives AFTER the interpolation
+        cmd.AppendFormatted((RedisValue)"m");
+        using var frame = ctx.Execute(ref cmd);
+
+        Assert.Equal(new[] { "SMOVE", "{u}:src", "{u}:dst", "m" }, Parse(frame.Span));
+        Assert.Equal(new[] { "{u}:src", "{u}:dst" }, Keys(frame));
+        Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"{u}:src"), frame.Slot);
+    }
+
+    [Fact]
+    public void ComposedHeaderGrowsWithLateArguments()
+    {
+        // 3 args at the call site, 12 by the time it is executed: '*3' would have been wrong
+        var ctx = new RespContext();
+        var cmd = ctx.Compose($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
+        for (int i = 0; i < 9; i++) cmd.AppendFormatted((RedisValue)i);
+        using var frame = ctx.Execute(ref cmd);
+
+        Assert.Equal(12, frame.ArgCount);
+        Assert.StartsWith("*12\r\n", Encoding.UTF8.GetString(frame.Span.ToArray()));
+        Assert.Equal(new[] { "k" }, Keys(frame)); // offset survived the two-digit header
+    }
 }

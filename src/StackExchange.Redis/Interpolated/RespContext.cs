@@ -102,6 +102,28 @@ namespace StackExchange.Redis.Interpolated
         /// A real Execute would go on to dispatch the frame; this spike stops at "the right bytes were
         /// rendered, and we know which arguments were keys".
         /// </remarks>
+        /// <summary>
+        /// Begin a command whose argument list is not fully known at the call site, for optional or
+        /// contextual arguments:
+        /// <code>
+        /// var cmd = ctx.Compose($"{RedisCommand.SET} {key} {value}");
+        /// if (withTtl) { cmd.AppendFormatted(RespLiterals.EX); cmd.AppendFormatted(ttl); }
+        /// using var frame = ctx.Execute(ref cmd);
+        /// </code>
+        /// </summary>
+        /// <remarks>
+        /// The argument count is then only known at <see cref="RespCommandHandler.Complete"/>, so the
+        /// <c>*N</c> header is back-filled rather than written as a compile-time constant. Prefer the
+        /// single-expression form for fixed-arity commands.
+        /// <para>
+        /// NOTE: the handler cannot be held by <c>using</c>, because a <c>using</c> variable cannot be passed
+        /// by <c>ref</c> (CS1657). If the window between Compose and Execute can throw, use try/finally and
+        /// call <see cref="RespCommandHandler.Dispose"/>.
+        /// </para>
+        /// </remarks>
+        public RespCommandHandler Compose([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
+            => handler;
+
         public RespFrame Execute([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
         {
             if (CancellationToken.IsCancellationRequested)

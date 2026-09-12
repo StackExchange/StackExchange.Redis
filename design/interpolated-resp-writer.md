@@ -418,6 +418,36 @@ constant.
 **Gotcha:** `using var` cannot be passed by `ref` (CS1657). Mark resolution members `readonly` so `in`
 works, or callers are forced into `try`/`finally`.
 
+### 4.1 `Compose` / `Execute(ref cmd)` — the shape for optional arguments
+
+Implemented in the spike (§9):
+
+```csharp
+var cmd = ctx.Compose($"{RedisCommand.SET}{key}{value}");
+if (withTtl) { cmd.AppendFormatted(ex); cmd.AppendFormatted(ttl); }
+using var frame = ctx.Execute(ref cmd);
+```
+
+`Compose` carries `[InterpolatedStringHandlerArgument("")]` and simply returns the handler.
+**`Execute(ref cmd)` needs no new overload** — and could not have one, since the attribute does not change
+the signature: it binds to the same `Execute`, because the interpolated-string-handler conversion applies
+only when the argument *is* an interpolated string. Passing a real variable by `ref` is an ordinary
+argument and the attribute is ignored. Verified.
+
+The trade is the one from §4: the argument count is only known at `Complete`, so `*N` is back-filled
+rather than a compile-time constant. `ComposedHeaderGrowsWithLateArguments` pins the case that would
+otherwise be silently wrong — three arguments at the call site, twelve by execution, so a compile-time
+`*3` would have framed a corrupt command.
+
+Keys appended after the interpolation still track and route normally
+(`ComposedKeysStillTrackAndRoute`): the second key of an `SMOVE` arrives via `AppendFormatted` and is
+still marked and folded into the slot.
+
+**Ownership:** `Execute` takes the buffer on success, so there is nothing to dispose afterwards. But the
+window between `Compose` and `Execute` is arbitrary user code, and CS1657 means the handler cannot be
+held in a `using` while also being passed by `ref` — so a throwing window needs `try`/`finally` calling
+`Dispose`, not `using`.
+
 ---
 
 ## 5. Key and slot accumulation
@@ -917,7 +947,7 @@ A working spike, all `internal`, so there is no public API commitment yet.
 | `src/StackExchange.Redis/Interpolated/RespContext.cs` | CommandMap, KeyPrefix, ChannelPrefix, Database, ServerType, CancellationToken; `With*` clones; `Execute` |
 | `src/StackExchange.Redis/Interpolated/RespCommandHandler.cs` | renders the frame, folds the slot, marks keys |
 | `src/StackExchange.Redis/Interpolated/RespFrame.cs` | rendered frame + slot + key marks + `KeyRange` |
-| `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 26 tests |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 35 tests |
 
 Green on net10.0 and net8.0; net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true` clean.
 
@@ -939,6 +969,8 @@ What the tests pin, grouped by the section they belong to:
 - **Cache identity (§6.2)** — `DatabaseIsNotPartOfTheRenderedFrame`.
 - **Cancellation (§3.3)** — `CancellationIsObservedAndTheBufferIsReturned`,
   `CancellationTokenFlowsThroughWithClones`.
+- **Deferred composition (§4.1)** — `ComposeThenConditionallyAppend` (theory over the four
+  ttl/nx combinations), `ComposedKeysStillTrackAndRoute`, `ComposedHeaderGrowsWithLateArguments`.
 
 **What the spike does not do:** it stops at "the right bytes were rendered, and we know which arguments
 were keys". Nothing dispatches, nothing caches, and the read half (§8.4) is untouched — so the claim
