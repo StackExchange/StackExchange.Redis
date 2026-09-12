@@ -1334,6 +1334,7 @@ Built, so the authoring story is no longer hand-waved:
 | `RespInterpolationAnalyzer` | `SER309`: literal text in a RESP command is discarded, not sent. **Error** |
 | `RespLiteralCodeFixProvider` | rewrites `$"{key} nx"` to `$"{key} {RespLiterals.Nx}"` |
 | `RespFragment.CreateValidated` | the sanctioned runtime route: checks framing and the argument count |
+| `SER351` | a `[Resp]` declaration the generator cannot implement, rather than skipping it in silence |
 
 The fragment tests now declare only the properties; the generator supplies the bodies, and the exact-frame
 assertions pass unchanged — which is the real check, since it means `EX` was inferred and upper-cased,
@@ -1367,6 +1368,10 @@ Notes from building it, in case they bite again:
 - `ToMinimalDisplayString` on a *property* includes its type, yielding `RespFragment RespLiterals.Nx`; build
   the name from the containing type instead.
 - The code-fix test harness runs analyzers, not generators, so its sources spell out both halves.
+- **Generator diagnostics have no test harness here.** `SER350` never had one either; the project references
+  `Analyzer.Testing` and `CodeFix.Testing` but not `SourceGenerators.Testing`. `SER351` was verified by
+  compiling a deliberately-bad declaration and reading the output, which is weaker than the other rules'
+  coverage and is worth closing if more generator diagnostics arrive.
 
 ---
 

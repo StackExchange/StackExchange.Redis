@@ -335,5 +335,24 @@ internal static class Diagnostics
         description: "Only interpolation holes become RESP arguments; literal text between them is discarded, so a command written with inline tokens silently omits them. A single space is permitted as a separator.",
         helpLinkUri: HelpLink("SER309"));
 
+    /// <summary>
+    /// A <c>[Resp]</c> declaration the generator cannot implement, and would otherwise skip in silence.
+    /// </summary>
+    /// <remarks>
+    /// Build category, like <see cref="LanguageVersionTooLow"/>, and for the same reason: skipping quietly
+    /// surfaces as <c>CS9248 "must have an implementation part"</c> on a declaration that looks correct, with
+    /// nothing anywhere saying why. A warning rather than an error because the compiler already fails the
+    /// build for the partial case - this exists to explain it, not to duplicate it.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor RespFragmentNotGenerated = new(
+        id: "SER351",
+        title: "[Resp] declaration cannot be implemented",
+        messageFormat: "[Resp] on '{0}' is ignored: {1}",
+        category: BuildCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The RespFragment generator implements [Resp] partial properties of type RespFragment; a declaration it cannot match is skipped, which would otherwise appear only as a missing implementation part.",
+        helpLinkUri: HelpLink("SER351"));
+
     private static string HelpLink(string id) => string.Format(HelpLinkFormat, id);
 }

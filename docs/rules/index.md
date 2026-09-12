@@ -49,6 +49,7 @@ Unlike everything under [Usage](#usage), these describe code that does not do wh
 ## Build
 
 - [SER350](SER350) - language version too low for generated code
+- [SER351](SER351) - a `[Resp]` declaration the fragment generator cannot implement
 
 ## When these rules stay quiet
 
