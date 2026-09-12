@@ -1,7 +1,8 @@
 # Interpolated-string RESP writer
 
-Design notes for the v3 writer work. This records what was verified empirically, what follows from it,
-and what is still open. A working spike lives in `src/StackExchange.Redis/Interpolated/` with unit tests
+**Exploratory notes — ideas, not decisions.** Nothing here is agreed or committed to; it is a log of
+what was tried, what was verified empirically, what seems to follow, and what is still open. Treat
+recommendations as "this looked right at the time", not as a plan of record. A working spike lives in `src/StackExchange.Redis/Interpolated/` with unit tests
 in `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs`; everything there is `internal`, so
 there is no public API commitment yet.
 
@@ -431,25 +432,31 @@ Applied here, the default is to cache the raw RESP response bytes and re-run the
 That is safe for any `T`, and it is the same property that makes §6.2 work: the processor is the single
 place that tolerates RESP2 versus RESP3, so a cached blob is readable whichever shape it holds.
 
-Value-caching is then the optimisation — and **the `HybridCache` opt-in does not port directly**, because
-eligibility here is *instance*-dependent rather than type-dependent:
+Value-caching is then the optimisation — and **the `HybridCache` opt-in does not port directly**.
+`RedisValue` and `RedisKey` are `readonly struct`s, so the `sealed` half is free, but
+`[ImmutableObject(true)]` would be untrue of them, and a type-level attribute cannot express why: for
+`RedisValue` the answer depends on the *value*, specifically its `StorageType`.
 
-| | By value? |
-| --- | --- |
-| `string`, `long`, `bool`, `double` | yes, unconditionally |
-| `RedisValue`, `RedisKey` | **only sometimes** — see below |
-| `RedisValue[]`, `RedisKey[]`, `RedisResult` | no |
+| `StorageType` | Backing | Safe to cache by value? |
+| --- | --- | --- |
+| `Null`, `Int64`, `UInt64`, `Double` | the overlapped field | yes — self-contained |
+| `String` | a `string` | yes — immutable |
+| `ShortBlob` | 1-8 bytes inline in the overlapped field | yes — self-contained |
+| `ByteArray` | a `byte[]` | **no** — see below |
+| `MemoryManager`, `Sequence` | memory owned elsewhere | **no** — see below |
 
-`RedisValue` and `RedisKey` are `readonly struct`s, so the `sealed` half is trivially satisfied — but
-they are not *deeply* immutable, so `[ImmutableObject(true)]` would be a lie. The `byte[]` conversion
-returns the **internal array** when the value is fully array-backed (`RedisValue.cs:1198-1200`;
-`RedisKey` via `TryGetSimpleBuffer`) rather than a copy, so a caller can take that array, mutate it, and
-poison every other holder of the same cached instance. `StorageType` distinguishes the cases —
-string-, integer-, double- and short-blob-backed values either copy or never expose an array; only the
-full-array case leaks — so the check is cheap, but it is a check on the *value*, not on `typeof(T)`.
+**`ByteArray` aliases.** The `byte[]` conversion returns the **internal array** in exactly one case —
+`StorageType.ByteArray` where the value spans the whole array (`RedisValue.cs:1198-1200`; `RedisKey`
+does the same via `TryGetSimpleBuffer`). Every other branch copies. So a caller can take that array,
+mutate it, and poison every other holder of the same cached instance.
 
-A type-level attribute therefore cannot express it. Either the eligibility test is a runtime predicate
-over the value, or array-backed values are copied on the way into the cache.
+**`MemoryManager`/`Sequence` are a different hazard.** These reference memory the `RedisValue` does not
+own, which may be a pooled lease that is later recycled. That is unsafe to *retain* at all, regardless
+of mutation — the same lifetime problem as §6.4, arriving from the other direction.
+
+So the eligibility test wants to be a value-oriented predicate over `StorageType`, not a type-level
+marker — cheap to evaluate, but evaluated per value. The alternative is to copy on the way in for the
+unsafe kinds, which costs an allocation exactly where value-caching was supposed to save one.
 
 Array returns are common across this API, and they are exactly the poisoning hazard that blob-by-default
 exists to prevent, so the default matters more here than it might elsewhere.
