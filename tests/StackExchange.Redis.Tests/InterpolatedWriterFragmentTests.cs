@@ -11,11 +11,10 @@ namespace StackExchange.Redis.Tests;
 /// would emit. Both halves are hand-written here - the point is the usage, not the generator.
 /// See design/interpolated-resp-writer.md section 2.3.
 /// </summary>
-public class InterpolatedWriterFragmentTests
+public partial class InterpolatedWriterFragmentTests
 {
-    // ---- half 1: what the AUTHOR writes -----------------------------------------------------------
-    // The attribute is only needed when the token differs from the member name, or when the fragment
-    // spans more than one token.
+    // The author writes the declaration; RespFragmentGenerator emits the body. The attribute is only
+    // needed when the token differs from the member name, or when the fragment spans more than one token.
 
     internal static partial class RespLiterals
     {
@@ -44,27 +43,7 @@ public class InterpolatedWriterFragmentTests
         internal static partial RespFragment LeftRight { get; }
     }
 
-    // ---- half 2: what the GENERATOR would emit ----------------------------------------------------
-    //
-    // Constructing a RespFragment by hand is gated behind SER011 precisely because nothing validates the
-    // bytes. Generated code suppresses it AT THE EMIT SITE and nowhere wider, which is what this shows.
-    // A token inferred from the member name is upper-cased; a token given in the attribute is verbatim,
-    // because the library sends both cases and the distinction is semantic - see the design notes.
-
-#pragma warning disable SER011 // hand-constructed RespFragment: this half stands in for the generator
-    internal static partial class RespLiterals
-    {
-        internal static partial RespFragment EX => new("$2\r\nEX\r\n"u8);
-
-        internal static partial RespFragment ConfigGet => new("$3\r\nGET\r\n"u8);
-
-        internal static partial RespFragment SetInfoLibName => new("$7\r\nSETINFO\r\n$8\r\nlib-name\r\n"u8, 2);
-
-        internal static partial RespFragment MaxLenApprox => new("$6\r\nMAXLEN\r\n$1\r\n~\r\n"u8, 2);
-
-        internal static partial RespFragment LeftRight => new("$4\r\nLEFT\r\n$5\r\nRIGHT\r\n"u8, 2);
-    }
-#pragma warning restore SER011
+    // half 2 - the bodies - is emitted by RespFragmentGenerator from the declarations above.
 
     private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
