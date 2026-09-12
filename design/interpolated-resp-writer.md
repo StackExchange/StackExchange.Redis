@@ -398,10 +398,25 @@ fold it into the hash alongside the bytes; the cost is remembering to.
 
 Pinned by `DatabaseIsNotPartOfTheRenderedFrame`.
 
-Two neighbours worth checking when the cache is built: the protocol version, if what is cached is raw
-*response* bytes (RESP2 and RESP3 shapes differ), and the multiplexer itself, if a process talks to
-more than one deployment. Both are naturally scoped per-connection or per-multiplexer, so they are
-likely free — but by scoping, not by being in the frame.
+Two neighbours, which resolve differently.
+
+**The multiplexer**, if a process talks to more than one deployment: free by scoping, assuming the cache
+is per-multiplexer. Worth not hoisting it somewhere more shared without revisiting.
+
+**The protocol version** is not an identity input, despite RESP2 and RESP3 response shapes differing.
+It is negotiated per `PhysicalConnection` (`SetProtocol`, `PhysicalConnection.cs:372`, propagated to the
+bridge; `ServerEndPoint.cs:148` reads it back from the interactive connection), so mixed protocols
+within one multiplexer are structurally reachable *simultaneously* — a cluster mid-upgrade, or a primary
+and replica at different versions — not merely over time.
+
+That is fine, because in any deployment where it can happen the result processors must already be
+shape-tolerant, which RESP3 support requires of them generally; a cached response in either shape still
+parses. What remains is a **hit-rate** question, not correctness: both shapes can end up cached for the
+same logical `(frame, database)`, costing duplicate entries while a deployment is mixed.
+
+It disappears entirely if the cache stores *parsed results* rather than raw response bytes. Worth
+deciding deliberately, since that is the difference between the protocol being a non-issue and being a
+standing hit-rate tax.
 
 ### 6.3 Buffer ownership
 
