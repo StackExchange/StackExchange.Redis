@@ -112,20 +112,28 @@ namespace StackExchange.Redis.Interpolated
         /// recording generations at send time, <see cref="TryComplete"/> can see that the world moved.
         /// </para>
         /// <para>
-        /// Returns <c>false</c> - refusing to cache - when the frame's keys cannot be enumerated. Today that
-        /// means more than two keys, because the frame's inline key marks hold two and the overflow path
-        /// records nothing usable. Refusing is the safe answer: a cached entry whose keys we cannot name
-        /// could never be invalidated.
+        /// Returns <c>false</c> - refusing to cache - when the frame cannot report its keys. That is now only
+        /// the case for a key at argument index above 62, which the frame's bitmap has no bit for. Refusing
+        /// is the safe answer: an entry whose keys cannot be named could never be invalidated.
         /// </para>
         /// </remarks>
         public bool TryBeginFill(ref RespFrame frame, int database, out RespFill fill)
         {
-            Span<KeyRange> ranges = stackalloc KeyRange[2];
+            var keyCount = frame.KeyCount;
+            if (keyCount < 0)
+            {
+                fill = default;
+                return false; // keys not enumerable => not invalidatable => must not be cached
+            }
+
+            // the overwhelming majority of commands are well under this; only a huge multi-key command
+            // heaps, and that one already paid for a round trip
+            Span<KeyRange> ranges = keyCount <= 16 ? stackalloc KeyRange[16] : new KeyRange[keyCount];
             var count = frame.TryGetKeys(ranges);
             if (count < 0)
             {
                 fill = default;
-                return false; // keys not enumerable => not invalidatable => must not be cached
+                return false;
             }
 
             var deps = count == 0 ? [] : new Dependency[count];

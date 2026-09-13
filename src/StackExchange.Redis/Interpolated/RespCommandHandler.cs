@@ -44,7 +44,10 @@ namespace StackExchange.Redis.Interpolated
         private int _args;          // RESP argument count, including the command
         private int _argIndex;      // logical argument position, for the overflow bitmap
         private int _slot;
-        private ulong _keyMarks;
+        private ulong _keyBitmap;   // argument indices that are keys; bit 0 => a key too far out to record
+        private int _keyCount;
+        private int _keyOffsetA;    // buffer-absolute offsets of the first two keys
+        private int _keyOffsetB;
         private bool _hasCommand;
 
         /// <summary>Initialize with the command supplied as the first hole.</summary>
@@ -59,7 +62,6 @@ namespace StackExchange.Redis.Interpolated
             _args = 0;
             _argIndex = 0;
             _slot = ServerSelectionStrategy.NoSlot;
-            _keyMarks = 0;
             _hasCommand = false;
         }
 
@@ -83,7 +85,6 @@ namespace StackExchange.Redis.Interpolated
             _buffer = ArrayPool<byte>.Shared.Rent(HeaderMax + 64 + resp.Length + literalLength + (formattedCount * 24));
             _offset = HeaderMax;
             _slot = ServerSelectionStrategy.NoSlot;
-            _keyMarks = 0;
 
             resp.CopyTo(_buffer.AsSpan(_offset));
             _offset += resp.Length;
@@ -115,7 +116,6 @@ namespace StackExchange.Redis.Interpolated
             _buffer = ArrayPool<byte>.Shared.Rent(HeaderMax + 64 + resp.Length + nameBytes + literalLength + (formattedCount * 24));
             _offset = HeaderMax;
             _slot = ServerSelectionStrategy.NoSlot;
-            _keyMarks = 0;
             _hasCommand = true;
             _args = 1;
             _argIndex = 1;
@@ -270,7 +270,7 @@ namespace StackExchange.Redis.Interpolated
             var start = HeaderMax - headerLength;
             header.Slice(0, headerLength).CopyTo(_buffer.AsSpan(start));
 
-            var frame = new RespFrame(_buffer, start, _offset - start, _args, _slot, _keyMarks);
+            var frame = new RespFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks());
             _buffer = null!; // ownership transferred to the frame
             return frame;
         }
@@ -325,33 +325,48 @@ namespace StackExchange.Redis.Interpolated
         /// right-aligns the header, so the FRAME start moves with the digit count of the argument count.
         /// </summary>
         /// <remarks>
-        /// Zero is the "no key here" sentinel, in both slots and in <c>RespFrame.HasNoKeys</c>. That is only
-        /// sound because a key can never START at offset 0: the first <see cref="HeaderMax"/> bytes are the
-        /// reserved prologue, and <see cref="DemandCommand"/> puts the command ahead of any key. Both halves
-        /// of that are load-bearing - do not let <see cref="HeaderMax"/> become 0, and do not allow a key
-        /// before the command, without giving the marks a real "unset" representation.
+        /// <para>
+        /// BOTH representations are maintained as we write, and <see cref="Complete"/> publishes whichever
+        /// fits. That costs a few bytes in this handler - a <c>ref struct</c> on the stack, where there is no
+        /// size pressure - and it is what removes the old promotion problem: the previous code overwrote the
+        /// two stored offsets with a bare overflow flag on the third key, so the first three keys were
+        /// recorded in neither form and the frame could report nothing at all.
+        /// </para>
+        /// <para>
+        /// Zero is the "no key here" sentinel for the offset form, in both slots and in
+        /// <c>RespFrame.HasNoKeys</c>. That is only sound because a key can never START at offset 0: the
+        /// first <see cref="HeaderMax"/> bytes are the reserved prologue, and <see cref="DemandCommand"/>
+        /// puts the command ahead of any key. Both halves are load-bearing - do not let
+        /// <see cref="HeaderMax"/> become 0, and do not allow a key before the command, without giving the
+        /// marks a real "unset" representation.
+        /// </para>
         /// </remarks>
         private void MarkKey(int offset)
         {
-            if ((_keyMarks & RespFrame.OverflowFlag) != 0)
+            _keyCount++;
+            if (_keyCount == 1) _keyOffsetA = offset;
+            else if (_keyCount == 2) _keyOffsetB = offset;
+
+            if (_argIndex <= RespFrame.MaxBitmapArg) _keyBitmap |= 1UL << _argIndex;
+            else _keyBitmap |= RespFrame.TruncatedFlag; // no bit for it; say so rather than report a subset
+        }
+
+        /// <summary>Pack the key marks into the frame's single 64-bit field.</summary>
+        /// <remarks>
+        /// Two keys or fewer keep the byte offsets, which resolve with no scan and do not care how far out
+        /// the arguments were. Beyond that the bitmap is the only form that fits, and resolving it costs a
+        /// walk - see <see cref="RespFrame.TryGetKeys"/>.
+        /// </remarks>
+        private readonly ulong PackKeyMarks()
+        {
+            if (_keyCount == 0) return 0;
+            if (_keyCount <= 2)
             {
-                if (_argIndex < 63) _keyMarks |= 1UL << _argIndex;
-                return;
+                return ((ulong)_keyOffsetA & RespFrame.SlotMask)
+                     | (((ulong)_keyOffsetB & RespFrame.SlotMask) << RespFrame.SlotBits);
             }
 
-            if ((_keyMarks & RespFrame.SlotMask) == 0)
-            {
-                _keyMarks |= (ulong)offset & RespFrame.SlotMask;
-            }
-            else if (((_keyMarks >> RespFrame.SlotBits) & RespFrame.SlotMask) == 0)
-            {
-                _keyMarks |= ((ulong)offset & RespFrame.SlotMask) << RespFrame.SlotBits;
-            }
-            else
-            {
-                // a third key: the inline offsets cannot express it, so fall back to a walk
-                _keyMarks = RespFrame.OverflowFlag;
-            }
+            return RespFrame.OverflowFlag | _keyBitmap;
         }
 
         /// <summary>

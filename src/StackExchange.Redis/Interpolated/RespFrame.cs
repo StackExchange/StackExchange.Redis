@@ -13,10 +13,19 @@ namespace StackExchange.Redis.Interpolated
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public struct RespFrame : IDisposable
     {
-        // key marks: MSB clear => up to two 31-bit BUFFER-ABSOLUTE byte offsets, resolvable with no scan;
-        // MSB set => the frame must be walked to recover keys. Zero means "no keys" - offset 0 can never be
-        // a key, because the frame starts '*N\r\n'.
+        // Key marks, two alternative encodings in one 64-bit field:
+        //
+        //   MSB clear => up to two 31-bit BUFFER-ABSOLUTE byte offsets, resolvable with no scan. Zero means
+        //                "no keys" - offset 0 can never be a key, because the frame starts '*N\r\n'.
+        //   MSB set   => a bitmap of the ARGUMENT INDICES that are keys (bits 1..62; argument 0 is always
+        //                the command). Resolving those to byte ranges needs a walk of the frame.
+        //
+        // Bit 0 is free in bitmap mode - argument 0 is the command and can never be a key - so it carries
+        // "truncated": there was a key at an argument index above 62 that could not be recorded. Such a
+        // frame cannot report its keys at all, and TryGetKeys says so rather than reporting a subset.
         internal const ulong OverflowFlag = 1UL << 63;
+        internal const ulong TruncatedFlag = 1UL << 0;
+        internal const int MaxBitmapArg = 62;
         internal const int SlotBits = 31;
         internal const ulong SlotMask = (1UL << SlotBits) - 1;
 
@@ -51,17 +60,112 @@ namespace StackExchange.Redis.Interpolated
         public readonly bool HasNoKeys => _keyMarks == 0;
 
         /// <summary>
-        /// Recover the key payloads without walking the frame. Returns -1 when <see cref="KeysNeedScan"/>,
-        /// in which case the caller must walk instead.
+        /// How many arguments were keys, or <c>-1</c> when the frame cannot report them.
         /// </summary>
+        /// <remarks>
+        /// <b>The one case that returns -1</b> is a key at argument index above
+        /// <see cref="MaxBitmapArg"/> (62), which the bitmap has no bit for. It is recorded as a single
+        /// "truncated" flag rather than as a partial list, because a partial list is worse than none: a
+        /// caller tracking keys for invalidation would believe it had them all. Commands with that many keys
+        /// are rare and large; callers should decline to cache such a frame.
+        /// </remarks>
+        public readonly int KeyCount
+        {
+            get
+            {
+                if ((_keyMarks & OverflowFlag) == 0)
+                {
+                    if (_keyMarks == 0) return 0;
+                    return ((_keyMarks >> SlotBits) & SlotMask) == 0 ? 1 : 2;
+                }
+
+                return (_keyMarks & TruncatedFlag) != 0 ? -1 : PopCount(_keyMarks & ~OverflowFlag);
+            }
+        }
+
+        private static int PopCount(ulong value)
+        {
+#if NET6_0_OR_GREATER
+            return System.Numerics.BitOperations.PopCount(value);
+#else
+            // no BitOperations down-level; this is the standard SWAR popcount
+            value -= (value >> 1) & 0x5555555555555555UL;
+            value = (value & 0x3333333333333333UL) + ((value >> 2) & 0x3333333333333333UL);
+            value = (value + (value >> 4)) & 0x0F0F0F0F0F0F0F0FUL;
+            return (int)((value * 0x0101010101010101UL) >> 56);
+#endif
+        }
+
+        /// <summary>
+        /// Recover the key payloads. Returns the number written, or <c>-1</c> if
+        /// <paramref name="target"/> is too small or the frame cannot report its keys - see
+        /// <see cref="KeyCount"/>, which sizes the buffer and distinguishes the two.
+        /// </summary>
+        /// <remarks>
+        /// One or two keys resolve straight from the stored offsets. More than that resolves from the
+        /// argument-index bitmap, which needs a walk of the frame - cheap (the bytes are in L1 and it is
+        /// simple length-prefixed skipping) but no longer O(1). Callers that do this per lookup rather than
+        /// once per frame should cache the result.
+        /// </remarks>
         public readonly int TryGetKeys(scoped Span<KeyRange> target)
         {
-            if ((_keyMarks & OverflowFlag) != 0) return -1;
-            var count = 0;
-            var a = (int)(_keyMarks & SlotMask);
-            var b = (int)((_keyMarks >> SlotBits) & SlotMask);
-            if (a != 0) target[count++] = PayloadOf(a);
-            if (b != 0) target[count++] = PayloadOf(b);
+            if ((_keyMarks & OverflowFlag) == 0)
+            {
+                var count = 0;
+                var a = (int)(_keyMarks & SlotMask);
+                var b = (int)((_keyMarks >> SlotBits) & SlotMask);
+                var needed = (a != 0 ? 1 : 0) + (b != 0 ? 1 : 0);
+                if (target.Length < needed) return -1;
+                if (a != 0) target[count++] = PayloadOf(a);
+                if (b != 0) target[count++] = PayloadOf(b);
+                return count;
+            }
+
+            if ((_keyMarks & TruncatedFlag) != 0) return -1;
+
+            var bitmap = _keyMarks & ~OverflowFlag;
+            if (target.Length < PopCount(bitmap)) return -1;
+            return WalkKeys(bitmap, target);
+        }
+
+        /// <summary>
+        /// Resolve argument indices to payload ranges by walking the frame.
+        /// </summary>
+        /// <remarks>
+        /// A rendered frame is <c>*N\r\n</c> followed by N bulk strings, so this is length-prefixed
+        /// skipping - no <c>RespReader</c>, no allocation. Argument 0 is the command, matching the indices
+        /// the writer recorded.
+        /// </remarks>
+        private readonly int WalkKeys(ulong bitmap, scoped Span<KeyRange> target)
+        {
+            var buffer = _buffer!;
+            var end = _start + _length;
+
+            var i = _start;
+            while (buffer[i] != (byte)'\n') i++; // past the '*N\r\n' header
+            i++;
+
+            int arg = 0, count = 0;
+            while (i < end)
+            {
+                var j = i + 1; // past the '$'
+                var length = 0;
+                while (buffer[j] != (byte)'\r')
+                {
+                    length = (length * 10) + (buffer[j] - (byte)'0');
+                    j++;
+                }
+
+                var payload = j + 2;
+                if (arg <= MaxBitmapArg && (bitmap & (1UL << arg)) != 0)
+                {
+                    target[count++] = new KeyRange(payload, length);
+                }
+
+                i = payload + length + 2;
+                arg++;
+            }
+
             return count;
         }
 

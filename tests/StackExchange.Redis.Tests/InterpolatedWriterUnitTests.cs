@@ -33,11 +33,15 @@ public class InterpolatedWriterUnitTests
         return args;
     }
 
+    // sized from KeyCount, NOT a fixed two: a fixed buffer makes TryGetKeys return -1 for "target too
+    // small", which is indistinguishable here from "frame cannot report its keys" and would let a test
+    // claiming the latter pass for the former reason
     private static string[] Keys(in RespFrame frame)
     {
-        Span<KeyRange> ranges = stackalloc KeyRange[2];
-        var count = frame.TryGetKeys(ranges);
-        if (count < 0) return null!; // caller must scan
+        var count = frame.KeyCount;
+        if (count < 0) return null!; // the frame genuinely cannot report them
+        var ranges = new KeyRange[count];
+        Assert.Equal(count, frame.TryGetKeys(ranges));
         var keys = new string[count];
         for (int i = 0; i < count; i++) keys[i] = Encoding.UTF8.GetString(frame.GetKey(ranges[i]).ToArray());
         return keys;
@@ -237,14 +241,17 @@ public class InterpolatedWriterUnitTests
     }
 
     [Fact]
-    public void ThreeKeysFallBackToScanning()
+    public void ThreeKeysResolveViaTheBitmap()
     {
         var ctx = new RespContext();
         using var frame = ctx.Execute($"{RedisCommand.DEL}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
 
+        // past the two inline offsets, so resolving needs a walk - but the keys ARE recoverable; the
+        // writer records every key's argument index as well as the first two offsets
         Assert.True(frame.KeysNeedScan);
-        Assert.Null(Keys(frame));
-        Assert.Equal(new[] { "DEL", "a", "b", "c" }, Parse(frame.Span)); // still renders correctly
+        Assert.Equal(3, frame.KeyCount);
+        Assert.Equal(new[] { "a", "b", "c" }, Keys(frame));
+        Assert.Equal(new[] { "DEL", "a", "b", "c" }, Parse(frame.Span));
     }
 
     [Fact]
@@ -439,6 +446,7 @@ public class InterpolatedWriterUnitTests
         Assert.Equal(new[] { "DEL", "a", "b", "c" }, Parse(frame.Span));
         Assert.Equal(4, frame.ArgCount);
         Assert.True(frame.KeysNeedScan); // three keys exceeds the two inline offsets
+        Assert.Equal(new[] { "a", "b", "c" }, Keys(frame)); // still recoverable, via the bitmap
     }
 
     [Fact]

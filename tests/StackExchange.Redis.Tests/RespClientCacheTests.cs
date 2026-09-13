@@ -205,19 +205,95 @@ public class RespClientCacheTests
         Assert.Equal("$5|fresh|", text);
     }
 
-    [Fact]
-    public void FramesWhoseKeysCannotBeEnumeratedAreNotCached()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ThreeKeyCommandsCacheAndInvalidateOnAnyKey(int which)
     {
         using var cache = new RespClientCache();
 
-        // three keys exceeds the two inline marks, and the overflow path records nothing usable - so the
-        // keys cannot be named, so the entry could never be invalidated. Refusing is the safe answer.
-        var frame = Ctx.Execute($"{RedisCommand.DEL}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
-        Assert.True(frame.KeysNeedScan);
+        var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+        Assert.True(frame.KeysNeedScan);  // beyond the two inline offsets: resolved from the bitmap
+        Assert.Equal(3, frame.KeyCount);
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.True(cache.TryComplete(fill, Utf8("*3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n")));
+
+        Assert.True(ThreeKeyHit(cache));
+        Assert.True(cache.OnInvalidate(Utf8(((char)('a' + which)).ToString())));
+        Assert.False(ThreeKeyHit(cache));
+
+        static bool ThreeKeyHit(RespClientCache cache)
+        {
+            using var probe = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+            if (!cache.TryGet(probe.AsLookupKey(), 0, out var payload)) return false;
+            payload.Release();
+            return true;
+        }
+    }
+
+    [Fact]
+    public void BitmapResolvesTheSameRangesTheOffsetsWould()
+    {
+        // the two encodings must agree where they overlap, or a frame's keys would depend on how many
+        // other keys happened to be present
+        using var two = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"alpha"}{(RedisKey)"beta"}");
+        Assert.False(two.KeysNeedScan);
+        Assert.Equal(new[] { "alpha", "beta" }, KeyStrings(two));
+
+        using var three = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"alpha"}{(RedisKey)"beta"}{(RedisKey)"gamma"}");
+        Assert.True(three.KeysNeedScan);
+        Assert.Equal(new[] { "alpha", "beta", "gamma" }, KeyStrings(three));
+    }
+
+    [Fact]
+    public void KeysAreFoundAmongNonKeyArguments()
+    {
+        // the bitmap indexes ARGUMENTS, so values interleaved with keys must not shift the walk
+        using var frame = Ctx.Execute(
+            $"{RedisCommand.MSET}{(RedisKey)"k1"}{(RedisValue)"v1"}{(RedisKey)"k2"}{(RedisValue)"v2"}{(RedisKey)"k3"}{(RedisValue)"v3"}");
+        Assert.Equal(3, frame.KeyCount);
+        Assert.Equal(new[] { "k1", "k2", "k3" }, KeyStrings(frame));
+    }
+
+    [Fact]
+    public void KeysBeyondTheBitmapAreReportedAsUnavailableNotAsASubset()
+    {
+        var handler = new RespCommandHandler(0, 70, Ctx, "MGET");
+        for (var i = 0; i < 70; i++) handler.AppendFormatted((RedisKey)("k" + i));
+        var frame = handler.Complete();
+
+        // argument 63 and beyond have no bit; reporting the first 62 would be worse than reporting none,
+        // because a caller tracking keys for invalidation would believe it had them all
+        Assert.Equal(-1, frame.KeyCount);
+        Span<KeyRange> ranges = stackalloc KeyRange[70];
+        Assert.Equal(-1, frame.TryGetKeys(ranges));
+
+        using var cache = new RespClientCache();
         Assert.False(cache.TryBeginFill(ref frame, 0, out _));
         frame.Dispose();
-
         Assert.Equal(0, cache.Count);
+    }
+
+    [Fact]
+    public void TooSmallATargetIsRejectedRatherThanTruncated()
+    {
+        using var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+        Span<KeyRange> small = stackalloc KeyRange[2];
+        Assert.Equal(-1, frame.TryGetKeys(small));
+
+        Span<KeyRange> exact = stackalloc KeyRange[3];
+        Assert.Equal(3, frame.TryGetKeys(exact));
+    }
+
+    private static string[] KeyStrings(in RespFrame frame)
+    {
+        var count = frame.KeyCount;
+        var ranges = new KeyRange[count];
+        Assert.Equal(count, frame.TryGetKeys(ranges));
+        var result = new string[count];
+        for (var i = 0; i < count; i++) result[i] = Encoding.UTF8.GetString(frame.GetKey(ranges[i]).ToArray());
+        return result;
     }
 
     [Fact]

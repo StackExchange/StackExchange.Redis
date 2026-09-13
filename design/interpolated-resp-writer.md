@@ -687,10 +687,40 @@ PASS zero keys                                     keys(no scan)=[]
 the real types on newer TFMs. A public method taking `Span<Range>` then fails with
 `CS0051: Inconsistent accessibility`. Use a purpose-built `(offset, length)` struct.
 
-**Open seam:** on promotion to bitmap mode the two stored *offsets* must become *arg indices*, which
-were never recorded, and there aren't spare bits to carry both (1 + 31 + 31 leaves one). Pragmatic
-answer: re-derive by walking what's already written — rare, partial, and in L1. Needs a deliberate
-decision.
+**~~Open seam~~ — resolved.** The framing above ("there aren't spare bits to carry both") is true of the
+*frame*, which must stay 64 bits. It is not true of the *writer*: `RespCommandHandler` is a `ref struct` on
+the stack with no size pressure, so it maintains **both** representations as it writes — the two offsets
+and a full argument-index bitmap — and `Complete()` publishes whichever fits. Nothing needs re-deriving,
+because nothing is discarded any more.
+
+The old code overwrote the two offsets with a bare `OverflowFlag` on the third key, so keys 1–3 were
+recorded in *neither* form and the frame could report nothing at all; the bits it then set for keys 4+ were
+never read by anything. `TryGetKeys` returning −1 was the only honest answer available to it.
+
+Now:
+
+| Keys | Encoding | Recovery |
+| --- | --- | --- |
+| 0 | zero | — |
+| 1–2 | two 31-bit byte offsets | O(1), no scan |
+| 3+ | `OverflowFlag` \| bitmap of argument indices | walk the frame, mapping index → range |
+
+The walk is length-prefixed skipping over `*N\r\n` + N bulk strings — no `RespReader`, no allocation.
+
+**The limitation that remains, and is inherent to a 64-bit field:** bit 63 is the mode flag and argument 0
+is always the command, leaving bits 1–62, so **a key at argument index above 62 cannot be recorded**. That
+case sets bit 0 as a "truncated" marker and `KeyCount`/`TryGetKeys` report **−1** — deliberately *not* a
+partial list, because a caller tracking keys for invalidation would believe a partial list was complete and
+would cache something it could never invalidate. `RespClientCache.TryBeginFill` declines such frames.
+
+Going beyond 62 would mean heap-allocating the key list per frame, which costs an allocation on every
+multi-key command to serve a case that is rare and already enormous. Not worth it unless something real
+turns up.
+
+**Rejected:** falling back to "treat every argument as a key". Over-invalidation is safe by protocol — the
+server does it deliberately when its tracking table overflows — but this would register *value* bytes as
+tracked keys, polluting the key table and inviting spurious invalidation from unrelated keys that happen to
+match a value. Safe, but it degrades the cache in a way that is hard to observe.
 
 ---
 
@@ -980,9 +1010,10 @@ reply leaves *permanently* stale data. `TryBeginFill` captures generations at **
 placeholder.
 
 Everything fails closed: an unresolvable key, a frame whose keys cannot be enumerated, a generation that
-moved — all are misses. In particular a frame with **more than two keys is refused outright**, because the
-overflow key marks record nothing usable (§5.2's open seam), and an entry whose keys cannot be named could
-never be invalidated. `MGET` with two keys caches; with three it does not.
+moved — all are misses. In particular a frame whose keys cannot be named is **refused outright**, since an entry that cannot be
+invalidated must not be cached. Since §5.2's seam was closed that means only one thing: a key at argument
+index above 62. `MGET` over three keys caches and invalidates on any of them; `MGET` over seventy does not
+cache at all.
 
 Measured (`ClientCacheBenchmarks`): `OnInvalidate` is **~5-6 ns, zero allocation, flat from 1 to 100,000
 cached keys** — about 170M invalidations/sec on one thread, for both hits and misses.

@@ -74,6 +74,7 @@
 [SER010]StackExchange.Redis.Interpolated.RespFrame.Dispose() -> void
 [SER010]StackExchange.Redis.Interpolated.RespFrame.GetKey(in StackExchange.Redis.Interpolated.KeyRange range) -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespFrame.HasNoKeys.get -> bool
+[SER010]StackExchange.Redis.Interpolated.RespFrame.KeyCount.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespFrame.KeysNeedScan.get -> bool
 [SER010]StackExchange.Redis.Interpolated.RespFrame.RespFrame() -> void
 [SER010]StackExchange.Redis.Interpolated.RespFrame.Slot.get -> int
