@@ -8,15 +8,17 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A rendered RESP frame, detached from its builder and usable as a dictionary key
-    /// without ever being copied into a <c>byte[]</c> or a <c>string</c>.
+    /// EXPERIMENTAL SPIKE. A rendered RESP request, detached from its builder: the bytes to send, and - the
+    /// same bytes - the cache key, without ever being copied into a <c>byte[]</c> or a <c>string</c>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the client-side-cache half of the interpolated writer: the bytes that were going to be sent
-    /// anyway ARE the cache key, so a lookup costs a render and no allocation at all. Deliberately not a
-    /// <c>ref struct</c> - a <c>ref struct</c> cannot be a <c>TKey</c> - which is why the payload lives in a
-    /// pooled array behind a <see cref="RefCountedBuffer"/> rather than in a <c>stackalloc</c>.
+    /// The bytes that were going to be sent anyway ARE the cache key, so a lookup costs a render and no
+    /// allocation at all. Deliberately not a <c>ref struct</c>: it has to survive as a <c>TKey</c>, cross an
+    /// <c>await</c>, and be parked in a backlog for a resend - none of which a <c>ref struct</c> or a raw
+    /// span can do. That is why the bytes live in a pooled array behind a
+    /// <see cref="RefCountedBuffer"/>, and why the executor can <see cref="TryRetain"/> to hold one
+    /// past the call.
     /// </para>
     /// <para>
     /// <b>Lifetime.</b> Whoever retains, releases. <see cref="RespFrame.Detach"/> hands back a key holding
@@ -32,7 +34,7 @@ namespace StackExchange.Redis.Interpolated
     /// </para>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public readonly struct RespCacheKey : IEquatable<RespCacheKey>, IDisposable
+    public readonly struct RespRequest : IEquatable<RespRequest>, IDisposable
     {
         private readonly byte[]? _array;
         private readonly RefCountedBuffer? _lease;   // null => BORROWED: this key owns no reference
@@ -40,7 +42,7 @@ namespace StackExchange.Redis.Interpolated
         private readonly int _length;
         private readonly int _hash;
 
-        internal RespCacheKey(byte[] array, RefCountedBuffer? lease, int offset, int length)
+        internal RespRequest(byte[] array, RefCountedBuffer? lease, int offset, int length)
         {
             _array = array;
             _lease = lease;
@@ -91,7 +93,7 @@ namespace StackExchange.Redis.Interpolated
         /// and each must be disposed once. The usual shape is retain, try to add, and dispose the retained
         /// copy if the add lost a race.
         /// </remarks>
-        public bool TryRetain(out RespCacheKey retained)
+        public bool TryRetain(out RespRequest retained)
         {
             if (_lease is not null && _lease.TryAddRef())
             {
@@ -113,11 +115,11 @@ namespace StackExchange.Redis.Interpolated
         /// different arrays. Canonicality of the rendering is therefore a correctness property - see design
         /// doc section 6.
         /// </remarks>
-        public bool Equals(RespCacheKey other)
+        public bool Equals(RespRequest other)
             => _hash == other._hash && _length == other._length && Span.SequenceEqual(other.Span);
 
         /// <inheritdoc/>
-        public override bool Equals(object? obj) => obj is RespCacheKey other && Equals(other);
+        public override bool Equals(object? obj) => obj is RespRequest other && Equals(other);
 
         /// <inheritdoc/>
         /// <remarks>Computed once, when the key is detached, while the bytes are already in cache.</remarks>

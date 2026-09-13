@@ -79,7 +79,7 @@ namespace StackExchange.Redis.Interpolated
         /// Look for a cached response. On success the payload is returned <b>retained</b> - release it when
         /// the parse is done.
         /// </summary>
-        public bool TryGet(in RespCacheKey frame, int database, [NotNullWhen(true)] out RespPayload? payload)
+        public bool TryGet(in RespRequest frame, int database, [NotNullWhen(true)] out RespPayload? payload)
         {
             if (_entries.TryGetValue(new EntryKey(frame, database), out var entry)
                 && entry.IsValid
@@ -152,22 +152,22 @@ namespace StackExchange.Redis.Interpolated
         /// command was in flight.
         /// </summary>
         /// <returns><c>false</c> if the fill was abandoned; the response must not be cached.</returns>
-        public bool TryComplete(in RespFill fill, ReadOnlySpan<byte> response)
-            => TryComplete(fill, response, out var retained) ? Release(retained) : false;
-
-        private static bool Release(RespPayload payload)
-        {
-            payload.Release();
-            return true;
-        }
-
         /// <summary>
-        /// As <see cref="TryComplete(in RespFill, ReadOnlySpan{byte})"/>, also handing back the cached
-        /// payload <b>retained</b> so the caller can read it without a second lookup.
+        /// Complete a fill, storing the reply only if nothing it depends on was invalidated while the
+        /// command was in flight.
         /// </summary>
-        public bool TryComplete(in RespFill fill, ReadOnlySpan<byte> response, out RespPayload retained)
+        /// <param name="fill">The fill begun before the send.</param>
+        /// <param name="response">The reply. The cache takes its OWN reference if it stores it; the caller
+        /// still releases theirs.</param>
+        /// <returns><c>false</c> if the fill was abandoned; the reply was not cached.</returns>
+        /// <remarks>
+        /// Takes the payload rather than the bytes, so a stored reply is <b>shared with the caller, not
+        /// copied</b>. It is already in a pooled, reference-counted buffer; copying it into a second one to
+        /// cache it would be pure waste.
+        /// </remarks>
+        public bool TryComplete(in RespFill fill, RespPayload response)
         {
-            retained = null!;
+            if (response is null) throw new ArgumentNullException(nameof(response));
             if (fill.Key.IsEmpty) return false;
 
             if (!Dependency.AllValid(fill.Dependencies))
@@ -182,22 +182,23 @@ namespace StackExchange.Redis.Interpolated
                 return false;
             }
 
-            var entry = new Entry(RespPayload.Create(response), fill.Dependencies);
-            if (_entries.TryAdd(new EntryKey(stored, fill.Database), entry))
+            if (!response.TryRetain())
             {
-                fill.Key.Dispose(); // the dictionary holds its own reference now
-                if (entry.Payload.TryRetain())
-                {
-                    retained = entry.Payload;
-                    return true;
-                }
-
-                return false; // evicted already; vanishingly unlikely, but it is a miss, not an error
+                // the reply is already going back to the pool; nothing to cache
+                stored.Dispose();
+                fill.Key.Dispose();
+                return false;
             }
 
-            // somebody else filled the same frame first; theirs is as good as ours
+            if (_entries.TryAdd(new EntryKey(stored, fill.Database), new Entry(response, fill.Dependencies)))
+            {
+                fill.Key.Dispose(); // the dictionary holds its own references now
+                return true;
+            }
+
+            // somebody else filled the same request first; theirs is as good as ours
+            response.Release();
             stored.Dispose();
-            entry.Payload.Dispose();
             fill.Key.Dispose();
             return false;
         }
@@ -268,9 +269,9 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>The frame AND the database; see the note on database asymmetry in the type remarks.</summary>
-        private readonly struct EntryKey(RespCacheKey frame, int database) : IEquatable<EntryKey>
+        private readonly struct EntryKey(RespRequest frame, int database) : IEquatable<EntryKey>
         {
-            internal RespCacheKey Frame { get; } = frame;
+            internal RespRequest Frame { get; } = frame;
 
             private int Database { get; } = database;
 
@@ -285,14 +286,14 @@ namespace StackExchange.Redis.Interpolated
         [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
         public readonly struct RespFill
         {
-            internal RespFill(RespCacheKey key, int database, Dependency[] dependencies)
+            internal RespFill(RespRequest key, int database, Dependency[] dependencies)
             {
                 Key = key;
                 Database = database;
                 Dependencies = dependencies;
             }
 
-            internal RespCacheKey Key { get; }
+            internal RespRequest Key { get; }
 
             internal int Database { get; }
 

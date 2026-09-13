@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,20 @@ public class RespClientCacheTests
 
     private static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
 
+    /// <summary>Complete a fill from raw bytes; the caller's reference is released, as a real one would be.</summary>
+    private static bool Complete(RespClientCache cache, in RespClientCache.RespFill fill, string response)
+    {
+        var payload = RespPayload.Create(Utf8(response));
+        try
+        {
+            return cache.TryComplete(fill, payload);
+        }
+        finally
+        {
+            payload.Release();
+        }
+    }
+
     private static string Text(ReadOnlySpan<byte> value) =>
         Encoding.UTF8.GetString(value.ToArray()).Replace("\r\n", "|");
 
@@ -27,7 +42,7 @@ public class RespClientCacheTests
     {
         var frame = Get(key);
         Assert.True(cache.TryBeginFill(ref frame, database, out var fill));
-        Assert.True(cache.TryComplete(fill, Utf8(response)));
+        Assert.True(Complete(cache, fill, response));
     }
 
     private static bool TryRead(RespClientCache cache, string key, out string text, int database = 0)
@@ -184,7 +199,7 @@ public class RespClientCacheTests
 
         cache.OnInvalidate(Utf8("abc")); // ... someone writes the key while we wait for the reply ...
 
-        Assert.False(cache.TryComplete(fill, Utf8("$5\r\nstale\r\n")));
+        Assert.False(Complete(cache, fill, "$5\r\nstale\r\n"));
         Assert.Equal(0, cache.Count);
         Assert.False(TryRead(cache, "abc", out _));
     }
@@ -200,7 +215,7 @@ public class RespClientCacheTests
         // the invalidation preceded this request, so its reply reflects the write and is cacheable
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
-        Assert.True(cache.TryComplete(fill, Utf8("$5\r\nfresh\r\n")));
+        Assert.True(Complete(cache, fill, "$5\r\nfresh\r\n"));
         Assert.True(TryRead(cache, "abc", out var text));
         Assert.Equal("$5|fresh|", text);
     }
@@ -217,7 +232,7 @@ public class RespClientCacheTests
         Assert.True(frame.KeysNeedScan);  // beyond the two inline offsets: resolved from the bitmap
         Assert.Equal(3, frame.KeyCount);
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
-        Assert.True(cache.TryComplete(fill, Utf8("*3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n")));
+        Assert.True(Complete(cache, fill, "*3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n"));
 
         Assert.True(ThreeKeyHit(cache));
         Assert.True(cache.OnInvalidate(Utf8(((char)('a' + which)).ToString())));
@@ -293,12 +308,21 @@ public class RespClientCacheTests
 
         public int Database => 0;
 
-        public byte[] Send(ReadOnlySpan<byte> request)
+        /// <summary>Requests this executor retained, as a resending backlog would.</summary>
+        public List<RespRequest> Parked { get; } = [];
+
+        public bool ParkRequests { get; set; }
+
+        public RespPayload Send(in RespRequest request)
         {
             Sent++;
+            if (ParkRequests && request.TryRetain(out var retained)) Parked.Add(retained);
             onSend?.Invoke();
-            return Utf8(response);
+            return RespPayload.Create(Utf8(response));
         }
+
+        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+            => new(Send(request));
     }
 
     /// <summary>The ResultProcessor half: reply bytes in, result out.</summary>
@@ -323,6 +347,63 @@ public class RespClientCacheTests
         }
 
         Assert.Equal(1, executor.Sent);
+    }
+
+    [Fact]
+    public async Task SendAsyncMatchesSyncAndHitsCompleteSynchronously()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+
+        var miss = Get("abc");
+        Assert.Equal("$5|hello|", await executor.SendAsync(ref miss, TextHandler.Instance, cache));
+
+        var hit = Get("abc");
+        var pending = executor.SendAsync(ref hit, TextHandler.Instance, cache);
+
+        // a hit never touches the executor, so it must not build a state machine or a Task either
+        Assert.True(pending.IsCompletedSuccessfully);
+        Assert.Equal("$5|hello|", await pending);
+        Assert.Equal(1, executor.Sent);
+    }
+
+    [Fact]
+    public void ExecutorCanRetainTheRequestForAResend()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
+
+        var frame = Get("abc");
+        executor.Send(ref frame, TextHandler.Instance, cache);
+
+        // this is why the request is not a span: a backlog must be able to hold it past the call, and
+        // still read it afterwards to resend
+        var parked = Assert.Single(executor.Parked);
+        Assert.Equal("*2|$3|GET|$3|abc|", Text(parked.Span));
+        parked.Dispose();
+    }
+
+    [Fact]
+    public void CachedReplyIsSharedWithTheCallerNotCopied()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+
+        var frame = Get("abc");
+        executor.Send(ref frame, TextHandler.Instance, cache);
+
+        using var probe = Get("abc");
+        Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var payload));
+        try
+        {
+            // the reply the executor produced IS the cached one - TryComplete retains it rather than
+            // copying it into a second pooled buffer
+            Assert.Equal("$5|hello|", Text(payload.Span));
+        }
+        finally
+        {
+            payload.Release();
+        }
     }
 
     [Fact]
@@ -428,7 +509,7 @@ public class RespClientCacheTests
 
         var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
-        Assert.True(cache.TryComplete(fill, Utf8("*2\r\n$1\r\n1\r\n$1\r\n2\r\n")));
+        Assert.True(Complete(cache, fill, "*2\r\n$1\r\n1\r\n$1\r\n2\r\n"));
 
         using (var probe = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}"))
         {

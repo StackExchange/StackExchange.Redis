@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class InterpolatedWriterCacheKeyTests
 {
-    private static RespCacheKey Key(string key)
+    private static RespRequest Key(string key)
     {
         var ctx = new RespContext();
         var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)key}");
@@ -54,7 +54,7 @@ public class InterpolatedWriterCacheKeyTests
     [Fact]
     public void WorksAsAConcurrentDictionaryKey()
     {
-        var cache = new ConcurrentDictionary<RespCacheKey, RespPayload>();
+        var cache = new ConcurrentDictionary<RespRequest, RespPayload>();
 
         var stored = Key("abc");
         var payload = RespPayload.Create(Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));
@@ -83,7 +83,7 @@ public class InterpolatedWriterCacheKeyTests
     [Fact]
     public void LookupAllocatesNothingOnAHit()
     {
-        var cache = new ConcurrentDictionary<RespCacheKey, RespPayload>();
+        var cache = new ConcurrentDictionary<RespRequest, RespPayload>();
         var stored = Key("abc");
         var payload = RespPayload.Create(Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));
         cache.TryAdd(stored, payload);
@@ -103,7 +103,7 @@ public class InterpolatedWriterCacheKeyTests
         payload.Dispose();
         stored.Dispose();
 
-        static void Probe(ConcurrentDictionary<RespCacheKey, RespPayload> cache)
+        static void Probe(ConcurrentDictionary<RespRequest, RespPayload> cache)
         {
             // the HIT path borrows rather than detaching: Detach allocates a RefCountedBuffer per call
             var ctx = new RespContext();

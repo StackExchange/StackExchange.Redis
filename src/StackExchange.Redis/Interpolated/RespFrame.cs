@@ -201,18 +201,18 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// <para>
         /// The returned key holds ONE reference. Dispose it when done; if it is being stored, take a second
-        /// with <see cref="RespCacheKey.TryRetain"/> and store that.
+        /// with <see cref="RespRequest.TryRetain"/> and store that.
         /// </para>
         /// <para>
         /// Note the same struct-copy caveat as <see cref="Dispose"/>: this clears ownership on THIS copy of
         /// the frame, so a copy taken earlier still holds the array reference and must not be disposed.
         /// </para>
         /// </remarks>
-        public RespCacheKey Detach()
+        public RespRequest Detach()
         {
             var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
             _buffer = null; // ownership moves to the lease
-            return new RespCacheKey(buffer, RefCountedBuffer.Adopt(buffer, buffer.Length), _start, _length);
+            return new RespRequest(buffer, RefCountedBuffer.Adopt(buffer, buffer.Length), _start, _length);
         }
 
         /// <summary>
@@ -232,10 +232,10 @@ namespace StackExchange.Redis.Interpolated
         /// when ownership is actually wanted.
         /// </para>
         /// </remarks>
-        public RespCacheKey AsLookupKey()
+        public RespRequest AsLookupKey()
         {
             var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
-            return new RespCacheKey(buffer, lease: null, _start, _length);
+            return new RespRequest(buffer, lease: null, _start, _length);
         }
 
         /// <summary>Return the underlying buffer to the pool; safe to call more than once.</summary>

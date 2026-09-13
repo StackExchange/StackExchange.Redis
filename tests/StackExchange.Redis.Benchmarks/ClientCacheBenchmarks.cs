@@ -29,7 +29,9 @@ public class ClientCacheBenchmarks
             var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)("key:" + i)}");
             if (_cache.TryBeginFill(ref frame, 0, out var fill))
             {
-                _cache.TryComplete(fill, Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));
+                var payload = RespPayload.Create(Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));
+                _cache.TryComplete(fill, payload);
+                payload.Release();
             }
         }
 

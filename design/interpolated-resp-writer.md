@@ -939,7 +939,7 @@ Two requirements:
   a 256-byte array for the entry's life — roughly a third overhead on retained bytes. Minor, and a
   custom chunk pool with buckets fitted to the real frame distribution would tighten it.
 
-#### Implemented: `RespCacheKey` / `RespPayload` (see `InterpolatedWriterCacheKeyTests`)
+#### Implemented: `RespRequest` / `RespPayload` (see `InterpolatedWriterCacheKeyTests`)
 
 Two corrections to the sketch above, both found by building it.
 
@@ -1054,10 +1054,33 @@ executor.Send(ref request, handler, cache);   // with cache
 Caching becomes one extra argument rather than a different API, so turning it on does not mean rewriting
 call sites, and "no cache" is an ordinary case rather than a missing one.
 
-**The whole pattern is three members.** `IRespExecutor.Send(ReadOnlySpan<byte>)`,
-`IRespHandler<TResult>.Parse(ReadOnlySpan<byte>)`, and one extension method carrying all the orchestration —
+**Neither side of the executor is a span, and neither is a `byte[]`.** This is not a detail — it is what
+makes the contract usable at all:
+
+- A **span request** cannot cross an `await`, so it rules out async; and it cannot be parked in a backlog
+  for a resend after a reconnect, so it rules out retries even when synchronous.
+- A **`byte[]` reply** allocates on every call, which is the cost this design exists to remove.
+
+So both sides are pooled and reference-counted: `RespRequest` in, `RespPayload` out. The executor takes its
+own reference with `TryRetain` if it needs the bytes past the call; the caller releases theirs either way.
+`IRespHandler.Parse` *does* take a span, correctly — parsing is synchronous and runs inside the retained
+window.
+
+This is also why `RespCacheKey` became **`RespRequest`**: the bytes about to be sent and the cache key are
+the same object, and the request role is the primary one.
+
+`SendAsync` is deliberately **not** an `async` method. `async` forbids `ref` parameters, and the frame must
+be consumed by reference so a caller's copy cannot be disposed twice; so the probe and hand-off are
+synchronous and only the awaiting tail is a separate `async` method. **A cache hit therefore completes
+synchronously and allocates nothing** — no state machine, no `Task`.
+
+`TryComplete` takes the payload rather than the bytes, so a cached reply is **shared with the caller, not
+copied**: it is already in a pooled reference-counted buffer, and copying it to cache it would be waste.
+
+**The whole pattern is three members.** `IRespExecutor.Send`/`SendAsync`,
+`IRespHandler<TResult>.Parse(ReadOnlySpan<byte>)`, and the extension pair carrying all the orchestration —
 so the ordering rule that makes caching safe lives in exactly one place we own, instead of being exposed to
-every caller. (`IRespExecutor.Database` is a fourth, but it is data, not behaviour.)
+every caller. (`IRespExecutor.Database` is data, not behaviour.)
 
 One method rather than two overloads, because **the cached path *is* the uncached path plus a probe and a
 commit**: a request that cannot be cached — or a caller with no cache — falls through to the same tail
