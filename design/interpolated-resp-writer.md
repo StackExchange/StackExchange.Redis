@@ -971,7 +971,44 @@ merely documented.
 
 Measured: a steady-state cache hit — render, probe, retain, read, release — allocates **zero** bytes.
 
-#### 6.6 Invalidation: two tables, not a cross-index
+### 6.5 Exception paths
+
+The lowering puts construction and all `Append` calls in the *caller's* frame, before `Execute` is
+entered:
+
+```csharp
+var h = new Resp(...);       // rents here
+h.AppendFormatted(cmd);      // can throw: disabled command
+h.AppendFormatted(key);      // can throw: a hole's property getter
+Execute(h, handler);         // consumer's using/try-finally only starts HERE
+```
+
+So on a throw in that window there is no handler for the consumer to dispose. Dropping the buffer is
+the only available behaviour, and that is **accepted, not merely tolerated**: `DefaultInterpolatedStringHandler`
+does exactly the same — it rents from `ArrayPool<char>.Shared` and abandons the rental if an
+interpolation throws, because the compiler emits no `try`/`finally` around the append sequence. Broken
+usage dumping an incomplete buffer is the established behaviour of the pattern.
+
+It is also harmless here: `MemoryTrackedPool` is a thin wrapper over `ArrayPool<T>.Shared`
+(`MemoryTrackedPool.cs:34`) with no outstanding-rental tracking and no budget, so a dropped buffer is
+simply garbage.
+
+Two notes:
+
+- **Validate the command before renting** where it is free to do so. A CommandMap-disabled command is
+  both the most likely throw here and the most likely to *repeat*, being configuration-driven. The
+  command-as-argument form (§4.1) gets this for nothing, since `command` reaches the constructor. This is
+  a tidiness win rather than a correctness one — see the `DefaultInterpolatedStringHandler` precedent
+  above — so it is not worth contorting the API for.
+- **A bounded custom pool would invalidate this.** Dropping into `ArrayPool.Shared` is free because
+  Shared doesn't track; dropping a chunk from a bounded free-list permanently removes capacity and
+  silently degrades to allocating every time. `CycleBuffer.AppendOrRecycle(segment, maxDepth: 2)` shows
+  the bounded pattern is idiomatic here, so this needs care. Keep any dedicated pool unbounded —
+  allocate on miss, return opportunistically.
+
+---
+
+### 6.6 Invalidation: two tables, not a cross-index
 
 Verified against the protocol first: an invalidation message carries **an array of key names and nothing
 else** — no timestamp, no version, no epoch. A `null` in its place means `FLUSHALL`/`FLUSHDB`. Two further
@@ -1018,7 +1055,7 @@ cache at all.
 Measured (`ClientCacheBenchmarks`): `OnInvalidate` is **~5-6 ns, zero allocation, flat from 1 to 100,000
 cached keys** — about 170M invalidations/sec on one thread, for both hits and misses.
 
-#### 6.7 Why `GetOrExecute`, and what kind of cache this is
+### 6.7 Sending through the cache, and what kind of cache this is
 
 The obvious hand-written shape is **wrong**, and not in a way a careful caller can fix:
 
@@ -1032,16 +1069,17 @@ if (!cache.TryGet(req, out resp))
 
 By the time `Add` runs there is nothing left to compare against, so an invalidation that arrived during
 `Execute` cannot be detected — and the server will not repeat it, having dropped the key from its table
-when it fired. The result is a *permanently* stale entry. That is why `GetOrExecute` exists: it captures
-generations before it calls the executor, so the completion can see that the world moved. It is not sugar;
-**it is the only shape that is correct by construction**, and the explicit `TryBeginFill`/`TryComplete`
-pair is for callers who need to interleave their own dispatch.
+when it fired. The result is a *permanently* stale entry. That is why the orchestration has to own the
+call: it captures generations before it sends, so the completion can see that the world moved. It is not
+sugar; **it is the only shape that is correct by construction**, and the explicit
+`TryBeginFill`/`TryComplete` pair is for callers who need to interleave their own dispatch.
 
 A response that arrives after an invalidation is still *returned* — it is a legitimate answer for a read
 that raced a write, and the caller would have got it anyway without a cache — it is simply not stored.
 
 **The cache is a participant in the send, not the entry point.** An earlier shape had the cache own the
-call (`cache.GetOrExecute(...)`, with the command supplying its own `Execute`). That was backwards twice
+call (`cache.GetOrExecute(...)`, with the command supplying its own `Execute`) — since removed. That was
+backwards twice
 over: a cache that calls the executor has to sit above dispatch and know how to send, and a *command* has
 no business knowing how to send itself. Inverting it gives the shape the library already has — an executor
 that sends, and a handler that is exactly the `ResultProcessor` role:
@@ -1106,7 +1144,7 @@ return executor.Send(ref req, handler, cache);   // no using, nothing to release
 Executor and handler are passed as interfaces, so hold **one instance of each and reuse them** — a `struct`
 implementation would box per call. Reused instances allocate nothing per request.
 
-**Read-through, and no write path at all.** `GetOrExecute` makes the cache own the fetch, which is
+**Read-through, and no write path at all.** `Send` with a cache makes the cache own the fetch, which is
 read-through; the raw `TryGet` + `TryBeginFill` pair is cache-aside. Neither write-through nor write-behind
 applies, because **writes never go through this cache**. Coherence comes from the server telling us what
 changed, which puts this closer to hardware cache coherence than to the application-caching taxonomy: we
@@ -1127,42 +1165,173 @@ whole lifetime, so keys can be recovered lazily from a cached entry without re-r
 would have forced rebasing them by the frame-start delta — the same off-by-a-few-bytes hazard as §5.2,
 reintroduced at a second site.
 
-### 6.5 Exception paths
+### 6.8 Transition: reusing `Message` rather than rewriting the command surface
 
-The lowering puts construction and all `Append` calls in the *caller's* frame, before `Execute` is
-entered:
+`RedisDatabase` builds a `Message` and pairs it with a `ResultProcessor<T>`. Those are **the same two
+halves as the new API** — a request that renders itself, and something that turns a reply into a result —
+so the existing command surface can feed the new pipeline without being rewritten. `RespFrameWriter` is a
+working demonstration (`MessageToRespFrameTests`).
+
+| New API | Existing equivalent |
+| --- | --- |
+| the rendered request | `Message` + `MessageWriter` |
+| `IRespHandler<TResult>.Parse` | `ResultProcessor<T>.SetResultCore(..., ref RespReader)` |
+| cluster slot | `Message.GetHashSlot` — already computed, so **nothing to fold during the write** |
+| argument count | already in the `*N\r\n` header the writer emits |
+| key prefixes, channel prefix, command map | already applied by `MessageWriter` |
+
+**What bytes cannot supply is which arguments were keys**, which is why this is a writer and not a post-pass
+over a rendered frame — §5.2's finding applies directly. The saving grace is that `MessageWriter` kept the
+distinction at the call site: `Write(in RedisKey)` is a separate overload from `WriteBulkString(in
+RedisValue)`. So the whole integration is **one hook** — `Write(in RedisKey)` reports the current offset —
+plus an `IBufferWriter<byte>` that accumulates and packs the marks.
+
+Notes from building it:
+
+- `MessageWriter` is a `readonly ref struct`, so it cannot accumulate marks itself. The recorder is a
+  reference to the target writer, resolved **once per message** in the constructor (`writer as
+  RespFrameWriter`), so the per-key cost is a null check on an already-loaded field.
+- **Cost: below the noise floor.** A/B on `SET key value`: 66.96 ns with the hook, 68.77 ns without — the
+  hooked build measured *faster*, which is proof the difference is run-to-run variance rather than signal.
+  So the cost is bounded below ~3%, not that it is zero.
+- Offsets suffice for ≤2 keys; beyond that the frame's encoding is argument *indices*, which the recorder
+  derives by walking the finished frame once — off any hot path, and the same walk `TryGetKeys` does in
+  reverse.
+- Both routes render **byte-identically**, pinned by a test. That is a correctness property, not tidiness:
+  the frame is the cache key, so two routes that disagreed would cache the same logical command twice.
+
+Still open for a real transition: a cacheability predicate (Redis excludes `FT.*`, probabilistic and
+time-series types, and non-deterministic commands such as `HRANDFIELD`/`ZRANDMEMBER`/`HSCAN`), and running
+a `ResultProcessor` against a cached payload — it takes `ref RespReader`, which `RespPayload.GetReader()`
+supplies, but it also wants a `PhysicalConnection` and `Message` for error context.
+
+### 6.9 Cacheability: gate on the retry category, fail closed
+
+Cacheability cannot be a list of command names. `FT.*` is not in this library at all — it lives in
+NRedisStack, reaching the server through `Execute`/`ExecuteAsync` — so any rule expressed as "these
+commands are excluded" is unenforceable for exactly the commands most likely to be wrong.
+
+The flags already model this. The retry category is a 5-bit severity ladder in `CommandFlags`
+(`Message.MaskRetryCategory`, bits 13–17), and `Message.UserSelectableFlags` **already includes it**, so an
+external surface can declare a category today with no new API. So the gate is:
 
 ```csharp
-var h = new Resp(...);       // rents here
-h.AppendFormatted(cmd);      // can throw: disabled command
-h.AppendFormatted(key);      // can throw: a hole's property getter
-Execute(h, handler);         // consumer's using/try-finally only starts HERE
+var category = flags & Message.MaskRetryCategory;
+return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
 ```
 
-So on a throw in that window there is no handler for the consumer to dispose. Dropping the buffer is
-the only available behaviour, and that is **accepted, not merely tolerated**: `DefaultInterpolatedStringHandler`
-does exactly the same — it rents from `ArrayPool<char>.Shared` and abandons the rental if an
-interpolation throws, because the compiler emits no `try`/`finally` around the append sequence. Broken
-usage dumping an incomplete buffer is the established behaviour of the pattern.
+**Both halves matter.** Zero means "nobody declared one", and zero sorts *below* `CommandRetryReadOnly` on
+the ladder — so a naive `<=` would read "nobody said" as "safe to cache", which is precisely backwards for
+commands this library does not define. Undeclared must mean uncacheable. That is pinned by a test, because
+it is the one that fails open if written carelessly.
 
-It is also harmless here: `MemoryTrackedPool` is a thin wrapper over `ArrayPool<T>.Shared`
-(`MemoryTrackedPool.cs:34`) with no outstanding-rental tracking and no budget, so a dropped buffer is
-simply garbage.
+`flags` is therefore **not optional** on `Send`/`SendAsync`. Every `IDatabase` method in this library
+already carries flags; whether a command may be cached is a property of the command, and the caller has to
+say.
 
-Two notes:
+**Read-only is necessary, not sufficient**, and this is a gate rather than the whole test. Read-only
+commands that must still not be cached: non-deterministic ones (`SRANDMEMBER`, `HRANDFIELD`,
+`ZRANDMEMBER`) and cursor-based ones (`SCAN`, `HSCAN`). Those are *our* commands, so they belong in
+command metadata rather than in flags — a compile-time property of our own enum should not be pushed onto
+every call site.
 
-- **Validate the command before renting** where it is free to do so. A CommandMap-disabled command is
-  both the most likely throw here and the most likely to *repeat*, being configuration-driven. The
-  command-as-argument form (§4.1) gets this for nothing, since `command` reaches the constructor. This is
-  a tidiness win rather than a correctness one — see the `DefaultInterpolatedStringHandler` precedent
-  above — so it is not worth contorting the API for.
-- **A bounded custom pool would invalidate this.** Dropping into `ArrayPool.Shared` is free because
-  Shared doesn't track; dropping a chunk from a bounded free-list permanently removes capacity and
-  silently degrades to allocating every time. `CycleBuffer.AppendOrRecycle(segment, maxDepth: 2)` shows
-  the bounded pattern is idiomatic here, so this needs care. Keep any dedicated pool unbounded —
-  allocate on miss, return opportunistically.
+#### Opt-out, not opt-in
+
+The caller-facing control is **`CommandFlags.NoClientCache`** (bit 19), and caching is otherwise on by
+default for anything that clears the gates. Opt-in was considered and rejected: it would mean touching
+every `IDatabase` method, and a single omission makes the feature silently do nothing.
+
+The worry that argued for opt-in was an external command that is read-only, keyed, and *not* tracked by
+the server — it would be cached and never invalidated. On inspection that population is close to empty:
+
+- `FT.*` takes an **index name, not a keyspace key**, so it is keyless and the rule above already refuses
+  it. (This was my counter-example, and it was simply wrong.)
+- Probabilistic and time-series types (`BF.*`, `TS.*`) are keyed on *real* keyspace keys, so tracking and
+  invalidation work normally. The Redis docs exclude them because *"these types are designed to be updated
+  frequently, which means caching has little or no benefit"* — an efficiency argument, not a correctness
+  one, and precisely what an opt-out is for.
+
+What remains is a third party who writes their own module, enables client-side caching, declares a
+read-only retry category, and whose module reads are not registered for invalidation by the server. Note
+that doing *nothing* is already safe: an undeclared category is uncacheable, so the failure needs a
+positive act of mis-declaration. And caching is globally opt-in in the first place. Treating that as caller
+error is consistent with how this same enum already treats retry categories, where mis-declaring gets you
+duplicate writes on a reconnect — a worse outcome that we already trust callers to avoid.
+
+`NoClientCache` suppresses the **probe as well as the store**: opting out has to mean the caller does not
+receive a cached answer either, not merely that this reply is not kept.
+
+#### Why not a new rung on the retry ladder
+
+Tempting — it is a numeric range with gaps — but no:
+
+- **The caller wins on the ladder.** `WithCategory` is explicit: *"if the user has already specified a
+  category, that wins."* So opting out of caching via the category would *replace* the retry category, and
+  a caller suppressing caching on a churny value would silently change reconnect behaviour.
+- **Inserting above `ReadOnly` breaks every `<=`.** A "read-only but uncacheable" rung reads as more
+  severe, so retry policies testing `<= CommandRetryReadOnly` would stop retrying it: a caching annotation
+  causing a retry regression. Inserting *below* avoids that but forces recategorising every read-only
+  command and leaves `ReadOnly` meaning "not cacheable".
+- **The codebase already decided this.** `CommandServerSpecific` sits outside the ladder because it is
+  *"an orthogonal flag, not part of the `<=`-comparable severity ladder"*. Same shape, same answer. The
+  ladder orders one axis — is it safe to send again; cacheability asks another — will invalidation tell me
+  when this changes.
+
+#### Diagnosability
+
+The failure this design can still produce is silent and durable: something wrongly cached serves stale data
+forever, with no error and no log. So the fill path keeps four counters — `Stored`, `RefusedByFlags`,
+`RefusedNoKeys`, `RefusedRaced`. They are incremented only on a miss, which has already paid for a round
+trip, so a cache hit costs nothing. "Why is this stale?" and "why is nothing being cached?" should both be
+answerable without a debugger.
+
+**Keyless commands are never cached.** Found by building this: `AllValid` over an empty dependency list is
+vacuously `true`, so a keyless entry was valid *for the life of the process* — not even a flush cleared it,
+since `OnFlush` stamps key nodes and there were none. Server-assisted invalidation only ever reports keys,
+so a command with no keys can never be invalidated by anything. `TIME`, `PING`, `RANDOMKEY`, `INFO` would
+all have been permanently stale. This also removes a slice of the non-deterministic problem for free, since
+several of those commands are keyless anyway.
 
 ---
+
+### 6.10 Decision log
+
+What was chosen, what was rejected, and why. Several of these were reversed during implementation; the
+reversals are the useful part.
+
+| Decision | Rejected alternative | Why |
+| --- | --- | --- |
+| Reference counting (`RefCountedBuffer`) | Neuterable `Dispose` + `TransferOwnership`, as §6.4 originally sketched | Transfer makes every holder reason about whether ownership moved, and the answer is only known after dispatch. A count gives one rule: whoever retains, releases. |
+| `AsLookupKey()` borrows for the probe | Always `Detach()` | `Detach` allocates a lease — **48 bytes, measured** — and on a cache *hit* the caller never wanted the buffer. The split also makes storing a borrowed key unexpressible, since a borrowed key cannot be retained. |
+| Global monotonic generation tickets | Per-key counters | A per-key counter restarting at zero collides with a ticket an entry recorded before invalidation, so the entry validates against a key that *did* change. |
+| Two independent tables | `key → set of entries` cross-index | The set must be maintained on every insert and eviction, an N-key entry lives in N sets, and a hot key's set can be a large fraction of the cache — so invalidation is O(entries), not O(1). |
+| Entries hold the key's `Node` directly | Re-look-up table 2 per hit | Validation becomes a dereference and a compare, with no hashing on the hot path. Cost: a node leaving table 2 must be stamped invalid *first*, or entries pointing at it never learn. |
+| Executor owns the send; cache is a participant | `cache.GetOrExecute(...)` | A cache that calls the executor must sit above dispatch and know how to send; and a *command* has no business knowing how to send itself. Splitting yields `IRespExecutor` + `IRespHandler`, which are `Message` + `ResultProcessor`. |
+| One `Send` with an optional cache | Two overloads | The cached path *is* the uncached path plus a probe and a commit, so an uncacheable request falls through to the same tail instead of duplicating it. |
+| `RespRequest` / `RespPayload` on both sides | `ReadOnlySpan<byte>` in, `byte[]` out | A span cannot cross an `await` **or be parked in a backlog for a resend** — so it rules out async *and* retries even synchronously. `byte[]` allocates per call. |
+| `SendAsync` is not an `async` method | Plain `async` | `async` forbids `ref` parameters, and the frame must be consumed by reference. Keeping the probe synchronous also makes a cache hit complete with **no state machine and no `Task`**. |
+| `TryComplete` takes the payload | `TryComplete` takes the bytes | The reply is already in a pooled reference-counted buffer; copying it to cache it is waste. |
+| Caching is **opt-out** (`NoClientCache`) | Opt-in | Opt-in means touching every `IDatabase` method, and one omission makes the feature silently do nothing. The population that argued for opt-in turned out to be nearly empty — see below. |
+| A separate flag bit | A new rung on the retry ladder | `WithCategory` says the caller's category wins, so opting out of caching would *replace* the retry category and change reconnect behaviour. A rung above `ReadOnly` also reads as more severe, so `<= ReadOnly` retry policies would stop retrying it. `CommandServerSpecific` sits outside the ladder for exactly this reason. |
+| Non-determinism lives in command metadata | A `CommandFlags` bit | `SRANDMEMBER`/`SCAN`/`HRANDFIELD` are compile-time properties of our own enum; pushing them onto every call site is burden without benefit. |
+| Keyless requests are never cached | Cache them | Invalidation only ever reports **keys**, so a keyless entry is vacuously valid for the life of the process — not even a flush clears it. Found by building it, not by reasoning. |
+| Handler maintains **both** key-mark forms | Re-derive arg indices on promotion | §5.2 assumed there were no spare bits — true of the *frame*, false of the writer, which is a stack `ref struct` with no size pressure. |
+| >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
+| >62 arguments declines to cache | "Treat every argument as a key" | Over-invalidation is safe by protocol, but this registers *value* bytes as tracked keys, polluting the key table and inviting spurious invalidation from unrelated keys that happen to match a value. Safe, and invisibly degrading. |
+
+**One reversal worth recording explicitly.** The case for opt-in rested on "an external command that is
+read-only, keyed, and untracked" — with `FT.SEARCH` as the example. That was wrong: `FT.*` takes an *index
+name*, not a keyspace key, so it is keyless and already refused. The keyed module commands (`JSON.GET`,
+`TS.RANGE`, `BF.EXISTS`) operate on real keys the server does track, and the Redis docs exclude the
+probabilistic and time-series families on **efficiency** grounds — *"designed to be updated frequently,
+which means caching has little or no benefit"* — which is exactly what an opt-out is for. With the
+counter-example gone, the argument went with it.
+
+**A race that is not a defect.** Validation is not atomic across an entry's keys: validate A, an
+invalidation for A lands, validate B, serve. The read could have completed a microsecond earlier and been
+equally correct, so either outcome is a legitimate observation. It is bounded to reads that overlap the
+invalidation, and everything after it is correct. Recorded as a deliberate tolerance rather than something
+to fix.
 
 ## 7. Analyzer rules
 
@@ -1325,135 +1494,6 @@ Commands that return key names, and so need this: `RANDOMKEY`, `KEYS`, `SCAN`, t
 pops (`BLPOP`/`BRPOP`/`LMPOP`/`ZMPOP`/`BZPOPMIN`/`BZPOPMAX`), `XREAD`/`XREADGROUP` stream names,
 keyspace notifications, and script/`Execute` results.
 
-#### 6.8 Transition: reusing `Message` rather than rewriting the command surface
-
-`RedisDatabase` builds a `Message` and pairs it with a `ResultProcessor<T>`. Those are **the same two
-halves as the new API** — a request that renders itself, and something that turns a reply into a result —
-so the existing command surface can feed the new pipeline without being rewritten. `RespFrameWriter` is a
-working demonstration (`MessageToRespFrameTests`).
-
-| New API | Existing equivalent |
-| --- | --- |
-| the rendered request | `Message` + `MessageWriter` |
-| `IRespHandler<TResult>.Parse` | `ResultProcessor<T>.SetResultCore(..., ref RespReader)` |
-| cluster slot | `Message.GetHashSlot` — already computed, so **nothing to fold during the write** |
-| argument count | already in the `*N\r\n` header the writer emits |
-| key prefixes, channel prefix, command map | already applied by `MessageWriter` |
-
-**What bytes cannot supply is which arguments were keys**, which is why this is a writer and not a post-pass
-over a rendered frame — §5.2's finding applies directly. The saving grace is that `MessageWriter` kept the
-distinction at the call site: `Write(in RedisKey)` is a separate overload from `WriteBulkString(in
-RedisValue)`. So the whole integration is **one hook** — `Write(in RedisKey)` reports the current offset —
-plus an `IBufferWriter<byte>` that accumulates and packs the marks.
-
-Notes from building it:
-
-- `MessageWriter` is a `readonly ref struct`, so it cannot accumulate marks itself. The recorder is a
-  reference to the target writer, resolved **once per message** in the constructor (`writer as
-  RespFrameWriter`), so the per-key cost is a null check on an already-loaded field.
-- **Cost: below the noise floor.** A/B on `SET key value`: 66.96 ns with the hook, 68.77 ns without — the
-  hooked build measured *faster*, which is proof the difference is run-to-run variance rather than signal.
-  So the cost is bounded below ~3%, not that it is zero.
-- Offsets suffice for ≤2 keys; beyond that the frame's encoding is argument *indices*, which the recorder
-  derives by walking the finished frame once — off any hot path, and the same walk `TryGetKeys` does in
-  reverse.
-- Both routes render **byte-identically**, pinned by a test. That is a correctness property, not tidiness:
-  the frame is the cache key, so two routes that disagreed would cache the same logical command twice.
-
-Still open for a real transition: a cacheability predicate (Redis excludes `FT.*`, probabilistic and
-time-series types, and non-deterministic commands such as `HRANDFIELD`/`ZRANDMEMBER`/`HSCAN`), and running
-a `ResultProcessor` against a cached payload — it takes `ref RespReader`, which `RespPayload.GetReader()`
-supplies, but it also wants a `PhysicalConnection` and `Message` for error context.
-
-#### 6.9 Cacheability: gate on the retry category, fail closed
-
-Cacheability cannot be a list of command names. `FT.*` is not in this library at all — it lives in
-NRedisStack, reaching the server through `Execute`/`ExecuteAsync` — so any rule expressed as "these
-commands are excluded" is unenforceable for exactly the commands most likely to be wrong.
-
-The flags already model this. The retry category is a 5-bit severity ladder in `CommandFlags`
-(`Message.MaskRetryCategory`, bits 13–17), and `Message.UserSelectableFlags` **already includes it**, so an
-external surface can declare a category today with no new API. So the gate is:
-
-```csharp
-var category = flags & Message.MaskRetryCategory;
-return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
-```
-
-**Both halves matter.** Zero means "nobody declared one", and zero sorts *below* `CommandRetryReadOnly` on
-the ladder — so a naive `<=` would read "nobody said" as "safe to cache", which is precisely backwards for
-commands this library does not define. Undeclared must mean uncacheable. That is pinned by a test, because
-it is the one that fails open if written carelessly.
-
-`flags` is therefore **not optional** on `Send`/`SendAsync`. Every `IDatabase` method in this library
-already carries flags; whether a command may be cached is a property of the command, and the caller has to
-say.
-
-**Read-only is necessary, not sufficient**, and this is a gate rather than the whole test. Read-only
-commands that must still not be cached: non-deterministic ones (`SRANDMEMBER`, `HRANDFIELD`,
-`ZRANDMEMBER`) and cursor-based ones (`SCAN`, `HSCAN`). Those are *our* commands, so they belong in
-command metadata rather than in flags — a compile-time property of our own enum should not be pushed onto
-every call site.
-
-##### Opt-out, not opt-in
-
-The caller-facing control is **`CommandFlags.NoClientCache`** (bit 19), and caching is otherwise on by
-default for anything that clears the gates. Opt-in was considered and rejected: it would mean touching
-every `IDatabase` method, and a single omission makes the feature silently do nothing.
-
-The worry that argued for opt-in was an external command that is read-only, keyed, and *not* tracked by
-the server — it would be cached and never invalidated. On inspection that population is close to empty:
-
-- `FT.*` takes an **index name, not a keyspace key**, so it is keyless and the rule above already refuses
-  it. (This was my counter-example, and it was simply wrong.)
-- Probabilistic and time-series types (`BF.*`, `TS.*`) are keyed on *real* keyspace keys, so tracking and
-  invalidation work normally. The Redis docs exclude them because *"these types are designed to be updated
-  frequently, which means caching has little or no benefit"* — an efficiency argument, not a correctness
-  one, and precisely what an opt-out is for.
-
-What remains is a third party who writes their own module, enables client-side caching, declares a
-read-only retry category, and whose module reads are not registered for invalidation by the server. Note
-that doing *nothing* is already safe: an undeclared category is uncacheable, so the failure needs a
-positive act of mis-declaration. And caching is globally opt-in in the first place. Treating that as caller
-error is consistent with how this same enum already treats retry categories, where mis-declaring gets you
-duplicate writes on a reconnect — a worse outcome that we already trust callers to avoid.
-
-`NoClientCache` suppresses the **probe as well as the store**: opting out has to mean the caller does not
-receive a cached answer either, not merely that this reply is not kept.
-
-##### Why not a new rung on the retry ladder
-
-Tempting — it is a numeric range with gaps — but no:
-
-- **The caller wins on the ladder.** `WithCategory` is explicit: *"if the user has already specified a
-  category, that wins."* So opting out of caching via the category would *replace* the retry category, and
-  a caller suppressing caching on a churny value would silently change reconnect behaviour.
-- **Inserting above `ReadOnly` breaks every `<=`.** A "read-only but uncacheable" rung reads as more
-  severe, so retry policies testing `<= CommandRetryReadOnly` would stop retrying it: a caching annotation
-  causing a retry regression. Inserting *below* avoids that but forces recategorising every read-only
-  command and leaves `ReadOnly` meaning "not cacheable".
-- **The codebase already decided this.** `CommandServerSpecific` sits outside the ladder because it is
-  *"an orthogonal flag, not part of the `<=`-comparable severity ladder"*. Same shape, same answer. The
-  ladder orders one axis — is it safe to send again; cacheability asks another — will invalidation tell me
-  when this changes.
-
-##### Diagnosability
-
-The failure this design can still produce is silent and durable: something wrongly cached serves stale data
-forever, with no error and no log. So the fill path keeps four counters — `Stored`, `RefusedByFlags`,
-`RefusedNoKeys`, `RefusedRaced`. They are incremented only on a miss, which has already paid for a round
-trip, so a cache hit costs nothing. "Why is this stale?" and "why is nothing being cached?" should both be
-answerable without a debugger.
-
-**Keyless commands are never cached.** Found by building this: `AllValid` over an empty dependency list is
-vacuously `true`, so a keyless entry was valid *for the life of the process* — not even a flush cleared it,
-since `OnFlush` stamps key nodes and there were none. Server-assisted invalidation only ever reports keys,
-so a command with no keys can never be invalidated by anything. `TIME`, `PING`, `RANDOMKEY`, `INFO` would
-all have been permanently stale. This also removes a slice of the non-deterministic problem for free, since
-several of those commands are keyless anyway.
-
----
-
 ## 9. The spike in this repo
 
 A working spike. The surface is public but gated behind `SER010`/`SER011` — see §9.1.
@@ -1468,6 +1508,17 @@ A working spike. The surface is public but gated behind `SER010`/`SER011` — se
 | `src/StackExchange.Redis/Interpolated/RespFragment.cs` | pre-framed token runs + the `[Resp]` marker |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterDemo.cs` | 7 worked examples, each asserting the exact frame |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterFragmentTests.cs` | 16 tests; declarations only - the generator supplies the bodies |
+| `src/StackExchange.Redis/Interpolated/RespRequest.cs` | the rendered request; also the cache key (§6.4) |
+| `src/StackExchange.Redis/Interpolated/RespPayload.cs` | a reply as a pooled, reference-counted blob (§6.4) |
+| `src/StackExchange.Redis/Interpolated/RespClientCache.cs` | table 1: `(request, db)` to payload + generations (§6.6) |
+| `src/StackExchange.Redis/Interpolated/RespKeyTable.cs` | table 2: key bytes to a generation; the only thing invalidation touches (§6.6) |
+| `src/StackExchange.Redis/Interpolated/RespExecutor.cs` | `IRespExecutor`, `IRespHandler<T>`, and the `Send` orchestration (§6.7) |
+| `src/StackExchange.Redis/Interpolated/RespFrameWriter.cs` | renders an existing `Message` into a `RespFrame` (§6.8) |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterCacheKeyTests.cs` | 12 tests: zero-alloc hits, use-after-release, concurrent readers vs eviction |
+| `tests/StackExchange.Redis.Tests/RespClientCacheTests.cs` | 44 tests: invalidation, the in-flight race, flag gates, counters |
+| `tests/StackExchange.Redis.Tests/MessageToRespFrameTests.cs` | 7 tests: existing `Message` objects through the new pipeline |
+| `tests/StackExchange.Redis.Tests/InterpolatedWriterCapacityTests.cs` | buffer arithmetic asserted directly, where pool slack cannot mask it |
+| `tests/StackExchange.Redis.Benchmarks/ClientCacheBenchmarks.cs` | `OnInvalidate` under a broadcasting flood |
 
 Green on net10.0 and net8.0 (58 tests); net481 compiles; `-c Release /p:CI=true /p:RunAnalyzers=true`
 clean.
@@ -1744,10 +1795,9 @@ Notes from building it, in case they bite again:
   route by slot. `RedisChannel` carries a `KeyRouted` option (`Subscription.cs:83`) that presumably ought
   to gate it, and sharing one `_slot` field between keys and channels conflates two different things.
   Visible in the worked example as `ChannelPrefix` reporting `slot=5631` for a plain `PUBLISH`.
-- **`Raw` multi-arg and the bit cursor.** A fragment with `ArgCount > 1` must advance the key-mark bit
-  cursor by its arg count, not by 1. Either forbid keys in `Raw` (rule 5) or have `Raw` carry its own
-  bitmap to shift and OR in.
-- **Promotion seam** (§5.2) — re-derive arg indices by walking, or something better.
+- **`Raw` multi-arg and the bit cursor.** A fragment with `ArgCount > 1` advances `_argIndex` by its arg
+  count, which keeps the key-mark bitmap aligned — but `Raw` still cannot itself contain a key. Either
+  forbid that (rule 5) or have `Raw` carry its own bitmap to shift and OR in.
 - **Single-arg vs multi-arg `Raw`.** Restricting `Raw` to exactly one bulk string keeps `*N` a
   compile-time constant; allowing multi-arg costs runtime counting. Possibly two types.
 - **A runtime-validating `Raw` factory** for fragments assembled once at startup from config — the one
@@ -1758,6 +1808,27 @@ Notes from building it, in case they bite again:
 - **Should the handler be a `ref struct`?** It holds only a `byte[]`. Ref struct prevents capture,
   copying and double-dispose, which is why it is right — but it also blocks `using var` + `ref` (§4)
   and any async retention.
+Added while building the cache (§6.6-6.9):
+
+- **Command metadata for cacheability.** Non-deterministic (`SRANDMEMBER`, `HRANDFIELD`, `ZRANDMEMBER`)
+  and cursor-based (`SCAN`, `HSCAN`) commands are read-only and keyed, so the flag gates pass them. They
+  need a per-command fact in our own metadata, *not* a `CommandFlags` bit — see §6.9.
+- **Do module reads register for invalidation?** If the server tracks keys only for core command
+  dispatch, a keyed module read would be cached and never invalidated. Unresolved by the docs and worth
+  five minutes against a real server with a module loaded; it decides whether §6.9's opt-out story needs
+  a caveat for module authors.
+- **Nothing turns tracking on.** There is no `CLIENT TRACKING` support, and the RESP3 `invalidate` push is
+  actively dropped — `PushKind` has no member for it, *and* `OnOutOfBand` requires the second element to
+  be an inline string, which an invalidate push's key array is not. Both need changing. RESP2 `REDIRECT`
+  already delivers invalidations via pub/sub today (`Issue2507`).
+- **Replies are copied into the cache.** `RespPayload.Create` copies; the real executor should share the
+  reply frame's own lease via a reservation, as `RespResult` already does.
+- **Running a `ResultProcessor` over a cached payload.** It takes `ref RespReader`, which
+  `RespPayload.GetReader()` supplies, but also wants a `PhysicalConnection` and `Message` for error
+  context — so it needs a synthetic context or a narrower interface (§6.8).
+- **Bounding the cache.** Invalidated entries linger until `Sweep`, and the key table grows with distinct
+  keys seen. Both need a size bound; both fail closed, so bounding is safe (§6.6).
+
 - **Static key bitmaps.** For fixed-arity commands the key positions are statically known, so the JIT
   may constant-fold the bitmap when the Append chain inlines. Not to be designed around, but the
   structure permits it and an analyzer could emit the constant if it matters.
