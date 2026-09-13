@@ -21,6 +21,20 @@
 [SER010]StackExchange.Redis.Interpolated.RespCacheKey.RespCacheKey() -> void
 [SER010]StackExchange.Redis.Interpolated.RespCacheKey.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespCacheKey.TryRetain(out StackExchange.Redis.Interpolated.RespCacheKey retained) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespClientCache
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Count.get -> int
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Dispose() -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.OnFlush() -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.OnInvalidate(System.ReadOnlySpan<byte> key) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespClientCache(int keyCapacity = 256) -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.Abandon() -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.RespFill() -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Sweep() -> int
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TrackedKeyCount.get -> int
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginFill(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryComplete(in StackExchange.Redis.Interpolated.RespClientCache.RespFill fill, System.ReadOnlySpan<byte> response) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespCacheKey frame, int database, out StackExchange.Redis.Interpolated.RespPayload? payload) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Interpolated.RespFragment value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisChannel value) -> void

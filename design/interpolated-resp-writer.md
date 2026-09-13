@@ -941,6 +941,52 @@ merely documented.
 
 Measured: a steady-state cache hit — render, probe, retain, read, release — allocates **zero** bytes.
 
+#### 6.6 Invalidation: two tables, not a cross-index
+
+Verified against the protocol first: an invalidation message carries **an array of key names and nothing
+else** — no timestamp, no version, no epoch. A `null` in its place means `FLUSHALL`/`FLUSHDB`. Two further
+properties shape the design more than the missing time does:
+
+- **False invalidations are normal.** The server's invalidation table is bounded; when it fills it evicts
+  by *pretending a key was modified*. Over-invalidation is routine traffic, so invalidation must be cheap
+  and correctness must never depend on it being precise.
+- **Tracking ignores the database.** *"There is a single keys namespace, not divided by database numbers"* —
+  writing `foo` in db 3 invalidates a cached `foo` in db 2.
+
+**The structure.** Two independent lookups rather than one cross-indexed structure:
+
+| | key | value |
+| --- | --- | --- |
+| Table 1 — `RespClientCache` | rendered frame **+ database** | payload + the generations its keys had at send time |
+| Table 2 — `RespKeyTable` | Redis key bytes, **no database** | a generation |
+
+A server invalidation touches *only* table 2: one hash, one stamp. It never enumerates cache entries, which
+is the whole point — under `BCAST` we are told about every key touched on the server and almost none are
+ours. The database asymmetry above is protocol-faithful and looks like a bug; it is commented as such.
+
+**Generations are global monotonic tickets, not per-key counters.** This is what makes removal and reuse
+safe. A per-key counter restarting at zero can collide with a ticket a cached entry recorded before the key
+was invalidated, and that entry would then validate against a key that had in fact changed.
+
+**Entries hold the key's node directly**, so validating a hit is a dereference and a `long` compare — table
+2 is never re-hashed on the hot path. The price is one invariant: *a node that leaves table 2 must be
+stamped invalid first*, or entries still pointing at it would never learn. Both that invariant and the
+in-flight check below are pinned by mutation-tested cases.
+
+**The fill race is the reason any of this needs ordering.** An invalidation can land between send and
+reply, and the server will not repeat it — it dropped the key from its table when it fired. Caching that
+reply leaves *permanently* stale data. `TryBeginFill` captures generations at **send** time and
+`TryComplete` refuses if they moved, which is the documented "caching-in-progress placeholder" without a
+placeholder.
+
+Everything fails closed: an unresolvable key, a frame whose keys cannot be enumerated, a generation that
+moved — all are misses. In particular a frame with **more than two keys is refused outright**, because the
+overflow key marks record nothing usable (§5.2's open seam), and an entry whose keys cannot be named could
+never be invalidated. `MGET` with two keys caches; with three it does not.
+
+Measured (`ClientCacheBenchmarks`): `OnInvalidate` is **~5-6 ns, zero allocation, flat from 1 to 100,000
+cached keys** — about 170M invalidations/sec on one thread, for both hits and misses.
+
 Pinning also **keeps the key offsets valid**: buffer-absolute offsets stay resolvable for the entry's
 whole lifetime, so keys can be recovered lazily from a cached entry without re-rendering. Copying
 would have forced rebasing them by the frame-start delta — the same off-by-a-few-bytes hazard as §5.2,
