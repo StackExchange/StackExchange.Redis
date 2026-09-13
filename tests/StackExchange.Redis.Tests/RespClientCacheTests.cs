@@ -286,6 +286,79 @@ public class RespClientCacheTests
         Assert.Equal(3, frame.TryGetKeys(exact));
     }
 
+    [Fact]
+    public void GetOrExecuteRunsOnceThenServesFromCache()
+    {
+        using var cache = new RespClientCache();
+        var calls = 0;
+
+        for (var i = 0; i < 3; i++)
+        {
+            var frame = Get("abc");
+            using var resp = cache.GetOrExecute(ref frame, 0, this, (_, _) =>
+            {
+                calls++;
+                return Utf8("$5\r\nhello\r\n");
+            });
+
+            Assert.Equal("$5|hello|", Text(resp.Span));
+        }
+
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public void GetOrExecuteStillAnswersWhenInvalidatedInFlight()
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+
+        // the write lands while our command is in flight - the shape that the hand-written
+        // "miss, execute, then add" cannot detect, because by the add there is nothing left to compare
+        using (var resp = cache.GetOrExecute(ref frame, 0, cache, (c, _) =>
+        {
+            c.OnInvalidate(Utf8("abc"));
+            return Utf8("$5\r\nhello\r\n");
+        }))
+        {
+            Assert.Equal("$5|hello|", Text(resp.Span)); // the caller still gets an answer
+        }
+
+        Assert.Equal(0, cache.Count); // ... it just was not cached
+    }
+
+    [Fact]
+    public void GetOrExecuteAnswersEvenWhenTheFrameCannotBeCached()
+    {
+        using var cache = new RespClientCache();
+        var handler = new RespCommandHandler(0, 70, Ctx, "MGET");
+        for (var i = 0; i < 70; i++) handler.AppendFormatted((RedisKey)("k" + i));
+        var frame = handler.Complete();
+
+        using (var resp = cache.GetOrExecute(ref frame, 0, this, (_, _) => Utf8("$2\r\nok\r\n")))
+        {
+            Assert.Equal("$2|ok|", Text(resp.Span));
+        }
+
+        Assert.Equal(0, cache.Count);
+        frame.Dispose();
+    }
+
+    [Fact]
+    public void GetOrExecutePayloadIsReleasedByUsing()
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+        RespPayload captured;
+        using (var resp = cache.GetOrExecute(ref frame, 0, this, (_, _) => Utf8("$5\r\nhello\r\n")))
+        {
+            captured = resp;
+            Assert.Equal(2, captured.RefCount); // the cache entry, plus ours
+        }
+
+        Assert.Equal(1, captured.RefCount); // 'using' gave ours back; the cache keeps its own
+    }
+
     private static string[] KeyStrings(in RespFrame frame)
     {
         var count = frame.KeyCount;

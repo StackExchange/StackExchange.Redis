@@ -6,6 +6,13 @@ using RESPite;
 
 namespace StackExchange.Redis.Interpolated
 {
+    /// <summary>Issue a request and return the raw response bytes.</summary>
+    /// <typeparam name="TState">Caller state, so the callback need not close over anything.</typeparam>
+    /// <param name="state">The caller state.</param>
+    /// <param name="request">The rendered request frame.</param>
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public delegate byte[] RespExecutor<in TState>(TState state, ReadOnlySpan<byte> request);
+
     /// <summary>
     /// EXPERIMENTAL SPIKE. A client-side cache built as two independent lookups rather than a cross-indexed
     /// structure.
@@ -109,7 +116,7 @@ namespace StackExchange.Redis.Interpolated
         /// This is what closes the race the Redis docs describe: an invalidation can arrive between the send
         /// and the reply, and the server will not tell us again, because it dropped the key from its
         /// invalidation table when it fired. Caching that reply would leave permanently stale data. By
-        /// recording generations at send time, <see cref="TryComplete"/> can see that the world moved.
+        /// recording generations at send time, <c>TryComplete</c> can see that the world moved.
         /// </para>
         /// <para>
         /// Returns <c>false</c> - refusing to cache - when the frame cannot report its keys. That is now only
@@ -153,7 +160,21 @@ namespace StackExchange.Redis.Interpolated
         /// </summary>
         /// <returns><c>false</c> if the fill was abandoned; the response must not be cached.</returns>
         public bool TryComplete(in RespFill fill, ReadOnlySpan<byte> response)
+            => TryComplete(fill, response, out var retained) ? Release(retained) : false;
+
+        private static bool Release(RespPayload payload)
         {
+            payload.Release();
+            return true;
+        }
+
+        /// <summary>
+        /// As <see cref="TryComplete(in RespFill, ReadOnlySpan{byte})"/>, also handing back the cached
+        /// payload <b>retained</b> so the caller can read it without a second lookup.
+        /// </summary>
+        public bool TryComplete(in RespFill fill, ReadOnlySpan<byte> response, out RespPayload retained)
+        {
+            retained = null!;
             if (fill.Key.IsEmpty) return false;
 
             if (!Dependency.AllValid(fill.Dependencies))
@@ -172,7 +193,13 @@ namespace StackExchange.Redis.Interpolated
             if (_entries.TryAdd(new EntryKey(stored, fill.Database), entry))
             {
                 fill.Key.Dispose(); // the dictionary holds its own reference now
-                return true;
+                if (entry.Payload.TryRetain())
+                {
+                    retained = entry.Payload;
+                    return true;
+                }
+
+                return false; // evicted already; vanishingly unlikely, but it is a miss, not an error
             }
 
             // somebody else filled the same frame first; theirs is as good as ours
@@ -180,6 +207,58 @@ namespace StackExchange.Redis.Interpolated
             entry.Payload.Dispose();
             fill.Key.Dispose();
             return false;
+        }
+
+        /// <summary>
+        /// Look up, and on a miss execute and cache - with the send-time ordering handled for you.
+        /// </summary>
+        /// <returns>
+        /// The response, <b>retained</b>. Dispose it (or <see cref="RespPayload.Release"/>) when done; a
+        /// <c>using</c> does the right thing.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Prefer this to calling <see cref="TryGet"/> and a separate add.</b> The obvious hand-written
+        /// shape - look up, miss, execute, then add - is exactly the unsafe one: an invalidation arriving
+        /// while the command is in flight is lost, because by the time the add happens there is nothing left
+        /// to compare against. This method captures the generations before it calls
+        /// <paramref name="execute"/>, so <c>TryComplete</c> can see that the world moved.
+        /// </para>
+        /// <para>
+        /// A response that arrives after an invalidation is still <b>returned</b> - it is a legitimate answer
+        /// for a read that raced a write, and the caller would have got it anyway without a cache - it is
+        /// simply not stored.
+        /// </para>
+        /// <para>
+        /// <paramref name="state"/> exists so the callback can be a <c>static</c> lambda and allocate no
+        /// closure. Returning <c>byte[]</c> is a spike convenience: the real thing would hand back the
+        /// response frame's own lease, as <c>RespResult</c> already does, rather than copying.
+        /// </para>
+        /// </remarks>
+        /// <typeparam name="TState">Caller state, passed to <paramref name="execute"/>.</typeparam>
+        /// <param name="frame">The rendered request; its buffer is taken over when the response is cached.</param>
+        /// <param name="database">The database the request runs against.</param>
+        /// <param name="state">Caller state, so the callback need not close over anything.</param>
+        /// <param name="execute">Issues the request when the cache misses.</param>
+        public RespPayload GetOrExecute<TState>(
+            ref RespFrame frame,
+            int database,
+            TState state,
+            RespExecutor<TState> execute)
+        {
+            if (execute is null) throw new ArgumentNullException(nameof(execute));
+
+            if (TryGet(frame.AsLookupKey(), database, out var hit)) return hit;
+
+            if (!TryBeginFill(ref frame, database, out var fill))
+            {
+                // keys not nameable, so not cacheable - but the caller still wants an answer
+                return RespPayload.Create(execute(state, frame.Span));
+            }
+
+            // the frame's buffer now belongs to the fill, so read the request from there
+            var response = execute(state, fill.Key.Span);
+            return TryComplete(fill, response, out var stored) ? stored : RespPayload.Create(response);
         }
 
         /// <summary>

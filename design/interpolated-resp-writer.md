@@ -1018,6 +1018,44 @@ cache at all.
 Measured (`ClientCacheBenchmarks`): `OnInvalidate` is **~5-6 ns, zero allocation, flat from 1 to 100,000
 cached keys** — about 170M invalidations/sec on one thread, for both hits and misses.
 
+#### 6.7 Why `GetOrExecute`, and what kind of cache this is
+
+The obvious hand-written shape is **wrong**, and not in a way a careful caller can fix:
+
+```csharp
+if (!cache.TryGet(req, out resp))
+{
+    resp = Execute(req);
+    cache.Add(req, resp);     // an invalidation between these two lines is lost forever
+}
+```
+
+By the time `Add` runs there is nothing left to compare against, so an invalidation that arrived during
+`Execute` cannot be detected — and the server will not repeat it, having dropped the key from its table
+when it fired. The result is a *permanently* stale entry. That is why `GetOrExecute` exists: it captures
+generations before it calls the executor, so the completion can see that the world moved. It is not sugar;
+**it is the only shape that is correct by construction**, and the explicit `TryBeginFill`/`TryComplete`
+pair is for callers who need to interleave their own dispatch.
+
+A response that arrives after an invalidation is still *returned* — it is a legitimate answer for a read
+that raced a write, and the caller would have got it anyway without a cache — it is simply not stored.
+
+**Read-through, and no write path at all.** `GetOrExecute` makes the cache own the fetch, which is
+read-through; the raw `TryGet` + `TryBeginFill` pair is cache-aside. Neither write-through nor write-behind
+applies, because **writes never go through this cache**. Coherence comes from the server telling us what
+changed, which puts this closer to hardware cache coherence than to the application-caching taxonomy: we
+hold no dirty state and never write back.
+
+Two consequences worth stating:
+
+- **Updating a cached value on write is not an option**, even in principle. Entries are keyed by rendered
+  frame and hold a response *frame*, so "write through" would mean synthesising what `GET foo` will return
+  after a `SET foo bar` — possible only for trivial commands and wrong in general. Invalidation is the only
+  sound answer.
+- **`NOLOOP` reintroduces a write-side hook.** It suppresses invalidations for keys this connection
+  modified, so under `NOLOOP` the write path *must* call `OnInvalidate` itself. That is a write-through
+  concern in a design that otherwise has none, and it is the one place the "no write path" story breaks.
+
 Pinning also **keeps the key offsets valid**: buffer-absolute offsets stay resolvable for the entry's
 whole lifetime, so keys can be recovered lazily from a cached entry without re-rendering. Copying
 would have forced rebasing them by the frame-start delta — the same off-by-a-few-bytes hazard as §5.2,
