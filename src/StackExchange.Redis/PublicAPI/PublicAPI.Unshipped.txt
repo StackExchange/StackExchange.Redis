@@ -1,22 +1,19 @@
-﻿#nullable enable
-[SER010]override StackExchange.Redis.Interpolated.RespRequest.Equals(object? obj) -> bool
-[SER010]override StackExchange.Redis.Interpolated.RespRequest.GetHashCode() -> int
-[SER010]override StackExchange.Redis.Interpolated.RespRequest.ToString() -> string!
+#nullable enable
 [SER010]StackExchange.Redis.Interpolated.IRespExecutor
 [SER010]StackExchange.Redis.Interpolated.IRespExecutor.Database.get -> int
-[SER010]StackExchange.Redis.Interpolated.IRespExecutor.SendAsync(StackExchange.Redis.Interpolated.RespRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Interpolated.RespPayload!>
 [SER010]StackExchange.Redis.Interpolated.IRespExecutor.Send(in StackExchange.Redis.Interpolated.RespRequest request) -> StackExchange.Redis.Interpolated.RespPayload!
+[SER010]StackExchange.Redis.Interpolated.IRespExecutor.SendAsync(StackExchange.Redis.Interpolated.RespRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Interpolated.RespPayload!>
 [SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>
 [SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>.Parse(System.ReadOnlySpan<byte> response) -> TResult
 [SER010]StackExchange.Redis.Interpolated.KeyRange
-[SER010]StackExchange.Redis.Interpolated.KeyRange.KeyRange(int offset, int length) -> void
 [SER010]StackExchange.Redis.Interpolated.KeyRange.KeyRange() -> void
+[SER010]StackExchange.Redis.Interpolated.KeyRange.KeyRange(int offset, int length) -> void
 [SER010]StackExchange.Redis.Interpolated.KeyRange.Length.get -> int
 [SER010]StackExchange.Redis.Interpolated.KeyRange.Offset.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespAttribute
-[SER010]StackExchange.Redis.Interpolated.RespAttribute.RespAttribute(string! token, params string![]! additionalTokens) -> void
-[SER010]StackExchange.Redis.Interpolated.RespAttribute.RespAttribute(string! token) -> void
 [SER010]StackExchange.Redis.Interpolated.RespAttribute.RespAttribute() -> void
+[SER010]StackExchange.Redis.Interpolated.RespAttribute.RespAttribute(string! token) -> void
+[SER010]StackExchange.Redis.Interpolated.RespAttribute.RespAttribute(string! token, params string![]! additionalTokens) -> void
 [SER010]StackExchange.Redis.Interpolated.RespAttribute.Tokens.get -> string![]!
 [SER010]StackExchange.Redis.Interpolated.RespClientCache
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.Count.get -> int
@@ -29,6 +26,7 @@
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.RespFill() -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.Sweep() -> int
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TrackedKeyCount.get -> int
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginFill(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, StackExchange.Redis.CommandFlags flags, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginFill(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryComplete(in StackExchange.Redis.Interpolated.RespClientCache.RespFill fill, StackExchange.Redis.Interpolated.RespPayload! response) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, out StackExchange.Redis.Interpolated.RespPayload? payload) -> bool
@@ -40,9 +38,9 @@
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendLiteral(string! value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.Complete() -> StackExchange.Redis.Interpolated.RespFrame
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.Dispose() -> void
-[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context, string! command) -> void
-[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler() -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context, string! command) -> void
 [SER010]StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.CancellationToken.get -> System.Threading.CancellationToken
 [SER010]StackExchange.Redis.Interpolated.RespContext.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
@@ -101,8 +99,11 @@
 [SER010]StackExchange.Redis.Interpolated.RespRequest.RespRequest() -> void
 [SER010]StackExchange.Redis.Interpolated.RespRequest.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespRequest.TryRetain(out StackExchange.Redis.Interpolated.RespRequest retained) -> bool
-[SER010]static StackExchange.Redis.Interpolated.RespExecutor.SendAsync<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.Interpolated.RespClientCache? cache = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<TResult>
-[SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.Interpolated.RespClientCache? cache = null) -> TResult
+[SER010]override StackExchange.Redis.Interpolated.RespRequest.Equals(object? obj) -> bool
+[SER010]override StackExchange.Redis.Interpolated.RespRequest.GetHashCode() -> int
+[SER010]override StackExchange.Redis.Interpolated.RespRequest.ToString() -> string!
+[SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.CommandFlags flags, StackExchange.Redis.Interpolated.RespClientCache? cache = null) -> TResult
+[SER010]static StackExchange.Redis.Interpolated.RespExecutor.SendAsync<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.CommandFlags flags, StackExchange.Redis.Interpolated.RespClientCache? cache = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<TResult>
 [SER010]static StackExchange.Redis.Interpolated.RespFragment.CreateValidated(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> StackExchange.Redis.Interpolated.RespFragment
 [SER010]static StackExchange.Redis.Interpolated.RespPayload.Create(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Interpolated.RespPayload!
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void

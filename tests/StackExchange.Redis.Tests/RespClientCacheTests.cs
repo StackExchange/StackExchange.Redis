@@ -343,7 +343,7 @@ public class RespClientCacheTests
         {
             // note: no 'using' on the frame and none on any payload - Send owns both
             var frame = Get("abc");
-            Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, cache));
+            Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache));
         }
 
         Assert.Equal(1, executor.Sent);
@@ -356,10 +356,10 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
-        Assert.Equal("$5|hello|", await executor.SendAsync(ref miss, TextHandler.Instance, cache));
+        Assert.Equal("$5|hello|", await executor.SendAsync(ref miss, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache));
 
         var hit = Get("abc");
-        var pending = executor.SendAsync(ref hit, TextHandler.Instance, cache);
+        var pending = executor.SendAsync(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
 
         // a hit never touches the executor, so it must not build a state machine or a Task either
         Assert.True(pending.IsCompletedSuccessfully);
@@ -374,7 +374,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
 
         var frame = Get("abc");
-        executor.Send(ref frame, TextHandler.Instance, cache);
+        executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
 
         // this is why the request is not a span: a backlog must be able to hold it past the call, and
         // still read it afterwards to resend
@@ -390,7 +390,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var frame = Get("abc");
-        executor.Send(ref frame, TextHandler.Instance, cache);
+        executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
 
         using var probe = Get("abc");
         Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var payload));
@@ -412,11 +412,11 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var a = Get("abc");
-        Assert.Equal("$5|hello|", executor.Send(ref a, TextHandler.Instance));
+        Assert.Equal("$5|hello|", executor.Send(ref a, TextHandler.Instance, CommandFlags.None));
 
         // a null cache takes the same overload, so enabling caching is one argument, not a rewrite
         var b = Get("abc");
-        Assert.Equal("$5|hello|", executor.Send(ref b, TextHandler.Instance, cache: null));
+        Assert.Equal("$5|hello|", executor.Send(ref b, TextHandler.Instance, CommandFlags.None, cache: null));
 
         Assert.Equal(2, executor.Sent); // no caching either way
     }
@@ -431,7 +431,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n", () => cache.OnInvalidate(Utf8("abc")));
 
         var frame = Get("abc");
-        Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, cache)); // still answered
+        Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache)); // still answered
         Assert.Equal(0, cache.Count);                                                      // ... not cached
     }
 
@@ -444,7 +444,7 @@ public class RespClientCacheTests
         var frame = writer.Complete();
 
         var executor = new FakeExecutor("$2\r\nok\r\n");
-        Assert.Equal("$2|ok|", executor.Send(ref frame, TextHandler.Instance, cache));
+        Assert.Equal("$2|ok|", executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache));
         Assert.Equal(0, cache.Count);
 
         // this path FALLS THROUGH to the uncached tail rather than duplicating it, so the frame must be
@@ -459,10 +459,10 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
-        executor.Send(ref fill, TextHandler.Instance, cache);
+        executor.Send(ref fill, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
 
         var hit = Get("abc");
-        executor.Send(ref hit, TextHandler.Instance, cache);
+        executor.Send(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
 
         // exactly one reference survives - the cache entry's. If the helper leaked the caller's retain the
         // buffer would never return to the pool; if it over-released, the entry would be reading freed bytes
@@ -480,16 +480,75 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
-        executor.Send(ref miss, TextHandler.Instance, cache);
+        executor.Send(ref miss, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
         Assert.Throws<ObjectDisposedException>(() => miss.AsLookupKey());
 
         var hit = Get("abc");
-        executor.Send(ref hit, TextHandler.Instance, cache);
+        executor.Send(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
         Assert.Throws<ObjectDisposedException>(() => hit.AsLookupKey());
 
         var uncached = Get("abc");
-        executor.Send(ref uncached, TextHandler.Instance); // the no-cache overload too
+        executor.Send(ref uncached, TextHandler.Instance, CommandFlags.None); // the no-cache overload too
         Assert.Throws<ObjectDisposedException>(() => uncached.AsLookupKey());
+    }
+
+    [Fact]
+    public void KeylessCommandsAreNeverCached()
+    {
+        using var cache = new RespClientCache();
+
+        // a keyless command can NEVER be invalidated: server-assisted invalidation only ever reports keys,
+        // so an entry with no dependencies is vacuously valid forever. Not even a FLUSHALL clears it,
+        // because OnFlush stamps key nodes and this entry has none. Permanent staleness - refuse it.
+        var frame = Ctx.Execute($"{RedisCommand.TIME}");
+        Assert.Equal(0, frame.KeyCount);
+        Assert.False(cache.TryBeginFill(ref frame, 0, out _));
+        frame.Dispose();
+
+        Assert.Equal(0, cache.Count);
+    }
+
+    [Theory]
+    // cacheable: a declared category no more severe than read-only
+    [InlineData(CommandFlags.CommandRetryAlways, true)]
+    [InlineData(CommandFlags.CommandRetryConnection, true)]
+    [InlineData(CommandFlags.CommandRetryReadOnly, true)]
+    // not cacheable: writes and above
+    [InlineData(CommandFlags.CommandRetryWriteChecked, false)]
+    [InlineData(CommandFlags.CommandRetryWriteLastWins, false)]
+    [InlineData(CommandFlags.CommandRetryWriteAccumulating, false)]
+    [InlineData(CommandFlags.CommandRetryServerAdmin, false)]
+    [InlineData(CommandFlags.CommandRetryNever, false)]
+    // and the trap: nobody declared one. Zero sits BELOW read-only on the ladder, so a naive <= test
+    // would read "nobody said" as "safe to cache" - backwards, and exactly the case that matters for
+    // commands this library does not know, such as NRedisStack's FT.*
+    [InlineData(CommandFlags.None, false)]
+    public void CachingDemandsADeclaredReadOnlyCategory(CommandFlags flags, bool cacheable)
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+        Assert.Equal(cacheable, cache.TryBeginFill(ref frame, 0, flags, out var fill));
+
+        if (cacheable)
+        {
+            Assert.True(Complete(cache, fill, "$5\r\nhello\r\n"));
+        }
+        else
+        {
+            frame.Dispose();
+        }
+    }
+
+    [Fact]
+    public void UnsetCategoryIsRefusedEvenThoughItComparesBelowReadOnly()
+    {
+        // pinning the arithmetic directly, because this is the one that fails open if written naively
+        Assert.True(RespClientCache.IsCacheableCategory(CommandFlags.CommandRetryReadOnly));
+        Assert.False(RespClientCache.IsCacheableCategory(CommandFlags.None));
+        Assert.True((CommandFlags.None & Message.MaskRetryCategory) < CommandFlags.CommandRetryReadOnly);
+
+        // flags unrelated to the category must not accidentally satisfy the gate
+        Assert.False(RespClientCache.IsCacheableCategory(CommandFlags.PreferReplica | CommandFlags.FireAndForget));
     }
 
     private static string[] KeyStrings(in RespFrame frame)

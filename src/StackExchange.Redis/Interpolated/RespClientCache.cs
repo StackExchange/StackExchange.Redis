@@ -118,12 +118,51 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// </remarks>
         public bool TryBeginFill(ref RespFrame frame, int database, out RespFill fill)
+            => TryBeginFill(ref frame, database, CommandFlags.CommandRetryReadOnly, out fill);
+
+        /// <inheritdoc cref="TryBeginFill(ref RespFrame, int, out RespFill)"/>
+        /// <param name="frame">The rendered request.</param>
+        /// <param name="database">The database the request runs against.</param>
+        /// <param name="flags">
+        /// The command's flags. Caching requires a retry category that is <b>set</b> and no more severe than
+        /// <see cref="CommandFlags.CommandRetryReadOnly"/>.
+        /// </param>
+        /// <param name="fill">The fill to complete once the reply arrives.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Unset is not cacheable.</b> The retry category region is zero when nobody declared one, and
+        /// zero compares below <see cref="CommandFlags.CommandRetryReadOnly"/> on the severity ladder - so a
+        /// naive <c>&lt;=</c> test would treat "nobody said" as "safe to cache", which is precisely backwards
+        /// for commands this library does not know. External surfaces such as NRedisStack reach the server
+        /// through <c>Execute</c>, and <c>Message.UserSelectableFlags</c> already lets them declare a
+        /// category; declaring nothing must mean no caching.
+        /// </para>
+        /// <para>
+        /// Read-only is <b>necessary but not sufficient</b>, which is why this is a gate rather than the
+        /// whole test. Plenty of read-only commands must not be cached - non-deterministic ones
+        /// (<c>SRANDMEMBER</c>, <c>HRANDFIELD</c>, <c>ZRANDMEMBER</c>), cursor-based ones (<c>SCAN</c>,
+        /// <c>HSCAN</c>), and anything the server does not track for invalidation, which per the Redis docs
+        /// includes the whole <c>FT.*</c> family. The keyless rule below catches some of these for free; the
+        /// rest need an explicit opt-in that this spike does not yet model.
+        /// </para>
+        /// </remarks>
+        public bool TryBeginFill(ref RespFrame frame, int database, CommandFlags flags, out RespFill fill)
         {
-            var keyCount = frame.KeyCount;
-            if (keyCount < 0)
+            if (!IsCacheableCategory(flags))
             {
                 fill = default;
-                return false; // keys not enumerable => not invalidatable => must not be cached
+                return false;
+            }
+
+            var keyCount = frame.KeyCount;
+            if (keyCount <= 0)
+            {
+                // keyCount < 0: keys not enumerable => not invalidatable.
+                // keyCount == 0: NOTHING can ever invalidate this. Server-assisted invalidation only ever
+                // reports keys, so an entry with no dependencies is vacuously valid forever - not even a
+                // flush clears it, because OnFlush stamps key nodes and there are none. Permanent staleness.
+                fill = default;
+                return false;
             }
 
             // the overwhelming majority of commands are well under this; only a huge multi-key command
@@ -239,6 +278,20 @@ namespace StackExchange.Redis.Interpolated
             }
 
             _keys.InvalidateAll();
+        }
+
+        /// <summary>
+        /// Whether the command's retry category permits caching at all.
+        /// </summary>
+        /// <remarks>
+        /// The category is a 5-bit severity ladder where zero means "nobody declared one". Both halves of
+        /// this test matter: <c>!= 0</c> rejects the undeclared case, and <c>&lt;=</c> uses the ladder the
+        /// flags were built to support, so anything at or beyond a write - or server-admin - is out.
+        /// </remarks>
+        internal static bool IsCacheableCategory(CommandFlags flags)
+        {
+            var category = flags & Message.MaskRetryCategory;
+            return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
         }
 
         /// <summary>One key a cached entry depends on, and the generation it had when the request was sent.</summary>

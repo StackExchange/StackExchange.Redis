@@ -77,8 +77,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="executor">The executor to send through.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
         /// <param name="handler">Turns the reply into a result.</param>
+        /// <param name="flags">
+        /// The command's flags. Caching additionally requires a declared retry category no more severe than
+        /// <see cref="CommandFlags.CommandRetryReadOnly"/>; see
+        /// <see cref="RespClientCache.TryBeginFill(ref RespFrame, int, CommandFlags, out RespClientCache.RespFill)"/>.
+        /// </param>
         /// <param name="cache">The cache to consult, or <c>null</c> to bypass caching entirely.</param>
         /// <remarks>
+        /// <para>
+        /// <paramref name="flags"/> is deliberately <b>not</b> optional. Every <c>IDatabase</c> method in
+        /// this library already carries flags, and whether a command may be cached is a property of the
+        /// command, not of the call site's enthusiasm - so the caller has to say. Saying nothing
+        /// (<see cref="CommandFlags.None"/>) means no caching, which is the safe reading for any command
+        /// this library does not itself define.
+        /// </para>
         /// Three lifetimes are handled here so that no caller has to: the key generations are captured
         /// <b>before</b> the send; the payload is retained across <see cref="IRespHandler{TResult}.Parse"/>
         /// and released in a <c>finally</c>; and the request is consumed on every path.
@@ -87,6 +99,7 @@ namespace StackExchange.Redis.Interpolated
             this IRespExecutor executor,
             ref RespFrame request,
             IRespHandler<TResult> handler,
+            CommandFlags flags,
             RespClientCache? cache = null)
         {
             if (executor is null) throw new ArgumentNullException(nameof(executor));
@@ -96,7 +109,7 @@ namespace StackExchange.Redis.Interpolated
             {
                 if (TryServeFromCache(executor, ref request, handler, cache, out var cached)) return cached;
 
-                if (cache.TryBeginFill(ref request, executor.Database, out var fill))
+                if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
                 {
                     // generations captured above, BEFORE this send
                     var filled = executor.Send(fill.Key);
@@ -134,10 +147,11 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="Send{TResult}(IRespExecutor, ref RespFrame, IRespHandler{TResult}, RespClientCache)"/>
+        /// <inheritdoc cref="Send{TResult}(IRespExecutor, ref RespFrame, IRespHandler{TResult}, CommandFlags, RespClientCache)"/>
         /// <param name="executor">The executor to send through.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
         /// <param name="handler">Turns the reply into a result.</param>
+        /// <param name="flags">The command's flags; see the synchronous overload.</param>
         /// <param name="cache">The cache to consult, or <c>null</c> to bypass caching entirely.</param>
         /// <param name="cancellationToken">Cancels the send.</param>
         /// <remarks>
@@ -151,6 +165,7 @@ namespace StackExchange.Redis.Interpolated
             this IRespExecutor executor,
             ref RespFrame request,
             IRespHandler<TResult> handler,
+            CommandFlags flags,
             RespClientCache? cache = null,
             CancellationToken cancellationToken = default)
         {
@@ -164,7 +179,7 @@ namespace StackExchange.Redis.Interpolated
                     return new ValueTask<TResult>(cached);
                 }
 
-                if (cache.TryBeginFill(ref request, executor.Database, out var fill))
+                if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
                 {
                     return AwaitFill(executor, fill, handler, cache, cancellationToken);
                 }

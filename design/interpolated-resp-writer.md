@@ -1365,6 +1365,43 @@ time-series types, and non-deterministic commands such as `HRANDFIELD`/`ZRANDMEM
 a `ResultProcessor` against a cached payload — it takes `ref RespReader`, which `RespPayload.GetReader()`
 supplies, but it also wants a `PhysicalConnection` and `Message` for error context.
 
+#### 6.9 Cacheability: gate on the retry category, fail closed
+
+Cacheability cannot be a list of command names. `FT.*` is not in this library at all — it lives in
+NRedisStack, reaching the server through `Execute`/`ExecuteAsync` — so any rule expressed as "these
+commands are excluded" is unenforceable for exactly the commands most likely to be wrong.
+
+The flags already model this. The retry category is a 5-bit severity ladder in `CommandFlags`
+(`Message.MaskRetryCategory`, bits 13–17), and `Message.UserSelectableFlags` **already includes it**, so an
+external surface can declare a category today with no new API. So the gate is:
+
+```csharp
+var category = flags & Message.MaskRetryCategory;
+return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
+```
+
+**Both halves matter.** Zero means "nobody declared one", and zero sorts *below* `CommandRetryReadOnly` on
+the ladder — so a naive `<=` would read "nobody said" as "safe to cache", which is precisely backwards for
+commands this library does not define. Undeclared must mean uncacheable. That is pinned by a test, because
+it is the one that fails open if written carelessly.
+
+`flags` is therefore **not optional** on `Send`/`SendAsync`. Every `IDatabase` method in this library
+already carries flags; whether a command may be cached is a property of the command, and the caller has to
+say.
+
+**Read-only is necessary, not sufficient**, and this is a gate rather than the whole test. Read-only
+commands that must still not be cached: non-deterministic ones (`SRANDMEMBER`, `HRANDFIELD`,
+`ZRANDMEMBER`), cursor-based ones (`SCAN`, `HSCAN`), and anything the server does not track for
+invalidation — per the Redis docs, the whole `FT.*` family. A second axis is still needed; an explicit
+opt-in bit is the obvious shape, and there is room beside `CommandServerSpecific` (bit 18).
+
+**Keyless commands are never cached.** Found by building this: `AllValid` over an empty dependency list is
+vacuously `true`, so a keyless entry was valid *for the life of the process* — not even a flush cleared it,
+since `OnFlush` stamps key nodes and there were none. Server-assisted invalidation only ever reports keys,
+so a command with no keys can never be invalidated by anything. `TIME`, `PING`, `RANDOMKEY`, `INFO` would
+all have been permanently stale. This also removes a slice of the non-deterministic problem for free, since
+several of those commands are keyless anyway.
+
 ---
 
 ## 9. The spike in this repo
