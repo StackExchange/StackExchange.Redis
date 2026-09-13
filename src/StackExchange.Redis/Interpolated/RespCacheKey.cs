@@ -1,0 +1,130 @@
+using System;
+using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
+using RESPite.Buffers;
+using RESPite.Messages;
+
+namespace StackExchange.Redis.Interpolated
+{
+    /// <summary>
+    /// EXPERIMENTAL SPIKE. A rendered RESP frame, detached from its builder and usable as a dictionary key
+    /// without ever being copied into a <c>byte[]</c> or a <c>string</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the client-side-cache half of the interpolated writer: the bytes that were going to be sent
+    /// anyway ARE the cache key, so a lookup costs a render and no allocation at all. Deliberately not a
+    /// <c>ref struct</c> - a <c>ref struct</c> cannot be a <c>TKey</c> - which is why the payload lives in a
+    /// pooled array behind a <see cref="RefCountedBuffer"/> rather than in a <c>stackalloc</c>.
+    /// </para>
+    /// <para>
+    /// <b>Lifetime.</b> Whoever retains, releases. <see cref="RespFrame.Detach"/> hands back a key holding
+    /// one reference; <see cref="TryRetain"/> takes another. Dispose each one exactly once. The rule for the
+    /// dictionary is that the STORED key holds its own reference for as long as it is in the dictionary -
+    /// see the remarks on <see cref="TryRetain"/> - which is what section 6.4 of the design doc means by "the
+    /// cache entry pins the lease".
+    /// </para>
+    /// <para>
+    /// <b>Why a reference count and not ownership transfer.</b> The design doc originally sketched a
+    /// neuterable <c>Dispose</c> plus <c>TransferOwnership</c>. A count is less error-prone: with transfer,
+    /// every holder has to know whether ownership moved, and the answer is only known after dispatch.
+    /// </para>
+    /// </remarks>
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public readonly struct RespCacheKey : IEquatable<RespCacheKey>, IDisposable
+    {
+        private readonly byte[]? _array;
+        private readonly RefCountedBuffer? _lease;   // null => BORROWED: this key owns no reference
+        private readonly int _offset;
+        private readonly int _length;
+        private readonly int _hash;
+
+        internal RespCacheKey(byte[] array, RefCountedBuffer? lease, int offset, int length)
+        {
+            _array = array;
+            _lease = lease;
+            _offset = offset;
+            _length = length;
+            _hash = RedisValue.GetHashCode(array.AsSpan(offset, length));
+        }
+
+        /// <summary>Whether this key refers to anything; a <c>default</c> instance does not.</summary>
+        public bool IsEmpty => _array is null;
+
+        /// <summary>
+        /// Whether this key owns a reference to its buffer, and so may be stored.
+        /// </summary>
+        /// <remarks>
+        /// False for a key from <see cref="RespFrame.AsLookupKey"/>, which borrows the frame's buffer and is
+        /// valid only until the frame is disposed. Storing a borrowed key would put a pooled array into a
+        /// cache and then hand it back to the pool - design doc section 6.4, whose failure mode is wrong data
+        /// served from cache rather than a crash. <see cref="TryRetain"/> refuses, so the documented
+        /// retain-then-store idiom cannot express the mistake.
+        /// </remarks>
+        public bool IsOwned => _lease is not null;
+
+        /// <summary>
+        /// The rendered frame. Throws once the last reference has gone, rather than quietly reading bytes
+        /// that now belong to somebody else's rent.
+        /// </summary>
+        /// <remarks>
+        /// The throw comes from <see cref="RefCountedBuffer"/>, which is a <see cref="MemoryManager{T}"/>
+        /// precisely so that every span access routes through one check. It is a misuse detector, not a
+        /// substitute for holding a reference - see <see cref="RespPayload.TryRetain"/>.
+        /// </remarks>
+        // owned: routed through the lease, so use-after-free throws; borrowed: straight at the frame's array
+        public ReadOnlySpan<byte> Span => _lease is not null
+            ? _lease.GetSpan().Slice(_offset, _length)
+            : _array is null ? default : _array.AsSpan(_offset, _length);
+
+        /// <summary>Read the frame back, for tests and diagnostics.</summary>
+        public RespReader GetReader() => new(Span);
+
+        /// <summary>
+        /// Take another reference and return a key that owns it, for handing to a cache that will outlive
+        /// the caller's own <c>using</c>.
+        /// </summary>
+        /// <remarks>
+        /// Returns <c>false</c> if the buffer is already dead. Store the key this produces, not the one you
+        /// called it on: they compare equal and address the same bytes, but they are separate references
+        /// and each must be disposed once. The usual shape is retain, try to add, and dispose the retained
+        /// copy if the add lost a race.
+        /// </remarks>
+        public bool TryRetain(out RespCacheKey retained)
+        {
+            if (_lease is not null && _lease.TryAddRef())
+            {
+                retained = this;
+                return true;
+            }
+
+            retained = default;
+            return false; // borrowed, or the buffer is already back in the pool
+        }
+
+        /// <summary>Release this key's reference; the buffer returns to the pool with the last one.</summary>
+        /// <remarks>Release exactly one reference per retain. A <c>default</c> key holds none.</remarks>
+        public void Dispose() => _lease?.Release();
+
+        /// <summary>Compare by CONTENT, so a freshly rendered frame finds a cached one.</summary>
+        /// <remarks>
+        /// Content equality is the entire point: the lookup key and the stored key are different rentals of
+        /// different arrays. Canonicality of the rendering is therefore a correctness property - see design
+        /// doc section 6.
+        /// </remarks>
+        public bool Equals(RespCacheKey other)
+            => _hash == other._hash && _length == other._length && Span.SequenceEqual(other.Span);
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj) => obj is RespCacheKey other && Equals(other);
+
+        /// <inheritdoc/>
+        /// <remarks>Computed once, when the key is detached, while the bytes are already in cache.</remarks>
+        public override int GetHashCode() => _hash;
+
+        /// <inheritdoc/>
+        public override string ToString() =>
+            _lease is null ? "(empty)" : System.Text.Encoding.UTF8.GetString(Span.ToArray()).Replace("\r\n", "|");
+    }
+}

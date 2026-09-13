@@ -909,6 +909,38 @@ Two requirements:
   a 256-byte array for the entry's life — roughly a third overhead on retained bytes. Minor, and a
   custom chunk pool with buckets fitted to the real frame distribution would tighten it.
 
+#### Implemented: `RespCacheKey` / `RespPayload` (see `InterpolatedWriterCacheKeyTests`)
+
+Two corrections to the sketch above, both found by building it.
+
+**Reference counting, not ownership transfer.** The neuterable-`Dispose`-plus-`TransferOwnership` design
+makes every holder reason about whether ownership moved, and the answer is only known after dispatch. A
+count gives every holder one rule — *whoever retains, releases*. The primitive already existed:
+`RefCountedBuffer` (`src/RESPite/Buffers/RefCountedBuffer.cs`), which backs `RespResult`. It is a
+`MemoryManager<byte>` specifically so every `Span`/`Memory` access routes through one liveness check, and
+its `TryAddRef` is already increment-if-non-zero, with the same rationale this needs:
+
+> a reservation racing the final release must fail rather than resurrect a buffer that has already gone
+> back to the pool
+
+So the read side is `TryGetValue(key, out payload) && payload.TryRetain()`, then `try`/`finally` with
+`Release()` — success means *found* **and** *count incremented from non-zero*; a zero count is a miss, not
+an error. (`MemoryTrackedPool` is the same idea but is behind `#if TRACK_MEMORY`, which is defined
+nowhere — it is not a live facility.)
+
+**A lookup must not need ownership.** `Detach()` transfers the frame's buffer into a lease, and that lease
+is an object: **48 bytes per call, measured**. On a cache *hit* — the common case — the caller never wanted
+the buffer, so that is a per-lookup allocation buying nothing, which is precisely the cost this design
+exists to remove. Hence `AsLookupKey()`, which borrows the frame's array with no lease and no allocation;
+`Detach()` is for the miss path, where ownership is actually wanted.
+
+The two are the same struct, distinguished by `IsOwned`, and the safety property falls out: a borrowed key
+**cannot be retained**, so the documented store idiom (retain, then add) cannot express "put a pooled array
+into the cache and then hand it back to the pool". That is the §6.4 hazard made unreachable rather than
+merely documented.
+
+Measured: a steady-state cache hit — render, probe, retain, read, release — allocates **zero** bytes.
+
 Pinning also **keeps the key offsets valid**: buffer-absolute offsets stay resolvable for the entry's
 whole lifetime, so keys can be recovered lazily from a cached entry without re-rendering. Copying
 would have forced rebasing them by the frame-start delta — the same off-by-a-few-bytes hazard as §5.2,

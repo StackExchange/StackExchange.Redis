@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using RESPite.Buffers;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -82,6 +83,55 @@ namespace StackExchange.Redis.Interpolated
             }
 
             return new KeyRange(i + 2, length);
+        }
+
+        /// <summary>
+        /// Hand the rendered bytes over to a reference-counted lease and return a key that can live in a
+        /// dictionary. The frame gives up ownership: disposing it afterwards does nothing.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the point of the whole exercise - the bytes that were about to be sent become the cache
+        /// key with no copy, no <c>byte[]</c> and no <c>string</c>. The key is a normal struct rather than a
+        /// <c>ref struct</c> precisely so it can be a <c>TKey</c>.
+        /// </para>
+        /// <para>
+        /// The returned key holds ONE reference. Dispose it when done; if it is being stored, take a second
+        /// with <see cref="RespCacheKey.TryRetain"/> and store that.
+        /// </para>
+        /// <para>
+        /// Note the same struct-copy caveat as <see cref="Dispose"/>: this clears ownership on THIS copy of
+        /// the frame, so a copy taken earlier still holds the array reference and must not be disposed.
+        /// </para>
+        /// </remarks>
+        public RespCacheKey Detach()
+        {
+            var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
+            _buffer = null; // ownership moves to the lease
+            return new RespCacheKey(buffer, RefCountedBuffer.Adopt(buffer, buffer.Length), _start, _length);
+        }
+
+        /// <summary>
+        /// A key that BORROWS this frame's buffer, for probing a cache without taking ownership of anything.
+        /// Valid only until the frame is disposed.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the zero-allocation path, and it is the common one: on a cache HIT the caller never wanted
+        /// the buffer, so paying for a lease to find that out is pure waste. <see cref="Detach"/> allocates a
+        /// <see cref="RefCountedBuffer"/> - small, but one per lookup, which is exactly the kind of per-call
+        /// cost this whole design exists to remove. Measured: 48 bytes a lookup with <see cref="Detach"/>,
+        /// zero with this.
+        /// </para>
+        /// <para>
+        /// The returned key cannot be retained and so cannot be stored; call <see cref="Detach"/> on a miss,
+        /// when ownership is actually wanted.
+        /// </para>
+        /// </remarks>
+        public RespCacheKey AsLookupKey()
+        {
+            var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
+            return new RespCacheKey(buffer, lease: null, _start, _length);
         }
 
         /// <summary>Return the underlying buffer to the pool; safe to call more than once.</summary>
