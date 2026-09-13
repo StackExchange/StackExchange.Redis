@@ -1354,10 +1354,29 @@ shapes are covered by tests, each of which would otherwise have corrupted the st
 `CreateValidated` had to exist first. Whether to take the next step is a judgement about how hostile to be,
 which is worth making deliberately rather than as a side effect of me being on a roll.
 
-**The fix is only offered when a declaration already exists.** Declaring one on the caller's behalf would
-mean choosing a type to put it in, which the fix cannot judge — so the "declare it and use it" variant
-sketched in §2.1 is not implemented. Multi-token fragments are deliberately not offered for a single inline
-token either, and neither is a run of several tokens, which has no single answer.
+**Both fixes exist.** When a matching declaration is in source, use it; when none is, declare it in the type
+containing the call site. That is not an obviously right home, but it is the only one that needs no guessing,
+and moving it afterwards is trivial — so the strict form costs a keystroke rather than a lookup. The fix adds
+`partial` to the host type when it is missing, and includes the attribute argument only when inference would
+not reproduce the token (`nx` needs none; `lib-ver` does).
+
+Word boundaries can only come from separators, so `withsave` becomes `Withsave`, not `WithSave`. Guessing
+where words divide would need a dictionary and would be wrong often enough to be worse.
+
+A run of several tokens is still left alone, having no single answer.
+
+#### `using static` closes most of the remaining gap
+
+`using static` imports the fragments, so the declared form reads very close to the inline one it replaces:
+
+```csharp
+using static RespLiterals;
+...
+ctx.Execute(RedisCommand.SET, $"{key} {value} {Nx} {Ex} {300}");   // vs. "... nx ex 300"
+```
+
+Verified. The difference is braces and a capital letter — which is a much weaker case for ever supporting
+inline tokens than it looked when §2.1 weighed it.
 
 Notes from building it, in case they bite again:
 
@@ -1367,7 +1386,10 @@ Notes from building it, in case they bite again:
   `OperationKind.InterpolatedStringHandlerCreation`, which keeps it working against that Roslyn floor.
 - `ToMinimalDisplayString` on a *property* includes its type, yielding `RespFragment RespLiterals.Nx`; build
   the name from the containing type instead.
-- The code-fix test harness runs analyzers, not generators, so its sources spell out both halves.
+- The code-fix test harness runs analyzers, not generators, so its sources spell out both halves — and a fix
+  that *declares* a fragment leaves the fixed code legitimately reporting `CS9248`, which needed a verifier
+  overload carrying fixed-state diagnostics. Note `StateInheritanceMode.Explicit` is the wrong tool there: it
+  drops the inherited references too, and the fixed state stops seeing the library at all.
 - **Generator diagnostics have no test harness here.** `SER350` never had one either; the project references
   `Analyzer.Testing` and `CodeFix.Testing` but not `SourceGenerators.Testing`. `SER351` was verified by
   compiling a deliberately-bad declaration and reading the output, which is weaker than the other rules'

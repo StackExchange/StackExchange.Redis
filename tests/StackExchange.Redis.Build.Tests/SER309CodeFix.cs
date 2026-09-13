@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Testing;
 using StackExchange.Redis.CodeFixes;
 using Xunit;
 
@@ -39,6 +40,13 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
             internal static partial RespFragment SetInfoLibName => new("$7\r\nSETINFO\r\n$8\r\nlib-name\r\n"u8, 2);
         }
         """;
+
+    /// <summary>
+    /// The body a declared fragment gets from RespFragmentGenerator, which this harness does not run - so a
+    /// fix that declares one legitimately leaves the partial property unimplemented here.
+    /// </summary>
+    private static DiagnosticResult MissingGeneratedBody(string property)
+        => DiagnosticResult.CompilerError("CS9248").WithLocation(1).WithArguments(property);
 
     [Fact]
     public Task InlineToken_IsReplacedWithTheDeclaredFragment() => VerifyFixAsync(
@@ -118,10 +126,10 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
     // ---- cases with no fix -------------------------------------------------------------------------
 
     [Fact]
-    public Task UndeclaredToken_OffersNothing() => VerifyNoFixAsync(
+    public Task UndeclaredToken_IsDeclaredInTheContainingType() => VerifyFixAsync(
         Declarations + """
 
-        class C
+        partial class C
         {
             void M(RespContext ctx, RedisKey key)
             {
@@ -129,13 +137,57 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" withsave"));
-
-    [Fact]
-    public Task MultiTokenFragment_DoesNotMatchOneInlineToken() => VerifyNoFixAsync(
         Declarations + """
 
-        class C
+        partial class C
+        {
+            void M(RespContext ctx, RedisKey key)
+            {
+                using var frame = ctx.Execute("GET", $"{key} {Withsave}");
+            }
+
+            [Resp]
+            private static partial RespFragment {|#1:Withsave|} { get; }
+        }
+        """,
+        0,
+        [Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" withsave")],
+        MissingGeneratedBody("C.Withsave"));
+
+    [Fact]
+    public Task DeclaringAHyphenatedTokenKeepsItVerbatim() => VerifyFixAsync(
+        Declarations + """
+
+        partial class C
+        {
+            void M(RespContext ctx, RedisKey key)
+            {
+                using var frame = ctx.Execute("CLIENT", $"{key}{|#0: lib-ver|}");
+            }
+        }
+        """,
+        Declarations + """
+
+        partial class C
+        {
+            void M(RespContext ctx, RedisKey key)
+            {
+                using var frame = ctx.Execute("CLIENT", $"{key} {LibVer}");
+            }
+
+            [Resp("lib-ver")]
+            private static partial RespFragment {|#1:LibVer|} { get; }
+        }
+        """,
+        0,
+        [Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" lib-ver")],
+        MissingGeneratedBody("C.LibVer"));
+
+    [Fact]
+    public Task MultiTokenFragment_DoesNotMatchOneInlineToken() => VerifyFixAsync(
+        Declarations + """
+
+        partial class C
         {
             void M(RespContext ctx, RedisKey key)
             {
@@ -143,7 +195,24 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" SETINFO"));
+        // SetInfoLibName exists but spans two tokens, so it is not a match for this one; the declare fix is
+        // offered instead, which is the right answer - CLIENT SETINFO alone is a different fragment
+        Declarations + """
+
+        partial class C
+        {
+            void M(RespContext ctx, RedisKey key)
+            {
+                using var frame = ctx.Execute("CLIENT", $"{key} {Setinfo}");
+            }
+
+            [Resp]
+            private static partial RespFragment {|#1:Setinfo|} { get; }
+        }
+        """,
+        0,
+        [Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" SETINFO")],
+        MissingGeneratedBody("C.Setinfo"));
 
     [Fact]
     public Task RunOfSeveralTokens_OffersNothing() => VerifyNoFixAsync(

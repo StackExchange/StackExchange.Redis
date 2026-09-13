@@ -9,6 +9,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Formatting;
 
 namespace StackExchange.Redis.CodeFixes;
 
@@ -23,8 +24,9 @@ namespace StackExchange.Redis.CodeFixes;
 /// would cost the compile-time argument count on every call site that used them.
 /// </para>
 /// <para>
-/// Only offered when a matching declaration already exists in source. Declaring one on the caller's behalf
-/// would mean choosing a type to put it in, which is a judgement this cannot make.
+/// Two fixes. When a matching declaration exists, use it. When none does, declare it in the type containing
+/// the call site - not an obviously right home, but the only one that needs no guessing, and it is trivially
+/// movable afterwards. Together they mean the strict form costs a keystroke rather than a lookup.
 /// </para>
 /// </remarks>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(RespLiteralCodeFixProvider))]
@@ -34,6 +36,7 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
     private const string LiteralNotSentId = "SER309";
     private const string TokenProperty = "Token";
     private const string RespAttributeName = "StackExchange.Redis.Interpolated.RespAttribute";
+    private const string FragmentTypeName = "StackExchange.Redis.Interpolated.RespFragment";
 
     /// <inheritdoc/>
     public override ImmutableArray<string> FixableDiagnosticIds { get; } = ImmutableArray.Create(LiteralNotSentId);
@@ -63,16 +66,36 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
                 is not InterpolatedStringTextSyntax text) continue;
 
             var match = FindFragment(model.Compilation, token!, context.CancellationToken);
-            if (match is null) continue;
+            if (match is not null)
+            {
+                // built from the containing type rather than ToMinimalDisplayString(property), which includes
+                // the property's TYPE and would produce "RespFragment RespLiterals.Nx"
+                var name = match.ContainingType.ToMinimalDisplayString(model, text.SpanStart) + "." + match.Name;
+                context.RegisterCodeFix(
+                    CodeAction.Create(
+                        title: "Use '" + name + "'",
+                        createChangedDocument: _ => Task.FromResult(Apply(context.Document, root, text, name)),
+                        equivalenceKey: LiteralNotSentId + ":use"),
+                    diagnostic);
+                continue;
+            }
 
-            // built from the containing type rather than ToMinimalDisplayString(property), which includes
-            // the property's TYPE and would produce "RespFragment RespLiterals.Nx"
-            var name = match.ContainingType.ToMinimalDisplayString(model, text.SpanStart) + "." + match.Name;
+            // nothing declared: offer to declare it here. The containing type is not an obviously right home,
+            // but it is the only one that needs no guessing, and moving it later is trivial.
+            var host = text.FirstAncestorOrSelf<TypeDeclarationSyntax>();
+            if (host is null) continue;
+
+            var fragmentType = model.Compilation.GetTypeByMetadataName(FragmentTypeName);
+            if (fragmentType is null) continue;
+
+            var member = MemberNameFor(token!);
+            var typeName = fragmentType.ToMinimalDisplayString(model, host.SpanStart);
             context.RegisterCodeFix(
                 CodeAction.Create(
-                    title: "Use '" + name + "'",
-                    createChangedDocument: _ => Task.FromResult(Apply(context.Document, root, text, name)),
-                    equivalenceKey: LiteralNotSentId),
+                    title: "Declare '" + member + "' here and use it",
+                    createChangedDocument: _ => Task.FromResult(
+                        Declare(context.Document, root, text, host, member, token!, typeName)),
+                    equivalenceKey: LiteralNotSentId + ":declare"),
                 diagnostic);
         }
     }
@@ -82,6 +105,9 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
     /// side, since more than one is itself the diagnostic.
     /// </summary>
     private static Document Apply(Document document, SyntaxNode root, InterpolatedStringTextSyntax text, string name)
+        => document.WithSyntaxRoot(root.ReplaceNode(text, Replacements(text, name)));
+
+    private static List<InterpolatedStringContentSyntax> Replacements(InterpolatedStringTextSyntax text, string name)
     {
         var raw = text.TextToken.ValueText;
         var replacements = new List<InterpolatedStringContentSyntax>();
@@ -92,7 +118,81 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
 
         if (raw.Length > 1 && char.IsWhiteSpace(raw[raw.Length - 1])) replacements.Add(Text(" "));
 
-        return document.WithSyntaxRoot(root.ReplaceNode(text, replacements));
+        return replacements;
+    }
+
+    /// <summary>
+    /// Declare the fragment in <paramref name="host"/> and point the literal at it.
+    /// </summary>
+    /// <remarks>
+    /// Both edits land in one tree, so the nodes are tracked across the first rewrite rather than re-found by
+    /// span - which would be wrong the moment the first edit changes any offset.
+    /// </remarks>
+    private static Document Declare(
+        Document document,
+        SyntaxNode root,
+        InterpolatedStringTextSyntax text,
+        TypeDeclarationSyntax host,
+        string member,
+        string token,
+        string fragmentTypeName)
+    {
+        var tracked = root.TrackNodes(text, host);
+
+        var currentText = tracked.GetCurrentNode(text)!;
+        var afterLiteral = tracked.ReplaceNode(currentText, Replacements(currentText, member));
+
+        var currentHost = afterLiteral.GetCurrentNode(host)!;
+
+        // the attribute only needs the token when inference would not produce it; inference upper-cases, so
+        // "nx" needs nothing and "lib-name" does
+        var attribute = string.Equals(member.ToUpperInvariant(), token.ToUpperInvariant(), StringComparison.Ordinal)
+            ? "[Resp]"
+            : "[Resp(\"" + token + "\")]";
+
+        // attribute on its own line, with a blank line above, matching how these are normally written
+        var declaration = SyntaxFactory.ParseMemberDeclaration(
+            attribute + SyntaxFactory.ElasticCarriageReturnLineFeed
+            + "private static partial " + fragmentTypeName + " " + member + " { get; }")!
+            .WithLeadingTrivia(SyntaxFactory.ElasticCarriageReturnLineFeed)
+            .WithAdditionalAnnotations(Formatter.Annotation);
+
+        var newHost = currentHost.AddMembers(declaration);
+
+        // the generator supplies the body as another part, so the type has to be partial
+        if (!newHost.Modifiers.Any(SyntaxKind.PartialKeyword))
+        {
+            newHost = newHost.AddModifiers(SyntaxFactory.Token(SyntaxKind.PartialKeyword));
+        }
+
+        return document.WithSyntaxRoot(afterLiteral.ReplaceNode(currentHost, newHost));
+    }
+
+    /// <summary>
+    /// A token rendered as a member name: <c>lib-name</c> becomes <c>LibName</c>.
+    /// </summary>
+    /// <remarks>
+    /// Word boundaries can only come from separators, so a single run stays a single word - <c>withsave</c>
+    /// becomes <c>Withsave</c>, not <c>WithSave</c>. Guessing where words divide would need a dictionary, and
+    /// would be wrong often enough to be worse than this; rename it afterwards if it matters.
+    /// </remarks>
+    private static string MemberNameFor(string token)
+    {
+        var sb = new System.Text.StringBuilder(token.Length);
+        var upper = true;
+        foreach (var c in token)
+        {
+            if (!char.IsLetterOrDigit(c))
+            {
+                upper = true;
+                continue;
+            }
+
+            sb.Append(upper ? char.ToUpperInvariant(c) : char.ToLowerInvariant(c));
+            upper = false;
+        }
+
+        return sb.Length == 0 ? "Token" : sb.ToString();
     }
 
     private static InterpolatedStringTextSyntax Text(string value)
