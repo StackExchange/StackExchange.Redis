@@ -154,13 +154,18 @@ public class BufferWriterHintTests
 
     [Theory]
     // The reported crash shape: WriteUnifiedSpan with a sizeable BINARY value, which asks for
-    // 5 + MaxInt32TextLen + length - up to 528 - and previously wrote it unchecked. byte[] takes a
-    // different route from string, and the value-shapes test only reaches it with four bytes.
-    [InlineData(8, 400)]
-    [InlineData(400, 400)]     // asks 416, gets 400
-    [InlineData(520, 512)]     // asks 528, gets 520 - straddles MaxQuickSpanSize with no slack
-    [InlineData(520, 513)]     // one over, so the quick path is skipped and the prefix path runs
-    [InlineData(64, 4096)]
+    // 5 + MaxInt32TextLen + length and previously wrote it unchecked. byte[] takes a different route from
+    // string, and the value-shapes test only reaches it with four bytes.
+    //
+    // The hint carries int32-text slack it rarely uses, so the cap has to be below the ACTUAL frame length
+    // (1 + digits + 2 + length + 2) to overrun, not merely below the hint. Cases marked (!) fail unfixed;
+    // the rest are boundary cover that passes either way.
+    [InlineData(8, 400)]       // (!) asks 416, gets 8, writes 408
+    [InlineData(400, 400)]     // (!) asks 416, gets 400, writes 408 - overruns by 8
+    [InlineData(519, 512)]     // (!) $512\r\n...\r\n is exactly 520; one byte short
+    [InlineData(520, 512)]     // exactly fits, so the slack in the hint absorbs the shortfall
+    [InlineData(520, 513)]     // over MaxQuickSpanSize, so the looping big-value branch runs
+    [InlineData(64, 4096)]     // likewise, well over
     public void ShortSpansStillProduceCorrectFramesForLargeBinaryValues(int max, int payload)
     {
         var value = new byte[payload];
