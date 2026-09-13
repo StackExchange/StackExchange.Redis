@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
+using RESPite.Messages;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -44,7 +45,15 @@ public class BufferWriterHintTests
         private int _handedOut;
         private readonly List<byte> _written = [];
 
-        public ReadOnlySpan<byte> Written => _written.ToArray();
+        /// <summary>Everything advanced so far, with the outstanding span checked first.</summary>
+        public byte[] Written
+        {
+            get
+            {
+                CheckCanary();
+                return _written.ToArray();
+            }
+        }
 
         public void Advance(int count)
         {
@@ -53,17 +62,33 @@ public class BufferWriterHintTests
                 throw new InvalidOperationException($"Advance({count}) but only {_handedOut} was handed out");
             }
 
+            CheckCanary();
+            for (var i = 0; i < count; i++) _written.Add(_scratch[i]);
+
+            // retire the scratch rather than just zeroing the count: what is left in it is written data, and
+            // a later canary check would otherwise read that as corruption
+            _scratch = [];
+            _handedOut = 0;
+        }
+
+        /// <summary>
+        /// Verify nothing was written past the span we handed out.
+        /// </summary>
+        /// <remarks>
+        /// Called on Advance, on the next hand-out, and on reading the result - not just on Advance, because
+        /// a span written past and then abandoned without advancing would otherwise slip through, and this
+        /// harness is the load-bearing part of these tests.
+        /// </remarks>
+        private void CheckCanary()
+        {
             for (var i = _handedOut; i < _scratch.Length; i++)
             {
                 if (_scratch[i] != CanaryByte)
                 {
                     throw new InvalidOperationException(
-                        $"buffer overrun: {i - _handedOut + 1} byte(s) written past a span of {_handedOut}");
+                        $"buffer overrun: first byte past a span of {_handedOut} is at +{i - _handedOut}");
                 }
             }
-
-            for (var i = 0; i < count; i++) _written.Add(_scratch[i]);
-            _handedOut = 0;
         }
 
         public Memory<byte> GetMemory(int sizeHint = 0) => Hand(sizeHint).AsMemory(0, _handedOut);
@@ -72,6 +97,8 @@ public class BufferWriterHintTests
 
         private byte[] Hand(int sizeHint)
         {
+            CheckCanary(); // the previous span, if it was abandoned rather than advanced
+
             _handedOut = Math.Max(1, Math.Min(_max, sizeHint <= 0 ? _max : sizeHint));
             _scratch = new byte[_handedOut + Canary];
             _scratch.AsSpan(_handedOut).Fill(CanaryByte);
@@ -88,7 +115,7 @@ public class BufferWriterHintTests
         var writer = new StingyWriter(max);
         var message = new RedisDatabase.ExecuteMessage(CommandMap.Default, 0, CommandFlags.None, command, args);
         message.WriteTo(new MessageWriter(null, CommandMap.Default, writer));
-        return Encoding.UTF8.GetString(writer.Written.ToArray()).Replace("\r\n", "|");
+        return Encoding.UTF8.GetString(writer.Written).Replace("\r\n", "|");
     }
 
     [Theory]
@@ -145,5 +172,89 @@ public class BufferWriterHintTests
     {
         // guards against both sides being equally wrong
         Assert.Equal("*4|$3|SET|$5|mykey|$3|1.5|$2|-1|", Render(64 * 1024, "SET", "mykey", 1.5d, -1));
+    }
+
+    // ---- paths the message shapes above do not reach ------------------------------------------------
+    // Called directly: these are internal, and routing to them through a message would pin the test to
+    // whichever command happens to use them today.
+
+    private static string RenderDirect(int max, Action<IBufferWriter<byte>> write)
+    {
+        var writer = new StingyWriter(max);
+        write(writer);
+        return Encoding.UTF8.GetString(writer.Written).Replace("\r\n", "|");
+    }
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(46)]  // one short of the 47 this path needs, so the fallback is forced
+    [InlineData(47)]
+    public void Sha1AsHexSurvivesShortSpans(int max)
+    {
+        // the tightest fit in the writer: 47 requested, exactly 47 written, no slack at all
+        var hash = new byte[20];
+        for (var i = 0; i < hash.Length; i++) hash[i] = (byte)(i * 11);
+
+        static Action<IBufferWriter<byte>> Write(byte[] hash)
+            => w => new MessageWriter(null, CommandMap.Default, w).WriteSha1AsHex(hash);
+
+        var expected = RenderDirect(64 * 1024, Write(hash));
+        Assert.Equal(42, expected.Replace("|", "\r\n").Length - 5); // $40 CRLF + 40 hex + CRLF
+        Assert.Equal(expected, RenderDirect(max, Write(hash)));
+    }
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(16)]
+    public void KeyspacePrefixesSurviveShortSpans(int max)
+    {
+        // WithKeyPrefix / channel prefixes: a real user-facing path, and prefixed writes are two-part
+        var prefix = Encoding.UTF8.GetBytes("tenant7:");
+
+        static Action<IBufferWriter<byte>> WriteString(byte[] prefix)
+            => w => MessageWriter.WriteUnifiedPrefixedString(w, prefix, "user:1");
+
+        Assert.Equal("$14|tenant7:user:1|", RenderDirect(64 * 1024, WriteString(prefix)));
+        Assert.Equal("$14|tenant7:user:1|", RenderDirect(max, WriteString(prefix)));
+    }
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(16)]
+    public void MultiBulkHeaderWithPrefixSurvivesShortSpans(int max)
+    {
+        static Action<IBufferWriter<byte>> Write()
+            => w => MessageWriter.WriteMultiBulkHeader(w, 4, RespPrefix.Map);
+
+        Assert.Equal("%2|", RenderDirect(64 * 1024, Write()));
+        Assert.Equal("%2|", RenderDirect(max, Write()));
+    }
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(16)]
+    public void IntegerSurvivesShortSpans(int max)
+    {
+        // server-side only (toys/StackExchange.Redis.Server), but it is the same shape
+        static Action<IBufferWriter<byte>> Write()
+            => w => MessageWriter.WriteInteger(w, long.MinValue);
+
+        Assert.Equal(":-9223372036854775808|", RenderDirect(64 * 1024, Write()));
+        Assert.Equal(":-9223372036854775808|", RenderDirect(max, Write()));
+    }
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(16)]
+    [InlineData(22)]  // one short of the int64 width a long count can need
+    public void CountPrefixIsSizedForALong(int max)
+    {
+        // WriteMultiBulkHeader(long), the blob prefix and the sequence iterator all format a long; they
+        // previously asked for int32 width, which is 14 against a possible 23
+        static Action<IBufferWriter<byte>> Write()
+            => w => MessageWriter.WriteMultiBulkHeader(w, long.MaxValue);
+
+        Assert.Equal("*9223372036854775807|", RenderDirect(64 * 1024, Write()));
+        Assert.Equal("*9223372036854775807|", RenderDirect(max, Write()));
     }
 }
