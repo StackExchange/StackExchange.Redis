@@ -20,9 +20,23 @@ namespace StackExchange.Redis.Interpolated
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public ref struct RespCommandHandler
     {
-        /// <summary>'*' plus up to nine digits plus CRLF; reserved at the front so the header can be
+        /// <summary>'*' plus an int32 text form plus CRLF; reserved at the front so the header can be
         /// back-filled right-aligned once the final argument count is known.</summary>
-        private const int HeaderMax = 12;
+        /// <remarks>
+        /// Sized from the TYPE, not from what callers plausibly pass: <c>_args</c> is an <c>int</c>, so the
+        /// text form can be 10 digits, and the previous "up to nine digits" reserve of 12 was one short of
+        /// the 13 that needs. Unreachable via an interpolated string - but see <see cref="MaxBulkPrefix"/>
+        /// for the same assumption in a place that was very much reachable.
+        /// </remarks>
+        private const int HeaderMax = 3 + Format.MaxInt32TextLen;
+
+        /// <summary>'$' plus an int32 text form plus CRLF: the prefix of one bulk string.</summary>
+        /// <remarks>
+        /// A DIFFERENT quantity from <see cref="HeaderMax"/>, which is why it is now a different constant.
+        /// <see cref="WriteBulk"/> used to reserve <c>HeaderMax</c> for this, which happened to be the same
+        /// number and was one byte short once the length reached 10 digits.
+        /// </remarks>
+        private const int MaxBulkPrefix = 3 + Format.MaxInt32TextLen;
 
         private readonly RespContext _context;
         private byte[] _buffer;
@@ -275,9 +289,13 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>Write '$len\r\n' and return the span the payload should be written into.</summary>
+        /// <remarks>
+        /// The reservation is <see cref="BulkReservation"/>, sized for the widest int32 text form rather
+        /// than for the lengths callers are expected to use. See that method for why.
+        /// </remarks>
         private Span<byte> WriteBulk(int payloadLength, out int payloadOffset)
         {
-            Ensure(payloadLength + HeaderMax + 2);
+            Ensure(BulkReservation(payloadLength));
             var span = _buffer.AsSpan(_offset);
             span[0] = (byte)'$';
             payloadOffset = MessageWriter.WriteRaw(span, payloadLength, offset: 1);
@@ -306,6 +324,13 @@ namespace StackExchange.Redis.Interpolated
         /// Record that a key starts at this BUFFER-ABSOLUTE offset. Absolute matters: <see cref="Complete"/>
         /// right-aligns the header, so the FRAME start moves with the digit count of the argument count.
         /// </summary>
+        /// <remarks>
+        /// Zero is the "no key here" sentinel, in both slots and in <c>RespFrame.HasNoKeys</c>. That is only
+        /// sound because a key can never START at offset 0: the first <see cref="HeaderMax"/> bytes are the
+        /// reserved prologue, and <see cref="DemandCommand"/> puts the command ahead of any key. Both halves
+        /// of that are load-bearing - do not let <see cref="HeaderMax"/> become 0, and do not allow a key
+        /// before the command, without giving the marks a real "unset" representation.
+        /// </remarks>
         private void MarkKey(int offset)
         {
             if ((_keyMarks & RespFrame.OverflowFlag) != 0)
@@ -328,6 +353,19 @@ namespace StackExchange.Redis.Interpolated
                 _keyMarks = RespFrame.OverflowFlag;
             }
         }
+
+        /// <summary>
+        /// Bytes that must be free for a complete <c>$len\r\n{payload}\r\n</c> bulk string.
+        /// </summary>
+        /// <remarks>
+        /// Sized from <see cref="Format.MaxInt32TextLen"/>, not from the digit count of any particular
+        /// length. The earlier reservation assumed at most nine digits, so from 1,000,000,000 bytes it was
+        /// one byte short. That is invisible most of the time - <c>ArrayPool&lt;byte&gt;.Shared</c> rounds up
+        /// to a power of two, so the extra byte lands in slack - but above 2^30 the pool hands back an array
+        /// of EXACTLY the requested length, and the write goes out of bounds. Verified both ways: masked at
+        /// 1,000,000,000 and an <see cref="IndexOutOfRangeException"/> at 1,100,000,000.
+        /// </remarks>
+        internal static int BulkReservation(int payloadLength) => payloadLength + MaxBulkPrefix + 2;
 
         private void Ensure(int extra)
         {
