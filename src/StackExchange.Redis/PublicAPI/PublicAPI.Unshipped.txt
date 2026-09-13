@@ -1,4 +1,5 @@
 #nullable enable
+StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.CommandFlags
 [SER010]StackExchange.Redis.Interpolated.IRespExecutor
 [SER010]StackExchange.Redis.Interpolated.IRespExecutor.Database.get -> int
 [SER010]StackExchange.Redis.Interpolated.IRespExecutor.Send(in StackExchange.Redis.Interpolated.RespRequest request) -> StackExchange.Redis.Interpolated.RespPayload!
@@ -20,10 +21,14 @@
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.Dispose() -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnFlush() -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnInvalidate(System.ReadOnlySpan<byte> key) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedByFlags.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedNoKeys.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedRaced.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespClientCache(int keyCapacity = 256) -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.Abandon() -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.RespFill() -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Stored.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.Sweep() -> int
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TrackedKeyCount.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginFill(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, StackExchange.Redis.CommandFlags flags, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool

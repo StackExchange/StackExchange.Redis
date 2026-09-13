@@ -102,6 +102,25 @@ namespace StackExchange.Redis
         /// </summary>
         NoScriptCache = 512,
 
+        /// <summary>
+        /// Indicates that this command must not be served from, or stored in, the client-side cache.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Client-side caching is opt-out rather than opt-in: a command that declares a retry category no
+        /// more severe than <see cref="CommandRetryReadOnly"/> and names at least one key is cacheable by
+        /// default. This suppresses that.
+        /// </para>
+        /// <para>
+        /// Two reasons to reach for it. A value that changes so often that invalidation traffic costs more
+        /// than the cache saves - probabilistic and time-series types are the documented examples, and the
+        /// Redis guidance is to keep such data off a caching connection entirely. And a custom module
+        /// command whose reads the server does not register for invalidation: it would otherwise be cached
+        /// and never invalidated, and the library cannot know that on your behalf.
+        /// </para>
+        /// </remarks>
+        NoClientCache = 1 << 19,
+
         // 1024: used for "no flush"; never user-specified, so not visible on the public API
 
         // 2048: Use subscription connection type; never user-specified, so not visible on the public API

@@ -105,7 +105,9 @@ namespace StackExchange.Redis.Interpolated
             if (executor is null) throw new ArgumentNullException(nameof(executor));
             if (handler is null) throw new ArgumentNullException(nameof(handler));
 
-            if (cache is not null)
+            // NoClientCache suppresses the PROBE as well as the store: opting out must mean the caller does
+            // not get a cached answer either, not merely that this reply is not kept
+            if (cache is not null && RespClientCache.IsCacheable(flags))
             {
                 if (TryServeFromCache(executor, ref request, handler, cache, out var cached)) return cached;
 
@@ -172,7 +174,7 @@ namespace StackExchange.Redis.Interpolated
             if (executor is null) throw new ArgumentNullException(nameof(executor));
             if (handler is null) throw new ArgumentNullException(nameof(handler));
 
-            if (cache is not null)
+            if (cache is not null && RespClientCache.IsCacheable(flags))
             {
                 if (TryServeFromCache(executor, ref request, handler, cache, out var cached))
                 {

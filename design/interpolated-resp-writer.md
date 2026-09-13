@@ -1391,9 +1391,59 @@ say.
 
 **Read-only is necessary, not sufficient**, and this is a gate rather than the whole test. Read-only
 commands that must still not be cached: non-deterministic ones (`SRANDMEMBER`, `HRANDFIELD`,
-`ZRANDMEMBER`), cursor-based ones (`SCAN`, `HSCAN`), and anything the server does not track for
-invalidation — per the Redis docs, the whole `FT.*` family. A second axis is still needed; an explicit
-opt-in bit is the obvious shape, and there is room beside `CommandServerSpecific` (bit 18).
+`ZRANDMEMBER`) and cursor-based ones (`SCAN`, `HSCAN`). Those are *our* commands, so they belong in
+command metadata rather than in flags — a compile-time property of our own enum should not be pushed onto
+every call site.
+
+##### Opt-out, not opt-in
+
+The caller-facing control is **`CommandFlags.NoClientCache`** (bit 19), and caching is otherwise on by
+default for anything that clears the gates. Opt-in was considered and rejected: it would mean touching
+every `IDatabase` method, and a single omission makes the feature silently do nothing.
+
+The worry that argued for opt-in was an external command that is read-only, keyed, and *not* tracked by
+the server — it would be cached and never invalidated. On inspection that population is close to empty:
+
+- `FT.*` takes an **index name, not a keyspace key**, so it is keyless and the rule above already refuses
+  it. (This was my counter-example, and it was simply wrong.)
+- Probabilistic and time-series types (`BF.*`, `TS.*`) are keyed on *real* keyspace keys, so tracking and
+  invalidation work normally. The Redis docs exclude them because *"these types are designed to be updated
+  frequently, which means caching has little or no benefit"* — an efficiency argument, not a correctness
+  one, and precisely what an opt-out is for.
+
+What remains is a third party who writes their own module, enables client-side caching, declares a
+read-only retry category, and whose module reads are not registered for invalidation by the server. Note
+that doing *nothing* is already safe: an undeclared category is uncacheable, so the failure needs a
+positive act of mis-declaration. And caching is globally opt-in in the first place. Treating that as caller
+error is consistent with how this same enum already treats retry categories, where mis-declaring gets you
+duplicate writes on a reconnect — a worse outcome that we already trust callers to avoid.
+
+`NoClientCache` suppresses the **probe as well as the store**: opting out has to mean the caller does not
+receive a cached answer either, not merely that this reply is not kept.
+
+##### Why not a new rung on the retry ladder
+
+Tempting — it is a numeric range with gaps — but no:
+
+- **The caller wins on the ladder.** `WithCategory` is explicit: *"if the user has already specified a
+  category, that wins."* So opting out of caching via the category would *replace* the retry category, and
+  a caller suppressing caching on a churny value would silently change reconnect behaviour.
+- **Inserting above `ReadOnly` breaks every `<=`.** A "read-only but uncacheable" rung reads as more
+  severe, so retry policies testing `<= CommandRetryReadOnly` would stop retrying it: a caching annotation
+  causing a retry regression. Inserting *below* avoids that but forces recategorising every read-only
+  command and leaves `ReadOnly` meaning "not cacheable".
+- **The codebase already decided this.** `CommandServerSpecific` sits outside the ladder because it is
+  *"an orthogonal flag, not part of the `<=`-comparable severity ladder"*. Same shape, same answer. The
+  ladder orders one axis — is it safe to send again; cacheability asks another — will invalidation tell me
+  when this changes.
+
+##### Diagnosability
+
+The failure this design can still produce is silent and durable: something wrongly cached serves stale data
+forever, with no error and no log. So the fill path keeps four counters — `Stored`, `RefusedByFlags`,
+`RefusedNoKeys`, `RefusedRaced`. They are incremented only on a miss, which has already paid for a round
+trip, so a cache hit costs nothing. "Why is this stale?" and "why is nothing being cached?" should both be
+answerable without a debugger.
 
 **Keyless commands are never cached.** Found by building this: `AllValid` over an empty dependency list is
 vacuously `true`, so a keyless entry was valid *for the life of the process* — not even a flush cleared it,

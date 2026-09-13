@@ -543,12 +543,89 @@ public class RespClientCacheTests
     public void UnsetCategoryIsRefusedEvenThoughItComparesBelowReadOnly()
     {
         // pinning the arithmetic directly, because this is the one that fails open if written naively
-        Assert.True(RespClientCache.IsCacheableCategory(CommandFlags.CommandRetryReadOnly));
-        Assert.False(RespClientCache.IsCacheableCategory(CommandFlags.None));
+        Assert.True(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly));
+        Assert.False(RespClientCache.IsCacheable(CommandFlags.None));
         Assert.True((CommandFlags.None & Message.MaskRetryCategory) < CommandFlags.CommandRetryReadOnly);
 
         // flags unrelated to the category must not accidentally satisfy the gate
-        Assert.False(RespClientCache.IsCacheableCategory(CommandFlags.PreferReplica | CommandFlags.FireAndForget));
+        Assert.False(RespClientCache.IsCacheable(CommandFlags.PreferReplica | CommandFlags.FireAndForget));
+    }
+
+    [Fact]
+    public void NoClientCacheSuppressesStoring()
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+
+        Assert.False(cache.TryBeginFill(
+            ref frame, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, out _));
+        frame.Dispose();
+
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedByFlags);
+    }
+
+    [Fact]
+    public void NoClientCacheAlsoSuppressesServingFromCache()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+
+        var fill = Get("abc");
+        executor.Send(ref fill, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Assert.Equal(1, executor.Sent);
+
+        // opting out must mean the caller does not RECEIVE a cached answer either - not merely that this
+        // reply is not kept. Otherwise "don't cache this" silently still serves stale data.
+        var opted = Get("abc");
+        executor.Send(ref opted, TextHandler.Instance,
+            CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, cache);
+        Assert.Equal(2, executor.Sent);
+
+        // ... and the entry is untouched for callers who did not opt out
+        var normal = Get("abc");
+        executor.Send(ref normal, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Assert.Equal(2, executor.Sent);
+    }
+
+    [Fact]
+    public void RefusalCountersSayWhyNothingWasCached()
+    {
+        using var cache = new RespClientCache();
+
+        var undeclared = Get("abc");
+        cache.TryBeginFill(ref undeclared, 0, CommandFlags.None, out _);
+        undeclared.Dispose();
+
+        var keyless = Ctx.Execute($"{RedisCommand.TIME}");
+        cache.TryBeginFill(ref keyless, 0, CommandFlags.CommandRetryReadOnly, out _);
+        keyless.Dispose();
+
+        var raced = Get("xyz");
+        Assert.True(cache.TryBeginFill(ref raced, 0, CommandFlags.CommandRetryReadOnly, out var fill));
+        cache.OnInvalidate(Utf8("xyz"));
+        Assert.False(Complete(cache, fill, "$1\r\nx\r\n"));
+
+        var good = Get("ok");
+        Assert.True(cache.TryBeginFill(ref good, 0, CommandFlags.CommandRetryReadOnly, out var ok));
+        Assert.True(Complete(cache, ok, "$1\r\nx\r\n"));
+
+        // the silent failure this design can still produce is a durable one, so each refusal reason is
+        // separately countable rather than lumped into "it didn't cache"
+        Assert.Equal(1, cache.RefusedByFlags);
+        Assert.Equal(1, cache.RefusedNoKeys);
+        Assert.Equal(1, cache.RefusedRaced);
+        Assert.Equal(1, cache.Stored);
+    }
+
+    [Fact]
+    public void NoClientCacheIsUserSelectable()
+    {
+        // an external surface has to be able to pass it through Execute, or the opt-out is unreachable
+        // for exactly the callers who need it
+        Assert.Equal(
+            CommandFlags.NoClientCache,
+            Message.UserSelectableFlags & CommandFlags.NoClientCache);
     }
 
     private static string[] KeyStrings(in RespFrame frame)

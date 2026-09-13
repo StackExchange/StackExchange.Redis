@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using RESPite;
 
 namespace StackExchange.Redis.Interpolated
@@ -41,6 +42,10 @@ namespace StackExchange.Redis.Interpolated
     {
         private readonly ConcurrentDictionary<EntryKey, Entry> _entries = new();
         private readonly RespKeyTable _keys;
+        private long _stored;
+        private long _refusedByFlags;
+        private long _refusedNoKeys;
+        private long _refusedRaced;
 
         /// <summary>Create a cache.</summary>
         /// <param name="keyCapacity">Initial size hint for the tracked-key table.</param>
@@ -51,6 +56,30 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>The number of distinct keys being tracked.</summary>
         public int TrackedKeyCount => _keys.Count;
+
+        /// <summary>Fills that were stored.</summary>
+        /// <remarks>
+        /// These counters and the ones below are incremented only on the fill path - once per cache miss,
+        /// which has already paid for a round trip - so they cost nothing on a hit. They exist because the
+        /// failure mode this design can still produce is silent and durable: a command cached that should
+        /// not have been serves stale data forever, with no error and no log. "Why is this stale?" and "why
+        /// is nothing being cached?" should both be answerable without a debugger.
+        /// </remarks>
+        public long Stored => Volatile.Read(ref _stored);
+
+        /// <summary>Fills refused because the flags did not permit caching.</summary>
+        /// <remarks>
+        /// The usual cause is a command that never declared a retry category - which is uncacheable by
+        /// design, since undeclared cannot mean "safe". A surprisingly high count here usually means an
+        /// external command surface is not declaring categories.
+        /// </remarks>
+        public long RefusedByFlags => Volatile.Read(ref _refusedByFlags);
+
+        /// <summary>Fills refused because the request named no keys, so nothing could ever invalidate it.</summary>
+        public long RefusedNoKeys => Volatile.Read(ref _refusedNoKeys);
+
+        /// <summary>Fills refused because an invalidation landed while the command was in flight.</summary>
+        public long RefusedRaced => Volatile.Read(ref _refusedRaced);
 
         /// <summary>
         /// Invalidate one key, as reported by the server. Allocation-free, and cheap when the key is not
@@ -148,8 +177,9 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public bool TryBeginFill(ref RespFrame frame, int database, CommandFlags flags, out RespFill fill)
         {
-            if (!IsCacheableCategory(flags))
+            if (!IsCacheable(flags))
             {
+                Interlocked.Increment(ref _refusedByFlags);
                 fill = default;
                 return false;
             }
@@ -161,6 +191,7 @@ namespace StackExchange.Redis.Interpolated
                 // keyCount == 0: NOTHING can ever invalidate this. Server-assisted invalidation only ever
                 // reports keys, so an entry with no dependencies is vacuously valid forever - not even a
                 // flush clears it, because OnFlush stamps key nodes and there are none. Permanent staleness.
+                Interlocked.Increment(ref _refusedNoKeys);
                 fill = default;
                 return false;
             }
@@ -211,6 +242,7 @@ namespace StackExchange.Redis.Interpolated
 
             if (!Dependency.AllValid(fill.Dependencies))
             {
+                Interlocked.Increment(ref _refusedRaced);
                 fill.Key.Dispose();
                 return false;
             }
@@ -232,6 +264,7 @@ namespace StackExchange.Redis.Interpolated
             if (_entries.TryAdd(new EntryKey(stored, fill.Database), new Entry(response, fill.Dependencies)))
             {
                 fill.Key.Dispose(); // the dictionary holds its own references now
+                Interlocked.Increment(ref _stored);
                 return true;
             }
 
@@ -288,8 +321,10 @@ namespace StackExchange.Redis.Interpolated
         /// this test matter: <c>!= 0</c> rejects the undeclared case, and <c>&lt;=</c> uses the ladder the
         /// flags were built to support, so anything at or beyond a write - or server-admin - is out.
         /// </remarks>
-        internal static bool IsCacheableCategory(CommandFlags flags)
+        internal static bool IsCacheable(CommandFlags flags)
         {
+            if ((flags & CommandFlags.NoClientCache) != 0) return false;
+
             var category = flags & Message.MaskRetryCategory;
             return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
         }
