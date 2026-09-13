@@ -225,12 +225,6 @@ internal readonly ref struct MessageWriter
     }
 
     /// <summary>
-    /// The largest fixed-size burst any single write below needs: a prefix byte, two int32 text forms and
-    /// their CRLFs, or a prefix plus an int64 text form and CRLF - whichever is larger.
-    /// </summary>
-    private const int MaxPrefixScratch = 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen;
-
-    /// <summary>
     /// Write a <c>{prefix}{count}\r\n</c> header - the <c>*</c> of a multi-bulk and the <c>$</c> of a bulk
     /// string are the same shape.
     /// </summary>
@@ -277,8 +271,10 @@ internal readonly ref struct MessageWriter
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void WriteHeaderSlow(IBufferWriter<byte> writer, int arguments, ReadOnlySpan<byte> commandBytes)
     {
-        // the command bytes are already framed, so they can go straight through the looping write
-        WriteCountPrefixSlow(writer, (byte)'*', arguments + 1);
+        // the command bytes are already framed, so they can go straight through the looping write.
+        // WriteCountPrefix, not …Slow: the ask that was declined was larger than this one, so the writer
+        // may well be able to take 23 and let the prefix go in place
+        WriteCountPrefix(writer, (byte)'*', arguments + 1);
         writer.Write(commandBytes);
     }
 
@@ -286,17 +282,27 @@ internal readonly ref struct MessageWriter
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void WriteHeaderUnframedSlow(IBufferWriter<byte> writer, int arguments, ReadOnlySpan<byte> commandBytes)
     {
-        WriteCountPrefixSlow(writer, (byte)'*', arguments + 1);
-        WriteCountPrefixSlow(writer, (byte)'$', commandBytes.Length);
+        WriteCountPrefix(writer, (byte)'*', arguments + 1);
+        WriteCountPrefix(writer, (byte)'$', commandBytes.Length);
         writer.Write(commandBytes);
         WriteCrlf(writer);
     }
 
-    /// <inheritdoc cref="WriteCountPrefixSlow"/>
+    /// <summary>
+    /// Write a bulk string in pieces rather than as one burst.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the <c>…Slow</c> methods this is <b>not</b> only a fallback: <see cref="WriteUnifiedSpan"/>
+    /// sends every value over <c>MaxQuickSpanSize</c> here because no single span could hold it, so for large
+    /// binary values this is the normal path. It therefore uses the checked <see cref="WriteCountPrefix"/>,
+    /// which writes the length prefix in place when the writer can take 23 bytes; going straight to
+    /// <see cref="WriteCountPrefixSlow"/> would compose into a stack buffer and hand it to a hintless
+    /// <see cref="BuffersExtensions.Write{T}"/>, costing a copy and risking a prefix split across segments.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void WriteUnifiedSpanSlow(IBufferWriter<byte> writer, ReadOnlySpan<byte> value)
+    private static void WriteUnifiedSpanPiecewise(IBufferWriter<byte> writer, ReadOnlySpan<byte> value)
     {
-        WriteCountPrefixSlow(writer, (byte)'$', value.Length);
+        WriteCountPrefix(writer, (byte)'$', value.Length);
         writer.Write(value);
         WriteCrlf(writer);
     }
@@ -304,7 +310,10 @@ internal readonly ref struct MessageWriter
     /// <summary>A SHA1 hash as a bulk string: <c>$40\r\n</c> plus 40 hex characters plus CRLF.</summary>
     private const int Sha1BulkStringLength = 47;
 
-    /// <summary>As <see cref="MaxPrefixScratch"/>, but also covering a formatted int64 or double payload.</summary>
+    /// <summary>
+    /// The largest fixed-size burst any single compose-then-write below needs: a prefix byte, a formatted
+    /// int64 or double payload, and the framing CRLFs - whichever is larger.
+    /// </summary>
     private const int MaxValueScratch = 7 + Format.MaxDoubleTextLen > 7 + Format.MaxInt64TextLen
         ? 7 + Format.MaxDoubleTextLen
         : 7 + Format.MaxInt64TextLen;
@@ -761,7 +770,7 @@ internal readonly ref struct MessageWriter
             else
             {
                 // too big for one span, or the writer declined the hint
-                WriteUnifiedSpanSlow(writer, value);
+                WriteUnifiedSpanPiecewise(writer, value);
             }
         }
     }

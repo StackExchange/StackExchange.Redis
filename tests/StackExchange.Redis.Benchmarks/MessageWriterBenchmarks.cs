@@ -9,8 +9,14 @@ namespace StackExchange.Redis.Benchmarks;
 //
 //   Reusable - always returns the remainder of a 16KB buffer, so the hint is always honoured and the
 //              fallback branch is never entered. This measures what the CHECK costs on the hot path.
-//   Stingy   - never returns more than 64 bytes, so every fixed-size burst takes the fallback. This
+//   Stingy   - never returns more than 8 bytes, so every fixed-size burst takes the fallback. This
 //              measures what the fallback costs, and does not run at all before the fix (it throws).
+//
+// 8 is not arbitrary, and 64 would have been useless: the largest ask in SET user:1 marc is 23 (WriteHeader
+// wants 9 framed command bytes + 3 + MaxInt32TextLen; WriteCountPrefix wants 3 + MaxInt64TextLen), so a
+// 64-byte cap declines nothing and measures the direct path twice. 16 declines the two 23-byte asks but
+// still does not throw on main, whose WriteHeader writes only 13 of the 23 it asked for. 8 is the smallest
+// interesting value: every fallback here is exercised, and main faults on commandBytes.CopyTo(span[4..]).
 //
 // Run on both sides of the change; the numbers are only meaningful as a before/after pair, and only the
 // Reusable ones can be compared against a build that predates the fix.
@@ -69,10 +75,10 @@ public class MessageWriterBenchmarks
         return _stingy.Written;
     }
 
-    /// <summary>Hands out at most 64 bytes at a time, so every fixed-size burst takes the fallback.</summary>
+    /// <summary>Hands out at most 8 bytes at a time, so every fixed-size burst takes the fallback.</summary>
     private sealed class Stingy : IBufferWriter<byte>
     {
-        private const int Max = 64;
+        private const int Max = 8;
         private readonly byte[] _buffer = new byte[64 * 1024];
 
         public int Written { get; private set; }

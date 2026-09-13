@@ -124,8 +124,10 @@ public class BufferWriterHintTests
     }
 
     [Theory]
-    // 8 is below every fixed-size hint in the writer; 16 and 64 straddle the length-prefix sites; 520 is
-    // just under the 5 + MaxInt32TextLen + 512 that the quick-span path asks for
+    // The largest ask for this shape is 23 (WriteHeader wants framed command bytes + 3 + MaxInt32TextLen;
+    // WriteCountPrefix wants 3 + MaxInt64TextLen), so: 8 declines everything, 16 declines the 23-byte asks
+    // only, and 64 declines NOTHING - it is here as a control, not as pressure. 520 likewise for this
+    // payload; it only bites on the quick-span path, which needs a value to be large.
     [InlineData(8)]
     [InlineData(16)]
     [InlineData(64)]
