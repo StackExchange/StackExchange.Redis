@@ -1052,9 +1052,18 @@ executor.Send(ref request, handler, cache);   // with cache
 ```
 
 Caching becomes one extra argument rather than a different API, so turning it on does not mean rewriting
-call sites, and "no cache" is an ordinary case rather than a missing one. `IRespExecutor` has one member to
-implement; the orchestration is a shared extension method, so the ordering rule that makes caching safe
-lives in exactly one place we own instead of being exposed to every caller.
+call sites, and "no cache" is an ordinary case rather than a missing one.
+
+**The whole pattern is three members.** `IRespExecutor.Send(ReadOnlySpan<byte>)`,
+`IRespHandler<TResult>.Parse(ReadOnlySpan<byte>)`, and one extension method carrying all the orchestration —
+so the ordering rule that makes caching safe lives in exactly one place we own, instead of being exposed to
+every caller. (`IRespExecutor.Database` is a fourth, but it is data, not behaviour.)
+
+One method rather than two overloads, because **the cached path *is* the uncached path plus a probe and a
+commit**: a request that cannot be cached — or a caller with no cache — falls through to the same tail
+rather than duplicating it. `TryBeginFill` deliberately leaves the frame owned when it declines, which is
+what makes that fall-through work. The optional parameter is acceptable only because this is experimental;
+adding one to a shipped method is a binary break, so a shipping version would want overloads for headroom.
 
 That orchestration internalises three lifetimes, in descending order of how easy each is to get wrong:
 

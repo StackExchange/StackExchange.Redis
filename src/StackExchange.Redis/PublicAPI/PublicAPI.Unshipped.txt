@@ -93,8 +93,7 @@
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Release() -> void
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespPayload.TryRetain() -> bool
-[SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.Interpolated.RespClientCache? cache) -> TResult
-[SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler) -> TResult
+[SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.Interpolated.RespClientCache? cache = null) -> TResult
 [SER010]static StackExchange.Redis.Interpolated.RespFragment.CreateValidated(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> StackExchange.Redis.Interpolated.RespFragment
 [SER010]static StackExchange.Redis.Interpolated.RespPayload.Create(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Interpolated.RespPayload!
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void

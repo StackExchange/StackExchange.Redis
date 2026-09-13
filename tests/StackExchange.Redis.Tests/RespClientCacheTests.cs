@@ -365,6 +365,10 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$2\r\nok\r\n");
         Assert.Equal("$2|ok|", executor.Send(ref frame, TextHandler.Instance, cache));
         Assert.Equal(0, cache.Count);
+
+        // this path FALLS THROUGH to the uncached tail rather than duplicating it, so the frame must be
+        // consumed there too - TryBeginFill leaves it owned when it declines
+        Assert.Throws<ObjectDisposedException>(() => frame.AsLookupKey());
     }
 
     [Fact]

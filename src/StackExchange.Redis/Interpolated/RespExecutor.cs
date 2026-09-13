@@ -62,27 +62,9 @@ namespace StackExchange.Redis.Interpolated
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public static class RespExecutor
     {
-        /// <summary>Send a request and parse the reply, with no caching.</summary>
-        /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
-        /// <param name="executor">The executor to send through.</param>
-        /// <param name="request">The rendered request; consumed by this call.</param>
-        /// <param name="handler">Turns the reply into a result.</param>
-        public static TResult Send<TResult>(
-            this IRespExecutor executor,
-            ref RespFrame request,
-            IRespHandler<TResult> handler)
-        {
-            if (executor is null) throw new ArgumentNullException(nameof(executor));
-            if (handler is null) throw new ArgumentNullException(nameof(handler));
-
-            var response = executor.Send(request.Span);
-            request.Dispose();
-            return handler.Parse(response);
-        }
-
         /// <summary>
-        /// Send a request and parse the reply, serving it from <paramref name="cache"/> when possible and
-        /// populating the cache when not.
+        /// Send a request and parse the reply, optionally serving it from - and populating -
+        /// <paramref name="cache"/>.
         /// </summary>
         /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
         /// <param name="executor">The executor to send through.</param>
@@ -90,6 +72,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="handler">Turns the reply into a result.</param>
         /// <param name="cache">The cache to consult, or <c>null</c> to bypass caching entirely.</param>
         /// <remarks>
+        /// <para>
+        /// One method, because the cached path IS the uncached path plus a probe and a commit: a request
+        /// that cannot be cached - or a caller with no cache - simply falls through to the bottom of this
+        /// method rather than duplicating it.
+        /// </para>
         /// <para>
         /// Three lifetimes are handled here so that no caller has to, in descending order of how easy each
         /// is to get wrong: the key generations are captured <b>before</b> the send, so an invalidation
@@ -107,52 +94,61 @@ namespace StackExchange.Redis.Interpolated
         /// for a read that raced a write, and the caller would have got it anyway without a cache. It is
         /// simply not stored.
         /// </para>
+        /// <para>
+        /// <paramref name="cache"/> is optional rather than a second overload only because this API is
+        /// experimental; adding an optional parameter to a shipped method is a binary break, so a shipping
+        /// version would want overloads for headroom.
+        /// </para>
         /// </remarks>
         public static TResult Send<TResult>(
             this IRespExecutor executor,
             ref RespFrame request,
             IRespHandler<TResult> handler,
-            RespClientCache? cache)
+            RespClientCache? cache = null)
         {
             if (executor is null) throw new ArgumentNullException(nameof(executor));
             if (handler is null) throw new ArgumentNullException(nameof(handler));
-            if (cache is null) return Send(executor, ref request, handler);
 
-            var database = executor.Database;
-
-            if (cache.TryGet(request.AsLookupKey(), database, out var hit))
+            if (cache is not null)
             {
-                request.Dispose();
-                try
+                var database = executor.Database;
+
+                if (cache.TryGet(request.AsLookupKey(), database, out var hit))
                 {
-                    return handler.Parse(hit.Span);
+                    request.Dispose();
+                    try
+                    {
+                        return handler.Parse(hit.Span);
+                    }
+                    finally
+                    {
+                        hit.Release();
+                    }
                 }
-                finally
+
+                if (cache.TryBeginFill(ref request, database, out var fill))
                 {
-                    hit.Release();
+                    // generations were captured above, BEFORE this send; the buffer belongs to the fill now
+                    var filled = executor.Send(fill.Key.Span);
+                    if (!cache.TryComplete(fill, filled, out var stored)) return handler.Parse(filled);
+
+                    try
+                    {
+                        return handler.Parse(stored.Span);
+                    }
+                    finally
+                    {
+                        stored.Release();
+                    }
                 }
+
+                // keys not nameable, so not invalidatable, so not cacheable - which is precisely the
+                // uncached case, so fall through to it. TryBeginFill leaves the frame owned on failure.
             }
 
-            if (!cache.TryBeginFill(ref request, database, out var fill))
-            {
-                // keys not nameable, so not invalidatable, so not cacheable - but still answerable
-                var uncacheable = executor.Send(request.Span);
-                request.Dispose();
-                return handler.Parse(uncacheable);
-            }
-
-            // generations were captured above, BEFORE this line; the frame's buffer belongs to the fill now
-            var response = executor.Send(fill.Key.Span);
-            if (!cache.TryComplete(fill, response, out var stored)) return handler.Parse(response);
-
-            try
-            {
-                return handler.Parse(stored.Span);
-            }
-            finally
-            {
-                stored.Release();
-            }
+            var response = executor.Send(request.Span);
+            request.Dispose();
+            return handler.Parse(response);
         }
     }
 }
