@@ -164,14 +164,21 @@ internal readonly ref struct MessageWriter
         // *{argCount}\r\n      = 3 + MaxInt32TextLen
         // ${cmd-len}\r\n       = precomputed
         // {cmd}\r\n            = precomputed
-        var span = _writer.GetSpan(commandBytes.Length + 3 + Format.MaxInt32TextLen);
-        span[0] = (byte)'*';
-
-        int offset = WriteRaw(span, arguments + 1, offset: 1);
-        commandBytes.CopyTo(span.Slice(offset));
-        offset += commandBytes.Length;
-
-        _writer.Advance(offset);
+        if (TryGetSpan(_writer, commandBytes.Length + 3 + Format.MaxInt32TextLen, out var span))
+        {
+            span[0] = (byte)'*';
+            int offset = WriteRaw(span, arguments + 1, offset: 1);
+            commandBytes.CopyTo(span.Slice(offset));
+            _writer.Advance(offset + commandBytes.Length);
+        }
+        else
+        {
+            // the command bytes are already framed, so they can go straight through the looping write
+            Span<byte> scratch = stackalloc byte[MaxPrefixScratch];
+            scratch[0] = (byte)'*';
+            _writer.Write(scratch.Slice(0, WriteRaw(scratch, arguments + 1, offset: 1)));
+            _writer.Write(commandBytes);
+        }
     }
 
     internal void WriteHeader(RedisCommand command, int arguments, ReadOnlySpan<byte> commandBytes)
@@ -186,29 +193,40 @@ internal readonly ref struct MessageWriter
         // *{argCount}\r\n      = 3 + MaxInt32TextLen
         // ${cmd-len}\r\n       = 3 + MaxInt32TextLen
         // {cmd}\r\n            = 2 + commandBytes.Length
-        var span = _writer.GetSpan(commandBytes.Length + 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen);
-        span[0] = (byte)'*';
-
-        int offset = WriteRaw(span, arguments + 1, offset: 1);
-        span[offset++] = (byte)'$';
-        offset = AppendToSpan(span, commandBytes, offset: offset);
-
-        _writer.Advance(offset);
+        if (TryGetSpan(_writer, commandBytes.Length + 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen, out var span))
+        {
+            span[0] = (byte)'*';
+            int offset = WriteRaw(span, arguments + 1, offset: 1);
+            span[offset++] = (byte)'$';
+            _writer.Advance(AppendToSpan(span, commandBytes, offset: offset));
+        }
+        else
+        {
+            Span<byte> scratch = stackalloc byte[MaxPrefixScratch];
+            scratch[0] = (byte)'*';
+            int offset = WriteRaw(scratch, arguments + 1, offset: 1);
+            scratch[offset++] = (byte)'$';
+            offset = WriteRaw(scratch, commandBytes.Length, offset: offset);
+            _writer.Write(scratch.Slice(0, offset));
+            _writer.Write(commandBytes);
+            WriteCrlf(_writer);
+        }
     }
 
     internal static void WriteMultiBulkHeader(IBufferWriter<byte> writer, long count)
     {
         // *{count}\r\n         = 3 + MaxInt32TextLen
-        var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+        var scratch = new PrefixScratch(writer, 3 + Format.MaxInt32TextLen, stackalloc byte[MaxPrefixScratch]);
+        var span = scratch.Span;
         span[0] = (byte)'*';
-        int offset = WriteRaw(span, count, offset: 1);
-        writer.Advance(offset);
+        scratch.Commit(WriteRaw(span, count, offset: 1));
     }
 
     internal static void WriteMultiBulkHeader(IBufferWriter<byte> writer, long count, RespPrefix prefix)
     {
         // *{count}\r\n         = 3 + MaxInt32TextLen
-        var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+        var scratch = new PrefixScratch(writer, 3 + Format.MaxInt32TextLen, stackalloc byte[MaxPrefixScratch]);
+        var span = scratch.Span;
         span[0] = (byte)prefix;
         if ((prefix is RespPrefix.Map or RespPrefix.Attribute) & count > 0)
         {
@@ -218,8 +236,101 @@ internal readonly ref struct MessageWriter
                 paramName: nameof(count),
                 message: $"{type} data must be in pairs; got {count}");
         }
-        int offset = WriteRaw(span, count, offset: 1);
-        writer.Advance(offset);
+        scratch.Commit(WriteRaw(span, count, offset: 1));
+    }
+
+    /// <summary>
+    /// The largest fixed-size burst any single write below needs: a prefix byte, two int32 text forms and
+    /// their CRLFs, or a prefix plus an int64 text form and CRLF - whichever is larger.
+    /// </summary>
+    private const int MaxPrefixScratch = 8 + Format.MaxInt32TextLen + Format.MaxInt32TextLen;
+
+    /// <summary>A SHA1 hash as a bulk string: <c>$40\r\n</c> plus 40 hex characters plus CRLF.</summary>
+    private const int Sha1BulkStringLength = 47;
+
+    /// <summary>As <see cref="MaxPrefixScratch"/>, but also covering a formatted int64 or double payload.</summary>
+    private const int MaxValueScratch = 7 + Format.MaxDoubleTextLen > 7 + Format.MaxInt64TextLen
+        ? 7 + Format.MaxDoubleTextLen
+        : 7 + Format.MaxInt64TextLen;
+
+    /// <summary>
+    /// Obtain a span of at least <paramref name="length"/> bytes, reporting whether the writer obliged.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>sizeHint</c> is <b>advisory</b>. The "should be at least this size" wording in the docs is left over
+    /// from when the parameter was called <c>minSize</c>; the guarantee is one element, and consuming code is
+    /// expected to test what it got and fall back. The BCL does exactly that - <see cref="BuffersExtensions"/>
+    /// loops and copies in slices rather than demanding one contiguous block - which is why the fallbacks here
+    /// hand their bytes to <see cref="BuffersExtensions.Write{T}"/> instead of asking again.
+    /// See <see href="https://github.com/CommunityToolkit/dotnet/issues/1208"/>.
+    /// </para>
+    /// <para>
+    /// The point of the looser contract is transports with page limits: they can honour reasonable requests
+    /// and refuse excessive ones. <c>CycleBuffer</c> is one - it caps the hint at 1k, sizes a fresh segment
+    /// from the committed total rather than from the hint, and, the case with no floor at all, hands back a
+    /// dangling recycled segment exactly as it is, whatever length that happens to be. All legitimate; the
+    /// callers were wrong.
+    /// </para>
+    /// </remarks>
+    private static bool TryGetSpan(IBufferWriter<byte> writer, int length, out Span<byte> span)
+    {
+        span = writer.GetSpan(length);
+        return span.Length >= length;
+    }
+
+    /// <summary>
+    /// A destination for a short, fixed-size burst: the writer's own span when it is long enough, and a stack
+    /// buffer when it is not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Keeps the zero-copy path for the overwhelmingly common case while staying correct when the hint is not
+    /// honoured, which <see cref="TryGetSpan"/> explains. On the fallback path the composed bytes go through
+    /// <see cref="BuffersExtensions.Write{T}"/>, which loops until everything is written.
+    /// </para>
+    /// <para>
+    /// Writing past a short span was an <see cref="ArgumentOutOfRangeException"/> at best, and - where the
+    /// destination length was handed to an encoder rather than derived from the span - a buffer overrun.
+    /// </para>
+    /// </remarks>
+    private readonly ref struct PrefixScratch
+    {
+        private readonly IBufferWriter<byte> _writer;
+        private readonly Span<byte> _span;
+        private readonly bool _direct;
+
+        public PrefixScratch(IBufferWriter<byte> writer, int length, Span<byte> fallback)
+        {
+            Debug.Assert(fallback.Length >= length, "fallback too small for the requested burst");
+            _writer = writer;
+            if (TryGetSpan(writer, length, out var span))
+            {
+                _span = span;
+                _direct = true;
+            }
+            else
+            {
+                _span = fallback;
+                _direct = false;
+            }
+        }
+
+        /// <summary>Where to compose the bytes.</summary>
+        public Span<byte> Span => _span;
+
+        /// <summary>Hand <paramref name="bytes"/> of <see cref="Span"/> to the writer.</summary>
+        public void Commit(int bytes)
+        {
+            if (_direct)
+            {
+                _writer.Advance(bytes);
+            }
+            else
+            {
+                _writer.Write(_span.Slice(0, bytes));
+            }
+        }
     }
 
     private static ReadOnlySpan<byte> NullBulkString => "$-1\r\n"u8;
@@ -247,10 +358,10 @@ internal readonly ref struct MessageWriter
             }
             else
             {
-                var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+                var scratch = new PrefixScratch(writer, 3 + Format.MaxInt32TextLen, stackalloc byte[MaxPrefixScratch]);
+                var span = scratch.Span;
                 span[0] = (byte)'$';
-                int bytes = WriteRaw(span, totalLength, offset: 1);
-                writer.Advance(bytes);
+                scratch.Commit(WriteRaw(span, totalLength, offset: 1));
 
                 if (prefixLength != 0) writer.Write(prefix);
                 if (encodedLength != 0) WriteRaw(writer, value, encodedLength);
@@ -270,10 +381,7 @@ internal readonly ref struct MessageWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void WriteCrlf(IBufferWriter<byte> writer)
     {
-        var span = writer.GetSpan(2);
-        span[0] = (byte)'\r';
-        span[1] = (byte)'\n';
-        writer.Advance(2);
+        writer.Write("\r\n"u8);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -393,11 +501,16 @@ internal readonly ref struct MessageWriter
         fixed (char* cPtr = value)
         {
             int totalBytes;
-            if (expectedLength <= MaxQuickEncodeSize)
+
+            // NOTE the second condition is load-bearing, not belt-and-braces: GetSpan's size is a hint, and
+            // expectedLength is handed to the encoder as the destination capacity. Against a shorter span that
+            // is a buffer OVERRUN rather than an exception - it writes past the end of someone else's memory.
+            // When the writer declines, fall through to the encoder loop below, which sizes every write from
+            // span.Length and so copes with whatever it is given.
+            if (expectedLength <= MaxQuickEncodeSize && TryGetSpan(writer, expectedLength, out var quick))
             {
                 // encode directly in one hit
-                var span = writer.GetSpan(expectedLength);
-                fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
+                fixed (byte* bPtr = &MemoryMarshal.GetReference(quick))
                 {
                     totalBytes = Encoding.UTF8.GetBytes(
                         cPtr,
@@ -467,19 +580,15 @@ internal readonly ref struct MessageWriter
         }
         else
         {
-            var span = writer.GetSpan(3 +
-                                      Format
-                                          .MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
+            // note even with 2 max-len, we're still in same text range
+            var scratch = new PrefixScratch(writer, 3 + Format.MaxInt32TextLen, stackalloc byte[MaxPrefixScratch]);
+            var span = scratch.Span;
             span[0] = (byte)'$';
-            int bytes = WriteRaw(span, prefix.LongLength + value.LongLength, offset: 1);
-            writer.Advance(bytes);
+            scratch.Commit(WriteRaw(span, prefix.LongLength + value.LongLength, offset: 1));
 
             writer.Write(prefix);
             writer.Write(value);
-
-            span = writer.GetSpan(2);
-            WriteCrlf(span, 0);
-            writer.Advance(2);
+            WriteCrlf(writer);
         }
     }
 
@@ -490,11 +599,10 @@ internal readonly ref struct MessageWriter
 
         // ${asc-len}\r\n           = 4/5 (asc-len at most 2 digits)
         // {asc}\r\n                = MaxInt64TextLen + 2
-        var span = writer.GetSpan(7 + Format.MaxInt64TextLen);
-
+        var scratch = new PrefixScratch(writer, 7 + Format.MaxInt64TextLen, stackalloc byte[MaxPrefixScratch]);
+        var span = scratch.Span;
         span[0] = (byte)'$';
-        var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
-        writer.Advance(bytes);
+        scratch.Commit(WriteRaw(span, value, withLengthPrefix: true, offset: 1));
     }
 
     private static void WriteUnifiedUInt64(IBufferWriter<byte> writer, ulong value)
@@ -506,13 +614,13 @@ internal readonly ref struct MessageWriter
         var len = Format.FormatUInt64(value, valueSpan);
         // ${asc-len}\r\n           = 4/5 (asc-len at most 2 digits)
         // {asc}\r\n                = {len} + 2
-        var span = writer.GetSpan(7 + len);
+        var scratch = new PrefixScratch(writer, 7 + len, stackalloc byte[MaxValueScratch]);
+        var span = scratch.Span;
         span[0] = (byte)'$';
         int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
         valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
         offset += len;
-        offset = WriteCrlf(span, offset);
-        writer.Advance(offset);
+        scratch.Commit(WriteCrlf(span, offset));
     }
 
     private static void WriteUnifiedDouble(IBufferWriter<byte> writer, double value)
@@ -523,13 +631,13 @@ internal readonly ref struct MessageWriter
 
         // ${asc-len}\r\n           = 4/5 (asc-len at most 2 digits)
         // {asc}\r\n                = {len} + 2
-        var span = writer.GetSpan(7 + len);
+        var scratch = new PrefixScratch(writer, 7 + len, stackalloc byte[MaxValueScratch]);
+        var span = scratch.Span;
         span[0] = (byte)'$';
         int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
         valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
         offset += len;
-        offset = WriteCrlf(span, offset);
-        writer.Advance(offset);
+        scratch.Commit(WriteCrlf(span, offset));
 #else
         // fallback: drop to string
         WriteUnifiedPrefixedString(writer, null, Format.ToString(value));
@@ -540,11 +648,10 @@ internal readonly ref struct MessageWriter
     {
         // note: client should never write integer; only server does this
         // :{asc}\r\n                = MaxInt64TextLen + 3
-        var span = writer.GetSpan(3 + Format.MaxInt64TextLen);
-
+        var scratch = new PrefixScratch(writer, 3 + Format.MaxInt64TextLen, stackalloc byte[MaxValueScratch]);
+        var span = scratch.Span;
         span[0] = (byte)':';
-        var bytes = WriteRaw(span, value, withLengthPrefix: false, offset: 1);
-        writer.Advance(bytes);
+        scratch.Commit(WriteRaw(span, value, withLengthPrefix: false, offset: 1));
     }
 
     private static void WriteUnifiedBlob(IBufferWriter<byte> writer, byte[]? value)
@@ -570,20 +677,20 @@ internal readonly ref struct MessageWriter
             // special case:
             writer.Write(EmptyBulkString);
         }
-        else if (value.Length <= MaxQuickSpanSize)
+        else if (value.Length <= MaxQuickSpanSize
+            && TryGetSpan(writer, 5 + Format.MaxInt32TextLen + value.Length, out var quick))
         {
-            var span = writer.GetSpan(5 + Format.MaxInt32TextLen + value.Length);
-            span[0] = (byte)'$';
-            int bytes = AppendToSpan(span, value, 1);
-            writer.Advance(bytes);
+            quick[0] = (byte)'$';
+            writer.Advance(AppendToSpan(quick, value, 1));
         }
         else
         {
-            // too big to guarantee can do in a single span
-            var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+            // too big to do in a single span, or the writer declined the hint: length prefix first, then let
+            // the looping write deal with the payload however it likes
+            var scratch = new PrefixScratch(writer, 3 + Format.MaxInt32TextLen, stackalloc byte[MaxPrefixScratch]);
+            var span = scratch.Span;
             span[0] = (byte)'$';
-            int bytes = WriteRaw(span, value.Length, offset: 1);
-            writer.Advance(bytes);
+            scratch.Commit(WriteRaw(span, value.Length, offset: 1));
 
             writer.Write(value);
 
@@ -618,10 +725,10 @@ internal readonly ref struct MessageWriter
 
     private static void WriteUnifiedSequenceIterator(IBufferWriter<byte> writer, ReadOnlySequenceSegmentIterator<byte> seq)
     {
-        var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+        var scratch = new PrefixScratch(writer, 3 + Format.MaxInt32TextLen, stackalloc byte[MaxPrefixScratch]);
+        var span = scratch.Span;
         span[0] = (byte)'$';
-        int bytes = WriteRaw(span, seq.Length, offset: 1);
-        writer.Advance(bytes);
+        scratch.Commit(WriteRaw(span, seq.Length, offset: 1));
 
         while (seq.TryNext(out var memory))
         {
@@ -650,7 +757,8 @@ internal readonly ref struct MessageWriter
         {
             // $40\r\n              = 5
             // {40 bytes}\r\n       = 42
-            var span = writer.GetSpan(47);
+            var scratch = new PrefixScratch(writer, Sha1BulkStringLength, stackalloc byte[Sha1BulkStringLength]);
+            var span = scratch.Span;
             span[0] = (byte)'$';
             span[1] = (byte)'4';
             span[2] = (byte)'0';
@@ -668,7 +776,7 @@ internal readonly ref struct MessageWriter
             span[offset++] = (byte)'\r';
             span[offset++] = (byte)'\n';
 
-            writer.Advance(offset);
+            scratch.Commit(offset);
         }
         else
         {
