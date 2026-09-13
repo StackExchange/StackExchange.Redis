@@ -71,6 +71,11 @@ public class BufferWriterHintTests
             _handedOut = 0;
         }
 
+        // Two ways this harness is deliberately stricter than a real writer, both of which only matter if a
+        // caller misbehaves: a partial Advance discards the unadvanced tail rather than keeping it at the
+        // write position (uncommitted bytes, so nothing legitimate can observe the difference), and a second
+        // Advance without an intervening hand-out throws rather than silently double-counting.
+
         /// <summary>
         /// Verify nothing was written past the span we handed out.
         /// </summary>
@@ -136,11 +141,31 @@ public class BufferWriterHintTests
     [InlineData(8, 500)]
     [InlineData(8, 512)]
     [InlineData(8, 513)]
-    [InlineData(520, 512)]   // the reported shape: payloads straddling the 512 boundary
+    // NOTE 520 does NOT stress the string path: a 512-byte string asks for exactly 512, which a 520-cap
+    // writer honours, so these pass on main too. Kept as regression cover, not as evidence.
+    [InlineData(520, 512)]
     [InlineData(520, 5000)]
     public void ShortSpansStillProduceCorrectFramesForLargeValues(int max, int payload)
     {
         var value = new string('x', payload);
+        var expected = Render(64 * 1024, "SET", "mykey", value);
+        Assert.Equal(expected, Render(max, "SET", "mykey", value));
+    }
+
+    [Theory]
+    // The reported crash shape: WriteUnifiedSpan with a sizeable BINARY value, which asks for
+    // 5 + MaxInt32TextLen + length - up to 528 - and previously wrote it unchecked. byte[] takes a
+    // different route from string, and the value-shapes test only reaches it with four bytes.
+    [InlineData(8, 400)]
+    [InlineData(400, 400)]     // asks 416, gets 400
+    [InlineData(520, 512)]     // asks 528, gets 520 - straddles MaxQuickSpanSize with no slack
+    [InlineData(520, 513)]     // one over, so the quick path is skipped and the prefix path runs
+    [InlineData(64, 4096)]
+    public void ShortSpansStillProduceCorrectFramesForLargeBinaryValues(int max, int payload)
+    {
+        var value = new byte[payload];
+        for (var i = 0; i < value.Length; i++) value[i] = (byte)(i % 251);
+
         var expected = Render(64 * 1024, "SET", "mykey", value);
         Assert.Equal(expected, Render(max, "SET", "mykey", value));
     }
@@ -249,12 +274,62 @@ public class BufferWriterHintTests
     [InlineData(22)]  // one short of the int64 width a long count can need
     public void CountPrefixIsSizedForALong(int max)
     {
-        // WriteMultiBulkHeader(long), the blob prefix and the sequence iterator all format a long; they
-        // previously asked for int32 width, which is 14 against a possible 23
+        // DEFENSIVE, not a fix for a reachable bug. WriteMultiBulkHeader takes a long and hints
+        // 3 + MaxInt32TextLen (14) on main, which is short of the 23 a long can need - but nothing can
+        // reach it: argument counts come from array lengths, so they are int-bounded in practice. The
+        // shared WriteCountPrefix here sizes for the parameter type rather than for today's callers,
+        // and this pins that down so a future long-valued caller cannot reintroduce a short hint.
         static Action<IBufferWriter<byte>> Write()
             => w => MessageWriter.WriteMultiBulkHeader(w, long.MaxValue);
 
         Assert.Equal("*9223372036854775807|", RenderDirect(64 * 1024, Write()));
         Assert.Equal("*9223372036854775807|", RenderDirect(max, Write()));
+    }
+
+    // ---- the repo's own writer, with no synthetic writer involved ------------------------------------
+
+    /// <summary>
+    /// <c>BlockBuffer</c> under-delivers deterministically, so this needs no contrived writer at all.
+    /// </summary>
+    /// <remarks>
+    /// <c>BlockBuffer.GetBuffer</c> clamps the hint to [16, 128] and then hands back whatever is left in the
+    /// block - its own comment says so: "this isn't an actual max, just a max of what we guarantee; we give
+    /// the caller whatever is left in the buffer". So any request above 128 is under-served whenever the
+    /// block has between 128 and 527 bytes remaining, which covers the quick-span path (up to 528) and the
+    /// string encode (up to 512). No concurrency, no recycled segments, no CycleBuffer - just capacity.
+    /// <para>
+    /// <see cref="TestHarness"/> writes through <c>MessageWriter.BlockBuffer</c>, so this is the shipped
+    /// path end to end.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(400)]
+    [InlineData(450)]
+    [InlineData(500)]
+    public void BlockBufferUnderDeliversWithoutAnyContrivedWriter(int size)
+    {
+        var harness = new TestHarness();
+        var value = new string('x', size);
+
+        // several arguments in a row, so the block fills and a later one lands in the 128..527 window
+        object[] args = [value, value, value, value, value, value];
+
+        var frame = harness.Write("ECHO", args);
+        var text = Encoding.UTF8.GetString(frame).Replace("\r\n", "|");
+
+        Assert.StartsWith("*7|$4|ECHO|", text);
+        Assert.Equal(6, CountOccurrences(text, "$" + size + "|" + value + "|"));
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        for (var i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
     }
 }

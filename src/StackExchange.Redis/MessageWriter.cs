@@ -328,6 +328,13 @@ internal readonly ref struct MessageWriter
     /// dangling recycled segment exactly as it is, whatever length that happens to be. All legitimate; the
     /// callers were wrong.
     /// </para>
+    /// <para>
+    /// Note that a <c>false</c> result is <b>not</b> side-effect free: <c>GetSpan</c> has already run, and on
+    /// <c>CycleBuffer</c> that may have trimmed the active segment and raised <c>PageComplete</c>. That is
+    /// fine - the span we then decline is simply left uncommitted, and the subsequent
+    /// <see cref="BuffersExtensions.Write{T}"/> asks again and fills from wherever the writer is now - but it
+    /// does mean this must not be used to speculatively "probe" a writer for capacity.
+    /// </para>
     /// </remarks>
     private static bool TryGetSpan(IBufferWriter<byte> writer, int length, out Span<byte> span)
     {
