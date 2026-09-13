@@ -78,6 +78,14 @@
 [SER010]StackExchange.Redis.Interpolated.RespFrame.Slot.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespFrame.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespFrame.TryGetKeys(scoped System.Span<StackExchange.Redis.Interpolated.KeyRange> target) -> int
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter.Advance(int count) -> void
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter.Complete(int slot = -1) -> StackExchange.Redis.Interpolated.RespFrame
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter.GetMemory(int sizeHint = 0) -> System.Memory<byte>
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter.GetSpan(int sizeHint = 0) -> System.Span<byte>
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter.Reset() -> void
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter.RespFrameWriter(int capacity = 256) -> void
+[SER010]StackExchange.Redis.Interpolated.RespFrameWriter.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespPayload
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Dispose() -> void
 [SER010]StackExchange.Redis.Interpolated.RespPayload.GetReader() -> RESPite.Messages.RespReader

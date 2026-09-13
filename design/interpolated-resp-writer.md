@@ -1325,6 +1325,46 @@ Commands that return key names, and so need this: `RANDOMKEY`, `KEYS`, `SCAN`, t
 pops (`BLPOP`/`BRPOP`/`LMPOP`/`ZMPOP`/`BZPOPMIN`/`BZPOPMAX`), `XREAD`/`XREADGROUP` stream names,
 keyspace notifications, and script/`Execute` results.
 
+#### 6.8 Transition: reusing `Message` rather than rewriting the command surface
+
+`RedisDatabase` builds a `Message` and pairs it with a `ResultProcessor<T>`. Those are **the same two
+halves as the new API** — a request that renders itself, and something that turns a reply into a result —
+so the existing command surface can feed the new pipeline without being rewritten. `RespFrameWriter` is a
+working demonstration (`MessageToRespFrameTests`).
+
+| New API | Existing equivalent |
+| --- | --- |
+| the rendered request | `Message` + `MessageWriter` |
+| `IRespHandler<TResult>.Parse` | `ResultProcessor<T>.SetResultCore(..., ref RespReader)` |
+| cluster slot | `Message.GetHashSlot` — already computed, so **nothing to fold during the write** |
+| argument count | already in the `*N\r\n` header the writer emits |
+| key prefixes, channel prefix, command map | already applied by `MessageWriter` |
+
+**What bytes cannot supply is which arguments were keys**, which is why this is a writer and not a post-pass
+over a rendered frame — §5.2's finding applies directly. The saving grace is that `MessageWriter` kept the
+distinction at the call site: `Write(in RedisKey)` is a separate overload from `WriteBulkString(in
+RedisValue)`. So the whole integration is **one hook** — `Write(in RedisKey)` reports the current offset —
+plus an `IBufferWriter<byte>` that accumulates and packs the marks.
+
+Notes from building it:
+
+- `MessageWriter` is a `readonly ref struct`, so it cannot accumulate marks itself. The recorder is a
+  reference to the target writer, resolved **once per message** in the constructor (`writer as
+  RespFrameWriter`), so the per-key cost is a null check on an already-loaded field.
+- **Cost: below the noise floor.** A/B on `SET key value`: 66.96 ns with the hook, 68.77 ns without — the
+  hooked build measured *faster*, which is proof the difference is run-to-run variance rather than signal.
+  So the cost is bounded below ~3%, not that it is zero.
+- Offsets suffice for ≤2 keys; beyond that the frame's encoding is argument *indices*, which the recorder
+  derives by walking the finished frame once — off any hot path, and the same walk `TryGetKeys` does in
+  reverse.
+- Both routes render **byte-identically**, pinned by a test. That is a correctness property, not tidiness:
+  the frame is the cache key, so two routes that disagreed would cache the same logical command twice.
+
+Still open for a real transition: a cacheability predicate (Redis excludes `FT.*`, probabilistic and
+time-series types, and non-deterministic commands such as `HRANDFIELD`/`ZRANDMEMBER`/`HSCAN`), and running
+a `ResultProcessor` against a cached payload — it takes `ref RespReader`, which `RespPayload.GetReader()`
+supplies, but it also wants a `PhysicalConnection` and `Message` for error context.
+
 ---
 
 ## 9. The spike in this repo
