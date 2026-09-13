@@ -7,43 +7,6 @@ using RESPite;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The two halves of a command the cache needs to own: how to issue it, and how to
-    /// read the reply.
-    /// </summary>
-    /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
-    /// <remarks>
-    /// <para>
-    /// Both halves together, rather than as separate callbacks, because the cache has to sequence them: the
-    /// key generations are captured before <see cref="Execute"/> and <see cref="Parse"/> must run inside the
-    /// window where the payload is retained. Handing the cache one object means no caller can get that
-    /// order wrong, or forget to release, or read the bytes after releasing.
-    /// </para>
-    /// <para>
-    /// Hold one instance and reuse it - it is passed as an interface, so a <c>struct</c> implementation
-    /// would box on every call. A reused instance allocates nothing per request.
-    /// </para>
-    /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public interface IRespCommand<out TResult>
-    {
-        /// <summary>Issue the rendered request and return the raw reply.</summary>
-        /// <param name="request">The rendered request frame.</param>
-        /// <remarks>
-        /// Returning <c>byte[]</c> is a spike convenience; the real thing would hand back the reply frame's
-        /// own lease, as <c>RespResult</c> already does, rather than copying.
-        /// </remarks>
-        byte[] Execute(ReadOnlySpan<byte> request);
-
-        /// <summary>Read a reply - cached or fresh - into a result.</summary>
-        /// <param name="response">The reply bytes; valid only for the duration of this call.</param>
-        /// <remarks>
-        /// Do not let <paramref name="response"/> escape. The bytes belong to a pooled buffer that is
-        /// released as soon as this returns, and may then be serving another request entirely.
-        /// </remarks>
-        TResult Parse(ReadOnlySpan<byte> response);
-    }
-
-    /// <summary>
     /// EXPERIMENTAL SPIKE. A client-side cache built as two independent lookups rather than a cross-indexed
     /// structure.
     /// </summary>
@@ -237,76 +200,6 @@ namespace StackExchange.Redis.Interpolated
             entry.Payload.Dispose();
             fill.Key.Dispose();
             return false;
-        }
-
-        /// <summary>
-        /// Look up, and on a miss issue the command and cache the reply. Everything the caller could get
-        /// wrong is handled inside.
-        /// </summary>
-        /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
-        /// <param name="frame">
-        /// The rendered request. <b>This method takes ownership on every path</b> - do not dispose it, and
-        /// do not use it afterwards.
-        /// </param>
-        /// <param name="database">The database the request runs against.</param>
-        /// <param name="command">How to issue the request and read the reply.</param>
-        /// <remarks>
-        /// <para>
-        /// <b>This is the shape to use.</b> The obvious hand-written alternative - look up, miss, execute,
-        /// then add - is unsafe and cannot be repaired by the caller: an invalidation arriving while the
-        /// command is in flight is lost, because by the time the add runs there is nothing left to compare
-        /// against, and the server will not repeat it. The result is a permanently stale entry. Here the key
-        /// generations are captured before <see cref="IRespCommand{TResult}.Execute"/> is called.
-        /// </para>
-        /// <para>
-        /// Three lifetimes are internalised, in order of how easy each is to get wrong: the payload is
-        /// retained across <see cref="IRespCommand{TResult}.Parse"/> and released in a <c>finally</c>; the
-        /// frame is consumed on every path, whether it became a cache key or not; and the send/capture
-        /// ordering above. None of them is visible to the caller.
-        /// </para>
-        /// <para>
-        /// A reply that arrives after an invalidation is still <b>parsed and returned</b> - it is a
-        /// legitimate answer for a read that raced a write, and the caller would have got it anyway without
-        /// a cache - it is simply not stored.
-        /// </para>
-        /// </remarks>
-        public TResult GetOrExecute<TResult>(ref RespFrame frame, int database, IRespCommand<TResult> command)
-        {
-            if (command is null) throw new ArgumentNullException(nameof(command));
-
-            if (TryGet(frame.AsLookupKey(), database, out var hit))
-            {
-                frame.Dispose();
-                try
-                {
-                    return command.Parse(hit.Span);
-                }
-                finally
-                {
-                    hit.Release();
-                }
-            }
-
-            if (!TryBeginFill(ref frame, database, out var fill))
-            {
-                // keys not nameable, so not cacheable - but the caller still wants an answer
-                var uncacheable = command.Execute(frame.Span);
-                frame.Dispose();
-                return command.Parse(uncacheable);
-            }
-
-            // the frame's buffer belongs to the fill now, so the request reads from there
-            var response = command.Execute(fill.Key.Span);
-            if (!TryComplete(fill, response, out var stored)) return command.Parse(response);
-
-            try
-            {
-                return command.Parse(stored.Span);
-            }
-            finally
-            {
-                stored.Release();
-            }
         }
 
         /// <summary>

@@ -2,9 +2,11 @@
 [SER010]override StackExchange.Redis.Interpolated.RespCacheKey.Equals(object? obj) -> bool
 [SER010]override StackExchange.Redis.Interpolated.RespCacheKey.GetHashCode() -> int
 [SER010]override StackExchange.Redis.Interpolated.RespCacheKey.ToString() -> string!
-[SER010]StackExchange.Redis.Interpolated.IRespCommand<TResult>
-[SER010]StackExchange.Redis.Interpolated.IRespCommand<TResult>.Execute(System.ReadOnlySpan<byte> request) -> byte[]!
-[SER010]StackExchange.Redis.Interpolated.IRespCommand<TResult>.Parse(System.ReadOnlySpan<byte> response) -> TResult
+[SER010]StackExchange.Redis.Interpolated.IRespExecutor
+[SER010]StackExchange.Redis.Interpolated.IRespExecutor.Database.get -> int
+[SER010]StackExchange.Redis.Interpolated.IRespExecutor.Send(System.ReadOnlySpan<byte> request) -> byte[]!
+[SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>
+[SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>.Parse(System.ReadOnlySpan<byte> response) -> TResult
 [SER010]StackExchange.Redis.Interpolated.KeyRange
 [SER010]StackExchange.Redis.Interpolated.KeyRange.KeyRange(int offset, int length) -> void
 [SER010]StackExchange.Redis.Interpolated.KeyRange.KeyRange() -> void
@@ -27,7 +29,6 @@
 [SER010]StackExchange.Redis.Interpolated.RespClientCache
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.Count.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.Dispose() -> void
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.GetOrExecute<TResult>(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, StackExchange.Redis.Interpolated.IRespCommand<TResult>! command) -> TResult
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnFlush() -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnInvalidate(System.ReadOnlySpan<byte> key) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespClientCache(int keyCapacity = 256) -> void
@@ -68,6 +69,7 @@
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithDatabase(int database) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithKeyPrefix(StackExchange.Redis.RedisKey keyPrefix) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithServerType(StackExchange.Redis.ServerType serverType) -> StackExchange.Redis.Interpolated.RespContext
+[SER010]StackExchange.Redis.Interpolated.RespExecutor
 [SER010]StackExchange.Redis.Interpolated.RespFragment
 [SER010]StackExchange.Redis.Interpolated.RespFragment.ArgCount.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespFragment.Bytes.get -> System.ReadOnlySpan<byte>
@@ -91,6 +93,8 @@
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Release() -> void
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespPayload.TryRetain() -> bool
+[SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.Interpolated.RespClientCache? cache) -> TResult
+[SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.IRespExecutor! executor, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler) -> TResult
 [SER010]static StackExchange.Redis.Interpolated.RespFragment.CreateValidated(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> StackExchange.Redis.Interpolated.RespFragment
 [SER010]static StackExchange.Redis.Interpolated.RespPayload.Create(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Interpolated.RespPayload!
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void

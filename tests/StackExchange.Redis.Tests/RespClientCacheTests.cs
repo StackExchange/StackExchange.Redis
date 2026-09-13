@@ -286,74 +286,98 @@ public class RespClientCacheTests
         Assert.Equal(3, frame.TryGetKeys(exact));
     }
 
-    /// <summary>A command whose reply is a fixed blob; counts how often it was actually issued.</summary>
-    private sealed class FakeCommand(string response, Action? onExecute = null) : IRespCommand<string>
+    /// <summary>An executor whose reply is a fixed blob; counts how often it was actually asked.</summary>
+    private sealed class FakeExecutor(string response, Action? onSend = null) : IRespExecutor
     {
-        public int Executed { get; private set; }
+        public int Sent { get; private set; }
 
-        public byte[] Execute(ReadOnlySpan<byte> request)
+        public int Database => 0;
+
+        public byte[] Send(ReadOnlySpan<byte> request)
         {
-            Executed++;
-            onExecute?.Invoke();
+            Sent++;
+            onSend?.Invoke();
             return Utf8(response);
         }
+    }
+
+    /// <summary>The ResultProcessor half: reply bytes in, result out.</summary>
+    private sealed class TextHandler : IRespHandler<string>
+    {
+        public static readonly TextHandler Instance = new();
 
         public string Parse(ReadOnlySpan<byte> response) => Text(response);
     }
 
     [Fact]
-    public void GetOrExecuteRunsOnceThenServesFromCache()
+    public void SendRunsOnceThenServesFromCache()
     {
         using var cache = new RespClientCache();
-        var command = new FakeCommand("$5\r\nhello\r\n");
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         for (var i = 0; i < 3; i++)
         {
-            // note: no 'using' on the frame and none on any payload - the helper owns both
+            // note: no 'using' on the frame and none on any payload - Send owns both
             var frame = Get("abc");
-            Assert.Equal("$5|hello|", cache.GetOrExecute(ref frame, 0, command));
+            Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, cache));
         }
 
-        Assert.Equal(1, command.Executed);
+        Assert.Equal(1, executor.Sent);
     }
 
     [Fact]
-    public void GetOrExecuteStillAnswersWhenInvalidatedInFlight()
+    public void SendWithoutACacheIsTheSameCallShape()
+    {
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+
+        var a = Get("abc");
+        Assert.Equal("$5|hello|", executor.Send(ref a, TextHandler.Instance));
+
+        // a null cache takes the same overload, so enabling caching is one argument, not a rewrite
+        var b = Get("abc");
+        Assert.Equal("$5|hello|", executor.Send(ref b, TextHandler.Instance, cache: null));
+
+        Assert.Equal(2, executor.Sent); // no caching either way
+    }
+
+    [Fact]
+    public void SendStillAnswersWhenInvalidatedInFlight()
     {
         using var cache = new RespClientCache();
 
         // the write lands while our command is in flight - the shape that a hand-written
-        // "miss, execute, then add" cannot detect, because by the add there is nothing left to compare
-        var command = new FakeCommand("$5\r\nhello\r\n", () => cache.OnInvalidate(Utf8("abc")));
+        // "miss, send, then add" cannot detect, because by the add there is nothing left to compare
+        var executor = new FakeExecutor("$5\r\nhello\r\n", () => cache.OnInvalidate(Utf8("abc")));
 
         var frame = Get("abc");
-        Assert.Equal("$5|hello|", cache.GetOrExecute(ref frame, 0, command)); // still answered
-        Assert.Equal(0, cache.Count);                                          // ... but not cached
+        Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, cache)); // still answered
+        Assert.Equal(0, cache.Count);                                                      // ... not cached
     }
 
     [Fact]
-    public void GetOrExecuteAnswersEvenWhenTheFrameCannotBeCached()
+    public void SendAnswersEvenWhenTheFrameCannotBeCached()
     {
         using var cache = new RespClientCache();
-        var handler = new RespCommandHandler(0, 70, Ctx, "MGET");
-        for (var i = 0; i < 70; i++) handler.AppendFormatted((RedisKey)("k" + i));
-        var frame = handler.Complete();
+        var writer = new RespCommandHandler(0, 70, Ctx, "MGET");
+        for (var i = 0; i < 70; i++) writer.AppendFormatted((RedisKey)("k" + i));
+        var frame = writer.Complete();
 
-        Assert.Equal("$2|ok|", cache.GetOrExecute(ref frame, 0, new FakeCommand("$2\r\nok\r\n")));
+        var executor = new FakeExecutor("$2\r\nok\r\n");
+        Assert.Equal("$2|ok|", executor.Send(ref frame, TextHandler.Instance, cache));
         Assert.Equal(0, cache.Count);
     }
 
     [Fact]
-    public void GetOrExecuteLeavesNoReferenceBehindOnAnyPath()
+    public void SendLeavesNoReferenceBehindOnAnyPath()
     {
         using var cache = new RespClientCache();
-        var command = new FakeCommand("$5\r\nhello\r\n");
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
-        cache.GetOrExecute(ref fill, 0, command);
+        executor.Send(ref fill, TextHandler.Instance, cache);
 
         var hit = Get("abc");
-        cache.GetOrExecute(ref hit, 0, command);
+        executor.Send(ref hit, TextHandler.Instance, cache);
 
         // exactly one reference survives - the cache entry's. If the helper leaked the caller's retain the
         // buffer would never return to the pool; if it over-released, the entry would be reading freed bytes
@@ -365,18 +389,22 @@ public class RespClientCacheTests
     }
 
     [Fact]
-    public void GetOrExecuteConsumesTheFrameOnEveryPath()
+    public void SendConsumesTheFrameOnEveryPath()
     {
         using var cache = new RespClientCache();
-        var command = new FakeCommand("$5\r\nhello\r\n");
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
-        cache.GetOrExecute(ref miss, 0, command);
+        executor.Send(ref miss, TextHandler.Instance, cache);
         Assert.Throws<ObjectDisposedException>(() => miss.AsLookupKey());
 
         var hit = Get("abc");
-        cache.GetOrExecute(ref hit, 0, command);
+        executor.Send(ref hit, TextHandler.Instance, cache);
         Assert.Throws<ObjectDisposedException>(() => hit.AsLookupKey());
+
+        var uncached = Get("abc");
+        executor.Send(ref uncached, TextHandler.Instance); // the no-cache overload too
+        Assert.Throws<ObjectDisposedException>(() => uncached.AsLookupKey());
     }
 
     private static string[] KeyStrings(in RespFrame frame)
