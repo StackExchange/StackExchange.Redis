@@ -15,11 +15,14 @@ public class InterpolatedWriterDemo
     /// <summary>Render the frame with CRLF shown as '|', so expectations stay readable.</summary>
     private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
+    // sized from KeyCount, NOT a fixed two: a fixed buffer makes TryGetKeys report -1 for "target too
+    // small", which is indistinguishable here from "this frame cannot report its keys"
     private static string Keys(in RespFrame frame)
     {
-        Span<KeyRange> ranges = stackalloc KeyRange[2];
-        var count = frame.TryGetKeys(ranges);
-        if (count < 0) return "<scan>";
+        var count = frame.KeyCount;
+        if (count < 0) return "<unavailable>";
+        var ranges = new KeyRange[count];
+        Assert.Equal(count, frame.TryGetKeys(ranges));
         var parts = new string[count];
         for (int i = 0; i < count; i++) parts[i] = Encoding.UTF8.GetString(frame.GetKey(ranges[i]).ToArray());
         return string.Join(",", parts);
@@ -81,7 +84,9 @@ public class InterpolatedWriterDemo
         using var frame = Cluster.Execute(ref cmd);
 
         Assert.Equal("*4|$3|DEL|$5|{u}:a|$5|{u}:b|$5|{u}:c|", Frame(frame));
-        Assert.Equal("<scan>", Keys(frame)); // beyond two keys the inline offsets give out
+        // beyond two keys the inline offsets give out, but the argument-index bitmap still resolves them
+        Assert.True(frame.KeysNeedScan);
+        Assert.Equal("{u}:a,{u}:b,{u}:c", Keys(frame));
         Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"{u}:a"), frame.Slot);
     }
 
