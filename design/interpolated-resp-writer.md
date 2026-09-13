@@ -1040,6 +1040,27 @@ pair is for callers who need to interleave their own dispatch.
 A response that arrives after an invalidation is still *returned* — it is a legitimate answer for a read
 that raced a write, and the caller would have got it anyway without a cache — it is simply not stored.
 
+`GetOrExecute` takes an `IRespCommand<TResult>` carrying **both** halves — how to issue the request and how
+to read the reply — rather than returning bytes for the caller to handle. Both halves together, because the
+cache has to *sequence* them, and that internalises three lifetimes in descending order of how easy each is
+to get wrong:
+
+| | Handled by |
+| --- | --- |
+| Generations captured **before** the send | the helper calls `Execute` itself |
+| Payload retained across the parse, released in a `finally` | `Parse` is called inside the window |
+| The request frame consumed on **every** path | `ref RespFrame`, neutered whether it became a key or not |
+
+None of the three is visible at the call site, which reduces to:
+
+```csharp
+var req = ctx.Execute($"{RedisCommand.GET}{key}");
+return cache.GetOrExecute(ref req, db, command);   // no using, nothing to release, nothing to order
+```
+
+The command is passed as an interface, so hold **one instance and reuse it** — a `struct` implementation
+would box per call. A reused instance allocates nothing per request.
+
 **Read-through, and no write path at all.** `GetOrExecute` makes the cache own the fetch, which is
 read-through; the raw `TryGet` + `TryBeginFill` pair is cache-aside. Neither write-through nor write-behind
 applies, because **writes never go through this cache**. Coherence comes from the server telling us what

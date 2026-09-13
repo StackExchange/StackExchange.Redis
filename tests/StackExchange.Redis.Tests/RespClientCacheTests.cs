@@ -286,45 +286,49 @@ public class RespClientCacheTests
         Assert.Equal(3, frame.TryGetKeys(exact));
     }
 
+    /// <summary>A command whose reply is a fixed blob; counts how often it was actually issued.</summary>
+    private sealed class FakeCommand(string response, Action? onExecute = null) : IRespCommand<string>
+    {
+        public int Executed { get; private set; }
+
+        public byte[] Execute(ReadOnlySpan<byte> request)
+        {
+            Executed++;
+            onExecute?.Invoke();
+            return Utf8(response);
+        }
+
+        public string Parse(ReadOnlySpan<byte> response) => Text(response);
+    }
+
     [Fact]
     public void GetOrExecuteRunsOnceThenServesFromCache()
     {
         using var cache = new RespClientCache();
-        var calls = 0;
+        var command = new FakeCommand("$5\r\nhello\r\n");
 
         for (var i = 0; i < 3; i++)
         {
+            // note: no 'using' on the frame and none on any payload - the helper owns both
             var frame = Get("abc");
-            using var resp = cache.GetOrExecute(ref frame, 0, this, (_, _) =>
-            {
-                calls++;
-                return Utf8("$5\r\nhello\r\n");
-            });
-
-            Assert.Equal("$5|hello|", Text(resp.Span));
+            Assert.Equal("$5|hello|", cache.GetOrExecute(ref frame, 0, command));
         }
 
-        Assert.Equal(1, calls);
+        Assert.Equal(1, command.Executed);
     }
 
     [Fact]
     public void GetOrExecuteStillAnswersWhenInvalidatedInFlight()
     {
         using var cache = new RespClientCache();
-        var frame = Get("abc");
 
-        // the write lands while our command is in flight - the shape that the hand-written
+        // the write lands while our command is in flight - the shape that a hand-written
         // "miss, execute, then add" cannot detect, because by the add there is nothing left to compare
-        using (var resp = cache.GetOrExecute(ref frame, 0, cache, (c, _) =>
-        {
-            c.OnInvalidate(Utf8("abc"));
-            return Utf8("$5\r\nhello\r\n");
-        }))
-        {
-            Assert.Equal("$5|hello|", Text(resp.Span)); // the caller still gets an answer
-        }
+        var command = new FakeCommand("$5\r\nhello\r\n", () => cache.OnInvalidate(Utf8("abc")));
 
-        Assert.Equal(0, cache.Count); // ... it just was not cached
+        var frame = Get("abc");
+        Assert.Equal("$5|hello|", cache.GetOrExecute(ref frame, 0, command)); // still answered
+        Assert.Equal(0, cache.Count);                                          // ... but not cached
     }
 
     [Fact]
@@ -335,28 +339,44 @@ public class RespClientCacheTests
         for (var i = 0; i < 70; i++) handler.AppendFormatted((RedisKey)("k" + i));
         var frame = handler.Complete();
 
-        using (var resp = cache.GetOrExecute(ref frame, 0, this, (_, _) => Utf8("$2\r\nok\r\n")))
-        {
-            Assert.Equal("$2|ok|", Text(resp.Span));
-        }
-
+        Assert.Equal("$2|ok|", cache.GetOrExecute(ref frame, 0, new FakeCommand("$2\r\nok\r\n")));
         Assert.Equal(0, cache.Count);
-        frame.Dispose();
     }
 
     [Fact]
-    public void GetOrExecutePayloadIsReleasedByUsing()
+    public void GetOrExecuteLeavesNoReferenceBehindOnAnyPath()
     {
         using var cache = new RespClientCache();
-        var frame = Get("abc");
-        RespPayload captured;
-        using (var resp = cache.GetOrExecute(ref frame, 0, this, (_, _) => Utf8("$5\r\nhello\r\n")))
-        {
-            captured = resp;
-            Assert.Equal(2, captured.RefCount); // the cache entry, plus ours
-        }
+        var command = new FakeCommand("$5\r\nhello\r\n");
 
-        Assert.Equal(1, captured.RefCount); // 'using' gave ours back; the cache keeps its own
+        var fill = Get("abc");
+        cache.GetOrExecute(ref fill, 0, command);
+
+        var hit = Get("abc");
+        cache.GetOrExecute(ref hit, 0, command);
+
+        // exactly one reference survives - the cache entry's. If the helper leaked the caller's retain the
+        // buffer would never return to the pool; if it over-released, the entry would be reading freed bytes
+        using var probe = Get("abc"); // borrow; Detach here would own a lease nothing ever released
+        Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var payload));
+        Assert.Equal(2, payload.RefCount); // the entry, plus the one TryGet just handed us
+        payload.Release();
+        Assert.Equal(1, payload.RefCount);
+    }
+
+    [Fact]
+    public void GetOrExecuteConsumesTheFrameOnEveryPath()
+    {
+        using var cache = new RespClientCache();
+        var command = new FakeCommand("$5\r\nhello\r\n");
+
+        var miss = Get("abc");
+        cache.GetOrExecute(ref miss, 0, command);
+        Assert.Throws<ObjectDisposedException>(() => miss.AsLookupKey());
+
+        var hit = Get("abc");
+        cache.GetOrExecute(ref hit, 0, command);
+        Assert.Throws<ObjectDisposedException>(() => hit.AsLookupKey());
     }
 
     private static string[] KeyStrings(in RespFrame frame)

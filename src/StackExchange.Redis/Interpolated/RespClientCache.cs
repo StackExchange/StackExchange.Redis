@@ -6,12 +6,42 @@ using RESPite;
 
 namespace StackExchange.Redis.Interpolated
 {
-    /// <summary>Issue a request and return the raw response bytes.</summary>
-    /// <typeparam name="TState">Caller state, so the callback need not close over anything.</typeparam>
-    /// <param name="state">The caller state.</param>
-    /// <param name="request">The rendered request frame.</param>
+    /// <summary>
+    /// EXPERIMENTAL SPIKE. The two halves of a command the cache needs to own: how to issue it, and how to
+    /// read the reply.
+    /// </summary>
+    /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
+    /// <remarks>
+    /// <para>
+    /// Both halves together, rather than as separate callbacks, because the cache has to sequence them: the
+    /// key generations are captured before <see cref="Execute"/> and <see cref="Parse"/> must run inside the
+    /// window where the payload is retained. Handing the cache one object means no caller can get that
+    /// order wrong, or forget to release, or read the bytes after releasing.
+    /// </para>
+    /// <para>
+    /// Hold one instance and reuse it - it is passed as an interface, so a <c>struct</c> implementation
+    /// would box on every call. A reused instance allocates nothing per request.
+    /// </para>
+    /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public delegate byte[] RespExecutor<in TState>(TState state, ReadOnlySpan<byte> request);
+    public interface IRespCommand<out TResult>
+    {
+        /// <summary>Issue the rendered request and return the raw reply.</summary>
+        /// <param name="request">The rendered request frame.</param>
+        /// <remarks>
+        /// Returning <c>byte[]</c> is a spike convenience; the real thing would hand back the reply frame's
+        /// own lease, as <c>RespResult</c> already does, rather than copying.
+        /// </remarks>
+        byte[] Execute(ReadOnlySpan<byte> request);
+
+        /// <summary>Read a reply - cached or fresh - into a result.</summary>
+        /// <param name="response">The reply bytes; valid only for the duration of this call.</param>
+        /// <remarks>
+        /// Do not let <paramref name="response"/> escape. The bytes belong to a pooled buffer that is
+        /// released as soon as this returns, and may then be serving another request entirely.
+        /// </remarks>
+        TResult Parse(ReadOnlySpan<byte> response);
+    }
 
     /// <summary>
     /// EXPERIMENTAL SPIKE. A client-side cache built as two independent lookups rather than a cross-indexed
@@ -210,55 +240,73 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
-        /// Look up, and on a miss execute and cache - with the send-time ordering handled for you.
+        /// Look up, and on a miss issue the command and cache the reply. Everything the caller could get
+        /// wrong is handled inside.
         /// </summary>
-        /// <returns>
-        /// The response, <b>retained</b>. Dispose it (or <see cref="RespPayload.Release"/>) when done; a
-        /// <c>using</c> does the right thing.
-        /// </returns>
+        /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
+        /// <param name="frame">
+        /// The rendered request. <b>This method takes ownership on every path</b> - do not dispose it, and
+        /// do not use it afterwards.
+        /// </param>
+        /// <param name="database">The database the request runs against.</param>
+        /// <param name="command">How to issue the request and read the reply.</param>
         /// <remarks>
         /// <para>
-        /// <b>Prefer this to calling <see cref="TryGet"/> and a separate add.</b> The obvious hand-written
-        /// shape - look up, miss, execute, then add - is exactly the unsafe one: an invalidation arriving
-        /// while the command is in flight is lost, because by the time the add happens there is nothing left
-        /// to compare against. This method captures the generations before it calls
-        /// <paramref name="execute"/>, so <c>TryComplete</c> can see that the world moved.
+        /// <b>This is the shape to use.</b> The obvious hand-written alternative - look up, miss, execute,
+        /// then add - is unsafe and cannot be repaired by the caller: an invalidation arriving while the
+        /// command is in flight is lost, because by the time the add runs there is nothing left to compare
+        /// against, and the server will not repeat it. The result is a permanently stale entry. Here the key
+        /// generations are captured before <see cref="IRespCommand{TResult}.Execute"/> is called.
         /// </para>
         /// <para>
-        /// A response that arrives after an invalidation is still <b>returned</b> - it is a legitimate answer
-        /// for a read that raced a write, and the caller would have got it anyway without a cache - it is
-        /// simply not stored.
+        /// Three lifetimes are internalised, in order of how easy each is to get wrong: the payload is
+        /// retained across <see cref="IRespCommand{TResult}.Parse"/> and released in a <c>finally</c>; the
+        /// frame is consumed on every path, whether it became a cache key or not; and the send/capture
+        /// ordering above. None of them is visible to the caller.
         /// </para>
         /// <para>
-        /// <paramref name="state"/> exists so the callback can be a <c>static</c> lambda and allocate no
-        /// closure. Returning <c>byte[]</c> is a spike convenience: the real thing would hand back the
-        /// response frame's own lease, as <c>RespResult</c> already does, rather than copying.
+        /// A reply that arrives after an invalidation is still <b>parsed and returned</b> - it is a
+        /// legitimate answer for a read that raced a write, and the caller would have got it anyway without
+        /// a cache - it is simply not stored.
         /// </para>
         /// </remarks>
-        /// <typeparam name="TState">Caller state, passed to <paramref name="execute"/>.</typeparam>
-        /// <param name="frame">The rendered request; its buffer is taken over when the response is cached.</param>
-        /// <param name="database">The database the request runs against.</param>
-        /// <param name="state">Caller state, so the callback need not close over anything.</param>
-        /// <param name="execute">Issues the request when the cache misses.</param>
-        public RespPayload GetOrExecute<TState>(
-            ref RespFrame frame,
-            int database,
-            TState state,
-            RespExecutor<TState> execute)
+        public TResult GetOrExecute<TResult>(ref RespFrame frame, int database, IRespCommand<TResult> command)
         {
-            if (execute is null) throw new ArgumentNullException(nameof(execute));
+            if (command is null) throw new ArgumentNullException(nameof(command));
 
-            if (TryGet(frame.AsLookupKey(), database, out var hit)) return hit;
+            if (TryGet(frame.AsLookupKey(), database, out var hit))
+            {
+                frame.Dispose();
+                try
+                {
+                    return command.Parse(hit.Span);
+                }
+                finally
+                {
+                    hit.Release();
+                }
+            }
 
             if (!TryBeginFill(ref frame, database, out var fill))
             {
                 // keys not nameable, so not cacheable - but the caller still wants an answer
-                return RespPayload.Create(execute(state, frame.Span));
+                var uncacheable = command.Execute(frame.Span);
+                frame.Dispose();
+                return command.Parse(uncacheable);
             }
 
-            // the frame's buffer now belongs to the fill, so read the request from there
-            var response = execute(state, fill.Key.Span);
-            return TryComplete(fill, response, out var stored) ? stored : RespPayload.Create(response);
+            // the frame's buffer belongs to the fill now, so the request reads from there
+            var response = command.Execute(fill.Key.Span);
+            if (!TryComplete(fill, response, out var stored)) return command.Parse(response);
+
+            try
+            {
+                return command.Parse(stored.Span);
+            }
+            finally
+            {
+                stored.Release();
+            }
         }
 
         /// <summary>
