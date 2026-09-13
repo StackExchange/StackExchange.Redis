@@ -267,7 +267,15 @@ internal readonly ref struct MessageWriter
         writer.Write(scratch.Slice(0, WriteRaw(scratch, count, offset: 1)));
     }
 
-    /// <inheritdoc cref="WriteCountPrefixSlow"/>
+    /// <summary>
+    /// The fallback when the writer declined the hint, writing the header in pieces instead of as one burst.
+    /// </summary>
+    /// <remarks>
+    /// Not inlined, for the reason given on <see cref="WriteCountPrefixSlow"/>. Note that the pieces go
+    /// through the <em>checked</em> <see cref="WriteCountPrefix"/>: the ask that was just declined was larger
+    /// than its 23 bytes, so the writer may well still take those in place. Nothing is composed in a stack
+    /// buffer here - that only happens if <see cref="WriteCountPrefix"/> is itself declined in turn.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void WriteHeaderSlow(IBufferWriter<byte> writer, int arguments, ReadOnlySpan<byte> commandBytes)
     {
@@ -278,7 +286,7 @@ internal readonly ref struct MessageWriter
         writer.Write(commandBytes);
     }
 
-    /// <inheritdoc cref="WriteCountPrefixSlow"/>
+    /// <inheritdoc cref="WriteHeaderSlow"/>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void WriteHeaderUnframedSlow(IBufferWriter<byte> writer, int arguments, ReadOnlySpan<byte> commandBytes)
     {
@@ -292,12 +300,20 @@ internal readonly ref struct MessageWriter
     /// Write a bulk string in pieces rather than as one burst.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Unlike the <c>…Slow</c> methods this is <b>not</b> only a fallback: <see cref="WriteUnifiedSpan"/>
     /// sends every value over <c>MaxQuickSpanSize</c> here because no single span could hold it, so for large
     /// binary values this is the normal path. It therefore uses the checked <see cref="WriteCountPrefix"/>,
     /// which writes the length prefix in place when the writer can take 23 bytes; going straight to
     /// <see cref="WriteCountPrefixSlow"/> would compose into a stack buffer and hand it to a hintless
     /// <see cref="BuffersExtensions.Write{T}"/>, costing a copy and risking a prefix split across segments.
+    /// </para>
+    /// <para>
+    /// It is still <see cref="MethodImplOptions.NoInlining"/>, but <b>not</b> for the reason given on
+    /// <see cref="WriteCountPrefixSlow"/> - there is no <c>stackalloc</c> left in here to perturb the
+    /// caller's codegen. The reason now is simply that <see cref="WriteUnifiedSpan"/>'s hot path is the
+    /// small-value one, and this body has no business being in that frame.
+    /// </para>
     /// </remarks>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void WriteUnifiedSpanPiecewise(IBufferWriter<byte> writer, ReadOnlySpan<byte> value)
