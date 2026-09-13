@@ -1294,6 +1294,67 @@ several of those commands are keyless anyway.
 
 ---
 
+### 6.11 Request combining: instrument first
+
+`HybridCache` collapses concurrent misses onto one in-flight operation: the first caller installs a
+placeholder carrying a `TaskCompletionSource`, later callers join it, and all complete or fail together.
+It is the standard answer to a cache stampede. Whether it earns its complexity *here* is a different
+question, because the economics are not the same.
+
+**A miss costs far less here.** A `HybridCache` miss invokes an arbitrary factory — a database query, an
+HTTP call, hundreds of milliseconds. A miss here is a Redis round trip on an already-multiplexed
+connection: a thousand concurrent misses become a thousand pipelined commands and a thousand O(1) server
+lookups. That is not a stampede in the damaging sense, so the default answer is "not needed".
+
+**Two cases flip it, and the first is self-inflicted.** Redis requires the client to drop its whole cache
+when a connection is lost (§6.6), so every hot key re-fetches simultaneously — precisely when the
+connection has just been re-established. And for large values, a thousand concurrent 1MB misses is a
+gigabyte of network and a thousand pooled buffers to produce one entry.
+
+#### Cancellation makes this a now-decision, not a later one
+
+v3 adds cancellation — `RespContext` carries a token and `SendAsync` takes one — which changes the shape.
+The naive implementation is then *actively wrong*: passing the first caller's token to the shared send
+means one caller's cancellation aborts everyone who joined. The shared send must use a **cache-owned**
+token, with each waiter observing its own independently. So if cancellation is arriving anyway, this
+wants deciding alongside it rather than retrofitted around it.
+
+**Last-man-standing is not a correctness requirement here**, though — and not because cancellation is
+absent, but because **the cache is a stakeholder independent of the callers**. In `HybridCache`, if every
+caller cancels, the work is pointless; there is nobody left who wants it. Here, completing the fill
+populates a shared cache that later callers will hit, so it has standalone value. Let the fill complete
+and commit it, and let each waiter observe its own token. Withdrawing the command when the last waiter
+leaves *and* it has not yet been sent is then an optimisation, not a requirement — which removes the part
+that is genuinely awkward in `HybridCache`.
+
+#### A tolerance to state, and a cheap mitigation
+
+Combining can hand a joiner data **older than an independent read would have given it**. If the leader
+sends at T0, a write lands at T0.5, and a joiner arrives at T1, the joiner receives pre-write data for a
+request that began strictly *after* the write — where its own request would have seen the write. That is
+transient rather than permanent, so it is tolerable, but it should be a stated tolerance rather than an
+accident.
+
+The mitigation is nearly free: **do not join a fill whose generations have already been stamped invalid.**
+The leader's dependencies are right there, so a joiner arriving after an invalidation simply sends its
+own request.
+
+#### Constraints for whenever it is built
+
+- `NoClientCache` callers must never join — they asked not to participate in cache machinery at all.
+- The in-flight table is keyed by `(frame, database)`, like table 1.
+- The `TaskCompletionSource` is allocated only on a miss, so the zero-allocation hit is unaffected.
+- Per-waiter cancellation wants `Task.WaitAsync`, which does not exist on `netstandard2.0`/`net461`; that
+  needs a linked-TCS polyfill on down-level targets.
+
+#### Decision: measure first
+
+Not built. `RespClientCache.RedundantFills` counts fills that completed only to find the same request
+already cached — two or more callers missing on the same request concurrently, which is exactly what
+combining would have collapsed. It costs one increment on an already-cold path and needs no in-flight
+table, so it does not presuppose the design it is evaluating. Expect near zero for ordinary traffic and a
+spike after a flush.
+
 ### 6.10 Decision log
 
 What was chosen, what was rejected, and why. Several of these were reversed during implementation; the
@@ -1317,6 +1378,7 @@ reversals are the useful part.
 | Keyless requests are never cached | Cache them | Invalidation only ever reports **keys**, so a keyless entry is vacuously valid for the life of the process — not even a flush clears it. Found by building it, not by reasoning. |
 | Handler maintains **both** key-mark forms | Re-derive arg indices on promotion | §5.2 assumed there were no spare bits — true of the *frame*, false of the writer, which is a stack `ref struct` with no size pressure. |
 | >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
+| Request combining deferred, with a counter | Build it now | A miss is a round trip on a multiplexed connection, not an arbitrary factory call, so the stampede economics differ by orders of magnitude. `RedundantFills` measures whether it is real without presupposing the design (§6.11). |
 | >62 arguments declines to cache | "Treat every argument as a key" | Over-invalidation is safe by protocol, but this registers *value* bytes as tracked keys, polluting the key table and inviting spurious invalidation from unrelated keys that happen to match a value. Safe, and invisibly degrading. |
 
 **One reversal worth recording explicitly.** The case for opt-in rested on "an external command that is

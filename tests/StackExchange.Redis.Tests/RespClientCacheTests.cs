@@ -628,6 +628,26 @@ public class RespClientCacheTests
             Message.UserSelectableFlags & CommandFlags.NoClientCache);
     }
 
+    [Fact]
+    public void RedundantFillsCountConcurrentMissesOnTheSameRequest()
+    {
+        using var cache = new RespClientCache();
+
+        // two callers miss on the same request and both go to the server - exactly what request
+        // combining would have collapsed into one round trip
+        var first = Get("abc");
+        Assert.True(cache.TryBeginFill(ref first, 0, CommandFlags.CommandRetryReadOnly, out var a));
+        var second = Get("abc");
+        Assert.True(cache.TryBeginFill(ref second, 0, CommandFlags.CommandRetryReadOnly, out var b));
+
+        Assert.True(Complete(cache, a, "$5\r\nhello\r\n"));
+        Assert.False(Complete(cache, b, "$5\r\nhello\r\n")); // lost the race; the first entry stands
+
+        Assert.Equal(1, cache.Stored);
+        Assert.Equal(1, cache.RedundantFills);
+        Assert.Equal(1, cache.Count);
+    }
+
     private static string[] KeyStrings(in RespFrame frame)
     {
         var count = frame.KeyCount;

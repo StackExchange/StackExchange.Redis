@@ -46,6 +46,7 @@ namespace StackExchange.Redis.Interpolated
         private long _refusedByFlags;
         private long _refusedNoKeys;
         private long _refusedRaced;
+        private long _redundantFills;
 
         /// <summary>Create a cache.</summary>
         /// <param name="keyCapacity">Initial size hint for the tracked-key table.</param>
@@ -80,6 +81,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>Fills refused because an invalidation landed while the command was in flight.</summary>
         public long RefusedRaced => Volatile.Read(ref _refusedRaced);
+
+        /// <summary>
+        /// Fills that completed only to find the same request already cached by someone else - i.e. two or
+        /// more callers missed on the same request concurrently and all of them went to the server.
+        /// </summary>
+        /// <remarks>
+        /// This is the stampede signal, and it is measured rather than assumed because request combining is
+        /// real complexity and the economics here are not HybridCache's: a miss is a round trip on an
+        /// already-multiplexed connection, not an arbitrary factory call. Expect it to be near zero for
+        /// ordinary traffic and to spike after a flush, since dropping the cache on disconnect makes every
+        /// hot key re-fetch at once. See the design notes, section 6.11.
+        /// </remarks>
+        public long RedundantFills => Volatile.Read(ref _redundantFills);
 
         /// <summary>
         /// Invalidate one key, as reported by the server. Allocation-free, and cheap when the key is not
@@ -269,6 +283,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             // somebody else filled the same request first; theirs is as good as ours
+            Interlocked.Increment(ref _redundantFills);
             response.Release();
             stored.Dispose();
             fill.Key.Dispose();
