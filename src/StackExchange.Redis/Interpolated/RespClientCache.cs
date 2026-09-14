@@ -62,21 +62,24 @@ namespace StackExchange.Redis.Interpolated
         private long _servedStale;
 
         /// <summary>Create a cache.</summary>
-        /// <param name="policy">How entries behave; <see cref="CachePolicy.Default"/> when null.</param>
+        /// <param name="options">How the cache is built; <see cref="CacheOptions.Default"/> when null.</param>
         /// <param name="keyCapacity">Initial size hint for the tracked-key table.</param>
         /// <remarks>
         /// One constructor rather than an overload pair: two constructors both carrying optional parameters
         /// is ambiguous for callers, and the analyzers say so (RS0026). Named arguments cover the cases an
         /// overload would have.
         /// </remarks>
-        public RespClientCache(CachePolicy? policy = null, int keyCapacity = 256)
+        public RespClientCache(CacheOptions? options = null, int keyCapacity = 256)
         {
-            Policy = policy ?? CachePolicy.Default;
+            Options = options ?? CacheOptions.Default;
             _keys = new RespKeyTable(keyCapacity);
         }
 
-        /// <summary>How entries in this cache behave.</summary>
-        public CachePolicy Policy { get; }
+        /// <summary>How this cache is built: the settled-once decisions.</summary>
+        public CacheOptions Options { get; }
+
+        /// <summary>How entries in this cache behave, unless a caller overrides it.</summary>
+        public CachePolicy Policy => Options.DefaultPolicy;
 
         /// <summary>Background refreshes started, because an entry was ageing but still servable.</summary>
         /// <remarks>
@@ -130,7 +133,7 @@ namespace StackExchange.Redis.Interpolated
         public long RefusedNoKeys => Volatile.Read(ref _refusedNoKeys);
 
         /// <summary>
-        /// Fills refused because a key falls outside <see cref="CachePolicy.Prefixes"/>, so the server will
+        /// Fills refused because a key falls outside <see cref="CacheOptions.Prefixes"/>, so the server will
         /// never announce a change to it.
         /// </summary>
         /// <remarks>
@@ -392,7 +395,7 @@ namespace StackExchange.Redis.Interpolated
         /// write landing while the refresh is in flight must lose, not win.
         /// </para>
         /// <para>
-        /// No <see cref="CachePolicy.Prefixes"/> check, deliberately: a refresh only ever exists for an
+        /// No <see cref="CacheOptions.Prefixes"/> check, deliberately: a refresh only ever exists for an
         /// entry the first fill already admitted, and the policy is fixed for the life of the cache, so
         /// re-testing it would be work that cannot change the answer.
         /// </para>
@@ -530,11 +533,11 @@ namespace StackExchange.Redis.Interpolated
             // EVERY key, not any: the entry depends on all of them, so one key the server was never asked
             // to watch is enough to make the whole reply uninvalidatable. MGET tracked untracked is not
             // "mostly fine".
-            if (Policy.HasPrefixes)
+            if (Options.HasPrefixes)
             {
                 for (var i = 0; i < count; i++)
                 {
-                    if (!Policy.IsTracked(frame.GetKey(ranges[i])))
+                    if (!Options.IsTracked(frame.GetKey(ranges[i])))
                     {
                         Interlocked.Increment(ref _refusedNotTracked);
                         fill = default;

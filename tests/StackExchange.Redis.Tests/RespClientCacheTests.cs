@@ -867,7 +867,7 @@ public class RespClientCacheTests
     [InlineData("", false)]
     public void UntrackedKeysAreNotCached(string key, bool cacheable)
     {
-        using var cache = new RespClientCache(new CachePolicy { Prefixes = ["app:", "session:"] });
+        using var cache = new RespClientCache(new CacheOptions { Prefixes = ["app:", "session:"] });
 
         var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)key}");
         var admitted = cache.TryBeginFill(ref frame, 0, out var fill);
@@ -896,7 +896,7 @@ public class RespClientCacheTests
     [Fact]
     public void OneUntrackedKeySpoilsAMultiKeyCommand()
     {
-        using var cache = new RespClientCache(new CachePolicy { Prefixes = ["app:"] });
+        using var cache = new RespClientCache(new CacheOptions { Prefixes = ["app:"] });
 
         var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"other"}");
         Assert.False(cache.TryBeginFill(ref frame, 0, out _));
@@ -913,7 +913,7 @@ public class RespClientCacheTests
     [Fact]
     public void NoPrefixesMeansEverythingIsCacheable()
     {
-        using var cache = new RespClientCache(new CachePolicy()); // the default: BCAST with no prefix
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy() }); // the default: BCAST with no prefix
 
         var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"anything at all"}");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -935,10 +935,10 @@ public class RespClientCacheTests
         // ALONE, and checked by message. Paired with a real prefix it is caught by the overlap rule
         // instead - every string starts with "" - so that spelling passes even with this rule deleted,
         // which is exactly what it did until a mutant walked through it.
-        var ex = Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = [""] });
+        var ex = Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = [""] });
         Assert.Contains("matches every key", ex.Message);
 
-        Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = ["app:", ""] });
+        Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = ["app:", ""] });
     }
 
     /// <summary>
@@ -951,18 +951,18 @@ public class RespClientCacheTests
     [Fact]
     public void OverlappingPrefixesAreRejected()
     {
-        var ex = Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = ["app:", "app:user:"] });
+        var ex = Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = ["app:", "app:user:"] });
         Assert.Contains("must not overlap", ex.Message);
 
         // ...including a prefix repeated, which overlaps itself in the most literal way available
-        Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = ["app:", "app:"] });
+        Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = ["app:", "app:"] });
     }
 
     /// <summary>Prefix matching is on the bytes, so a multi-byte prefix is not matched by accident.</summary>
     [Fact]
     public void PrefixesMatchWholeBytesNotCharacters()
     {
-        using var cache = new RespClientCache(new CachePolicy { Prefixes = ["é:"] }); // 0xC3 0xA9
+        using var cache = new RespClientCache(new CacheOptions { Prefixes = ["é:"] }); // 0xC3 0xA9
 
         // a key starting with the first byte of the prefix but not the second must not match
         var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"è:x"}"); // 0xC3 0xA8

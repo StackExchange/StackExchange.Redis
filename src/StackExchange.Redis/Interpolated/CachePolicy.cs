@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using RESPite;
 
 namespace StackExchange.Redis.Interpolated
@@ -13,11 +11,15 @@ namespace StackExchange.Redis.Interpolated
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Deployment-level configuration, held once by the cache rather than passed per call. The one thing
-    /// that genuinely varies per caller is how stale an answer they will accept, and that rides on the
-    /// context instead - see <see cref="RespContext.WithMaxCacheAge"/>. Splitting them that way matches
-    /// where each decision actually lives: the tracking mode is a fact about the connection, the default
-    /// lifetime is a fact about the deployment, and freshness tolerance is a fact about the call.
+    /// <b>How entries behave, not how the cache is built.</b> Everything here is applied when an entry is
+    /// <i>read</i> and never stamped when it is stored, which is what makes it safe to vary per call: the
+    /// entry is shared, so one copy has to serve callers with different tolerances. Settings that change
+    /// what we <i>send</i> or what we <i>record</i> - the tracked prefixes, the memory budget - are facts
+    /// about the connection and live on <see cref="CacheOptions"/> instead.
+    /// </para>
+    /// <para>
+    /// The freshness tolerance a particular caller will accept rides on the context - see
+    /// <see cref="RespContext.WithMaxCacheAge"/> - and is read-time for exactly the same reason.
     /// </para>
     /// <para>
     /// It also keeps <see cref="RespContext"/> at its 48 bytes: a context carries a reference to shared
@@ -50,112 +52,6 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// </remarks>
         public TimeSpan TimeToLive { get; init; } = TimeSpan.FromMinutes(1);
-
-        /// <summary>Whether this policy permits caching at all.</summary>
-        public bool Enabled { get; init; } = true;
-
-        /// <summary>
-        /// The key prefixes this connection asks the server to track; empty means all keys.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// These are the <c>PREFIX</c> arguments of <c>CLIENT TRACKING ... BCAST</c>, and they are declared
-        /// here rather than derived from anything because the server's rules are not the library's: prefixes
-        /// are <b>connection-global</b>, must not overlap one another, and cannot be removed individually.
-        /// Context key-prefixes routinely nest, so they are the wrong source. See design notes 6.13.
-        /// </para>
-        /// <para>
-        /// <b>A prefix list is also a statement about what may be cached.</b> Under <c>BCAST</c> the server
-        /// announces only keys matching a prefix, so an entry whose key matches none of them has no
-        /// invalidation path - nothing will ever say it is wrong, and it is served until
-        /// <see cref="TimeToLive"/> alone retires it. That is the same defect as caching a keyless reply,
-        /// and it is refused the same way: see <see cref="RespClientCache.RefusedNotTracked"/>.
-        /// </para>
-        /// <para>
-        /// Narrowing the prefix list therefore narrows the cache. That is the trade being made: broadcasting
-        /// everything means being told about every key any client touches, and scoping it down buys quiet at
-        /// the cost of only caching what is in scope.
-        /// </para>
-        /// <para>
-        /// Empty - the default - means <c>BCAST</c> with no prefix: every key is tracked, so every key is
-        /// cacheable. An empty or null entry is not a way to spell that; it is rejected, because
-        /// "" matches everything and would silently turn a narrow list into a total one.
-        /// </para>
-        /// </remarks>
-        public IReadOnlyList<string> Prefixes
-        {
-            get => _prefixes;
-            init
-            {
-                _prefixes = value ?? throw new ArgumentNullException(nameof(value));
-                _prefixBytes = Encode(_prefixes);
-            }
-        }
-
-        private readonly IReadOnlyList<string> _prefixes = Array.Empty<string>();
-        private readonly byte[][] _prefixBytes = [];
-
-        /// <summary>Whether <see cref="Prefixes"/> restricts what may be cached.</summary>
-        internal bool HasPrefixes => _prefixBytes.Length != 0;
-
-        /// <summary>
-        /// Whether a key is inside the tracked set, and so has something that can invalidate it.
-        /// </summary>
-        /// <remarks>
-        /// Compared as <b>bytes</b>, against the key as it was written to the wire. That is the only
-        /// comparison that means anything: the server matches the bytes it received and names those bytes
-        /// back, so anything done to the key on the way out - a context key-prefix, keyspace isolation - is
-        /// already baked in by the time it gets here.
-        /// </remarks>
-        internal bool IsTracked(scoped ReadOnlySpan<byte> key)
-        {
-            var prefixes = _prefixBytes;
-            for (var i = 0; i < prefixes.Length; i++)
-            {
-                if (key.StartsWith(prefixes[i])) return true;
-            }
-
-            return false;
-        }
-
-        /// <remarks>
-        /// Overlap is rejected rather than tolerated because the server rejects it: <c>CLIENT TRACKING</c>
-        /// refuses a prefix list where one entry is a prefix of another. Catching it here means the failure
-        /// arrives where the mistake was made, rather than as a handshake error much later.
-        /// </remarks>
-        private static byte[][] Encode(IReadOnlyList<string> prefixes)
-        {
-            if (prefixes.Count == 0) return [];
-
-            var result = new byte[prefixes.Count][];
-            for (var i = 0; i < prefixes.Count; i++)
-            {
-                var prefix = prefixes[i];
-                if (string.IsNullOrEmpty(prefix))
-                {
-                    throw new ArgumentException(
-                        "An empty cache prefix matches every key; use an empty prefix list to track everything.",
-                        nameof(Prefixes));
-                }
-
-                result[i] = Encoding.UTF8.GetBytes(prefix);
-            }
-
-            for (var i = 0; i < result.Length; i++)
-            {
-                for (var j = 0; j < result.Length; j++)
-                {
-                    if (i != j && result[i].AsSpan().StartsWith(result[j]))
-                    {
-                        throw new ArgumentException(
-                            $"Cache prefixes must not overlap, but '{prefixes[i]}' starts with '{prefixes[j]}'.",
-                            nameof(Prefixes));
-                    }
-                }
-            }
-
-            return result;
-        }
 
         /// <summary>
         /// How old an entry may get before a read refreshes it in the background, while still being served.

@@ -65,6 +65,14 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Later / decide first
 
+- [ ] **Per-context `CachePolicy` override** (`WithCachePolicy`). The other half of the options/policy
+      split: policy settings are read-time, so they can vary per call, and the override rides in the
+      context's service slot exactly as `MaxCacheAgeService` does. `WithMaxCacheAge` stays as the
+      ergonomic spelling of the common case rather than being subsumed.
+      One wrinkle: `InvalidationGracePeriod` is not purely read-time. Whether grace is on gates a
+      timestamp *write* in the invalidation path, which sees every key the server mentions. So arming it
+      belongs on `CacheOptions` and only the duration can vary per context.
+
 - [ ] **`IServer` / `ISubscriber` contexts** still throw from `IRespTarget.Context`.
 
 - [ ] **The retry executor** (`WithRetry`). Prerequisites in place; no design written.
@@ -100,7 +108,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
       invalidation pushes to it through `PhysicalConnection` — `4d608ddd`
-- [x] Refuse to cache keys outside `CachePolicy.Prefixes`: no announcement, no invalidation path — this change
+- [x] Refuse to cache keys outside the tracked prefixes: no announcement, no invalidation path — `e42c8d22`
+- [x] Fire-and-forget is neither cached nor served; sync F+F no longer throws `"No reply."` — `abd87708`
+- [x] Split `CacheOptions` (settled once: prefixes, budget) from `CachePolicy` (read-time, per-call) — this change
 
 ## Decided against
 

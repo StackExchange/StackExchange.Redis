@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -58,7 +58,7 @@ public class RespCacheLifetimeTests
     [Fact]
     public async Task AnExpiredEntryIsNotServed()
     {
-        using var cache = new RespClientCache(new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) });
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = new RespContext().WithExecutor(executor).WithCache(cache);
 
@@ -78,7 +78,7 @@ public class RespCacheLifetimeTests
     {
         // the one knob that is per-call, because freshness tolerance is a property of the caller - and the
         // one that could not be added to IDatabase at all without a binary break
-        using var cache = new RespClientCache(new CachePolicy { TimeToLive = TimeSpan.FromHours(1) });
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var relaxed = new RespContext().WithExecutor(executor).WithCache(cache);
         var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMilliseconds(50));
@@ -100,7 +100,7 @@ public class RespCacheLifetimeTests
     {
         // age is applied on READ, not stamped on store - so a single entry serves everybody, rather than
         // being duplicated once per distinct lifetime
-        using var cache = new RespClientCache(new CachePolicy { TimeToLive = TimeSpan.FromHours(1) });
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
         var executor = new CountingExecutor("$1\r\na\r\n");
         var relaxed = new RespContext().WithExecutor(executor).WithCache(cache);
         var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMinutes(30));
@@ -116,7 +116,7 @@ public class RespCacheLifetimeTests
     public async Task AContextCannotAskForStalerThanThePolicyAllows()
     {
         // narrows, never widens: the deployment's lifetime is a ceiling
-        using var cache = new RespClientCache(new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) });
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = new RespContext().WithExecutor(executor).WithCache(cache)
             .WithMaxCacheAge(TimeSpan.FromHours(1));

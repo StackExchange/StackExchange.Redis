@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
@@ -60,11 +60,11 @@ public class RespStaleWhileRevalidateTests
     [Fact]
     public async Task AnAgeingEntryIsServedAndRefreshed()
     {
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMilliseconds(60),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -91,11 +91,11 @@ public class RespStaleWhileRevalidateTests
     {
         // without the claim, every reader past the threshold starts a refresh - the background work would
         // be the stampede it exists to prevent
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMilliseconds(50),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n");
         var context = Context(executor, cache);
 
@@ -112,11 +112,11 @@ public class RespStaleWhileRevalidateTests
     [Fact]
     public async Task AFreshEntryIsNotRefreshed()
     {
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMinutes(1),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n");
         var context = Context(executor, cache);
 
@@ -152,11 +152,11 @@ public class RespStaleWhileRevalidateTests
     {
         // the refresh swaps the value in place, and the reply it displaced holds a pooled buffer. Leaking
         // that reference would be invisible - the cache keeps working, it just never gives the buffer back.
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMilliseconds(50),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -185,11 +185,11 @@ public class RespStaleWhileRevalidateTests
     {
         // the stampede that matters most: an invalidation lands for EVERY reader of a hot key at the same
         // instant, so time-based smoothing cannot help - the trigger was not time
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -213,11 +213,11 @@ public class RespStaleWhileRevalidateTests
         // read-your-own-writes. "No observer can prove the order" excuses serving through somebody else's
         // write; it says nothing about ours, and returning the value the caller just replaced is reported
         // as corruption rather than as staleness.
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -235,11 +235,11 @@ public class RespStaleWhileRevalidateTests
     {
         // the two can arrive in either order - our own write echoes back from the server as well - and the
         // fact that WE wrote it must survive that
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -273,11 +273,11 @@ public class RespStaleWhileRevalidateTests
     {
         // on a hot-written key every refresh is invalidated before it can be stored, so without an absolute
         // bound this would serve stale for ever. Measured from FIRST NOTICE, so it cannot.
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(80),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         // The refresh must NOT be allowed to succeed, or it heals the entry and the test cannot tell the cap
         // from the cure. An error reply is refused by TryComplete, so the entry stays invalid - which is
         // precisely the hot-written-key situation the cap is for: every refresh is lost, and without a bound
@@ -309,11 +309,11 @@ public class RespStaleWhileRevalidateTests
         // invalidated. A key nobody is reading should simply expire - starting the clock at first notice
         // would instead resurrect it for whoever wandered past an hour later, which is the opposite of the
         // intent.
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(80),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -333,11 +333,11 @@ public class RespStaleWhileRevalidateTests
     {
         // it is a grace period, not a sliding window: constant access bridges the burst, it does not keep
         // the old value alive indefinitely
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(120),
             TimeToLive = TimeSpan.FromMinutes(5),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "-ERR not today\r\n", "$1\r\nc\r\n");
         var context = Context(executor, cache);
 
@@ -371,11 +371,11 @@ public class RespStaleWhileRevalidateTests
     public async Task AThresholdBeyondTheLifetimeNeverFires()
     {
         // it could never be crossed: the entry expires first. Treated as "off" rather than as a puzzle.
-        using var cache = new RespClientCache(new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMinutes(10),
             TimeToLive = TimeSpan.FromMilliseconds(80),
-        });
+        } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 

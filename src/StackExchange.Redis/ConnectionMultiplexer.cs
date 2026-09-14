@@ -189,9 +189,9 @@ namespace StackExchange.Redis
             // honest arrive on a connection, and a connection belongs to the multiplexer. A cache per
             // database would have to be found from here anyway when a push lands, and a cache per context
             // would be handed the pushes of a connection it does not own.
-            if (RawConfig.ClientCache is { Enabled: true } cachePolicy)
+            if (RawConfig.ClientCache is { Enabled: true } cacheOptions)
             {
-                ClientCache = new RespClientCache(cachePolicy);
+                ClientCache = new RespClientCache(cacheOptions);
             }
 
             var configChannel = configuration.ConfigurationChannel;

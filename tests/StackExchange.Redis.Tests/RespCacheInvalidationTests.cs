@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interpolated;
@@ -75,14 +75,14 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
     /// </remarks>
     private async Task<(ConnectionMultiplexer Muxer, RespClientCache Cache)> TrackedAsync(
         string prefix,
-        CachePolicy? policy = null,
+        CacheOptions? cacheOptions = null,
         int? database = null)
     {
         var options = new ConfigurationOptions
         {
             EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } },
             Protocol = RedisProtocol.Resp3,
-            ClientCache = policy ?? new CachePolicy { Prefixes = [prefix] },
+            ClientCache = cacheOptions ?? new CacheOptions { Prefixes = [prefix] },
             DefaultDatabase = database,
             AllowAdmin = true,
         };

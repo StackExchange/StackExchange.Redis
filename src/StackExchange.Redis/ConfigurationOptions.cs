@@ -1415,7 +1415,7 @@ namespace StackExchange.Redis
         public Tunnel? Tunnel { get; set; }
 
         /// <summary>
-        /// EXPERIMENTAL SPIKE. Enables a client-side cache on this connection, and says how its entries behave.
+        /// EXPERIMENTAL SPIKE. Enables a client-side cache on this connection, and says how it is built.
         /// </summary>
         /// <remarks>
         /// <para>
@@ -1423,13 +1423,13 @@ namespace StackExchange.Redis
         /// cache changes what a read can return, and nobody should acquire that by upgrading.
         /// </para>
         /// <para>
-        /// Not part of the connection string. A policy is a set of durations and correctness choices rather
-        /// than a name, and round-tripping it through text would invite it to be configured by someone who
-        /// had not read what <see cref="CachePolicy.InvalidationGracePeriod"/> actually permits.
+        /// Not part of the connection string. These are durations, prefixes and correctness choices rather
+        /// than a name, and round-tripping them through text would invite configuration by someone who had
+        /// not read what <see cref="CachePolicy.InvalidationGracePeriod"/> actually permits.
         /// </para>
         /// </remarks>
         [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-        public CachePolicy? ClientCache { get; set; }
+        public CacheOptions? ClientCache { get; set; }
 
         /// <summary>
         /// Specify the redis protocol type.
