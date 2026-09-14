@@ -412,6 +412,24 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
+        /// As <see cref="IsCacheable"/>, but <b>observed</b>: a refusal is counted.
+        /// </summary>
+        /// <remarks>
+        /// The orchestration skips the cache entirely for a command whose flags forbid it - it does not
+        /// probe and then decline - so <see cref="TryBeginFill(ref RespFrame, int, CommandFlags, out RespFill)"/>
+        /// is never reached and could never count those. That made <see cref="RefusedByFlags"/> unreachable
+        /// in real use, which is worse than not having it: a diagnostic that reads zero because it is never
+        /// asked looks like evidence. Routing the decision through the cache fixes that without making the
+        /// cache probe things it has been told not to.
+        /// </remarks>
+        internal bool PermitsCaching(CommandFlags flags)
+        {
+            if (IsCacheable(flags)) return true;
+            Interlocked.Increment(ref _refusedByFlags);
+            return false;
+        }
+
+        /// <summary>
         /// Whether the command's retry category permits caching at all.
         /// </summary>
         /// <remarks>

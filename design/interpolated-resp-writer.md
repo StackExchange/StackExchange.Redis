@@ -1954,9 +1954,37 @@ to `IDatabase` after the context exists spends the break for nothing. Worth writ
 worth an analyzer — this repo already gates hand-built fragments behind `SER011` on the same reasoning,
 that the blast radius is not the author's own code.
 
+#### What the prototype found
+
+Built as `IRespTarget` + `RespStrings` + `RespSurface` (`RespSurfaceTests`), with a fake executor
+underneath. `target.Strings.Set(key, value)` and `.Get(key)` work end to end, through the cache, with
+`WithKeyPrefix` as a context clone and no per-method forwarding.
+
+- **Extension members compile on every target**, `net461` and `netstandard2.0` included. They are compiler
+  lowering, like the interpolated handler itself, so the down-level story that made §1 work holds here too.
+  This was the main risk and it is gone.
+- **Each extension member costs TWO `PublicAPI` entries** — the `extension(...)` form *and* the lowered
+  static (`RespSurface.get_Strings(IRespTarget)`). So "extension members are free to add" is true for
+  source and binary compatibility, but not for API tracking: the surface still grows, and the lowered
+  names are part of it. Worth knowing before the surface is hundreds of commands.
+- **A plain wrapper is enough.** `RespStrings` holds one `RespContext` field, which makes it
+  layout-identical by construction — the wrapper *is* the pun, enforced by the compiler, with no `Unsafe`
+  and no `ref readonly`. Both entry points work: `target.Strings` and `context.Strings`.
+- **`Context` returning by value costs nothing visible** and keeps every command `async`-usable, settling
+  item (1) below.
+- **A missing executor throws rather than silently doing nothing** — worth pinning early, because a
+  `default(RespContext)` is valid by design (§3.5) and would otherwise render a frame and drop it.
+
+**And one bug the prototype exposed.** `RefusedByFlags` was unreachable in real use: the orchestration
+skips the cache entirely when flags forbid caching — it does not probe and then decline — so
+`TryBeginFill` was never reached and never counted. A diagnostic that reads zero because nothing asks it
+looks like evidence, which is worse than not having it. The flag decision now goes through
+`cache.PermitsCaching(flags)`, so the cache observes every refusal without probing anything it has been
+told to leave alone.
+
 #### Four things to settle before building it
 
-1. **`ref readonly` and `async` do not mix.** A `ref readonly` local cannot cross an `await`, and the
+1. ~~**`ref readonly` and `async` do not mix.**~~ **Settled: by value.** A `ref readonly` local cannot cross an `await`, and the
    command surface is `ValueTask`-first — so the context is copied into the state machine anyway and the
    `ref` buys nothing on the only path that matters. At roughly four registers, copy it: return by value,
    take `in` on parameters. And keep `RespContext` a `readonly struct`; making it a `ref struct` to "make

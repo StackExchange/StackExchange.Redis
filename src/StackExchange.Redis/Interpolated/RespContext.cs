@@ -35,7 +35,9 @@ namespace StackExchange.Redis.Interpolated
             RedisChannel channelPrefix = default,
             int database = 0,
             ServerType serverType = ServerType.Standalone,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            IRespExecutor? executor = null,
+            RespClientCache? cache = null)
         {
             _commandMap = commandMap;
             _keyPrefix = keyPrefix; // normalise to bytes ONCE; the conversion can allocate for a string-backed key
@@ -43,7 +45,19 @@ namespace StackExchange.Redis.Interpolated
             Database = database;
             ServerType = serverType;
             CancellationToken = cancellationToken;
+            Executor = executor;
+            Cache = cache;
         }
+
+        /// <summary>Where commands composed from this context are sent; <c>null</c> if none is configured.</summary>
+        /// <remarks>
+        /// Behaviour composes here - a retrying or caching executor is a decorator around an inner one - while
+        /// configuration composes on the context, via <see cref="WithExecutor"/>. They are not alternatives.
+        /// </remarks>
+        public IRespExecutor? Executor { get; }
+
+        /// <summary>The client-side cache to consult, or <c>null</c> for none.</summary>
+        public RespClientCache? Cache { get; }
 
         private readonly CommandMap? _commandMap;
 
@@ -82,12 +96,12 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>A copy of this context targeting a different database.</summary>
         /// <param name="database">The database index.</param>
         public RespContext WithDatabase(int database)
-            => new(CommandMap, KeyPrefix, ChannelPrefix, database, ServerType, CancellationToken);
+            => new(CommandMap, KeyPrefix, ChannelPrefix, database, ServerType, CancellationToken, Executor, Cache);
 
         /// <summary>A copy of this context with a different server type.</summary>
         /// <param name="serverType">The server type.</param>
         public RespContext WithServerType(ServerType serverType)
-            => new(CommandMap, KeyPrefix, ChannelPrefix, Database, serverType, CancellationToken);
+            => new(CommandMap, KeyPrefix, ChannelPrefix, Database, serverType, CancellationToken, Executor, Cache);
 
         /// <summary>
         /// Returns a context whose keys are prefixed. This is what replaces wrapping the database in a
@@ -101,12 +115,24 @@ namespace StackExchange.Redis.Interpolated
                 ChannelPrefix,
                 Database,
                 ServerType,
-                CancellationToken);
+                CancellationToken,
+                Executor,
+                Cache);
 
         /// <summary>A copy of this context with a different channel prefix.</summary>
         /// <param name="channelPrefix">The prefix to apply to channels.</param>
         public RespContext WithChannelPrefix(RedisChannel channelPrefix)
-            => new(CommandMap, KeyPrefix, channelPrefix, Database, ServerType, CancellationToken);
+            => new(CommandMap, KeyPrefix, channelPrefix, Database, ServerType, CancellationToken, Executor, Cache);
+
+        /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
+        /// <param name="executor">The executor to send through.</param>
+        public RespContext WithExecutor(IRespExecutor? executor)
+            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, executor, Cache);
+
+        /// <summary>A copy of this context that consults <paramref name="cache"/>.</summary>
+        /// <param name="cache">The cache to consult, or <c>null</c> for none.</param>
+        public RespContext WithCache(RespClientCache? cache)
+            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, Executor, cache);
 
         /// <summary>
         /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into the
