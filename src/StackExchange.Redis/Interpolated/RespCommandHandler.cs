@@ -318,7 +318,7 @@ namespace StackExchange.Redis.Interpolated
         /// inside the window swapped the array, which is what separates a move from a share.
         /// </para>
         /// </remarks>
-        public RespCommandHandler(int literalLength, int formattedCount, scoped ref RespCommandHandler command)
+        public RespCommandHandler(int literalLength, int formattedCount, scoped in RespCommandHandler command)
         {
             _ = literalLength;
             _ = formattedCount;
