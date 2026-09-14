@@ -1957,6 +1957,37 @@ under-declare — `EVAL`/`EVALSHA` with computed keys, anything whose key spec w
 that case. Under `BCAST` there is no invalidation table and the hazard does not arise, which is another
 point in `BCAST`'s favour, but it stays a later optimisation rather than part of the first cut.
 
+#### The invalidation push, on the wire
+
+Captured from a live server rather than read off a page, because the exact shape is what the integration
+turns on:
+
+```
+third-party SET   >2\r\n$10\r\ninvalidate\r\n*1\r\n$9\r\nprobe:key\r\n
+MSET m:1 m:2 m:3  >2\r\n$10\r\ninvalidate\r\n*3\r\n$3\r\nm:1\r\n$3\r\nm:2\r\n$3\r\nm:3\r\n
+FLUSHDB           >2\r\n$10\r\ninvalidate\r\n_\r\n
+our own SET       +OK\r\n  followed by the same push (NOLOOP off; reply first, then push)
+```
+
+- The second element is **an array of keys, or a RESP3 null** — *never* a string. That is exactly why the
+  existing pipeline drops these: its push handling expects pub/sub shape (`message` / channel / payload,
+  all strings), so an invalidation fails the "second element is a string" test and is discarded.
+- **One push can name several keys.** A handler that reads only the first leaves entries live.
+- **Key expiry invalidates too**, not only explicit writes — confirmed by watching a `PX 150` key.
+- `BCAST` really does report keys we never read, and `PREFIX` filters exactly as documented.
+
+**Telling an invalidation from a pub/sub delivery is the whole of the discrimination the real pipeline
+needs to add**, and getting it backwards is not a no-op in either direction: a channel name read as a key
+list, or a delivery handed back as somebody's reply. Note the third case — `subscribe`/`unsubscribe`
+confirmations are *also* typed as pushes in RESP3 but *are* the reply to a command, so "push means
+out-of-band" is too simple.
+
+Proven end to end by `RespTrackingTests` against a real server, through a dedicated RESP3 `BCAST`
+connection (`TrackingExecutor`): a third party's write evicts what we cached, non-ASCII key bytes match,
+one push clears several entries, a flush clears everything, and a pub/sub delivery on the same connection
+disturbs nothing. All four parsing steps are mutation-tested — the discriminator check initially survived
+its mutant, which is what prompted the pub/sub test.
+
 ### 6.14 Global cache, contextual TTL
 
 **The cache is global.** Two facts force it. Tracking is per-*connection* (by client id), and the server
