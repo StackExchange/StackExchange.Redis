@@ -97,7 +97,7 @@ namespace StackExchange.Redis.Interpolated
             {
                 var reader = new RespReader(response);
                 reader.MoveNext();
-                return reader.Is("OK"u8);
+                return reader.IsOK(); // one 16-bit compare, inlined - and accepts '+ok' as well as '+OK'
             }
         }
     }
