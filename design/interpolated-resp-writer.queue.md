@@ -132,5 +132,11 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - **`NOLOOP` on `CLIENT TRACKING`.** In default mode the server stops tracking a key we wrote even when it
   suppresses the message, so anything whose key set we under-declare (`EVAL` with computed keys) goes
   *permanently* stale rather than briefly. §6.13.
+- **Sharing a buffer into a `RedisValue`.** Tempting, because single-value replies are a large cohort and
+  they are exactly the ones a cache serves. But `RedisValue` has no disposal, so it can never give a
+  reference back — which leaves only "pin the buffer forever" or "let the pool reclaim it while the value
+  still points at it". That is not a gap to be plugged; it is the absence of a lifetime, and `RespResult`
+  exists because it *has* one.
+
 - **Deriving `BCAST PREFIX` from `WithKeyPrefix`.** Prefixes are connection-global, must not overlap —
   context prefixes routinely nest — and cannot be removed individually. §6.13.
