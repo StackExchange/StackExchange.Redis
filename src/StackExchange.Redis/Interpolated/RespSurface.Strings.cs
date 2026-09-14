@@ -1,4 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
 
@@ -60,13 +62,154 @@ namespace StackExchange.Redis.Interpolated
         // `in` because RespStrings is a readonly struct: no defensive copy, and nothing to copy on the
         // way to a network round trip.
 
+        // The retry category comes from CommandFlagsExtensions.WithDefaultCategory - the same per-command
+        // table the MessageWriter path uses - rather than a constant named at each call site. Two writers
+        // agreeing on the bytes and disagreeing on whether a command is safe to replay is the kind of
+        // divergence nothing would catch; the table is the single source of truth, and a command whose
+        // ARGUMENTS change the answer (GETEX with a TTL, SET under NX) raises it explicitly and says why.
+        // WithRetryCategory stays public for surfaces outside this assembly, which cannot see the table.
+
         /// <summary>GET.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
+#pragma warning disable RS0026 // the key/keys overloads are disambiguated by the first parameter
         public static ValueTask<RedisValue> Get(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
             => strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GET}{key}", flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly));
+                $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
+
+        /// <summary>MGET.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="keys">The keys to read.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// The variadic form, in one expression: <c>{keys}</c> is a hole like any other, and each key in it
+        /// is prefixed, marked for invalidation and folded into the cluster slot exactly as a single key is.
+        /// Without that hole this would be <c>Compose</c>, a loop and a <c>try</c>/<c>finally</c>.
+        /// </para>
+        /// <para>
+        /// No keys means no command: an arity-zero <c>MGET</c> is a server error, and "the values of no
+        /// keys" is an empty array without asking anyone. The send is skipped, so this completes
+        /// synchronously and allocates nothing.
+        /// </para>
+        /// </remarks>
+#pragma warning disable RS0026 // the key/keys overloads are disambiguated by the first parameter
+        public static ValueTask<RedisValue[]> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
+            => keys.IsEmpty
+                ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
+                : strings.Context.SendAsync<RedisValue[]>(
+                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET));
+
+        /// <summary>GET, retaining the payload as a <see cref="Lease{T}"/> rather than a value.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// Same command, different result shape - which is why it is a separate method rather than an
+        /// overload: the two differ only in return type, and C# does not overload on that. The lease must
+        /// be disposed.
+        /// </remarks>
+        public static ValueTask<Lease<byte>?> GetLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<Lease<byte>?>(
+                $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
+
+        /// <summary>GETRANGE.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="start">The inclusive start offset; negative counts back from the end.</param>
+        /// <param name="end">The inclusive end offset; negative counts back from the end.</param>
+        /// <param name="flags">Command flags.</param>
+        public static ValueTask<RedisValue> GetRange(this in RespStrings strings, RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<RedisValue>(
+                $"{RedisCommand.GETRANGE}{key}{start}{end}", flags.WithDefaultCategory(RedisCommand.GETRANGE));
+
+        /// <summary>GETDEL.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to read and remove.</param>
+        /// <param name="flags">Command flags.</param>
+        public static ValueTask<RedisValue> GetDelete(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<RedisValue>(
+                $"{RedisCommand.GETDEL}{key}", flags.WithDefaultCategory(RedisCommand.GETDEL));
+
+        /// <summary>GETEX: read the value, and set, keep or clear the expiration in the same call.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="expiry">
+        /// The expiration to apply; <see cref="Expiration.Default"/> leaves the TTL untouched, and
+        /// <see cref="Expiration.Persist"/> clears it.
+        /// </param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>One method where the old surface has three.</b> <c>StringGetSetExpiry</c> exists as a
+        /// <c>TimeSpan?</c> overload and a <c>DateTime</c> one, and neither can say PERSIST -
+        /// <c>StringPersist</c> is a separate command. <see cref="Expiration"/> already spells all of
+        /// those, so taking it collapses the set without losing a single case.
+        /// </para>
+        /// <para>
+        /// The retry category depends on the argument: a bare <c>GETEX</c> is the pure read the table says
+        /// it is, but any of EX/PX/EXAT/PXAT/PERSIST mutates the TTL and makes it a write. ENX has no
+        /// spelling here at all, and <see cref="Expiration.GetTokenCount"/> says so rather than letting it
+        /// render into a command the server will reject.
+        /// </para>
+        /// </remarks>
+        public static ValueTask<RedisValue> GetSetExpiry(this in RespStrings strings, RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var mutatesTtl = expiry.GetTokenCount(allowEnx: false) != 0;
+            if (mutatesTtl) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
+
+            return strings.Context.SendAsync<RedisValue>(
+                $"{RedisCommand.GETEX}{key}{expiry}", flags.WithDefaultCategory(RedisCommand.GETEX));
+        }
+
+        /// <summary>STRLEN.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to measure.</param>
+        /// <param name="flags">Command flags.</param>
+        public static ValueTask<long> Length(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<long>(
+                $"{RedisCommand.STRLEN}{key}", flags.WithDefaultCategory(RedisCommand.STRLEN));
+
+        /// <summary>APPEND; the reply is the new length.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to append to.</param>
+        /// <param name="value">The value to append.</param>
+        /// <param name="flags">Command flags.</param>
+        public static ValueTask<long> Append(this in RespStrings strings, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<long>(
+                $"{RedisCommand.APPEND}{key}{value}", flags.WithDefaultCategory(RedisCommand.APPEND));
+
+        /// <summary>SETRANGE; the reply is the new length.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to write into.</param>
+        /// <param name="offset">The byte offset to write at; the value is zero-padded up to it.</param>
+        /// <param name="value">The value to write.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <c>long</c>, not <c>RedisValue</c>. <c>SETRANGE</c> replies with an integer and always has; the
+        /// old surface returns <c>RedisValue</c>, which makes every caller ask a second question of a reply
+        /// that only ever answers one way. The adapter converts, so nothing observable changes for the old
+        /// spelling.
+        /// </remarks>
+        public static ValueTask<long> SetRange(this in RespStrings strings, RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<long>(
+                $"{RedisCommand.SETRANGE}{key}{offset}{value}", flags.WithDefaultCategory(RedisCommand.SETRANGE));
+
+        /// <summary>DIGEST: the server's hash of the value, as a condition a later write can be gated on.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to digest.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <see langword="null"/> when the key does not exist. The result is directly usable as the
+        /// <c>when</c> of a later <see cref="Set(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>,
+        /// which is the whole point of returning a <see cref="ValueCondition"/> rather than bytes.
+        /// </remarks>
+        public static ValueTask<ValueCondition?> Digest(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<ValueCondition?>(
+                $"{RedisCommand.DIGEST}{key}", flags.WithDefaultCategory(RedisCommand.DIGEST));
 
         /// <summary>SET, in full: expiration and value condition included.</summary>
         /// <param name="strings">The string command group.</param>
@@ -117,7 +260,15 @@ namespace StackExchange.Redis.Interpolated
         /// <see cref="CommandFlags.None"/> for "no opinion", and <c>WithRetryCategory</c> is first-wins, so
         /// a caller who names a category still keeps it.
         /// </para>
+        /// <para>
+        /// <b>A null value deletes the key</b>, as it always has on this library's surface. There is no
+        /// <c>SET</c> that stores "no value" - the nearest thing the protocol offers is an empty string,
+        /// which is a <i>different</i> value, and writing that instead would turn "remove this" into
+        /// "store nothing here" without saying so. The condition and expiration have no meaning for a
+        /// delete and are dropped, which is also what the old builder does.
+        /// </para>
         /// </remarks>
+#pragma warning disable RS0026 // the single-key and multi-key overloads are disambiguated by the second parameter
         public static ValueTask<bool> Set(
             this in RespStrings strings,
             RedisKey key,
@@ -125,9 +276,350 @@ namespace StackExchange.Redis.Interpolated
             Expiration expiry = default,
             ValueCondition when = default,
             CommandFlags flags = CommandFlags.None)
-            => strings.Context.SendAsync<bool>(
-                $"{RedisCommand.SET}{key}{value}{when}{expiry}",
-                flags.WithRetryCategory(when.RetryCategory)
-                     .WithRetryCategory(CommandFlags.CommandRetryWriteLastWins));
+            => value.IsNull
+                ? Delete(in strings, key, when: default, flags)
+                : strings.Context.SendAsync<bool>(
+                    $"{RedisCommand.SET}{key}{value}{when}{expiry}",
+                    flags.WithRetryCategory(when.RetryCategory)
+                         .WithDefaultCategory(RedisCommand.SET));
+#pragma warning restore RS0026
+
+        /// <summary>MSET/MSETNX/MSETEX: set several keys in one command.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="values">The key/value pairs to write.</param>
+        /// <param name="expiry">When the keys should expire; default for no expiration.</param>
+        /// <param name="when">The condition the write is subject to; default to write unconditionally.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Three commands behind one method, and unlike SET's arity relics these are not
+        /// interchangeable.</b> <c>MSETEX</c> alone can carry an expiration or a condition, but it is a
+        /// recent addition; <c>MSET</c> and <c>MSETNX</c> have been there since 1.0.1. So the choice is
+        /// made on what the caller actually asked for, and the widely-available command is used whenever
+        /// it can express the request - which is a server-version decision, not an arity one, and is why
+        /// this branch survives where SET's did not.
+        /// </para>
+        /// <para>
+        /// A value condition beyond NX/XX has no multi-key spelling at all, and says so here rather than
+        /// rendering a command the server will reject.
+        /// </para>
+        /// <para>
+        /// No pairs means no command, as with <see cref="Get(in RespStrings, ReadOnlySpan{RedisKey}, CommandFlags)"/>:
+        /// writing nothing succeeded.
+        /// </para>
+        /// </remarks>
+#pragma warning disable RS0026 // the single-key and multi-key overloads are disambiguated by the second parameter
+        public static ValueTask<bool> Set(
+            this in RespStrings strings,
+            ReadOnlySpan<KeyValuePair<RedisKey, RedisValue>> values,
+            Expiration expiry = default,
+            ValueCondition when = default,
+            CommandFlags flags = CommandFlags.None)
+        {
+            if (values.IsEmpty) return new ValueTask<bool>(true);
+
+            var command = when.Kind switch
+            {
+                ValueCondition.ConditionKind.Always when expiry.IsNone => RedisCommand.MSET,
+
+                // "keep the TTL" and "the key must not exist" cannot disagree: there is no TTL to keep
+                ValueCondition.ConditionKind.NotExists when expiry.IsNoneOrKeepTtl => RedisCommand.MSETNX,
+
+                ValueCondition.ConditionKind.Always
+                    or ValueCondition.ConditionKind.Exists
+                    or ValueCondition.ConditionKind.NotExists => RedisCommand.MSETEX,
+
+                _ => ThrowUnsupportedCondition<RedisCommand>(when, nameof(Set)),
+            };
+
+            flags = flags.WithRetryCategory(when.RetryCategory).WithDefaultCategory(command);
+
+            // MSET/MSETNX take the pairs and nothing else; MSETEX prefixes a count and accepts the tail
+            return command == RedisCommand.MSETEX
+                ? strings.Context.SendAsync<bool>($"{command}{values.Length}{values}{expiry}{when}", flags)
+                : strings.Context.SendAsync<bool>($"{command}{values}", flags);
+        }
+#pragma warning restore RS0026
+
+        /// <summary>SET ... GET: write the value, and reply with the one it replaced.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to write.</param>
+        /// <param name="value">The value to write.</param>
+        /// <param name="expiry">When the key should expire; default for no expiration.</param>
+        /// <param name="when">The condition the write is subject to; default to write unconditionally.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// The canonical form, and <c>GETSET</c> is not emitted at all - it has been deprecated in favour
+        /// of <c>SET ... GET</c> since 6.2, and unlike <c>GETSET</c> this one composes with NX/XX and with
+        /// an expiration.
+        /// </para>
+        /// <para>
+        /// <b>Operand order is the documented grammar</b>, as in
+        /// <see cref="Set(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>:
+        /// the condition, then <c>GET</c>, then the expiration. The old builder emits <c>EX n XX GET</c>,
+        /// which Redis parses and another RESP server need not.
+        /// </para>
+        /// <para>
+        /// A nil reply is ambiguous by nature - the key was absent, or the condition refused the write -
+        /// and that ambiguity is the command's, not ours. A caller who needs to tell them apart wants
+        /// <see cref="Set(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>,
+        /// whose boolean answers exactly that question.
+        /// </para>
+        /// </remarks>
+        public static ValueTask<RedisValue> SetAndGet(
+            this in RespStrings strings,
+            RedisKey key,
+            RedisValue value,
+            Expiration expiry = default,
+            ValueCondition when = default,
+            CommandFlags flags = CommandFlags.None)
+            => value.IsNull
+                ? GetDelete(in strings, key, flags) // as Set: a null value removes the key, and GETDEL is the read-it-back form
+                : strings.Context.SendAsync<RedisValue>(
+                    $"{RedisCommand.SET}{key}{value}{when}{RespLiterals.Get}{expiry}",
+                    flags.WithRetryCategory(when.RetryCategory)
+                         .WithDefaultCategory(RedisCommand.SET));
+
+        /// <summary>DEL/DELEX: remove a key, optionally only if it still holds what you think it does.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to remove.</param>
+        /// <param name="when">The condition the delete is subject to; default to delete unconditionally.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <see cref="ValueCondition.Exists"/> is the same request as no condition - <c>DEL</c> already
+        /// means "if it is there" - so both render <c>DEL</c>. A value or digest test needs <c>DELEX</c>,
+        /// which is the whole reason this takes a condition at all.
+        /// </para>
+        /// <para>
+        /// <see cref="ValueCondition.NotExists"/> has no meaning here and is rejected: "delete it if it is
+        /// absent" is not a request the server can be asked, and quietly treating it as
+        /// <see cref="ValueCondition.Always"/> would delete the key the caller was protecting.
+        /// </para>
+        /// </remarks>
+        public static ValueTask<bool> Delete(
+            this in RespStrings strings,
+            RedisKey key,
+            ValueCondition when = default,
+            CommandFlags flags = CommandFlags.None)
+        {
+            switch (when.Kind)
+            {
+                case ValueCondition.ConditionKind.Always:
+                case ValueCondition.ConditionKind.Exists:
+                    return strings.Context.SendAsync<bool>(
+                        $"{RedisCommand.DEL}{key}", flags.WithDefaultCategory(RedisCommand.DEL));
+
+                case ValueCondition.ConditionKind.ValueEquals:
+                case ValueCondition.ConditionKind.ValueNotEquals:
+                case ValueCondition.ConditionKind.DigestEquals:
+                case ValueCondition.ConditionKind.DigestNotEquals:
+                    return strings.Context.SendAsync<bool>(
+                        $"{RedisCommand.DELEX}{key}{when}",
+                        flags.WithRetryCategory(when.RetryCategory).WithDefaultCategory(RedisCommand.DELEX));
+
+                default:
+                    return ThrowUnsupportedCondition<ValueTask<bool>>(when, nameof(Delete));
+            }
+        }
+
+        /// <summary>INCRBY, and INCRBYFLOAT for the floating-point twin.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to increment.</param>
+        /// <param name="value">The amount to add.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>There is deliberately no Decrement.</b> <c>DECRBY key n</c> and <c>INCRBY key -n</c> are the
+        /// same request with the same reply, and the old surface already implements one as the other -
+        /// <c>StringDecrement</c> is a negation and a call to <c>StringIncrement</c>. Keeping the second
+        /// spelling here would buy a method whose only content is a minus sign.
+        /// </para>
+        /// <para>
+        /// <c>INCR</c> and <c>DECR</c> go the same way, for the reason <c>SETEX</c> did: they are
+        /// <c>INCRBY key 1</c> with the argument removed, which saves four bytes on the wire and costs a
+        /// branch on every call.
+        /// </para>
+        /// </remarks>
+#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
+        public static ValueTask<long> Increment(this in RespStrings strings, RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
+            => strings.Context.SendAsync<long>(
+                $"{RedisCommand.INCRBY}{key}{value}", flags.WithDefaultCategory(RedisCommand.INCRBY));
+
+        /// <inheritdoc cref="Increment(in RespStrings, RedisKey, long, CommandFlags)"/>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to increment.</param>
+        /// <param name="value">The amount to add.</param>
+        /// <param name="flags">Command flags.</param>
+#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
+        public static ValueTask<double> Increment(this in RespStrings strings, RedisKey key, double value, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
+            => strings.Context.SendAsync<double>(
+                $"{RedisCommand.INCRBYFLOAT}{key}{value}", flags.WithDefaultCategory(RedisCommand.INCRBYFLOAT));
+
+        /// <summary>INCREX: increment with an expiration, and optionally with bounds.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to increment.</param>
+        /// <param name="value">The amount to add.</param>
+        /// <param name="expiry">When the key should expire; <c>ENX</c> applies it only to a new key.</param>
+        /// <param name="lowerBound">The lowest value the result may take, if any.</param>
+        /// <param name="upperBound">The highest value the result may take, if any.</param>
+        /// <param name="options">Whether a bound clamps the result or rejects the increment.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// A separate command rather than an optional argument on
+        /// <see cref="Increment(in RespStrings, RedisKey, long, CommandFlags)"/>: the reply shape differs -
+        /// <c>INCREX</c> answers with the new value <i>and</i> the increment that was actually applied,
+        /// which under a bound is not the one you asked for.
+        /// </para>
+        /// <para>
+        /// <c>KEEPTTL</c> and <c>PERSIST</c> have no spelling here, and a bare <c>ENX</c> without an
+        /// expiration is not a request; all three are rejected at the call site rather than rendered into
+        /// a command the server refuses.
+        /// </para>
+        /// </remarks>
+#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
+        public static ValueTask<StringIncrementResult<long>> Increment(
+            this in RespStrings strings,
+            RedisKey key,
+            long value,
+            Expiration expiry,
+            long? lowerBound = null,
+            long? upperBound = null,
+            IncrementOptions options = IncrementOptions.None,
+            CommandFlags flags = CommandFlags.None)
+        {
+            ValidateIncrementExpiry(expiry);
+
+            var cmd = strings.Context.Compose(RedisCommand.INCREX, argHint: 9);
+            try
+            {
+                cmd.Append($"{key}{RespLiterals.ByInt}{value}");
+                if (lowerBound.HasValue) cmd.Append($"{RespLiterals.LBound}{lowerBound.GetValueOrDefault()}");
+                if (upperBound.HasValue) cmd.Append($"{RespLiterals.UBound}{upperBound.GetValueOrDefault()}");
+                cmd.Append($"{AsFragment(options)}{expiry}");
+            }
+            catch
+            {
+                cmd.Dispose();
+                throw;
+            }
+
+            var frame = cmd.Complete();
+            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<long>>.Require());
+        }
+#pragma warning restore RS0026
+
+        /// <inheritdoc cref="Increment(in RespStrings, RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags)"/>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to increment.</param>
+        /// <param name="value">The amount to add.</param>
+        /// <param name="expiry">When the key should expire; <c>ENX</c> applies it only to a new key.</param>
+        /// <param name="lowerBound">The lowest value the result may take, if any.</param>
+        /// <param name="upperBound">The highest value the result may take, if any.</param>
+        /// <param name="options">Whether a bound clamps the result or rejects the increment.</param>
+        /// <param name="flags">Command flags.</param>
+#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
+        public static ValueTask<StringIncrementResult<double>> Increment(
+            this in RespStrings strings,
+            RedisKey key,
+            double value,
+            Expiration expiry,
+            double? lowerBound = null,
+            double? upperBound = null,
+            IncrementOptions options = IncrementOptions.None,
+            CommandFlags flags = CommandFlags.None)
+        {
+            ValidateIncrementExpiry(expiry);
+
+            var cmd = strings.Context.Compose(RedisCommand.INCREX, argHint: 9);
+            try
+            {
+                cmd.Append($"{key}{RespLiterals.ByFloat}{value}");
+                if (lowerBound.HasValue) cmd.Append($"{RespLiterals.LBound}{lowerBound.GetValueOrDefault()}");
+                if (upperBound.HasValue) cmd.Append($"{RespLiterals.UBound}{upperBound.GetValueOrDefault()}");
+                cmd.Append($"{AsFragment(options)}{expiry}");
+            }
+            catch
+            {
+                cmd.Dispose();
+                throw;
+            }
+
+            var frame = cmd.Complete();
+            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<double>>.Require());
+        }
+#pragma warning restore RS0026
+
+        /// <summary>LCS: the longest common subsequence of two keys' values.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="first">The first key.</param>
+        /// <param name="second">The second key.</param>
+        /// <param name="flags">Command flags.</param>
+        public static ValueTask<string?> LongestCommonSubsequence(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<string?>(
+                $"{RedisCommand.LCS}{first}{second}", flags.WithDefaultCategory(RedisCommand.LCS));
+
+        /// <summary>LCS ... LEN: the length of the longest common subsequence, without transferring it.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="first">The first key.</param>
+        /// <param name="second">The second key.</param>
+        /// <param name="flags">Command flags.</param>
+        public static ValueTask<long> LongestCommonSubsequenceLength(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<long>(
+                $"{RedisCommand.LCS}{first}{second}{RespLiterals.Len}", flags.WithDefaultCategory(RedisCommand.LCS));
+
+        /// <summary>LCS ... IDX: where the matches are, rather than what they contain.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="first">The first key.</param>
+        /// <param name="second">The second key.</param>
+        /// <param name="minLength">Matches shorter than this are not reported.</param>
+        /// <param name="flags">Command flags.</param>
+        public static ValueTask<LCSMatchResult> LongestCommonSubsequenceWithMatches(
+            this in RespStrings strings,
+            RedisKey first,
+            RedisKey second,
+            long minLength = 0,
+            CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync(
+                $"{RedisCommand.LCS}{first}{second}{RespLiterals.Idx}{RespLiterals.MinMatchLen}{minLength}{RespLiterals.WithMatchLen}",
+                flags.WithDefaultCategory(RedisCommand.LCS),
+                RespHandlers.Inbuilt<LCSMatchResult>.Require());
+
+        /// <summary>
+        /// Reject a condition this command has no spelling for, reusing <c>ValueCondition</c>'s own
+        /// message so the two surfaces say the same thing.
+        /// </summary>
+        /// <typeparam name="T">The return type of the call site, which never receives a value.</typeparam>
+        private static T ThrowUnsupportedCondition<T>(in ValueCondition when, string operation)
+        {
+            when.ThrowInvalidOperation(operation);
+            return default!; // not reached; ThrowInvalidOperation always throws
+        }
+
+        /// <summary>The <c>SATURATE</c> token, or nothing; an unknown option is a mistake, not a no-op.</summary>
+        private static RespFragment AsFragment(IncrementOptions options) => options switch
+        {
+            IncrementOptions.None => default, // a zero-argument fragment: written, contributes nothing
+            IncrementOptions.Saturate => RespLiterals.Saturate,
+            _ => throw new ArgumentOutOfRangeException(nameof(options)),
+        };
+
+        /// <summary>
+        /// The expirations <c>INCREX</c> has no spelling for. Mirrors <c>RedisDatabase.ValidateStringIncrementExpiry</c>,
+        /// which is the same list for the same command.
+        /// </summary>
+        private static void ValidateIncrementExpiry(Expiration expiry)
+        {
+            if (expiry.IsKeepTtl) throw new ArgumentException("KEEPTTL is not supported by this operation.", nameof(expiry));
+            if (expiry.IsPersist) throw new ArgumentException("PERSIST is not supported by this operation.", nameof(expiry));
+            if (expiry.IsExpireIfNotExists && !(expiry.IsAbsolute || expiry.IsRelative))
+            {
+                throw new ArgumentException("ENX requires EX, PX, EXAT, or PXAT.", nameof(expiry));
+            }
+        }
     }
 }
