@@ -2216,6 +2216,30 @@ given sync is deprioritised; it closes when the executor grows a synchronous wai
 `Coalesced` counts the stampedes that did not happen, and is the counterpart to `RedundantFills`. The two
 together are the useful signal: coalesced rising while redundant stays flat is the shape you want.
 
+#### Built: CachePolicy and a finite lifetime
+
+`CachePolicy` is a sealed class held once by the cache - deployment-level configuration, not a per-call
+argument. `RespContext.WithMaxCacheAge` is the single per-call knob, because freshness tolerance is the one
+thing that genuinely varies by caller *and* the one thing that could never be added to `IDatabase` without a
+binary break.
+
+Three properties that took a wrong turn first and are worth stating flatly:
+
+- **The default lifetime is finite** (one minute). See §6.14: the absence of a lifetime is not the absence
+  of a policy, it is `TTL = infinity`.
+- **Age is checked on read, never stamped on store.** One entry serves callers with different tolerances;
+  a test asserts exactly that (`OneEntryServesCallersWithDifferentTolerances` - one send, one entry, two
+  contexts).
+- **A context narrows, never widens.** The effective limit is `Min(policy, caller)`, so a caller can ask for
+  fresher but never for staler than the deployment allows.
+
+Clock is `Stopwatch.GetTimestamp()`: `Environment.TickCount64` does not exist on `net461`/`netstandard2.0`,
+and the 32-bit `TickCount` wraps every ~49 days.
+
+`Expired` counts hits refused for age, and is deliberately separate from invalidation - nobody told us the
+entry was wrong, we just stopped trusting it. A high count against `Stored` means either the lifetime is
+shorter than the data's useful life, or invalidation is doing nothing for you.
+
 #### Consequence for the context
 
 Soft window, hard TTL, invalidation-SWR on/off, staleness cap — four knobs, all contextual for the reasons

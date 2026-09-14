@@ -29,7 +29,7 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedError.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedNoKeys.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedRaced.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespClientCache(int keyCapacity = 256) -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespClientCache(StackExchange.Redis.Interpolated.CachePolicy? policy = null, int keyCapacity = 256) -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.Abandon() -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.RespFill() -> void
@@ -173,3 +173,14 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Strings(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespStrings
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
+[SER010]StackExchange.Redis.Interpolated.CachePolicy
+[SER010]StackExchange.Redis.Interpolated.CachePolicy.CachePolicy() -> void
+[SER010]StackExchange.Redis.Interpolated.CachePolicy.Enabled.get -> bool
+[SER010]StackExchange.Redis.Interpolated.CachePolicy.Enabled.init -> void
+[SER010]StackExchange.Redis.Interpolated.CachePolicy.TimeToLive.get -> System.TimeSpan
+[SER010]StackExchange.Redis.Interpolated.CachePolicy.TimeToLive.init -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Expired.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Policy.get -> StackExchange.Redis.Interpolated.CachePolicy!
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, long maxAgeTicks, out StackExchange.Redis.Interpolated.RespPayload? payload) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.Interpolated.RespContext
+[SER010]static StackExchange.Redis.Interpolated.CachePolicy.Default.get -> StackExchange.Redis.Interpolated.CachePolicy!

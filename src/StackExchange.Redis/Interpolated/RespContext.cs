@@ -255,6 +255,25 @@ namespace StackExchange.Redis.Interpolated
         /// services include one.</remarks>
         public RespContext WithCache(RespClientCache? cache) => WithServices(cache);
 
+        /// <summary>A context whose cached answers must be no older than <paramref name="maxAge"/>.</summary>
+        /// <param name="maxAge">The oldest answer this caller will accept.</param>
+        /// <remarks>
+        /// Narrows, never widens: the cache's own <see cref="CachePolicy.TimeToLive"/> is a ceiling, and
+        /// this cannot raise it. So a caller can ask for fresher, never for staler than the deployment
+        /// allows.
+        /// <para>
+        /// This is the one knob that belongs on the context rather than on the policy, because freshness
+        /// tolerance is a property of the call and not of the connection or the deployment - and it is the
+        /// one that could not be added to <c>IDatabase</c> at all without a binary break.
+        /// </para>
+        /// </remarks>
+        public RespContext WithMaxCacheAge(TimeSpan maxAge)
+            => WithServices(ServiceLink.Add(_services, new MaxCacheAgeService(maxAge)));
+
+        /// <summary>The caller's freshness requirement, if they stated one.</summary>
+        internal long MaxCacheAgeTicks
+            => TryGetService<MaxCacheAgeService>(out var service) ? service.Ticks : long.MaxValue;
+
         /// <summary>
         /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into the
         /// handler's constructor; that is how the handler reaches the command map, the prefixes, and the

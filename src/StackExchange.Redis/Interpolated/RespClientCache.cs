@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -55,10 +56,32 @@ namespace StackExchange.Redis.Interpolated
         private long _redundantFills;
         private long _refusedError;
         private long _coalesced;
+        private long _expired;
 
         /// <summary>Create a cache.</summary>
+        /// <param name="policy">How entries behave; <see cref="CachePolicy.Default"/> when null.</param>
         /// <param name="keyCapacity">Initial size hint for the tracked-key table.</param>
-        public RespClientCache(int keyCapacity = 256) => _keys = new RespKeyTable(keyCapacity);
+        /// <remarks>
+        /// One constructor rather than an overload pair: two constructors both carrying optional parameters
+        /// is ambiguous for callers, and the analyzers say so (RS0026). Named arguments cover the cases an
+        /// overload would have.
+        /// </remarks>
+        public RespClientCache(CachePolicy? policy = null, int keyCapacity = 256)
+        {
+            Policy = policy ?? CachePolicy.Default;
+            _keys = new RespKeyTable(keyCapacity);
+        }
+
+        /// <summary>How entries in this cache behave.</summary>
+        public CachePolicy Policy { get; }
+
+        /// <summary>Hits refused because the entry had outlived its lifetime.</summary>
+        /// <remarks>
+        /// Distinct from an invalidation: nobody told us this was wrong, we simply stopped trusting it. A
+        /// high count relative to <see cref="Stored"/> means the lifetime is shorter than the useful life of
+        /// the data - or, if invalidation is working, that it is doing nothing for you.
+        /// </remarks>
+        public long Expired => Volatile.Read(ref _expired);
 
         /// <summary>The number of cached responses, including any not yet swept after invalidation.</summary>
         public int Count => _entries.Count;
@@ -151,6 +174,29 @@ namespace StackExchange.Redis.Interpolated
         /// the parse is done.
         /// </summary>
         public bool TryGet(in RespRequest frame, int database, [NotNullWhen(true)] out RespPayload? payload)
+            => TryGet(in frame, database, long.MaxValue, out payload);
+
+        /// <summary>Look for a cached response, subject to a freshness requirement.</summary>
+        /// <param name="frame">The rendered request.</param>
+        /// <param name="database">The database the request ran against.</param>
+        /// <param name="maxAgeTicks">
+        /// The caller's own freshness requirement, from <see cref="RespContext.WithMaxCacheAge"/>;
+        /// <see cref="long.MaxValue"/> when they did not state one.
+        /// </param>
+        /// <param name="payload">The cached reply, retained.</param>
+        /// <remarks>
+        /// <para>
+        /// Age is checked on <b>read</b>, against the stricter of the policy's lifetime and the caller's
+        /// requirement - never stamped when the entry was stored. The entry is shared, so one copy serves
+        /// callers with different tolerances; stamping at store time would force identical replies to be
+        /// cached once per distinct lifetime, which is the opposite of what a shared cache is for.
+        /// </para>
+        /// <para>
+        /// An expired entry is left resident rather than removed, exactly as an invalidated one is: this is
+        /// a read path, and <see cref="Sweep"/> is where entries go.
+        /// </para>
+        /// </remarks>
+        public bool TryGet(in RespRequest frame, int database, long maxAgeTicks, [NotNullWhen(true)] out RespPayload? payload)
         {
             if (_entries.TryGetValue(new EntryKey(frame, database), out var entry)
                 && entry.IsValid
@@ -160,8 +206,14 @@ namespace StackExchange.Redis.Interpolated
                 // let one stale read through the door it had already closed
                 if (entry.IsValid)
                 {
-                    payload = entry.Payload;
-                    return true;
+                    var limit = Math.Min(Policy.TimeToLiveTicks, maxAgeTicks);
+                    if (!CachePolicy.IsOlderThan(entry.FilledAt, limit))
+                    {
+                        payload = entry.Payload;
+                        return true;
+                    }
+
+                    Interlocked.Increment(ref _expired);
                 }
 
                 entry.Payload.Release();
@@ -279,7 +331,7 @@ namespace StackExchange.Redis.Interpolated
         /// <b>The wait yields no value</b> - the caller re-probes the cache afterwards. Handing the leader's
         /// payload across is the obvious design and it is worse: the payload is reference-counted, so a
         /// waiter resuming after the leader released its reference would have to be handed a dead buffer or
-        /// a racily-retained one. Re-probing reuses <see cref="TryGet"/>, whose retain-and-recheck is
+        /// a racily-retained one. Re-probing reuses <c>TryGet</c>, whose retain-and-recheck is
         /// already correct, and gives the right answer for free when the leader's reply turned out not to be
         /// cacheable at all.
         /// </para>
@@ -597,6 +649,9 @@ namespace StackExchange.Redis.Interpolated
         private sealed class Entry(RespPayload payload, Dependency[] dependencies)
         {
             internal RespPayload Payload { get; } = payload;
+
+            /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
+            internal long FilledAt { get; } = Stopwatch.GetTimestamp();
 
             internal bool IsValid => Dependency.AllValid(dependencies);
         }

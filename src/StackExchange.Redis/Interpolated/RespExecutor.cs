@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Interpolated
             // not get a cached answer either, not merely that this reply is not kept
             if (cache is not null && cache.PermitsCaching(flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, out var cached)) return cached;
+                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, out var cached)) return cached;
 
                 // NOTE: no in-flight wait here. Coalescing means waiting on someone else's Task, and doing
                 // that from a synchronous caller is the sync-over-async problem this design avoids
@@ -199,7 +199,7 @@ namespace StackExchange.Redis.Interpolated
 
             if (cache is not null && cache.PermitsCaching(flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, out var cached))
+                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, out var cached))
                 {
                     return new ValueTask<TResult>(cached);
                 }
@@ -208,7 +208,7 @@ namespace StackExchange.Redis.Interpolated
                 // copy. See design notes 6.15; this is the whole of the stampede fix at the call site.
                 if (cache.TryAwaitInFlight(request.AsLookupKey(), executor.Database, out var pending))
                 {
-                    return AwaitShared(executor, request.Detach(flags), pending, handler, cache, cancellationToken);
+                    return AwaitShared(executor, request.Detach(flags), pending, handler, cache, context.MaxCacheAgeTicks, cancellationToken);
                 }
 
                 if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
@@ -322,9 +322,10 @@ namespace StackExchange.Redis.Interpolated
             ref RespFrame request,
             IRespHandler<TResult> handler,
             RespClientCache cache,
+            long maxAgeTicks,
             [MaybeNullWhen(false)] out TResult result)
         {
-            if (!cache.TryGet(request.AsLookupKey(), executor.Database, out var hit))
+            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit))
             {
                 result = default;
                 return false;
@@ -398,6 +399,7 @@ namespace StackExchange.Redis.Interpolated
             Task pending,
             IRespHandler<TResult> handler,
             RespClientCache cache,
+            long maxAgeTicks,
             CancellationToken cancellationToken)
         {
             try
@@ -405,7 +407,7 @@ namespace StackExchange.Redis.Interpolated
                 await pending.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (cache.TryGet(owned, executor.Database, out var hit))
+                if (cache.TryGet(owned, executor.Database, maxAgeTicks, out var hit))
                 {
                     try
                     {
