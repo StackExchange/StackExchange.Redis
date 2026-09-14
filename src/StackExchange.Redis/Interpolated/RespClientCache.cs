@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -47,6 +48,7 @@ namespace StackExchange.Redis.Interpolated
         private long _refusedNoKeys;
         private long _refusedRaced;
         private long _redundantFills;
+        private long _refusedError;
 
         /// <summary>Create a cache.</summary>
         /// <param name="keyCapacity">Initial size hint for the tracked-key table.</param>
@@ -94,6 +96,13 @@ namespace StackExchange.Redis.Interpolated
         /// hot key re-fetch at once. See the design notes, section 6.11.
         /// </remarks>
         public long RedundantFills => Volatile.Read(ref _redundantFills);
+
+        /// <summary>Fills refused because the reply was an error.</summary>
+        /// <remarks>
+        /// See <see cref="TryComplete"/> for why errors are not cacheable. A non-trivial count here is
+        /// worth investigating on its own: errors should be rare, and caching them would have hidden that.
+        /// </remarks>
+        public long RefusedError => Volatile.Read(ref _refusedError);
 
         /// <summary>
         /// Invalidate one key, as reported by the server. Allocation-free, and cheap when the key is not
@@ -254,6 +263,13 @@ namespace StackExchange.Redis.Interpolated
             if (response is null) throw new ArgumentNullException(nameof(response));
             if (fill.Key.IsEmpty) return false;
 
+            if (IsError(response.Span))
+            {
+                Interlocked.Increment(ref _refusedError);
+                fill.Key.Dispose();
+                return false;
+            }
+
             if (!Dependency.AllValid(fill.Dependencies))
             {
                 Interlocked.Increment(ref _refusedRaced);
@@ -327,6 +343,32 @@ namespace StackExchange.Redis.Interpolated
 
             _keys.InvalidateAll();
         }
+
+        /// <summary>
+        /// Whether a reply is an error - a simple error or, in RESP3, a bulk error.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Errors are never cached. The invariant that makes this cache sound is that a reply is a function
+        /// of the keys it depends on, and that the server will say when those change. An error need not be:
+        /// it can come from server configuration, cluster topology, ACLs, memory pressure or a module's own
+        /// state, none of which key invalidation covers - so nothing would ever evict it.
+        /// </para>
+        /// <para>
+        /// That turns a transient failure into a permanent one, which is the same class of bug as caching a
+        /// keyless command. <c>-WRONGTYPE</c> genuinely IS a function of the key and would be invalidated
+        /// correctly, but telling those apart needs per-code knowledge for a case that should be rare -
+        /// and if errors are not rare, caching them hides the problem rather than solving it.
+        /// </para>
+        /// <para>
+        /// A <b>null</b> reply is not an error: it is a value, and Redis tracks every key "mentioned in the
+        /// context of a read-only command" whether or not it exists, so creating the key invalidates the
+        /// entry. Negative caching therefore works, and works correctly.
+        /// </para>
+        /// </remarks>
+        private static bool IsError(ReadOnlySpan<byte> response)
+            => !response.IsEmpty
+               && (response[0] == (byte)RespPrefix.SimpleError || response[0] == (byte)RespPrefix.BulkError);
 
         /// <summary>
         /// Whether the command's retry category permits caching at all.

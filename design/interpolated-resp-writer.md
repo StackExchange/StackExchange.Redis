@@ -1347,6 +1347,36 @@ own request.
 - Per-waiter cancellation wants `Task.WaitAsync`, which does not exist on `netstandard2.0`/`net461`; that
   needs a linked-TCS polyfill on down-level targets.
 
+#### The agreed cancellation model
+
+Settled: **the request completes or fails by itself, including caching; a caller's cancellation applies
+only to that caller's await.** No extra token, no waiter tracking, no last-man-standing. `HybridCache`
+needs all of that because it fronts arbitrary external systems whose work has no value once nobody is
+waiting; here the fill populates a shared cache, so it is worth finishing regardless of who is still
+listening.
+
+### 6.12 Errors are not cached; nulls are
+
+`TryComplete` refuses a reply whose first byte is `-` (simple error) or `!` (RESP3 bulk error).
+
+The invariant that makes this cache sound is that a reply is **a function of the keys it depends on**, and
+that the server will tell us when those change. An error need not be: it can come from server
+configuration, cluster topology, ACLs, memory pressure or a module's own state, none of which key
+invalidation covers — so nothing would ever evict it. Caching one turns a **transient failure into a
+permanent one**, which is the same class of bug as caching a keyless command (§6.9).
+
+`-WRONGTYPE` genuinely *is* a function of the key and would be invalidated correctly, but separating those
+cases needs per-code knowledge for something that should be rare — and if errors are not rare, caching
+them hides the problem instead of solving it. Hence `RefusedError`: a non-trivial count is itself worth
+investigating.
+
+**A null is a value, not a failure**, in all three spellings — `$-1` (RESP2 null bulk), `*-1` (RESP2 null
+array) and `_` (RESP3). Redis tracks every key *"mentioned in the context of a read-only command"*,
+whether or not it exists, so creating the key invalidates the entry. **Negative caching therefore works,
+and works correctly** — which is unusual enough to be worth stating. No null spelling begins with `-` or
+`!`, so the cheap first-byte test does not need to enumerate them; `RespReader.IsNull` is the right tool
+if the classification is ever needed for its own sake.
+
 #### Decision: measure first
 
 Not built. `RespClientCache.RedundantFills` counts fills that completed only to find the same request
@@ -1378,6 +1408,8 @@ reversals are the useful part.
 | Keyless requests are never cached | Cache them | Invalidation only ever reports **keys**, so a keyless entry is vacuously valid for the life of the process — not even a flush clears it. Found by building it, not by reasoning. |
 | Handler maintains **both** key-mark forms | Re-derive arg indices on promotion | §5.2 assumed there were no spare bits — true of the *frame*, false of the writer, which is a stack `ref struct` with no size pressure. |
 | >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
+| Errors never cached; nulls always | Cache errors too, or treat null as a miss | A cached reply must be a function of the tracked keys; an error need not be, so nothing would evict it and a transient failure becomes permanent. A null *is* a function of the key, and Redis tracks keys that do not exist, so negative caching is correct (§6.12). |
+| Cancellation applies only to the caller's await | HybridCache's extra token + waiter tracking | The fill populates a shared cache, so it has value once nobody is waiting - unlike an arbitrary external system, where it does not (§6.11). |
 | Request combining deferred, with a counter | Build it now | A miss is a round trip on a multiplexed connection, not an arbitrary factory call, so the stampede economics differ by orders of magnitude. `RedundantFills` measures whether it is real without presupposing the design (§6.11). |
 | >62 arguments declines to cache | "Treat every argument as a key" | Over-invalidation is safe by protocol, but this registers *value* bytes as tracked keys, polluting the key table and inviting spurious invalidation from unrelated keys that happen to match a value. Safe, and invisibly degrading. |
 

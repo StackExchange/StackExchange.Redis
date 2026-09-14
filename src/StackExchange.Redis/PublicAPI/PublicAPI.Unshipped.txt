@@ -23,6 +23,7 @@ StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.C
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnInvalidate(System.ReadOnlySpan<byte> key) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RedundantFills.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedByFlags.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedError.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedNoKeys.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedRaced.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RespClientCache(int keyCapacity = 256) -> void

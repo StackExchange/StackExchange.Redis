@@ -648,6 +648,48 @@ public class RespClientCacheTests
         Assert.Equal(1, cache.Count);
     }
 
+    [Theory]
+    [InlineData("$-1\r\n")]   // RESP2 null bulk string
+    [InlineData("*-1\r\n")]   // RESP2 null array - a different spelling, still a value
+    [InlineData("_\r\n")]     // RESP3 null
+    public void NullRepliesAreCached(string reply)
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("missing");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
+
+        // a null is a VALUE, not a failure, in all three spellings. Redis tracks every key "mentioned in
+        // the context of a read-only command", found or not, so creating the key invalidates this entry -
+        // negative caching that is actually correct. Only '-' and '!' are errors, and no null starts with
+        // either, so the cheap first-byte test does not need to enumerate the null forms.
+        Assert.True(Complete(cache, fill, reply));
+        Assert.True(TryRead(cache, "missing", out var text));
+        Assert.Equal(reply.Replace("\r\n", "|"), text);
+
+        Assert.True(cache.OnInvalidate(Utf8("missing")));
+        Assert.False(TryRead(cache, "missing", out _));
+        Assert.Equal(0, cache.RefusedError);
+    }
+
+    [Theory]
+    [InlineData("-ERR something went wrong\r\n")]
+    [InlineData("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n")]
+    [InlineData("-MOVED 1234 127.0.0.1:7001\r\n")]
+    [InlineData("!21\r\nSYNTAX invalid syntax\r\n")]
+    public void ErrorRepliesAreNotCached(string reply)
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
+
+        // an error is not necessarily a function of the tracked keys - it can depend on server config,
+        // topology, ACLs, a module's state - so the invariant that makes this cache sound does not hold
+        // for it, and nothing may ever invalidate it. Caching one turns a transient failure permanent.
+        Assert.False(Complete(cache, fill, reply));
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedError);
+    }
+
     private static string[] KeyStrings(in RespFrame frame)
     {
         var count = frame.KeyCount;
