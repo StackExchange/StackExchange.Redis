@@ -37,8 +37,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       **composability**: `IRespHandler<T[]>` built from `IRespHandler<T>`. Cheapest while handlers live in
       one file. Mechanical: delete two lines per handler, take the parameter.
 
-- [ ] **`CLIENT TRACKING` negotiation in the real client.** RESP3-only, `BCAST`, empty prefix by default
-      (§6.13). Must refuse **loudly** when RESP3 is unavailable rather than silently caching without
+- [ ] **`CLIENT TRACKING` negotiation in the real client.** RESP3-only; the mode and prefixes now come
+      from `CacheOptions.TrackingMode` / `CacheOptions.Prefixes`, which are already validated against each
+      other (§6.13). Must refuse **loudly** when RESP3 is unavailable rather than silently caching without
       invalidation, and the `PREFIX` arguments must come from `CachePolicy.Prefixes` rather than a second
       list — the cache already refuses keys outside that set, so the two drifting apart would mean either
       caching what nothing announces, or refusing what something does.
@@ -123,8 +124,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Refuse to cache keys outside the tracked prefixes: no announcement, no invalidation path — `e42c8d22`
 - [x] Fire-and-forget is neither cached nor served; sync F+F no longer throws `"No reply."` — `abd87708`
 - [x] Split `CacheOptions` (settled once: prefixes, budget) from `CachePolicy` (read-time, per-call) — `286a461a`
+- [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — this change
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and
-      `Sweep` reclaiming expired entries rather than only invalidated ones — this change
+      `Sweep` reclaiming expired entries rather than only invalidated ones — `e2d2ea3c`
 
 ## Decided against
 

@@ -376,3 +376,8 @@ static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redi
 [SER010]StackExchange.Redis.Interpolated.CacheOptions.SweepInterval.init -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedTooLarge.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.SweepIfDue() -> int
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.TrackingMode.get -> StackExchange.Redis.Interpolated.CacheTrackingMode
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.TrackingMode.init -> void
+[SER010]StackExchange.Redis.Interpolated.CacheTrackingMode
+[SER010]StackExchange.Redis.Interpolated.CacheTrackingMode.Broadcast = 0 -> StackExchange.Redis.Interpolated.CacheTrackingMode
+[SER010]StackExchange.Redis.Interpolated.CacheTrackingMode.PerKey = 1 -> StackExchange.Redis.Interpolated.CacheTrackingMode

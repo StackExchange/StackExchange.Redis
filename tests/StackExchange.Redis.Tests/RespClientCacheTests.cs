@@ -1186,4 +1186,44 @@ public class RespClientCacheTests
         Assert.Equal(0, cache.Count);
     }
 
+    /// <summary>
+    /// Prefixes require broadcast: under per-key tracking there is nothing to filter.
+    /// </summary>
+    /// <remarks>
+    /// Raised when the cache is built rather than from an <c>init</c> accessor, because an object
+    /// initializer assigns in whatever order the caller wrote it - so a rule spanning two properties would
+    /// pass or fail on line ordering. The message names both halves, since either one could be the mistake.
+    /// </remarks>
+    [Fact]
+    public void PrefixesRequireBroadcastTracking()
+    {
+        var options = new CacheOptions
+        {
+            TrackingMode = CacheTrackingMode.PerKey,
+            Prefixes = ["app:"],
+        };
+
+        var ex = Assert.Throws<ArgumentException>(() => new RespClientCache(options));
+        Assert.Contains("Broadcast", ex.Message);
+
+        // ...and the same list is fine the other way round, whichever order it was written in
+        using var ok = new RespClientCache(new CacheOptions { Prefixes = ["app:"], TrackingMode = CacheTrackingMode.Broadcast });
+        using var alsoOk = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.Broadcast, Prefixes = ["app:"] });
+    }
+
+    /// <summary>
+    /// Under per-key tracking every key we read is tracked by definition, so nothing is refused for being
+    /// outside a set.
+    /// </summary>
+    [Fact]
+    public void PerKeyTrackingCachesAnyKey()
+    {
+        using var cache = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.PerKey });
+
+        var frame = Get("anything at all");
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+        Assert.Equal(0, cache.RefusedNotTracked);
+    }
+
 }

@@ -74,6 +74,7 @@ namespace StackExchange.Redis.Interpolated
         public RespClientCache(CacheOptions? options = null, int keyCapacity = 256)
         {
             Options = options ?? CacheOptions.Default;
+            Options.Validate(); // settings that constrain one another; see CacheOptions.Validate
             _keys = new RespKeyTable(keyCapacity);
         }
 

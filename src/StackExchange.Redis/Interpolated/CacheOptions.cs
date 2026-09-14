@@ -38,6 +38,14 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public bool Enabled { get; init; } = true;
 
+        /// <summary>How the server decides which keys to tell us about.</summary>
+        /// <remarks>
+        /// <see cref="CacheTrackingMode.Broadcast"/> by default: it costs the server nothing to remember,
+        /// and what it costs us - hearing about keys we never asked for - is the part we can bound, with
+        /// <see cref="Prefixes"/>.
+        /// </remarks>
+        public CacheTrackingMode TrackingMode { get; init; } = CacheTrackingMode.Broadcast;
+
         /// <summary>How entries behave, unless a caller says otherwise.</summary>
         public CachePolicy DefaultPolicy { get; init; } = CachePolicy.Default;
 
@@ -123,6 +131,12 @@ namespace StackExchange.Redis.Interpolated
         /// cacheable. An empty or null entry is not a way to spell that; it is rejected, because
         /// <c>""</c> matches everything and would silently turn a narrow list into a total one.
         /// </para>
+        /// <para>
+        /// <b>Broadcast only.</b> <c>PREFIX</c> is meaningless under
+        /// <see cref="CacheTrackingMode.PerKey"/> - the server announces what we read, so there is nothing
+        /// to filter - and <c>CLIENT TRACKING</c> rejects the combination outright. Setting both is an
+        /// error, raised when the cache is built rather than at the handshake.
+        /// </para>
         /// </remarks>
         public IReadOnlyList<string> Prefixes
         {
@@ -138,7 +152,32 @@ namespace StackExchange.Redis.Interpolated
         private readonly byte[][] _prefixBytes = [];
 
         /// <summary>Whether <see cref="Prefixes"/> restricts what may be cached.</summary>
+        /// <remarks>
+        /// Only ever true in <see cref="CacheTrackingMode.Broadcast"/>: under
+        /// <see cref="CacheTrackingMode.PerKey"/> the server announces exactly what we read, so there is no
+        /// such thing as an untracked key and nothing for the gate to refuse.
+        /// </remarks>
         internal bool HasPrefixes => _prefixBytes.Length != 0;
+
+        /// <summary>
+        /// Check settings that constrain one another; called when a cache is built from these options.
+        /// </summary>
+        /// <remarks>
+        /// Not in the <c>init</c> accessors, and not because it would be inconvenient there: an object
+        /// initializer assigns in whatever order the <i>caller</i> wrote, so a rule spanning two properties
+        /// would pass or fail depending on which line came first. Checking once, when the options are
+        /// actually used for something, is the only place the whole object exists.
+        /// </remarks>
+        internal void Validate()
+        {
+            if (HasPrefixes && TrackingMode != CacheTrackingMode.Broadcast)
+            {
+                throw new ArgumentException(
+                    $"Cache prefixes require {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.Broadcast)};"
+                    + $" {TrackingMode} announces the keys that were read, so there is nothing to filter.",
+                    nameof(Prefixes));
+            }
+        }
 
         /// <summary>
         /// Whether a key is inside the tracked set, and so has something that can invalidate it.
