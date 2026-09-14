@@ -178,6 +178,50 @@ namespace StackExchange.Redis.Interpolated
             _argIndex++;
         }
 
+        /// <summary>Append a resolved command name.</summary>
+        /// <param name="value">The command, from <see cref="RespCommands"/>.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Position decides the meaning, and the bytes are the same either way.</b> First, it is the
+        /// command; later, it is an argument that happens to name a command - which is what
+        /// <c>COMMAND INFO &lt;name&gt;</c>, <c>COMMAND DOCS</c> and <c>ACL</c> rules need.
+        /// </para>
+        /// <para>
+        /// Either way it resolves through this context's <see cref="CommandMap"/>, and that is not merely
+        /// tidy: the server knows a renamed command <i>only</i> by its new name. <c>COMMAND INFO HGET</c>
+        /// returns nothing on a server where <c>HGET</c> was renamed - you have to ask for the mapped name,
+        /// and the reply then reports the canonical one. Passing the mapped name is therefore the only
+        /// thing that works, and taking it from the map is the only way to get it.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted(RespCommand value)
+        {
+            if (value.IsEmpty) throw new ArgumentException("No command was supplied.", nameof(value));
+
+            // resolution happens HERE, not at construction: a known command still has to go through this
+            // context's map, which may rename or disable it
+            var resp = value.GetResp(_context.CommandMap);
+            if (resp.IsEmpty)
+            {
+                // an unknown command kept as a name: encode straight into the frame, no intermediate array
+                var name = value.Name!;
+                var nameBytes = Encoding.UTF8.GetByteCount(name);
+                WriteBulk(nameBytes, out var payloadOffset);
+                Encoding.UTF8.GetBytes(name, 0, name.Length, _buffer, _offset + payloadOffset);
+                CommitBulk(payloadOffset, nameBytes);
+            }
+            else
+            {
+                Ensure(resp.Length);
+                resp.CopyTo(_buffer.AsSpan(_offset));
+                _offset += resp.Length;
+            }
+
+            _hasCommand = true; // whether it was the command or merely the first thing written
+            _args++;
+            _argIndex++;
+        }
+
         /// <summary>Append a key: prefixed, marked for invalidation, and folded into the cluster slot.</summary>
         /// <param name="value">The key to append.</param>
         public void AppendFormatted(RedisKey value)

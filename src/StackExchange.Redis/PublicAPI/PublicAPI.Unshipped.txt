@@ -39,7 +39,13 @@ StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.C
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginFill(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryComplete(in StackExchange.Redis.Interpolated.RespClientCache.RespFill fill, StackExchange.Redis.Interpolated.RespPayload! response) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, out StackExchange.Redis.Interpolated.RespPayload? payload) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespCommand
+[SER010]StackExchange.Redis.Interpolated.RespCommand.IsEmpty.get -> bool
+[SER010]StackExchange.Redis.Interpolated.RespCommand.IsKnown.get -> bool
+[SER010]StackExchange.Redis.Interpolated.RespCommand.IsPreformed.get -> bool
+[SER010]StackExchange.Redis.Interpolated.RespCommand.RespCommand() -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Interpolated.RespCommand value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Interpolated.RespFragment value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisChannel value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisKey value) -> void
@@ -50,6 +56,7 @@ StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.C
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler() -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context, string! command) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommands
 [SER010]StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.Cache.get -> StackExchange.Redis.Interpolated.RespClientCache?
 [SER010]StackExchange.Redis.Interpolated.RespContext.CancellationToken.get -> System.Threading.CancellationToken
@@ -133,9 +140,12 @@ StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.C
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.RespStrings).Set(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins) -> System.Threading.Tasks.ValueTask<bool>
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext)
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Strings.get -> StackExchange.Redis.Interpolated.RespStrings
+[SER010]override StackExchange.Redis.Interpolated.RespCommand.ToString() -> string!
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.Equals(object? obj) -> bool
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.GetHashCode() -> int
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.ToString() -> string!
+[SER010]static StackExchange.Redis.Interpolated.RespCommands.Command(this System.ReadOnlySpan<byte> name) -> StackExchange.Redis.Interpolated.RespCommand
+[SER010]static StackExchange.Redis.Interpolated.RespCommands.Command(this string! name, bool preform = false) -> StackExchange.Redis.Interpolated.RespCommand
 [SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this in StackExchange.Redis.Interpolated.RespContext context, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.CommandFlags flags) -> TResult
 [SER010]static StackExchange.Redis.Interpolated.RespExecutor.SendAsync<TResult>(this in StackExchange.Redis.Interpolated.RespContext context, ref StackExchange.Redis.Interpolated.RespFrame request, StackExchange.Redis.Interpolated.IRespHandler<TResult>! handler, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.ValueTask<TResult>
 [SER010]static StackExchange.Redis.Interpolated.RespFragment.CreateValidated(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> StackExchange.Redis.Interpolated.RespFragment

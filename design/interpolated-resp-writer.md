@@ -742,6 +742,42 @@ Same command, two cache entries, forever. Silent, so this is the highest-value a
 
 Keyspace prefixes fall out correctly for free — applied before the write, so tenants cannot collide.
 
+### 5.3 `RespCommand`: resolved once, usable in either position
+
+`"FT.SEARCH".Command()` parses, validates and (optionally) frames a command name once. What it stores
+depends on whether this library knows the name, and that split is a correctness requirement rather than an
+optimisation:
+
+| | stored | why |
+| --- | --- | --- |
+| known (`"GET"`) | the `RedisCommand` | `CommandMap` is per-context and may rename **or disable** it; the map already holds the bytes |
+| unknown, casual | the `string` | inline use encodes straight into the frame buffer - preforming would allocate an array to copy from and discard |
+| unknown, `preform: true` | framed `byte[]` | a `static readonly` field pays once, then every use is a `memcpy` |
+
+**`preform` has no effect on a known command.** `CommandMap` stores every mapped name as a pre-framed RESP
+fragment already — *"ready to throw directly into the stream"* — so the bytes are preformed per map, which
+is the only place they can be: the map is what decides them.
+
+**Preforming an unknown command is safe**, and the reason is worth knowing: `CommandMap` is built by
+walking the `RedisCommand` enum, so an override keyed on a name that does not parse — `FT.SEARCH`,
+`JSON.GET` — is **silently ignored**. Nothing could rename it, so there is nothing to defer to. (That is
+also a gap: module commands cannot be renamed or disabled client-side at all, while a server-side
+`rename-command` on one works fine and is undetectable. Orthogonal, but more visible once module commands
+are first-class.)
+
+A `u8` overload takes the name as bytes, so generated code and `static readonly` fields need no `string`:
+`TryParseCI` matches on bytes directly, so even a known command needs no transcoding.
+
+**Position decides the meaning, and the bytes are identical.** First, it is the command; later, it is an
+argument that names one — `$"{command}{Info}{target.Command()}"`. That second case is not a curiosity: a
+server knows a renamed command **only by its new name**, so `COMMAND INFO HGET` returns nothing where
+`HGET` was renamed, and you must pass the mapped spelling. Taking it from the map is the only way to get
+it right, which is exactly what appending a `RespCommand` does.
+
+Validation happens at resolution, not on the wire: a name carrying CR, LF or a space would desynchronise
+the connection for every subsequent command — the `SER011` hazard — so it is rejected once, where it is
+free. The framing itself is ours, which is what distinguishes this from a hand-built fragment.
+
 ### 6.1 Three incremental folds
 
 All O(1) state, all during the write, none needing a second pass:
