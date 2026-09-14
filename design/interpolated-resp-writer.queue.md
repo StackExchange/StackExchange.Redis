@@ -63,6 +63,36 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       Blocked on nothing, but it wants `Parse(ref RespReader)` (below) to land first or alongside: filling
       a pooled buffer straight from the reader is the mechanism, and doing it twice would be silly.
 
+      **Satisfying the old API, which still says `T[]`.** `TransitionalDatabase` has to keep returning
+      arrays, so something has to bridge. The obvious move - give `ReadOnlyLease<T>` an internal "hand me
+      your buffer" escape hatch - **does not work**, and it is worth saying why before someone tries it:
+      `Rent` goes to `ArrayPool<T>.Shared`, which returns an *oversized* array, while the old contract
+      promises an exactly-sized one the caller owns. The steal could essentially never fire. So the variant
+      is not a method on the lease; it is a question about how the result is *built*, which is a question
+      about the handler.
+
+      Preferred shape: **one command, two handlers.** Factor each multi-result command into an internal
+      core taking `IRespHandler<TResult>`, and let the public method pass the lease handler while the
+      transitional adapter passes the array one:
+
+      ```csharp
+      internal static ValueTask<T> GetCore<T>(in RespStrings s, ReadOnlySpan<RedisKey> keys, CommandFlags flags, IRespHandler<T> handler)
+          => s.Context.SendAsync($"{RedisCommand.MGET}{keys}", flags, handler);
+      ```
+
+      The command is still written once, the legacy path allocates exactly what it always did - no pooled
+      rent, no copy, no waste - and neither shape needs an escape hatch on a public type. `RespHandlers.Values`
+      (`IRespHandler<RedisValue[]>`) already exists and is one of the three non-return array sites: it is
+      not deleted, it is demoted to the legacy path.
+
+      Fallback if the per-command internal core proves tiresome: an internal `Adopt(T[] exact)` construction
+      mode plus `TryDetachArray`, handing the array over once and neutering the lease. Strictly internal,
+      the same rule as `RespResult` buffer sharing. Recorded as second choice, not first, because it puts a
+      sharp edge on a type whose whole point is that ownership is unambiguous.
+
+      `ToArray()` stays public on the lease regardless - that is the escape hatch for *callers* who want an
+      array, and it copies, honestly and visibly.
+
 
 - [ ] **`Parse(ref RespReader)`** (§2.2, §6.16). Smaller prize than it looked once the outgoing-copy rule
       landed — the sharing argument moved to `ReadOnlyLease` — so it is back to being about
