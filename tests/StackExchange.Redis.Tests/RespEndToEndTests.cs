@@ -26,6 +26,41 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     [Fact]
+    public async Task TheMinimalRunNeedsNoWiringAtAll()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var db = conn.GetDatabase();
+        await db.KeyDeleteAsync(key);
+
+        // RedisDatabase.Context HIDES the throwing RedisBase.Context with 'new', so the interface mapping
+        // has to land on the derived one - if it ever landed on the base, every extension member would
+        // throw, since they all reach the context through IRespTarget
+        Assert.NotNull(((IRespTarget)db).Context.Executor);
+
+        // no casts, no executor, no context construction - GetDatabase() is already an IRespTarget
+        Assert.True(await db.Strings.Set(key, "marc"));
+        Assert.Equal("marc", await db.Strings.Get(key));
+        Assert.Equal("marc", await db.StringGetAsync(key));
+    }
+
+    [Fact]
+    public async Task TheContextCarriesTheDatabaseIndex()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var db = conn.GetDatabase(3);
+        await db.KeyDeleteAsync(key);
+
+        Assert.Equal(3, db.Context.Database);
+        Assert.True(await db.Strings.Set(key, "on-three"));
+
+        // it really went to db 3, not db 0
+        Assert.Equal("on-three", await conn.GetDatabase(3).StringGetAsync(key));
+        Assert.True((await conn.GetDatabase(0).StringGetAsync(key)).IsNull);
+    }
+
+    [Fact]
     public async Task SetAndGetAgainstARealServer()
     {
         await using var conn = Create();

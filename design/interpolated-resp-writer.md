@@ -1311,7 +1311,22 @@ upstream buys - and it is scaffolding rather than a destination, since the `Mess
 to go away entirely in favour of execution life-cycle state.
 
 This is what made `RespEndToEndTests` possible: `target.Strings.Set/Get` against a real server, with the
-legacy API cross-checking that the bytes landed. Before it, everything was validated against fakes - which
+legacy API cross-checking that the bytes landed.
+
+**The minimal run now needs no wiring at all**, because `RedisDatabase.Context` is real:
+
+```csharp
+var db = conn.GetDatabase();
+await db.Strings.Set(key, "marc");
+var value = await db.Strings.Get(key);
+```
+
+No cast, no executor, no context construction. The context is built once per database and cached - the
+executor is a per-database object, and minting one per property access would allocate on a path meant not
+to. `RedisBase.Context` still throws, so `IServer` and `ISubscriber` are untouched; `RedisDatabase` hides
+it with `new`, which means the **interface mapping** must land on the derived member - if it ever landed on
+the base, every extension member would throw, since they all reach the context through `IRespTarget`. That
+is asserted rather than assumed. Before it, everything was validated against fakes - which
 proves the shape but never that a server accepts the bytes, since only framing was ever in question.
 
 Still open for a real transition: a cacheability predicate (Redis excludes `FT.*`, probabilistic and

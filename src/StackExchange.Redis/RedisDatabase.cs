@@ -24,6 +24,33 @@ namespace StackExchange.Redis
 
         public int Database { get; }
 
+        private Interpolated.RespContext _context;
+        private bool _haveContext;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Built once and cached: the executor is a per-database object, and handing out a fresh one per
+        /// property access would allocate on a path meant to allocate nothing. The context itself is a
+        /// struct, so callers copy rather than share.
+        /// </remarks>
+        public new Interpolated.RespContext Context
+        {
+            get
+            {
+                if (!_haveContext)
+                {
+                    _context = new Interpolated.RespContext(
+                        multiplexer.CommandMap,
+                        database: Database,
+                        serverType: multiplexer.ServerSelectionStrategy.ServerType)
+                        .WithExecutor(new Interpolated.RespMessageExecutor(this, Database));
+                    _haveContext = true;
+                }
+
+                return _context;
+            }
+        }
+
         DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
         {
             name = multiplexer.ClientName;
