@@ -75,6 +75,18 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>The whole reply, undecoded - the general-purpose answer for commands we do not model.</summary>
         public static IRespHandler<RespResult> Result { get; } = new RespResultHandler();
 
+        /// <summary>Reads a one-element array reply as the single value it wraps.</summary>
+        /// <remarks>
+        /// The <c>FIELDS n</c> commands always reply with an array, one element per field - so asking for
+        /// exactly one field still gets <c>*1</c>. This is the shape that turns that back into the single
+        /// value the caller asked for. It cannot be the built-in handler for
+        /// <see cref="RedisValue"/> (that one reads a scalar), which is why it is named.
+        /// </remarks>
+        public static IRespHandler<RedisValue> SingletonValue { get; } = new SingletonValueHandler();
+
+        /// <inheritdoc cref="SingletonValue"/>
+        public static IRespHandler<Lease<byte>?> SingletonLease { get; } = new SingletonLeaseHandler();
+
         /// <summary>Checks the reply for a server error, and reads nothing else.</summary>
         /// <remarks>
         /// What a command with no result still has to do. Without it a failed command would complete
@@ -122,6 +134,10 @@ namespace StackExchange.Redis.Interpolated
                 else if (typeof(T) == typeof(StringIncrementResult<long>)) handler = s_incrementInt64;
                 else if (typeof(T) == typeof(StringIncrementResult<double>)) handler = s_incrementDouble;
                 else if (typeof(T) == typeof(Lease<long?>)) handler = s_nullableInt64Lease;
+                else if (typeof(T) == typeof(HashEntry[])) handler = s_hashEntries;
+                else if (typeof(T) == typeof(long[])) handler = s_int64Array;
+                else if (typeof(T) == typeof(ExpireResult[])) handler = s_expireResults;
+                else if (typeof(T) == typeof(PersistResult[])) handler = s_persistResults;
                 return (IRespHandler<T>?)handler;
             }
         }
@@ -278,6 +294,10 @@ namespace StackExchange.Redis.Interpolated
         private static readonly IRespHandler<StringIncrementResult<long>> s_incrementInt64 = new IncrementInt64Handler();
         private static readonly IRespHandler<StringIncrementResult<double>> s_incrementDouble = new IncrementDoubleHandler();
         private static readonly IRespHandler<Lease<long?>> s_nullableInt64Lease = new NullableInt64LeaseHandler();
+        private static readonly IRespHandler<HashEntry[]> s_hashEntries = new HashEntryHandler();
+        private static readonly IRespHandler<long[]> s_int64Array = new Int64ArrayHandler();
+        private static readonly IRespHandler<ExpireResult[]> s_expireResults = new ExpireResultHandler();
+        private static readonly IRespHandler<PersistResult[]> s_persistResults = new PersistResultHandler();
 
         private sealed class DigestHandler : IRespHandler<ValueCondition?>
         {
@@ -352,6 +372,79 @@ namespace StackExchange.Redis.Interpolated
                 }
 
                 return lease;
+            }
+        }
+
+        private sealed class SingletonValueHandler : IRespHandler<RedisValue>
+        {
+            public RedisValue Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                if (reader.IsNull) return RedisValue.Null; // the whole reply, not an element of it
+                reader.MoveNext();
+                return reader.IsNull ? RedisValue.Null : reader.ReadRedisValue();
+            }
+        }
+
+        private sealed class SingletonLeaseHandler : IRespHandler<Lease<byte>?>
+        {
+            public Lease<byte>? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                if (reader.IsNull) return null;
+                reader.MoveNext();
+                return reader.ReadLease();
+            }
+        }
+
+        private sealed class HashEntryHandler : IRespHandler<HashEntry[]>
+        {
+            // RESP2 sends name/value interleaved and RESP3 may send them jagged; the existing processor
+            // already decides between them from the CONTENT rather than from the negotiated protocol, so
+            // reusing it is both less code and the only way the two readers cannot disagree. Resp3 is
+            // passed to enable that detection, not to assert anything about the connection.
+            private static readonly ResultProcessor.HashEntryArrayProcessor Shape = new();
+
+            public HashEntry[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return Shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
+                       ?? Array.Empty<HashEntry>();
+            }
+        }
+
+        private sealed class Int64ArrayHandler : IRespHandler<long[]>
+        {
+            public long[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => r.ReadInt64(), scalar: true) ?? Array.Empty<long>();
+            }
+        }
+
+        private sealed class ExpireResultHandler : IRespHandler<ExpireResult[]>
+        {
+            public ExpireResult[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => (ExpireResult)r.ReadInt64(), scalar: true)
+                       ?? Array.Empty<ExpireResult>();
+            }
+        }
+
+        private sealed class PersistResultHandler : IRespHandler<PersistResult[]>
+        {
+            public PersistResult[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => (PersistResult)r.ReadInt64(), scalar: true)
+                       ?? Array.Empty<PersistResult>();
             }
         }
 
