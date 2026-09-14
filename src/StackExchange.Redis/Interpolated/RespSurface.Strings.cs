@@ -133,7 +133,9 @@ namespace StackExchange.Redis.Interpolated
         /// overload: the two differ only in return type, and C# does not overload on that. The lease must
         /// be disposed.
         /// </remarks>
+#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<Lease<byte>?> GetLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
             => strings.Context.SendAsync<Lease<byte>?>(
                 $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
 
@@ -151,7 +153,9 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read and remove.</param>
         /// <param name="flags">Command flags.</param>
+#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<RedisValue> GetDelete(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
             => strings.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.GETDEL}{key}", flags.WithDefaultCategory(RedisCommand.GETDEL));
 
@@ -177,7 +181,9 @@ namespace StackExchange.Redis.Interpolated
         /// render into a command the server will reject.
         /// </para>
         /// </remarks>
+#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<RedisValue> GetSetExpiry(this in RespStrings strings, RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
         {
             var mutatesTtl = expiry.GetTokenCount(allowEnx: false) != 0;
             if (mutatesTtl) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
@@ -190,7 +196,9 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
+#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<long> Length(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+#pragma warning restore RS0026
             => strings.Context.SendAsync<long>(
                 $"{RedisCommand.STRLEN}{key}", flags.WithDefaultCategory(RedisCommand.STRLEN));
 
@@ -419,6 +427,7 @@ namespace StackExchange.Redis.Interpolated
         /// <see cref="ValueCondition.Always"/> would delete the key the caller was protecting.
         /// </para>
         /// </remarks>
+#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<bool> Delete(
             this in RespStrings strings,
             RedisKey key,
@@ -444,6 +453,7 @@ namespace StackExchange.Redis.Interpolated
                     return ThrowUnsupportedCondition<ValueTask<bool>>(when, nameof(Delete));
             }
         }
+#pragma warning restore RS0026
 
         /// <summary>INCRBY, and INCRBYFLOAT for the floating-point twin.</summary>
         /// <param name="strings">The string command group.</param>
