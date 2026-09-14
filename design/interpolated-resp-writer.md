@@ -657,6 +657,32 @@ works, or callers are forced into `try`/`finally`.
 
 ### 4.1 `Compose` / `Execute(ref cmd)` — the shape for optional arguments
 
+> **`cmd.Append($"…")`.** A conditional fragment is now written the same way as the command itself:
+> ```csharp
+> var cmd = ctx.Compose($"{RedisCommand.SET}{key}{value}");
+> if (withTtl) cmd.Append($"{RespLiterals.EX}{ttl}");
+> using var frame = ctx.Execute(ref cmd);
+> ```
+> rather than a sequence of `AppendFormatted` calls whose order is the caller's to keep straight.
+>
+> **It moves the command rather than proxying to it.** The obvious design — a handler holding
+> `ref RespCommandHandler` and forwarding each call — does not compile on **any** target: *CS9050, a ref
+> field cannot refer to a ref struct*. That is a language rule, not a down-level runtime gap, so narrowing
+> the target frameworks would not have helped. (netfx adds CS9064 on top, but it is not the blocker.)
+>
+> So the command is copied into the handler, appended to, and assigned back. Both structs reference the
+> same pooled array during that window, but only the copy is touched and the original is overwritten the
+> moment the window closes — **including when a growth inside the window swapped the array**, which is the
+> case that distinguishes a move from a share, and has its own test.
+>
+> Two things make it legal, both worth knowing because the errors are opaque:
+> `Append` is an **extension** with an explicit `ref` parameter rather than an instance method, because as
+> an instance method the compiler must pass `ref this` into the handler's constructor and then refuses the
+> call (CS8350/CS8352); and that parameter is **`scoped`**, which is how "this reference does not escape"
+> is said. The call site is identical either way.
+
+
+
 Implemented in the spike (§9):
 
 ```csharp
