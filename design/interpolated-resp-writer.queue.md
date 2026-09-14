@@ -119,7 +119,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] `RespResult` as a built-in result type (the NRedisStack path) — `4b4a7434`
 - [x] `ReadOnlyLease<byte>`, and retiring the mutable `ReadLease` spelling — `9a1a37bf`
 - [x] Ad-hoc `ExecuteAsync` returning `RespResult`, on the context and on `IRespTarget`; `ExecuteResp`
-      wired through `TransitionalDatabase` — this change
+      wired through `TransitionalDatabase` — `30d28d70`
+- [x] `RespResult` shares the reply buffer instead of copying it — this change
 
 ## Decided against
 

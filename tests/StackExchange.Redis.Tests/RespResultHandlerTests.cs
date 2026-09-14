@@ -101,6 +101,68 @@ public class RespResultHandlerTests
     }
 
     [Fact]
+    public async Task ItSharesTheReplyBufferRatherThanCopyingIt()
+    {
+        // THE point. A RespResult exposes only readers, so nothing can write through it - which is what
+        // makes it safe to hand back a view of memory the pipeline (or the cache) still owns. The proof is
+        // the reference count: sharing takes one, copying would not.
+        var payload = RespPayload.Create(Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));
+        Assert.Equal(1, payload.RefCount);
+
+        var handler = (IRespPayloadHandler<RespResult>)RespHandlers.Result;
+        using var result = handler.Parse(payload);
+
+        Assert.Equal(2, payload.RefCount);                 // shared, not copied
+        Assert.Equal("hello", result.ReadScalar().ReadString());
+
+        // and it survives the pipeline letting go of its own reference, which happens the instant parsing
+        // returns - a result that had merely borrowed the bytes would be reading a recycled buffer here
+        payload.Release();
+        Assert.Equal(1, payload.RefCount);
+        Assert.Equal("hello", result.ReadScalar().ReadString());
+    }
+
+    [Fact]
+    public void DisposingTheResultGivesTheReferenceBack()
+    {
+        var payload = RespPayload.Create(Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));
+        var handler = (IRespPayloadHandler<RespResult>)RespHandlers.Result;
+
+        var result = handler.Parse(payload);
+        Assert.Equal(2, payload.RefCount);
+
+        result.Dispose();
+        Assert.Equal(1, payload.RefCount);
+
+        payload.Release();
+    }
+
+    [Fact]
+    public async Task ACacheHitSharesTheStoredEntry()
+    {
+        // the case the whole exercise is about: a cached reply costs a reference, not a memcpy - and
+        // sharing a cache entry pins nothing extra, because the entry holds that buffer anyway
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+        var context = Context(executor, cache);
+
+        using (var first = await context.SendAsync<RespResult>(
+            $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly))
+        {
+            Assert.Equal("hello", first.ReadScalar().ReadString());
+        }
+
+        using var second = await context.SendAsync<RespResult>(
+            $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly);
+
+        Assert.Equal(1, executor.Sends);   // the second was a cache hit
+        Assert.Equal("hello", second.ReadScalar().ReadString());
+
+        // the entry and this result both hold the same buffer
+        Assert.True(second.RefCount >= 2, $"expected a shared reference, saw {second.RefCount}");
+    }
+
+    [Fact]
     public async Task TheResultOutlivesTheReplyItCameFrom()
     {
         // the pipeline releases its own reference as soon as Parse returns, so a result that did not own

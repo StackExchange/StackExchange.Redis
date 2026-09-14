@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
@@ -65,6 +65,17 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>The number of live references; zero once the blob is back in the pool.</summary>
         internal int RefCount => _lease.RefCount;
+
+        /// <summary>
+        /// This reply as a <see cref="RespResult"/> that <b>shares</b> these bytes rather than copying them.
+        /// </summary>
+        /// <returns>The reply, or <c>null</c> if the buffer had already gone.</returns>
+        /// <remarks>
+        /// Internal on purpose. Handing out the buffer identity is how zero-copy is possible at all, and it
+        /// is only safe because <see cref="RespResult"/> exposes nothing that can write through it - so it
+        /// is a privilege the library keeps rather than an option callers get.
+        /// </remarks>
+        internal RespResult? ShareAsResult() => RespResult.Share(_lease, _offset, _length);
 
         /// <summary>
         /// Take a reference, so the blob cannot be recycled while it is being read. Returns <c>false</c> if

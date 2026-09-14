@@ -63,6 +63,30 @@ namespace StackExchange.Redis.Interpolated
     }
 
     /// <summary>
+    /// A handler whose result <b>retains</b> the reply's buffer, and therefore needs the payload itself
+    /// rather than a view of its bytes.
+    /// </summary>
+    /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
+    /// <remarks>
+    /// <para>
+    /// <b>Internal, deliberately.</b> A <see cref="ReadOnlySpan{T}"/> cannot carry buffer identity, so a
+    /// handler given one can only ever copy - which is right for the general case and for anything supplied
+    /// from outside. Retaining the buffer instead is safe only for a result that cannot write through it,
+    /// and judging that is a privilege the library keeps rather than an option it offers.
+    /// </para>
+    /// <para>
+    /// Implementations must take their own reference; the pipeline releases its own as soon as parsing
+    /// returns.
+    /// </para>
+    /// </remarks>
+    internal interface IRespPayloadHandler<out TResult> : IRespHandler<TResult>
+    {
+        /// <summary>Parse the reply, optionally retaining its buffer.</summary>
+        /// <param name="payload">The reply; take a reference if the result outlives this call.</param>
+        TResult Parse(RespPayload payload);
+    }
+
+    /// <summary>
     /// EXPERIMENTAL SPIKE. Sending a request, with or without a client-side cache.
     /// </summary>
     /// <remarks>
@@ -99,7 +123,16 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// </remarks>
         private static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
-            => response is null ? default! : handler.Parse(response.Span);
+            => response switch
+            {
+                null => default!,
+
+                // a handler whose result retains the buffer needs the payload, not a view of it; one test,
+                // in the one place every reply already funnels through
+                _ when handler is IRespPayloadHandler<TResult> retaining => retaining.Parse(response),
+
+                _ => handler.Parse(response.Span),
+            };
 
         /// <summary>
         /// Send a request and parse the reply, optionally serving it from - and populating - the context's cache.
@@ -360,7 +393,7 @@ namespace StackExchange.Redis.Interpolated
             request.Dispose();
             try
             {
-                result = handler.Parse(hit.Span);
+                result = Parse(handler, hit);
                 return true;
             }
             finally
@@ -443,7 +476,7 @@ namespace StackExchange.Redis.Interpolated
                 {
                     try
                     {
-                        return handler.Parse(hit.Span);
+                        return Parse(handler, hit);
                     }
                     finally
                     {

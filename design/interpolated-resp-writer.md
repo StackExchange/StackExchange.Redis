@@ -2298,6 +2298,31 @@ cache hit. Per-type rules do not work, because the *same* type is safe in one to
 also makes it immune to the streaming case that makes a byte-lease conditional (a chunked scalar has to be
 assembled to be handed over as bytes; it does not have to be assembled to be *stored*).
 
+#### Built: `RespResult` shares the buffer
+
+The blit is gone on the path that matters most. `RespResult.Share(buffer, offset, length)` takes a
+reference instead of renting and copying, and the handler reaches it through an **internal**
+`IRespPayloadHandler<T>` — because a `ReadOnlySpan<byte>` cannot carry buffer identity (see below), and
+judging when retaining is safe is a privilege the library keeps rather than an option it offers.
+
+Three things this needed:
+
+- **`RespResult` had to learn to be a window.** `RawSpan` was `_buffer.GetSpan()` — buffer *is* frame —
+  whereas a cached `RespPayload` is `(lease, offset, length)` inside a larger one. It now carries the
+  offset and length, and `Read`/`ReadScalar` slice accordingly while still passing the buffer as a reader
+  service, which is what lets a lease taken from the reply reserve against it in turn.
+- **One dispatch point.** The executor's `Parse` helper tests for the payload-aware shape once; every reply
+  already funnelled through it. **Except the two cache-hit paths, which called `handler.Parse(hit.Span)`
+  directly** — so the first version shared on a fresh reply and quietly copied on a cache hit, which is
+  precisely backwards. Caught by asserting the reference count rather than the bytes.
+- **A fallback that does not resurrect.** `TryAddRef` is increment-if-nonzero, so losing the race against
+  the final release yields `null` and the handler copies. Winning it by any other means would hand back a
+  buffer already on its way to the pool.
+
+Why this is safe where a byte lease would not be: `RespResult` exposes only `RespReader`, so nothing can
+write through it. And sharing a *cache entry* pins nothing extra — the entry holds that buffer for its own
+lifetime regardless — so this is the case where sharing is both safe and free.
+
 #### Decided: share internally, copy on the way out
 
 The interpolated surface **always copies what it hands to a caller**. Not a retreat — three reasons, and the

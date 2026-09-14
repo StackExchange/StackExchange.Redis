@@ -239,8 +239,21 @@ namespace StackExchange.Redis.Interpolated
         /// notes 6.16.
         /// </para>
         /// </remarks>
-        private sealed class RespResultHandler : IRespHandler<RespResult>
+        private sealed class RespResultHandler : IRespPayloadHandler<RespResult>
         {
+            /// <summary>
+            /// Share the reply's buffer rather than copying it - one more reference, not a second copy.
+            /// </summary>
+            /// <remarks>
+            /// The whole reason <c>RespResult</c> is the general-purpose result type: it exposes only
+            /// readers, so nothing can write through it, which is what makes sharing memory that is still
+            /// owned elsewhere safe. Falls back to a copy if the buffer has already gone - losing that race
+            /// means it is on its way back to the pool, and resurrecting it is exactly what must not happen.
+            /// </remarks>
+            public RespResult Parse(RespPayload payload)
+                => payload.ShareAsResult() ?? RespResult.Capture(payload.Span);
+
+            /// <summary>The copying path, for a caller who only has the bytes.</summary>
             public RespResult Parse(ReadOnlySpan<byte> response) => RespResult.Capture(response);
         }
 
