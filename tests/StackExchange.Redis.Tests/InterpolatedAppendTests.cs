@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Reflection;
 using System.Text;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -20,6 +22,23 @@ public partial class InterpolatedAppendTests
 #pragma warning disable SER011 // stands in for the generator
         internal static RespFragment EX => new("$2\r\nEX\r\n"u8);
 #pragma warning restore SER011
+    }
+
+    [Fact]
+    public void AnAppendAcceptsExactlyWhatTheCommandDoes()
+    {
+        // by construction, not by keeping two lists aligned: the handler for an append IS the command
+        // handler, so there is one set of overloads and nothing to fall out of step. An earlier design
+        // used a separate proxy type and needed a test to guard exactly this.
+        var accepted = typeof(RespCommandHandler)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == "AppendFormatted")
+            .Select(m => m.GetParameters().Single().ParameterType.Name)
+            .ToArray();
+
+        Assert.Contains("RedisKey", accepted);
+        Assert.Contains("RedisValue", accepted);
+        Assert.Contains("RespFragment", accepted);
     }
 
     [Theory]

@@ -665,7 +665,7 @@ works, or callers are forced into `try`/`finally`.
 > ```
 > rather than a sequence of `AppendFormatted` calls whose order is the caller's to keep straight.
 >
-> **It moves the command rather than proxying to it.** The obvious design — a handler holding
+> **It moves the command rather than referring to it.** The obvious design — a handler holding
 > `ref RespCommandHandler` and forwarding each call — does not compile on **any** target: *CS9050, a ref
 > field cannot refer to a ref struct*. That is a language rule, not a down-level runtime gap, so narrowing
 > the target frameworks would not have helped. (netfx adds CS9064 on top, but it is not the blocker.)
@@ -674,6 +674,14 @@ works, or callers are forced into `try`/`finally`.
 > same pooled array during that window, but only the copy is touched and the original is overwritten the
 > moment the window closes — **including when a growth inside the window swapped the array**, which is the
 > case that distinguishes a move from a share, and has its own test.
+>
+> **There is only one handler type**, which is what makes this safe rather than merely neat. A separate
+> proxy type would need its `AppendFormatted` overloads kept in step with the command handler's - and the
+> failure would be quiet, since adding one there without adding it here just makes `cmd.Append($"{x}")`
+> stop compiling, with nothing to say why it works in the command and not in the append. The handler for
+> an append simply **is** the command handler, so an append accepts exactly what the command does by
+> construction. (That guard was written, as a reflection test, before the single-type version replaced the
+> need for it.)
 >
 > Two things make it legal, both worth knowing because the errors are opaque:
 > `Append` is an **extension** with an explicit `ref` parameter rather than an instance method, because as

@@ -298,6 +298,33 @@ namespace StackExchange.Redis.Interpolated
             _argIndex++;
         }
 
+        /// <summary>
+        /// Continue an existing command, for <c>cmd.Append($"...")</c>.
+        /// </summary>
+        /// <param name="literalLength">Total length of the literal segments; compiler-supplied.</param>
+        /// <param name="formattedCount">Number of holes; compiler-supplied.</param>
+        /// <param name="command">The command being built; moved in, and moved back out by <c>Append</c>.</param>
+        /// <remarks>
+        /// <para>
+        /// The handler for an append <b>is</b> the command handler, so there is exactly one set of
+        /// <c>AppendFormatted</c> overloads and no way for a proxy to fall out of step with it. A separate
+        /// proxy type was the obvious design and it could not even hold a reference to its target:
+        /// <c>CS9050, a ref field cannot refer to a ref struct</c>, on every target.
+        /// </para>
+        /// <para>
+        /// It <b>moves</b> rather than shares. The command is copied in here, appended to, and assigned
+        /// back by <c>Append</c>. Both copies reference the same pooled array in between, but only this one
+        /// is touched, and the original is overwritten as the window closes - including when a growth
+        /// inside the window swapped the array, which is what separates a move from a share.
+        /// </para>
+        /// </remarks>
+        public RespCommandHandler(int literalLength, int formattedCount, scoped ref RespCommandHandler command)
+        {
+            _ = literalLength;
+            _ = formattedCount;
+            this = command;
+        }
+
         /// <summary>Append a key: prefixed, marked for invalidation, and folded into the cluster slot.</summary>
         /// <param name="value">The key to append.</param>
         public void AppendFormatted(RedisKey value)
