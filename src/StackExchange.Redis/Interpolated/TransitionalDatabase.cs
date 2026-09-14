@@ -31,10 +31,29 @@ namespace StackExchange.Redis.Interpolated
     /// </para>
     /// </remarks>
     [AutoDatabase(WarnIfIncomplete = true)]
-    internal sealed partial class TransitionalDatabase(RespDatabase inner, IConnectionMultiplexer multiplexer, object? asyncState)
+    internal sealed partial class TransitionalDatabase(RespDatabase inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
         : IDatabase
     {
         private readonly RespDatabase _inner = inner;
+
+        /// <summary>
+        /// An old-surface database to forward not-yet-moved commands to, or <see langword="null"/> to throw.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>This is what lets the EXISTING test suite be the proof.</b> Given a fallback, an instance of
+        /// this class is a drop-in <see cref="IDatabase"/> that happens to route the moved commands through
+        /// the new write path and everything else through the old one - so <c>StringTests</c> runs
+        /// unmodified against it and every assertion in it becomes an assertion about the new surface. The
+        /// alternative is a parallel suite that re-states the same expectations and drifts.
+        /// </para>
+        /// <para>
+        /// Deliberately <b>not</b> the default: without a fallback the throw is the point (see the type
+        /// remarks), and a production transitional database that silently forwards would make "has this
+        /// moved?" unanswerable. It is opt-in, and the only thing that opts in is a test harness.
+        /// </para>
+        /// </remarks>
+        private readonly IDatabase? _fallback = fallback;
 
         /// <inheritdoc/>
         public RespContext Context => _inner.Context;
@@ -49,24 +68,31 @@ namespace StackExchange.Redis.Interpolated
         public IConnectionMultiplexer Multiplexer => multiplexer;
 
         // ---- [AutoDatabase] funnels ---------------------------------------------------------------------
-        // Every member this class does not implement lands here. There is no inner IDatabase to replay
-        // against - that is the whole point - so the captured state is never invoked, and the throw names
-        // the member so the message says which command still needs moving.
+        // Every member this class does not implement lands here. Normally there is no inner IDatabase to
+        // forward to - that is the whole point - so the captured state is never invoked, and the throw
+        // names the member so the message says which command still needs moving. A test harness can supply
+        // a fallback, and then the capture is invoked against it exactly once; see _fallback.
         private TResult Execute<TState, TResult>(in TState state, AutoDatabaseSyncOperation<TState, TResult> operation)
             where TState : struct
-            => throw NotMoved<TState>();
+            => _fallback is { } db ? operation(in state, db) : throw NotMoved<TState>();
 
         private void Execute<TState>(in TState state, AutoDatabaseSyncOperation<TState> operation)
             where TState : struct
-            => throw NotMoved<TState>();
+        {
+            if (_fallback is not { } db) throw NotMoved<TState>();
+            operation(in state, db);
+        }
 
         private Task<TResult> ExecuteAsync<TState, TResult>(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
             where TState : struct
-            => throw NotMoved<TState>();
+            => _fallback is { } db ? operation(in state, db) : throw NotMoved<TState>();
 
         private Task ExecuteAsync<TState>(in TState state, AutoDatabaseAsyncOperation<TState> operation)
             where TState : struct
-            => throw NotMoved<TState>();
+            => _fallback is { } db ? operation(in state, db) : throw NotMoved<TState>();
+
+        /// <summary>The fallback, or a throw naming what is missing.</summary>
+        private IDatabase Fallback<TState>() => _fallback ?? throw NotMoved<TState>();
 
         private static NotImplementedException NotMoved<TState>()
             => new($"This command has not yet moved to the RESP context surface (captured as '{typeof(TState).Name}').");
@@ -131,19 +157,24 @@ namespace StackExchange.Redis.Interpolated
         }
 
         // ---- members the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod) -------------
-        public IBatch CreateBatch(object? asyncState = null) => throw new NotImplementedException();
+        // These take the fallback too, so a harness that supplies one gets a complete IDatabase rather than
+        // one with holes in exactly the places a test suite reaches for scaffolding.
+        public IBatch CreateBatch(object? asyncState = null)
+            => Fallback<IBatch>().CreateBatch(asyncState);
 
-        public ITransaction CreateTransaction(object? asyncState = null) => throw new NotImplementedException();
+        public ITransaction CreateTransaction(object? asyncState = null)
+            => Fallback<ITransaction>().CreateTransaction(asyncState);
 
         ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
 
-        public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
+        public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Fallback<RedisKey>().IsConnected(key, flags);
 
         public System.Net.EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => throw new NotImplementedException();
+            => Fallback<RedisKey>().IdentifyEndpoint(key, flags);
 
         public Task<System.Net.EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => throw new NotImplementedException();
+            => Fallback<RedisKey>().IdentifyEndpointAsync(key, flags);
 
         // the Wait family operates on caller-supplied Tasks, not server calls
         #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
