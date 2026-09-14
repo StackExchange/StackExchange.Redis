@@ -22,6 +22,9 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnFlush() -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnInvalidate(System.ReadOnlySpan<byte> key) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RedundantFills.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Coalesced.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.InFlightCount.get -> int
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryAwaitInFlight(in StackExchange.Redis.Interpolated.RespRequest frame, int database, out System.Threading.Tasks.Task? pending) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedByFlags.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedError.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedNoKeys.get -> long

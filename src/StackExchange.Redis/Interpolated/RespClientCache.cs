@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
 
@@ -43,6 +44,9 @@ namespace StackExchange.Redis.Interpolated
     public sealed class RespClientCache : IDisposable
     {
         private readonly ConcurrentDictionary<EntryKey, Entry> _entries = new();
+
+        /// <summary>Requests currently being fetched, so concurrent misses can wait rather than pile on.</summary>
+        private readonly ConcurrentDictionary<EntryKey, InFlight> _inFlight = new();
         private readonly RespKeyTable _keys;
         private long _stored;
         private long _refusedByFlags;
@@ -50,6 +54,7 @@ namespace StackExchange.Redis.Interpolated
         private long _refusedRaced;
         private long _redundantFills;
         private long _refusedError;
+        private long _coalesced;
 
         /// <summary>Create a cache.</summary>
         /// <param name="keyCapacity">Initial size hint for the tracked-key table.</param>
@@ -97,6 +102,19 @@ namespace StackExchange.Redis.Interpolated
         /// hot key re-fetch at once. See the design notes, section 6.11.
         /// </remarks>
         public long RedundantFills => Volatile.Read(ref _redundantFills);
+
+        /// <summary>Misses that waited for a request already in flight instead of sending their own.</summary>
+        /// <remarks>
+        /// The stampedes that did <b>not</b> happen, and the direct counterpart of
+        /// <see cref="RedundantFills"/>: before single-flight every one of these was a duplicate round trip.
+        /// Watching the two together is the useful thing - coalesced rising while redundant stays flat is
+        /// the shape you want, and redundant rising with it means requests are arriving faster than the
+        /// leader can register, or their dependencies are changing under them. See design notes 6.15.
+        /// </remarks>
+        public long Coalesced => Volatile.Read(ref _coalesced);
+
+        /// <summary>Requests currently in flight with at least one waiter attached.</summary>
+        public int InFlightCount => _inFlight.Count;
 
         /// <summary>Fills refused because the reply was an error.</summary>
         /// <remarks>
@@ -237,15 +255,92 @@ namespace StackExchange.Redis.Interpolated
                 deps[i] = new Dependency(node, generation);
             }
 
-            fill = new RespFill(frame.Detach(flags), database, deps);
+            var key = frame.Detach(flags);
+
+            // Register as the leader for this request, so concurrent misses can wait on us instead of each
+            // sending their own copy. Losing the race is not a failure: we simply lead without a slot, which
+            // is exactly the behaviour before single-flight existed, and RedundantFills still counts it.
+            var slot = new InFlight(deps);
+            if (!_inFlight.TryAdd(new EntryKey(key, database), slot)) slot = null;
+
+            fill = new RespFill(key, database, deps, this, slot);
             return true;
         }
 
         /// <summary>
-        /// Complete a fill, storing the response only if nothing it depends on was invalidated while the
-        /// command was in flight.
+        /// Wait for a request that is <b>already in flight</b> rather than sending a second copy of it.
         /// </summary>
-        /// <returns><c>false</c> if the fill was abandoned; the response must not be cached.</returns>
+        /// <param name="frame">The rendered request.</param>
+        /// <param name="database">The database the request runs against.</param>
+        /// <param name="pending">Completes when the leader's reply has been dealt with.</param>
+        /// <returns><c>true</c> if there was something to wait for.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>The wait yields no value</b> - the caller re-probes the cache afterwards. Handing the leader's
+        /// payload across is the obvious design and it is worse: the payload is reference-counted, so a
+        /// waiter resuming after the leader released its reference would have to be handed a dead buffer or
+        /// a racily-retained one. Re-probing reuses <see cref="TryGet"/>, whose retain-and-recheck is
+        /// already correct, and gives the right answer for free when the leader's reply turned out not to be
+        /// cacheable at all.
+        /// </para>
+        /// <para>
+        /// <b>Attaching is refused if anything the leader depends on has changed since it sent.</b> This is
+        /// the read-your-own-writes case: if this process wrote one of those keys after the leader's send,
+        /// the reply in flight predates the write, and serving it would be observably wrong rather than
+        /// merely stale. The check is <see cref="Dependency.AllValid"/> - the same invariant that decides
+        /// whether a fill may be <i>stored</i> decides whether a waiter may <i>attach</i>.
+        /// </para>
+        /// <para>
+        /// Sharing is sound otherwise because no observer can tell the difference: the leader sent at T0,
+        /// the waiter arrived at T greater than T0, the reply lands at T1 greater than T. Had the waiter
+        /// sent its own request at T it would have been answered at about T1 too, so the shared reply is a
+        /// legitimate answer to its read. See design notes section 6.15.
+        /// </para>
+        /// </remarks>
+        public bool TryAwaitInFlight(in RespRequest frame, int database, [NotNullWhen(true)] out Task? pending)
+        {
+            if (_inFlight.TryGetValue(new EntryKey(frame, database), out var slot)
+                && Dependency.AllValid(slot.Dependencies))
+            {
+                Interlocked.Increment(ref _coalesced);
+                pending = slot.Completion;
+                return true;
+            }
+
+            pending = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Release this fill's in-flight registration, waking anything that attached to it.
+        /// </summary>
+        /// <remarks>
+        /// <b>Remove before publishing.</b> The other order leaves a window in which a woken waiter re-probes
+        /// the cache, misses, and re-attaches to a registration that is about to be removed - waiting on a
+        /// reply that has already arrived. Removing first makes the registration unreachable before anyone
+        /// is told to look again.
+        /// <para>
+        /// Idempotent, and a no-op for a fill that lost the race to register (which leads anyway - see
+        /// <see cref="TryBeginFill(ref RespFrame, int, CommandFlags, out RespFill)"/>).
+        /// </para>
+        /// </remarks>
+        internal void Unregister(in RespFill fill)
+        {
+            // MUST run while fill.Key is still alive: the key is the dictionary key, so removing it hashes
+            // and compares the buffer. Completing a fill disposes that key, so this cannot be folded into
+            // the finally alongside Publish.
+            if (fill.Slot is InFlight) _inFlight.TryRemove(new EntryKey(fill.Key, fill.Database), out _);
+        }
+
+        /// <summary>Wake anything waiting on this fill, once its result is visible.</summary>
+        /// <remarks>
+        /// Strictly after <see cref="Unregister"/>, so a woken waiter that misses cannot re-attach to a
+        /// registration whose reply has already arrived and wait for a second one that never comes. A waiter
+        /// arriving in the gap between the two finds neither a registration nor an entry and sends for
+        /// itself - a missed coalescing opportunity, not a wrong answer.
+        /// </remarks>
+        internal static void Publish(in RespFill fill) => (fill.Slot as InFlight)?.Publish();
+
         /// <summary>
         /// Complete a fill, storing the reply only if nothing it depends on was invalidated while the
         /// command was in flight.
@@ -264,6 +359,22 @@ namespace StackExchange.Redis.Interpolated
             if (response is null) throw new ArgumentNullException(nameof(response));
             if (fill.Key.IsEmpty) return false;
 
+            Unregister(in fill);
+            try
+            {
+                return TryCompleteCore(in fill, response);
+            }
+            finally
+            {
+                // AFTER the store, on every path including the refusals: a waiter wakes and re-probes the
+                // cache, so it must not be woken before there is anything to find. Refusals wake them too -
+                // they then miss and fetch for themselves, which is what they would have done anyway.
+                Publish(in fill);
+            }
+        }
+
+        private bool TryCompleteCore(in RespFill fill, RespPayload response)
+        {
             if (!IsCacheableReply(response.Span))
             {
                 Interlocked.Increment(ref _refusedError);
@@ -465,6 +576,24 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        /// <summary>A request currently being fetched, and what it depended on when it was sent.</summary>
+        /// <remarks>
+        /// <see cref="TaskCreationOptions.RunContinuationsAsynchronously"/> so that completing a fill never
+        /// runs a waiter's continuation - and therefore its parse - on the thread that is finishing the
+        /// leader's own reply.
+        /// </remarks>
+        private sealed class InFlight(Dependency[] dependencies)
+        {
+            private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            internal Dependency[] Dependencies { get; } = dependencies;
+
+            internal Task Completion => _completion.Task;
+
+            /// <summary>Release the waiters; they re-probe the cache for themselves.</summary>
+            internal void Publish() => _completion.TrySetResult(true);
+        }
+
         private sealed class Entry(RespPayload payload, Dependency[] dependencies)
         {
             internal RespPayload Payload { get; } = payload;
@@ -490,11 +619,13 @@ namespace StackExchange.Redis.Interpolated
         [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
         public readonly struct RespFill
         {
-            internal RespFill(RespRequest key, int database, Dependency[] dependencies)
+            internal RespFill(RespRequest key, int database, Dependency[] dependencies, RespClientCache? owner = null, object? slot = null)
             {
                 Key = key;
                 Database = database;
                 Dependencies = dependencies;
+                Owner = owner;
+                Slot = slot;
             }
 
             internal RespRequest Key { get; }
@@ -503,8 +634,27 @@ namespace StackExchange.Redis.Interpolated
 
             internal Dependency[] Dependencies { get; }
 
+            /// <summary>
+            /// The in-flight registration to release when this fill ends, if this fill won the race to make
+            /// one. Typed as <see cref="object"/> because the slot type is private to the cache.
+            /// </summary>
+            internal object? Slot { get; }
+
+            /// <summary>The cache that issued this fill, and which owns releasing the registration.</summary>
+            internal RespClientCache? Owner { get; }
+
             /// <summary>Abandon the fill without caching anything.</summary>
-            public void Abandon() => Key.Dispose();
+            /// <remarks>
+            /// Waiters are released here too. A failed request that kept its registration would strand
+            /// everyone who attached to it until their own cancellation fired - and they would be waiting on
+            /// a reply that is never coming.
+            /// </remarks>
+            public void Abandon()
+            {
+                Owner?.Unregister(in this); // while Key is still alive - it is the dictionary key
+                Publish(in this);
+                Key.Dispose();
+            }
         }
     }
 }

@@ -121,10 +121,25 @@ namespace StackExchange.Redis.Interpolated
             {
                 if (TryServeFromCache(executor, ref request, handler, cache, out var cached)) return cached;
 
+                // NOTE: no in-flight wait here. Coalescing means waiting on someone else's Task, and doing
+                // that from a synchronous caller is the sync-over-async problem this design avoids
+                // elsewhere; sync callers therefore still send their own copy, exactly as before. Sync is
+                // deprioritised (see TransitionalDatabase), so this is a deliberate gap rather than an
+                // oversight - it closes when the executor gains a synchronous wait.
                 if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
                 {
-                    // generations captured above, BEFORE this send
-                    var filled = executor.Send(fill.Key);
+                    RespPayload filled;
+                    try
+                    {
+                        // generations captured above, BEFORE this send
+                        filled = executor.Send(fill.Key);
+                    }
+                    catch
+                    {
+                        fill.Abandon(); // release any waiters, and the key
+                        throw;
+                    }
+
                     try
                     {
                         cache.TryComplete(fill, filled);
@@ -187,6 +202,13 @@ namespace StackExchange.Redis.Interpolated
                 if (TryServeFromCache(executor, ref request, handler, cache, out var cached))
                 {
                     return new ValueTask<TResult>(cached);
+                }
+
+                // somebody is already fetching exactly this - wait for them instead of sending a second
+                // copy. See design notes 6.15; this is the whole of the stampede fix at the call site.
+                if (cache.TryAwaitInFlight(request.AsLookupKey(), executor.Database, out var pending))
+                {
+                    return AwaitShared(executor, request.Detach(flags), pending, handler, cache, cancellationToken);
                 }
 
                 if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
@@ -327,7 +349,19 @@ namespace StackExchange.Redis.Interpolated
             RespClientCache cache,
             CancellationToken cancellationToken)
         {
-            var response = await executor.SendAsync(fill.Key, cancellationToken).ConfigureAwait(false);
+            RespPayload response;
+            try
+            {
+                response = await executor.SendAsync(fill.Key, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                // a fill that never completes strands its waiters on a reply that is never coming, and
+                // leaks the key; Abandon does both halves
+                fill.Abandon();
+                throw;
+            }
+
             try
             {
                 cache.TryComplete(fill, response);
@@ -336,6 +370,66 @@ namespace StackExchange.Redis.Interpolated
             finally
             {
                 response.Release();
+            }
+        }
+
+        /// <summary>
+        /// Wait for a request already in flight, then take the answer from the cache.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The wait carries no value; the leader's payload is reference-counted and handing it across
+        /// threads would mean racing its release. Re-probing instead reuses <c>TryGet</c>'s retain-and-
+        /// recheck, and is automatically right when the leader's reply turned out not to be cacheable.
+        /// </para>
+        /// <para>
+        /// The fallback send is not a failure path - it is what this caller would have done anyway without
+        /// coalescing, so the worst case is exactly today's behaviour plus one wait.
+        /// </para>
+        /// <para>
+        /// The wait is bounded by the leader's own request rather than by this caller's token: the leader
+        /// always completes its fill, including when it throws. A caller with a shorter deadline than the
+        /// leader therefore waits longer than it asked to, which is the one rough edge here.
+        /// </para>
+        /// </remarks>
+        private static async ValueTask<TResult> AwaitShared<TResult>(
+            IRespExecutor executor,
+            RespRequest owned,
+            Task pending,
+            IRespHandler<TResult> handler,
+            RespClientCache cache,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await pending.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (cache.TryGet(owned, executor.Database, out var hit))
+                {
+                    try
+                    {
+                        return handler.Parse(hit.Span);
+                    }
+                    finally
+                    {
+                        hit.Release();
+                    }
+                }
+
+                var response = await executor.SendAsync(owned, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return handler.Parse(response.Span);
+                }
+                finally
+                {
+                    response.Release();
+                }
+            }
+            finally
+            {
+                owned.Dispose();
             }
         }
 

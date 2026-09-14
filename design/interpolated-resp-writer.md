@@ -1998,6 +1998,146 @@ Two things still to settle:
 cache (`OnFlush()` exists; nothing calls it on disconnect), and there is no TTL of any kind today.
 
 
+### 6.15 Stampedes: single-flight, and stale-while-revalidate
+
+Reported from the field (Microsoft, on HybridCache): expiry and invalidation both produce **stampedes** —
+the moment an entry goes, every concurrent reader of a hot key misses at once and they all hit the server
+together.
+
+**We already measure this and do nothing about it.** `RedundantFills` counts exactly these collisions, and
+its test says so in as many words: *"two callers miss on the same request and both go to the server -
+exactly what request combining would have collapsed into one round trip"*. So the counter is a meter, not a
+mitigation.
+
+There are **two** mechanisms, and they are usually conflated:
+
+- **Single-flight** — N concurrent misses on the same request become one round trip with N waiters. The
+  direct fix.
+- **Stale-while-revalidate (SWR)** — serve the old value while a refresh runs, so the window in which a
+  stampede is even possible mostly stops existing.
+
+They are not independent: if N readers cross the refresh threshold together, the *background refresh* is
+itself a stampede. So SWR's "refresh once" is single-flight wearing a different hat, and single-flight is
+the thing to build first — it stands alone, and everything else needs it.
+
+#### Single-flight, and why sharing a reply is sound
+
+A waiter attaching to an in-flight request gets that request's reply. The justification is an ordering one:
+the leader sent at T0, the waiter attached at T > T0, the reply lands at T1 > T. Had the waiter sent its
+own request at T, it would have been answered at about T1 as well. **No linearisation the waiter can
+observe distinguishes the two**, so the shared reply is a legitimate answer to its read.
+
+That argument has exactly one hole, and it is the same hole as everywhere else in this design:
+**read-your-own-writes**. If the waiter (or anything else in this process) wrote the key after T0, the
+leader's in-flight reply predates the write, and returning it is observably wrong — that gets reported as
+corruption, not as staleness.
+
+The fix reuses machinery that already exists. Writes invalidate locally (§6.13), which bumps the key's
+generation; the leader records the generation it sent at, and a waiter may attach **only if the dependency
+generations still match**. That is `Dependency.AllValid` (§6.6) — the same invariant that decides whether a
+fill may be *stored* decides whether a waiter may *attach*. If it fails, the waiter simply goes its own
+way.
+
+Sharing the reply is also already safe for lifetime: entries hold a refcounted blob lease, so each waiter
+takes its own reference and the reply outlives the leader.
+
+#### Stale-while-revalidate on expiry
+
+Falls straight out of the TTL work in §6.14 — two thresholds instead of one, both contextual and applied on
+read:
+
+| age | behaviour |
+|---|---|
+| `< soft` | fresh hit |
+| `soft ≤ age < hard` | **serve stale**, and trigger a refresh, once |
+| `≥ hard` | miss |
+
+The once-only flag lives on the *shared entry* while the thresholds are *per-context*. That is right rather
+than a compromise: whoever crosses their own soft bar first triggers a refresh everyone benefits from. The
+flag must clear on failure as well as success, with backoff — otherwise one failing server leaves the entry
+pinned stale until hard expiry.
+
+#### Stale-while-revalidate on invalidation
+
+Also possible, under "you cannot prove the order, so any order is valid" — but **only for third-party
+writes**. An invalidation we caused ourselves is not a race, it is a fact, and serving through it breaks
+read-your-own-writes.
+
+The carve-out needs no new bookkeeping:
+
+- **local invalidation** (we wrote it, on any connection — the cache is global, §6.14) → **hard drop**
+- **server push** → eligible for the soft window
+
+and because the local invalidation happens *before* the echoed push arrives, our own write's entry is
+already gone when that push lands. Ordering does the work.
+
+**Measure the window from first notice, not from the invalidation.** Measuring from the invalidation means
+a timestamp on the key node in table 2 — eight more bytes per node, on the `OnInvalidate` path that is
+currently ~5-6ns and allocation-free, which is not a path to disturb for this. First-notice needs one field
+on the entry, and is the better semantic anyway: the window is "how long we serve stale while a refresh is
+in flight", which is a fact about refresh latency, not about when somebody else wrote.
+
+#### The refresh needs no factory, because we already hold the request
+
+Most caches cannot refresh themselves. The key is an opaque string, so the cache must be *handed* a way to
+recompute the value — and `HybridCache` pays a real price for that: its `(TState, Func<TState, TResult>)`
+shape exists specifically to avoid a lambda allocation per call, which is awkward to use and keeps
+arbitrary caller objects alive for as long as the operation is pending. For a *background* refresh it is
+worse again, because the state and the delegate would have to be retained on the entry, pinning user
+objects inside the cache for as long as the entry lives.
+
+None of that applies here, and it falls straight out of §6: **the cache key IS the rendered request**. To
+refresh an entry we re-send its own key. No factory, no captured state, no delegate, nothing of the
+caller's retained — the only thing held is the pooled buffer the cache already owns, and `Detach` preserves
+the original `CommandFlags` so the refresh goes out exactly as the original did.
+
+It is also **handler-agnostic**: the cache stores the raw reply and parsing happens per-caller, so a
+refresh does not need to know what anybody intended to turn the bytes into. That is what makes a background
+refresh a few lines rather than a design.
+
+#### Risks to design for, not discover
+
+- **Compounding staleness on a hot-written key.** Every refresh is invalidated in flight, `AllValid`
+  correctly refuses the store, and the entry serves stale indefinitely. Needs an absolute cap — consecutive
+  stale serves, or a wall-clock bound from first notice — after which it is a real miss regardless.
+- **The refresh's store failing is the normal case** under that write pressure, not an edge case; it is the
+  path the once-only flag has to handle.
+- **The two defaults differ.** Expiry-SWR is a reasonable default. Invalidation-SWR is deliberately serving
+  data the server has *told* us is wrong, and should be explicit, per-context, and named so that choosing it
+  is a decision rather than an inheritance.
+
+#### Built: single-flight
+
+Implemented, with SWR still to come. `TryAwaitInFlight` lets a miss wait on a request already in flight;
+`TryBeginFill` registers the leader; the registration is released on **every** path, including a send that
+throws — which previously leaked the key silently and would now also hang every waiter.
+
+Three ordering constraints, each of which was a bug first:
+
+- **Unregister while the key is alive.** The key is the dictionary key, so removing it hashes and compares
+  the buffer — and completing a fill disposes that key. Folding unregistration into the same `finally` as
+  the publish threw `ObjectDisposedException` on `RefCountedBuffer`.
+- **Publish after the store, unregister before it.** A waiter wakes and re-probes, so it must not be woken
+  before there is anything to find; and it must not be able to re-attach to a registration whose reply has
+  already arrived. A caller landing in the gap between the two finds neither and sends for itself — a missed
+  coalescing opportunity, not a wrong answer.
+- **Waiters are woken on refusals too**, not only on success. They then miss and fetch for themselves,
+  which is what they would have done anyway.
+
+**Sync callers do not coalesce.** Waiting on another caller's `Task` from a synchronous method is the
+sync-over-async problem this design avoids elsewhere, so `Send` still issues its own request. Deliberate,
+given sync is deprioritised; it closes when the executor grows a synchronous wait.
+
+`Coalesced` counts the stampedes that did not happen, and is the counterpart to `RedundantFills`. The two
+together are the useful signal: coalesced rising while redundant stays flat is the shape you want.
+
+#### Consequence for the context
+
+Soft window, hard TTL, invalidation-SWR on/off, staleness cap — four knobs, all contextual for the reasons
+in §6.14. Growing `RespContext` field-by-field past its 48 bytes for those is the wrong shape; they want a
+single small `CacheOptions` in the service slot, which is the pattern `ChannelPrefix` already set (§3.3).
+
+
 ## 7. Analyzer rules
 
 The analyzer **does** reach consumers: `StackExchange.Redis.csproj:83-100` packs both
