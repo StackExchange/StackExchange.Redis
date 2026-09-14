@@ -50,6 +50,7 @@ Unlike everything under [Usage](#usage), these describe code that does not do wh
 
 - [SER350](SER350) - language version too low for generated code
 - [SER351](SER351) - a `[Resp]` declaration the fragment generator cannot implement
+- [SER352](SER352) - generated database members that are not implemented and will throw
 
 ## When these rules stay quiet
 
