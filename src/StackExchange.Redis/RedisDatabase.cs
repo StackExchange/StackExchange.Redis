@@ -43,7 +43,8 @@ namespace StackExchange.Redis
                         multiplexer.CommandMap,
                         database: Database,
                         serverType: multiplexer.ServerSelectionStrategy.ServerType)
-                        .WithExecutor(new Interpolated.RespMessageExecutor(this, Database));
+                        .WithExecutor(new Interpolated.RespMessageExecutor(this, Database))
+                        .WithCache(multiplexer.ClientCache);
                     _haveContext = true;
                 }
 

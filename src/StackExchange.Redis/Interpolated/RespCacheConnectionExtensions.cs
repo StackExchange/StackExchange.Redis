@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite;
@@ -38,10 +38,11 @@ namespace StackExchange.Redis.Interpolated
         /// itself fails, which is why it must never be infinite.
         /// </para>
         /// <para>
-        /// Explicit for now because the cache is attached to a context rather than owned by the multiplexer.
-        /// When <c>GetDatabase()</c> eventually returns a cache-aware database this becomes part of building
-        /// one, and callers stop having to remember it - which is the right end state, because a cache
-        /// nobody remembered to wire up is a cache that goes quietly wrong.
+        /// <b>Not needed for a cache the multiplexer owns.</b> A cache asked for by
+        /// <see cref="ConfigurationOptions.ClientCache"/> is flushed by the connection itself, which is the
+        /// right end state: a cache nobody remembered to wire up is a cache that goes quietly wrong. This
+        /// remains for a cache attached by hand to a context, where nothing else knows it exists. Using both
+        /// is harmless - a flush of an empty cache costs nothing.
         /// </para>
         /// </remarks>
         public static IDisposable FlushOnDisconnect(this RespClientCache cache, IConnectionMultiplexer multiplexer)

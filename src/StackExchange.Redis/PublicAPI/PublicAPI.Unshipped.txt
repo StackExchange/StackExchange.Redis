@@ -359,3 +359,5 @@ static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redi
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.ServedStale.get -> long
 [SER010]StackExchange.Redis.Interpolated.RespCacheConnectionExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespCacheConnectionExtensions.FlushOnDisconnect(this StackExchange.Redis.Interpolated.RespClientCache! cache, StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> System.IDisposable!
+[SER010]StackExchange.Redis.ConfigurationOptions.ClientCache.get -> StackExchange.Redis.Interpolated.CachePolicy?
+[SER010]StackExchange.Redis.ConfigurationOptions.ClientCache.set -> void

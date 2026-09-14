@@ -70,6 +70,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "CertificateValidation",
                 "ChannelPrefix",
                 "CircuitBreaker",
+                "ClientCache",
                 "ClientName",
                 "commandMap",
                 "configChannel",

@@ -30,15 +30,13 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       **composability**: `IRespHandler<T[]>` built from `IRespHandler<T>`. Cheapest while handlers live in
       one file. Mechanical: delete two lines per handler, take the parameter.
 
-- [ ] **Route invalidation pushes through `PhysicalConnection`** (§6.13). Two known changes, not guesses:
-      a `[AsciiHash("invalidate")] Invalidate` member on `PushKind`, and handling it **before** the
-      `TryMoveNextString` gate — that gate demands an inline string second element (the pub/sub channel),
-      whereas an invalidation's is an array or a null, so the enum member alone changes nothing.
-      `TrackingExecutor` in the tests is the known-good target to match.
-
 - [ ] **`CLIENT TRACKING` negotiation in the real client.** RESP3-only, `BCAST`, empty prefix by default
       (§6.13). Must refuse **loudly** when RESP3 is unavailable rather than silently caching without
-      invalidation.
+      invalidation. **Now the only thing left between `ClientCache` and a cache that works by itself:**
+      hosting and routing are done, so a caller who sets the policy and never issues `CLIENT TRACKING`
+      gets a cache that fills, expires on TTL, and is never invalidated — the exact silent-wrongness this
+      item exists to prevent. Until it lands, `ConfigurationOptions.ClientCache` is experimental in the
+      strong sense.
 
 - [ ] **The rest of the `Execute` family on `TransitionalDatabase`.** `ExecuteResp`/`ExecuteRespAsync` are
       done (a pass-through; the signatures agree exactly). `Execute`/`ExecuteAsync` returning `RedisResult`
@@ -88,7 +86,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Interface-based default handler lookup; `IRespHandler` made invariant — `a539a538`
 - [x] Stale-while-revalidate on expiry, with background refresh — `253cc2e4`
 - [x] Invalidation grace period, with the read-your-own-writes carve-out — `6b94d588`
-- [x] Flush the cache when a connection is lost — this change
+- [x] Flush the cache when a connection is lost — `f2811156`
+- [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
+      invalidation pushes to it through `PhysicalConnection` — this change
 
 ## Decided against
 

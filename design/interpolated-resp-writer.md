@@ -2001,9 +2001,9 @@ for exactly that case, and its policy for anything unknown is worth copying verb
 
 Which is also precisely why invalidations are dropped today: they are simply not recognised.
 
-#### What the production integration actually needs
+#### What the production integration actually needs — done
 
-Two changes, both small, and now known rather than guessed:
+Two changes, both small, and both as predicted:
 
 1. **`PushKind` gains `[AsciiHash("invalidate")] Invalidate`** (`PhysicalConnection.Read.cs`). One line; the
    generator does the parsing.
@@ -2023,6 +2023,51 @@ connection (`TrackingExecutor`): a third party's write evicts what we cached, no
 one push clears several entries, a flush clears everything, and a pub/sub delivery on the same connection
 disturbs nothing. All four parsing steps are mutation-tested — the discriminator check initially survived
 its mutant, which is what prompted the pub/sub test.
+
+Both landed as written. `OnInvalidate` sits immediately after the `kind` is decoded and before
+`TryMoveNextString`, and always returns `Handled` — including when there is no cache at all, because an
+invalidation is never the reply to anything we sent, so letting it fall through to command matching would
+hand it to whoever happened to be at the front of the queue. Its three unreadable cases (a payload that is
+not an aggregate, a streaming aggregate, a key whose bytes we cannot see contiguously) all **over-flush**
+rather than guess: we already know something changed, and the same judgement is made on disconnect.
+
+#### Where the cache lives
+
+A cache needs an owner before a push has anywhere to go, and until now there wasn't one: the cache was a
+free-standing object that tests built and attached per context with `WithCache`, which is exactly what
+blocked this. It now hangs off the **multiplexer** — created in the constructor when
+`ConfigurationOptions.ClientCache` names a policy, never replaced (so a reader can take it without a lock),
+and handed to each `RedisDatabase`'s context as it is built.
+
+Per-multiplexer and not per-database is forced, not chosen (§6.14): tracking is per *connection*, and a
+connection belongs to the multiplexer. A cache per database would have to be found from here anyway when a
+push landed, and a cache per context would be handed the invalidations of a connection it does not own.
+
+`OnConnectionFailed` flushes it as its very first act — before the disposed check and before the handler
+dispatch, and **synchronously** rather than via `CompleteAsWorker`, because queueing it leaves a window in
+which we would answer from a cache we already know is suspect.
+
+The policy is deliberately **not** part of the connection string. A policy is a set of durations and
+correctness choices rather than a name, and round-tripping it through text invites it to be configured by
+someone who has not read what `InvalidationGracePeriod` actually permits. `null` — no cache — is the only
+safe default: a cache changes what a read can return, and nobody should acquire that by upgrading.
+
+`RespCacheInvalidationTests` proves the whole path through the real client, with `CLIENT TRACKING` still
+issued by hand: a write from a second connection evicts what the multiplexer cached, while a key outside
+the `PREFIX` filter keeps serving the old value — which is the cache proving it was in the path at all,
+since without it that read would have gone to the server and come back changed. A `FLUSHDB` on a dedicated
+database empties everything, including that unfiltered key. Three mutations are caught: never matching
+`PushKind.Invalidate`, ignoring the null payload, and detaching the cache from the context.
+
+One thing the test had to learn: under `BCAST` the server announces a matching key to every tracking client
+the moment *anyone* writes it, including the test's own setup write on the other connection. If that push
+overtakes the reply being filled from, the fill is refused as raced — correctly, since storing it would
+cache a value the server has already said is wrong. A test that primes an entry immediately after writing
+it therefore has to be prepared to ask twice.
+
+What is still missing is the negotiation: nothing yet sends `CLIENT TRACKING` on our behalf, so a caller who
+sets `ClientCache` and stops there gets a cache that fills, expires on TTL, and is never invalidated. That
+is the next item, and it must refuse loudly without RESP3 rather than quietly behave this way.
 
 ### 6.14 Global cache, contextual TTL
 

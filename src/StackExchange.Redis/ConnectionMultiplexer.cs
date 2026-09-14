@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Interpolated;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
@@ -55,6 +56,16 @@ namespace StackExchange.Redis
         internal CommandMap CommandMap { get; }
         internal EndPointCollection EndPoints { get; }
         internal ConfigurationOptions RawConfig { get; }
+
+        /// <summary>
+        /// EXPERIMENTAL SPIKE. The client-side cache for this connection, if <see cref="ConfigurationOptions.ClientCache"/>
+        /// asked for one; <see langword="null"/> otherwise.
+        /// </summary>
+        /// <remarks>
+        /// Created with the multiplexer and never replaced, so a reader can take it without a lock. It is
+        /// emptied rather than rebuilt when a connection is lost - see <see cref="OnConnectionFailed"/>.
+        /// </remarks>
+        internal RespClientCache? ClientCache { get; }
 
         /// <summary>
         /// When this multiplexer is a member of a connection group, the group resolves the effective
@@ -173,6 +184,15 @@ namespace StackExchange.Redis
             }
 
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
+
+            // one cache per multiplexer, not per database or per context: the invalidations that keep it
+            // honest arrive on a connection, and a connection belongs to the multiplexer. A cache per
+            // database would have to be found from here anyway when a push lands, and a cache per context
+            // would be handed the pushes of a connection it does not own.
+            if (RawConfig.ClientCache is { Enabled: true } cachePolicy)
+            {
+                ClientCache = new RespClientCache(cachePolicy);
+            }
 
             var configChannel = configuration.ConfigurationChannel;
             if (!string.IsNullOrWhiteSpace(configChannel))
