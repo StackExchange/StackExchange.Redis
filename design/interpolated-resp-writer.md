@@ -1921,6 +1921,71 @@ Notes from building it, in case they bite again:
 
 ---
 
+### 9.4 The context as the extension point
+
+The intended shape is a context (`db`, key prefix, cancellation, executor) reached from `IDatabase`/
+`IServer` via one new member, with the command surface hanging off it as **extension members**:
+
+```csharp
+ctx.Strings.Set(key, value)   =>   ctx.Execute(RedisCommands.Set, $"{key}{value}")
+```
+
+Three reasons, in the order different audiences feel them.
+
+**1. Discoverability.** `IDatabase` is a flat surface of several hundred methods; IntelliSense on `db.` is
+not a navigable list, it is a wall. `ctx.Strings.`, `ctx.Hashes.`, `ctx.Sets.`, `ctx.Streams.` groups the
+surface the way Redis documents itself — by data type — so the shape of the API teaches it. This is the
+benefit an ordinary caller notices first, and on its own it would probably justify the change.
+
+**2. Module libraries become first class.** NRedisStack today reaches the server through
+`db.Execute("FT.SEARCH", …)` or a parallel set of its own interfaces. Extension members over a shared
+context mean `ctx.Search.Query(...)` composes exactly like `ctx.Strings.Set(...)` — same cancellation,
+same key prefix, same cache participation, no wrapper interface and no forked surface. Module commands
+also then arrive through the same `Send`, so they inherit the §6.9 cacheability gates automatically
+instead of needing a parallel opt-out story.
+
+**3. It is the last break.** Adding the member is a breaking change, and adding to `IDatabase` has been
+standard practice here, so the cost is familiar rather than novel. The difference is that this one ends
+the sequence: once a context exists, every subsequent addition is an extension member and breaks nobody.
+The one break buys the end of breaks.
+
+**That guarantee rests on a discipline, not on the type system.** The first "just this once" method added
+to `IDatabase` after the context exists spends the break for nothing. Worth writing down, and eventually
+worth an analyzer — this repo already gates hand-built fragments behind `SER011` on the same reasoning,
+that the blast radius is not the author's own code.
+
+#### Four things to settle before building it
+
+1. **`ref readonly` and `async` do not mix.** A `ref readonly` local cannot cross an `await`, and the
+   command surface is `ValueTask`-first — so the context is copied into the state machine anyway and the
+   `ref` buys nothing on the only path that matters. At roughly four registers, copy it: return by value,
+   take `in` on parameters. And keep `RespContext` a `readonly struct`; making it a `ref struct` to "make
+   it cheap" would make it unusable in the very methods it exists for.
+
+2. **`RespRequest` must carry its own metadata first.** `Detach()` keeps bytes, lease, offset, length and
+   hash — and drops the key marks, the slot and the argument count. So inside
+   `IRespExecutor.Send(in RespRequest)` there is no way to ask which arguments were keys, and a cache
+   decorator cannot begin a fill. Widening the request (a `ulong`, two `int`s) is a prerequisite for the
+   executor-decorator model, not a refinement of it.
+
+3. **A retry executor needs the flags.** "Is this safe to resend" is the `CommandFlags` retry category,
+   and `Send` does not receive it. Same fix as (2), and they should land together or the decorator model
+   does not close. Retry otherwise fits well: it must hold the preformed payload across attempts, which is
+   exactly what `RespRequest.TryRetain` is for.
+
+4. **Decorator order is silent and load-bearing.** `cache(retry(raw))`: a hit must not traverse retry
+   logic, and a retry must not re-probe a cache it already missed. Nothing in the type system says so, so
+   it wants a test.
+
+**Cache and retry are not an either/or between "executor" and "context".** The decorator *is* an executor;
+installing it is a `With` on the context. Behaviour composes in the executor chain, configuration composes
+on the context.
+
+**Keep `IRespExecutor.Send` (the synchronous member).** Driving sync as
+`AsTask().GetAwaiter().GetResult()` blocks a pool thread for a whole round trip, which today's sync path
+deliberately avoids and which a large constituency depends on. Fine for a spike; but keeping the sync
+member means a real sync path can arrive later without reshaping the API, and it costs nothing now.
+
 ## 10. Open questions
 
 - **Should a `RedisChannel` fold into the same slot as keys?** The spike folds it unconditionally, which
@@ -1937,7 +2002,9 @@ Notes from building it, in case they bite again:
   legitimate case the literal-only rule closes off.
 - **Public API commitment.** A public method taking the handler forces the handler type public, putting
   every `AppendFormatted` overload into `PublicAPI.Unshipped.txt` permanently. Can the interpolated
-  surface start internal (RESPite-side, used by SE.Redis) to buy room to iterate?
+  surface start internal (RESPite-side, used by SE.Redis) to buy room to iterate? §9.4 argues the opposite
+  direction for the *command* surface - one member on `IDatabase`, everything else extension members -
+  so these want reconciling.
 - **Should the handler be a `ref struct`?** It holds only a `byte[]`. Ref struct prevents capture,
   copying and double-dispose, which is why it is right — but it also blocks `using var` + `ref` (§4)
   and any async retention.
