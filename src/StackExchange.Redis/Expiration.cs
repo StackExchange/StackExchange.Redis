@@ -5,7 +5,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Configures the expiration behaviour of a command.
 /// </summary>
-public readonly struct Expiration
+public readonly struct Expiration : Interpolated.IRespArgument
 {
     /*
      Redis expiration supports different modes:
@@ -308,6 +308,34 @@ public readonly struct Expiration
     /// <summary>The already-framed RESP token for ENX, or empty when it does not apply.</summary>
     internal ReadOnlySpan<byte> ExpireIfNotExistsResp
         => HasExpirationValue && IsExpireIfNotExists ? "$3\r\nENX\r\n"u8 : default;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Explicit, so it does not clutter the type for callers who will never write a RESP frame by hand;
+    /// reached only through a command hole - <c>$"{...}{expiry}"</c> - which is the one place it means
+    /// anything. The generic <c>AppendFormatted&lt;T&gt;</c> funnel is what binds it there, in preference
+    /// to a dedicated overload: if the extension mechanism is good enough for other libraries' types it is
+    /// good enough for ours, and this is the proof.
+    /// </remarks>
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    {
+        var operand = OperandResp;
+        if (operand.IsEmpty) return; // Expiration.Default contributes no arguments
+
+        // SER011 gates hand-written pre-framed fragments, because nothing validates the claim that the
+        // bytes are correctly framed. These are compile-time constants owned by this type and shared with
+        // the MessageWriter path (OperandResp), so the claim is as checked as it can be - and they are
+        // ALREADY framed, so AppendBulk, which frames what it is given, is not the right primitive.
+#pragma warning disable SER011
+        handler.AppendFormatted(new Interpolated.RespFragment(operand));
+        if (HasExpirationValue)
+        {
+            handler.AppendFormatted((RedisValue)Value);
+            var enx = ExpireIfNotExistsResp;
+            if (!enx.IsEmpty) handler.AppendFormatted(new Interpolated.RespFragment(enx));
+        }
+#pragma warning restore SER011
+    }
 
     internal void WriteTo(in MessageWriter writer)
     {

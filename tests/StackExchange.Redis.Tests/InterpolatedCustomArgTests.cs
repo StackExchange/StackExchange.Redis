@@ -1,4 +1,6 @@
-using System;
+﻿using System;
+using System.Linq;
+using System.Reflection;
 using System.Text;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -41,6 +43,61 @@ public class InterpolatedCustomArgTests
     {
         public static implicit operator RedisValue(Ambiguous value) => "CONVERSION";
         public void WriteTo(scoped ref RespCommandHandler handler) => handler.AppendFormatted((RedisValue)"INTERFACE");
+    }
+
+    /// <summary>Format ONLY: a bare <c>$"{x}"</c> must not compile, because there is no safe default.</summary>
+    private readonly struct Radius(double distance) : IRespFormattableArgument
+    {
+        public void WriteTo(scoped ref RespCommandHandler handler, string? format)
+        {
+            handler.AppendFormatted((RedisValue)distance);
+            handler.AppendFormatted((RedisValue)(format ?? "m"));
+        }
+    }
+
+    /// <summary>Both, so each spelling has somewhere to go and we can see which one it picked.</summary>
+    private readonly struct Either : IRespArgument, IRespFormattableArgument
+    {
+        public void WriteTo(scoped ref RespCommandHandler handler)
+            => handler.AppendFormatted((RedisValue)"PLAIN");
+
+        public void WriteTo(scoped ref RespCommandHandler handler, string? format)
+            => handler.AppendFormatted((RedisValue)("FORMAT:" + format));
+    }
+
+    [Fact]
+    public void AFormatSpecifierReachesTheImplementerVerbatim()
+    {
+        using var frame = Ctx.Execute($"{RedisCommand.GEOSEARCH}{(RedisKey)"k"}{new Radius(5):km}");
+        Assert.Equal("*4|$9|GEOSEARCH|$1|k|$1|5|$2|km|", Text(frame));
+    }
+
+    [Fact]
+    public void EachSpellingBindsToItsOwnArity()
+    {
+        // a type implementing both is unambiguous: the overloads differ in arity, so the presence or
+        // absence of the `:` in the hole decides, not overload betterness
+        using var plain = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}{new Either()}");
+        Assert.Equal("*3|$3|GET|$1|k|$5|PLAIN|", Text(plain));
+
+        using var formatted = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}{new Either():xyz}");
+        Assert.Equal("*3|$3|GET|$1|k|$10|FORMAT:xyz|", Text(formatted));
+    }
+
+    [Fact]
+    public void ThereIsNoAlignmentOverloadAndThereShouldNeverBe()
+    {
+        // RESP is length-prefixed binary: `$"{key,10}"` would pad the payload and send a DIFFERENT key,
+        // silently. It is CS1739 today, and the plausible way that breaks is someone adding the overload
+        // "for symmetry" with the format one - which this catches, where a compile error cannot be tested.
+        var offenders = typeof(RespCommandHandler)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == "AppendFormatted")
+            .SelectMany(m => m.GetParameters())
+            .Where(p => p.Name == "alignment")
+            .ToArray();
+
+        Assert.Empty(offenders);
     }
 
     [Fact]

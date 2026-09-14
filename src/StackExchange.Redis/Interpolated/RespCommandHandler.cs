@@ -384,74 +384,6 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
-        /// Append an expiration: <c>EX 300</c>, <c>PXAT 1700000000000</c>, <c>KEEPTTL</c>, or - for
-        /// <see cref="Expiration.Default"/> - <b>nothing at all</b>.
-        /// </summary>
-        /// <param name="value">The expiration to append.</param>
-        /// <remarks>
-        /// <para>
-        /// The first argument type that writes a <b>variable</b> number of tokens, including zero. That is
-        /// the whole reason the optional parts of a command can be written as holes rather than as branches:
-        /// <c>$"{expiry}{when}"</c> renders to between zero and five arguments and the handler keeps the
-        /// count straight, where the fixed-arity <c>Message.Create</c> overloads needed a branch per shape.
-        /// </para>
-        /// <para>
-        /// The mode token itself comes from <see cref="Expiration.OperandResp"/>, shared with the
-        /// <c>MessageWriter</c> path, so the two writers cannot disagree about what an
-        /// <see cref="Expiration"/> means.
-        /// </para>
-        /// </remarks>
-        public void AppendFormatted(Expiration value)
-        {
-            DemandCommand();
-
-            var operand = value.OperandResp;
-            if (operand.IsEmpty) return; // Expiration.Default contributes no arguments
-
-            AppendPreframed(operand);
-            if (value.HasExpirationValue)
-            {
-                AppendFormatted((RedisValue)value.Value);
-                var enx = value.ExpireIfNotExistsResp;
-                if (!enx.IsEmpty) AppendPreframed(enx);
-            }
-        }
-
-        /// <summary>
-        /// Append a value condition: <c>NX</c>, <c>XX</c>, <c>IFEQ v</c>, <c>IFDNE 0a1b...</c>, or - for
-        /// <see cref="ValueCondition.Always"/> - nothing at all.
-        /// </summary>
-        /// <param name="value">The condition to append.</param>
-        /// <remarks>
-        /// As <see cref="AppendFormatted(Expiration)"/>: variable token count, and the keyword comes from
-        /// <see cref="ValueCondition.KeywordResp"/> so both writers agree.
-        /// </remarks>
-        public void AppendFormatted(ValueCondition value)
-        {
-            DemandCommand();
-
-            var keyword = value.KeywordResp;
-            if (keyword.IsEmpty) return; // ValueCondition.Always contributes no arguments
-
-            AppendPreframed(keyword);
-            if (value.IsValueTest)
-            {
-                AppendFormatted(value.Value);
-            }
-            else if (value.IsDigestTest)
-            {
-                // the wire form is hex of the big-endian digest bytes, NOT the int64 the RedisValue holds
-                Span<byte> hex = stackalloc byte[2 * ValueCondition.DigestBytes];
-                var written = ValueCondition.WriteHex(value.Value.OverlappedValueInt64, hex);
-                var payload = WriteBulk(written.Length, out var payloadOffset);
-                written.CopyTo(payload);
-                CommitBulk(payloadOffset, written.Length);
-                _args++;
-                _argIndex++;
-            }
-        }
-
-        /// <summary>
         /// Append any type that knows how to write itself, so the set of things that can appear in a hole
         /// is open to other assemblies rather than closed to this one.
         /// </summary>
@@ -473,6 +405,11 @@ namespace StackExchange.Redis.Interpolated
         /// (opting in beats an incidental conversion, which is the wanted answer); and a <c>struct</c>
         /// implementer is a constrained call, so nothing boxes.
         /// </para>
+        /// <para>
+        /// This is the funnel <see cref="Expiration"/> and <see cref="ValueCondition"/> arrive through:
+        /// they had dedicated overloads first, and giving them up is the point - if the mechanism is good
+        /// enough for other libraries' types, it should be good enough for ours.
+        /// </para>
         /// </remarks>
         public void AppendFormatted<T>(T value) where T : IRespArgument
         {
@@ -481,12 +418,49 @@ namespace StackExchange.Redis.Interpolated
             value.WriteTo(ref this);
         }
 
-        /// <summary>Copy one already-framed single-token literal in, advancing the counters by one.</summary>
-        private void AppendPreframed(scoped ReadOnlySpan<byte> framed)
+        /// <summary>
+        /// Append a type that knows how to write itself in a requested format: <c>$"{radius:km}"</c>.
+        /// </summary>
+        /// <typeparam name="T">The argument type; inferred from the hole.</typeparam>
+        /// <param name="value">The argument to append.</param>
+        /// <param name="format">The text after the <c>:</c> in the hole.</param>
+        /// <remarks>
+        /// Constrained to <see cref="IRespFormattableArgument"/> and <b>not</b> to
+        /// <see cref="IRespArgument"/>, which is what lets a type accept a format without accepting a bare
+        /// hole, and vice versa; see the remarks on that interface. The two overloads differ in arity, so
+        /// a type implementing both is unambiguous.
+        /// <para>
+        /// There is no <c>int alignment</c> counterpart, and there should never be: padding a
+        /// length-prefixed binary payload changes what is sent.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted<T>(T value, string? format) where T : IRespFormattableArgument
         {
-            Ensure(framed.Length);
-            framed.CopyTo(_buffer.AsSpan(_offset));
-            _offset += framed.Length;
+            DemandCommand();
+            if (value is null) throw new ArgumentNullException(nameof(value));
+            value.WriteTo(ref this, format);
+        }
+
+        /// <summary>Frame raw bytes as one bulk argument.</summary>
+        /// <param name="payload">The payload; framed here, so it must NOT already carry a <c>$len</c> prefix.</param>
+        /// <remarks>
+        /// The primitive an <see cref="IRespArgument"/> implementation needs when its payload is bytes it
+        /// computed rather than a <see cref="RedisValue"/> it was handed - writing those through a
+        /// <c>RedisValue</c> would mean allocating a <c>byte[]</c> to carry them.
+        /// <para>
+        /// Deliberately a named method and <b>not</b> an <c>AppendFormatted</c> overload: a bare span in a
+        /// hole is ambiguous between "I already framed this" and "you frame this", which is precisely the
+        /// distinction <see cref="RespFragment"/> and <see cref="RedisValue"/> exist to keep apart (see
+        /// design notes 2.2). Keeping it off the hole vocabulary means the question never arises.
+        /// </para>
+        /// </remarks>
+        public void AppendBulk(scoped ReadOnlySpan<byte> payload)
+        {
+            DemandCommand();
+
+            var target = WriteBulk(payload.Length, out var payloadOffset);
+            payload.CopyTo(target);
+            CommitBulk(payloadOffset, payload.Length);
             _args++;
             _argIndex++;
         }

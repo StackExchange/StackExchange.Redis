@@ -33,7 +33,7 @@ public partial class InterpolatedAppendTests
         var accepted = typeof(RespCommandHandler)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.Name == "AppendFormatted")
-            .Select(m => m.GetParameters().Single().ParameterType.Name)
+            .Select(m => m.GetParameters()[0].ParameterType.Name) // [0] is the value; a format may follow
             .ToArray();
 
         Assert.Contains("RedisKey", accepted);

@@ -12,7 +12,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Represents a check for an existing value - this could be existence (NX/XX), equality (IFEQ/IFNE), or digest equality (IFDEQ/IFDNE).
 /// </summary>
-public readonly struct ValueCondition
+public readonly struct ValueCondition : Interpolated.IRespArgument
 {
     internal enum ConditionKind : byte
     {
@@ -299,6 +299,28 @@ public readonly struct ValueCondition
         ConditionKind.DigestNotEquals => "$5\r\nIFDNE\r\n"u8,
         _ => default,
     };
+
+    /// <inheritdoc/>
+    /// <remarks>See <see cref="Expiration"/> for why this is an explicit implementation.</remarks>
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    {
+        var keyword = KeywordResp;
+        if (keyword.IsEmpty) return; // ValueCondition.Always contributes no arguments
+
+#pragma warning disable SER011 // pre-framed constants owned by this type; see Expiration for the reasoning
+        handler.AppendFormatted(new Interpolated.RespFragment(keyword));
+#pragma warning restore SER011
+        if (IsValueTest)
+        {
+            handler.AppendFormatted(_value);
+        }
+        else if (IsDigestTest)
+        {
+            // the wire form is hex of the big-endian digest bytes, NOT the int64 the RedisValue holds;
+            // AppendBulk takes the stack buffer directly, where a RedisValue would need a byte[]
+            handler.AppendBulk(WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]));
+        }
+    }
 
     internal void WriteTo(in MessageWriter writer)
     {

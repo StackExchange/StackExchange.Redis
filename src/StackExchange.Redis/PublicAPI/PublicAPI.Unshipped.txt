@@ -46,11 +46,13 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Interpolated.RespCommand value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Interpolated.RespFragment value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisChannel value) -> void
-[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Expiration value) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendBulk(scoped System.ReadOnlySpan<byte> payload) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted<T>(T value) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted<T>(T value, string? format) -> void
 [SER010]StackExchange.Redis.Interpolated.IRespArgument
 [SER010]StackExchange.Redis.Interpolated.IRespArgument.WriteTo(scoped ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> void
-[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.ValueCondition value) -> void
+[SER010]StackExchange.Redis.Interpolated.IRespFormattableArgument
+[SER010]StackExchange.Redis.Interpolated.IRespFormattableArgument.WriteTo(scoped ref StackExchange.Redis.Interpolated.RespCommandHandler handler, string? format) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisKey value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisValue value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendLiteral(string! value) -> void

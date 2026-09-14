@@ -335,6 +335,41 @@ means "no argument".
 This is the argument-level counterpart to §9.4: the context is the extension point for *commands*, and
 `IRespArgument` is the extension point for *argument types*. Without it, `NRedisStack` could add commands
 but could not add a type that appears in one.
+
+#### Format specifiers: a second, unrelated interface
+
+`IRespFormattableArgument.WriteTo(scoped ref RespCommandHandler, string? format)` handles `$"{x:fmt}"`,
+behind its own `AppendFormatted<T>(T, string?)` overload.
+
+It deliberately does **not** derive from `IRespArgument`, so the three combinations are three different
+contracts, each enforced by the compiler — measured, both directions:
+
+| implements | `$"{x}"` | `$"{x:fmt}"` |
+|---|---|---|
+| `IRespArgument` only | writes | **CS0315**, naming `IRespFormattableArgument` |
+| `IRespFormattableArgument` only | **CS0315**, naming `IRespArgument` | writes |
+| both | plain form | format form |
+
+The middle row is the reason for the split rather than a single interface: it makes the format
+**mandatory**, which is how a type with no safe default forces the caller to choose — the same move §2.3
+wanted when a bare `$"{ttl}"` would have to guess between `EX` and `PX`. A single interface cannot
+express it, and a default interface method cannot fake it: DIMs need runtime support that `net461` and
+`netstandard2.0` do not have.
+
+A type implementing both is unambiguous because the overloads differ in **arity** — the `:` in the hole
+decides, not overload betterness, so none of the resolution subtleties above apply.
+
+*Rough edge:* in the middle row the message reads "no boxing conversion from X to `IRespArgument`", which
+is accurate but does not say *"you must supply a format"*. Analyzer candidate.
+
+#### Alignment: never
+
+There is no `int alignment` overload and there must not be one. RESP is length-prefixed binary, so
+`$"{key,10}"` would pad the payload and send a **different key**, silently — the one failure mode where
+the wire bytes change and nothing complains. It is `CS1739` ("does not have a parameter named
+'alignment'") today, and pinned by a reflection test asserting no `AppendFormatted` parameter is named
+`alignment`, because a compile error cannot be asserted directly and "add it for symmetry with the format
+overload" is the plausible way it gets broken.
 - With no catch-all, `RedisValue`'s existing implicit conversions cover `string`, `int`, `byte[]`
   etc. for free.
 
