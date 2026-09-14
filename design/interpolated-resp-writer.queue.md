@@ -11,6 +11,13 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Now
 
+- [ ] **Free up the name `Execute`.** `RespContext.Execute(...)` currently returns a rendered `RespFrame` —
+      it does not execute anything — while `IDatabase.Execute` in this same library *sends and returns a
+      result*. Two opposite meanings for one verb, in one codebase. Rename the frame-returning one
+      (`Render` reads right) and let `Execute` mean what everybody expects. ~73 call sites, entirely
+      mechanical, but it will collide with any in-flight worktree, so do it immediately after a merge.
+      Until then `ExecuteAsync` carries the ad-hoc API, because async has no clash.
+
 - [ ] **Stale-while-revalidate** (§6.15). Soft/hard thresholds on `CachePolicy`, once-only refresh via an
       interlocked flag on the entry, clearing on failure with backoff. Prerequisites are in: single-flight
       is the same interlock, and `CachePolicy` already carries the lifetime. Remember the cap for the
@@ -43,6 +50,18 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       (§6.13). Must refuse **loudly** when RESP3 is unavailable rather than silently caching without
       invalidation.
 
+- [ ] **The rest of the `Execute` family on `TransitionalDatabase`.** `ExecuteResp`/`ExecuteRespAsync` are
+      done (a pass-through; the signatures agree exactly). `Execute`/`ExecuteAsync` returning `RedisResult`
+      need a `RespResult` -> `RedisResult` step, for which `RespReaderExtensions.ReadRedisResult` already
+      exists. The `object[]`/`ICollection<object>` overloads lose key-ness to boxing, so they cannot cache;
+      that is a property of the old signature, not something to fix here.
+
+- [ ] **`StringGetLease` and the legacy-lease pattern.** The shape to follow: the new surface produces
+      `ReadOnlyLease<byte>` (which may share), and the legacy adapter converts to `Lease<byte>` — a copy,
+      honestly, because the legacy contract promises the caller owns the bytes. That conversion wants a
+      pooled `ToLease()` on `ReadOnlyLease<T>` rather than `ToArray()`, which allocates outside the pool.
+      Not added yet, deliberately: no caller, no API.
+
 - [ ] **More command groups**, in `RespSurface.<Group>.cs` + `TransitionalDatabase.<Group>.cs` pairs.
       Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left.
 
@@ -72,7 +91,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Invalidation delivery proven against a real server (`TrackingExecutor`) — `4f02b657`
 - [x] Push classification matching `PhysicalConnection` — `1f8e3cbd`
 - [x] `RespResult` as a built-in result type (the NRedisStack path) — `4b4a7434`
-- [x] `ReadOnlyLease<byte>`, and retiring the mutable `ReadLease` spelling — this change
+- [x] `ReadOnlyLease<byte>`, and retiring the mutable `ReadLease` spelling — `9a1a37bf`
+- [x] Ad-hoc `ExecuteAsync` returning `RespResult`, on the context and on `IRespTarget`; `ExecuteResp`
+      wired through `TransitionalDatabase` — this change
 
 ## Decided against
 

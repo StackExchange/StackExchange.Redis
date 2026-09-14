@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using RESPite;
 
 namespace StackExchange.Redis.Interpolated
@@ -254,6 +255,64 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>Sugar over <see cref="WithServices"/>; "a context with a cache" is just a context whose
         /// services include one.</remarks>
         public RespContext WithCache(RespClientCache? cache) => WithServices(cache);
+
+        /// <summary>
+        /// Run an arbitrary command and return the raw reply - the escape hatch, for commands this library
+        /// does not model.
+        /// </summary>
+        /// <param name="command">The command name; resolved through the command map like any other.</param>
+        /// <param name="args">The arguments, each already known to be a key or a value.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <remarks>
+        /// <para>
+        /// The point of <see cref="RedisKeyOrValue"/> here is that it <b>keeps key-ness</b>, which the older
+        /// <c>Execute(string, object[])</c> loses to boxing. So an ad-hoc command renders with correct key
+        /// marks, which means it can take part in routing, invalidation and the client-side cache exactly as
+        /// a modelled command does - the difference between plumbing a module library in and actually
+        /// serving it.
+        /// </para>
+        /// <para>
+        /// Not an <c>async</c> method: the handler is a <c>ref struct</c> and cannot cross an <c>await</c>,
+        /// so composition finishes synchronously and only the reply is awaited.
+        /// </para>
+        /// </remarks>
+        public ValueTask<RespResult> ExecuteAsync(
+            string command,
+            ReadOnlyMemory<RedisKeyOrValue> args,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var frame = Render(command, args.Span);
+            return this.SendAsync(ref frame, flags, RespHandlers.Result);
+        }
+
+        /// <summary>Render an ad-hoc command, marking each argument as a key or a value.</summary>
+        private RespFrame Render(string command, ReadOnlySpan<RedisKeyOrValue> args)
+        {
+            var handler = new RespCommandHandler(0, args.Length, this, command);
+            try
+            {
+                foreach (var arg in args)
+                {
+                    // the key/value distinction is the whole reason this signature exists; losing it here
+                    // would quietly cost routing and invalidation
+                    if (arg.IsKey)
+                    {
+                        handler.AppendFormatted(arg.Key);
+                    }
+                    else
+                    {
+                        handler.AppendFormatted(arg.Value);
+                    }
+                }
+
+                return handler.Complete();
+            }
+            catch
+            {
+                handler.Dispose(); // Complete did not happen, so the buffer is still ours
+                throw;
+            }
+        }
 
         /// <summary>A context whose cached answers must be no older than <paramref name="maxAge"/>.</summary>
         /// <param name="maxAge">The oldest answer this caller will accept.</param>

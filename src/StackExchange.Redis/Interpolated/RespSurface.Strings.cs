@@ -69,6 +69,27 @@ namespace StackExchange.Redis.Interpolated
         // ARGUMENTS change the answer (GETEX with a TTL, SET under NX) raises it explicitly and says why.
         // WithRetryCategory stays public for surfaces outside this assembly, which cannot see the table.
 
+        /// <summary>
+        /// Run an arbitrary command and return the raw reply - the escape hatch, reachable from anything
+        /// that can produce a context.
+        /// </summary>
+        /// <param name="target">The database, or anything else carrying a context.</param>
+        /// <param name="command">The command name.</param>
+        /// <param name="args">The arguments, each already known to be a key or a value.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <remarks>
+        /// One extension method, and <c>RespDatabase</c>, <c>IDatabase</c> and anything else implementing
+        /// <see cref="IRespTarget"/> all gain it without being touched - which is section 9.4's argument
+        /// working rather than being asserted. See <see cref="RespContext.ExecuteAsync"/> for why the
+        /// argument type matters.
+        /// </remarks>
+        public static ValueTask<RespResult> ExecuteAsync(
+            this IRespTarget target,
+            string command,
+            ReadOnlyMemory<RedisKeyOrValue> args,
+            CommandFlags flags = CommandFlags.None)
+            => target.Context.ExecuteAsync(command, args, flags);
+
         /// <summary>GET.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read.</param>
