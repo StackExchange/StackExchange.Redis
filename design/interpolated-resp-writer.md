@@ -2015,9 +2015,40 @@ told to leave alone.
    logic, and a retry must not re-probe a cache it already missed. Nothing in the type system says so, so
    it wants a test.
 
-**Cache and retry are not an either/or between "executor" and "context".** The decorator *is* an executor;
-installing it is a `With` on the context. Behaviour composes in the executor chain, configuration composes
-on the context.
+#### Why the cache is not an executor decorator
+
+Tempting, because `Send`'s `cache` parameter and `RespContext.Cache` would both vanish. Two reasons not to:
+
+- **The executor contract deals in OWNED requests** — it has to, because a backlog or resend may need the
+  bytes past the call, which is what the reference count is for. A cache decorator therefore receives an
+  already-detached request, so **every call pays for ownership, including hits** — the 48 bytes that
+  `AsLookupKey` exists to avoid, and the zero-allocation hit with it. Lazy upgrade does not rescue it: a
+  borrowed request points at the frame's pooled array, and minting a lease from it would give two owners
+  that both return it to the pool.
+- **It would pin the executor to returning raw bytes forever.** The cache stores blobs, so a caching
+  decorator in the chain forecloses any later move toward executors that return processed results.
+
+So the layering is deliberate: the **frame level** decides whether to form and send at all — probing,
+generation capture, ownership transfer — and the **executor chain** operates on a formed, owned request.
+Retry belongs in the chain because it resends the same bytes; caching belongs above it because it decides
+whether bytes are needed.
+
+#### Services, not fields
+
+The orchestration takes **`in RespContext`** rather than a cache and a cancellation token. A cache is then
+just a service the context happens to carry, and `WithCache` is sugar over `WithServices`.
+
+The slot follows `RespReader`'s: one `object?` that either *is* the requested service — the common case, a
+type test — or is an `IServiceProvider` for things the context knows nothing about. That buys
+**extensibility with no new fields**, so a capability arriving later costs no API change and no growth in
+the struct. Given the whole point of §9.4 is to stop adding members, adding a member per capability would
+have been a poor start.
+
+The executor stays a real field: it is required on every call, where the cache is optional.
+
+**Cache and retry are still not an either/or between "executor" and "context".** A retry decorator *is* an
+executor; installing it is a `With` on the context. Behaviour composes in the chain, configuration on the
+context.
 
 **`GetDatabase()` becomes the secondary API.** Long term the primary entry point returns the new root
 interface rather than `IDatabase`; for now it can simply be `NewThing() => GetDatabase()`, since

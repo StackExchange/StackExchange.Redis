@@ -17,6 +17,9 @@ public class RespClientCacheTests
 {
     private static readonly RespContext Ctx = new();
 
+    private static RespContext Via(IRespExecutor executor, RespClientCache? cache = null)
+        => new RespContext().WithExecutor(executor).WithCache(cache);
+
     private static RespFrame Get(string key) => Ctx.Execute($"{RedisCommand.GET}{(RedisKey)key}");
 
     private static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
@@ -334,7 +337,7 @@ public class RespClientCacheTests
         {
             // note: no 'using' on the frame and none on any payload - Send owns both
             var frame = Get("abc");
-            Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache));
+            Assert.Equal("$5|hello|", Via(executor, cache).Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly));
         }
 
         Assert.Equal(1, executor.Sent);
@@ -347,10 +350,10 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
-        Assert.Equal("$5|hello|", await executor.SendAsync(ref miss, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache));
+        Assert.Equal("$5|hello|", await Via(executor, cache).SendAsync(ref miss, TextHandler.Instance, CommandFlags.CommandRetryReadOnly));
 
         var hit = Get("abc");
-        var pending = executor.SendAsync(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        var pending = Via(executor, cache).SendAsync(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
 
         // a hit never touches the executor, so it must not build a state machine or a Task either
         Assert.True(pending.IsCompletedSuccessfully);
@@ -365,7 +368,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
 
         var frame = Get("abc");
-        executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
 
         // this is why the request is not a span: a backlog must be able to hold it past the call, and
         // still read it afterwards to resend
@@ -381,7 +384,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var frame = Get("abc");
-        executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
 
         using var probe = Get("abc");
         Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var payload));
@@ -403,11 +406,11 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var a = Get("abc");
-        Assert.Equal("$5|hello|", executor.Send(ref a, TextHandler.Instance, CommandFlags.None));
+        Assert.Equal("$5|hello|", Via(executor).Send(ref a, TextHandler.Instance, CommandFlags.None));
 
         // a null cache takes the same overload, so enabling caching is one argument, not a rewrite
         var b = Get("abc");
-        Assert.Equal("$5|hello|", executor.Send(ref b, TextHandler.Instance, CommandFlags.None, cache: null));
+        Assert.Equal("$5|hello|", Via(executor).Send(ref b, TextHandler.Instance, CommandFlags.None));
 
         Assert.Equal(2, executor.Sent); // no caching either way
     }
@@ -422,7 +425,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n", () => cache.OnInvalidate(Utf8("abc")));
 
         var frame = Get("abc");
-        Assert.Equal("$5|hello|", executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache)); // still answered
+        Assert.Equal("$5|hello|", Via(executor, cache).Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly)); // still answered
         Assert.Equal(0, cache.Count);                                                      // ... not cached
     }
 
@@ -435,7 +438,7 @@ public class RespClientCacheTests
         var frame = writer.Complete();
 
         var executor = new FakeExecutor("$2\r\nok\r\n");
-        Assert.Equal("$2|ok|", executor.Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache));
+        Assert.Equal("$2|ok|", Via(executor, cache).Send(ref frame, TextHandler.Instance, CommandFlags.CommandRetryReadOnly));
         Assert.Equal(0, cache.Count);
 
         // this path FALLS THROUGH to the uncached tail rather than duplicating it, so the frame must be
@@ -450,10 +453,10 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
-        executor.Send(ref fill, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref fill, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
 
         var hit = Get("abc");
-        executor.Send(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
 
         // exactly one reference survives - the cache entry's. If the helper leaked the caller's retain the
         // buffer would never return to the pool; if it over-released, the entry would be reading freed bytes
@@ -471,15 +474,15 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
-        executor.Send(ref miss, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref miss, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
         Assert.Throws<ObjectDisposedException>(() => miss.AsLookupKey());
 
         var hit = Get("abc");
-        executor.Send(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref hit, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
         Assert.Throws<ObjectDisposedException>(() => hit.AsLookupKey());
 
         var uncached = Get("abc");
-        executor.Send(ref uncached, TextHandler.Instance, CommandFlags.None); // the no-cache overload too
+        Via(executor).Send(ref uncached, TextHandler.Instance, CommandFlags.None); // the no-cache overload too
         Assert.Throws<ObjectDisposedException>(() => uncached.AsLookupKey());
     }
 
@@ -563,19 +566,19 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
-        executor.Send(ref fill, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref fill, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
         Assert.Equal(1, executor.Sent);
 
         // opting out must mean the caller does not RECEIVE a cached answer either - not merely that this
         // reply is not kept. Otherwise "don't cache this" silently still serves stale data.
         var opted = Get("abc");
-        executor.Send(ref opted, TextHandler.Instance,
-            CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, cache);
+        Via(executor, cache).Send(
+            ref opted, TextHandler.Instance, CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache);
         Assert.Equal(2, executor.Sent);
 
         // ... and the entry is untouched for callers who did not opt out
         var normal = Get("abc");
-        executor.Send(ref normal, TextHandler.Instance, CommandFlags.CommandRetryReadOnly, cache);
+        Via(executor, cache).Send(ref normal, TextHandler.Instance, CommandFlags.CommandRetryReadOnly);
         Assert.Equal(2, executor.Sent);
     }
 

@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Interpolated
             ServerType serverType = ServerType.Standalone,
             CancellationToken cancellationToken = default,
             IRespExecutor? executor = null,
-            RespClientCache? cache = null)
+            object? services = null)
         {
             _commandMap = commandMap;
             _keyPrefix = keyPrefix; // normalise to bytes ONCE; the conversion can allocate for a string-backed key
@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Interpolated
             ServerType = serverType;
             CancellationToken = cancellationToken;
             Executor = executor;
-            Cache = cache;
+            _services = services;
         }
 
         /// <summary>Where commands composed from this context are sent; <c>null</c> if none is configured.</summary>
@@ -56,8 +56,40 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public IRespExecutor? Executor { get; }
 
-        /// <summary>The client-side cache to consult, or <c>null</c> for none.</summary>
-        public RespClientCache? Cache { get; }
+        private readonly object? _services;
+
+        /// <summary>
+        /// Obtain a service attached to this context, if any.
+        /// </summary>
+        /// <typeparam name="T">The service type.</typeparam>
+        /// <param name="service">The service, when found.</param>
+        /// <remarks>
+        /// One slot, which either <i>is</i> the requested service - the common case, a type test - or is an
+        /// <see cref="IServiceProvider"/> able to supply services this context knows nothing about. Same
+        /// shape as <c>RespReader</c>'s service slot, and for the same reason: it makes the context
+        /// extensible <b>without new fields</b>, so a capability that arrives later costs no API change and
+        /// no growth in the struct. A cache is simply the first such service.
+        /// </remarks>
+        public bool TryGetService<T>([NotNullWhen(true)] out T? service)
+            where T : class
+        {
+            switch (_services)
+            {
+                case T typed:
+                    service = typed;
+                    return true;
+                case IServiceProvider provider when provider.GetService(typeof(T)) is T resolved:
+                    service = resolved;
+                    return true;
+                default:
+                    service = null;
+                    return false;
+            }
+        }
+
+        /// <summary>The client-side cache attached to this context, or <c>null</c> for none.</summary>
+        /// <remarks>Convenience over <see cref="TryGetService{T}"/>; the cache is not a field.</remarks>
+        public RespClientCache? Cache => TryGetService<RespClientCache>(out var cache) ? cache : null;
 
         private readonly CommandMap? _commandMap;
 
@@ -96,12 +128,12 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>A copy of this context targeting a different database.</summary>
         /// <param name="database">The database index.</param>
         public RespContext WithDatabase(int database)
-            => new(CommandMap, KeyPrefix, ChannelPrefix, database, ServerType, CancellationToken, Executor, Cache);
+            => new(CommandMap, KeyPrefix, ChannelPrefix, database, ServerType, CancellationToken, Executor, _services);
 
         /// <summary>A copy of this context with a different server type.</summary>
         /// <param name="serverType">The server type.</param>
         public RespContext WithServerType(ServerType serverType)
-            => new(CommandMap, KeyPrefix, ChannelPrefix, Database, serverType, CancellationToken, Executor, Cache);
+            => new(CommandMap, KeyPrefix, ChannelPrefix, Database, serverType, CancellationToken, Executor, _services);
 
         /// <summary>
         /// Returns a context whose keys are prefixed. This is what replaces wrapping the database in a
@@ -117,22 +149,28 @@ namespace StackExchange.Redis.Interpolated
                 ServerType,
                 CancellationToken,
                 Executor,
-                Cache);
+                _services);
 
         /// <summary>A copy of this context with a different channel prefix.</summary>
         /// <param name="channelPrefix">The prefix to apply to channels.</param>
         public RespContext WithChannelPrefix(RedisChannel channelPrefix)
-            => new(CommandMap, KeyPrefix, channelPrefix, Database, ServerType, CancellationToken, Executor, Cache);
+            => new(CommandMap, KeyPrefix, channelPrefix, Database, ServerType, CancellationToken, Executor, _services);
 
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>
         public RespContext WithExecutor(IRespExecutor? executor)
-            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, executor, Cache);
+            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, executor, _services);
+
+        /// <summary>A copy of this context carrying <paramref name="services"/>.</summary>
+        /// <param name="services">The service, or an <see cref="IServiceProvider"/>, or <c>null</c>.</param>
+        public RespContext WithServices(object? services)
+            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, Executor, services);
 
         /// <summary>A copy of this context that consults <paramref name="cache"/>.</summary>
         /// <param name="cache">The cache to consult, or <c>null</c> for none.</param>
-        public RespContext WithCache(RespClientCache? cache)
-            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, Executor, cache);
+        /// <remarks>Sugar over <see cref="WithServices"/>; "a context with a cache" is just a context whose
+        /// services include one.</remarks>
+        public RespContext WithCache(RespClientCache? cache) => WithServices(cache);
 
         /// <summary>
         /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into the

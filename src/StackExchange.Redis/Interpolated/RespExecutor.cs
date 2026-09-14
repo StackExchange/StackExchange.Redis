@@ -70,11 +70,10 @@ namespace StackExchange.Redis.Interpolated
     public static class RespExecutor
     {
         /// <summary>
-        /// Send a request and parse the reply, optionally serving it from - and populating -
-        /// <paramref name="cache"/>.
+        /// Send a request and parse the reply, optionally serving it from - and populating - the context's cache.
         /// </summary>
         /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
-        /// <param name="executor">The executor to send through.</param>
+        /// <param name="context">The context to send through; supplies the executor, cache and cancellation.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
         /// <param name="handler">Turns the reply into a result.</param>
         /// <param name="flags">
@@ -82,7 +81,6 @@ namespace StackExchange.Redis.Interpolated
         /// <see cref="CommandFlags.CommandRetryReadOnly"/>; see
         /// <see cref="RespClientCache.TryBeginFill(ref RespFrame, int, CommandFlags, out RespClientCache.RespFill)"/>.
         /// </param>
-        /// <param name="cache">The cache to consult, or <c>null</c> to bypass caching entirely.</param>
         /// <remarks>
         /// <para>
         /// <paramref name="flags"/> is deliberately <b>not</b> optional. Every <c>IDatabase</c> method in
@@ -96,14 +94,14 @@ namespace StackExchange.Redis.Interpolated
         /// and released in a <c>finally</c>; and the request is consumed on every path.
         /// </remarks>
         public static TResult Send<TResult>(
-            this IRespExecutor executor,
+            this in RespContext context,
             ref RespFrame request,
             IRespHandler<TResult> handler,
-            CommandFlags flags,
-            RespClientCache? cache = null)
+            CommandFlags flags)
         {
-            if (executor is null) throw new ArgumentNullException(nameof(executor));
             if (handler is null) throw new ArgumentNullException(nameof(handler));
+            var executor = context.Executor ?? ThrowNoExecutor(ref request);
+            var cache = context.Cache;
 
             // NoClientCache suppresses the PROBE as well as the store: opting out must mean the caller does
             // not get a cached answer either, not merely that this reply is not kept
@@ -149,13 +147,11 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="Send{TResult}(IRespExecutor, ref RespFrame, IRespHandler{TResult}, CommandFlags, RespClientCache)"/>
-        /// <param name="executor">The executor to send through.</param>
+        /// <inheritdoc cref="Send{TResult}(in RespContext, ref RespFrame, IRespHandler{TResult}, CommandFlags)"/>
+        /// <param name="context">The context to send through; supplies the executor, cache and cancellation.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
         /// <param name="handler">Turns the reply into a result.</param>
         /// <param name="flags">The command's flags; see the synchronous overload.</param>
-        /// <param name="cache">The cache to consult, or <c>null</c> to bypass caching entirely.</param>
-        /// <param name="cancellationToken">Cancels the send.</param>
         /// <remarks>
         /// Deliberately <b>not</b> an <c>async</c> method: <c>async</c> forbids <c>ref</c> parameters, and
         /// the frame has to be consumed by reference so the caller's copy cannot be used or disposed twice.
@@ -164,15 +160,15 @@ namespace StackExchange.Redis.Interpolated
         /// state machine, no <c>Task</c>.
         /// </remarks>
         public static ValueTask<TResult> SendAsync<TResult>(
-            this IRespExecutor executor,
+            this in RespContext context,
             ref RespFrame request,
             IRespHandler<TResult> handler,
-            CommandFlags flags,
-            RespClientCache? cache = null,
-            CancellationToken cancellationToken = default)
+            CommandFlags flags)
         {
-            if (executor is null) throw new ArgumentNullException(nameof(executor));
             if (handler is null) throw new ArgumentNullException(nameof(handler));
+            var executor = context.Executor ?? ThrowNoExecutor(ref request);
+            var cache = context.Cache;
+            var cancellationToken = context.CancellationToken;
 
             if (cache is not null && cache.PermitsCaching(flags))
             {
@@ -188,6 +184,13 @@ namespace StackExchange.Redis.Interpolated
             }
 
             return AwaitUncached(executor, request.Detach(), handler, cancellationToken);
+        }
+
+        [DoesNotReturn]
+        private static IRespExecutor ThrowNoExecutor(ref RespFrame request)
+        {
+            request.Dispose();
+            throw new InvalidOperationException("No executor is configured on this context.");
         }
 
         // the cache probe is identical for both, and borrows rather than detaching: on a HIT the request

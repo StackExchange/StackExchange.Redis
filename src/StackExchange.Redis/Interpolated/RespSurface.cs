@@ -139,28 +139,5 @@ namespace StackExchange.Redis.Interpolated
                 return ctx.SendAsync(ref frame, RespHandlers.Ok, flags);
             }
         }
-
-        extension(in RespContext context)
-        {
-            /// <summary>Send a rendered request through this context's executor and cache.</summary>
-            /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
-            /// <param name="request">The rendered request; consumed on every path.</param>
-            /// <param name="handler">Turns the reply into a result.</param>
-            /// <param name="flags">Command flags.</param>
-            public ValueTask<TResult> SendAsync<TResult>(
-                ref RespFrame request,
-                IRespHandler<TResult> handler,
-                CommandFlags flags)
-            {
-                var executor = context.Executor;
-                if (executor is null)
-                {
-                    request.Dispose();
-                    throw new InvalidOperationException("No executor is configured on this context.");
-                }
-
-                return executor.SendAsync(ref request, handler, flags, context.Cache, context.CancellationToken);
-            }
-        }
     }
 }
