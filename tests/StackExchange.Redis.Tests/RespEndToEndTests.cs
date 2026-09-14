@@ -1,0 +1,127 @@
+using System;
+using System.Text;
+using System.Threading.Tasks;
+using StackExchange.Redis.Interpolated;
+using Xunit;
+
+namespace StackExchange.Redis.Tests;
+
+/// <summary>
+/// The context surface against a REAL server, via the existing message pipeline.
+/// </summary>
+/// <remarks>
+/// Everything before this was validated against fakes, which proves the shape but not that the bytes are
+/// acceptable - only framing was ever in question, never semantics. These are the first commands from the
+/// new writer that a server has actually seen.
+/// </remarks>
+public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
+{
+    private static RespDatabase NewSurface(IConnectionMultiplexer conn, int db, RespClientCache? cache = null)
+    {
+        var database = (RedisBase)conn.GetDatabase(db);
+        var context = new RespContext(database.multiplexer.CommandMap, database: db)
+            .WithExecutor(new RespMessageExecutor(database, db))
+            .WithCache(cache);
+        return new RespDatabase(context);
+    }
+
+    [Fact]
+    public async Task SetAndGetAgainstARealServer()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var legacy = conn.GetDatabase();
+        await legacy.KeyDeleteAsync(key);
+
+        var surface = NewSurface(conn, legacy.Database);
+
+        Assert.True(await surface.Strings.Set(key, "marc"));
+        Assert.Equal("marc", await surface.Strings.Get(key));
+
+        // cross-check with the existing API: the bytes the new writer produced really did land
+        Assert.Equal("marc", await legacy.StringGetAsync(key));
+    }
+
+    [Fact]
+    public async Task AMissingKeyComesBackNull()
+    {
+        await using var conn = Create();
+        var key = Me();
+        await conn.GetDatabase().KeyDeleteAsync(key);
+
+        var surface = NewSurface(conn, conn.GetDatabase().Database);
+        Assert.True((await surface.Strings.Get(key)).IsNull);
+    }
+
+    [Fact]
+    public async Task ValuesWrittenByTheLegacyApiAreReadableByTheNewOne()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var legacy = conn.GetDatabase();
+        await legacy.StringSetAsync(key, "from-legacy");
+
+        var surface = NewSurface(conn, legacy.Database);
+        Assert.Equal("from-legacy", await surface.Strings.Get(key));
+    }
+
+    [Fact]
+    public async Task BinaryAndNonAsciiValuesRoundTrip()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var legacy = conn.GetDatabase();
+        var surface = NewSurface(conn, legacy.Database);
+
+        // the framing is length-prefixed, so this is really asking whether the length was computed in
+        // BYTES rather than characters - the classic way to desynchronise a connection
+        Assert.True(await surface.Strings.Set(key, "héllo wörld 中文"));
+        Assert.Equal("héllo wörld 中文", await surface.Strings.Get(key));
+
+        var blob = new byte[512];
+        for (var i = 0; i < blob.Length; i++) blob[i] = (byte)(i % 251);
+        Assert.True(await surface.Strings.Set(key, blob));
+        Assert.Equal(blob, (byte[])(await surface.Strings.Get(key))!);
+    }
+
+    [Fact]
+    public async Task KeyPrefixIsAppliedOnTheWire()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var legacy = conn.GetDatabase();
+        await legacy.KeyDeleteAsync("t7:" + key);
+
+        var tenant = NewSurface(conn, legacy.Database).WithKeyPrefix("t7:");
+        Assert.True(await tenant.Strings.Set(key, "marc"));
+
+        // written under the prefix, and NOT under the bare key
+        Assert.Equal("marc", await legacy.StringGetAsync("t7:" + key));
+        Assert.True((await legacy.StringGetAsync(key)).IsNull);
+    }
+
+    [Fact]
+    public async Task TheCacheServesTheSecondReadWithoutTouchingTheServer()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var legacy = conn.GetDatabase();
+        await legacy.StringSetAsync(key, "first");
+
+        using var cache = new RespClientCache();
+        var surface = NewSurface(conn, legacy.Database, cache);
+
+        Assert.Equal("first", await surface.Strings.Get(key));
+        Assert.Equal(1, cache.Stored);
+
+        // change it behind the cache's back - with no CLIENT TRACKING there is no invalidation, so the
+        // cache still answers "first". That is the correct behaviour for a cache nobody is invalidating,
+        // and it is exactly why tracking is the next piece of work.
+        await legacy.StringSetAsync(key, "second");
+        Assert.Equal("first", await surface.Strings.Get(key));
+
+        // and once told, it stops
+        Assert.True(cache.OnInvalidate(Encoding.UTF8.GetBytes(key)));
+        Assert.Equal("second", await surface.Strings.Get(key));
+    }
+}

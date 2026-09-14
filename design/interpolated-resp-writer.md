@@ -1297,6 +1297,23 @@ Notes from building it:
 - Both routes render **byte-identically**, pinned by a test. That is a correctness property, not tidiness:
   the frame is the cache key, so two routes that disagreed would cache the same logical command twice.
 
+#### The other direction: a frame becomes a message
+
+`RespMessageExecutor` sends a pre-rendered frame through the existing pipeline - connection selection,
+backlog, multiplexing, failover, all untouched. Two small pieces: a `Message` whose `WriteImpl` is a blit,
+and a `ResultProcessor` that captures the raw reply (overriding `SetResult` rather than `SetResultCore`, so
+it runs before `MovePastBof()` consumes the prefix bytes the capture needs).
+
+**One message type covers every pre-formatted command.** The library has **75 `WriteImpl` overrides across
+20 files**, and they exist purely because each command shape writes itself differently; once the bytes
+arrive already framed, there is one shape. That is the clearest single measure of what moving formatting
+upstream buys - and it is scaffolding rather than a destination, since the `Message` machinery is expected
+to go away entirely in favour of execution life-cycle state.
+
+This is what made `RespEndToEndTests` possible: `target.Strings.Set/Get` against a real server, with the
+legacy API cross-checking that the bytes landed. Before it, everything was validated against fakes - which
+proves the shape but never that a server accepts the bytes, since only framing was ever in question.
+
 Still open for a real transition: a cacheability predicate (Redis excludes `FT.*`, probabilistic and
 time-series types, and non-deterministic commands such as `HRANDFIELD`/`ZRANDMEMBER`/`HSCAN`), and running
 a `ResultProcessor` against a cached payload — it takes `ref RespReader`, which `RespPayload.GetReader()`
