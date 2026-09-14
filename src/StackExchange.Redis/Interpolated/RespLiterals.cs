@@ -135,6 +135,56 @@
         [Resp]
         internal static partial RespFragment Approx { get; }
 
+        /// <summary>The <c>WITHSCORES</c> operand of the sorted-set reads.</summary>
+        [Resp]
+        internal static partial RespFragment WithScores { get; }
+
+        /// <summary>The <c>CH</c> operand of <c>ZADD</c>: count changed members, not just new ones.</summary>
+        [Resp]
+        internal static partial RespFragment Ch { get; }
+
+        /// <summary>The <c>INCR</c> operand of <c>ZADD</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Incr { get; }
+
+        /// <summary>The <c>REV</c> operand of <c>ZRANGE</c>/<c>ZRANGESTORE</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Rev { get; }
+
+        /// <summary>The <c>WEIGHTS</c> operand of the sorted-set combinations; one weight per key follows.</summary>
+        [Resp]
+        internal static partial RespFragment Weights { get; }
+
+        /// <summary>
+        /// The <c>AGGREGATE</c> operand of the sorted-set combinations; a mode follows it.
+        /// </summary>
+        /// <remarks>
+        /// Separate from the mode rather than one two-token fragment, because an attribute taking an array
+        /// is not CLS-compliant and this assembly is. <c>RespAggregate</c> writes the pair.
+        /// </remarks>
+        [Resp]
+        internal static partial RespFragment Aggregate { get; }
+
+        /// <summary>The <c>MIN</c> end, as <c>ZMPOP</c> names it.</summary>
+        [Resp]
+        internal static partial RespFragment Min { get; }
+
+        /// <inheritdoc cref="Min"/>
+        [Resp]
+        internal static partial RespFragment Max { get; }
+
+        /// <summary>The <c>BYSCORE</c> operand of <c>ZRANGESTORE</c>.</summary>
+        [Resp]
+        internal static partial RespFragment ByScore { get; }
+
+        /// <summary>The <c>BYLEX</c> operand of <c>ZRANGESTORE</c>.</summary>
+        [Resp]
+        internal static partial RespFragment ByLex { get; }
+
+        /// <summary>The <c>COUNT</c> operand of <c>ZMPOP</c>, and the aggregation mode of the same name.</summary>
+        [Resp]
+        internal static partial RespFragment Count { get; }
+
         /// <summary>The <c>NX</c> condition of the hash field-expiry commands.</summary>
         [Resp]
         internal static partial RespFragment Nx { get; }

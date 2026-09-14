@@ -690,27 +690,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array with at least 2 elements: [element, score, ...], or null/empty array
-                if (reader.IsAggregate)
-                {
-                    SortedSetEntry? result = null;
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see SortedSetEntry.Resp.cs
+                if (!Redis.SortedSetEntry.TryRead(ref reader, out var result)) return false;
 
-                    // Note: null arrays report false for TryMoveNext, so no explicit null check needed
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var element = reader.ReadRedisValue();
-                        if (reader.TryMoveNext() && reader.IsScalar)
-                        {
-                            var score = reader.TryReadDouble(out var val) ? val : double.NaN;
-                            result = new SortedSetEntry(element, score);
-                        }
-                    }
-
-                    SetResult(message, result);
-                    return true;
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 
@@ -724,47 +709,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array of 2: [key, array of SortedSetEntry] or null aggregate
-                if (reader.IsAggregate)
-                {
-                    // Handle null (RESP3 pure null or RESP2 null array)
-                    if (reader.IsNull)
-                    {
-                        SetResult(message, Redis.SortedSetPopResult.Null);
-                        return true;
-                    }
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see SortedSetPopResult.Resp.cs
+                if (!Redis.SortedSetPopResult.TryRead(ref reader, out var result)) return false;
 
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var key = reader.ReadRedisKey();
-
-                        // Read the second element (array of SortedSetEntry)
-                        if (reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var entries = reader.ReadPastArray(
-                                static (ref r) =>
-                                {
-                                    // Each entry is an array of 2: [element, score]
-                                    if (r.IsAggregate && r.TryMoveNext() && r.IsScalar)
-                                    {
-                                        var element = r.ReadRedisValue();
-                                        if (r.TryMoveNext() && r.IsScalar)
-                                        {
-                                            var score = r.TryReadDouble(out var val) ? val : double.NaN;
-                                            return new SortedSetEntry(element, score);
-                                        }
-                                    }
-                                    return default;
-                                },
-                                scalar: false);
-
-                            SetResult(message, new SortedSetPopResult(key, entries!));
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 

@@ -5,7 +5,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// A contiguous portion of a redis sorted set.
 /// </summary>
-public readonly struct SortedSetPopResult
+public readonly partial struct SortedSetPopResult
 {
     /// <summary>
     /// A null SortedSetPopResult, indicating no results.

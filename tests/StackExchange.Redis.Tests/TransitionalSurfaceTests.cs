@@ -91,6 +91,15 @@ public class TransitionalSetTests(ITestOutputHelper output, SharedConnectionFixt
         => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
 }
 
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalSortedSetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : SortedSetTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
 /// <summary>
 /// That the re-runs above are actually re-running anything.
 /// </summary>
@@ -125,6 +134,7 @@ public class TransitionalCoverageTests
     [InlineData("String")]
     [InlineData("Hash")]
     [InlineData("Set")]
+    [InlineData("SortedSet")]
     public void EveryMemberOfAMovedGroupIsImplemented(string prefix)
     {
         var generated = Generated(prefix, typeof(IDatabase)).Concat(Generated(prefix, typeof(IDatabaseAsync)))
@@ -141,6 +151,7 @@ public class TransitionalCoverageTests
             .Where(x => !x.StartsWith("HashImport", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("HashScan", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("SetScan", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("SortedSetScan", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Empty(expected);
@@ -152,6 +163,6 @@ public class TransitionalCoverageTests
         // the control. Without this, EveryMemberOfAMovedGroupIsImplemented would pass just as happily if
         // the interface map stopped distinguishing the two kinds of member, and the coverage claim above
         // would be vacuous rather than wrong - which is the harder failure to notice.
-        Assert.NotEmpty(Generated("SortedSet", typeof(IDatabase)));
+        Assert.NotEmpty(Generated("List", typeof(IDatabase)));
     }
 }
