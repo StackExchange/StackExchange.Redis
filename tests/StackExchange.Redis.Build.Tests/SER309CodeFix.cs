@@ -71,7 +71,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" nx"));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" nx"));
 
     [Fact]
     public Task SeparatorsAreKeptOnBothSides() => VerifyFixAsync(
@@ -96,7 +96,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" nx "));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" nx "));
 
     [Fact]
     public Task MatchingIsCaseInsensitive() => VerifyFixAsync(
@@ -121,7 +121,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" NX"));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" NX"));
 
     // ---- cases with no fix -------------------------------------------------------------------------
 
@@ -151,7 +151,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        [Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" withsave")],
+        [Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" withsave")],
         MissingGeneratedBody("C.Withsave"));
 
     [Fact]
@@ -180,7 +180,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        [Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" lib-ver")],
+        [Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" lib-ver")],
         MissingGeneratedBody("C.LibVer"));
 
     [Fact]
@@ -211,7 +211,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        [Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" SETINFO")],
+        [Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" SETINFO")],
         MissingGeneratedBody("C.Setinfo"));
 
     [Fact]
@@ -226,5 +226,5 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" nx xx"));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" nx xx"));
 }

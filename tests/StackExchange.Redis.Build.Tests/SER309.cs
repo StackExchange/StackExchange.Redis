@@ -31,7 +31,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" nx "));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" nx "));
 
     [Fact]
     public Task TwoSpaces_IsFlagged() => VerifyAsync(
@@ -44,7 +44,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments("  "));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("  "));
 
     [Fact]
     public Task LeadingCommandName_IsFlagged() => VerifyAsync(
@@ -57,7 +57,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments("SET "));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("SET "));
 
     [Fact]
     public Task EveryLiteralIsReportedSeparately() => VerifyAsync(
@@ -70,8 +70,8 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" nx "),
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(1).WithArguments(" xx"));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" nx "),
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(1).WithArguments(" xx"));
 
     [Fact]
     public Task LeadingSpace_IsFlagged() => VerifyAsync(
@@ -84,7 +84,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" "));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" "));
 
     [Fact]
     public Task TrailingSpace_IsFlagged() => VerifyAsync(
@@ -97,7 +97,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
             }
         }
         """,
-        Diagnostic("SER309", DiagnosticSeverity.Error).WithLocation(0).WithArguments(" "));
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" "));
 
     // ---- negatives ---------------------------------------------------------------------------------
 

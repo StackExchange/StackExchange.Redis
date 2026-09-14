@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using RESPite;
 
@@ -135,32 +136,119 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
-        /// Literal text is rejected, with one exception: a single space, which is discarded. That keeps
-        /// <c>$"{RedisCommand.SET} {key} {value}"</c> readable - it mirrors how the command is written
-        /// everywhere else - without the space becoming an argument.
+        /// Literal text becomes arguments: whitespace-separated tokens, with the first one - if nothing has
+        /// been written yet - taken as the command.
         /// </summary>
         /// <remarks>
-        /// Rejecting literals is what makes the compiler-supplied <c>formattedCount</c> the argument count,
-        /// so the <c>*N</c> header can be a compile-time constant. A discarded space does not affect that:
-        /// spaces are literal segments, not holes. See <c>design/interpolated-resp-writer.md</c> section 2.1.
         /// <para>
-        /// This is a runtime check; the analyzer is expected to catch it at build time, which it must, since
-        /// two spaces look exactly like one.
+        /// So <c>$"SET {key} {value}"</c> and <c>$"{RedisCommand.SET}{key}{value}"</c> produce the same
+        /// frame, and <c>$"CONFIG GET {name}"</c> produces three arguments. Splitting on whitespace is what
+        /// makes container commands come out right for free: <c>CONFIG</c> is the command and goes through
+        /// the command map, while <c>GET</c> is an ordinary argument and does not - which is exactly how
+        /// <see cref="CommandMap"/> works, since it maps container verbs only.
+        /// </para>
+        /// <para>
+        /// A literal that is only whitespace contributes nothing, so the spaces in
+        /// <c>$"{cmd} {key} {value}"</c> are still just separators.
+        /// </para>
+        /// <para>
+        /// <b>This is the slow way to say it</b>, and the analyzer says so - a warning, not an error,
+        /// because the result is correct, merely suboptimal. Each token is parsed and encoded on every call,
+        /// where a <see cref="RespCommand"/> or a <c>RespFragment</c> resolves once. The fixer promotes
+        /// literals to those. Working-but-slower is the right default here: the alternative was rejecting
+        /// code that does exactly what it looks like.
+        /// </para>
+        /// <para>
+        /// Nothing here allocates: the split is span slicing over the literal, and the encode goes straight
+        /// into the frame buffer.
         /// </para>
         /// </remarks>
+        /// <param name="value">The literal text.</param>
         public void AppendLiteral(string value)
         {
-            // Deliberately empty, with no check: the JIT eliminates the call entirely.
-            //
-            // Enforcement belongs to the analyzer, which reports literal text as an ERROR and offers a fix
-            // rewriting it to a declared fragment. A runtime check would buy nothing the analyzer does not,
-            // because the failure mode here is benign in the way that matters: a discarded literal produces
-            // a WELL-FORMED frame with an argument missing. The server errors, or does the wrong thing, and
-            // the connection is unaffected - literals never contributed to *N, so the header stays correct.
-            //
-            // Contrast RespFragment (SER011), where bad bytes desync the connection for every subsequent
-            // command. Guard strength is proportional to blast radius: analyzer error here, analyzer plus a
-            // generator-emitted #error there.
+            // The two cases on the recommended path, and by far the most common: nothing at all, and the
+            // single space of $"{cmd} {key} {value}". Both contribute no arguments, so neither is worth
+            // entering the tokenizer for - and keeping them here means the preferred spelling pays nothing
+            // for the existence of the readable one.
+            if (value is null || value.Length == 0) return;
+            if (value.Length == 1 && value[0] == ' ') return;
+
+            AppendLiteralSlow(value);
+        }
+
+        /// <summary>Tokenize literal text into a command and/or arguments.</summary>
+        /// <remarks>
+        /// Separate and not inlined: this is the uncommon path, and inlining a loop plus an encoder into
+        /// <see cref="AppendLiteral"/> would change codegen for the fast one - the same split, for the same
+        /// reason, as the fallbacks in <c>MessageWriter</c>.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void AppendLiteralSlow(string value)
+        {
+            var pos = 0;
+            while (pos < value.Length)
+            {
+                while (pos < value.Length && IsSeparator(value[pos])) pos++;
+                if (pos >= value.Length) return;
+
+                var tokenStart = pos;
+                while (pos < value.Length && !IsSeparator(value[pos])) pos++;
+                AppendToken(value, tokenStart, pos - tokenStart);
+            }
+
+            static bool IsSeparator(char c) => c is ' ' or '\t' or '\r' or '\n';
+        }
+
+        /// <summary>One whitespace-separated run of literal text: the command if first, else an argument.</summary>
+        private void AppendToken(string value, int start, int length)
+        {
+            if (!_hasCommand)
+            {
+                // first thing written: this is the command. A name we know goes through the map - which may
+                // rename or disable it; anything else is framed verbatim, as Execute(string, ...) already does
+                if (RedisCommandMetadata.TryParseCI(value.AsSpan(start, length), out var parsed)
+                    && parsed != RedisCommand.UNKNOWN)
+                {
+                    var resp = _context.CommandMap.GetResp(parsed);
+                    if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(parsed);
+
+                    Ensure(resp.Length);
+                    resp.CopyTo(_buffer.AsSpan(_offset));
+                    _offset += resp.Length;
+                    _hasCommand = true;
+                    _args++;
+                    _argIndex++;
+                    return;
+                }
+
+                _hasCommand = true; // unknown command name, framed below like any other token
+            }
+
+            WriteUtf8Bulk(value, start, length);
+            _args++;
+            _argIndex++;
+        }
+
+        /// <summary>Write part of a string as a bulk string, encoding straight into the frame buffer.</summary>
+        /// <remarks>
+        /// Pointer-based because <c>Encoding.GetByteCount(ReadOnlySpan&lt;char&gt;)</c> does not exist on
+        /// netstandard2.0 or net461; the <c>char*</c> overloads do, and this way there is no intermediate
+        /// array on any target.
+        /// </remarks>
+        private unsafe void WriteUtf8Bulk(string value, int start, int length)
+        {
+            int byteCount;
+            fixed (char* chars = value)
+            {
+                byteCount = Encoding.UTF8.GetByteCount(chars + start, length);
+                var payload = WriteBulk(byteCount, out var payloadOffset);
+                fixed (byte* bytes = &MemoryMarshal.GetReference(payload))
+                {
+                    Encoding.UTF8.GetBytes(chars + start, length, bytes, byteCount);
+                }
+
+                CommitBulk(payloadOffset, byteCount);
+            }
         }
 
         internal void AppendFormatted(RedisCommand value)

@@ -76,7 +76,45 @@ support, and down-level the attribute is inert, silently giving a one-element st
 
 ## 2. Shape
 
-### 2.1 Literals are rejected, except a single space
+### 2.1 Literals become arguments (was: rejected, except a single space)
+
+> **Superseded.** Literal text is no longer discarded, and SER309 is a **warning**, not an error. What
+> follows records why rejection looked right first; the reasoning that replaced it is here.
+
+**What changed.** `AppendLiteral` tokenizes on whitespace. If nothing has been written yet, the first
+token is the **command** - parsed against the known set, mapped through `CommandMap`, framed verbatim if
+unrecognised. Every later token is an ordinary **value** argument, UTF-8 encoded straight into the frame.
+Whitespace-only literals still contribute nothing, so `$"{cmd} {key} {value}"` is unchanged.
+
+So `$"SET {key} {value}"` renders byte-identically to `$"{RedisCommand.SET}{key}{value}"`, and
+`$"COMMAND INFO {name.Command()}"` works.
+
+**Why this is better than rejecting.** The rejected form did exactly what it looked like; refusing to
+compile it bought correctness we did not actually need. Working-but-slower beats not-working, and the
+warning still points at the faster spelling.
+
+**Splitting on whitespace gets container commands right for free.** `$"CONFIG GET {name}"` yields three
+arguments, with `CONFIG` mapped and `GET` not - which is precisely how `CommandMap` behaves, since it maps
+container verbs only. That was not designed for; it fell out.
+
+**What it costs, and what it does not.**
+
+- Each token is parsed and encoded **per call**, where a `[Resp]` fragment or a `RespCommand` resolves
+  once. That is the whole content of the warning.
+- `AppendLiteral` fast-paths empty and a single space before entering the tokenizer, so the recommended
+  spelling pays nothing for the readable one existing. The tokenizer is `[MethodImpl(NoInlining)]`, the
+  same split as `MessageWriter`'s fallbacks and for the same codegen reason.
+- Nothing allocates: the split is index arithmetic over the literal, and the encode is pointer-based
+  straight into the frame buffer - `Encoding.GetByteCount(ReadOnlySpan<char>)` does not exist on
+  netstandard2.0 or net461, but the `char*` overloads do.
+- **A literal token is never a key.** Key-ness comes from the hole type, so routing and invalidation are
+  unaffected by any of this.
+- `*N` is no longer derivable from `formattedCount` for this form, which is fine: the count was only ever
+  an optimisation hint, since `Compose` plus `AppendFormatted` already defeat it.
+
+---
+
+#### Original reasoning: literals rejected, except a single space
 
 Every part of the command must be a hole, with one exception: a **single space**, which is discarded.
 

@@ -327,12 +327,12 @@ internal static class Diagnostics
     /// </remarks>
     public static readonly DiagnosticDescriptor RespLiteralNotSent = new(
         id: "SER309",
-        title: "Literal text in a RESP command is discarded, not sent",
-        messageFormat: "Literal text \"{0}\" is discarded rather than sent as an argument; declare it as a [Resp] fragment and use a hole, or delete it",
+        title: "Literal text in a RESP command is resolved on every call",
+        messageFormat: "Literal text \"{0}\" is parsed and encoded on every call; resolve it once - a [Resp] fragment for a token, or a .Command() field for a command",
         category: UsageCategory,
-        defaultSeverity: DiagnosticSeverity.Error,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Only interpolation holes become RESP arguments; literal text between them is discarded, so a command written with inline tokens silently omits them. A single space is permitted as a separator.",
+        description: "Literal text becomes RESP arguments - whitespace-separated, with a leading token taken as the command - so the result is correct, but each token is parsed and UTF-8 encoded on every call where a declared fragment or a resolved command is prepared once. Whitespace-only literals are separators and cost nothing.",
         helpLinkUri: HelpLink("SER309"));
 
     /// <summary>

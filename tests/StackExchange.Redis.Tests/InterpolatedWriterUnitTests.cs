@@ -480,29 +480,31 @@ public class InterpolatedWriterUnitTests
 
 #pragma warning disable SER309 // deliberately exercising the discard path the analyzer exists to prevent
     [Fact]
-    public void LiteralsAreDiscardedNotRejectedAtRuntime()
+    public void LiteralsBecomeArgumentsRatherThanBeingDiscarded()
     {
-        // AppendLiteral is a no-op: rejection is the ANALYZER's job, as an error with a fix. A runtime
-        // check would add nothing, because discarding a literal leaves a well-formed frame with an
-        // argument missing - the command is wrong, but the connection is not. Literals never contributed
-        // to *N, so the header stays correct either way.
+        // literals used to be dropped and the analyzer rejected them outright; now they are tokenized, so
+        // the readable spelling works and the analyzer only warns that it resolves per call
         var ctx = new RespContext();
 
         using var twoSpaces = ctx.Execute($"{RedisCommand.GET}  {(RedisKey)"k"}");
         using var hyphen = ctx.Execute($"{RedisCommand.GET}-{(RedisKey)"k"}");
 
+        // whitespace-only is still nothing; anything else is now an argument
         Assert.Equal(new[] { "GET", "k" }, Parse(twoSpaces.Span));
-        Assert.Equal(new[] { "GET", "k" }, Parse(hyphen.Span));
         Assert.Equal(2, twoSpaces.ArgCount);
+
+        Assert.Equal(new[] { "GET", "-", "k" }, Parse(hyphen.Span));
+        Assert.Equal(3, hyphen.ArgCount);
     }
 
     [Fact]
-    public void ALiteralCommandStillFailsBecauseThereIsNoCommandHole()
+    public void ALiteralCommandNowSuppliesTheCommand()
     {
-        // $"SET {key}" discards "SET ", so nothing ever supplied a command - which IS caught, because the
-        // handler cannot frame a key before it has one
+        // this used to throw: "SET " was discarded, so nothing supplied a command and the key could not be
+        // framed. The leading token is now the command, so it renders exactly like the hole form.
         var ctx = new RespContext();
-        Assert.Throws<InvalidOperationException>(() => ctx.Execute($"SET {(RedisKey)"k"}").Dispose());
+        using var frame = ctx.Execute($"SET {(RedisKey)"k"}");
+        Assert.Equal(new[] { "SET", "k" }, Parse(frame.Span));
     }
 #pragma warning restore SER309
 }

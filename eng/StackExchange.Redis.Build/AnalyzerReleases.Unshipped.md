@@ -15,5 +15,5 @@ SER305  | Usage    | Error    | QueuedResultAnalyzer: waiting for a command queu
 SER306  | Usage    | Warning  | QueuedResultAnalyzer: waiting for a fire-and-forget result reads the default value rather than the server's answer
 SER307  | Usage    | Warning  | QueuedResultAnalyzer: blocking on a redis call instead of awaiting it, which ties up a thread-pool thread while the reply needs one of its own
 SER308  | Usage    | Warning  | QueuedResultAnalyzer: calling the library's own Wait/WaitAll/TryWait helpers, which block the calling thread
-SER309  | Usage    | Error    | RespInterpolationAnalyzer: literal text in a RESP interpolated command is discarded rather than sent as an argument
+SER309  | Usage    | Warning  | RespInterpolationAnalyzer: literal text in a RESP interpolated command is parsed and encoded on every call, where a fragment or resolved command is prepared once
 SER351  | Build    | Warning  | RespFragmentGenerator: a [Resp] declaration that cannot be implemented, which would otherwise be skipped silently
