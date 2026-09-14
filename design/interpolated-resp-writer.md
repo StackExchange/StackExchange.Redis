@@ -1975,12 +1975,48 @@ our own SET       +OK\r\n  followed by the same push (NOLOOP off; reply first, t
 - **One push can name several keys.** A handler that reads only the first leaves entries live.
 - **Key expiry invalidates too**, not only explicit writes — confirmed by watching a `PX 150` key.
 - `BCAST` really does report keys we never read, and `PREFIX` filters exactly as documented.
+- **A flush cannot be scoped away.** `PREFIX want:` correctly ignores a write to `other:key`, but a
+  `FLUSHDB` on an entirely different database still arrives as `>2 invalidate _`. A flush names no keys, so
+  there is nothing for a prefix to filter and nothing to attribute to a database. One `FLUSHDB` by anyone,
+  anywhere, empties every tracking client's cache. That is correct, and worth knowing before someone
+  reasons that a narrow prefix bounds their exposure - it bounds key traffic, not flushes.
 
-**Telling an invalidation from a pub/sub delivery is the whole of the discrimination the real pipeline
-needs to add**, and getting it backwards is not a no-op in either direction: a channel name read as a key
-list, or a delivery handed back as somebody's reply. Note the third case — `subscribe`/`unsubscribe`
-confirmations are *also* typed as pushes in RESP3 but *are* the reply to a command, so "push means
-out-of-band" is too simple.
+**Telling an invalidation from a pub/sub delivery is the discrimination the real pipeline needs to add**,
+and getting it backwards is not a no-op in either direction: a channel name read as a key list, or a
+delivery handed back as somebody's reply.
+
+And "push means out-of-band" is too simple, in a way that is genuinely unpleasant.
+`subscribe`/`unsubscribe` confirmations are typed as pushes but **can be** the reply to a command — *can
+be*, not *are*. The same shape arrives unsolicited (`RESET`, server-side teardown, shard migration), and
+`UNSUBSCRIBE` with no arguments answers **one** command with **N** pushes, or none at all if there were no
+subscriptions. So the correlation is not one-to-one, and **cannot be decided by inspecting the frame** — it
+needs subscription state.
+
+The library already has this: `PhysicalConnection.OutOfBandResult` has a third value, `MatchToCommand`,
+for exactly that case, and its policy for anything unknown is worth copying verbatim:
+
+> *"a RESP3 push frame is out-of-band by definition; if we don't recognize it (newer server, or a feature
+> we don't implement) we drop it - matching it to a pending command would desynchronize the entire response
+> stream"*
+
+Which is also precisely why invalidations are dropped today: they are simply not recognised.
+
+#### What the production integration actually needs
+
+Two changes, both small, and now known rather than guessed:
+
+1. **`PushKind` gains `[AsciiHash("invalidate")] Invalidate`** (`PhysicalConnection.Read.cs`). One line; the
+   generator does the parsing.
+2. **It must be handled *before* the channel gate.** The existing flow does:
+
+   ```csharp
+   if (kind is PushKind.None || !TryMoveNextString(ref reader)) return OutOfBandResult.NotRecognized;
+   ```
+
+   `TryMoveNextString` requires the second element to be an inline `BulkString`/`SimpleString`, because for
+   pub/sub the second element is always the channel. An invalidation's second element is an **array** or a
+   **null**, so adding the enum member alone changes nothing — it would still fall out here as
+   `NotRecognized` and be dropped. Invalidation has to branch off ahead of that gate and return `Handled`.
 
 Proven end to end by `RespTrackingTests` against a real server, through a dedicated RESP3 `BCAST`
 connection (`TrackingExecutor`): a third party's write evicts what we cached, non-ASCII key bytes match,

@@ -38,7 +38,7 @@ internal sealed class TrackingExecutor : IRespExecutor, IDisposable
     private readonly ConcurrentQueue<TaskCompletionSource<byte[]>> _pending = new();
     private readonly CancellationTokenSource _shutdown = new();
 
-    private int _invalidations, _flushes, _keysInvalidated;
+    private int _invalidations, _flushes, _keysInvalidated, _deliveries;
 
     /// <summary>Invalidation pushes received.</summary>
     internal int Invalidations => Volatile.Read(ref _invalidations);
@@ -48,6 +48,9 @@ internal sealed class TrackingExecutor : IRespExecutor, IDisposable
 
     /// <summary>Flush pushes received (the null payload).</summary>
     internal int Flushes => Volatile.Read(ref _flushes);
+
+    /// <summary>Pub/sub deliveries recognised as such, and therefore NOT mistaken for invalidations.</summary>
+    internal int Deliveries => Volatile.Read(ref _deliveries);
 
     public int Database => 0;
 
@@ -172,39 +175,84 @@ internal sealed class TrackingExecutor : IRespExecutor, IDisposable
     /// <c>RespClientCache.IsCacheableReply</c> uses for errors. Attributes are the only construct that can
     /// precede a value, and a push is never behind one.
     /// </remarks>
+    /// <summary>What a push frame turns out to be. Mirrors PhysicalConnection's OutOfBandResult.</summary>
+    private enum PushClass
+    {
+        /// <summary>Unknown to us. DROP it - see <see cref="Dispatch"/>.</summary>
+        Unrecognized,
+
+        /// <summary>An invalidation; feed the cache.</summary>
+        Invalidate,
+
+        /// <summary>Out-of-band pub/sub delivery; belongs to no request.</summary>
+        Delivery,
+
+        /// <summary>A subscribe/unsubscribe confirmation, which <i>can be</i> the reply to a command.</summary>
+        MatchToCommand,
+    }
+
     private void Dispatch(ReadOnlySpan<byte> frame)
     {
         if (!frame.IsEmpty && (RespPrefix)frame[0] == RespPrefix.Push)
         {
-            if (TryInvalidate(frame)) return;
+            switch (Classify(frame))
+            {
+                case PushClass.Invalidate:
+                    TryInvalidate(frame);
+                    return;
 
-            // A push that is NOT an invalidation must not be mistaken for a reply - pub/sub delivery is
-            // out-of-band and belongs to nobody's request. This is precisely the discrimination the real
-            // pipeline has to get right: it currently drops invalidations because it expects pub/sub shape
-            // (message / channel / payload, all strings) and an invalidation's second element is an array
-            // or a null.
-            if (IsDelivery(frame)) return;
+                case PushClass.MatchToCommand:
+                    break; // falls through to the pending queue below
 
-            // ...but subscribe/unsubscribe confirmations ARE the reply to a command, despite being typed as
-            // pushes in RESP3, so they fall through to the pending queue.
+                case PushClass.Delivery:
+                    Interlocked.Increment(ref _deliveries);
+                    return;
+
+                default:
+                    // Something we do not know. DROPPING the unknown is the important half:
+                    // a RESP3 push is out-of-band by definition, so handing an unrecognised one to the
+                    // pending queue would answer somebody's request with it and desynchronise every reply
+                    // after it. PhysicalConnection.OnOutOfBand takes exactly this line.
+                    return;
+            }
         }
 
         if (_pending.TryDequeue(out var completion)) completion.TrySetResult(frame.ToArray());
     }
 
-    /// <summary>Is this push an out-of-band pub/sub delivery, rather than a reply to something we sent?</summary>
-    private static bool IsDelivery(ReadOnlySpan<byte> frame)
+    /// <summary>
+    /// Classify a push by its first element.
+    /// </summary>
+    /// <remarks>
+    /// Note that <see cref="PushClass.MatchToCommand"/> is <b>"can be"</b>, not "is": the same
+    /// subscribe/unsubscribe shape also arrives unsolicited (<c>RESET</c>, server-side teardown, shard
+    /// migration), and <c>UNSUBSCRIBE</c> with no arguments answers one command with <i>N</i> pushes - or
+    /// none at all, if there were no subscriptions. So correlation is not one-to-one and cannot be decided
+    /// from the frame. This harness gets away with the naive version because it issues exactly one
+    /// SUBSCRIBE and awaits exactly one reply; the real connection tracks subscription state instead.
+    /// </remarks>
+    private static PushClass Classify(ReadOnlySpan<byte> frame)
     {
         var reader = new RespReader(frame);
-        if (!reader.TryMoveNext(checkError: false) || !reader.TryMoveNext(false)) return false;
-        return reader.Is("message"u8) || reader.Is("pmessage"u8) || reader.Is("smessage"u8);
+        if (!reader.TryMoveNext(checkError: false) || !reader.TryMoveNext(false)) return PushClass.Unrecognized;
+
+        if (reader.Is("invalidate"u8)) return PushClass.Invalidate;
+        if (reader.Is("message"u8) || reader.Is("pmessage"u8) || reader.Is("smessage"u8)) return PushClass.Delivery;
+        if (reader.Is("subscribe"u8) || reader.Is("unsubscribe"u8)
+            || reader.Is("psubscribe"u8) || reader.Is("punsubscribe"u8)
+            || reader.Is("ssubscribe"u8) || reader.Is("sunsubscribe"u8))
+        {
+            return PushClass.MatchToCommand;
+        }
+
+        return PushClass.Unrecognized;
     }
 
     private bool TryInvalidate(ReadOnlySpan<byte> frame)
     {
         var reader = new RespReader(frame);
         if (!reader.TryMoveNext(checkError: false) || reader.Prefix != RespPrefix.Push) return false;
-        if (!reader.TryMoveNext(false) || !reader.Is("invalidate"u8)) return false;   // e.g. a pub/sub push
+        if (!reader.TryMoveNext(false) || !reader.Is("invalidate"u8)) return false;
         if (!reader.TryMoveNext(false)) return false;
 
         // a null payload is FLUSHALL/FLUSHDB - "everything you have is gone", not "nothing changed"

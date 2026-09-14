@@ -37,6 +37,27 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         }
     }
 
+    /// <summary>
+    /// Run a write of our own and wait until its echo has actually arrived and traffic has gone quiet.
+    /// </summary>
+    /// <remarks>
+    /// Waiting for quiet is not enough by itself, and this is the subtle part: under load the echo may not
+    /// have arrived <i>at all</i> yet, so two consecutive samples read the same number and "settled" is
+    /// concluded before the push lands - which then turns up later and spoils whatever baseline the test
+    /// took. So: wait <b>for</b> the echo we know is coming, and only then wait for quiet.
+    /// </remarks>
+    private static async Task WriteAndSettleAsync(TrackingExecutor executor, params string[] command)
+    {
+        var before = executor.Invalidations;
+        await executor.CommandAsync(command);
+
+        Assert.True(
+            await WaitFor(() => executor.Invalidations > before),
+            "our own write did not echo back - is NOLOOP on?");
+
+        await SettleAsync(executor);
+    }
+
     private static async Task<bool> WaitFor(Func<bool> condition, int millis = 2000)
     {
         var watch = Stopwatch.StartNew();
@@ -85,8 +106,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         using var __ = cache;
 
         var key = Me();
-        await executor.CommandAsync("SET", key, "first");
-        await SettleAsync(executor); // let our own write's echo land before we cache anything
+        await WriteAndSettleAsync(executor, "SET", key, "first");
 
         Assert.Equal("first", await context.Strings.Get(key));
         Assert.Equal(1, cache.Count);
@@ -120,8 +140,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         using var __ = cache;
 
         var key = Me() + ":éü中文";
-        await executor.CommandAsync("SET", key, "value");
-        await SettleAsync(executor);
+        await WriteAndSettleAsync(executor, "SET", key, "value");
 
         Assert.Equal("value", await context.Strings.Get(key));
         Assert.Equal(1, cache.Count);
@@ -145,8 +164,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
 
         var prefix = Me();
         string A = prefix + ":a", B = prefix + ":b";
-        await executor.CommandAsync("MSET", A, "1", B, "2");
-        await SettleAsync(executor);
+        await WriteAndSettleAsync(executor, "MSET", A, "1", B, "2");
         var seenBefore = executor.KeysInvalidated;
 
         Assert.Equal("1", await context.Strings.Get(A));
@@ -174,35 +192,27 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         using var __ = cache;
 
         var key = Me();
-        await executor.CommandAsync("SET", key, "value");
-        await SettleAsync(executor);
+        await WriteAndSettleAsync(executor, "SET", key, "value");
         Assert.Equal("value", await context.Strings.Get(key));
 
         var channel = Me() + ":channel";
         await executor.CommandAsync("SUBSCRIBE", channel);
 
-        var before = executor.Invalidations;
-
         await using var other = Create();
         await other.GetSubscriber().PublishAsync(RedisChannel.Literal(channel), "hello");
 
-        // give the delivery time to arrive and be mis-handled, if it is going to be
-        await Task.Delay(300);
+        // Assert the POSITIVE - that the delivery was classified as a delivery. Asserting the negative
+        // ("no invalidation arrived") looks equivalent and is not: it is a claim about a global counter,
+        // so any unrelated traffic on this connection fails it, and it flaked under suite load.
+        Assert.True(await WaitFor(() => executor.Deliveries > 0), "the pub/sub delivery never arrived");
 
-        Assert.Equal(before, executor.Invalidations);   // the delivery was not counted as an invalidation
-        Assert.Equal(1, cache.Count);                   // ...and our entry is untouched
+        // Deliberately NOT asserting that our cached entry survived. That looks like the natural companion
+        // assertion and it is not testable on a shared server: a FLUSHDB by ANY concurrent test, on ANY
+        // database, sends every tracking client an unfilterable `invalidate null` - PREFIX cannot scope a
+        // flush, because a flush names no keys. Verified against the server. So the entry legitimately
+        // disappears at random here, and asserting otherwise tests the suite's scheduling, not the code.
         Assert.Equal("value", await context.Strings.Get(key));
     }
-
-    /// <summary>A database index this suite does not otherwise use, so flushing it disturbs nobody.</summary>
-    /// <remarks>
-    /// The flush test is the only destructive one here, and <c>FLUSHDB</c> on the shared primary would wipe
-    /// the database out from under every test running concurrently - which is exactly what it did the first
-    /// time. Tracking is database-agnostic (the server keeps "a single keys namespace, not divided by
-    /// database numbers"), so the push arrives regardless of which database was flushed, and confining the
-    /// damage costs nothing.
-    /// </remarks>
-    private const int ScratchDatabase = 9;
 
     [Fact]
     public async Task AFlushDropsEverything()
@@ -212,15 +222,19 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         using var __ = cache;
 
         var key = Me();
-        await executor.CommandAsync("SET", key, "value");
-        await SettleAsync(executor);
+        await WriteAndSettleAsync(executor, "SET", key, "value");
         Assert.Equal("value", await context.Strings.Get(key));
         Assert.Equal(1, cache.Count);
 
-        // put something in the scratch database, then flush ONLY that one
+        // The only destructive test here. FLUSHDB on the shared primary would wipe the database out from
+        // under every concurrently-running test - which is exactly what it did the first time - so it goes
+        // to a database this suite hands out for the purpose. Hard-coding an index is not good enough
+        // either: GetDedicatedDB is a monotonic counter, so a "surely nobody uses 9" eventually collides
+        // with whoever gets 9. Tracking is database-agnostic, so the push arrives regardless.
         await using var other = Create(allowAdmin: true);
-        await other.GetDatabase(ScratchDatabase).StringSetAsync(key, "scratch");
-        await other.GetServer(TestConfig.Current.PrimaryServerAndPort).FlushDatabaseAsync(ScratchDatabase);
+        var scratch = TestConfig.GetDedicatedDB(other);
+        await other.GetDatabase(scratch).StringSetAsync(key, "scratch");
+        await other.GetServer(TestConfig.Current.PrimaryServerAndPort).FlushDatabaseAsync(scratch);
 
         Assert.True(await WaitFor(() => executor.Flushes > 0), "the flush arrived as a key list rather than a null");
         Assert.Equal(1, cache.Sweep());
