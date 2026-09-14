@@ -1388,12 +1388,28 @@ No server is known to emit attributes today. That is precisely why it would go u
 latent until a server, a proxy, or a future protocol revision starts using a feature the protocol already
 allows.
 
-`RespReader.TryMoveNext(checkError: false)` skips attributes and lands on the first content element, and
-`RespReader.IsError` classifies it. `checkError: false` matters — the default overload *throws* on an
-error, which is the very thing being detected. A reply with no content element at all (metadata only, or
-empty) is refused too: unclassifiable fails closed.
+The fix is not to parse every reply, though. **Attributes are the only construct that can precede a
+value**, so if the first byte is not `|` then it *is* the first content element's prefix, and the cheap
+test is **exact, not approximate**:
 
-Pinned by tests that fail against the first-byte implementation.
+```csharp
+var prefix = response[0];
+if (prefix == (byte)RespPrefix.Attribute) return IsCacheableBehindAttributes(response); // NoInlining
+return prefix != (byte)RespPrefix.SimpleError && prefix != (byte)RespPrefix.BulkError;
+```
+
+Protocol parsing is reserved for the branch that needs it, which — no server emitting attributes today —
+is in practice never taken. The slow path is `[MethodImpl(NoInlining)]` for the same reason the
+`MessageWriter` fallbacks are: `RespReader` is a sizeable `ref struct`, and constructing one in a cold
+branch changes codegen for the whole method.
+
+On that path, `RespReader.TryMoveNext(checkError: false)` skips attributes and lands on the first content
+element, and `RespReader.IsError` classifies it. `checkError: false` matters — the default overload
+*throws* on an error, which is the very thing being detected. A reply with no content element at all
+(metadata only, or empty) is refused too: unclassifiable fails closed.
+
+Both branches are pinned: the tests fail against a first-byte-only implementation, and they fail again if
+the attribute path stops classifying.
 
 #### Decision: measure first
 
@@ -1426,6 +1442,7 @@ reversals are the useful part.
 | Keyless requests are never cached | Cache them | Invalidation only ever reports **keys**, so a keyless entry is vacuously valid for the life of the process — not even a flush clears it. Found by building it, not by reasoning. |
 | Handler maintains **both** key-mark forms | Re-derive arg indices on promotion | §5.2 assumed there were no spare bits — true of the *frame*, false of the writer, which is a stack `ref struct` with no size pressure. |
 | >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
+| Fast byte test, `RespReader` only behind an attribute | Parse every reply | Attributes are the only thing that can precede a value, so a non-`\|` first byte *is* the content prefix - the cheap test is exact, and parsing is reserved for a branch that is in practice never taken (§6.12). |
 | Classify the reply with `RespReader` | Test `response[0]` | RESP3 attributes may precede any value, and nothing exempts errors from carrying them - so a first-byte test caches an error hidden behind metadata. Latent today because no server emits attributes, which is what makes it dangerous (§6.12). |
 | Errors never cached; nulls always | Cache errors too, or treat null as a miss | A cached reply must be a function of the tracked keys; an error need not be, so nothing would evict it and a transient failure becomes permanent. A null *is* a function of the key, and Redis tracks keys that do not exist, so negative caching is correct (§6.12). |
 | Cancellation applies only to the caller's await | HybridCache's extra token + waiter tracking | The fill populates a shared cache, so it has value once nobody is waiting - unlike an arbitrary external system, where it does not (§6.11). |

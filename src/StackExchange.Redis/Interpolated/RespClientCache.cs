@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using RESPite;
 using RESPite.Messages;
@@ -380,10 +381,31 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         private static bool IsCacheableReply(ReadOnlySpan<byte> response)
         {
+            if (response.IsEmpty) return false;
+
+            // Attributes are the ONLY construct that can precede a value, so if the first byte is not '|'
+            // it IS the first content element's prefix and this test is exact, not approximate. Parsing is
+            // reserved for the case that needs it - which, no server emitting attributes today, is never.
+            var prefix = response[0];
+            if (prefix == (byte)RespPrefix.Attribute) return IsCacheableBehindAttributes(response);
+
+            return prefix != (byte)RespPrefix.SimpleError && prefix != (byte)RespPrefix.BulkError;
+        }
+
+        /// <summary>
+        /// The attribute case: skip the metadata and classify the element that follows.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately separate and not inlined. <see cref="RespReader"/> is a sizeable <c>ref struct</c>,
+        /// and constructing one in a cold branch changes codegen for the whole method - the same reason the
+        /// fallbacks in <c>MessageWriter</c> are split out.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool IsCacheableBehindAttributes(ReadOnlySpan<byte> response)
+        {
             var reader = new RespReader(response);
 
-            // read the first CONTENT element, not the first byte. TryMoveNext skips attribute metadata,
-            // and checkError:false stops it throwing on the very thing we are trying to detect.
+            // checkError:false - the default overload throws on an error, which is what we are detecting
             return reader.TryMoveNext(checkError: false) && !reader.IsError;
         }
 
