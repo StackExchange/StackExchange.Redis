@@ -347,3 +347,9 @@ static StackExchange.Redis.ExtensionMethods.AsStream(this StackExchange.Redis.Re
 static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, System.Text.Encoding? encoding = null) -> string?
 [SER010]StackExchange.Redis.Interpolated.RespContext.ExecuteAsync(string! command, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.ExecuteAsync(this StackExchange.Redis.Interpolated.IRespTarget! target, string! command, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
+[SER010]StackExchange.Redis.Interpolated.CachePolicy.RefreshAfter.get -> System.TimeSpan
+[SER010]StackExchange.Redis.Interpolated.CachePolicy.RefreshAfter.init -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.EndRefresh(in StackExchange.Redis.Interpolated.RespRequest frame, int database) -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Refreshes.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, long maxAgeTicks, out StackExchange.Redis.Interpolated.RespPayload? payload, out bool shouldRefresh) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginRefresh(in StackExchange.Redis.Interpolated.RespRequest request, int database, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool

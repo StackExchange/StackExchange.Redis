@@ -18,38 +18,11 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       mechanical, but it will collide with any in-flight worktree, so do it immediately after a merge.
       Until then `ExecuteAsync` carries the ad-hoc API, because async has no clash.
 
-- [ ] **Stale-while-revalidate** (§6.15). Serve the old value while a refresh runs, so the window in which
-      a stampede is even possible mostly stops existing. Two thresholds instead of one:
-
-      | age | behaviour |
-      |---|---|
-      | `< soft` | fresh hit |
-      | `soft ≤ age < hard` | **serve stale**, and trigger a refresh, once |
-      | `≥ hard` | miss |
-
-      **Prerequisites are all in now:** single-flight is the same interlock the "refresh once" needs
-      (`934e8d2d`), `CachePolicy` already carries the lifetime and is where the soft threshold goes
-      (`9cf7da77`), and entries already record when they were filled.
-
-      **The refresh needs no factory** — the cache key *is* the request, so refreshing means re-sending it.
-      No delegate, no captured state, nothing of the caller's retained, and handler-agnostic because the
-      cache stores raw bytes. That is the thing HybridCache's `(TState, Func<TState, TResult>)` shape exists
-      to work around.
-
-      Details already decided, so they do not need re-deriving:
-
-      - The once-only flag lives on the **shared entry**; the thresholds are **per-context**. Whoever
-        crosses their own soft bar first triggers a refresh everyone benefits from.
-      - The flag must clear on **failure** as well as success, with backoff, or one failing server pins an
-        entry stale until hard expiry.
-      - **Invalidation-SWR is separate and opt-in**: serving through an invalidation is deliberately
-        serving data the server said is wrong. It must **not** apply to invalidations we caused ourselves —
-        that is read-your-own-writes, and it is reported as corruption, not staleness. The carve-out needs
-        no bookkeeping, because local invalidation happens before the echoed push arrives.
-      - Measure the invalidation window from **first notice**, not from the invalidation: the latter needs a
-        timestamp on the key node, which is on the ~5-6ns allocation-free `OnInvalidate` path.
-      - Needs an absolute **cap**. On a hot-written key every refresh is invalidated in flight, `AllValid`
-        correctly refuses the store, and the entry would serve stale indefinitely.
+- [ ] **Invalidation-based SWR** (§6.15), the remaining half. Expiry-based SWR is built. This one is
+      opt-in and deliberately separate: serving through an invalidation means serving data the server has
+      said is wrong. Must **not** apply to invalidations we caused ourselves (read-your-own-writes); measure
+      the window from first notice rather than from the invalidation; and it needs the absolute cap, since a
+      hot-written key would otherwise serve stale indefinitely as each refresh is invalidated in flight.
 
 - [ ] **Cacheability metadata for the seven exclusions** (§6.9). `SRANDMEMBER`, `HRANDFIELD`,
       `ZRANDMEMBER`, the `*SCAN` family, `TTL`/`PTTL`, `TOUCH`, `PFCOUNT` all sit in
@@ -122,7 +95,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Ad-hoc `ExecuteAsync` returning `RespResult`, on the context and on `IRespTarget`; `ExecuteResp`
       wired through `TransitionalDatabase` — `30d28d70`
 - [x] `RespResult` shares the reply buffer instead of copying it — `696a5c3f`
-- [x] Interface-based default handler lookup; `IRespHandler` made invariant — this change
+- [x] Interface-based default handler lookup; `IRespHandler` made invariant — `a539a538`
+- [x] Stale-while-revalidate on expiry, with background refresh — this change
 
 ## Decided against
 

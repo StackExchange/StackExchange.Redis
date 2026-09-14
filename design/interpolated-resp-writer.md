@@ -2142,6 +2142,46 @@ than a compromise: whoever crosses their own soft bar first triggers a refresh e
 flag must clear on failure as well as success, with backoff — otherwise one failing server leaves the entry
 pinned stale until hard expiry.
 
+#### Built: expiry-based SWR
+
+`CachePolicy.RefreshAfter` is the soft threshold; `TimeToLive` remains the hard one. A read between them
+is **served** and **claims a refresh**, which runs on the thread pool while the caller already has an
+answer.
+
+**The refresh needs nothing configured.** The cache key *is* the request, so refreshing means re-sending
+it — no factory, no captured state, nothing of the caller's retained, and handler-agnostic because the
+cache stores raw bytes. That is the thing `HybridCache`'s `(TState, Func<TState, TResult>)` shape exists to
+work around, and it falls out of §6 rather than being designed.
+
+**Off by default** (`RefreshAfter = Zero`). Serving a value already known to be old is a choice about
+correctness, not a tuning knob, so it is made rather than inherited. A threshold beyond the lifetime means
+the same thing as off — it could never be crossed.
+
+Three things this needed that were not obvious until it ran:
+
+- **The claim must be atomic with the lookup.** `TryGet` decides "this is ageing" *and* "you are the one
+  who will fix it" in one step, and tells exactly one caller. Deciding those separately lets every reader
+  past the threshold decide both, which is the stampede again in different clothing. The flag lives on the
+  shared entry while the thresholds are per-context, so whoever crosses their own bar first starts a
+  refresh everyone benefits from.
+- **A refresh must REPLACE, not add.** `TryComplete` used `TryAdd`, which is right for a first fill —
+  losing that race means somebody answered the same question first and their answer is as good — but makes
+  every refresh a silent no-op that still counts as a redundant fill. It now swaps in place when the fill
+  says it replaces.
+- **Swap in place rather than remove-then-add.** `TryRemove` hands back the *value* but not the stored
+  *key*, and the key holds a retained request of its own; removing would strand that reference, and
+  disposing our own copy instead would release the wrong one. `TryUpdate` leaves the dictionary's key
+  untouched, so only the superseded reply needs releasing — which it does, and there is a test watching the
+  reference count to prove it.
+
+A refresh takes **no in-flight registration**: it is not something anybody should wait for. The entry is
+still being served, so a concurrent miss for the same request is asking a different question — it has
+nothing, and should fetch rather than queue behind a nicety.
+
+`Refreshes` counts them. Read it against `Expired`: refreshes rising while expiries stay near zero is the
+shape you want — entries renewed before anyone had to wait. Expiries rising alongside means the window is
+too narrow to cover the fetch.
+
 #### Stale-while-revalidate on invalidation
 
 Also possible, under "you cannot prove the order, so any order is valid" — but **only for third-party

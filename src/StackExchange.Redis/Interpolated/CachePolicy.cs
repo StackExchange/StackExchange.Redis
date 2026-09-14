@@ -52,6 +52,37 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Whether this policy permits caching at all.</summary>
         public bool Enabled { get; init; } = true;
 
+        /// <summary>
+        /// How old an entry may get before a read refreshes it in the background, while still being served.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Stale-while-revalidate. Without it an entry goes from "good" to "gone" in one step, and every
+        /// concurrent reader of a hot key misses at the same instant - the stampede this is here to prevent.
+        /// With it there are two thresholds: below this, a hit is simply fresh; between this and
+        /// <see cref="TimeToLive"/> the old value is still served <i>and</i> a refresh is started; past
+        /// <see cref="TimeToLive"/> it is a miss like any other.
+        /// </para>
+        /// <para>
+        /// <b>Off by default.</b> Serving a value already known to be old is a choice about correctness, not
+        /// a tuning knob, so it should be made rather than inherited. <see cref="TimeSpan.Zero"/> or greater
+        /// than <see cref="TimeToLive"/> both mean "never refresh early" - the latter because a threshold
+        /// beyond the lifetime can never be crossed.
+        /// </para>
+        /// <para>
+        /// The refresh costs no configuration of its own: <b>the cache key is the request</b>, so refreshing
+        /// an entry means re-sending it. Nothing has to be handed a factory, and nothing of the caller's is
+        /// retained to make it possible.
+        /// </para>
+        /// </remarks>
+        public TimeSpan RefreshAfter { get; init; } = TimeSpan.Zero;
+
+        /// <summary>Whether this policy asks for background refresh at all.</summary>
+        internal bool RefreshesEarly => RefreshAfter > TimeSpan.Zero && RefreshAfter < TimeToLive;
+
+        /// <summary><see cref="RefreshAfter"/> as a <see cref="Stopwatch"/> tick count.</summary>
+        internal long RefreshAfterTicks => ToTicks(RefreshAfter);
+
         /// <summary><see cref="TimeToLive"/> as a <see cref="Stopwatch"/> tick count.</summary>
         /// <remarks>
         /// <see cref="Stopwatch.GetTimestamp"/> rather than <c>Environment.TickCount64</c>, which does not

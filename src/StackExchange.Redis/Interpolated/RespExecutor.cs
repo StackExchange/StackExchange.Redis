@@ -172,7 +172,7 @@ namespace StackExchange.Redis.Interpolated
             // not get a cached answer either, not merely that this reply is not kept
             if (cache is not null && cache.PermitsCaching(flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, out var cached)) return cached;
+                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached)) return cached;
 
                 // NOTE: no in-flight wait here. Coalescing means waiting on someone else's Task, and doing
                 // that from a synchronous caller is the sync-over-async problem this design avoids
@@ -258,7 +258,7 @@ namespace StackExchange.Redis.Interpolated
 
             if (cache is not null && cache.PermitsCaching(flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, out var cached))
+                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached))
                 {
                     return new ValueTask<TResult>(cached);
                 }
@@ -382,15 +382,26 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<TResult> handler,
             RespClientCache cache,
             long maxAgeTicks,
+            CommandFlags flags,
             [MaybeNullWhen(false)] out TResult result)
         {
-            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit))
+            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit, out var refresh))
             {
                 result = default;
                 return false;
             }
 
-            request.Dispose();
+            if (refresh)
+            {
+                // this caller claimed the refresh, so the request cannot simply be dropped: it IS the thing
+                // that needs re-sending. Detach hands ownership to the background send, which disposes it.
+                StartRefresh(executor, request.Detach(flags), cache);
+            }
+            else
+            {
+                request.Dispose();
+            }
+
             try
             {
                 result = Parse(handler, hit);
@@ -400,6 +411,71 @@ namespace StackExchange.Redis.Interpolated
             {
                 hit.Release();
             }
+        }
+
+        /// <summary>
+        /// Re-fetch an ageing entry in the background, while its old value is still being served.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>No factory, no captured state.</b> Refreshing means re-sending the request, because the cache
+        /// key <i>is</i> the request - so this needs nothing from the caller and retains nothing of theirs.
+        /// It is also handler-agnostic: the cache stores the raw reply, so a refresh does not need to know
+        /// what anybody intended to turn the bytes into.
+        /// </para>
+        /// <para>
+        /// Deliberately not awaited. The caller already has an answer - that is the whole point of serving
+        /// stale - so the refresh must not make them wait for a better one. Which means nothing observes the
+        /// task, and every failure has to be swallowed here: an unobserved faulted task is a process-level
+        /// event, and a refresh failing is a normal occurrence rather than an error.
+        /// </para>
+        /// <para>
+        /// The claim is handed back on <b>every</b> path. A refresh that throws and keeps its claim would
+        /// pin the entry stale until its hard expiry, still serving the whole time.
+        /// </para>
+        /// </remarks>
+        private static void StartRefresh(
+            IRespExecutor executor,
+            RespRequest request,
+            RespClientCache cache)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (!cache.TryBeginRefresh(request, executor.Database, out var fill))
+                    {
+                        return;
+                    }
+
+                    RespPayload? response = null;
+                    try
+                    {
+                        response = await executor.SendAsync(fill.Key).ConfigureAwait(false);
+                        if (response is not null) cache.TryComplete(fill, response);
+                        else fill.Abandon();
+                    }
+                    catch
+                    {
+                        fill.Abandon();
+                        throw;
+                    }
+                    finally
+                    {
+                        response?.Release();
+                    }
+                }
+                catch
+                {
+                    // a refresh is best-effort by construction: the caller already has an answer, and the
+                    // entry expires on its own if this keeps failing
+                }
+                finally
+                {
+                    cache.EndRefresh(request, executor.Database);
+                    request.Dispose();
+                }
+            });
         }
 
         private static async ValueTask<TResult> AwaitFill<TResult>(

@@ -58,6 +58,11 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         await SettleAsync(executor);
     }
 
+    private static bool Contains(TrackingExecutor executor, string key)
+    {
+        lock (executor.InvalidatedKeys) return executor.InvalidatedKeys.Contains(key);
+    }
+
     private static async Task<bool> WaitFor(Func<bool> condition, int millis = 2000)
     {
         var watch = Stopwatch.StartNew();
@@ -148,10 +153,13 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         await using var other = Create();
         await other.GetDatabase().StringSetAsync(key, "changed");
 
-        Assert.True(await WaitFor(() => executor.KeysInvalidated > 0), "no invalidation arrived at all");
+        // The real assertion, made directly: the server named the same bytes we wrote. Comparing the key
+        // it sent beats inspecting cache state, which is not reliable on a shared server - any concurrent
+        // FLUSHDB sends an unfilterable flush push that can invalidate our entry before it is even stored.
+        Assert.True(
+            await WaitFor(() => Contains(executor, key)),
+            "the server never named this key - its bytes did not match ours");
 
-        // the real assertion: the server's key bytes matched ours, so the stamp landed on OUR entry
-        Assert.Equal(1, cache.Sweep());
         Assert.Equal("changed", await context.Strings.Get(key));
     }
 

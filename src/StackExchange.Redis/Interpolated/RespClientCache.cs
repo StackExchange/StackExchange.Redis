@@ -57,6 +57,7 @@ namespace StackExchange.Redis.Interpolated
         private long _refusedError;
         private long _coalesced;
         private long _expired;
+        private long _refreshes;
 
         /// <summary>Create a cache.</summary>
         /// <param name="policy">How entries behave; <see cref="CachePolicy.Default"/> when null.</param>
@@ -74,6 +75,14 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>How entries in this cache behave.</summary>
         public CachePolicy Policy { get; }
+
+        /// <summary>Background refreshes started, because an entry was ageing but still servable.</summary>
+        /// <remarks>
+        /// The stampedes that never formed. Compare with <see cref="Expired"/>: refreshes rising while
+        /// expiries stay near zero is the shape you want - entries being renewed before anybody had to wait
+        /// for one. Expiries rising alongside means the refresh window is too narrow to cover the fetch.
+        /// </remarks>
+        public long Refreshes => Volatile.Read(ref _refreshes);
 
         /// <summary>Hits refused because the entry had outlived its lifetime.</summary>
         /// <remarks>
@@ -197,7 +206,31 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// </remarks>
         public bool TryGet(in RespRequest frame, int database, long maxAgeTicks, [NotNullWhen(true)] out RespPayload? payload)
+            => TryGet(in frame, database, maxAgeTicks, out payload, out _);
+
+        /// <inheritdoc cref="TryGet(in RespRequest, int, long, out RespPayload?)"/>
+        /// <param name="frame">The rendered request.</param>
+        /// <param name="database">The database the request ran against.</param>
+        /// <param name="maxAgeTicks">The caller's own freshness requirement.</param>
+        /// <param name="payload">The cached reply, retained.</param>
+        /// <param name="shouldRefresh">
+        /// <c>true</c> if this caller has <b>claimed</b> the job of refreshing an ageing entry, and must
+        /// now do it. At most one caller is told this per refresh.
+        /// </param>
+        /// <remarks>
+        /// The claim is made here rather than by the caller because it has to be atomic with the lookup:
+        /// deciding "this is old" and "I will be the one to fix it" in separate steps lets every reader past
+        /// the threshold decide both, which is the stampede again wearing a different hat.
+        /// </remarks>
+        public bool TryGet(
+            in RespRequest frame,
+            int database,
+            long maxAgeTicks,
+            [NotNullWhen(true)] out RespPayload? payload,
+            out bool shouldRefresh)
         {
+            shouldRefresh = false;
+
             if (_entries.TryGetValue(new EntryKey(frame, database), out var entry)
                 && entry.IsValid
                 && entry.Payload.TryRetain())
@@ -209,6 +242,17 @@ namespace StackExchange.Redis.Interpolated
                     var limit = Math.Min(Policy.TimeToLiveTicks, maxAgeTicks);
                     if (!CachePolicy.IsOlderThan(entry.FilledAt, limit))
                     {
+                        // served either way; the only question is whether this reader also goes and gets a
+                        // newer one. Note the soft threshold is the POLICY's, not the caller's: a caller
+                        // asking for fresher than it gets a miss, which is a stronger answer than a refresh.
+                        if (Policy.RefreshesEarly
+                            && CachePolicy.IsOlderThan(entry.FilledAt, Policy.RefreshAfterTicks)
+                            && entry.TryClaimRefresh())
+                        {
+                            Interlocked.Increment(ref _refreshes);
+                            shouldRefresh = true;
+                        }
+
                         payload = entry.Payload;
                         return true;
                     }
@@ -221,6 +265,75 @@ namespace StackExchange.Redis.Interpolated
 
             payload = null;
             return false;
+        }
+
+        /// <summary>
+        /// Begin a fill for a <b>background refresh</b>, from a request that has already been rendered.
+        /// </summary>
+        /// <param name="request">The request to refresh; borrowed, and retained internally if this succeeds.</param>
+        /// <param name="database">The database it runs against.</param>
+        /// <param name="fill">The fill to complete once the reply arrives.</param>
+        /// <remarks>
+        /// The ordinary <see cref="TryBeginFill(ref RespFrame, int, CommandFlags, out RespFill)"/> takes a
+        /// freshly rendered frame and <i>detaches</i> it. A refresh has no frame to render - the whole point
+        /// is that the cache key already <i>is</i> the request - so this retains rather than detaches, and
+        /// ownership of the caller's copy is unaffected.
+        /// <para>
+        /// Key generations are captured here, before the refresh is sent, exactly as for a first fill: a
+        /// write landing while the refresh is in flight must lose, not win.
+        /// </para>
+        /// </remarks>
+        public bool TryBeginRefresh(in RespRequest request, int database, out RespFill fill)
+        {
+            if (!IsCacheable(request.Flags))
+            {
+                Interlocked.Increment(ref _refusedByFlags);
+                fill = default;
+                return false;
+            }
+
+            var keyCount = request.KeyCount;
+            if (keyCount <= 0)
+            {
+                Interlocked.Increment(ref _refusedNoKeys);
+                fill = default;
+                return false;
+            }
+
+            Span<KeyRange> ranges = keyCount <= 16 ? stackalloc KeyRange[16] : new KeyRange[keyCount];
+            var count = request.TryGetKeys(ranges);
+            if (count < 0 || !request.TryRetain(out var key))
+            {
+                fill = default;
+                return false;
+            }
+
+            var deps = count == 0 ? [] : new Dependency[count];
+            for (var i = 0; i < count; i++)
+            {
+                var node = _keys.GetOrAdd(request.GetKey(ranges[i]), out var generation);
+                deps[i] = new Dependency(node, generation);
+            }
+
+            // no in-flight registration: a refresh is not something anybody should wait for. The entry is
+            // still being served, so a concurrent miss wanting this request is asking a different question -
+            // it has nothing yet, and should fetch rather than queue behind a nicety.
+            fill = new RespFill(key, database, deps, this, slot: null, replaces: true);
+            return true;
+        }
+
+        /// <summary>Give back a refresh claim, so a later read can try again.</summary>
+        /// <param name="frame">The request whose entry was being refreshed.</param>
+        /// <param name="database">The database it ran against.</param>
+        /// <remarks>
+        /// Call on <b>every</b> outcome, success or failure. A refresh that completes replaces the entry, so
+        /// the claim goes with the old one; a refresh that throws must hand the claim back, or the entry is
+        /// pinned stale until its hard expiry while still being served - silent, and exactly the state this
+        /// feature exists to avoid.
+        /// </remarks>
+        public void EndRefresh(in RespRequest frame, int database)
+        {
+            if (_entries.TryGetValue(new EntryKey(frame, database), out var entry)) entry.ReleaseRefreshClaim();
         }
 
         /// <summary>
@@ -455,7 +568,25 @@ namespace StackExchange.Redis.Interpolated
                 return false;
             }
 
-            if (_entries.TryAdd(new EntryKey(stored, fill.Database), new Entry(response, fill.Dependencies)))
+            var entryKey = new EntryKey(stored, fill.Database);
+
+            // A refresh REPLACES the entry it was started for. Swap the value in place rather than
+            // remove-then-add: the dictionary keeps the key object it already has, so its retained request
+            // stays owned by the dictionary. TryRemove hands back the value but NOT the stored key, so
+            // removing would strand that key's reference - and disposing our own copy instead would release
+            // the wrong one.
+            if (fill.Replaces
+                && _entries.TryGetValue(entryKey, out var previous)
+                && _entries.TryUpdate(entryKey, new Entry(response, fill.Dependencies), previous))
+            {
+                previous.Payload.Dispose(); // the superseded reply
+                stored.Dispose();           // our key copy was spare; the dictionary kept its own
+                fill.Key.Dispose();
+                Interlocked.Increment(ref _stored);
+                return true;
+            }
+
+            if (_entries.TryAdd(entryKey, new Entry(response, fill.Dependencies)))
             {
                 fill.Key.Dispose(); // the dictionary holds its own references now
                 Interlocked.Increment(ref _stored);
@@ -648,12 +779,35 @@ namespace StackExchange.Redis.Interpolated
 
         private sealed class Entry(RespPayload payload, Dependency[] dependencies)
         {
+            private int _refreshing;
+
             internal RespPayload Payload { get; } = payload;
 
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
             internal long FilledAt { get; } = Stopwatch.GetTimestamp();
 
             internal bool IsValid => Dependency.AllValid(dependencies);
+
+            /// <summary>
+            /// Claim the right to refresh this entry, once.
+            /// </summary>
+            /// <remarks>
+            /// The flag lives on the <b>shared entry</b> while the thresholds that lead here are
+            /// per-context, and that is deliberate: whoever crosses their own soft bar first starts a
+            /// refresh everyone benefits from. Without the claim, every concurrent reader past the
+            /// threshold would start one - the background refresh would itself be the stampede it exists to
+            /// prevent.
+            /// </remarks>
+            internal bool TryClaimRefresh() => Interlocked.CompareExchange(ref _refreshing, 1, 0) == 0;
+
+            /// <summary>
+            /// Give the claim back, so a later read can try again.
+            /// </summary>
+            /// <remarks>
+            /// Must happen on failure as well as success, or one failed refresh pins the entry stale until
+            /// its hard expiry - the entry is still being served the whole time, so the damage is silent.
+            /// </remarks>
+            internal void ReleaseRefreshClaim() => Volatile.Write(ref _refreshing, 0);
         }
 
         /// <summary>The frame AND the database; see the note on database asymmetry in the type remarks.</summary>
@@ -674,14 +828,26 @@ namespace StackExchange.Redis.Interpolated
         [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
         public readonly struct RespFill
         {
-            internal RespFill(RespRequest key, int database, Dependency[] dependencies, RespClientCache? owner = null, object? slot = null)
+            internal RespFill(RespRequest key, int database, Dependency[] dependencies, RespClientCache? owner = null, object? slot = null, bool replaces = false)
             {
                 Key = key;
                 Database = database;
                 Dependencies = dependencies;
                 Owner = owner;
                 Slot = slot;
+                Replaces = replaces;
             }
+
+            /// <summary>
+            /// Whether completing this fill should <b>replace</b> an entry that is already there.
+            /// </summary>
+            /// <remarks>
+            /// A first fill must not overwrite: losing that race means somebody else answered the same
+            /// question first, and their answer is as good as ours. A <i>refresh</i> is the opposite - the
+            /// entry it is replacing is the very one it was started for, so add-only would make every
+            /// refresh a no-op that still counted as a redundant fill.
+            /// </remarks>
+            internal bool Replaces { get; }
 
             internal RespRequest Key { get; }
 

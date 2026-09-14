@@ -46,6 +46,16 @@ internal sealed class TrackingExecutor : IRespExecutor, IDisposable
     /// <summary>Keys named across all those pushes; a single push can carry several.</summary>
     internal int KeysInvalidated => Volatile.Read(ref _keysInvalidated);
 
+    /// <summary>
+    /// The key names the server actually sent, so a test can compare them with what it wrote.
+    /// </summary>
+    /// <remarks>
+    /// Decoded as UTF-8 for comparison only - the cache itself never turns them into strings. Recorded
+    /// because asserting on cache state instead is not reliable against a shared server: any concurrent
+    /// FLUSHDB sends an unfilterable flush push, which can invalidate an entry before it is even stored.
+    /// </remarks>
+    internal System.Collections.Generic.List<string> InvalidatedKeys { get; } = [];
+
     /// <summary>Flush pushes received (the null payload).</summary>
     internal int Flushes => Volatile.Read(ref _flushes);
 
@@ -271,6 +281,7 @@ internal sealed class TrackingExecutor : IRespExecutor, IDisposable
         {
             if (!reader.TryMoveNext(false) || !reader.TryGetSpan(out var key)) break;
             Interlocked.Increment(ref _keysInvalidated);
+            lock (InvalidatedKeys) InvalidatedKeys.Add(Encoding.UTF8.GetString(key.ToArray()));
             _cache.OnInvalidate(key); // allocation-free: the key never leaves this span
         }
 
