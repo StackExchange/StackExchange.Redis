@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using StackExchange.Redis.Interpolated;
 using Xunit;
 
@@ -87,6 +89,43 @@ public class TransitionalDatabaseTests
         var db = Target(new FakeExecutor("+OK\r\n"));
 
         Assert.Throws<NotImplementedException>(() => db.HashScan("k"));
+    }
+
+    /// <summary>A ValueTask source that records whether its result was consumed.</summary>
+    private sealed class ConsumptionProbe : IValueTaskSource
+    {
+        public int GetResultCalls { get; private set; }
+
+        public ValueTaskSourceStatus GetStatus(short token) => ValueTaskSourceStatus.Succeeded;
+
+        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+            => continuation(state);
+
+        public void GetResult(short token) => GetResultCalls++;
+    }
+
+    [Fact]
+    public void AResultLessWaitStillConsumesTheValueTask()
+    {
+        // The rule that is easy to lose: a ValueTask backed by an IValueTaskSource must have its result
+        // consumed exactly once, because GetResult(token) is what lets the source complete its lifecycle
+        // and be reset or pooled. With no value to take, the call looks droppable - so this is here to
+        // fail if someone drops it. Abandoning the source leaks it and can hand a stale token to whoever
+        // borrows it next, which is a bug that would surface nowhere near this code.
+        var probe = new ConsumptionProbe();
+        var db = (TransitionalDatabase)Target(new FakeExecutor("+OK\r\n"));
+
+        var wait = typeof(TransitionalDatabase).GetMethod(
+            "Wait",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(ValueTask)],
+            modifiers: null);
+        Assert.NotNull(wait);
+
+        wait!.Invoke(db, [new ValueTask(probe, token: 0)]);
+
+        Assert.Equal(1, probe.GetResultCalls);
     }
 
     [Fact]

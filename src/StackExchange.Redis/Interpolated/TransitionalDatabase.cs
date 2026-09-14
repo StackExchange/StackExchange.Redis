@@ -74,6 +74,8 @@ namespace StackExchange.Redis.Interpolated
         // ---- the sync bridge ----------------------------------------------------------------------------
 
         /// <summary>Block for an asynchronous result, applying the multiplexer's timeout.</summary>
+        /// <typeparam name="T">The result type.</typeparam>
+        /// <param name="pending">The operation to wait for.</param>
         /// <remarks>
         /// <para>
         /// <b>Sync is deliberately deprioritised</b>, so this is the cheap version rather than the right
@@ -92,10 +94,39 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         private T Wait<T>(ValueTask<T> pending)
         {
-            if (pending.IsCompletedSuccessfully) return pending.Result;
+            // spelled the same way as the result-less overload below, deliberately: .Result would also
+            // consume (it calls IValueTaskSource<T>.GetResult(_token)), but only a reader who already
+            // knows that can tell - and the rule is the same rule, so it should look the same
+            if (pending.IsCompletedSuccessfully) return pending.GetAwaiter().GetResult();
 
             #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
             return multiplexer.Wait(pending.AsTask());
+            #pragma warning restore SER308
+        }
+
+        /// <inheritdoc cref="Wait{T}(ValueTask{T})"/>
+        /// <param name="pending">The operation to wait for.</param>
+        /// <remarks>
+        /// The result-less twin, for commands that go through the <c>SendAsync</c> overload with no
+        /// <c>TResult</c>. Not used yet - added alongside the generic one deliberately, because the
+        /// consumption rule below is the kind of thing that gets rediscovered the hard way.
+        /// </remarks>
+        private void Wait(ValueTask pending)
+        {
+            if (pending.IsCompletedSuccessfully)
+            {
+                // NOT a no-op, and not optional. A ValueTask backed by an IValueTaskSource must have its
+                // result consumed exactly once: GetResult(_token) is what lets the source complete its
+                // lifecycle and be reset or returned to its pool. Observing IsCompletedSuccessfully and
+                // returning would abandon it - the pooled source is never released, and the next operation
+                // to borrow it can see a stale token. There is no value to take here, which is precisely
+                // why it looks droppable and is not.
+                pending.GetAwaiter().GetResult();
+                return;
+            }
+
+            #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
+            multiplexer.Wait(pending.AsTask()); // AsTask consumes the source too, so the branches stay exclusive
             #pragma warning restore SER308
         }
 
