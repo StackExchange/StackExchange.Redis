@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using RESPite;
 
@@ -28,6 +28,12 @@ namespace StackExchange.Redis.Interpolated
         /// keeping two lists aligned.
         /// </para>
         /// <para>
+        /// The handler is reset to <c>default</c> once its value has been taken, closing the other half of
+        /// the move begun by the constructor. The compiler's temporary is dead at this point either way, so
+        /// this buys nothing on the happy path - it is here so that any future caller who names the handler
+        /// itself finds an empty one rather than a second owner of a live pooled array.
+        /// </para>
+        /// <para>
         /// An extension with an explicit <c>ref</c> parameter, not an instance method: as an instance
         /// method the compiler must pass <c>ref this</c> into the handler's constructor and then refuses
         /// the call (CS8350/CS8352), because it cannot see that the reference does not escape. The
@@ -37,6 +43,9 @@ namespace StackExchange.Redis.Interpolated
         public static void Append(
             this ref RespCommandHandler command,
             [InterpolatedStringHandlerArgument(nameof(command))] ref RespCommandHandler handler)
-            => command = handler;
+        {
+            command = handler;
+            handler = default;
+        }
     }
 }

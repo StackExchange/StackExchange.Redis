@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -67,6 +67,45 @@ public partial class InterpolatedAppendTests
         var text = Text(frame);
         Assert.StartsWith("*4|$3|SET|$1|k|$4096|", text);
         Assert.Equal(4, frame.ArgCount);
+    }
+
+    [Fact]
+    public void TheSourceIsEmptiedForTheDurationOfTheAppend()
+    {
+        // the move is completed at both ends: the constructor resets the source, so the command is not a
+        // second owner of the pooled array while the fragment is being written. Spelled out here the way
+        // the compiler spells it, because that window is not observable from `cmd.Append($"...")`.
+        var cmd = Ctx.Compose($"{RedisCommand.SET}{(RedisKey)"k"}");
+
+        var handler = new RespCommandHandler(0, 1, ref cmd);
+
+        // cmd now owns nothing: every path off it is a clean throw or a no-op, never a double-free.
+        // Spelled as try/catch rather than Assert.Throws because a ref struct cannot be captured by a lambda.
+        Assert.True(CompleteThrows(ref cmd), "the moved-from command should be empty");
+        cmd.Dispose(); // no-op; would be a second return to the pool if the reset had not happened
+
+        handler.AppendFormatted((RedisValue)"v");
+        RespAppend.Append(ref cmd, ref handler);
+
+        // ...and the other end: the handler has been emptied in turn
+        Assert.True(CompleteThrows(ref handler), "the moved-from handler should be empty");
+
+        using var frame = Ctx.Execute(ref cmd);
+        Assert.Equal("*3|$3|SET|$1|k|$1|v|", Text(frame));
+    }
+
+    /// <summary>Whether <c>Complete</c> rejects this handler as empty, without disturbing it if it does.</summary>
+    private static bool CompleteThrows(ref RespCommandHandler handler)
+    {
+        try
+        {
+            handler.Complete().Dispose();
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
     }
 
     [Fact]

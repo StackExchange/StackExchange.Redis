@@ -312,17 +312,29 @@ namespace StackExchange.Redis.Interpolated
         /// <c>CS9050, a ref field cannot refer to a ref struct</c>, on every target.
         /// </para>
         /// <para>
-        /// It <b>moves</b> rather than shares. The command is copied in here, appended to, and assigned
-        /// back by <c>Append</c>. Both copies reference the same pooled array in between, but only this one
-        /// is touched, and the original is overwritten as the window closes - including when a growth
-        /// inside the window swapped the array, which is what separates a move from a share.
+        /// It <b>moves</b> rather than shares, and the move is completed at both ends: the source is reset
+        /// to <c>default</c> here, and the handler is reset by <c>Append</c> once it has been assigned back.
+        /// So exactly one copy owns the pooled array at any instant, and the copy left behind cannot be
+        /// used to reach an array that a growth inside the window has already returned to the pool.
+        /// </para>
+        /// <para>
+        /// <c>default</c> rather than merely clearing the buffer, because every path off a moved-from
+        /// handler is then a clean throw rather than a <see cref="NullReferenceException"/>: <c>_hasCommand</c>
+        /// is false, so <see cref="Complete"/> and every <c>AppendFormatted</c> say what went wrong, and
+        /// <see cref="Dispose"/> is a no-op instead of a double return to the pool. This is the same
+        /// ownership-transfer idiom <see cref="Complete"/> uses.
+        /// </para>
+        /// <para>
+        /// The parameter is <c>ref</c> and not <c>in</c> for exactly that reset; reading alone would be
+        /// satisfied by <c>in</c>, and the compiler accepts either.
         /// </para>
         /// </remarks>
-        public RespCommandHandler(int literalLength, int formattedCount, scoped in RespCommandHandler command)
+        public RespCommandHandler(int literalLength, int formattedCount, scoped ref RespCommandHandler command)
         {
             _ = literalLength;
             _ = formattedCount;
             this = command;
+            command = default; // the move is only a move if the source stops owning the buffer
         }
 
         /// <summary>Append a key: prefixed, marked for invalidation, and folded into the cluster slot.</summary>

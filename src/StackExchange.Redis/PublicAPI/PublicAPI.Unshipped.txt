@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>
@@ -54,7 +54,7 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler() -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, StackExchange.Redis.Interpolated.RespContext context, string! command) -> void
-[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, scoped in StackExchange.Redis.Interpolated.RespCommandHandler command) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, scoped ref StackExchange.Redis.Interpolated.RespCommandHandler command) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommands
 [SER010]StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.Cache.get -> StackExchange.Redis.Interpolated.RespClientCache?

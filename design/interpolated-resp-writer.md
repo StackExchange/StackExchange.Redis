@@ -670,10 +670,24 @@ works, or callers are forced into `try`/`finally`.
 > field cannot refer to a ref struct*. That is a language rule, not a down-level runtime gap, so narrowing
 > the target frameworks would not have helped. (netfx adds CS9064 on top, but it is not the blocker.)
 >
-> So the command is copied into the handler, appended to, and assigned back. Both structs reference the
-> same pooled array during that window, but only the copy is touched and the original is overwritten the
-> moment the window closes — **including when a growth inside the window swapped the array**, which is the
-> case that distinguishes a move from a share, and has its own test.
+> So the command is copied into the handler, appended to, and assigned back — **including when a growth
+> inside the window swapped the array**, which is the case that distinguishes a move from a share, and has
+> its own test.
+>
+> **The move is completed at both ends.** The constructor resets the source to `default` after copying it,
+> and `Append` resets the handler after assigning it back, so exactly one copy owns the pooled array at
+> any instant. Without the first reset the command spends the append window as a second owner, still
+> pointing at an array that a growth may already have returned to the pool; the reset makes an escape from
+> that window — an exception mid-fragment — leave an empty command rather than a live-looking one.
+>
+> `default` rather than merely clearing the buffer, because `_hasCommand` goes false with it: every path
+> off a moved-from handler is then a clean throw naming the problem (`Complete`, every `AppendFormatted`)
+> or a no-op (`Dispose`, so no double return to the pool), and none of them is a `NullReferenceException`.
+> This is the ownership-transfer idiom `Complete` already used for handing the buffer to a frame.
+>
+> That reset is also the reason the constructor parameter is `ref` rather than `in`. `in` compiles — the
+> constructor genuinely only reads — and it was briefly the signature on those grounds; writing the move
+> down properly made `ref` the accurate one. Both mutants (dropping either reset) are caught by test.
 >
 > **There is only one handler type**, which is what makes this safe rather than merely neat. A separate
 > proxy type would need its `AppendFormatted` overloads kept in step with the command handler's - and the
