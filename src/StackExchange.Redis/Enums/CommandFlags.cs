@@ -118,6 +118,12 @@ namespace StackExchange.Redis
         /// command whose reads the server does not register for invalidation: it would otherwise be cached
         /// and never invalidated, and the library cannot know that on your behalf.
         /// </para>
+        /// <para>
+        /// A third: a read-only script (<c>EVAL_RO</c>/<c>EVALSHA_RO</c>) that reads a key it did not
+        /// declare in <c>KEYS[]</c>. Invalidation tracks the declared keys, so an undeclared read is never
+        /// invalidated and the result stays stale. Declaring every key touched is already required in
+        /// cluster; this is one more reason for it.
+        /// </para>
         /// </remarks>
         NoClientCache = 1 << 19,
 

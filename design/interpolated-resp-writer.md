@@ -1418,7 +1418,7 @@ Tempting — it is a numeric range with gaps — but no:
   ladder orders one axis — is it safe to send again; cacheability asks another — will invalidation tell me
   when this changes.
 
-#### Scripts: unresolved, and they stress the opt-out default
+#### Scripts: cacheable by default, opt out explicitly
 
 `EVAL_RO` and `EVALSHA_RO` also default to `CommandRetryReadOnly`, so they pass the gate today. They are
 **not** simply another row above, because **cacheability is a property of the script, not of the command
@@ -1426,13 +1426,27 @@ name**. Two `EVAL_RO` calls can differ entirely: one deterministic and perfectly
 reading `TIME` or `RANDOMKEY`. The library cannot know, and a blanket "scripts are excluded" throws away
 the cacheable majority to catch the minority.
 
-The caller wrote the script, so the caller is the only party that *can* answer — which fits the opt-out
-model. But it also stresses it: for scripts the default (cacheable) is **wrong** rather than merely
-suboptimal, and being wrong by default is what opt-out is supposed to avoid.
+**Resolved: cacheable by default, and opting out is the caller's job.** The reasoning is stronger than
+"the caller knows best", which on its own would be a weak default:
 
-That reopens the explicit opt-in bit this section earlier set aside. It may be that scripts are the one
-population genuinely needing it: everything else defaults to cacheable and is corrected by
-`NoClientCache`, while a script defaults to *not* cacheable and opts in. **Unresolved**, deliberately.
+- **`EVAL`/`EVALSHA` are already excluded by the gate** — they default to `CommandRetryWriteAccumulating`,
+  well above read-only. So the population defaulting to cacheable is not "scripts"; it is *only* scripts
+  where the caller deliberately chose the `_RO` variant.
+- **`_RO` is server-enforced**, not a convention: a script that attempts a write under it errors. So the
+  caller has already made a declaration, and the server has already verified half of it. Defaulting those
+  to cacheable is a much smaller step than defaulting *scripts* to cacheable.
+
+**The risk worth documenting is not non-determinism — it is undeclared key access.** Invalidation tracks
+the keys the script declares; a script that reads a key it did not declare in `KEYS[]` is not tracked
+against that key, so it goes stale silently and stays stale. Declaring keys properly is already mandatory
+in cluster, so the guidance aligns with existing good practice rather than adding a new rule. A
+read-only script that also reads `TIME` or `RANDOMKEY` is possible but much rarer, and is the caller's to
+notice.
+
+**Rejected: detecting it by inspecting the script.** A regex - or anything short of a Lua parser - loses
+to computed command names, `pcall`, and string concatenation. A detector that is right most of the time is
+worse than a clear rule, because people trust it; and the failure it would miss is the silent, durable
+kind.
 
 #### Diagnosability
 
@@ -1604,6 +1618,7 @@ reversals are the useful part.
 | >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
 | Fast byte test, `RespReader` only behind an attribute | Parse every reply | Attributes are the only thing that can precede a value, so a non-`\|` first byte *is* the content prefix - the cheap test is exact, and parsing is reserved for a branch that is in practice never taken (§6.12). |
 | Classify the reply with `RespReader` | Test `response[0]` | RESP3 attributes may precede any value, and nothing exempts errors from carrying them - so a first-byte test caches an error hidden behind metadata. Latent today because no server emits attributes, which is what makes it dangerous (§6.12). |
+| `EVAL_RO`/`EVALSHA_RO` cacheable by default | Exclude all scripts; or detect by inspecting the script | `EVAL`/`EVALSHA` are already excluded by the gate, so the default applies only where the caller chose the `_RO` variant *and the server enforces it*. Inspecting the script loses to computed command names and `pcall`, and a detector that is usually right is worse than a rule (§6.9). |
 | Exclusions live in command metadata, beside the retry category | A `CommandFlags` bit | `CommandFlags.Category.cs` already classifies per enum value; cacheability is the same kind of fact about the same enum, and a flag would burden call sites with something we know (§6.9). |
 | Errors never cached; nulls always | Cache errors too, or treat null as a miss | A cached reply must be a function of the tracked keys; an error need not be, so nothing would evict it and a transient failure becomes permanent. A null *is* a function of the key, and Redis tracks keys that do not exist, so negative caching is correct (§6.12). |
 | Cancellation applies only to the caller's await | HybridCache's extra token + waiter tracking | The fill populates a shared cache, so it has value once nobody is waiting - unlike an arbitrary external system, where it does not (§6.11). |
@@ -2275,9 +2290,10 @@ Added while building the cache (§6.6-6.9):
   Wants a per-command fact beside the retry category in `CommandFlags.Category.cs`, *not* a `CommandFlags`
   bit — see §6.9. `DUMP` was also proposed; I would challenge it, since it looks correctly invalidated, so
   that is a benefit call rather than a safety one.
-- **Scripts (`EVAL_RO`/`EVALSHA_RO`) are unresolved.** Cacheability is a property of the script, not the
-  command name, so neither a blanket exclusion nor cacheable-by-default is right. This is the case that
-  may justify the explicit opt-in bit §6.9 set aside.
+- ~~**Scripts (`EVAL_RO`/`EVALSHA_RO`) are unresolved.**~~ **Settled:** cacheable by default, caller opts
+  out with `NoClientCache`. `EVAL`/`EVALSHA` are already excluded by the gate, and `_RO` is server-enforced,
+  so the default applies to a narrow, self-declared population. The risk to document is *undeclared key
+  access*, not non-determinism — see §6.9.
 - **Do module reads register for invalidation?** If the server tracks keys only for core command
   dispatch, a keyed module read would be cached and never invalidated. Unresolved by the docs and worth
   five minutes against a real server with a module loaded; it decides whether §6.9's opt-out story needs
