@@ -2220,6 +2220,30 @@ It is also **handler-agnostic**: the cache stores the raw reply and parsing happ
 refresh does not need to know what anybody intended to turn the bytes into. That is what makes a background
 refresh a few lines rather than a design.
 
+#### Built: flushing on disconnect
+
+`cache.FlushOnDisconnect(multiplexer)` subscribes to `ConnectionFailed` and empties the cache; the returned
+`IDisposable` unsubscribes.
+
+**Not a tidy-up.** Server-assisted invalidation only works while somebody is listening. Anything that
+changes during a disconnect is never announced - the server forgets a client it has lost - so an entry that
+survives the gap is wrong, with nothing left in the system that will ever say so. There is a test asserting
+exactly that failure without the hook, because "it would be stale" is much less convincing than watching it
+happen.
+
+It flushes on **any** connection failure rather than reasoning about whether that particular connection was
+carrying invalidations. Over-flushing costs a round trip per key; under-flushing serves wrong data with no
+bound on how long for, and that is the direction this design errs in everywhere else.
+
+It does **not** cover a connection that has failed and nobody has noticed - no event is raised for a socket
+that is quietly dead. That is what `CachePolicy.TimeToLive` is for, and is the concrete reason it must never
+be infinite (§6.14). The two are a pair: the hook handles detected failure, the lifetime bounds undetected
+failure.
+
+Explicit for now because the cache hangs off a context rather than being owned by the multiplexer. When
+`GetDatabase()` returns a cache-aware database this becomes part of constructing one - which is the right
+end state, because a cache nobody remembered to wire up is a cache that goes quietly wrong.
+
 #### Built: invalidation as a grace period
 
 `CachePolicy.InvalidationGracePeriod` is the other half, and the more valuable one: age is staggered across

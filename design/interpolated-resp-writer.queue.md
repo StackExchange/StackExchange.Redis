@@ -23,10 +23,6 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       `CommandRetryReadOnly` alongside `GET` and would be cached wrongly today. A correctness hole, and
       small. `DUMP` wants a second opinion.
 
-- [ ] **Wire `OnFlush()` to disconnect.** It exists and nothing calls it. Comes from the same server
-      documentation that gave us the TTL backstop: *"if the connection is lost, the local cache is
-      flushed"*. Currently the cache would serve entries invalidated while we were not listening.
-
 ## Next
 
 - [ ] **`Parse(ref RespReader)`** (§2.2, §6.16). Smaller prize than it looked once the outgoing-copy rule
@@ -91,7 +87,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] `RespResult` shares the reply buffer instead of copying it — `696a5c3f`
 - [x] Interface-based default handler lookup; `IRespHandler` made invariant — `a539a538`
 - [x] Stale-while-revalidate on expiry, with background refresh — `253cc2e4`
-- [x] Invalidation grace period, with the read-your-own-writes carve-out — this change
+- [x] Invalidation grace period, with the read-your-own-writes carve-out — `6b94d588`
+- [x] Flush the cache when a connection is lost — this change
 
 ## Decided against
 

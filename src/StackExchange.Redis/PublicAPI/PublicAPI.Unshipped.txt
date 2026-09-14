@@ -357,3 +357,5 @@ static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redi
 [SER010]StackExchange.Redis.Interpolated.CachePolicy.InvalidationGracePeriod.init -> void
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.OnLocalWrite(System.ReadOnlySpan<byte> key) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.ServedStale.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespCacheConnectionExtensions
+[SER010]static StackExchange.Redis.Interpolated.RespCacheConnectionExtensions.FlushOnDisconnect(this StackExchange.Redis.Interpolated.RespClientCache! cache, StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> System.IDisposable!
