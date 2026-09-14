@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interpolated;
@@ -159,4 +159,43 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.True(cache.OnInvalidate(Encoding.UTF8.GetBytes(key)));
         Assert.Equal("second", await surface.Strings.Get(key));
     }
+    /// <summary>
+    /// A synchronous fire-and-forget command against a real server returns the default, rather than
+    /// throwing because no reply arrived.
+    /// </summary>
+    /// <remarks>
+    /// The pipeline returns its default for fire-and-forget, which is <see langword="null"/> for a payload,
+    /// and this surface used to read that as "no reply" and throw. The asynchronous twin never did, so the
+    /// two disagreed about the same flag. Sending a real command matters here: nothing but the real
+    /// executor has the behaviour under test.
+    /// </remarks>
+    [Fact]
+    public async Task SynchronousFireAndForgetReturnsDefaultRatherThanThrowing()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var db = conn.GetDatabase();
+        await db.KeyDeleteAsync(key);
+
+        const CommandFlags Flags = CommandFlags.CommandRetryWriteLastWins | CommandFlags.FireAndForget;
+        var context = ((IRespTarget)db).Context;
+        var frame = context.Execute($"{RedisCommand.SET}{(RedisKey)key}{(RedisValue)"marc"}");
+        Assert.False(context.Send(ref frame, Flags, RespHandlers.Boolean));
+
+        // and it really was sent, rather than quietly swallowed
+        Assert.True(await WaitFor(async () => (string?)await db.StringGetAsync(key) == "marc"));
+    }
+
+    private static async Task<bool> WaitFor(Func<Task<bool>> condition, int millis = 2000)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < millis)
+        {
+            if (await condition()) return true;
+            await Task.Delay(25);
+        }
+
+        return await condition();
+    }
+
 }

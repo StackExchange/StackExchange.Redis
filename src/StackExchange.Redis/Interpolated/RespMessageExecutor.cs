@@ -41,11 +41,24 @@ namespace StackExchange.Redis.Interpolated
 
         public int Database { get; }
 
+        /// <summary>Issue the request and return the reply; null if the caller declined one.</summary>
+        /// <param name="request">The rendered request.</param>
+        /// <remarks>
+        /// <b>No reply is an error, except when it was asked for.</b> Fire-and-forget returns the default
+        /// from the pipeline - which is null here - and that is the answer, not a fault; the asynchronous
+        /// twin below has always passed it straight back. Without the distinction this threw
+        /// <c>"No reply."</c> at every synchronous fire-and-forget command on this surface.
+        /// </remarks>
         public RespPayload Send(in RespRequest request)
         {
             var message = new FrameMessage(Database, request);
-            return _target.ExecuteSync(message, PayloadProcessor.Instance)
-                   ?? throw new RedisException("No reply.");
+            var reply = _target.ExecuteSync(message, PayloadProcessor.Instance);
+            if (reply is null && (request.Flags & CommandFlags.FireAndForget) == 0)
+            {
+                throw new RedisException("No reply.");
+            }
+
+            return reply!; // null only for fire-and-forget, which every consumer already tests for
         }
 
         public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)

@@ -312,7 +312,12 @@ public class RespClientCacheTests
             Sent++;
             if (ParkRequests && request.TryRetain(out var retained)) Parked.Add(retained);
             onSend?.Invoke();
-            return RespPayload.Create(Utf8(response));
+
+            // a real executor captures no reply for fire-and-forget: the caller declined it. Faking one
+            // would make every assertion about that flag meaningless.
+            return (request.Flags & CommandFlags.FireAndForget) != 0
+                ? null!
+                : RespPayload.Create(Utf8(response));
         }
 
         public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
@@ -967,6 +972,64 @@ public class RespClientCacheTests
         var ok = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"é:x"}");
         Assert.True(cache.TryBeginFill(ref ok, 0, out var fill));
         Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+    }
+
+    /// <summary>
+    /// A fire-and-forget read is not cached, and - the part that matters - is not <i>served</i> from cache.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Fire-and-forget promises the caller <c>default</c>. A cache hit would hand back a real value, so the
+    /// same call would answer differently depending on whether something else had happened to read that key
+    /// first. A cache may make a call faster; it may not make it return something else.
+    /// </para>
+    /// <para>
+    /// The store side is merely impossible rather than wrong - no reply is observed, so there is nothing to
+    /// keep and no way to check it was not an error. Which disposes of the one coherent reading of
+    /// "fire-and-forget read": warming the cache.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void FireAndForgetIsNeitherCachedNorServed()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+        const CommandFlags FireAndForget = CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget;
+
+        // nothing stored, and the executor was still asked: the command really was sent
+        var frame = Get("abc");
+        Assert.Null(Via(executor, cache).Send(ref frame, FireAndForget, TextHandler.Instance));
+        Assert.Equal(1, executor.Sent);
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedByFlags);
+
+        // now cache it properly, so there IS something a probe could wrongly return
+        var warm = Get("abc");
+        Assert.Equal("$5|hello|", Via(executor, cache).Send(ref warm, CommandFlags.CommandRetryReadOnly, TextHandler.Instance));
+        Assert.Equal(1, cache.Count);
+
+        // ...and the fire-and-forget caller still gets default, not the cached value
+        var again = Get("abc");
+        Assert.Null(Via(executor, cache).Send(ref again, FireAndForget, TextHandler.Instance));
+        Assert.Equal(3, executor.Sent);
+    }
+
+    /// <summary>The asynchronous path agrees with the synchronous one, including on the hit that isn't.</summary>
+    [Fact]
+    public async Task FireAndForgetIsNotServedAsynchronouslyEither()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+        const CommandFlags FireAndForget = CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget;
+
+        var warm = Get("abc");
+        Assert.Equal("$5|hello|", await Via(executor, cache).SendAsync(ref warm, CommandFlags.CommandRetryReadOnly, TextHandler.Instance));
+        Assert.Equal(1, cache.Count);
+
+        var ff = Get("abc");
+        Assert.Null(await Via(executor, cache).SendAsync(ref ff, FireAndForget, TextHandler.Instance));
+        Assert.Equal(2, executor.Sent);
+        Assert.Equal(1, cache.Count); // and it did not disturb what was already there
     }
 
 }

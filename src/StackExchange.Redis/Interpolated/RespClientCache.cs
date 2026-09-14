@@ -854,16 +854,31 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
-        /// Whether the command's retry category permits caching at all.
+        /// Whether the command's flags permit caching at all.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// The category is a 5-bit severity ladder where zero means "nobody declared one". Both halves of
         /// this test matter: <c>!= 0</c> rejects the undeclared case, and <c>&lt;=</c> uses the ladder the
         /// flags were built to support, so anything at or beyond a write - or server-admin - is out.
+        /// </para>
+        /// <para>
+        /// <b><see cref="CommandFlags.FireAndForget"/> is excluded even when the command is read-only</b>,
+        /// and the reason is the probe rather than the store. Fire-and-forget promises the caller
+        /// <c>default</c>; a cache hit would hand back a real value instead, so the same call would answer
+        /// differently depending on whether something else had happened to read that key first. A cache may
+        /// make a call faster. It may not make it return something else.
+        /// </para>
+        /// <para>
+        /// The store side is merely impossible rather than wrong: no reply is observed, so there is nothing
+        /// to keep and no way to run the error check that keeps a failure from being cached. A
+        /// fire-and-forget read as cache <i>warming</i> is the one coherent reading of the combination, and
+        /// it cannot work for exactly that reason.
+        /// </para>
         /// </remarks>
         internal static bool IsCacheable(CommandFlags flags)
         {
-            if ((flags & CommandFlags.NoClientCache) != 0) return false;
+            if ((flags & (CommandFlags.NoClientCache | CommandFlags.FireAndForget)) != 0) return false;
 
             var category = flags & Message.MaskRetryCategory;
             return category != 0 && category <= CommandFlags.CommandRetryReadOnly;

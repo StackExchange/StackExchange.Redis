@@ -197,7 +197,11 @@ namespace StackExchange.Redis.Interpolated
                     {
                         if (filled is null)
                         {
-                            fill.Abandon(); // fire-and-forget: no reply is coming, so nothing can fill this
+                            // no reply is coming, so nothing can fill this. Fire-and-forget used to arrive
+                            // here; it is now refused by the flags before a fill is ever begun, because a
+                            // cache HIT on one would have returned a value where the contract says default.
+                            // Kept for an executor that answers null for some other reason of its own.
+                            fill.Abandon(); // release any waiters, and the key
                             return default!;
                         }
 
@@ -502,7 +506,9 @@ namespace StackExchange.Redis.Interpolated
             {
                 if (response is null)
                 {
-                    fill.Abandon(); // fire-and-forget: no reply is coming, so nothing can fill this
+                    // as in the synchronous path: fire-and-forget no longer gets this far, but an executor
+                    // may still answer null, and a fill left open would strand its waiters
+                    fill.Abandon();
                     return default!;
                 }
 
