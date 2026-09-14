@@ -263,7 +263,7 @@ namespace StackExchange.Redis.Interpolated
             if (response is null) throw new ArgumentNullException(nameof(response));
             if (fill.Key.IsEmpty) return false;
 
-            if (IsError(response.Span))
+            if (!IsCacheableReply(response.Span))
             {
                 Interlocked.Increment(ref _refusedError);
                 fill.Key.Dispose();
@@ -345,7 +345,7 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
-        /// Whether a reply is an error - a simple error or, in RESP3, a bulk error.
+        /// Whether a reply may be cached: it has a content element, and that element is not an error.
         /// </summary>
         /// <remarks>
         /// <para>
@@ -365,10 +365,27 @@ namespace StackExchange.Redis.Interpolated
         /// context of a read-only command" whether or not it exists, so creating the key invalidates the
         /// entry. Negative caching therefore works, and works correctly.
         /// </para>
+        /// <para>
+        /// <b>This reads the first content element, not the first byte.</b> RESP3 permits attribute
+        /// metadata (<c>|</c>) ahead of a value, and nothing in the specification exempts errors or nulls
+        /// from carrying it - so a leading-byte test would classify <c>|1\r\n...\r\n-ERR ...</c> as
+        /// cacheable and store an error. No server is known to emit that today, which is exactly why it
+        /// would go unnoticed. <see cref="RespReader.TryMoveNext(bool)"/> skips attributes, and
+        /// <c>checkError: false</c> stops it throwing on the case being detected.
+        /// </para>
+        /// <para>
+        /// A reply with no content element at all - metadata only, or empty - is also refused: it cannot be
+        /// classified, and unclassifiable fails closed.
+        /// </para>
         /// </remarks>
-        private static bool IsError(ReadOnlySpan<byte> response)
-            => !response.IsEmpty
-               && (response[0] == (byte)RespPrefix.SimpleError || response[0] == (byte)RespPrefix.BulkError);
+        private static bool IsCacheableReply(ReadOnlySpan<byte> response)
+        {
+            var reader = new RespReader(response);
+
+            // read the first CONTENT element, not the first byte. TryMoveNext skips attribute metadata,
+            // and checkError:false stops it throwing on the very thing we are trying to detect.
+            return reader.TryMoveNext(checkError: false) && !reader.IsError;
+        }
 
         /// <summary>
         /// Whether the command's retry category permits caching at all.

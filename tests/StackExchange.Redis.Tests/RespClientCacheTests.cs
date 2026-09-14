@@ -690,6 +690,49 @@ public class RespClientCacheTests
         Assert.Equal(1, cache.RefusedError);
     }
 
+    // RESP3 attribute metadata: |1 <key> <value>, which may legally precede any reply
+    private const string Attribute = "|1\r\n$6\r\nttl-ms\r\n:1000\r\n";
+
+    [Theory]
+    [InlineData(Attribute + "-ERR something went wrong\r\n")]
+    [InlineData(Attribute + "!21\r\nSYNTAX invalid syntax\r\n")]
+    public void ErrorsBehindLeadingAttributesAreStillRefused(string reply)
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
+
+        // a first-byte test would see '|' and cache the error behind it. No server is known to emit
+        // attributes today, which is precisely why this would have gone unnoticed.
+        Assert.False(Complete(cache, fill, reply));
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedError);
+    }
+
+    [Fact]
+    public void ValuesBehindLeadingAttributesAreStillCached()
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
+
+        Assert.True(Complete(cache, fill, Attribute + "$5\r\nhello\r\n"));
+        Assert.Equal(1, cache.Stored);
+        Assert.Equal(0, cache.RefusedError);
+    }
+
+    [Fact]
+    public void RepliesWithNoContentElementAreRefused()
+    {
+        using var cache = new RespClientCache();
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
+
+        // metadata and nothing else: cannot be classified, so it fails closed rather than being stored
+        Assert.False(Complete(cache, fill, Attribute));
+        Assert.Equal(0, cache.Count);
+    }
+
     private static string[] KeyStrings(in RespFrame frame)
     {
         var count = frame.KeyCount;

@@ -1357,7 +1357,8 @@ listening.
 
 ### 6.12 Errors are not cached; nulls are
 
-`TryComplete` refuses a reply whose first byte is `-` (simple error) or `!` (RESP3 bulk error).
+`TryComplete` refuses a reply whose first **content element** is an error — simple (`-`) or, in RESP3,
+bulk (`!`).
 
 The invariant that makes this cache sound is that a reply is **a function of the keys it depends on**, and
 that the server will tell us when those change. An error need not be: it can come from server
@@ -1373,9 +1374,26 @@ investigating.
 **A null is a value, not a failure**, in all three spellings — `$-1` (RESP2 null bulk), `*-1` (RESP2 null
 array) and `_` (RESP3). Redis tracks every key *"mentioned in the context of a read-only command"*,
 whether or not it exists, so creating the key invalidates the entry. **Negative caching therefore works,
-and works correctly** — which is unusual enough to be worth stating. No null spelling begins with `-` or
-`!`, so the cheap first-byte test does not need to enumerate them; `RespReader.IsNull` is the right tool
-if the classification is ever needed for its own sake.
+and works correctly** — which is unusual enough to be worth stating.
+
+#### Why this cannot be a first-byte test
+
+The obvious implementation — look at `response[0]` — is **wrong**, and wrong in the way that survives
+testing. RESP3 permits attribute metadata (`|`) ahead of a value, and **nothing in the specification
+exempts errors or nulls from carrying it**. So `|1\r\n$6\r\nttl-ms\r\n:1000\r\n-ERR …` begins with
+`|`, passes a leading-byte check, and gets cached as though it were data — a permanently cached error,
+which is exactly the failure §6.12 exists to prevent.
+
+No server is known to emit attributes today. That is precisely why it would go unnoticed: the bug is
+latent until a server, a proxy, or a future protocol revision starts using a feature the protocol already
+allows.
+
+`RespReader.TryMoveNext(checkError: false)` skips attributes and lands on the first content element, and
+`RespReader.IsError` classifies it. `checkError: false` matters — the default overload *throws* on an
+error, which is the very thing being detected. A reply with no content element at all (metadata only, or
+empty) is refused too: unclassifiable fails closed.
+
+Pinned by tests that fail against the first-byte implementation.
 
 #### Decision: measure first
 
@@ -1408,6 +1426,7 @@ reversals are the useful part.
 | Keyless requests are never cached | Cache them | Invalidation only ever reports **keys**, so a keyless entry is vacuously valid for the life of the process — not even a flush clears it. Found by building it, not by reasoning. |
 | Handler maintains **both** key-mark forms | Re-derive arg indices on promotion | §5.2 assumed there were no spare bits — true of the *frame*, false of the writer, which is a stack `ref struct` with no size pressure. |
 | >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
+| Classify the reply with `RespReader` | Test `response[0]` | RESP3 attributes may precede any value, and nothing exempts errors from carrying them - so a first-byte test caches an error hidden behind metadata. Latent today because no server emits attributes, which is what makes it dangerous (§6.12). |
 | Errors never cached; nulls always | Cache errors too, or treat null as a miss | A cached reply must be a function of the tracked keys; an error need not be, so nothing would evict it and a transient failure becomes permanent. A null *is* a function of the key, and Redis tracks keys that do not exist, so negative caching is correct (§6.12). |
 | Cancellation applies only to the caller's await | HybridCache's extra token + waiter tracking | The fill populates a shared cache, so it has value once nobody is waiting - unlike an arbitrary external system, where it does not (§6.11). |
 | Request combining deferred, with a counter | Build it now | A miss is a round trip on a multiplexed connection, not an arbitrary factory call, so the stampede economics differ by orders of magnitude. `RedundantFills` measures whether it is real without presupposing the design (§6.11). |
