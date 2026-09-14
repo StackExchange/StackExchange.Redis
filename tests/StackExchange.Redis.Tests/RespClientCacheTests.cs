@@ -110,20 +110,10 @@ public class RespClientCacheTests
 
         var hit = Utf8("abc");
         var miss = Utf8("some:other:key:that:is:not:here");
-        for (var i = 0; i < 500; i++)
-        {
-            cache.OnInvalidate(hit);
-            cache.OnInvalidate(miss);
-        }
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 10_000; i++)
-        {
-            cache.OnInvalidate(miss); // the broadcasting flood: keys we do not have
-        }
+        cache.OnInvalidate(hit);
 
         // BCAST hands us every key touched on the server; this path must not allocate at all
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        AllocationAssert.None(() => cache.OnInvalidate(miss), iterations: 10_000);
     }
 
     [Fact]

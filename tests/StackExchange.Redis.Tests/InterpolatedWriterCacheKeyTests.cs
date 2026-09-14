@@ -88,16 +88,9 @@ public class InterpolatedWriterCacheKeyTests
         var payload = RespPayload.Create(Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));
         cache.TryAdd(stored, payload);
 
-        // warm everything up: JIT, the pool's per-core stacks, the dictionary's buckets
-        for (var i = 0; i < 200; i++) Probe(cache);
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++) Probe(cache);
-        var after = GC.GetAllocatedBytesForCurrentThread();
-
         // the render rents from the pool and returns it, the key is a struct, the payload is already
         // allocated, and RespReader is a ref struct - so a steady-state hit should allocate nothing
-        Assert.Equal(0, after - before);
+        AllocationAssert.None(() => Probe(cache), iterations: 1000, warmup: 200);
 
         cache.TryRemove(stored, out _);
         payload.Dispose();
@@ -144,29 +137,20 @@ public class InterpolatedWriterCacheKeyTests
     public void DetachAllocatesAndBorrowingDoesNot()
     {
         var ctx = new RespContext();
-        for (var i = 0; i < 200; i++)
-        {
-            using var warm = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}");
-            warm.AsLookupKey();
-            ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}").Detach().Dispose();
-        }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 100; i++)
-        {
-            using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}");
-            frame.AsLookupKey();
-        }
+        var borrowed = AllocationAssert.Measure(
+            () =>
+            {
+                using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}");
+                frame.AsLookupKey();
+            },
+            iterations: 100,
+            warmup: 200);
 
-        var borrowed = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 100; i++)
-        {
-            ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}").Detach().Dispose();
-        }
-
-        var detached = GC.GetAllocatedBytesForCurrentThread() - before;
+        var detached = AllocationAssert.Measure(
+            () => ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}").Detach().Dispose(),
+            iterations: 100,
+            warmup: 200);
 
         // this is why AsLookupKey exists: Detach costs one RefCountedBuffer per call, which on a cache HIT
         // buys nothing, because the caller never wanted ownership
