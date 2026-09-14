@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
@@ -55,7 +55,8 @@ namespace StackExchange.Redis.Interpolated
             ulong keyMarks = 0,
             int slot = ServerSelectionStrategy.NoSlot,
             int argCount = 0,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            RedisCommand command = RedisCommand.UNKNOWN)
         {
             _array = array;
             _lease = lease;
@@ -66,6 +67,7 @@ namespace StackExchange.Redis.Interpolated
             Slot = slot;
             ArgCount = argCount;
             Flags = flags;
+            Command = command;
         }
 
         /// <summary>The combined cluster slot; routing needs this and nothing else about the keys.</summary>
@@ -73,6 +75,9 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>The number of RESP arguments, including the command itself.</summary>
         public int ArgCount { get; }
+
+        /// <inheritdoc cref="RespFrame.Command"/>
+        internal RedisCommand Command { get; }
 
         /// <summary>
         /// The command's flags: the retry category a retrying executor needs, and the caching gates.

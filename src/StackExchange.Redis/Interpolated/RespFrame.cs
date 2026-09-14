@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Interpolated
         private readonly int _length;
         private readonly ulong _keyMarks;
 
-        internal RespFrame(byte[] buffer, int start, int length, int argCount, int slot, ulong keyMarks)
+        internal RespFrame(byte[] buffer, int start, int length, int argCount, int slot, ulong keyMarks, RedisCommand command)
         {
             _buffer = buffer;
             _start = start;
@@ -42,10 +42,29 @@ namespace StackExchange.Redis.Interpolated
             _keyMarks = keyMarks;
             ArgCount = argCount;
             Slot = slot;
+            Command = command;
         }
 
         /// <summary>The number of RESP arguments, including the command itself.</summary>
         public int ArgCount { get; }
+
+        /// <summary>
+        /// Which command this is, for everything downstream that has to know WHAT is being sent rather than
+        /// what the bytes are: whether a replica may serve it, and what a profiler or an error should say.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The bytes already carry the command - mapped, framed, and settled - so this is never used to
+        /// render anything. It is identity, not content, which is why it is deliberately absent from
+        /// equality: two frames with the same bytes are the same cache entry whatever route they took.
+        /// </para>
+        /// <para>
+        /// <see cref="RedisCommand.UNKNOWN"/> for a command given only as a name that the map did not
+        /// recognise - the same thing <c>IDatabase.Execute(string, ...)</c> reports, and for the same
+        /// reason: there is nothing to know.
+        /// </para>
+        /// </remarks>
+        internal RedisCommand Command { get; }
 
         /// <summary>The combined cluster slot, or <see cref="ServerSelectionStrategy.NoSlot"/>/<see cref="ServerSelectionStrategy.MultipleSlots"/>.</summary>
         public int Slot { get; }
@@ -230,7 +249,8 @@ namespace StackExchange.Redis.Interpolated
                 _keyMarks,
                 Slot,
                 ArgCount,
-                flags);
+                flags,
+                Command);
         }
 
         /// <summary>
@@ -261,7 +281,8 @@ namespace StackExchange.Redis.Interpolated
                 _keyMarks,
                 Slot,
                 ArgCount,
-                flags);
+                flags,
+                Command);
         }
 
         /// <summary>Return the underlying buffer to the pool; safe to call more than once.</summary>

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -50,6 +51,8 @@ namespace StackExchange.Redis.Interpolated
         private int _keyOffsetA;    // buffer-absolute offsets of the first two keys
         private int _keyOffsetB;
         private bool _hasCommand;
+        private RedisCommand _command; // the command's IDENTITY, for routing and diagnostics; the
+                                       // bytes are already written, so this is never used to render
 
         /// <summary>Initialize with the command supplied as the first hole.</summary>
         /// <param name="literalLength">Total length of the literal segments; compiler-supplied.</param>
@@ -64,6 +67,7 @@ namespace StackExchange.Redis.Interpolated
             _argIndex = 0;
             _slot = ServerSelectionStrategy.NoSlot;
             _hasCommand = false;
+            _command = RedisCommand.UNKNOWN; // set by the first AppendFormatted, which is the command hole
         }
 
         /// <summary>
@@ -89,6 +93,7 @@ namespace StackExchange.Redis.Interpolated
             resp.CopyTo(_buffer.AsSpan(_offset));
             _offset += resp.Length;
             _hasCommand = true;
+            _command = command;
             _args = 1;
             _argIndex = 1;
         }
@@ -244,6 +249,7 @@ namespace StackExchange.Redis.Interpolated
         {
             if (_hasCommand) throw new InvalidOperationException("The command must be the first argument, and may only be given once.");
 
+            _command = value; // identity, for routing and diagnostics; see the field
             var resp = _context.ResolveCommand(value);
 
             Ensure(resp.Length);
@@ -293,6 +299,7 @@ namespace StackExchange.Redis.Interpolated
                 _offset += resp.Length;
             }
 
+            if (!_hasCommand) _command = value.Command; // only the FIRST one is the command
             _hasCommand = true; // whether it was the command or merely the first thing written
             _args++;
             _argIndex++;
@@ -482,6 +489,52 @@ namespace StackExchange.Redis.Interpolated
             _argIndex += value.ArgCount;
         }
 
+        /// <summary>
+        /// Append a run of keys, each one prefixed, marked and folded into the slot exactly as a single
+        /// key is: <c>$"{RedisCommand.MGET}{keys}"</c>.
+        /// </summary>
+        /// <param name="value">The keys to append; an empty run appends nothing.</param>
+        /// <remarks>
+        /// <para>
+        /// A variadic command is the one shape the single-expression form could not otherwise reach: the
+        /// argument count is a run-time quantity, so the alternative is <c>Compose</c> plus a loop plus a
+        /// <c>try</c>/<c>finally</c> to hand the rented buffer back if an interpolation throws. This makes
+        /// <c>MGET</c>, <c>DEL</c> and <c>BITOP</c> read like every other command.
+        /// </para>
+        /// <para>
+        /// A span rather than an array, so a caller with a slice, a <c>stackalloc</c>, or an array it does
+        /// not want copied pays nothing; an array converts implicitly, so <c>$"{keys}"</c> compiles either
+        /// way. <c>scoped</c> for the usual reason: nothing here retains it.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted(scoped ReadOnlySpan<RedisKey> value)
+        {
+            foreach (ref readonly var key in value)
+            {
+                AppendFormatted(key);
+            }
+        }
+
+        /// <summary>
+        /// Append a run of key/value pairs, in the order <c>MSET</c> wants them:
+        /// <c>$"{RedisCommand.MSET}{values}"</c>.
+        /// </summary>
+        /// <param name="value">The pairs to append; an empty run appends nothing.</param>
+        /// <remarks>
+        /// Each pair contributes TWO arguments, and the key half goes through the key path - prefix, mark,
+        /// slot - while the value half does not. That asymmetry is the entire reason this is a hole rather
+        /// than something the caller loops over as values: writing a key as a value would lose the prefix,
+        /// the invalidation mark and the cross-slot check, all silently.
+        /// </remarks>
+        public void AppendFormatted(scoped ReadOnlySpan<KeyValuePair<RedisKey, RedisValue>> value)
+        {
+            foreach (ref readonly var pair in value)
+            {
+                AppendFormatted(pair.Key);
+                AppendFormatted(pair.Value);
+            }
+        }
+
         /// <summary>Append a value; not a key, and not marked as one.</summary>
         /// <param name="value">The value to append.</param>
         public void AppendFormatted(RedisValue value)
@@ -511,7 +564,7 @@ namespace StackExchange.Redis.Interpolated
             var start = HeaderMax - headerLength;
             header.Slice(0, headerLength).CopyTo(_buffer.AsSpan(start));
 
-            var frame = new RespFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks());
+            var frame = new RespFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks(), _command);
             _buffer = null!; // ownership transferred to the frame
             return frame;
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
@@ -83,11 +83,17 @@ namespace StackExchange.Redis.Interpolated
         /// The cluster slot, which <c>Message.GetHashSlot</c> already computes - so unlike the interpolated
         /// writer there is no need to fold it during the write.
         /// </param>
+        /// <remarks>
+        /// The frame's <c>Command</c> is left UNKNOWN: this writer is fed by <c>MessageWriter</c>, which
+        /// already has a <c>Message</c> carrying the command, so nothing downstream of here would learn
+        /// anything from a copy of it. The interpolated writer is the one that has to record it, because
+        /// there the frame IS the whole message.
+        /// </remarks>
         public RespFrame Complete(int slot = ServerSelectionStrategy.NoSlot)
         {
             var buffer = _buffer;
             var length = _offset;
-            var frame = new RespFrame(buffer, 0, length, ReadArgCount(buffer, length), slot, PackKeyMarks(buffer, length));
+            var frame = new RespFrame(buffer, 0, length, ReadArgCount(buffer, length), slot, PackKeyMarks(buffer, length), RedisCommand.UNKNOWN);
 
             _buffer = ArrayPool<byte>.Shared.Rent(Math.Max(16, length));
             Reset();
