@@ -1429,12 +1429,19 @@ the cacheable majority to catch the minority.
 **Resolved: cacheable by default, and opting out is the caller's job.** The reasoning is stronger than
 "the caller knows best", which on its own would be a weak default:
 
-- **`EVAL`/`EVALSHA` are already excluded by the gate** — they default to `CommandRetryWriteAccumulating`,
-  well above read-only. So the population defaulting to cacheable is not "scripts"; it is *only* scripts
-  where the caller deliberately chose the `_RO` variant.
+- **`EVAL`/`EVALSHA` are excluded *by default*** — they default to `CommandRetryWriteAccumulating`, well
+  above read-only. So the population defaulting to cacheable is not "scripts"; it is *only* scripts where
+  the caller deliberately chose the `_RO` variant.
 - **`_RO` is server-enforced**, not a convention: a script that attempts a write under it errors. So the
   caller has already made a declaration, and the server has already verified half of it. Defaulting those
   to cacheable is a much smaller step than defaulting *scripts* to cacheable.
+
+**A caller can still make a plain `EVAL` cacheable, and that is intended.** `WithDefaultCategory` is a
+no-op when a category was already supplied, and `MaskRetryCategory` is in `Message.UserSelectableFlags` -
+so passing `CommandRetryReadOnly` with an `EVAL` is honoured. That is not a hole: it is the same single
+rule the whole gate rests on, *the declared retry category, whoever declared it*, applied without a
+special case for scripts. Someone who declares a writing script read-only has already broken retry
+semantics more severely than caching.
 
 **The risk worth documenting is not non-determinism — it is undeclared key access.** Invalidation tracks
 the keys the script declares; a script that reads a key it did not declare in `KEYS[]` is not tracked
@@ -1618,7 +1625,7 @@ reversals are the useful part.
 | >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
 | Fast byte test, `RespReader` only behind an attribute | Parse every reply | Attributes are the only thing that can precede a value, so a non-`\|` first byte *is* the content prefix - the cheap test is exact, and parsing is reserved for a branch that is in practice never taken (§6.12). |
 | Classify the reply with `RespReader` | Test `response[0]` | RESP3 attributes may precede any value, and nothing exempts errors from carrying them - so a first-byte test caches an error hidden behind metadata. Latent today because no server emits attributes, which is what makes it dangerous (§6.12). |
-| `EVAL_RO`/`EVALSHA_RO` cacheable by default | Exclude all scripts; or detect by inspecting the script | `EVAL`/`EVALSHA` are already excluded by the gate, so the default applies only where the caller chose the `_RO` variant *and the server enforces it*. Inspecting the script loses to computed command names and `pcall`, and a detector that is usually right is worse than a rule (§6.9). |
+| `EVAL_RO`/`EVALSHA_RO` cacheable by default | Exclude all scripts; or detect by inspecting the script | `EVAL`/`EVALSHA` are excluded *by default*, so this applies only where the caller chose the `_RO` variant *and the server enforces it*. An explicit `CommandRetryReadOnly` on a plain `EVAL` is honoured, deliberately - one rule, no script special case. Inspecting the script loses to computed command names and `pcall` (§6.9). |
 | Exclusions live in command metadata, beside the retry category | A `CommandFlags` bit | `CommandFlags.Category.cs` already classifies per enum value; cacheability is the same kind of fact about the same enum, and a flag would burden call sites with something we know (§6.9). |
 | Errors never cached; nulls always | Cache errors too, or treat null as a miss | A cached reply must be a function of the tracked keys; an error need not be, so nothing would evict it and a transient failure becomes permanent. A null *is* a function of the key, and Redis tracks keys that do not exist, so negative caching is correct (§6.12). |
 | Cancellation applies only to the caller's await | HybridCache's extra token + waiter tracking | The fill populates a shared cache, so it has value once nobody is waiting - unlike an arbitrary external system, where it does not (§6.11). |
@@ -2291,7 +2298,7 @@ Added while building the cache (§6.6-6.9):
   bit — see §6.9. `DUMP` was also proposed; I would challenge it, since it looks correctly invalidated, so
   that is a benefit call rather than a safety one.
 - ~~**Scripts (`EVAL_RO`/`EVALSHA_RO`) are unresolved.**~~ **Settled:** cacheable by default, caller opts
-  out with `NoClientCache`. `EVAL`/`EVALSHA` are already excluded by the gate, and `_RO` is server-enforced,
+  out with `NoClientCache`. `EVAL`/`EVALSHA` are excluded by default, `_RO` is server-enforced,
   so the default applies to a narrow, self-declared population. The risk to document is *undeclared key
   access*, not non-determinism — see §6.9.
 - **Do module reads register for invalidation?** If the server tracks keys only for core command
