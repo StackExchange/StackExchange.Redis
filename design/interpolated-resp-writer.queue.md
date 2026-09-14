@@ -18,38 +18,6 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       mechanical, but it will collide with any in-flight worktree, so do it immediately after a merge.
       Until then `ExecuteAsync` carries the ad-hoc API, because async has no clash.
 
-- [ ] **Replace the `Inbuilt<T>` type registry with interface-based lookup.** Today it is a chain of
-      `typeof(T) == typeof(X)` tests that someone must remember to extend. Instead:
-
-      ```csharp
-      internal static class DefaultHandler<T>
-      {
-          internal static readonly IRespHandler<T>? Instance = RespHandlers.Defaults as IRespHandler<T>;
-      }
-      ```
-
-      where `Defaults` is one singleton carrying many explicit `IRespHandler<X>` implementations.
-      Registration becomes "implement the interface", which cannot fall out of step, and memoization is
-      unchanged (`static readonly` on a closed generic either way).
-
-      **`IRespHandler<out TResult>` must lose its `out` first.** `as` honours variance, so covariance would
-      let `as IRespHandler<object>` silently match an `IRespHandler<string>` implementation and return a
-      string parser. Verified that nothing depends on the variance: the whole repo builds with it invariant.
-
-      Explicit implementation is forced anyway (one `Parse` per `T`, differing only by return type, is not a
-      legal implicit overload set), which conveniently keeps them off the singleton's public surface. The
-      named vocabulary (`Value`, `Ok`, `Result`, `ReadOnlyLease`) stays as properties over the same
-      singleton, preserving the deliberate "named versus merely registered" distinction.
-
-      Collides with in-flight work: `RespHandlers` lives in `RespSurface.cs`. Do it right after a merge,
-      with the rename above.
-
-- [ ] **Stale-while-revalidate** (§6.15). Soft/hard thresholds on `CachePolicy`, once-only refresh via an
-      interlocked flag on the entry, clearing on failure with backoff. Prerequisites are in: single-flight
-      is the same interlock, and `CachePolicy` already carries the lifetime. Remember the cap for the
-      compounding-staleness case, and that invalidation-SWR must **not** apply to invalidations we caused
-      ourselves (read-your-own-writes).
-
 - [ ] **Cacheability metadata for the seven exclusions** (§6.9). `SRANDMEMBER`, `HRANDFIELD`,
       `ZRANDMEMBER`, the `*SCAN` family, `TTL`/`PTTL`, `TOUCH`, `PFCOUNT` all sit in
       `CommandRetryReadOnly` alongside `GET` and would be cached wrongly today. A correctness hole, and
@@ -120,7 +88,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] `ReadOnlyLease<byte>`, and retiring the mutable `ReadLease` spelling — `9a1a37bf`
 - [x] Ad-hoc `ExecuteAsync` returning `RespResult`, on the context and on `IRespTarget`; `ExecuteResp`
       wired through `TransitionalDatabase` — `30d28d70`
-- [x] `RespResult` shares the reply buffer instead of copying it — this change
+- [x] `RespResult` shares the reply buffer instead of copying it — `696a5c3f`
+- [x] Interface-based default handler lookup; `IRespHandler` made invariant — this change
 
 ## Decided against
 

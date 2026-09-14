@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Interpolated
     /// </summary>
     /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public interface IRespHandler<out TResult>
+    public interface IRespHandler<TResult>
     {
         /// <summary>Read a reply - cached or fresh - into a result.</summary>
         /// <param name="response">The reply bytes; valid only for the duration of this call.</param>
@@ -79,7 +79,7 @@ namespace StackExchange.Redis.Interpolated
     /// returns.
     /// </para>
     /// </remarks>
-    internal interface IRespPayloadHandler<out TResult> : IRespHandler<TResult>
+    internal interface IRespPayloadHandler<TResult> : IRespHandler<TResult>
     {
         /// <summary>Parse the reply, optionally retaining its buffer.</summary>
         /// <param name="payload">The reply; take a reference if the result outlives this call.</param>
