@@ -45,9 +45,40 @@ public class RespSurfaceTests
             System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>(),
             System.Runtime.CompilerServices.Unsafe.SizeOf<RespStrings>());
 
-        // 64 bytes as of writing, of which RedisChannel ChannelPrefix is 16 - see design notes 3.3 on
-        // shrinking it. Asserted loosely: the point is that it is past register size, not the exact value.
-        Assert.True(System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>() > 32);
+        // 48 bytes once ChannelPrefix moved into the service slot - it was 64, of which RedisChannel was
+        // 16, carried on every copy for pub/sub's benefit alone. See design notes 3.3.
+        Assert.Equal(48, System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>());
+    }
+
+    [Fact]
+    public void ServicesComposeRatherThanReplaceEachOther()
+    {
+        using var cache = new RespClientCache();
+        var ctx = new RespContext()
+            .WithCache(cache)
+            .WithChannelPrefix(RedisChannel.Literal("app:"));
+
+        // the second service must not evict the first - the slot is a chain, not a variable
+        Assert.Same(cache, ctx.Cache);
+        Assert.Equal("app:", (string?)ctx.ChannelPrefix);
+
+        // and the newest of a given type wins, by lookup order, with no replace logic
+        var rebound = ctx.WithChannelPrefix(RedisChannel.Literal("other:"));
+        Assert.Equal("other:", (string?)rebound.ChannelPrefix);
+        Assert.Same(cache, rebound.Cache);
+
+        // setting it back to nothing shadows rather than removes, and still reads as absent
+        Assert.True(rebound.WithChannelPrefix(default).ChannelPrefix.IsNull);
+    }
+
+    [Fact]
+    public void ChannelPrefixSurvivesUnrelatedClones()
+    {
+        var ctx = new RespContext().WithChannelPrefix(RedisChannel.Literal("app:")).WithDatabase(4).WithKeyPrefix("t7:");
+
+        // it travels in services now, so every With* has to carry it without naming it
+        Assert.Equal("app:", (string?)ctx.ChannelPrefix);
+        Assert.Equal(4, ctx.Database);
     }
 
     [Fact]

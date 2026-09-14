@@ -41,12 +41,13 @@ namespace StackExchange.Redis.Interpolated
         {
             _commandMap = commandMap;
             _keyPrefix = keyPrefix; // normalise to bytes ONCE; the conversion can allocate for a string-backed key
-            ChannelPrefix = channelPrefix;
             Database = database;
             ServerType = serverType;
             CancellationToken = cancellationToken;
             Executor = executor;
-            _services = services;
+            _services = channelPrefix.IsNull
+                ? services
+                : ServiceLink.Add(services, new ChannelPrefixService(channelPrefix));
         }
 
         /// <summary>Where commands composed from this context are sent; <c>null</c> if none is configured.</summary>
@@ -57,6 +58,40 @@ namespace StackExchange.Redis.Interpolated
         internal IRespExecutor? Executor { get; }
 
         private readonly object? _services;
+
+        /// <summary>Carries a channel prefix in the service slot; a class, so the struct is not boxed loose.</summary>
+        private sealed class ChannelPrefixService(RedisChannel channel)
+        {
+            internal RedisChannel Channel { get; } = channel;
+        }
+
+        /// <summary>Services in one slot, as a chain: a service plus whatever was already there.</summary>
+        /// <remarks>
+        /// <para>
+        /// Prepending, so the most recently added wins by lookup order - which means "replace" needs no
+        /// code at all, and neither does removal: setting a prefix back to <c>default</c> simply shadows
+        /// the old one with an empty one. An array would be copied on every add; a link is one small
+        /// allocation, and the chain is immutable so every context clone shares it.
+        /// </para>
+        /// <para>
+        /// Allocated per context <i>configuration</i>, never per command - and only from the second service
+        /// onwards, since a context with exactly one keeps the bare object and never sees this.
+        /// </para>
+        /// </remarks>
+        private sealed class ServiceLink(object service, object tail) : IServiceProvider
+        {
+            public object? GetService(Type serviceType)
+            {
+                if (serviceType.IsInstanceOfType(service)) return service;
+
+                return tail is IServiceProvider provider
+                    ? provider.GetService(serviceType)
+                    : serviceType.IsInstanceOfType(tail) ? tail : null;
+            }
+
+            internal static object Add(object? existing, object service)
+                => existing is null ? service : new ServiceLink(service, existing);
+        }
 
         /// <summary>
         /// Obtain a service attached to this context, if any.
@@ -148,7 +183,14 @@ namespace StackExchange.Redis.Interpolated
         internal ReadOnlySpan<byte> KeyPrefixSpan => _keyPrefix;
 
         /// <summary>The prefix applied to channels written through this context.</summary>
-        public RedisChannel ChannelPrefix { get; }
+        /// <remarks>
+        /// Held as a <b>service</b> rather than a field. As a field it was a <see cref="RedisChannel"/> -
+        /// 16 bytes, a quarter of the whole context - carried on every copy for pub/sub's benefit alone,
+        /// while every data-type group ignored it. Resolving it costs a type test, paid only by code that
+        /// actually writes a channel. See design notes section 3.3.
+        /// </remarks>
+        public RedisChannel ChannelPrefix
+            => TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
 
         /// <summary>The database index; part of cache identity, and NOT part of the rendered frame.</summary>
         public int Database { get; }
@@ -167,12 +209,12 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>A copy of this context targeting a different database.</summary>
         /// <param name="database">The database index.</param>
         public RespContext WithDatabase(int database)
-            => new(CommandMap, KeyPrefix, ChannelPrefix, database, ServerType, CancellationToken, Executor, _services);
+            => new(CommandMap, KeyPrefix, default, database, ServerType, CancellationToken, Executor, _services);
 
         /// <summary>A copy of this context with a different server type.</summary>
         /// <param name="serverType">The server type.</param>
         public RespContext WithServerType(ServerType serverType)
-            => new(CommandMap, KeyPrefix, ChannelPrefix, Database, serverType, CancellationToken, Executor, _services);
+            => new(CommandMap, KeyPrefix, default, Database, serverType, CancellationToken, Executor, _services);
 
         /// <summary>
         /// Returns a context whose keys are prefixed. This is what replaces wrapping the database in a
@@ -183,7 +225,7 @@ namespace StackExchange.Redis.Interpolated
             => new(
                 CommandMap,
                 _keyPrefix is null ? keyPrefix : RedisKey.WithPrefix(_keyPrefix, keyPrefix),
-                ChannelPrefix,
+                default,
                 Database,
                 ServerType,
                 CancellationToken,
@@ -193,17 +235,19 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>A copy of this context with a different channel prefix.</summary>
         /// <param name="channelPrefix">The prefix to apply to channels.</param>
         public RespContext WithChannelPrefix(RedisChannel channelPrefix)
-            => new(CommandMap, KeyPrefix, channelPrefix, Database, ServerType, CancellationToken, Executor, _services);
+            // a null prefix shadows any earlier one with an empty service rather than removing it: the
+            // chain stays append-only, and ChannelPrefix reads default from it either way
+            => WithServices(ServiceLink.Add(_services, new ChannelPrefixService(channelPrefix)));
 
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>
         internal RespContext WithExecutor(IRespExecutor? executor)
-            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, executor, _services);
+            => new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, executor, _services);
 
         /// <summary>A copy of this context carrying <paramref name="services"/>.</summary>
         /// <param name="services">The service, or an <see cref="IServiceProvider"/>, or <c>null</c>.</param>
         public RespContext WithServices(object? services)
-            => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, Executor, services);
+            => new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, Executor, services);
 
         /// <summary>A copy of this context that consults <paramref name="cache"/>.</summary>
         /// <param name="cache">The cache to consult, or <c>null</c> for none.</param>

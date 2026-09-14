@@ -555,11 +555,21 @@ a `CancellationToken` (8), `Database` + `ServerType` (8), and **`RedisChannel Ch
 quarter of every context copy is a channel prefix that only pub/sub uses and that the `Strings`, `Hashes`
 and every other data-type group never touch.
 
-So the fix is to **shrink the thing being copied**, not to dodge one copy of it. `ChannelPrefix` is the
-obvious candidate for the services slot that already exists for optional capabilities (§6.7), or for being
-stored as the `byte[]` it is normalised to - the writer only ever wants the bytes. That would take the
-context to 48 bytes and help *every* copy, including the ones inside `Send` on the hot path, rather than
-only the rare external `.Context` read.
+So the fix is to **shrink the thing being copied**, not to dodge one copy of it. **Done:** `ChannelPrefix`
+moved into the services slot that already existed for optional capabilities (§6.7), taking the context
+from **64 bytes to 48** - a quarter off *every* copy, including the ones inside `Send` on the hot path,
+rather than only the rare external `.Context` read. Resolving it now costs a type test, paid only by code
+that actually writes a channel.
+
+**The slot became a chain to make this work.** One service was enough while the cache was the only one;
+two are not. A `ServiceLink` holds a service plus whatever was already there, and adding **prepends** - so
+the most recent of a type wins by lookup order. That removes two pieces of code rather than adding them:
+"replace" needs none, because a later add shadows an earlier one; and "remove" needs none, because setting
+a prefix back to `default` shadows it with an empty one that reads as absent. An array would have to be
+copied on every add; a link is one allocation, immutable, and shared by every context clone.
+
+It is allocated per context *configuration* and never per command - and only from the second service
+onwards, since a context with exactly one keeps the bare object and never sees the chain at all.
 
 Against the public field specifically: the JIT inlines a trivial getter, so partial uses like
 `strings.Context.Database` are usually forwarded anyway; and a public field locks the representation,
@@ -2353,10 +2363,6 @@ Added while building the cache (§6.6-6.9):
   context — so it needs a synthetic context or a narrower interface (§6.8).
 - **Bounding the cache.** Invalidated entries linger until `Sweep`, and the key table grows with distinct
   keys seen. Both need a size bound; both fail closed, so bounding is safe (§6.6).
-
-- **Shrink `RespContext`.** 64 bytes, of which `RedisChannel ChannelPrefix` is 16 - a quarter of every
-  copy, for something only pub/sub uses. Moving it into the services slot, or storing the `byte[]` the
-  writer actually wants, takes it to 48. See §3.3.
 
 - **Static key bitmaps.** For fixed-arity commands the key positions are statically known, so the JIT
   may constant-fold the bitmap when the Append chain inlines. Not to be designed around, but the
