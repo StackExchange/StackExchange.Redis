@@ -178,6 +178,187 @@ public class RespStaleWhileRevalidateTests
         Assert.Equal(1, cache.Count);            // replaced, not duplicated
     }
 
+    // ---- invalidation-triggered, the opt-in half -----------------------------------------------------
+
+    [Fact]
+    public async Task AnInvalidatedEntryIsServedBrieflyAndRefreshed()
+    {
+        // the stampede that matters most: an invalidation lands for EVERY reader of a hot key at the same
+        // instant, so time-based smoothing cannot help - the trigger was not time
+        using var cache = new RespClientCache(new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromSeconds(5),
+            TimeToLive = TimeSpan.FromMinutes(5),
+        });
+        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+        Assert.Equal(1, executor.Sends);
+
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));   // somebody else wrote it
+
+        // still answered - knowingly out of date, and counted as such
+        Assert.Equal("a", await Get(context));
+        Assert.Equal(1, cache.ServedStale);
+
+        // ...with a refresh started behind it, so the next reader gets the new value
+        Assert.True(await WaitFor(() => cache.Stored == 2), "no refresh followed the invalidation");
+        Assert.Equal("b", await Get(context));
+    }
+
+    [Fact]
+    public async Task OurOwnWriteIsNeverServedThrough()
+    {
+        // read-your-own-writes. "No observer can prove the order" excuses serving through somebody else's
+        // write; it says nothing about ours, and returning the value the caller just replaced is reported
+        // as corruption rather than as staleness.
+        using var cache = new RespClientCache(new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromSeconds(5),
+            TimeToLive = TimeSpan.FromMinutes(5),
+        });
+        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+
+        cache.OnLocalWrite(Encoding.UTF8.GetBytes("k"));   // WE wrote it
+
+        Assert.Equal("b", await Get(context));             // a real miss, not a stale serve
+        Assert.Equal(0, cache.ServedStale);
+        Assert.Equal(2, executor.Sends);
+    }
+
+    [Fact]
+    public async Task ALocalWriteStillCountsAfterAServerInvalidation()
+    {
+        // the two can arrive in either order - our own write echoes back from the server as well - and the
+        // fact that WE wrote it must survive that
+        using var cache = new RespClientCache(new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromSeconds(5),
+            TimeToLive = TimeSpan.FromMinutes(5),
+        });
+        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+
+        cache.OnLocalWrite(Encoding.UTF8.GetBytes("k"));
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));   // the echo, arriving afterwards
+
+        Assert.Equal("b", await Get(context));
+        Assert.Equal(0, cache.ServedStale);
+    }
+
+    [Fact]
+    public async Task ServingThroughInvalidationIsOffByDefault()
+    {
+        Assert.Equal(TimeSpan.Zero, CachePolicy.Default.InvalidationGracePeriod);
+
+        using var cache = new RespClientCache();
+        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));
+
+        Assert.Equal("b", await Get(context));   // straight to the server
+        Assert.Equal(0, cache.ServedStale);
+    }
+
+    [Fact]
+    public async Task TheWindowIsAlsoTheCap()
+    {
+        // on a hot-written key every refresh is invalidated before it can be stored, so without an absolute
+        // bound this would serve stale for ever. Measured from FIRST NOTICE, so it cannot.
+        using var cache = new RespClientCache(new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromMilliseconds(80),
+            TimeToLive = TimeSpan.FromMinutes(5),
+        });
+        // The refresh must NOT be allowed to succeed, or it heals the entry and the test cannot tell the cap
+        // from the cure. An error reply is refused by TryComplete, so the entry stays invalid - which is
+        // precisely the hot-written-key situation the cap is for: every refresh is lost, and without a bound
+        // the entry would be served stale for ever.
+        var executor = new CountingExecutor("$1\r\na\r\n", "-ERR not today\r\n", "$1\r\nc\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));
+
+        Assert.Equal("a", await Get(context));    // inside the window: served stale, notice recorded
+        Assert.Equal(1, cache.ServedStale);
+
+        Assert.True(await WaitFor(() => executor.Sends == 2), "the refresh never ran");
+        Assert.True(await WaitFor(() => cache.RefusedError == 1), "the refresh was not refused");
+        Assert.Equal(1, cache.Count);             // still the original, still invalid
+
+        await Task.Delay(200);                    // past the window
+
+        Assert.Equal("c", await Get(context));    // the window closed; a real fetch
+        Assert.Equal(1, cache.ServedStale);       // and NOT another stale serve
+    }
+
+    [Fact]
+    public async Task AKeyNobodyIsReadingJustExpires()
+    {
+        // The grace period runs from the INVALIDATION, not from whoever next happens to look. The case
+        // worth protecting is a key under constant access, where the herd forms the instant it is
+        // invalidated. A key nobody is reading should simply expire - starting the clock at first notice
+        // would instead resurrect it for whoever wandered past an hour later, which is the opposite of the
+        // intent.
+        using var cache = new RespClientCache(new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromMilliseconds(80),
+            TimeToLive = TimeSpan.FromMinutes(5),
+        });
+        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));
+
+        // nobody reads it during the grace period
+        await Task.Delay(200);
+
+        Assert.Equal("b", await Get(context));   // a real fetch, not a stale serve
+        Assert.Equal(0, cache.ServedStale);
+        Assert.Equal(0, cache.Refreshes);        // and no background work was started for it either
+    }
+
+    [Fact]
+    public async Task TheGraceIsNotRestartedByLaterReads()
+    {
+        // it is a grace period, not a sliding window: constant access bridges the burst, it does not keep
+        // the old value alive indefinitely
+        using var cache = new RespClientCache(new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromMilliseconds(120),
+            TimeToLive = TimeSpan.FromMinutes(5),
+        });
+        var executor = new CountingExecutor("$1\r\na\r\n", "-ERR not today\r\n", "$1\r\nc\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));
+
+        // read repeatedly across the window; the refresh keeps failing, so only the cap can stop this
+        var served = 0;
+        var watch = Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < 300)
+        {
+            if ((string?)await Get(context) == "a") served++;
+            await Task.Delay(15);
+        }
+
+        Assert.True(served > 0, "nothing was served during the grace period");
+        Assert.True(
+            watch.ElapsedMilliseconds > 250 && (string?)await Get(context) != "a",
+            "still serving the old value long after the grace period");
+    }
+
     /// <summary>The same rendered key the surface would produce, for poking the cache directly.</summary>
     private static RespRequest RenderKey(RespContext context)
     {

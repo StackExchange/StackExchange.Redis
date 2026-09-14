@@ -18,12 +18,6 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       mechanical, but it will collide with any in-flight worktree, so do it immediately after a merge.
       Until then `ExecuteAsync` carries the ad-hoc API, because async has no clash.
 
-- [ ] **Invalidation-based SWR** (§6.15), the remaining half. Expiry-based SWR is built. This one is
-      opt-in and deliberately separate: serving through an invalidation means serving data the server has
-      said is wrong. Must **not** apply to invalidations we caused ourselves (read-your-own-writes); measure
-      the window from first notice rather than from the invalidation; and it needs the absolute cap, since a
-      hot-written key would otherwise serve stale indefinitely as each refresh is invalidated in flight.
-
 - [ ] **Cacheability metadata for the seven exclusions** (§6.9). `SRANDMEMBER`, `HRANDFIELD`,
       `ZRANDMEMBER`, the `*SCAN` family, `TTL`/`PTTL`, `TOUCH`, `PFCOUNT` all sit in
       `CommandRetryReadOnly` alongside `GET` and would be cached wrongly today. A correctness hole, and
@@ -96,7 +90,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       wired through `TransitionalDatabase` — `30d28d70`
 - [x] `RespResult` shares the reply buffer instead of copying it — `696a5c3f`
 - [x] Interface-based default handler lookup; `IRespHandler` made invariant — `a539a538`
-- [x] Stale-while-revalidate on expiry, with background refresh — this change
+- [x] Stale-while-revalidate on expiry, with background refresh — `253cc2e4`
+- [x] Invalidation grace period, with the read-your-own-writes carve-out — this change
 
 ## Decided against
 

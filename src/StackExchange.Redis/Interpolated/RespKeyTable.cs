@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -21,7 +22,7 @@ namespace StackExchange.Redis.Interpolated
     /// <c>long</c> compare - no hashing, no second lookup. The cost of that is an invariant: a node that
     /// leaves this table must be stamped invalid FIRST, or entries still referencing it would never learn
     /// and would serve stale data forever. Everything that removes here goes through
-    /// <see cref="Node.Invalidate"/> on the way out.
+    /// <c>Node.Invalidate</c> on the way out.
     /// </para>
     /// <para>
     /// <b>Lookups are lock-free and allocation-free</b>, because in broadcasting mode this is fed every key
@@ -61,6 +62,8 @@ namespace StackExchange.Redis.Interpolated
         internal sealed class Node
         {
             private long _generation;
+            private long _localWriteAt;
+            private long _invalidatedAt;
 
             internal Node(byte[] key, int hash, long generation)
             {
@@ -77,7 +80,65 @@ namespace StackExchange.Redis.Interpolated
             internal long Generation => Volatile.Read(ref _generation);
 
             /// <summary>Mark the key invalidated; every entry that recorded a generation now fails to validate.</summary>
-            internal void Invalidate() => Volatile.Write(ref _generation, Invalid);
+            internal void Invalidate() => Invalidate(stampTime: false);
+
+            /// <summary>Mark the key invalidated, optionally recording when.</summary>
+            /// <param name="stampTime">
+            /// Whether to record <i>when</i> this happened, for a grace period that runs from the
+            /// invalidation.
+            /// </param>
+            /// <remarks>
+            /// Optional because this is the hot path: under <c>BCAST</c> the server names every key anybody
+            /// modifies, and the overwhelming majority are keys we do not hold. Reading a timestamp there
+            /// would be paid on all of them to benefit the few. So the cost lands only on a cache that has
+            /// actually asked for a grace period - see <see cref="CachePolicy.InvalidationGracePeriod"/>.
+            /// <para>
+            /// Stamped <b>before</b> the generation is cleared, so a reader that sees the node invalid can
+            /// rely on the timestamp already being there.
+            /// </para>
+            /// </remarks>
+            internal void Invalidate(bool stampTime)
+            {
+                if (stampTime) Volatile.Write(ref _invalidatedAt, Stopwatch.GetTimestamp());
+                Volatile.Write(ref _generation, Invalid);
+            }
+
+            /// <summary>When this key was last invalidated, if anybody asked for that to be recorded.</summary>
+            internal long InvalidatedAt => Volatile.Read(ref _invalidatedAt);
+
+            /// <summary>
+            /// The ticket current when <b>this process</b> last wrote this key, or <see cref="Invalid"/>.
+            /// </summary>
+            /// <remarks>
+            /// Tickets are globally monotonic, so comparing this against the generation an entry recorded
+            /// answers "did we write this key after that entry was filled?" without storing a timestamp or
+            /// walking anything. It exists solely to keep <i>our own</i> writes out of any
+            /// serve-stale-anyway behaviour: that is read-your-own-writes, and it is reported as corruption
+            /// rather than as staleness. See design notes 6.15.
+            /// </remarks>
+            internal long LocalWriteAt => Volatile.Read(ref _localWriteAt);
+
+            /// <summary>
+            /// Mark the key invalidated <b>by us</b>, which is a stronger statement than an invalidation
+            /// arriving from the server.
+            /// </summary>
+            /// <remarks>
+            /// Stamped before the invalidation, so a reader that sees the node invalid can trust that this
+            /// has already been set if it was going to be. Monotonic, so a later server invalidation cannot
+            /// erase the fact that we wrote it.
+            /// </remarks>
+            internal void InvalidateLocal(bool stampTime)
+            {
+                var ticket = NextTicket();
+                while (true)
+                {
+                    var current = Volatile.Read(ref _localWriteAt);
+                    if (current >= ticket) break;
+                    if (Interlocked.CompareExchange(ref _localWriteAt, ticket, current) == current) break;
+                }
+
+                Invalidate(stampTime);
+            }
 
             /// <summary>
             /// The generation to record for a fill starting now, reviving the node with a fresh ticket if it
@@ -127,11 +188,29 @@ namespace StackExchange.Redis.Interpolated
         /// broadcasting, is almost every call.
         /// </summary>
         /// <returns><c>true</c> if the key was tracked, so callers can count how much of the flood mattered.</returns>
-        internal bool Invalidate(ReadOnlySpan<byte> key)
+        internal bool Invalidate(ReadOnlySpan<byte> key) => Invalidate(key, local: false, stampTime: false);
+
+        /// <inheritdoc cref="Invalidate(ReadOnlySpan{byte})"/>
+        /// <param name="key">The key that changed.</param>
+        /// <param name="local">
+        /// <c>true</c> if <b>this process</b> made the change. A local write is a fact, not a race, so an
+        /// entry it invalidates must never be served afterwards.
+        /// </param>
+        /// <param name="stampTime">Whether to record when this happened, for a grace period.</param>
+        internal bool Invalidate(ReadOnlySpan<byte> key, bool local, bool stampTime)
         {
             var node = Find(key);
             if (node is null) return false;
-            node.Invalidate();
+
+            if (local)
+            {
+                node.InvalidateLocal(stampTime);
+            }
+            else
+            {
+                node.Invalidate(stampTime);
+            }
+
             return true;
         }
 

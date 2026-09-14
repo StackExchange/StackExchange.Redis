@@ -2220,6 +2220,44 @@ It is also **handler-agnostic**: the cache stores the raw reply and parsing happ
 refresh does not need to know what anybody intended to turn the bytes into. That is what makes a background
 refresh a few lines rather than a design.
 
+#### Built: invalidation as a grace period
+
+`CachePolicy.InvalidationGracePeriod` is the other half, and the more valuable one: age is staggered across
+entries, but an **invalidation lands for every reader of a key at the same instant**. That is the thundering
+herd exactly, and time-based smoothing cannot touch it, because the trigger was not time.
+
+**It is a grace period, not a licence.** It moves the entry's hard expiry to "now plus this", measured from
+the **invalidation**. The case worth protecting is a key under constant access, where the herd forms
+immediately; a key nobody is reading should just expire, and does - nobody arrives inside the window, so
+nothing is served and it goes on the next sweep.
+
+**The clock starts at the invalidation, not at first notice** - and the first version had this wrong. First
+notice is cheaper (it needs no timestamp on the invalidation path) but it means a key invalidated an hour
+ago is served stale to whoever reads it next, which is the opposite of the intent: the point is to bridge a
+burst, not to resurrect something nobody wanted. There is a test for a key nobody reads, and the mutant that
+restores the first-notice version fails it.
+
+The cost of getting it right is a `Stopwatch.GetTimestamp()` in `OnInvalidate`, which is otherwise a few
+nanoseconds wide and sees **every** key the server mentions under `BCAST`. So it is **conditional**: the
+stamp is taken only when the policy has asked for a grace period, and the default path is unchanged.
+
+**Read-your-own-writes is enforced structurally**, not by convention. `OnLocalWrite` marks the key node with
+a monotonic ticket, and an entry is refused the grace if any key it depends on carries a local-write ticket
+newer than the generation it recorded. "No observer can prove the order" excuses serving through *somebody
+else's* write; it says nothing about ours, and handing a caller back the value they just replaced is
+reported as corruption, not staleness. Monotonic because our own write echoes back from the server as an
+ordinary invalidation - the fact that we wrote it has to survive that, and there is a test for the two
+arriving in that order.
+
+The window is also the **cap**: on a hot-written key every refresh is invalidated before it can be stored,
+so an unbounded one would serve stale for ever. The test for this has to make the refresh *fail*, otherwise
+a successful refresh heals the entry and the assertion passes whether or not there is a cap - which is how
+the first version of it silently proved nothing.
+
+`ServedStale` counts answers that were knowingly out of date - its own counter rather than folded into hits,
+because a deployment should be able to see how many it served without reading the configuration to work out
+whether it could have.
+
 #### Risks to design for, not discover
 
 - **Compounding staleness on a hot-written key.** Every refresh is invalidated in flight, `AllValid`

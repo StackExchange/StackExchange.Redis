@@ -58,6 +58,7 @@ namespace StackExchange.Redis.Interpolated
         private long _coalesced;
         private long _expired;
         private long _refreshes;
+        private long _servedStale;
 
         /// <summary>Create a cache.</summary>
         /// <param name="policy">How entries behave; <see cref="CachePolicy.Default"/> when null.</param>
@@ -83,6 +84,14 @@ namespace StackExchange.Redis.Interpolated
         /// for one. Expiries rising alongside means the refresh window is too narrow to cover the fetch.
         /// </remarks>
         public long Refreshes => Volatile.Read(ref _refreshes);
+
+        /// <summary>Reads answered from an entry the server had already invalidated.</summary>
+        /// <remarks>
+        /// Its own counter rather than folded into hits: these are answers that were knowingly out of date,
+        /// and a deployment should be able to see how many it served without reading the configuration to
+        /// find out whether it could have.
+        /// </remarks>
+        public long ServedStale => Volatile.Read(ref _servedStale);
 
         /// <summary>Hits refused because the entry had outlived its lifetime.</summary>
         /// <remarks>
@@ -166,7 +175,29 @@ namespace StackExchange.Redis.Interpolated
         /// key touched on the server. The work is: hash the span, one array read, one bucket scan. Nothing
         /// is allocated, and a key we do not track costs only that.
         /// </remarks>
-        public bool OnInvalidate(ReadOnlySpan<byte> key) => _keys.Invalidate(key);
+        public bool OnInvalidate(ReadOnlySpan<byte> key) => _keys.Invalidate(key, local: false, Policy.ServesStale);
+
+        /// <summary>
+        /// Note that <b>this process</b> wrote a key, which is a stronger statement than an invalidation
+        /// arriving from the server.
+        /// </summary>
+        /// <param name="key">The key we wrote.</param>
+        /// <returns><c>true</c> if the key was being tracked.</returns>
+        /// <remarks>
+        /// <para>
+        /// Two jobs. It invalidates, like any other notice - and it closes the door on
+        /// <see cref="CachePolicy.InvalidationGracePeriod"/> for this entry, permanently. Serving
+        /// through somebody else's write is defensible because no observer can prove the order; serving
+        /// through our own is handing a caller back the value they just replaced.
+        /// </para>
+        /// <para>
+        /// Also worth calling on the way out of a write even with server-assisted tracking switched on: the
+        /// echo takes a round trip to come back, and this closes the window in between. It is safe to
+        /// over-call - invalidating something twice costs a miss, which is the direction this design always
+        /// errs in.
+        /// </para>
+        /// </remarks>
+        public bool OnLocalWrite(ReadOnlySpan<byte> key) => _keys.Invalidate(key, local: true, Policy.ServesStale);
 
         /// <summary>
         /// Invalidate everything - a null invalidation (<c>FLUSHALL</c>/<c>FLUSHDB</c>), a lost connection,
@@ -231,9 +262,17 @@ namespace StackExchange.Redis.Interpolated
         {
             shouldRefresh = false;
 
-            if (_entries.TryGetValue(new EntryKey(frame, database), out var entry)
-                && entry.IsValid
-                && entry.Payload.TryRetain())
+            if (!_entries.TryGetValue(new EntryKey(frame, database), out var entry))
+            {
+                payload = null;
+                return false;
+            }
+
+            // invalidated, but perhaps still servable for a moment - see TryServeStale for why that is a
+            // decision rather than a shortcut
+            if (!entry.IsValid) return TryServeStale(entry, out payload, out shouldRefresh);
+
+            if (entry.Payload.TryRetain())
             {
                 // re-check after retaining: an invalidation between the check and the retain would otherwise
                 // let one stale read through the door it had already closed
@@ -265,6 +304,59 @@ namespace StackExchange.Redis.Interpolated
 
             payload = null;
             return false;
+        }
+
+        /// <summary>
+        /// Serve an <b>invalidated</b> entry, briefly, while a refresh runs - if the policy allows it.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The stampede that matters most. Time-based refresh smooths out entries that age at different
+        /// moments; an invalidation arrives for <i>every</i> reader of a popular key at the same instant, and
+        /// no amount of time-smoothing helps, because the trigger was not time.
+        /// </para>
+        /// <para>
+        /// Three gates, each doing real work:
+        /// </para>
+        /// <list type="number">
+        /// <item><description>
+        /// The policy has to have asked for it. Serving a value the server has called wrong is a decision.
+        /// </description></item>
+        /// <item><description>
+        /// <b>Never for our own writes.</b> "No observer can prove the order" justifies serving through
+        /// somebody else's write; it says nothing about ours, and handing a caller back the value they just
+        /// replaced is reported as corruption rather than as staleness.
+        /// </description></item>
+        /// <item><description>
+        /// A window measured from first notice, which doubles as the absolute cap: on a hot-written key
+        /// every refresh is invalidated before it can be stored, so without a bound this would serve stale
+        /// for ever.
+        /// </description></item>
+        /// </list>
+        /// </remarks>
+        private bool TryServeStale(Entry entry, out RespPayload? payload, out bool shouldRefresh)
+        {
+            shouldRefresh = false;
+            payload = null;
+
+            if (!Policy.ServesStale || entry.WrittenLocally) return false;
+
+            // measured from the INVALIDATION, not from whenever somebody first looked: a key nobody has read
+            // for an hour should expire, not be resurrected by the next reader to wander past
+            var staleSince = entry.StaleSince;
+            if (staleSince == 0 || CachePolicy.IsOlderThan(staleSince, Policy.ServeStaleTicks)) return false;
+
+            if (!entry.Payload.TryRetain()) return false;
+
+            if (entry.TryClaimRefresh())
+            {
+                Interlocked.Increment(ref _refreshes);
+                shouldRefresh = true;
+            }
+
+            Interlocked.Increment(ref _servedStale);
+            payload = entry.Payload;
+            return true;
         }
 
         /// <summary>
@@ -748,6 +840,35 @@ namespace StackExchange.Redis.Interpolated
             // a dereference and a compare - no hashing, no lookup in table 2
             internal bool IsValid => _node.Generation == _generation;
 
+            /// <summary>Whether this process wrote this key after the dependency was captured.</summary>
+            internal bool LocalWriteSince => _node.LocalWriteAt > _generation;
+
+            /// <summary>The earliest recorded invalidation among these keys, or zero if none was recorded.</summary>
+            internal static long EarliestInvalidation(Dependency[] dependencies)
+            {
+                long earliest = 0;
+                foreach (var dependency in dependencies)
+                {
+                    if (dependency.IsValid) continue;
+
+                    var at = dependency._node.InvalidatedAt;
+                    if (at != 0 && (earliest == 0 || at < earliest)) earliest = at;
+                }
+
+                return earliest;
+            }
+
+            /// <summary>Whether any of these keys was written by this process since they were captured.</summary>
+            internal static bool AnyLocalWrite(Dependency[] dependencies)
+            {
+                foreach (var dependency in dependencies)
+                {
+                    if (dependency.LocalWriteSince) return true;
+                }
+
+                return false;
+            }
+
             internal static bool AllValid(Dependency[] dependencies)
             {
                 foreach (var dependency in dependencies)
@@ -787,6 +908,24 @@ namespace StackExchange.Redis.Interpolated
             internal long FilledAt { get; } = Stopwatch.GetTimestamp();
 
             internal bool IsValid => Dependency.AllValid(dependencies);
+
+            /// <summary>Whether this process wrote any of the keys this entry depends on, since it was filled.</summary>
+            /// <remarks>
+            /// The read-your-own-writes gate. An entry invalidated by our own write must never be served
+            /// afterwards, however briefly - that is not staleness the caller can shrug at, it is the caller
+            /// being handed back the value they just replaced.
+            /// </remarks>
+            internal bool WrittenLocally => Dependency.AnyLocalWrite(dependencies);
+
+            /// <summary>
+            /// When this entry became stale: the earliest invalidation among the keys it depends on.
+            /// </summary>
+            /// <remarks>
+            /// Earliest, because that is the moment the entry stopped being right - a later invalidation of
+            /// a second key does not restart the grace period. Zero when nothing recorded a time, which
+            /// means the policy was not asking for one.
+            /// </remarks>
+            internal long StaleSince => Dependency.EarliestInvalidation(dependencies);
 
             /// <summary>
             /// Claim the right to refresh this entry, once.

@@ -77,8 +77,57 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public TimeSpan RefreshAfter { get; init; } = TimeSpan.Zero;
 
+        /// <summary>
+        /// A grace period after an invalidation, during which the old value may still be served while a
+        /// refresh runs.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The same stampede protection as <see cref="RefreshAfter"/>, triggered by an invalidation instead
+        /// of by age - and the more valuable of the two, because an invalidation lands for <i>every</i>
+        /// reader of a popular key at the same instant. That is the thundering herd exactly, and no amount
+        /// of time-based smoothing helps, because the trigger was not time.
+        /// </para>
+        /// <para>
+        /// <b>Read it as a grace period, not a licence.</b> It effectively moves the entry's hard expiry to
+        /// "now plus this", measured from the <i>invalidation</i>. The case worth protecting is a key under
+        /// constant access, where the herd forms instantly; a key that is not being read constantly should
+        /// simply expire, and does - nobody arrives inside the window, so nothing is served and the entry
+        /// goes on the next sweep.
+        /// </para>
+        /// <para>
+        /// That is why the clock starts at the invalidation and not at the first read that notices. Starting
+        /// at first notice would let a key invalidated an hour ago be served stale by whoever happened to
+        /// read it next, which is the opposite of the intent: the point is to bridge a burst, not to
+        /// resurrect something nobody wanted.
+        /// </para>
+        /// <para>
+        /// It is also the <b>cap</b>. On a hot-written key every refresh is invalidated before it can be
+        /// stored, so an unbounded window would serve stale for ever.
+        /// </para>
+        /// <para>
+        /// <b>Serving through an invalidation is a stronger claim than serving something merely old</b>: the
+        /// server has said this value is wrong and we are answering with it anyway. The justification is
+        /// that no observer can prove the order - a caller arriving now might equally have arrived a moment
+        /// before the write - and that holds for <i>somebody else's</i> write. It does not hold for our own,
+        /// and this never applies to those.
+        /// </para>
+        /// <para>
+        /// <b>Off by default.</b> Turning it on also turns on a timestamp read in the invalidation path,
+        /// which is otherwise a few nanoseconds wide and sees every key the server mentions - so the cost
+        /// lands only on those who asked for the feature.
+        /// </para>
+        /// </remarks>
+        public TimeSpan InvalidationGracePeriod { get; init; } = TimeSpan.Zero;
+
         /// <summary>Whether this policy asks for background refresh at all.</summary>
         internal bool RefreshesEarly => RefreshAfter > TimeSpan.Zero && RefreshAfter < TimeToLive;
+
+        /// <summary>Whether an invalidated entry may be served while it is refreshed.</summary>
+        internal bool ServesStale => InvalidationGracePeriod > TimeSpan.Zero;
+
+        /// <summary><see cref="InvalidationGracePeriod"/> as a <see cref="Stopwatch"/> tick count.</summary>
+        internal long ServeStaleTicks => ToTicks(InvalidationGracePeriod);
 
         /// <summary><see cref="RefreshAfter"/> as a <see cref="Stopwatch"/> tick count.</summary>
         internal long RefreshAfterTicks => ToTicks(RefreshAfter);
