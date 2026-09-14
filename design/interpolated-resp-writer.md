@@ -1343,11 +1343,38 @@ it is the one that fails open if written carelessly.
 already carries flags; whether a command may be cached is a property of the command, and the caller has to
 say.
 
-**Read-only is necessary, not sufficient**, and this is a gate rather than the whole test. Read-only
-commands that must still not be cached: non-deterministic ones (`SRANDMEMBER`, `HRANDFIELD`,
-`ZRANDMEMBER`) and cursor-based ones (`SCAN`, `HSCAN`). Those are *our* commands, so they belong in
-command metadata rather than in flags — a compile-time property of our own enum should not be pushed onto
-every call site.
+**Read-only is necessary, not sufficient**, and this is a gate rather than the whole test. The exclusions
+are *our* commands, so they belong in command metadata rather than in flags — a compile-time property of
+our own enum should not be pushed onto every call site.
+
+**The metadata table already exists.** `CommandFlags.Category.cs` has a per-command `switch` supplying the
+default retry category; a cacheability answer wants to sit beside it, not in a new structure. Same kind of
+fact about the same enum.
+
+**The list is longer than first recorded** (found in review; every entry verified to return
+`CommandRetryReadOnly` from that table, so all of them pass the gate today):
+
+| | why caching is wrong |
+| --- | --- |
+| `SRANDMEMBER`, `HRANDFIELD`, `ZRANDMEMBER` | non-deterministic: a cached "random" answer stops being random |
+| `SCAN`, `HSCAN`, `SSCAN`, `ZSCAN` | cursor state; a cached page is meaningless |
+| **`TTL`, `PTTL`** | **time-dependent**: the answer changes with the clock, with no key write, so *nothing ever invalidates it*. The same failure class as a keyless command — permanently wrong, not briefly |
+| **`TOUCH`** | **the side effect is the point**: it bumps LRU/LFU state, and a cache hit skips that entirely, so the command silently stops doing its job |
+| **`PFCOUNT`** | **a read that writes**: it caches the computed cardinality back into the HLL header, so a cache hit skips a real mutation |
+
+`TOUCH` is worth dwelling on, because the codebase already contains the evidence that the two axes
+diverge. Its entry in the category table reads:
+
+> `case RedisCommand.TOUCH: // technically bumps LRU/LFU state, but that's not a "real" side effect worth blocking retries over`
+
+Correct for retry, and exactly wrong for caching. That comment is the clearest single argument that
+cacheability cannot be read off the retry category.
+
+**One I would question rather than accept.** `DUMP` was also flagged, but it looks *correctly*
+invalidated: the payload is a deterministic function of the value, and the key is tracked, so a write
+invalidates it properly. The case against is benefit rather than correctness — large payloads, rarely
+re-read — which is what `NoClientCache` is for. Worth a second opinion before it joins a list of things
+that are *unsafe*, since mixing "wrong" with "not worth it" makes the list harder to trust.
 
 #### Opt-out, not opt-in
 
@@ -1390,6 +1417,22 @@ Tempting — it is a numeric range with gaps — but no:
   *"an orthogonal flag, not part of the `<=`-comparable severity ladder"*. Same shape, same answer. The
   ladder orders one axis — is it safe to send again; cacheability asks another — will invalidation tell me
   when this changes.
+
+#### Scripts: unresolved, and they stress the opt-out default
+
+`EVAL_RO` and `EVALSHA_RO` also default to `CommandRetryReadOnly`, so they pass the gate today. They are
+**not** simply another row above, because **cacheability is a property of the script, not of the command
+name**. Two `EVAL_RO` calls can differ entirely: one deterministic and perfectly cacheable, the next
+reading `TIME` or `RANDOMKEY`. The library cannot know, and a blanket "scripts are excluded" throws away
+the cacheable majority to catch the minority.
+
+The caller wrote the script, so the caller is the only party that *can* answer — which fits the opt-out
+model. But it also stresses it: for scripts the default (cacheable) is **wrong** rather than merely
+suboptimal, and being wrong by default is what opt-out is supposed to avoid.
+
+That reopens the explicit opt-in bit this section earlier set aside. It may be that scripts are the one
+population genuinely needing it: everything else defaults to cacheable and is corrected by
+`NoClientCache`, while a script defaults to *not* cacheable and opts in. **Unresolved**, deliberately.
 
 #### Diagnosability
 
@@ -1561,6 +1604,7 @@ reversals are the useful part.
 | >62 arguments reports "cannot report keys" | Report the first 62 | A partial list is worse than none: a caller tracking keys for invalidation would believe it complete and cache something it can never invalidate. |
 | Fast byte test, `RespReader` only behind an attribute | Parse every reply | Attributes are the only thing that can precede a value, so a non-`\|` first byte *is* the content prefix - the cheap test is exact, and parsing is reserved for a branch that is in practice never taken (§6.12). |
 | Classify the reply with `RespReader` | Test `response[0]` | RESP3 attributes may precede any value, and nothing exempts errors from carrying them - so a first-byte test caches an error hidden behind metadata. Latent today because no server emits attributes, which is what makes it dangerous (§6.12). |
+| Exclusions live in command metadata, beside the retry category | A `CommandFlags` bit | `CommandFlags.Category.cs` already classifies per enum value; cacheability is the same kind of fact about the same enum, and a flag would burden call sites with something we know (§6.9). |
 | Errors never cached; nulls always | Cache errors too, or treat null as a miss | A cached reply must be a function of the tracked keys; an error need not be, so nothing would evict it and a transient failure becomes permanent. A null *is* a function of the key, and Redis tracks keys that do not exist, so negative caching is correct (§6.12). |
 | Cancellation applies only to the caller's await | HybridCache's extra token + waiter tracking | The fill populates a shared cache, so it has value once nobody is waiting - unlike an arbitrary external system, where it does not (§6.11). |
 | Request combining deferred, with a counter | Build it now | A miss is a round trip on a multiplexed connection, not an arbitrary factory call, so the stampede economics differ by orders of magnitude. `RedundantFills` measures whether it is real without presupposing the design (§6.11). |
@@ -2225,9 +2269,15 @@ member means a real sync path can arrive later without reshaping the API, and it
   and any async retention.
 Added while building the cache (§6.6-6.9):
 
-- **Command metadata for cacheability.** Non-deterministic (`SRANDMEMBER`, `HRANDFIELD`, `ZRANDMEMBER`)
-  and cursor-based (`SCAN`, `HSCAN`) commands are read-only and keyed, so the flag gates pass them. They
-  need a per-command fact in our own metadata, *not* a `CommandFlags` bit — see §6.9.
+- **Command metadata for cacheability.** Read-only and keyed, so the flag gates pass them today:
+  non-deterministic (`SRANDMEMBER`, `HRANDFIELD`, `ZRANDMEMBER`), cursor-based
+  (`SCAN`/`HSCAN`/`SSCAN`/`ZSCAN`), time-dependent (`TTL`, `PTTL`), side-effecting (`TOUCH`, `PFCOUNT`).
+  Wants a per-command fact beside the retry category in `CommandFlags.Category.cs`, *not* a `CommandFlags`
+  bit — see §6.9. `DUMP` was also proposed; I would challenge it, since it looks correctly invalidated, so
+  that is a benefit call rather than a safety one.
+- **Scripts (`EVAL_RO`/`EVALSHA_RO`) are unresolved.** Cacheability is a property of the script, not the
+  command name, so neither a blanket exclusion nor cacheable-by-default is right. This is the case that
+  may justify the explicit opt-in bit §6.9 set aside.
 - **Do module reads register for invalidation?** If the server tracks keys only for core command
   dispatch, a keyed module read would be cached and never invalidated. Unresolved by the docs and worth
   five minutes against a real server with a module loaded; it decides whether §6.9's opt-out story needs
