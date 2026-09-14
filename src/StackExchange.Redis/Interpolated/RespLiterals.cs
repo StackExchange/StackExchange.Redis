@@ -103,5 +103,102 @@
         /// <summary>The <c>ONE</c> operation of <c>BITOP</c>.</summary>
         [Resp]
         internal static partial RespFragment One { get; }
+
+        /// <summary>
+        /// The <c>FIELDS</c> keyword of the hash field-lifetime commands; a count and that many field
+        /// names follow it.
+        /// </summary>
+        [Resp]
+        internal static partial RespFragment Fields { get; }
+
+        /// <summary>The <c>WITHVALUES</c> operand of <c>HRANDFIELD</c>.</summary>
+        [Resp]
+        internal static partial RespFragment WithValues { get; }
+
+        /// <summary>
+        /// The <c>FNX</c> field condition of <c>HSETEX</c>. Note it is <b>not</b> <c>NX</c>: the key-level
+        /// spelling that <see cref="ValueCondition"/> writes means something else here, so this is a
+        /// separate token rather than a reuse.
+        /// </summary>
+        [Resp]
+        internal static partial RespFragment Fnx { get; }
+
+        /// <inheritdoc cref="Fnx"/>
+        [Resp]
+        internal static partial RespFragment Fxx { get; }
+
+        /// <summary>The <c>LIMIT</c> operand; a count follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Limit { get; }
+
+        /// <summary>The <c>APPROX</c> operand of the set-cardinality commands.</summary>
+        [Resp]
+        internal static partial RespFragment Approx { get; }
+
+        /// <summary>The <c>WITHSCORES</c> operand of the sorted-set reads.</summary>
+        [Resp]
+        internal static partial RespFragment WithScores { get; }
+
+        /// <summary>The <c>CH</c> operand of <c>ZADD</c>: count changed members, not just new ones.</summary>
+        [Resp]
+        internal static partial RespFragment Ch { get; }
+
+        /// <summary>The <c>INCR</c> operand of <c>ZADD</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Incr { get; }
+
+        /// <summary>The <c>REV</c> operand of <c>ZRANGE</c>/<c>ZRANGESTORE</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Rev { get; }
+
+        /// <summary>The <c>WEIGHTS</c> operand of the sorted-set combinations; one weight per key follows.</summary>
+        [Resp]
+        internal static partial RespFragment Weights { get; }
+
+        /// <summary>
+        /// The <c>AGGREGATE</c> operand of the sorted-set combinations; a mode follows it.
+        /// </summary>
+        /// <remarks>
+        /// Separate from the mode rather than one two-token fragment, because an attribute taking an array
+        /// is not CLS-compliant and this assembly is. <c>RespAggregate</c> writes the pair.
+        /// </remarks>
+        [Resp]
+        internal static partial RespFragment Aggregate { get; }
+
+        /// <summary>The <c>MIN</c> end, as <c>ZMPOP</c> names it.</summary>
+        [Resp]
+        internal static partial RespFragment Min { get; }
+
+        /// <inheritdoc cref="Min"/>
+        [Resp]
+        internal static partial RespFragment Max { get; }
+
+        /// <summary>The <c>BYSCORE</c> operand of <c>ZRANGESTORE</c>.</summary>
+        [Resp]
+        internal static partial RespFragment ByScore { get; }
+
+        /// <summary>The <c>BYLEX</c> operand of <c>ZRANGESTORE</c>.</summary>
+        [Resp]
+        internal static partial RespFragment ByLex { get; }
+
+        /// <summary>The <c>COUNT</c> operand of <c>ZMPOP</c>, and the aggregation mode of the same name.</summary>
+        [Resp]
+        internal static partial RespFragment Count { get; }
+
+        /// <summary>The <c>NX</c> condition of the hash field-expiry commands.</summary>
+        [Resp]
+        internal static partial RespFragment Nx { get; }
+
+        /// <inheritdoc cref="Nx"/>
+        [Resp]
+        internal static partial RespFragment Xx { get; }
+
+        /// <inheritdoc cref="Nx"/>
+        [Resp]
+        internal static partial RespFragment Gt { get; }
+
+        /// <inheritdoc cref="Nx"/>
+        [Resp]
+        internal static partial RespFragment Lt { get; }
     }
 }

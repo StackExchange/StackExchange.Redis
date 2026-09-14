@@ -75,6 +75,18 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>The whole reply, undecoded - the general-purpose answer for commands we do not model.</summary>
         public static IRespHandler<RespResult> Result { get; } = new RespResultHandler();
 
+        /// <summary>Reads a one-element array reply as the single value it wraps.</summary>
+        /// <remarks>
+        /// The <c>FIELDS n</c> commands always reply with an array, one element per field - so asking for
+        /// exactly one field still gets <c>*1</c>. This is the shape that turns that back into the single
+        /// value the caller asked for. It cannot be the built-in handler for
+        /// <see cref="RedisValue"/> (that one reads a scalar), which is why it is named.
+        /// </remarks>
+        public static IRespHandler<RedisValue> SingletonValue { get; } = new SingletonValueHandler();
+
+        /// <inheritdoc cref="SingletonValue"/>
+        public static IRespHandler<Lease<byte>?> SingletonLease { get; } = new SingletonLeaseHandler();
+
         /// <summary>Checks the reply for a server error, and reads nothing else.</summary>
         /// <remarks>
         /// What a command with no result still has to do. Without it a failed command would complete
@@ -122,6 +134,16 @@ namespace StackExchange.Redis.Interpolated
                 else if (typeof(T) == typeof(StringIncrementResult<long>)) handler = s_incrementInt64;
                 else if (typeof(T) == typeof(StringIncrementResult<double>)) handler = s_incrementDouble;
                 else if (typeof(T) == typeof(Lease<long?>)) handler = s_nullableInt64Lease;
+                else if (typeof(T) == typeof(HashEntry[])) handler = s_hashEntries;
+                else if (typeof(T) == typeof(long[])) handler = s_int64Array;
+                else if (typeof(T) == typeof(ExpireResult[])) handler = s_expireResults;
+                else if (typeof(T) == typeof(PersistResult[])) handler = s_persistResults;
+                else if (typeof(T) == typeof(bool[])) handler = s_booleans;
+                else if (typeof(T) == typeof(double?)) handler = s_nullableDouble;
+                else if (typeof(T) == typeof(double?[])) handler = s_nullableDoubles;
+                else if (typeof(T) == typeof(SortedSetEntry[])) handler = s_sortedSetEntries;
+                else if (typeof(T) == typeof(SortedSetEntry?)) handler = s_sortedSetEntry;
+                else if (typeof(T) == typeof(SortedSetPopResult)) handler = s_sortedSetPop;
                 return (IRespHandler<T>?)handler;
             }
         }
@@ -291,6 +313,16 @@ namespace StackExchange.Redis.Interpolated
         private static readonly IRespHandler<StringIncrementResult<long>> s_incrementInt64 = new IncrementInt64Handler();
         private static readonly IRespHandler<StringIncrementResult<double>> s_incrementDouble = new IncrementDoubleHandler();
         private static readonly IRespHandler<Lease<long?>> s_nullableInt64Lease = new NullableInt64LeaseHandler();
+        private static readonly IRespHandler<HashEntry[]> s_hashEntries = new HashEntryHandler();
+        private static readonly IRespHandler<long[]> s_int64Array = new Int64ArrayHandler();
+        private static readonly IRespHandler<ExpireResult[]> s_expireResults = new ExpireResultHandler();
+        private static readonly IRespHandler<PersistResult[]> s_persistResults = new PersistResultHandler();
+        private static readonly IRespHandler<bool[]> s_booleans = new BooleanArrayHandler();
+        private static readonly IRespHandler<double?> s_nullableDouble = new NullableDoubleHandler();
+        private static readonly IRespHandler<double?[]> s_nullableDoubles = new NullableDoubleArrayHandler();
+        private static readonly IRespHandler<SortedSetEntry[]> s_sortedSetEntries = new SortedSetEntryArrayHandler();
+        private static readonly IRespHandler<SortedSetEntry?> s_sortedSetEntry = new SortedSetEntryHandler();
+        private static readonly IRespHandler<SortedSetPopResult> s_sortedSetPop = new SortedSetPopHandler();
 
         private sealed class DigestHandler : IRespHandler<ValueCondition?>
         {
@@ -368,6 +400,157 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        private sealed class SingletonValueHandler : IRespHandler<RedisValue>
+        {
+            public RedisValue Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                if (reader.IsNull) return RedisValue.Null; // the whole reply, not an element of it
+                reader.MoveNext();
+                return reader.IsNull ? RedisValue.Null : reader.ReadRedisValue();
+            }
+        }
+
+        /// <remarks>
+        /// The copying form, matching <see cref="Lease"/> rather than <see cref="ReadOnlyLease"/>: this
+        /// exists to serve <c>IDatabase.HashFieldGetLease*</c>, whose signatures say <see cref="Lease{T}"/>.
+        /// A sharing singleton would be a <see cref="ReadOnlyLease{T}"/> sibling, which is a decision for
+        /// whoever finishes design notes 6.16 rather than one to guess at here.
+        /// </remarks>
+        private sealed class SingletonLeaseHandler : IRespHandler<Lease<byte>?>
+        {
+            public Lease<byte>? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                if (reader.IsNull) return null;
+                reader.MoveNext();
+#pragma warning disable CS0618 // the copying form is what this contract needs; see the remarks
+                return RespReaderExtensions.ReadLease(in reader);
+#pragma warning restore CS0618
+            }
+        }
+
+        private sealed class HashEntryHandler : IRespHandler<HashEntry[]>
+        {
+            // RESP2 sends name/value interleaved and RESP3 may send them jagged; the existing processor
+            // already decides between them from the CONTENT rather than from the negotiated protocol, so
+            // reusing it is both less code and the only way the two readers cannot disagree. Resp3 is
+            // passed to enable that detection, not to assert anything about the connection.
+            private static readonly ResultProcessor.HashEntryArrayProcessor Shape = new();
+
+            public HashEntry[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return Shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
+                       ?? Array.Empty<HashEntry>();
+            }
+        }
+
+        private sealed class Int64ArrayHandler : IRespHandler<long[]>
+        {
+            public long[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => r.ReadInt64(), scalar: true) ?? Array.Empty<long>();
+            }
+        }
+
+        private sealed class ExpireResultHandler : IRespHandler<ExpireResult[]>
+        {
+            public ExpireResult[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => (ExpireResult)r.ReadInt64(), scalar: true)
+                       ?? Array.Empty<ExpireResult>();
+            }
+        }
+
+        private sealed class NullableDoubleHandler : IRespHandler<double?>
+        {
+            public double? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.IsNull ? null : reader.ReadDouble();
+            }
+        }
+
+        private sealed class NullableDoubleArrayHandler : IRespHandler<double?[]>
+        {
+            public double?[] Parse(ReadOnlySpan<byte> response)
+            {
+                // ZMSCORE replies nil for a member that is not there, so the element type has to be nullable
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => r.IsNull ? (double?)null : r.ReadDouble(), scalar: true)
+                       ?? Array.Empty<double?>();
+            }
+        }
+
+        private sealed class SortedSetEntryArrayHandler : IRespHandler<SortedSetEntry[]>
+        {
+            // as HashEntryHandler: interleaved in RESP2, possibly jagged in RESP3, decided from the content
+            private static readonly ResultProcessor.SortedSetEntryArrayProcessor Shape = new();
+
+            public SortedSetEntry[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return Shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
+                       ?? Array.Empty<SortedSetEntry>();
+            }
+        }
+
+        private sealed class SortedSetEntryHandler : IRespHandler<SortedSetEntry?>
+        {
+            public SortedSetEntry? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return SortedSetEntry.TryRead(ref reader, out var result)
+                    ? result
+                    : throw new RespException("Unexpected sorted-set pop reply.");
+            }
+        }
+
+        private sealed class SortedSetPopHandler : IRespHandler<SortedSetPopResult>
+        {
+            public SortedSetPopResult Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return SortedSetPopResult.TryRead(ref reader, out var result)
+                    ? result
+                    : throw new RespException("Unexpected ZMPOP reply.");
+            }
+        }
+
+        private sealed class BooleanArrayHandler : IRespHandler<bool[]>
+        {
+            public bool[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => r.ReadBoolean(), scalar: true) ?? Array.Empty<bool>();
+            }
+        }
+
+        private sealed class PersistResultHandler : IRespHandler<PersistResult[]>
+        {
+            public PersistResult[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => (PersistResult)r.ReadInt64(), scalar: true)
+                       ?? Array.Empty<PersistResult>();
+            }
+        }
+
         private sealed class IncrementDoubleHandler : IRespHandler<StringIncrementResult<double>>
         {
             public StringIncrementResult<double> Parse(ReadOnlySpan<byte> response)
@@ -401,6 +584,16 @@ namespace StackExchange.Redis.Interpolated
     /// </para>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+
+    // RS0026 warns about overloads that carry optional parameters, because adding one later can make an
+    // existing call ambiguous. That hazard cannot arise here, and saying so once beats a pragma per
+    // command: every member of this class is an extension method whose FIRST parameter is a group type -
+    // RespStrings, RespHashes, RespSets, ... - so two members sharing a name are only ever candidates for
+    // the same call when their receivers are the same group, and within a group the overloads differ in a
+    // parameter that has no default (a span versus a single value, a long versus a double). The names
+    // repeat across groups on purpose: ctx.Strings.Length and ctx.Sets.Length are the same word because
+    // they are the same idea, which is the entire argument for grouping.
+    [SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Extension members on distinct group types; see the comment above")]
     public static partial class RespSurface
     {
     }

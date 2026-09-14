@@ -4725,7 +4725,12 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private static RedisValue GetRange(double value, Exclude exclude, bool isStart)
+        /// <summary>
+        /// A score bound, with the <c>(</c> prefix that means exclusive. Shared with the interpolated
+        /// surface rather than restated: the prefix is the whole of the convention, and a second copy of
+        /// it would be a silent off-by-one-bound waiting to happen.
+        /// </summary>
+        internal static RedisValue GetRange(double value, Exclude exclude, bool isStart)
         {
             if (isStart)
             {
@@ -5873,7 +5878,11 @@ namespace StackExchange.Redis
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
-        private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
+        /// <summary>
+        /// Put a lexical range into the low-then-high order the server always wants, whichever direction it
+        /// is asked to walk, swapping the exclusivity with it. Shared with the interpolated surface.
+        /// </summary>
+        internal static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
             bool reverseLimits = (order == Order.Ascending) == (stop != default && start.CompareTo(stop) > 0);
             if (reverseLimits)
