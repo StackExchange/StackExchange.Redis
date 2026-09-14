@@ -227,4 +227,87 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" nx xx"));
+
+    // NOTE this harness compiles against the PUBLIC surface, with no InternalsVisibleTo - so it is an
+    // external caller, and RedisCommand is genuinely out of reach. That is the half of the fork worth
+    // testing here: even for a command the library knows, an outside caller gets the field, because the
+    // enum it would otherwise use is internal.
+    [Fact]
+    public Task LeadingCommand_KnownName_ExternallyDeclaresAField() => VerifyFixAsync(
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisKey key, RedisValue value)
+            {
+                using var frame = ctx.Execute($"{|#0:SET |}{key}{value}");
+            }
+        }
+        """,
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisKey key, RedisValue value)
+            {
+                using var frame = ctx.Execute($"{SetCommand} {key}{value}");
+            }
+
+            private static readonly RespCommand SetCommand = "SET".Command(preform: true);
+        }
+        """,
+        0,
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("SET "));
+
+    [Fact]
+    public Task LeadingCommand_UnknownName_DeclaresAPreformedField() => VerifyFixAsync(
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisValue value)
+            {
+                using var frame = ctx.Execute($"{|#0:FT.SEARCH |}{value}");
+            }
+        }
+        """,
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisValue value)
+            {
+                using var frame = ctx.Execute($"{FtSearchCommand} {value}");
+            }
+
+            private static readonly RespCommand FtSearchCommand = "FT.SEARCH".Command(preform: true);
+        }
+        """,
+        0,
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("FT.SEARCH "));
+
+    [Fact]
+    public Task NonLeadingToken_StillOffersTheFragmentFix() => VerifyFixAsync(
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisKey key, RedisValue value)
+            {
+                using var frame = ctx.Execute("SET", $"{key}{value}{|#0: nx|}");
+            }
+        }
+        """,
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisKey key, RedisValue value)
+            {
+                using var frame = ctx.Execute("SET", $"{key}{value} {RespLiterals.Nx}");
+            }
+        }
+        """,
+        0,
+        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments(" nx"));
 }

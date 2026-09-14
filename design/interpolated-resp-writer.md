@@ -93,6 +93,24 @@ So `$"SET {key} {value}"` renders byte-identically to `$"{RedisCommand.SET}{key}
 compile it bought correctness we did not actually need. Working-but-slower beats not-working, and the
 warning still points at the faster spelling.
 
+**The fixer forks on accessibility, not on preference.** A *leading* literal is the command, so it gets a
+different fix from a token in any other position - the same positional rule the writer applies at runtime,
+so the fix and the behaviour cannot disagree:
+
+| | offered |
+| --- | --- |
+| leading, `RedisCommand` reachable | `RedisCommand.SET` - no parse, and a typo is a compile error |
+| leading, not reachable | a `static readonly RespCommand` field, `"SET".Command(preform: true)` |
+| anywhere else | the existing `[Resp]` fragment fix |
+
+`RedisCommand` is internal, so this library's own code takes the first row and everyone else takes the
+second. The field uses `preform: true` **because it is a static**: a no-op for a command the library knows,
+since the command map already holds its bytes, and a real saving for a module command, where the bytes are
+then built once rather than per call.
+
+That external half is what the code-fix tests actually exercise, since the harness compiles against the
+public surface with no `InternalsVisibleTo` - so even `SET` gets the field there, which is exactly right.
+
 **Splitting on whitespace gets container commands right for free.** `$"CONFIG GET {name}"` yields three
 arguments, with `CONFIG` mapped and `GET` not - which is precisely how `CommandMap` behaves, since it maps
 container verbs only. That was not designed for; it fell out.

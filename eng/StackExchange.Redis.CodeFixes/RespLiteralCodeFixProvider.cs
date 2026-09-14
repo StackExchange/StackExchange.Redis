@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,6 +38,8 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
     private const string TokenProperty = "Token";
     private const string RespAttributeName = "StackExchange.Redis.Interpolated.RespAttribute";
     private const string FragmentTypeName = "StackExchange.Redis.Interpolated.RespFragment";
+    private const string CommandTypeName = "StackExchange.Redis.Interpolated.RespCommand";
+    private const string RedisCommandTypeName = "StackExchange.Redis.RedisCommand";
 
     /// <inheritdoc/>
     public override ImmutableArray<string> FixableDiagnosticIds { get; } = ImmutableArray.Create(LiteralNotSentId);
@@ -64,6 +67,14 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
 
             if (root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true)
                 is not InterpolatedStringTextSyntax text) continue;
+
+            // A LEADING literal is the command, not an argument, so it wants a different fix: the enum when
+            // that is reachable - fastest and compile-checked - and otherwise a resolved-once field.
+            if (IsLeading(text))
+            {
+                RegisterCommandFixes(context, diagnostic, model, root, text, token!);
+                continue;
+            }
 
             var match = FindFragment(model.Compilation, token!, context.CancellationToken);
             if (match is not null)
@@ -98,6 +109,100 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
                     equivalenceKey: LiteralNotSentId + ":declare"),
                 diagnostic);
         }
+    }
+
+    /// <summary>Whether this literal is the first content of its interpolated string.</summary>
+    /// <remarks>
+    /// That is what makes it the command rather than an argument - the same positional rule the writer
+    /// applies at runtime, so the fix and the behaviour cannot disagree.
+    /// </remarks>
+    private static bool IsLeading(InterpolatedStringTextSyntax text)
+        => text.Parent is InterpolatedStringExpressionSyntax parent
+           && parent.Contents.Count > 0
+           && parent.Contents[0] == text;
+
+    /// <summary>
+    /// Offer the right way to say a leading command: the <c>RedisCommand</c> enum where it is accessible,
+    /// otherwise a resolved-once <c>RespCommand</c> field.
+    /// </summary>
+    /// <remarks>
+    /// The fork is accessibility, not preference. <c>RedisCommand</c> is internal, so this library's own
+    /// code gets the enum - no parse, and a typo is a compile error - while everyone else gets a field.
+    /// The field is declared with <c>preform: true</c> because it is a static: for a command this library
+    /// knows that is a no-op (the command map already holds the bytes), and for anything else - a module
+    /// command - it means the bytes are built once instead of on every call.
+    /// </remarks>
+    private static void RegisterCommandFixes(
+        CodeFixContext context,
+        Diagnostic diagnostic,
+        SemanticModel model,
+        SyntaxNode root,
+        InterpolatedStringTextSyntax text,
+        string token)
+    {
+        var enumType = model.Compilation.GetTypeByMetadataName(RedisCommandTypeName);
+        if (enumType is not null && model.IsAccessible(text.SpanStart, enumType))
+        {
+            var member = enumType.GetMembers()
+                .FirstOrDefault(m => m.Kind == SymbolKind.Field
+                                     && string.Equals(m.Name, token, StringComparison.OrdinalIgnoreCase));
+            if (member is not null)
+            {
+                var name = enumType.ToMinimalDisplayString(model, text.SpanStart) + "." + member.Name;
+                context.RegisterCodeFix(
+                    CodeAction.Create(
+                        title: "Use '" + name + "'",
+                        createChangedDocument: _ => Task.FromResult(Apply(context.Document, root, text, name)),
+                        equivalenceKey: LiteralNotSentId + ":command-enum"),
+                    diagnostic);
+                return;
+            }
+        }
+
+        var host = text.FirstAncestorOrSelf<TypeDeclarationSyntax>();
+        if (host is null) return;
+
+        var commandType = model.Compilation.GetTypeByMetadataName(CommandTypeName);
+        if (commandType is null) return;
+
+        var field = MemberNameFor(token) + "Command";
+        var typeName = commandType.ToMinimalDisplayString(model, host.SpanStart);
+        context.RegisterCodeFix(
+            CodeAction.Create(
+                title: "Declare '" + field + "' here and use it",
+                createChangedDocument: _ => Task.FromResult(
+                    DeclareCommand(context.Document, root, text, host, field, token, typeName)),
+                equivalenceKey: LiteralNotSentId + ":command-field"),
+            diagnostic);
+    }
+
+    /// <summary>Declare a resolved-once command field and use it in place of the literal.</summary>
+    private static Document DeclareCommand(
+        Document document,
+        SyntaxNode root,
+        InterpolatedStringTextSyntax text,
+        TypeDeclarationSyntax host,
+        string field,
+        string token,
+        string commandTypeName)
+    {
+        var tracked = root.TrackNodes(text, host);
+
+        var currentText = tracked.GetCurrentNode(text)!;
+        var afterLiteral = tracked.ReplaceNode(currentText, Replacements(currentText, field));
+
+        var currentHost = afterLiteral.GetCurrentNode(host)!;
+
+        // preform: true because this is a static - a no-op for a known command, since the command map
+        // already holds its bytes, and a real saving for a module command
+        var declaration = SyntaxFactory.ParseMemberDeclaration(
+            "private static readonly " + commandTypeName + " " + field
+            + " = \"" + token + "\".Command(preform: true);")!
+            .WithLeadingTrivia(SyntaxFactory.ElasticCarriageReturnLineFeed)
+            .WithAdditionalAnnotations(Formatter.Annotation);
+
+        return document.WithSyntaxRoot(
+            afterLiteral.ReplaceNode(currentHost, currentHost.AddMembers(declaration)));
     }
 
     /// <summary>
