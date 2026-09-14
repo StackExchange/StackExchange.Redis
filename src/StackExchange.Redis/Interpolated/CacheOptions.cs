@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
@@ -40,6 +40,60 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>How entries behave, unless a caller says otherwise.</summary>
         public CachePolicy DefaultPolicy { get; init; } = CachePolicy.Default;
+
+        /// <summary>
+        /// The largest reply that may be cached; <see langword="null"/> for no limit.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The cheapest bound available, and the one that binds first.</b> It needs no bookkeeping at
+        /// all - the reply's size is known before anything is stored - and large replies are both the ones
+        /// that consume a memory budget fastest and, typically, the ones least likely to be read again.
+        /// </para>
+        /// <para>
+        /// Measured against the reply as the server sent it. What an entry actually <i>costs</i> is a little
+        /// more, because each reply is copied into its own array from <see cref="System.Buffers.ArrayPool{T}"/>
+        /// and the shared pool rounds up to power-of-two buckets - a 33-byte reply pins 64. That rounding is
+        /// the quota's business; this is a limit a human sets, so it reads in the units a human has.
+        /// </para>
+        /// <para>
+        /// Refusals are counted as <see cref="RespClientCache.RefusedTooLarge"/>, because a reply silently
+        /// not being cached is exactly the kind of thing that should be answerable without a debugger.
+        /// </para>
+        /// </remarks>
+        public int? MaxPayloadBytes
+        {
+            get => _maxPayloadBytes;
+            init => _maxPayloadBytes = value is null or > 0
+                ? value
+                : throw new ArgumentOutOfRangeException(nameof(value), "The maximum payload size must be positive, or null for no limit.");
+        }
+
+        private readonly int? _maxPayloadBytes = 1024 * 1024;
+
+        /// <summary>
+        /// How often dead entries are reclaimed; <see cref="TimeSpan.Zero"/> or less to never sweep.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Invalidation deliberately does no work beyond stamping a generation, and expiry is decided when
+        /// an entry is read - so an entry that was invalidated, or that simply aged out, holds its memory
+        /// until something comes back for it. For a key that is never read again, that is forever. This is
+        /// what comes back for it.
+        /// </para>
+        /// <para>
+        /// A cadence rather than a deadline: nothing about correctness depends on it, since a dead entry is
+        /// already refused on read. It is purely when the memory returns, which is why the default is
+        /// unhurried.
+        /// </para>
+        /// </remarks>
+        public TimeSpan SweepInterval { get; init; } = TimeSpan.FromSeconds(10);
+
+        /// <summary>Whether <see cref="SweepInterval"/> asks for sweeping at all.</summary>
+        internal bool Sweeps => SweepInterval > TimeSpan.Zero;
+
+        /// <summary><see cref="SweepInterval"/> as a <see cref="System.Diagnostics.Stopwatch"/> tick count.</summary>
+        internal long SweepIntervalTicks => CachePolicy.ToTicks(SweepInterval);
 
         /// <summary>
         /// The key prefixes this connection asks the server to track; empty means all keys.

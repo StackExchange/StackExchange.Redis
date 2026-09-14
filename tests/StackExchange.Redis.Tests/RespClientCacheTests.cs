@@ -1032,4 +1032,158 @@ public class RespClientCacheTests
         Assert.Equal(1, cache.Count); // and it did not disturb what was already there
     }
 
+    /// <summary>A reply larger than the limit is refused, and one at the limit is kept.</summary>
+    /// <remarks>
+    /// The cheapest bound there is: the reply's size is known before anything is stored, so this costs no
+    /// bookkeeping at all. Boundary included deliberately - "larger than" and "at least" differ by exactly
+    /// the case a limit is most often written wrongly for.
+    /// </remarks>
+    [Theory]
+    [InlineData(4, false)]  // "$1\r\nx\r\n" is 7 bytes
+    [InlineData(7, true)]
+    [InlineData(8, true)]
+    public void RepliesOverTheSizeLimitAreRefused(int limit, bool cacheable)
+    {
+        using var cache = new RespClientCache(new CacheOptions { MaxPayloadBytes = limit });
+
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.Equal(cacheable, Complete(cache, fill, "$1\r\nx\r\n"));
+        Assert.Equal(cacheable ? 1 : 0, cache.Count);
+        Assert.Equal(cacheable ? 0 : 1, cache.RefusedTooLarge);
+    }
+
+    /// <summary>With no limit set, size is not a reason to refuse.</summary>
+    [Fact]
+    public void NoSizeLimitMeansNoSizeRefusals()
+    {
+        using var cache = new RespClientCache(new CacheOptions { MaxPayloadBytes = null });
+
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+        Assert.Equal(0, cache.RefusedTooLarge);
+    }
+
+    /// <summary>A size limit must be positive; null is how you say "no limit".</summary>
+    [Fact]
+    public void ANonPositiveSizeLimitIsRejected()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxPayloadBytes = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxPayloadBytes = -1 });
+    }
+
+    /// <summary>
+    /// Sweeping reclaims entries that merely <b>expired</b>, not only invalidated ones.
+    /// </summary>
+    /// <remarks>
+    /// Expiry is decided when an entry is read, so reading is what refuses it - and for a key nothing ever
+    /// comes back for, nothing ever reads it, so nothing ever removes it. That is precisely the entry a
+    /// lifetime cannot help with, because nobody is there to notice it has passed.
+    /// </remarks>
+    [Fact]
+    public async Task SweepReclaimsExpiredEntriesAndNotOnlyInvalidatedOnes()
+    {
+        using var cache = new RespClientCache(new CacheOptions
+        {
+            DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(30) },
+        });
+
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+        Assert.Equal(1, cache.Count);
+
+        // still live: nothing to reclaim, and nobody has invalidated it
+        Assert.Equal(0, cache.Sweep());
+        Assert.Equal(1, cache.Count);
+
+        await Task.Delay(80);
+        Assert.Equal(1, cache.Sweep());
+        Assert.Equal(0, cache.Count);
+    }
+
+    /// <summary>A sweep that is not yet due does nothing; one that is, sweeps.</summary>
+    [Fact]
+    public async Task SweepIfDueHonoursTheInterval()
+    {
+        using var cache = new RespClientCache(new CacheOptions
+        {
+            SweepInterval = TimeSpan.FromMilliseconds(50),
+            DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(10) },
+        });
+
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+
+        await Task.Delay(20); // expired, but the sweep is not due yet
+        Assert.Equal(0, cache.SweepIfDue());
+        Assert.Equal(1, cache.Count);
+
+        await Task.Delay(60);
+        Assert.Equal(1, cache.SweepIfDue());
+        Assert.Equal(0, cache.Count);
+    }
+
+    /// <summary>Sweeping can be turned off entirely.</summary>
+    [Fact]
+    public async Task ASweepIntervalOfZeroNeverSweeps()
+    {
+        using var cache = new RespClientCache(new CacheOptions
+        {
+            SweepInterval = TimeSpan.Zero,
+            DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(10) },
+        });
+
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+
+        await Task.Delay(40);
+        Assert.Equal(0, cache.SweepIfDue());
+        Assert.Equal(1, cache.Count);
+
+        // ...but an explicit sweep still works: the interval governs the driver, not the operation
+        Assert.Equal(1, cache.Sweep());
+    }
+
+    /// <summary>
+    /// Concurrent sweeps reclaim every entry exactly once, and never twice.
+    /// </summary>
+    /// <remarks>
+    /// <b>What this can and cannot pin.</b> The compare-exchange in <c>SweepIfDue</c> is there so two
+    /// drivers arriving together do one sweep rather than two - but that is a cost property, and the window
+    /// is microseconds wide, so asserting the collapse would be asserting a race. A mutant that claimed the
+    /// timestamp after the work instead of before duly survived that assertion. What is worth pinning, and
+    /// is deterministic, is the safety underneath it: whatever the interleaving, each entry is removed by
+    /// exactly one caller and disposed exactly once - a double release would return a live buffer to the
+    /// pool, which is the failure that actually costs something.
+    /// </remarks>
+    [Fact]
+    public async Task ConcurrentSweepsReclaimEachEntryExactlyOnce()
+    {
+        using var cache = new RespClientCache(new CacheOptions
+        {
+            SweepInterval = TimeSpan.FromMilliseconds(10),
+            DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(5) },
+        });
+
+        for (var i = 0; i < 20; i++)
+        {
+            var frame = Get("key" + i);
+            Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+            Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+        }
+
+        await Task.Delay(40);
+
+        var tasks = new Task<int>[8];
+        for (var i = 0; i < tasks.Length; i++) tasks[i] = Task.Run(cache.SweepIfDue);
+        var removed = await Task.WhenAll(tasks);
+
+        Assert.Equal(20, removed.Sum()); // every entry reclaimed, and none of them twice
+        Assert.Equal(0, cache.Count);
+    }
+
 }

@@ -1361,6 +1361,10 @@ namespace StackExchange.Redis
                 Interlocked.Exchange(ref lastGlobalHeartbeatTicks, now);
                 Trace("heartbeat");
 
+                // dead cache entries hold their memory until something comes back for them; nothing does,
+                // for a key that is never read again. The cache decides whether it is actually due.
+                ClientCache?.SweepIfDue();
+
                 var tmp = GetServerSnapshot();
                 int token = 0;
                 bool isRooted = pulse?.IsRooted(out token) ?? false, hasPendingCallerFacingItems = false;

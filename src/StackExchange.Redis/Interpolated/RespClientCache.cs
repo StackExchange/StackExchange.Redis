@@ -53,6 +53,8 @@ namespace StackExchange.Redis.Interpolated
         private long _refusedByFlags;
         private long _refusedNoKeys;
         private long _refusedNotTracked;
+        private long _refusedTooLarge;
+        private long _lastSweep = Stopwatch.GetTimestamp();
         private long _refusedRaced;
         private long _redundantFills;
         private long _refusedError;
@@ -150,6 +152,14 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>Fills refused because an invalidation landed while the command was in flight.</summary>
         public long RefusedRaced => Volatile.Read(ref _refusedRaced);
+
+        /// <summary>Fills refused because the reply was larger than <see cref="CacheOptions.MaxPayloadBytes"/>.</summary>
+        /// <remarks>
+        /// Worth watching in both directions. Rising steadily means the limit is doing its job. Rising for
+        /// the <i>same</i> request over and over means a round trip is being paid every time for something
+        /// that would happily be cached with a slightly larger limit.
+        /// </remarks>
+        public long RefusedTooLarge => Volatile.Read(ref _refusedTooLarge);
 
         /// <summary>
         /// Fills that completed only to find the same request already cached by someone else - i.e. two or
@@ -687,6 +697,14 @@ namespace StackExchange.Redis.Interpolated
                 return false;
             }
 
+            // last of the refusals, so this counter only ever means "nothing else was wrong with it"
+            if (Options.MaxPayloadBytes is int max && response.Span.Length > max)
+            {
+                Interlocked.Increment(ref _refusedTooLarge);
+                fill.Key.Dispose();
+                return false;
+            }
+
             if (!fill.Key.TryRetain(out var stored))
             {
                 fill.Key.Dispose();
@@ -735,28 +753,70 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
-        /// Drop entries that no longer validate, releasing their payloads and keys.
+        /// Drop entries that can no longer be served, releasing their payloads and keys.
         /// </summary>
         /// <returns>The number of entries removed.</returns>
         /// <remarks>
-        /// Invalidation deliberately does no work beyond stamping a generation, so this is where the memory
-        /// actually comes back. It is O(entries) and belongs on a timer, not on the invalidation path.
+        /// <para>
+        /// Invalidation deliberately does no work beyond stamping a generation, and expiry is decided when
+        /// an entry is <i>read</i>, so this is where the memory actually comes back. It is O(entries) and
+        /// belongs on a timer, not on either of those paths.
+        /// </para>
+        /// <para>
+        /// <b>Both kinds of dead entry</b>, not only invalidated ones. An entry that simply aged out is
+        /// refused on read but never removed by reading, so for a key nothing comes back for it stays
+        /// resident for ever - which is the case a lifetime is least able to help with, since nobody is
+        /// there to notice it has passed.
+        /// </para>
         /// </remarks>
         public int Sweep()
         {
             var removed = 0;
+            var lifetime = Policy.TimeToLiveTicks;
             foreach (var pair in _entries)
             {
-                if (pair.Value.IsValid) continue;
-                if (_entries.TryRemove(pair.Key, out var entry))
+                var entry = pair.Value;
+                if (entry.IsValid && !CachePolicy.IsOlderThan(entry.FilledAt, lifetime)) continue;
+                if (_entries.TryRemove(pair.Key, out var removing))
                 {
-                    entry.Payload.Dispose();
+                    removing.Payload.Dispose();
                     pair.Key.Frame.Dispose();
                     removed++;
                 }
             }
 
             return removed;
+        }
+
+        /// <summary>
+        /// Sweep, but only if <see cref="CacheOptions.SweepInterval"/> has elapsed since the last one.
+        /// </summary>
+        /// <returns>The number of entries removed; zero if it was not yet due.</returns>
+        /// <remarks>
+        /// <para>
+        /// The cadence lives here rather than in whatever is driving it, so the driver - today the
+        /// multiplexer heartbeat - does not have to know the cache's business, and a test can call this
+        /// directly instead of waiting on a timer.
+        /// </para>
+        /// <para>
+        /// The timestamp is claimed with a compare-exchange <i>before</i> the work starts, so two drivers
+        /// arriving together produce one sweep rather than two, and a sweep that overruns its interval is
+        /// not restarted by every tick it overran. <b>This is a cost property, not a correctness one</b>:
+        /// overlapping sweeps are already safe, because the removal is a <c>TryRemove</c> and only the
+        /// caller that wins it disposes anything. Said plainly because the concurrency test below can
+        /// demonstrate the safety but not reliably the collapse - the window is microseconds wide.
+        /// </para>
+        /// </remarks>
+        public int SweepIfDue()
+        {
+            if (!Options.Sweeps) return 0;
+
+            var last = Volatile.Read(ref _lastSweep);
+            var now = Stopwatch.GetTimestamp();
+            if (now - last < Options.SweepIntervalTicks) return 0;
+            if (Interlocked.CompareExchange(ref _lastSweep, now, last) != last) return 0;
+
+            return Sweep();
         }
 
         /// <summary>Release every cached payload and key.</summary>
