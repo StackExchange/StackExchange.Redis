@@ -103,5 +103,44 @@
         /// <summary>The <c>ONE</c> operation of <c>BITOP</c>.</summary>
         [Resp]
         internal static partial RespFragment One { get; }
+
+        /// <summary>
+        /// The <c>FIELDS</c> keyword of the hash field-lifetime commands; a count and that many field
+        /// names follow it.
+        /// </summary>
+        [Resp]
+        internal static partial RespFragment Fields { get; }
+
+        /// <summary>The <c>WITHVALUES</c> operand of <c>HRANDFIELD</c>.</summary>
+        [Resp]
+        internal static partial RespFragment WithValues { get; }
+
+        /// <summary>
+        /// The <c>FNX</c> field condition of <c>HSETEX</c>. Note it is <b>not</b> <c>NX</c>: the key-level
+        /// spelling that <see cref="ValueCondition"/> writes means something else here, so this is a
+        /// separate token rather than a reuse.
+        /// </summary>
+        [Resp]
+        internal static partial RespFragment Fnx { get; }
+
+        /// <inheritdoc cref="Fnx"/>
+        [Resp]
+        internal static partial RespFragment Fxx { get; }
+
+        /// <summary>The <c>NX</c> condition of the hash field-expiry commands.</summary>
+        [Resp]
+        internal static partial RespFragment Nx { get; }
+
+        /// <inheritdoc cref="Nx"/>
+        [Resp]
+        internal static partial RespFragment Xx { get; }
+
+        /// <inheritdoc cref="Nx"/>
+        [Resp]
+        internal static partial RespFragment Gt { get; }
+
+        /// <inheritdoc cref="Nx"/>
+        [Resp]
+        internal static partial RespFragment Lt { get; }
     }
 }

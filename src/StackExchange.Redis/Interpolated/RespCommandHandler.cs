@@ -535,6 +535,54 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        /// <summary>
+        /// Append a run of values; none of them keys, and none marked as such:
+        /// <c>$"{RedisCommand.HMGET}{key}{fields}"</c>.
+        /// </summary>
+        /// <param name="value">The values to append; an empty run appends nothing.</param>
+        /// <remarks>
+        /// The twin of the key overload, and deliberately a separate one rather than something a caller
+        /// picks: the difference between a run of keys and a run of values is the prefix, the invalidation
+        /// mark and the cross-slot check, and none of those can be inferred from the element type at the
+        /// call site - which is exactly why the two spellings are distinct here.
+        /// </remarks>
+        public void AppendFormatted(scoped ReadOnlySpan<RedisValue> value)
+        {
+            foreach (ref readonly var item in value)
+            {
+                AppendFormatted(item);
+            }
+        }
+
+        /// <summary>
+        /// Append a run of anything that knows how to write itself:
+        /// <c>$"{RedisCommand.HSETEX}{key}{entries}"</c>.
+        /// </summary>
+        /// <typeparam name="T">The element type; inferred from the hole.</typeparam>
+        /// <param name="value">The elements to append; an empty run appends nothing.</param>
+        /// <remarks>
+        /// <para>
+        /// The open one, and the reason the vocabulary does not have to grow a span overload per data
+        /// type. A <see cref="HashEntry"/> writes two arguments, a stream entry will write more, and
+        /// another library's type writes whatever it likes - all through the same hole, because the
+        /// element decides rather than the handler.
+        /// </para>
+        /// <para>
+        /// A constrained call on a value type, so a struct element does not box - the same measurement
+        /// that made the single-value <c>AppendFormatted&lt;T&gt;</c> acceptable applies here per element,
+        /// where it matters more.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted<T>(scoped ReadOnlySpan<T> value) where T : IRespArgument
+        {
+            DemandCommand();
+            foreach (ref readonly var item in value)
+            {
+                if (item is null) throw new ArgumentNullException(nameof(value));
+                item.WriteTo(ref this);
+            }
+        }
+
         /// <summary>Append a value; not a key, and not marked as one.</summary>
         /// <param name="value">The value to append.</param>
         public void AppendFormatted(RedisValue value)
