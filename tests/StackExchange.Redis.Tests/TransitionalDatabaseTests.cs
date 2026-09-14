@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using NSubstitute;
 using StackExchange.Redis.Interpolated;
 using Xunit;
 
@@ -126,6 +127,23 @@ public class TransitionalDatabaseTests
         wait!.Invoke(db, [new ValueTask(probe, token: 0)]);
 
         Assert.Equal(1, probe.GetResultCalls);
+    }
+
+    [Fact]
+    public void AsDatabaseCompletesTheRoundTrip()
+    {
+        // IDatabase.Context already goes new <- legacy; this is the other direction, so neither surface is
+        // a one-way door. Note the concrete type stays internal - the contract is IDatabase.
+        var executor = new FakeExecutor("$4\r\nmarc\r\n");
+        var surface = new RespDatabase(new RespContext().WithExecutor(executor));
+
+        IDatabase legacy = surface.AsDatabase(Substitute.For<IConnectionMultiplexer>());
+
+        Assert.Equal("marc", (string?)legacy.StringGet("user:1"));
+        Assert.Equal("*2|$3|GET|$6|user:1|", Assert.Single(executor.Sent));
+
+        // and back again, to the same context
+        Assert.Same(executor, ((IRespTarget)legacy).Context.Executor);
     }
 
     [Fact]

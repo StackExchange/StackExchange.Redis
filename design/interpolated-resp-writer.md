@@ -1882,6 +1882,122 @@ equally correct, so either outcome is a legitimate observation. It is bounded to
 invalidation, and everything after it is correct. Recorded as a deliberate tolerance rather than something
 to fix.
 
+### 6.13 `CLIENT TRACKING`: the mode, decided
+
+Everything below was checked against a live Redis 8.9.241 rather than inferred; the error text is quoted
+from the server.
+
+**RESP3 only; no `REDIRECT`.** Not merely because two connections are more work — the redirected model has
+a race the single-connection model cannot have. The invalidation can arrive *before* the reply it
+invalidates, so a client caches a value it has already been told to drop, and the documented workaround is
+to write a placeholder entry before sending and refuse the fill if it disappears. We happen to implement
+exactly that already (`TryBeginFill` + `Dependency.AllValid` + stamp-before-drop, §6.6), so we would
+survive it — but there is no reason to pay for a protocol that requires it. When RESP3 is unavailable,
+client-side caching must **refuse loudly**, not silently degrade into a cache nothing invalidates.
+
+**`BCAST`, with the empty prefix by default.**
+
+```
+CLIENT TRACKING on PREFIX foo                      → ERR PREFIX option requires BCAST mode to be enabled
+CLIENT TRACKING on BCAST PREFIX foo PREFIX foob    → ERR Prefix 'foo' overlaps with another provided
+                                                     prefix 'foob'. Prefixes for a single client must
+                                                     not overlap.
+```
+
+Multiple prefixes are an OR; no prefix under `BCAST` means the empty prefix, i.e. every key.
+
+**`PREFIX` does not map onto `WithKeyPrefix`, and this is the trap worth recording.** Prefixes are
+connection-global, must not overlap, and cannot be removed individually ("to remove all prefixes, disable
+and re-enable tracking"). Context key-prefixes routinely *nest* — `app:` and `app:users:` — which is
+precisely the rejected case, and a context going out of scope has no way to deregister. So the prefix set
+is an explicit connection-level tuning knob, never derived per-context. Registration is O(N²) and server
+CPU scales with prefix count.
+
+The honest cost of `BCAST` with the empty prefix is a push for every key modified by anyone. Client-side
+that is cheap — `OnInvalidate` is ~5-6ns and allocation-free, which is exactly why it was measured that way
+(§6.6) — but the network cost is real, and is the reason `PREFIX` exists at all.
+
+**`OPTIN`/`OPTOUT` are therefore off the table.**
+
+```
+CLIENT TRACKING on BCAST OPTIN   → ERR OPTIN and OPTOUT are not compatible with BCAST
+CLIENT TRACKING on; CLIENT CACHING yes → ERR CLIENT CACHING YES is only valid when tracking is enabled
+                                         in OPTIN mode.
+CLIENT TRACKING on; CLIENT CACHING no  → ERR CLIENT CACHING NO is only valid when tracking is enabled
+                                         in OPTOUT mode.
+```
+
+Note the default mode is *not* `OPTOUT`: both track everything, but only `OPTOUT` unlocks per-command
+exclusion, and the default mode has no escape hatch at all. Choosing `BCAST` removes the question. We lose
+little: `CommandFlags.NoClientCache` already opts out client-side at zero protocol cost, and the only thing
+a server-side opt-out buys is invalidation-table memory — which under `BCAST` is zero.
+
+*If we ever went default-mode:* `OPTIN` needs a positive flag (`CommandFlags.ClientCache`) and a
+`CLIENT CACHING yes` pipelined immediately ahead of each command, with two traps — it applies to **all**
+commands in a following `MULTI`, and to **all** commands executed by a following Lua script.
+
+**Invalidate locally on every write. Do not enable `NOLOOP`.** Two separate decisions that look like one.
+
+Local invalidation of the keys a write touches is a strict improvement, independent of `NOLOOP`:
+over-invalidating is always safe (§6.6 accepts false invalidations by design), the frame already carries
+key marks so it costs almost nothing, and it closes the window between our write landing and the push
+coming back. Keyless flushes map to `OnFlush()`.
+
+`NOLOOP` is a different matter, and the server documentation is unusually blunt about why:
+
+> "With tracking in the default mode, the server removes the key from the invalidation table when the key
+> is modified. If the connection that modified the key is using `NOLOOP`, Redis suppresses the invalidation
+> message to that connection, **but the key is still no longer tracked for that connection after the
+> write.**"
+
+So in default mode, `NOLOOP` without exact local invalidation is not "briefly stale" — it is
+**permanently** stale: we keep the entry, the server has stopped tracking it, and a *third party's* later
+write produces no message for us either. And "exact" is the problem: any command whose key set we
+under-declare — `EVAL`/`EVALSHA` with computed keys, anything whose key spec we do not model — lands in
+that case. Under `BCAST` there is no invalidation table and the hazard does not arise, which is another
+point in `BCAST`'s favour, but it stays a later optimisation rather than part of the first cut.
+
+### 6.14 Global cache, contextual TTL
+
+**The cache is global.** Two facts force it. Tracking is per-*connection* (by client id), and the server
+keeps *"a single keys namespace, not divided by database numbers"* — a change to `foo` in db 3 invalidates
+`foo` cached from db 2, which §6.6 already handles (`InvalidationCrossesDatabases`).
+
+- In **default mode**, only the connection that *read* a key is told about it. So every connection serving
+  cacheable reads needs tracking on, and a push arriving on one connection must evict entries populated via
+  another — entries are keyed by (frame, database), not by connection.
+- In **`BCAST` mode**, invalidations reach every client subscribed to the prefix regardless of who read, so
+  **one** tracking connection serves the whole multiplexer.
+
+Either way the cache is global; `BCAST` merely makes it clean — one subscription, one push stream, no
+per-connection bookkeeping, no duplicate invalidations. So `WithCache` means "participate, or not" (plus
+substitution in tests), **not** "bring your own": two different caches over one multiplexer is not
+supportable, because the invalidation stream has exactly one destination.
+
+**The TTL is not global.** How stale a caller will tolerate is a per-caller policy, not a property of the
+connection — and it is the one piece of cache configuration that *cannot* be added to the existing
+surface, because `IDatabase.StringGet` cannot grow a parameter without a binary break (AGENTS.md). On the
+context it is free and reaches every command without touching a signature, which is §9.4 paying off again.
+
+**It must be applied on read, not stamped on store.** The entry is shared, so the fill timestamp goes with
+the entry and `TryGet` takes a maximum age from the *reading* context. One entry serves any number of
+contexts with different tolerances; stamping at store time would force identical replies to be cached once
+per distinct TTL.
+
+Two things still to settle:
+
+- **Where it sits on the context.** A `TimeSpan` field pushes `RespContext` past its 48 bytes; the service
+  slot keeps it there at the cost of a chain walk per cache read. That is the same trade `ChannelPrefix`
+  was measured for (§3.3), so measure rather than guess — noting this one is on the *hit* path, where the
+  alternative is a network round trip.
+- **There should be a default, not only an override.** The server documentation recommends a maximum TTL on
+  every entry as a backstop against exactly the staleness bugs above. So: a default on the cache, overridable
+  per context.
+
+**Still unwired, and both come straight from the same documentation:** losing the connection must flush the
+cache (`OnFlush()` exists; nothing calls it on disconnect), and there is no TTL of any kind today.
+
+
 ## 7. Analyzer rules
 
 The analyzer **does** reach consumers: `StackExchange.Redis.csproj:83-100` packs both
