@@ -119,10 +119,13 @@ namespace StackExchange.Redis
         /// and never invalidated, and the library cannot know that on your behalf.
         /// </para>
         /// <para>
-        /// A third: a read-only script (<c>EVAL_RO</c>/<c>EVALSHA_RO</c>) that reads a key it did not
-        /// declare in <c>KEYS[]</c>. Invalidation tracks the declared keys, so an undeclared read is never
-        /// invalidated and the result stays stale. Declaring every key touched is already required in
-        /// cluster; this is one more reason for it.
+        /// A third, with a caveat: a read-only script (<c>EVAL_RO</c>/<c>EVALSHA_RO</c>) that reads a key it
+        /// did not declare in <c>KEYS[]</c>. Invalidation tracks the declared keys, so an undeclared read is
+        /// never invalidated and the result stays stale. The caveat is that such a script is <b>already</b>
+        /// broken: the declared keys are what the client routes on, so in cluster it may not even have
+        /// reached the node holding the key it computed, hash tags or no. Caching inherits that error rather
+        /// than introducing it, and cannot fix it - declaring every key touched is the fix, and was the fix
+        /// before any of this existed.
         /// </para>
         /// </remarks>
         NoClientCache = 1 << 19,
