@@ -50,6 +50,7 @@
     <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
     <Compile Update="Interpolated\RespSurface.*.cs" DependentUpon="RespSurface.cs" />
+    <Compile Update="Interpolated\TransitionalDatabase.*.cs" DependentUpon="TransitionalDatabase.cs" />
   </ItemGroup>
 
   <ItemGroup>

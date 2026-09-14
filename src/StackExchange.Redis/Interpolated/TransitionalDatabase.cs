@@ -71,6 +71,34 @@ namespace StackExchange.Redis.Interpolated
         private static NotImplementedException NotMoved<TState>()
             => new($"This command has not yet moved to the RESP context surface (captured as '{typeof(TState).Name}').");
 
+        // ---- the sync bridge ----------------------------------------------------------------------------
+
+        /// <summary>Block for an asynchronous result, applying the multiplexer's timeout.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Sync is deliberately deprioritised</b>, so this is the cheap version rather than the right
+        /// one. A synchronously-completed result - notably a client-side cache hit - is taken directly and
+        /// costs nothing. Anything else blocks on a <c>Task</c>, which is sync-over-async: the async path
+        /// completes its task sources with <c>RunContinuationsAsynchronously</c> (see
+        /// <c>ResultBox.cs</c>), so the completion needs a thread-pool thread while this one is blocked
+        /// holding another. That is the failure mode SER307/SER308 exist to warn about.
+        /// </para>
+        /// <para>
+        /// The proper fix is routing rather than waiting: <c>IRespExecutor</c> already has a synchronous
+        /// <c>Send</c>, and <c>RespExecutor.Send</c> already uses it, so a context flag consulted by the
+        /// one shared funnel would make every sync call complete inline and reduce this method to its fast
+        /// path. Worth doing when sync stops being deprioritised - not before.
+        /// </para>
+        /// </remarks>
+        private T Wait<T>(ValueTask<T> pending)
+        {
+            if (pending.IsCompletedSuccessfully) return pending.Result;
+
+            #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
+            return multiplexer.Wait(pending.AsTask());
+            #pragma warning restore SER308
+        }
+
         // ---- members the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod) -------------
         public IBatch CreateBatch(object? asyncState = null) => throw new NotImplementedException();
 
