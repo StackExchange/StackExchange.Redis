@@ -280,11 +280,13 @@ public readonly struct Expiration : Interpolated.IRespArgument
     /// empty when this expiration contributes no arguments at all.
     /// </summary>
     /// <remarks>
-    /// Shared by every writer rather than restated per writer: this switch is the whole of the mode
-    /// selection, and it is the part that would silently diverge if each writer kept its own copy.
+    /// Shared by both writers - the <c>MessageWriter</c> path and the interpolated one - rather than
+    /// restated in each: this switch is the whole of the mode selection, and it is the part that would
+    /// silently diverge if either kept its own copy. Both live on this type, so it is <c>private</c>;
+    /// what keeps them honest is a test that renders the same command through both and compares bytes.
     /// <see cref="HasExpirationValue"/> says whether a numeric operand follows it.
     /// </remarks>
-    internal ReadOnlySpan<byte> OperandResp
+    private ReadOnlySpan<byte> OperandResp
     {
         get
         {
@@ -303,10 +305,10 @@ public readonly struct Expiration : Interpolated.IRespArgument
 
     /// <summary>Whether <see cref="OperandResp"/> is followed by a numeric <see cref="Value"/>.</summary>
     /// <remarks>False for KEEPTTL and PERSIST, which are complete in themselves.</remarks>
-    internal bool HasExpirationValue => (_flags & ExpirationState.HasExpiration) != 0;
+    private bool HasExpirationValue => (_flags & ExpirationState.HasExpiration) != 0;
 
     /// <summary>The already-framed RESP token for ENX, or empty when it does not apply.</summary>
-    internal ReadOnlySpan<byte> ExpireIfNotExistsResp
+    private ReadOnlySpan<byte> ExpireIfNotExistsResp
         => HasExpirationValue && IsExpireIfNotExists ? "$3\r\nENX\r\n"u8 : default;
 
     /// <inheritdoc/>

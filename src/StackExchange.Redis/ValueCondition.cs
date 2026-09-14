@@ -285,11 +285,11 @@ public readonly struct ValueCondition : Interpolated.IRespArgument
     /// the condition contributes no arguments.
     /// </summary>
     /// <remarks>
-    /// Shared by every writer rather than restated per writer; see the same note on
-    /// <see cref="Expiration.OperandResp"/>. <see cref="IsValueTest"/> and <see cref="IsDigestTest"/> say
-    /// what follows it, and in which encoding.
+    /// Shared by both writers rather than restated in each; see the equivalent on <see cref="Expiration"/>.
+    /// <see cref="IsValueTest"/> and <see cref="IsDigestTest"/> say what follows it, and in which encoding -
+    /// those two stay <c>internal</c> because <c>DigestUnitTests</c> asserts on them; this does not.
     /// </remarks>
-    internal ReadOnlySpan<byte> KeywordResp => _kind switch
+    private ReadOnlySpan<byte> KeywordResp => _kind switch
     {
         ConditionKind.Exists => "$2\r\nXX\r\n"u8,
         ConditionKind.NotExists => "$2\r\nNX\r\n"u8,
