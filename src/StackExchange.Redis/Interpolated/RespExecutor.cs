@@ -10,6 +10,11 @@ namespace StackExchange.Redis.Interpolated
     /// EXPERIMENTAL SPIKE. Something that can issue a rendered request.
     /// </summary>
     /// <remarks>
+    /// <b>Internal.</b> Dispatch is an implementation concern; the public surface is the context and the
+    /// extension members over it. Keeping this internal means the executor chain - retry, and whatever
+    /// follows - can be reshaped without it being a breaking change.
+    /// </remarks>
+    /// <remarks>
     /// <para>
     /// <b>Neither side is a span, and neither side is a <c>byte[]</c>.</b> A span cannot cross an
     /// <c>await</c>, and cannot be parked in a backlog for a resend after a reconnect - so a span request
@@ -24,8 +29,7 @@ namespace StackExchange.Redis.Interpolated
     /// reference held by the caller, who releases it. Whoever retains, releases.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public interface IRespExecutor
+    internal interface IRespExecutor
     {
         /// <summary>The database requests run against; part of a cached entry's identity.</summary>
         int Database { get; }

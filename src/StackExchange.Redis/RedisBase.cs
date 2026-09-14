@@ -6,6 +6,16 @@ namespace StackExchange.Redis
 {
     internal abstract partial class RedisBase : IRedis
     {
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Not yet implemented for connection-backed types. The context surface is being brought up
+        /// against a minimal implementation first (<c>RespDatabase</c>); wiring it to a live multiplexer
+        /// means routing a rendered frame through the existing message pipeline, which is separate work.
+        /// </remarks>
+        public Interpolated.RespContext Context
+            => throw new NotImplementedException(
+                "The context surface is not yet wired to a live connection; see RespDatabase.");
+
         internal static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         internal readonly ConnectionMultiplexer multiplexer;
         protected readonly object? asyncState;

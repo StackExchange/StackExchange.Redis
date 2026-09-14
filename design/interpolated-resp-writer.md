@@ -2079,6 +2079,33 @@ looks like evidence, which is worse than not having it. The flag decision now go
 `cache.PermitsCaching(flags)`, so the cache observes every refusal without probing anything it has been
 told to leave alone.
 
+#### Plugged in
+
+`IRedis` now inherits `IRespTarget`, so `IDatabase`, `IServer` and `ISubscriber` all carry `.Context` from
+**one** interface edit. The blast radius inside the library was four types, which is smaller than it
+sounds:
+
+| | |
+| --- | --- |
+| `RedisBase` | throws - covers `RedisDatabase`, `RedisServer`, `RedisSubscriber` |
+| `MultiGroupDatabase`, `MultiGroupSubscriber` | throw |
+| `KeyPrefixedDatabase` | **implemented**: `Inner.Context.WithKeyPrefix(Prefix)` |
+| `RespDatabase` (new) | the minimal one that actually works |
+
+`KeyPrefixedDatabase` is worth calling out: that single line is the whole write half of what the class
+otherwise does by forwarding ~2600 lines of overrides. It throws today only because its inner target does.
+
+**`IRespExecutor` is now internal.** Dispatch is an implementation concern; the public surface is the
+context plus extension members. That keeps the executor chain - retry, and whatever follows - reshapeable
+without it being a breaking change, and it is why `RespContext.Executor` and `WithExecutor` are internal
+too.
+
+**`RespDatabase` has no command methods**, which is the point rather than an omission: `Set`, `Get` and
+everything after are extension members over the context, so the type does not grow as the surface does.
+
+Connection-backed types throw for now. Wiring a rendered frame through the existing message pipeline is
+separate work, and nothing here needs to wait for it.
+
 #### Four things to settle before building it
 
 1. ~~**`ref readonly` and `async` do not mix.**~~ **Settled: by value.** A `ref readonly` local cannot cross an `await`, and the

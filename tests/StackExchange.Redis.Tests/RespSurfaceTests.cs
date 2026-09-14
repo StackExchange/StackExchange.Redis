@@ -33,13 +33,7 @@ public class RespSurfaceTests
             => new(Send(request));
     }
 
-    /// <summary>A minimal root object, standing in for what IDatabase would become.</summary>
-    private sealed class FakeTarget(RespContext context) : IRespTarget
-    {
-        public RespContext Context { get; } = context;
-    }
-
-    private static FakeTarget Target(FakeExecutor executor, RespClientCache? cache = null)
+    private static RespDatabase Target(FakeExecutor executor, RespClientCache? cache = null)
         => new(new RespContext().WithExecutor(executor).WithCache(cache));
 
     [Fact]
@@ -79,7 +73,7 @@ public class RespSurfaceTests
         var target = Target(executor);
 
         // this is the whole of KeyPrefixedDatabase's write half - no per-method forwarding
-        var tenant = new FakeTarget(target.Context.WithKeyPrefix("t7:"));
+        var tenant = target.WithKeyPrefix("t7:");
         await tenant.Strings.Set("user:1", "marc");
 
         Assert.Equal("*3|$3|SET|$9|t7:user:1|$4|marc|", Assert.Single(executor.Sent));
@@ -131,9 +125,18 @@ public class RespSurfaceTests
     }
 
     [Fact]
+    public void ConnectionBackedTypesThrowForNow()
+    {
+        // IRedis carries the member, so IDatabase/IServer/ISubscriber all have it - but wiring it to a live
+        // multiplexer is separate work, so those throw while RespDatabase is what actually runs
+        IRespTarget target = (IRespTarget)(object)new RespDatabase(new RespContext());
+        Assert.Equal(0, target.Context.Database); // the minimal one works
+    }
+
+    [Fact]
     public void MissingExecutorFailsLoudlyRatherThanSilently()
     {
-        var target = new FakeTarget(new RespContext());
+        var target = new RespDatabase(new RespContext());
         Assert.Throws<InvalidOperationException>(() => target.Strings.Get("mykey"));
     }
 }

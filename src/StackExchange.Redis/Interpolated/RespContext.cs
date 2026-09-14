@@ -54,7 +54,7 @@ namespace StackExchange.Redis.Interpolated
         /// Behaviour composes here - a retrying or caching executor is a decorator around an inner one - while
         /// configuration composes on the context, via <see cref="WithExecutor"/>. They are not alternatives.
         /// </remarks>
-        public IRespExecutor? Executor { get; }
+        internal IRespExecutor? Executor { get; }
 
         private readonly object? _services;
 
@@ -197,7 +197,7 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>
-        public RespContext WithExecutor(IRespExecutor? executor)
+        internal RespContext WithExecutor(IRespExecutor? executor)
             => new(CommandMap, _keyPrefix, ChannelPrefix, Database, ServerType, CancellationToken, executor, _services);
 
         /// <summary>A copy of this context carrying <paramref name="services"/>.</summary>
