@@ -1,8 +1,21 @@
 ﻿namespace StackExchange.Redis;
 
-internal static class CommandFlagsExtensions
+/// <summary>
+/// Helpers for composing <see cref="CommandFlags"/>.
+/// </summary>
+public static class CommandFlagsExtensions
 {
-    public static CommandFlags WithCategory(this CommandFlags flags, CommandFlags category)
+    /// <summary>
+    /// Apply a retry category, unless the caller already chose one.
+    /// </summary>
+    /// <param name="flags">The caller's flags.</param>
+    /// <param name="category">The category this command would use by default.</param>
+    /// <remarks>
+    /// Public because a command surface outside this library needs it: flags are <b>cumulative</b>, so a
+    /// caller passing <see cref="CommandFlags.FireAndForget"/> must not thereby lose the command's retry
+    /// category. Put the category here rather than in a parameter default, or the two cannot coexist.
+    /// </remarks>
+    public static CommandFlags WithRetryCategory(this CommandFlags flags, CommandFlags category)
     {
         // CommandServerSpecific is an orthogonal flag rather than part of the severity ladder, so it
         // is always additive - the caller choosing a retry category doesn't make a cursor-bearing
@@ -17,7 +30,7 @@ internal static class CommandFlagsExtensions
     /// The retry category implied by an existence condition applied to an otherwise unconditional write;
     /// <see cref="CommandFlags.None"/> means "no opinion", leaving the per-command default in place.
     /// </summary>
-    public static CommandFlags AsRetryCategory(this When when) => when switch
+    internal static CommandFlags AsRetryCategory(this When when) => when switch
     {
         // NX/XX make the write conditional: a replay either no-ops or fails, and either way the
         // end-state matches the first attempt.
@@ -30,20 +43,20 @@ internal static class CommandFlagsExtensions
     /// something on the node that issued it (and, for the per-key variants, against that node's encoding of the
     /// object), so it is node-affine; a fresh iteration from the origin cursor can start anywhere.
     /// </summary>
-    public static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
-        => flags.WithCategory(cursor == RedisBase.CursorUtils.Origin
+    internal static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
+        => flags.WithRetryCategory(cursor == RedisBase.CursorUtils.Origin
             ? CommandFlags.CommandRetryReadOnly
             : CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific);
 
     /// <inheritdoc cref="AsRetryCategory(When)"/>
-    public static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
+    internal static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
     {
         // NX/XX/GT/LT; GT/LT are monotone, so re-applying converges on the same deadline
         ExpireWhen.Always => CommandFlags.None,
         _ => CommandFlags.CommandRetryWriteChecked,
     };
 
-    public static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
+    internal static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {
         if ((flags & Message.MaskRetryCategory) is 0)
         {

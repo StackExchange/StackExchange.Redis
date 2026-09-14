@@ -299,7 +299,7 @@ namespace StackExchange.Redis
 
             // GEORADIUS[BYMEMBER] defaults to a write category because of the STORE/STOREDIST variants, which
             // we can't see through Execute; this typed API never emits them, so it is always a pure query.
-            flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+            flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
 
             return Message.Create(Database, flags, command, key, redisValues.ToArray());
         }
@@ -477,7 +477,7 @@ namespace StackExchange.Redis
 
             // H[P]EXPIRE[AT] ... NX/XX/GT/LT is a conditional write, exactly as for the key-level EXPIRE;
             // a bare one keeps the last-wins default
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             var values = when switch
             {
@@ -566,7 +566,7 @@ namespace StackExchange.Redis
         /// mutates the TTL, making it a write.
         /// </summary>
         private static CommandFlags WithGetExCategory(CommandFlags flags, int expiryTokenCount)
-            => expiryTokenCount == 0 ? flags : flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+            => expiryTokenCount == 0 ? flags : flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
         private Message HashFieldGetAndSetExpiryMessage(in RedisKey key, RedisValue[] hashFields, Expiration expiry, CommandFlags flags)
         {
@@ -2175,7 +2175,7 @@ namespace StackExchange.Redis
                 return readOnlyCommand;
             }
 
-            flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+            flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
             return readOnlyCommand == RedisCommand.EVALSHA_RO ? RedisCommand.EVALSHA : RedisCommand.EVAL;
         }
 
@@ -4283,7 +4283,7 @@ namespace StackExchange.Redis
         {
             // without REPLACE, COPY fails if the destination exists, so a replay is a no-op (the per-command
             // default); with REPLACE it becomes an unconditional overwrite of the destination.
-            if (replace) flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+            if (replace) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
             return destinationDatabase switch
             {
@@ -4339,7 +4339,7 @@ namespace StackExchange.Redis
             server = null;
 
             // EXPIRE ... NX/XX/GT/LT is a conditional write; a bare EXPIRE keeps the last-wins default
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             if ((milliseconds % 1000) != 0)
             {
@@ -4526,7 +4526,7 @@ namespace StackExchange.Redis
             private readonly TimeSpan? claimMinIdleTime;
 
             public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, int? maxCount = null, int? maxSize = null)
-                : base(db, flags.WithCategory(GetStreamReadGroupCategory(streamPositions, claimMinIdleTime)), RedisCommand.XREADGROUP)
+                : base(db, flags.WithRetryCategory(GetStreamReadGroupCategory(streamPositions, claimMinIdleTime)), RedisCommand.XREADGROUP)
             {
                 if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
                 if (streamPositions.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPositions), "streamOffsetPairs must contain at least one item.");
@@ -4794,7 +4794,7 @@ namespace StackExchange.Redis
 
             // SORT is categorized read-only by default (the common case), but the STORE variant writes the
             // destination key; without this, a replay of a SORT ... STORE would be treated as a harmless read.
-            if (!destination.IsNull) flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+            if (!destination.IsNull) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
             // If SORT_RO is not available, we cannot issue the command to a read-only replica
             if (command == RedisCommand.SORT)
@@ -5132,7 +5132,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private static CommandFlags GetStreamAddCategory(CommandFlags flags, in StreamAddOptions options)
             => (options.IdempotentId.ArgCount != 0 || !IsServerAssignedId(options.EntryId))
-                ? flags.WithCategory(CommandFlags.CommandRetryWriteChecked)
+                ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked)
                 : flags;
 
         /// <summary>
@@ -5234,7 +5234,7 @@ namespace StackExchange.Redis
         /// than caller data (raising it to "accumulating" would stop these being retried at all by default).
         /// </summary>
         private static CommandFlags WithJustIdCategory(CommandFlags flags, bool justId)
-            => justId ? flags.WithCategory(CommandFlags.CommandRetryWriteChecked) : flags;
+            => justId ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked) : flags;
 
         private Message GetStreamCreateConsumerGroupMessage(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
         {
@@ -5387,7 +5387,7 @@ namespace StackExchange.Redis
             private readonly TimeSpan? claimMinIdleTime;
 
             public SingleStreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, TimeSpan? claimMinIdleTime)
-                : base(db, flags.WithCategory(GetStreamReadGroupCategory(afterId, claimMinIdleTime)), RedisCommand.XREADGROUP, key)
+                : base(db, flags.WithRetryCategory(GetStreamReadGroupCategory(afterId, claimMinIdleTime)), RedisCommand.XREADGROUP, key)
             {
                 if (count.HasValue && count <= 0)
                 {
@@ -5628,14 +5628,14 @@ namespace StackExchange.Redis
             if (allGet)
             {
                 // nothing to replay, whichever of the two commands we end up issuing
-                flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+                flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
                 return readOnlyAvailable ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
             }
 
             if (!anyIncrement)
             {
                 // SET is positional, so a replay lands on the same value; only INCRBY compounds
-                flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+                flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
             }
 
             return RedisCommand.BITFIELD;
@@ -5725,7 +5725,7 @@ namespace StackExchange.Redis
 
             // NX/XX make this a *conditional* write, whichever spelling we end up emitting below
             // (SETNX, or SET with NX/XX); a bare SET keeps the per-command "last wins" default.
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.DEL, key);
 
@@ -5787,7 +5787,7 @@ namespace StackExchange.Redis
             // as GetStringSetMessage: NX/XX make the write conditional. Note that the GET operand makes the
             // *reply* non-idempotent on a replay (you get back what you just wrote), but that is equally
             // true of GETSET, which we categorize on its keyspace effect alone; stay consistent.
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.GETDEL, key);
 
@@ -6022,7 +6022,7 @@ namespace StackExchange.Redis
                 // could be retried across endpoints is IServer.ScriptLoad, and WithRetry wraps IDatabaseAsync
                 // only. The internal load-then-EVALSHA pairing in ScriptEvalMessage.GetMessages is written to
                 // one connection as a unit and so is never independently re-routed.
-                : base(-1, flags.WithCategory(CommandFlags.CommandRetryConnection), RedisCommand.SCRIPT)
+                : base(-1, flags.WithRetryCategory(CommandFlags.CommandRetryConnection), RedisCommand.SCRIPT)
             {
                 Script = script ?? throw new ArgumentNullException(nameof(script));
             }

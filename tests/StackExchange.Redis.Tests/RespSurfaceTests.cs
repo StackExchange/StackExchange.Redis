@@ -23,9 +23,13 @@ public class RespSurfaceTests
 
         public int Database => 0;
 
+        /// <summary>The flags each request carried, so the tests can assert what reached the wire.</summary>
+        public List<CommandFlags> Flags { get; } = [];
+
         public RespPayload Send(in RespRequest request)
         {
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
+            Flags.Add(request.Flags);
             return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
         }
 
@@ -79,6 +83,54 @@ public class RespSurfaceTests
         // it travels in services now, so every With* has to carry it without naming it
         Assert.Equal("app:", (string?)ctx.ChannelPrefix);
         Assert.Equal(4, ctx.Database);
+    }
+
+    [Fact]
+    public async Task FlagsAreCumulativeRatherThanReplacing()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        var target = Target(executor);
+
+        // FireAndForget must not cost the command its retry category. It would have, when the category
+        // lived in the parameter's DEFAULT value - passing any flag replaced it with nothing.
+        await target.Strings.Set("k", "v", CommandFlags.FireAndForget);
+
+        var sent = Assert.Single(executor.Flags);
+        Assert.Equal(CommandFlags.FireAndForget, sent & CommandFlags.FireAndForget);
+        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, sent & Message.MaskRetryCategory);
+    }
+
+    [Fact]
+    public async Task AnExplicitCategoryStillWins()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        var target = Target(executor);
+
+        // WithRetryCategory is first-wins, so a caller who names one keeps it
+        await target.Strings.Set("k", "v", CommandFlags.CommandRetryNever);
+        Assert.Equal(CommandFlags.CommandRetryNever, Assert.Single(executor.Flags) & Message.MaskRetryCategory);
+    }
+
+    [Fact]
+    public async Task TheHandlerCanBeOmitted()
+    {
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+        var ctx = new RespContext().WithExecutor(executor);
+
+        // no handler named: resolved from TResult, which is what lets a command surface be one expression
+        Assert.Equal("hello", await ctx.SendAsync<RedisValue>(
+            $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly));
+    }
+
+    [Fact]
+    public async Task AnUnregisteredResultTypeSaysSoAtTheCallSite()
+    {
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+        var ctx = new RespContext().WithExecutor(executor);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ctx.SendAsync<Uri>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly));
+        Assert.Contains("Uri", ex.Message);
     }
 
     [Fact]

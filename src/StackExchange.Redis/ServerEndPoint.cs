@@ -633,7 +633,7 @@ namespace StackExchange.Redis
             if (commandMap.IsAvailable(RedisCommand.SENTINEL))
             {
                 // SENTINEL MASTERS only reads the sentinel's view, despite SENTINEL defaulting to server-admin
-                msg = Message.Create(-1, flags.WithCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+                msg = Message.Create(-1, flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }

@@ -237,7 +237,7 @@ namespace StackExchange.Redis.Interpolated
                 deps[i] = new Dependency(node, generation);
             }
 
-            fill = new RespFill(frame.Detach(), database, deps);
+            fill = new RespFill(frame.Detach(flags), database, deps);
             return true;
         }
 

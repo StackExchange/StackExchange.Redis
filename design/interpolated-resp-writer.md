@@ -1263,6 +1263,26 @@ That orchestration internalises three lifetimes, in descending order of how easy
 | Payload retained across the parse, released in a `finally` | `Parse` is called inside the window |
 | The request frame consumed on **every** path | `ref RespFrame`, neutered whether it became a key or not |
 
+**A command is one expression.** `SendAsync` takes the interpolated string directly - the `ref` is implied,
+exactly as `Execute` already does - with **flags before the handler** so the handler can be omitted:
+
+```csharp
+public ValueTask<RedisValue> Get(RedisKey key, CommandFlags flags = CommandFlags.None)
+    => ctx.SendAsync<RedisValue>($"{RedisCommand.GET}{key}", flags.WithRetryCategory(CommandRetryReadOnly));
+```
+
+An omitted handler is resolved from `TResult` (`RespHandlers.Inbuilt<T>`), with a throw naming the type if
+there is none - at the call site, not when a reply arrives. `TResult` must be explicit, because C# infers
+type arguments from arguments and never from a return type.
+
+**Flags are cumulative, and that is a correctness point rather than a style one.** The category must come
+from `WithRetryCategory` at the call site, *not* from the parameter's default value. With
+`flags = CommandRetryReadOnly` as a default, a caller passing `CommandFlags.FireAndForget` would silently
+**replace** the category with nothing - losing both the retry semantics and, now, cacheability. People
+expect flags to add. `WithRetryCategory` is first-wins, so an explicitly named category still beats ours.
+`CommandFlagsExtensions` became public for this: an external command surface cannot express a default
+category without it. Pinned by tests, since the failure is silent.
+
 None of the three is visible at the call site, which reduces to:
 
 ```csharp

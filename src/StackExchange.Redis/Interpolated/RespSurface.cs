@@ -69,6 +69,31 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Reads a simple-string reply as success.</summary>
         public static IRespHandler<bool> Ok { get; } = new OkHandler();
 
+        /// <summary>The handler used when a call does not name one; resolved by result type.</summary>
+        /// <typeparam name="T">The result type.</typeparam>
+        /// <remarks>
+        /// This is what lets a command surface be one expression: most commands want the obvious handler
+        /// for their result type, and naming it every time is noise. A type with no registered handler
+        /// throws where the call is written, saying which type and what to do - not at the point the reply
+        /// arrives.
+        /// </remarks>
+        internal static class Inbuilt<T>
+        {
+            internal static readonly IRespHandler<T>? Handler = Resolve();
+
+            internal static IRespHandler<T> Require()
+                => Handler ?? throw new InvalidOperationException(
+                    $"No built-in RESP handler for '{typeof(T).Name}'; pass one explicitly.");
+
+            private static IRespHandler<T>? Resolve()
+            {
+                object? handler = null;
+                if (typeof(T) == typeof(RedisValue)) handler = Value;
+                else if (typeof(T) == typeof(bool)) handler = Ok;
+                return (IRespHandler<T>?)handler;
+            }
+        }
+
         private sealed class ValueHandler : IRespHandler<RedisValue>
         {
             public RedisValue Parse(ReadOnlySpan<byte> response)
@@ -118,26 +143,17 @@ namespace StackExchange.Redis.Interpolated
             /// <summary>GET.</summary>
             /// <param name="key">The key to read.</param>
             /// <param name="flags">Command flags.</param>
-            public ValueTask<RedisValue> Get(RedisKey key, CommandFlags flags = CommandFlags.CommandRetryReadOnly)
-            {
-                var ctx = strings.Context;
-                var frame = ctx.Execute($"{RedisCommand.GET}{key}");
-                return ctx.SendAsync(ref frame, RespHandlers.Value, flags);
-            }
+            public ValueTask<RedisValue> Get(RedisKey key, CommandFlags flags = CommandFlags.None)
+                => strings.Context.SendAsync<RedisValue>(
+                    $"{RedisCommand.GET}{key}", flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly));
 
             /// <summary>SET.</summary>
             /// <param name="key">The key to write.</param>
             /// <param name="value">The value to write.</param>
             /// <param name="flags">Command flags.</param>
-            public ValueTask<bool> Set(
-                RedisKey key,
-                RedisValue value,
-                CommandFlags flags = CommandFlags.CommandRetryWriteLastWins)
-            {
-                var ctx = strings.Context;
-                var frame = ctx.Execute($"{RedisCommand.SET}{key}{value}");
-                return ctx.SendAsync(ref frame, RespHandlers.Ok, flags);
-            }
+            public ValueTask<bool> Set(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+                => strings.Context.SendAsync<bool>(
+                    $"{RedisCommand.SET}{key}{value}", flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins));
         }
     }
 }

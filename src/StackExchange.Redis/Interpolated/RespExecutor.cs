@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
@@ -71,6 +72,13 @@ namespace StackExchange.Redis.Interpolated
     /// called the executor would have to sit above dispatch and know how to send.
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+
+    // RS0027 wants the overload carrying optional parameters to have the most parameters. It is guidance
+    // aimed at ambiguity when parameters are added later, and it does not apply here: the two overloads
+    // differ in the TYPE of their second parameter - an interpolated-string handler versus a rendered
+    // frame - so no call can be ambiguous between them, whatever is added. Both are public because the
+    // frame form is what Compose produces, and that path is public.
+    [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Overloads differ by parameter type; ambiguity is impossible")]
     public static class RespExecutor
     {
         /// <summary>
@@ -79,12 +87,12 @@ namespace StackExchange.Redis.Interpolated
         /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
         /// <param name="context">The context to send through; supplies the executor, cache and cancellation.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
-        /// <param name="handler">Turns the reply into a result.</param>
         /// <param name="flags">
         /// The command's flags. Caching additionally requires a declared retry category no more severe than
         /// <see cref="CommandFlags.CommandRetryReadOnly"/>; see
         /// <see cref="RespClientCache.TryBeginFill(ref RespFrame, int, CommandFlags, out RespClientCache.RespFill)"/>.
         /// </param>
+        /// <param name="handler">Turns the reply into a result.</param>
         /// <remarks>
         /// <para>
         /// <paramref name="flags"/> is deliberately <b>not</b> optional. Every <c>IDatabase</c> method in
@@ -98,10 +106,10 @@ namespace StackExchange.Redis.Interpolated
         /// and released in a <c>finally</c>; and the request is consumed on every path.
         /// </remarks>
         public static TResult Send<TResult>(
-            this in RespContext context,
+            this RespContext context,
             ref RespFrame request,
-            IRespHandler<TResult> handler,
-            CommandFlags flags)
+            CommandFlags flags,
+            IRespHandler<TResult> handler)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
@@ -132,7 +140,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             // the executor may need the bytes past this call, so hand it something it can retain
-            var owned = request.Detach();
+            var owned = request.Detach(flags);
             try
             {
                 var response = executor.Send(owned);
@@ -151,7 +159,7 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="Send{TResult}(in RespContext, ref RespFrame, IRespHandler{TResult}, CommandFlags)"/>
+        /// <inheritdoc cref="Send{TResult}(RespContext, ref RespFrame, CommandFlags, IRespHandler{TResult})"/>
         /// <param name="context">The context to send through; supplies the executor, cache and cancellation.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
         /// <param name="handler">Turns the reply into a result.</param>
@@ -164,10 +172,10 @@ namespace StackExchange.Redis.Interpolated
         /// state machine, no <c>Task</c>.
         /// </remarks>
         public static ValueTask<TResult> SendAsync<TResult>(
-            this in RespContext context,
+            this RespContext context,
             ref RespFrame request,
-            IRespHandler<TResult> handler,
-            CommandFlags flags)
+            CommandFlags flags,
+            IRespHandler<TResult> handler)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
@@ -187,7 +195,54 @@ namespace StackExchange.Redis.Interpolated
                 }
             }
 
-            return AwaitUncached(executor, request.Detach(), handler, cancellationToken);
+            return AwaitUncached(executor, request.Detach(flags), handler, cancellationToken);
+        }
+
+        /// <summary>
+        /// Compose and send in one expression: <c>ctx.SendAsync&lt;RedisValue&gt;($"{cmd}{key}", flags)</c>.
+        /// </summary>
+        /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="request">The command, written as an interpolated string.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <param name="handler">
+        /// Turns the reply into a result; omit it to use the built-in handler for <typeparamref name="TResult"/>.
+        /// </param>
+        /// <remarks>
+        /// <para>
+        /// The <c>ref</c> is implied: the compiler builds the handler from the interpolated string and
+        /// passes it by reference, exactly as <c>RespContext.Execute</c> already does. So a whole command
+        /// is one expression, which is the point of the surface.
+        /// </para>
+        /// <para>
+        /// <b>Flags come before the handler</b> so the handler can be omitted. <typeparamref name="TResult"/>
+        /// must then be given explicitly - C# does not infer type arguments from a return type - which is
+        /// why this reads <c>SendAsync&lt;RedisValue&gt;</c> rather than inferring it.
+        /// </para>
+        /// </remarks>
+        public static ValueTask<TResult> SendAsync<TResult>(
+            this RespContext context,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
+            CommandFlags flags,
+            IRespHandler<TResult>? handler = null)
+        {
+            var frame = request.Complete();
+            return SendAsync(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require());
+        }
+
+        /// <inheritdoc cref="SendAsync{TResult}(RespContext, ref RespCommandHandler, CommandFlags, IRespHandler{TResult})"/>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="request">The command, written as an interpolated string.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <param name="handler">Turns the reply into a result; omit for the built-in one.</param>
+        public static TResult Send<TResult>(
+            this RespContext context,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
+            CommandFlags flags,
+            IRespHandler<TResult>? handler = null)
+        {
+            var frame = request.Complete();
+            return Send(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require());
         }
 
         [DoesNotReturn]
