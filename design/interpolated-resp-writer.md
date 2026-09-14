@@ -290,17 +290,51 @@ extension(ref H h) { public void AppendFormatted(Blob v) } // no (C# 14 extensio
 ```
 
 The lowering does member lookup against instance members declared on the handler type and stops.
-So nobody — not a consumer, not another assembly here — can extend it after the fact.
+So nobody — not a consumer, not another assembly here — can extend it after the fact **by adding a
+method**. `IRespArgument` (below) is the sanctioned way back in.
 
 Consequences:
 
 - Prefer a **few correct funnels over an enumeration**. Adding overloads later is additive and safe;
   removing or retyping them is breaking (AGENTS.md). Ship the minimum set.
 - The funnels: `RedisCommand`, `RedisKey`, `RedisValue`, `Resp.Raw`.
-- **Do not define `AppendFormatted<T>`.** A generic catch-all is an exact match by inference, so it
-  beats any overload needing a conversion — anything not explicitly declared silently falls into a
-  `ToString()` path and goes on the wire wrong. Omitting it makes those compile errors instead.
-  (Cost: the resulting `CS1503` names an arbitrary overload from the set. Analyzer candidate.)
+- **Do not define an *unconstrained* `AppendFormatted<T>`.** A generic catch-all is an exact match by
+  inference, so it beats any overload needing a conversion — anything not explicitly declared silently
+  falls into a `ToString()` path and goes on the wire wrong. Omitting it makes those compile errors
+  instead.
+
+**The constrained form is the exception, and is now implemented:**
+
+```csharp
+public void AppendFormatted<T>(T value) where T : IRespArgument
+```
+
+The constraint is the whole difference. A type that does not implement the interface is **not
+applicable**, so the undeclared cases still fail to compile — and the diagnostic gets *better*, not
+worse: `CS0315` naming `IRespArgument` and what to do about it, where the closed overload set produced a
+`CS1503` naming an arbitrary member (the "analyzer candidate" this bullet used to end with is
+consequently no longer needed).
+
+Overload resolution measured on the three cases that decide whether it is safe:
+
+| both applicable | winner | verdict |
+|---|---|---|
+| dedicated non-generic overload vs. the generic | **non-generic** | wanted; built-ins keep their own rendering |
+| implicit conversion to `RedisValue` vs. the generic | **generic** | wanted; opting in beats an incidental conversion |
+| type implementing nothing (`Guid`) | *neither* — CS0315 | wanted; the protection above survives |
+
+A `struct` implementer is a constrained call, so **nothing boxes** — pinned by an allocation test
+asserting exactly zero.
+
+**An implementer cannot miscount.** It writes by calling the handler's own `AppendFormatted` methods,
+which maintain `_args`/`_argIndex`, so there is no separately declared token count to drift from what was
+actually written. Contrast `RespFragment.ArgCount`, which is an assertion taken on trust — a wrong one
+corrupts the `*N` header and misframes the *next* command on the connection. Writing nothing is legal and
+means "no argument".
+
+This is the argument-level counterpart to §9.4: the context is the extension point for *commands*, and
+`IRespArgument` is the extension point for *argument types*. Without it, `NRedisStack` could add commands
+but could not add a type that appears in one.
 - With no catch-all, `RedisValue`'s existing implicit conversions cover `string`, `int`, `byte[]`
   etc. for free.
 
@@ -696,6 +730,35 @@ works, or callers are forced into `try`/`finally`.
 > an append simply **is** the command handler, so an append accepts exactly what the command does by
 > construction. (That guard was written, as a reflection test, before the single-type version replaced the
 > need for it.)
+>
+> **Optional arguments did not need `Append` after all.** `Append` was built for `if (cond) cmd.Append(...)`,
+> and it is still the right tool for a fragment whose *presence* is a branch in the caller's own logic. But
+> an argument that knows it might be absent can just say so: `AppendFormatted(Expiration)` and
+> `AppendFormatted(ValueCondition)` write between zero and three tokens, so the whole of SET is
+>
+> ```csharp
+> $"{RedisCommand.SET}{key}{value}{when}{expiry}"
+> ```
+>
+> with no branch at all. That is the first place the design pays for itself against the existing code rather
+> than merely matching it: `RedisDatabase.GetStringSetMessage` is a ~17-branch decision tree, and most of
+> those branches are not about Redis — they pick between fixed-arity `Message.Create` overloads, one branch
+> per token count. Arity is free here, so they evaporate.
+>
+> Order is the documented grammar, `SET key value [NX|XX|IFEQ cmp] [GET] [EX s|...|KEEPTTL]`, i.e. condition
+> before expiration. Redis parses the tail as an order-insensitive loop — which is how the legacy builder
+> gets away with emitting `EX n XX` — but other RESP servers need not be as forgiving.
+>
+> **The new surface emits canonical `SET` only**, where the legacy builder also reaches for `SETNX`,
+> `SETEX`, `PSETEX` and `DEL`. `SETEX`/`PSETEX` are pure arity relics with identical semantics and reply.
+> `SETNX` is **not** a relic — it answers `:1`/`:0` where `SET ... NX` answers `+OK`/nil — so collapsing it
+> is a real, deliberate divergence: `SET ... NX` has been available since 2.6.12, and one reply shape beats
+> two.
+>
+> **The operand tokens have one home.** `Expiration.OperandResp` and `ValueCondition.KeywordResp` hold the
+> mode/keyword selection, and each writer does only its own plumbing around them, so the `MessageWriter`
+> path and the handler path cannot disagree about what an `Expiration` *means*. Pinned by a test that
+> renders the same command through both writers and compares bytes, across the whole matrix.
 >
 > Two things make it legal, both worth knowing because the errors are opaque:
 > `Append` is an **extension** with an explicit `ref` parameter rather than an instance method, because as

@@ -384,6 +384,114 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
+        /// Append an expiration: <c>EX 300</c>, <c>PXAT 1700000000000</c>, <c>KEEPTTL</c>, or - for
+        /// <see cref="Expiration.Default"/> - <b>nothing at all</b>.
+        /// </summary>
+        /// <param name="value">The expiration to append.</param>
+        /// <remarks>
+        /// <para>
+        /// The first argument type that writes a <b>variable</b> number of tokens, including zero. That is
+        /// the whole reason the optional parts of a command can be written as holes rather than as branches:
+        /// <c>$"{expiry}{when}"</c> renders to between zero and five arguments and the handler keeps the
+        /// count straight, where the fixed-arity <c>Message.Create</c> overloads needed a branch per shape.
+        /// </para>
+        /// <para>
+        /// The mode token itself comes from <see cref="Expiration.OperandResp"/>, shared with the
+        /// <c>MessageWriter</c> path, so the two writers cannot disagree about what an
+        /// <see cref="Expiration"/> means.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted(Expiration value)
+        {
+            DemandCommand();
+
+            var operand = value.OperandResp;
+            if (operand.IsEmpty) return; // Expiration.Default contributes no arguments
+
+            AppendPreframed(operand);
+            if (value.HasExpirationValue)
+            {
+                AppendFormatted((RedisValue)value.Value);
+                var enx = value.ExpireIfNotExistsResp;
+                if (!enx.IsEmpty) AppendPreframed(enx);
+            }
+        }
+
+        /// <summary>
+        /// Append a value condition: <c>NX</c>, <c>XX</c>, <c>IFEQ v</c>, <c>IFDNE 0a1b...</c>, or - for
+        /// <see cref="ValueCondition.Always"/> - nothing at all.
+        /// </summary>
+        /// <param name="value">The condition to append.</param>
+        /// <remarks>
+        /// As <see cref="AppendFormatted(Expiration)"/>: variable token count, and the keyword comes from
+        /// <see cref="ValueCondition.KeywordResp"/> so both writers agree.
+        /// </remarks>
+        public void AppendFormatted(ValueCondition value)
+        {
+            DemandCommand();
+
+            var keyword = value.KeywordResp;
+            if (keyword.IsEmpty) return; // ValueCondition.Always contributes no arguments
+
+            AppendPreframed(keyword);
+            if (value.IsValueTest)
+            {
+                AppendFormatted(value.Value);
+            }
+            else if (value.IsDigestTest)
+            {
+                // the wire form is hex of the big-endian digest bytes, NOT the int64 the RedisValue holds
+                Span<byte> hex = stackalloc byte[2 * ValueCondition.DigestBytes];
+                var written = ValueCondition.WriteHex(value.Value.OverlappedValueInt64, hex);
+                var payload = WriteBulk(written.Length, out var payloadOffset);
+                written.CopyTo(payload);
+                CommitBulk(payloadOffset, written.Length);
+                _args++;
+                _argIndex++;
+            }
+        }
+
+        /// <summary>
+        /// Append any type that knows how to write itself, so the set of things that can appear in a hole
+        /// is open to other assemblies rather than closed to this one.
+        /// </summary>
+        /// <typeparam name="T">The argument type; inferred from the hole.</typeparam>
+        /// <param name="value">The argument to append.</param>
+        /// <remarks>
+        /// <para>
+        /// The design notes (section 2.2) say <b>do not define <c>AppendFormatted&lt;T&gt;</c></b>, and that
+        /// still holds for an <i>unconstrained</i> one: it is an exact match by inference, so it would beat
+        /// every overload needing a conversion and quietly swallow anything undeclared into a
+        /// <c>ToString()</c> path. The constraint is what makes this the exception rather than a reversal -
+        /// a type that does not implement <see cref="IRespArgument"/> is not applicable at all, so it still
+        /// fails to compile, and with a <i>better</i> diagnostic than before (CS0315 names the interface,
+        /// where the closed overload set produced a CS1503 naming an arbitrary member).
+        /// </para>
+        /// <para>
+        /// Measured, not assumed, on the three cases that decide whether this is safe: a dedicated
+        /// non-generic overload still wins when both apply; an implicit conversion does <b>not</b> win
+        /// (opting in beats an incidental conversion, which is the wanted answer); and a <c>struct</c>
+        /// implementer is a constrained call, so nothing boxes.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted<T>(T value) where T : IRespArgument
+        {
+            DemandCommand();
+            if (value is null) throw new ArgumentNullException(nameof(value));
+            value.WriteTo(ref this);
+        }
+
+        /// <summary>Copy one already-framed single-token literal in, advancing the counters by one.</summary>
+        private void AppendPreframed(scoped ReadOnlySpan<byte> framed)
+        {
+            Ensure(framed.Length);
+            framed.CopyTo(_buffer.AsSpan(_offset));
+            _offset += framed.Length;
+            _args++;
+            _argIndex++;
+        }
+
+        /// <summary>
         /// Write an already-framed fragment verbatim. Note the argument counters advance by
         /// <see cref="RespFragment.ArgCount"/>, not by one, so a multi-token fragment does not shift the
         /// key-mark bit positions of everything after it.

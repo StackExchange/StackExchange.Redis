@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace StackExchange.Redis;
 
@@ -275,36 +275,51 @@ public readonly struct Expiration
         static int ThrowEnxNotSupported() => throw new NotSupportedException("ENX is not supported for this command.");
     }
 
+    /// <summary>
+    /// The already-framed RESP token naming the mode - <c>EX</c>, <c>PXAT</c>, <c>KEEPTTL</c>, ... - or
+    /// empty when this expiration contributes no arguments at all.
+    /// </summary>
+    /// <remarks>
+    /// Shared by every writer rather than restated per writer: this switch is the whole of the mode
+    /// selection, and it is the part that would silently diverge if each writer kept its own copy.
+    /// <see cref="HasExpirationValue"/> says whether a numeric operand follows it.
+    /// </remarks>
+    internal ReadOnlySpan<byte> OperandResp
+    {
+        get
+        {
+            if (IsNone) return default;
+            if (IsKeepTtl) return "$7\r\nKEEPTTL\r\n"u8;
+            if (IsPersist) return "$7\r\nPERSIST\r\n"u8;
+            return (_flags & (ExpirationState.IsAbsolute | ExpirationState.IsMillis)) switch
+            {
+                ExpirationState.IsAbsolute | ExpirationState.IsMillis => "$4\r\nPXAT\r\n"u8,
+                ExpirationState.IsAbsolute => "$4\r\nEXAT\r\n"u8,
+                ExpirationState.IsMillis => "$2\r\nPX\r\n"u8,
+                _ => "$2\r\nEX\r\n"u8,
+            };
+        }
+    }
+
+    /// <summary>Whether <see cref="OperandResp"/> is followed by a numeric <see cref="Value"/>.</summary>
+    /// <remarks>False for KEEPTTL and PERSIST, which are complete in themselves.</remarks>
+    internal bool HasExpirationValue => (_flags & ExpirationState.HasExpiration) != 0;
+
+    /// <summary>The already-framed RESP token for ENX, or empty when it does not apply.</summary>
+    internal ReadOnlySpan<byte> ExpireIfNotExistsResp
+        => HasExpirationValue && IsExpireIfNotExists ? "$3\r\nENX\r\n"u8 : default;
+
     internal void WriteTo(in MessageWriter writer)
     {
-        if (IsNone)
-        {
-            return;
-        }
+        var operand = OperandResp;
+        if (operand.IsEmpty) return;
 
-        if (IsKeepTtl)
+        writer.WriteRaw(operand);
+        if (HasExpirationValue)
         {
-            writer.WriteRaw("$7\r\nKEEPTTL\r\n"u8);
-            return;
-        }
-
-        if (IsPersist)
-        {
-            writer.WriteRaw("$7\r\nPERSIST\r\n"u8);
-            return;
-        }
-
-        writer.WriteRaw((_flags & (ExpirationState.IsAbsolute | ExpirationState.IsMillis)) switch
-        {
-            ExpirationState.IsAbsolute | ExpirationState.IsMillis => "$4\r\nPXAT\r\n"u8,
-            ExpirationState.IsAbsolute => "$4\r\nEXAT\r\n"u8,
-            ExpirationState.IsMillis => "$2\r\nPX\r\n"u8,
-            _ => "$2\r\nEX\r\n"u8,
-        });
-        writer.WriteBulkString(Value);
-        if (IsExpireIfNotExists)
-        {
-            writer.WriteRaw("$3\r\nENX\r\n"u8);
+            writer.WriteBulkString(Value);
+            var enx = ExpireIfNotExistsResp;
+            if (!enx.IsEmpty) writer.WriteRaw(enx);
         }
     }
 }

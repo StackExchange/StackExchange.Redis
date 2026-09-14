@@ -280,34 +280,39 @@ public readonly struct ValueCondition
         _ => 0,
     };
 
+    /// <summary>
+    /// The already-framed RESP keyword for this condition - <c>NX</c>, <c>IFDEQ</c>, ... - or empty when
+    /// the condition contributes no arguments.
+    /// </summary>
+    /// <remarks>
+    /// Shared by every writer rather than restated per writer; see the same note on
+    /// <see cref="Expiration.OperandResp"/>. <see cref="IsValueTest"/> and <see cref="IsDigestTest"/> say
+    /// what follows it, and in which encoding.
+    /// </remarks>
+    internal ReadOnlySpan<byte> KeywordResp => _kind switch
+    {
+        ConditionKind.Exists => "$2\r\nXX\r\n"u8,
+        ConditionKind.NotExists => "$2\r\nNX\r\n"u8,
+        ConditionKind.ValueEquals => "$4\r\nIFEQ\r\n"u8,
+        ConditionKind.ValueNotEquals => "$4\r\nIFNE\r\n"u8,
+        ConditionKind.DigestEquals => "$5\r\nIFDEQ\r\n"u8,
+        ConditionKind.DigestNotEquals => "$5\r\nIFDNE\r\n"u8,
+        _ => default,
+    };
+
     internal void WriteTo(in MessageWriter writer)
     {
-        switch (_kind)
+        var keyword = KeywordResp;
+        if (keyword.IsEmpty) return;
+
+        writer.WriteRaw(keyword);
+        if (IsValueTest)
         {
-            case ConditionKind.Exists:
-                writer.WriteRaw("$2\r\nXX\r\n"u8);
-                break;
-            case ConditionKind.NotExists:
-                writer.WriteRaw("$2\r\nNX\r\n"u8);
-                break;
-            case ConditionKind.ValueEquals:
-                writer.WriteRaw("$4\r\nIFEQ\r\n"u8);
-                writer.WriteBulkString(_value);
-                break;
-            case ConditionKind.ValueNotEquals:
-                writer.WriteRaw("$4\r\nIFNE\r\n"u8);
-                writer.WriteBulkString(_value);
-                break;
-            case ConditionKind.DigestEquals:
-                writer.WriteRaw("$5\r\nIFDEQ\r\n"u8);
-                var written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
-                writer.WriteBulkString(written);
-                break;
-            case ConditionKind.DigestNotEquals:
-                writer.WriteRaw("$5\r\nIFDNE\r\n"u8);
-                written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
-                writer.WriteBulkString(written);
-                break;
+            writer.WriteBulkString(_value);
+        }
+        else if (IsDigestTest)
+        {
+            writer.WriteBulkString(WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]));
         }
     }
 

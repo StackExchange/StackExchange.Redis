@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
@@ -147,13 +147,63 @@ namespace StackExchange.Redis.Interpolated
                 => strings.Context.SendAsync<RedisValue>(
                     $"{RedisCommand.GET}{key}", flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly));
 
-            /// <summary>SET.</summary>
+            /// <summary>SET, in full: expiration and value condition included.</summary>
             /// <param name="key">The key to write.</param>
             /// <param name="value">The value to write.</param>
+            /// <param name="expiry">When the key should expire; default for no expiration.</param>
+            /// <param name="when">The condition the write is subject to; default to write unconditionally.</param>
             /// <param name="flags">Command flags.</param>
-            public ValueTask<bool> Set(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-                => strings.Context.SendAsync<bool>(
-                    $"{RedisCommand.SET}{key}{value}", flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins));
+            /// <remarks>
+            /// <para>
+            /// Deliberately the <b>most complicated</b> command in the spike, because it is the one that
+            /// tests the design rather than demonstrating it: between them <paramref name="expiry"/> and
+            /// <paramref name="when"/> render anywhere from zero to five extra arguments, so the command's
+            /// arity is not known until run time.
+            /// </para>
+            /// <para>
+            /// It is still one straight line of writing. The legacy builder
+            /// (<c>RedisDatabase.GetStringSetMessage</c>) is a ~17-branch decision tree, and most of those
+            /// branches are not about Redis at all - they pick between fixed-arity <c>Message.Create</c>
+            /// overloads, one branch per token count, which is a cost the interpolated form simply does not
+            /// have.
+            /// </para>
+            /// <para>
+            /// <b>It emits the canonical <c>SET</c> and nothing else</b>, where the legacy builder also
+            /// reaches for <c>SETNX</c>, <c>SETEX</c> and <c>PSETEX</c>. <c>SETEX</c>/<c>PSETEX</c> are pure
+            /// arity relics - identical semantics and reply to <c>SET ... EX n</c>. <c>SETNX</c> is
+            /// <b>not</b>: it replies <c>:1</c>/<c>:0</c> where <c>SET ... NX</c> replies <c>+OK</c>/nil, so
+            /// collapsing it here is a real divergence from the old surface, taken deliberately -
+            /// <c>SET ... NX</c> has been available since 2.6.12 and one reply shape beats two.
+            /// </para>
+            /// <para>
+            /// <b>Condition before expiration</b>, which is the documented grammar:
+            /// <c>SET key value [NX|XX|IFEQ cmp] [GET] [EX s|PX ms|EXAT|PXAT|KEEPTTL]</c>. Redis itself
+            /// parses the tail as an order-insensitive loop - which is how the legacy builder gets away with
+            /// emitting <c>EX n XX</c> - but other RESP servers need not be as forgiving, and matching the
+            /// documentation costs nothing.
+            /// </para>
+            /// <para>
+            /// The retry category comes from the condition: a conditional write is checked, an
+            /// unconditional one is last-wins. <see cref="ValueCondition.RetryCategory"/> returns
+            /// <see cref="CommandFlags.None"/> for "no opinion", and <c>WithRetryCategory</c> is first-wins,
+            /// so a caller who names a category still keeps it.
+            /// </para>
+            /// </remarks>
+            public ValueTask<bool> Set(
+                RedisKey key,
+                RedisValue value,
+                Expiration expiry = default,
+                ValueCondition when = default,
+                CommandFlags flags = CommandFlags.None)
+            {
+                var context = strings.Context;
+                flags = flags.WithRetryCategory(when.RetryCategory)
+                             .WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
+
+                var command = context.Compose($"{RedisCommand.SET}{key}{value}{when}{expiry}");
+                var frame = command.Complete();
+                return context.SendAsync(ref frame, flags, RespHandlers.Ok);
+            }
         }
     }
 }

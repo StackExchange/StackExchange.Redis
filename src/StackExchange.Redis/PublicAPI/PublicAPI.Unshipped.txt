@@ -46,6 +46,11 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Interpolated.RespCommand value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Interpolated.RespFragment value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisChannel value) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.Expiration value) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted<T>(T value) -> void
+[SER010]StackExchange.Redis.Interpolated.IRespArgument
+[SER010]StackExchange.Redis.Interpolated.IRespArgument.WriteTo(scoped ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.ValueCondition value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisKey value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisValue value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendLiteral(string! value) -> void
@@ -139,7 +144,7 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).Strings.get -> StackExchange.Redis.Interpolated.RespStrings
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.RespStrings)
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.RespStrings).Get(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RedisValue>
-[SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.RespStrings).Set(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<bool>
+[SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.RespStrings).Set(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.Expiration expiry = default(StackExchange.Redis.Expiration), StackExchange.Redis.ValueCondition when = default(StackExchange.Redis.ValueCondition), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<bool>
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext)
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Strings.get -> StackExchange.Redis.Interpolated.RespStrings
 [SER010]override StackExchange.Redis.Interpolated.RespCommand.ToString() -> string!
@@ -158,7 +163,7 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Value.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.RedisValue>!
 [SER010]static StackExchange.Redis.Interpolated.RespPayload.Create(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.Interpolated.RespPayload!
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.Get(this StackExchange.Redis.Interpolated.RespStrings strings, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RedisValue>
-[SER010]static StackExchange.Redis.Interpolated.RespSurface.Set(this StackExchange.Redis.Interpolated.RespStrings strings, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<bool>
+[SER010]static StackExchange.Redis.Interpolated.RespSurface.Set(this StackExchange.Redis.Interpolated.RespStrings strings, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.Expiration expiry = default(StackExchange.Redis.Expiration), StackExchange.Redis.ValueCondition when = default(StackExchange.Redis.ValueCondition), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<bool>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Strings(StackExchange.Redis.Interpolated.IRespTarget! target) -> StackExchange.Redis.Interpolated.RespStrings
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Strings(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespStrings
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void

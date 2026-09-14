@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -93,7 +93,7 @@ public class RespSurfaceTests
 
         // FireAndForget must not cost the command its retry category. It would have, when the category
         // lived in the parameter's DEFAULT value - passing any flag replaced it with nothing.
-        await target.Strings.Set("k", "v", CommandFlags.FireAndForget);
+        await target.Strings.Set("k", "v", flags: CommandFlags.FireAndForget);
 
         var sent = Assert.Single(executor.Flags);
         Assert.Equal(CommandFlags.FireAndForget, sent & CommandFlags.FireAndForget);
@@ -107,7 +107,7 @@ public class RespSurfaceTests
         var target = Target(executor);
 
         // WithRetryCategory is first-wins, so a caller who names one keeps it
-        await target.Strings.Set("k", "v", CommandFlags.CommandRetryNever);
+        await target.Strings.Set("k", "v", flags: CommandFlags.CommandRetryNever);
         Assert.Equal(CommandFlags.CommandRetryNever, Assert.Single(executor.Flags) & Message.MaskRetryCategory);
     }
 
