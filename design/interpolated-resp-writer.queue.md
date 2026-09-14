@@ -22,6 +22,13 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       `ZRANDMEMBER`, the `*SCAN` family, `TTL`/`PTTL`, `TOUCH`, `PFCOUNT` all sit in
       `CommandRetryReadOnly` alongside `GET` and would be cached wrongly today. A correctness hole, and
       small. `DUMP` wants a second opinion.
+      **Narrowed, not closed, by `CachePolicy.Prefixes`.** These are *command*-shaped defects and prefixes
+      are a *key-space* opt-in, so a non-deterministic command on a declared key is still cached wrongly.
+      What changed is the blast radius: nothing is cached unless its key space was positively declared, so
+      a caller who scopes tightly is no longer exposed on key families they never meant to cache at all.
+      It does largely answer the module worry below for free — `FT.*` names indexes, and an index name is
+      not usually in a data-key prefix list, so those replies now fall out as `RefusedNotTracked` rather
+      than being cached with nothing to invalidate them.
 
 ## Next
 
@@ -69,7 +76,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 - [ ] **Module-read tracking.** Do module reads register for invalidation? A five-minute experiment
       against a real server, never run. Relevant because the docs put the whole `FT.*` family outside
-      server-side tracking.
+      server-side tracking — though a prefix list that names data keys already excludes index names, so
+      the exposure now requires someone to have declared a prefix covering them.
 
 - [ ] **`RespContext` sizing.** Currently 48 bytes. `CachePolicy` rides on the cache and the freshness
       override rides in the service slot, so nothing has grown it yet — but SWR adds knobs, and the
