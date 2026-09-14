@@ -75,16 +75,14 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Whether the RESP bytes were built once, rather than encoded on each use.</summary>
         public bool IsPreformed => _resp is not null;
 
-        /// <summary>The pre-framed RESP for this command, honouring <paramref name="map"/> when it applies.</summary>
-        /// <param name="map">The command map of the context being written.</param>
-        internal ReadOnlySpan<byte> GetResp(CommandMap map)
+        /// <summary>The RESP for this command, honouring the context's command map when it applies.</summary>
+        /// <param name="context">The context being written.</param>
+        internal ReadOnlySpan<byte> GetResp(in RespContext context)
         {
             if (_resp is not null) return _resp; // unknown, preformed: the map has no opinion on it
             if (_name is not null) return default; // unknown, per-call: the caller encodes it
 
-            var resp = map.GetResp(_command);
-            if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(_command);
-            return resp;
+            return context.ResolveCommand(_command);
         }
 
         /// <inheritdoc/>

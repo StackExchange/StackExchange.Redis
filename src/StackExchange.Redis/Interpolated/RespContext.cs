@@ -87,6 +87,45 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        /// <summary>
+        /// Resolve a known command to the bytes this context would send, honouring the command map.
+        /// </summary>
+        /// <param name="command">The command to resolve.</param>
+        /// <exception cref="RedisCommandException">If the command map disables it.</exception>
+        internal ReadOnlySpan<byte> ResolveCommand(RedisCommand command)
+        {
+            var resp = CommandMap.GetResp(command);
+            if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+            return resp;
+        }
+
+        /// <summary>
+        /// Resolve a command <b>name</b> to the bytes this context would send.
+        /// </summary>
+        /// <param name="name">The command name.</param>
+        /// <param name="resp">The bytes to send, when the name is one this library knows.</param>
+        /// <returns>
+        /// <c>false</c> when the name is not a known command, in which case the caller frames it verbatim -
+        /// no command map can affect it, because the map is built by walking the <c>RedisCommand</c> enum.
+        /// </returns>
+        /// <exception cref="RedisCommandException">If the name is known but the command map disables it.</exception>
+        /// <remarks>
+        /// One place, because there are four callers - the string constructor, a leading literal token,
+        /// <see cref="RespCommand"/>, and the enum overload - and "parse, map, and throw if disabled" is
+        /// exactly the sort of three-step rule that drifts when it is written out four times.
+        /// </remarks>
+        internal bool TryResolveCommand(ReadOnlySpan<char> name, out ReadOnlySpan<byte> resp)
+        {
+            if (RedisCommandMetadata.TryParseCI(name, out var parsed) && parsed != RedisCommand.UNKNOWN)
+            {
+                resp = ResolveCommand(parsed);
+                return true;
+            }
+
+            resp = default;
+            return false;
+        }
+
         /// <summary>The client-side cache attached to this context, or <c>null</c> for none.</summary>
         /// <remarks>Convenience over <see cref="TryGetService{T}"/>; the cache is not a field.</remarks>
         public RespClientCache? Cache => TryGetService<RespClientCache>(out var cache) ? cache : null;

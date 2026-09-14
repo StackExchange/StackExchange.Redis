@@ -79,8 +79,7 @@ namespace StackExchange.Redis.Interpolated
         internal RespCommandHandler(int literalLength, int formattedCount, RespContext context, RedisCommand command)
         {
             // resolve FIRST: this throws before anything is rented
-            var resp = context.CommandMap.GetResp(command);
-            if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+            var resp = context.ResolveCommand(command);
 
             _context = context;
             _buffer = ArrayPool<byte>.Shared.Rent(HeaderMax + 64 + resp.Length + literalLength + (formattedCount * 24));
@@ -104,13 +103,7 @@ namespace StackExchange.Redis.Interpolated
         {
             if (command is null) throw new ArgumentNullException(nameof(command));
 
-            ReadOnlySpan<byte> resp = default;
-            var known = RedisCommandMetadata.TryParseCI(command.AsSpan(), out var parsed) && parsed != RedisCommand.UNKNOWN;
-            if (known)
-            {
-                resp = context.CommandMap.GetResp(parsed);
-                if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(parsed);
-            }
+            var known = context.TryResolveCommand(command.AsSpan(), out var resp);
 
             var nameBytes = known ? 0 : Encoding.UTF8.GetByteCount(command);
             _context = context;
@@ -206,12 +199,8 @@ namespace StackExchange.Redis.Interpolated
             {
                 // first thing written: this is the command. A name we know goes through the map - which may
                 // rename or disable it; anything else is framed verbatim, as Execute(string, ...) already does
-                if (RedisCommandMetadata.TryParseCI(value.AsSpan(start, length), out var parsed)
-                    && parsed != RedisCommand.UNKNOWN)
+                if (_context.TryResolveCommand(value.AsSpan(start, length), out var resp))
                 {
-                    var resp = _context.CommandMap.GetResp(parsed);
-                    if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(parsed);
-
                     Ensure(resp.Length);
                     resp.CopyTo(_buffer.AsSpan(_offset));
                     _offset += resp.Length;
@@ -255,8 +244,7 @@ namespace StackExchange.Redis.Interpolated
         {
             if (_hasCommand) throw new InvalidOperationException("The command must be the first argument, and may only be given once.");
 
-            var resp = _context.CommandMap.GetResp(value);
-            if (resp.IsEmpty) throw ExceptionFactory.CommandDisabled(value);
+            var resp = _context.ResolveCommand(value);
 
             Ensure(resp.Length);
             resp.CopyTo(_buffer.AsSpan(_offset));
@@ -288,7 +276,7 @@ namespace StackExchange.Redis.Interpolated
 
             // resolution happens HERE, not at construction: a known command still has to go through this
             // context's map, which may rename or disable it
-            var resp = value.GetResp(_context.CommandMap);
+            var resp = value.GetResp(in _context);
             if (resp.IsEmpty)
             {
                 // an unknown command kept as a name: encode straight into the frame, no intermediate array
