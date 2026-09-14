@@ -227,3 +227,18 @@ static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackEx
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]static StackExchange.Redis.Interpolated.CachePolicy.Default.get -> StackExchange.Redis.Interpolated.CachePolicy!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Result.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.RespResult!>!
+[SER010]static StackExchange.Redis.Interpolated.RespHandlers.ReadOnlyLease.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.ReadOnlyLease<byte>?>!
+StackExchange.Redis.ReadOnlyLease<T>
+StackExchange.Redis.ReadOnlyLease<T>.Dispose() -> void
+StackExchange.Redis.ReadOnlyLease<T>.IsEmpty.get -> bool
+StackExchange.Redis.ReadOnlyLease<T>.Length.get -> int
+StackExchange.Redis.ReadOnlyLease<T>.Memory.get -> System.ReadOnlyMemory<T>
+StackExchange.Redis.ReadOnlyLease<T>.Span.get -> System.ReadOnlySpan<T>
+StackExchange.Redis.ReadOnlyLease<T>.ToArray() -> T[]!
+StackExchange.Redis.RespReaderLeaseExtensions
+static StackExchange.Redis.ReadOnlyLease<T>.Empty.get -> StackExchange.Redis.ReadOnlyLease<T>!
+static StackExchange.Redis.RespReaderExtensions.ReadLease(in RESPite.Messages.RespReader reader) -> StackExchange.Redis.Lease<byte>?
+static StackExchange.Redis.RespReaderLeaseExtensions.ReadLease(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.ReadOnlyLease<byte>?
+*REMOVED*static StackExchange.Redis.RespReaderExtensions.ReadLease(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.Lease<byte>?
+static StackExchange.Redis.ExtensionMethods.AsStream(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, bool ownsLease = true) -> System.IO.Stream?
+static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, System.Text.Encoding? encoding = null) -> string?

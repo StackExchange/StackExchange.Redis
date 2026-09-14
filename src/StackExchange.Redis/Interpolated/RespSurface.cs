@@ -69,6 +69,9 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static IRespHandler<Lease<byte>?> Lease { get; } = new LeaseHandler();
 
+        /// <summary>The reply as a read-only buffer; shares the underlying memory where it can.</summary>
+        public static IRespHandler<ReadOnlyLease<byte>?> ReadOnlyLease { get; } = new ReadOnlyLeaseHandler();
+
         /// <summary>The whole reply, undecoded - the general-purpose answer for commands we do not model.</summary>
         public static IRespHandler<RespResult> Result { get; } = new RespResultHandler();
 
@@ -107,6 +110,7 @@ namespace StackExchange.Redis.Interpolated
                 else if (typeof(T) == typeof(RedisValue[])) handler = Values;
                 else if (typeof(T) == typeof(string)) handler = String;
                 else if (typeof(T) == typeof(Lease<byte>)) handler = Lease;
+                else if (typeof(T) == typeof(ReadOnlyLease<byte>)) handler = ReadOnlyLease;
                 else if (typeof(T) == typeof(RespResult)) handler = Result;
 
                 // Below this line: shapes that belong to ONE command. They are registered so a command
@@ -240,9 +244,27 @@ namespace StackExchange.Redis.Interpolated
             public RespResult Parse(ReadOnlySpan<byte> response) => RespResult.Capture(response);
         }
 
+        /// <summary>The reply as a buffer the caller owns outright, and may write to.</summary>
+        /// <remarks>
+        /// Copies, necessarily: a mutable lease must not point at memory anything else can read. The
+        /// <see cref="ReadOnlyLease{T}"/> sibling is the one that can share. See design notes 6.16.
+        /// </remarks>
         private sealed class LeaseHandler : IRespHandler<Lease<byte>?>
         {
             public Lease<byte>? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+#pragma warning disable CS0618 // Type or member is obsolete - the copying form is what this contract needs
+                return RespReaderExtensions.ReadLease(in reader);
+#pragma warning restore CS0618
+            }
+        }
+
+        /// <summary>The reply as a read-only buffer, which may share rather than copy.</summary>
+        private sealed class ReadOnlyLeaseHandler : IRespHandler<ReadOnlyLease<byte>?>
+        {
+            public ReadOnlyLease<byte>? Parse(ReadOnlySpan<byte> response)
             {
                 var reader = new RespReader(response);
                 reader.MoveNext();

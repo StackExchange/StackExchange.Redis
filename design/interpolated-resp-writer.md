@@ -2345,12 +2345,29 @@ dual backing (`T[]` *or* `IMemoryOwner<T>`) exists to express.
 The rule, in one line: **share what cannot be written; copy what can.** The cache also shares the reply
 payload with itself (`TryComplete` retains rather than copies, §6.3).
 
-**What this means for the existing `ReadLease`.** It is the mutable one, and today it shares — which is
-correct where it is used (single-owner) but is the wrong default under the rule above. Retiring that
-spelling in favour of a read-only one is the plan sketched in §6.17: the old method keeps its symbol for
-binary compatibility and loses its `this`, while a read-only `ReadLease` takes over the call site. The
-return-type change is a **source** break on a shipped API — caught at compile time, and a rebuild on upgrade
-picks up the copy-safe version.
+#### Built: `ReadOnlyLease<byte>`, and retiring the mutable spelling
+
+`RespReaderExtensions.ReadLease` keeps its name, signature and containing type — so anything already
+compiled against it still binds — and merely stops being an extension method, gaining `[Obsolete]`
+explaining where to go. `RespReaderLeaseExtensions.ReadLease` takes over the call site, returning
+`ReadOnlyLease<byte>` and sharing where it can. The old one now **always copies**.
+
+That is a **source** break for callers who named the type or wrote through the result — precisely the
+callers for whom sharing would have been unsafe, which is why a compile error is the right way for them to
+find out. It is recorded as an explicit `*REMOVED*` line in the public API files rather than left to be
+discovered, so the break appears in the API diff.
+
+`ReadOnlyLease<T>` deliberately has **no `ArraySegment`**. `Lease<T>` has one and it hands out the
+underlying array, which for shared memory is a way to reach outside the lease entirely. `DecodeString` and
+`AsStream` still need an array, and get one internally via `MemoryMarshal.TryGetArray` — the library may do
+what it will not offer callers by default. A caller determined to reach the array through `MemoryMarshal`
+themselves can, and that is their responsibility: it is an explicit escape hatch, not an accident.
+
+Sharing **pins**, and that is the remaining cost: the lease holds the whole reply alive.
+`ReadOnlyLease<T>.ToArray()` is the way out when a small value must outlive a large reply. For a *cached*
+reply the pinning is free, because the entry holds that buffer anyway.
+
+The working queue lives in `design/interpolated-resp-writer.queue.md`.
 
 
 ## 7. Analyzer rules
