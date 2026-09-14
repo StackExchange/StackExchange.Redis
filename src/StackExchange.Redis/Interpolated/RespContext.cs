@@ -236,7 +236,10 @@ namespace StackExchange.Redis.Interpolated
         /// <para>
         /// NOTE: the handler cannot be held by <c>using</c>, because a <c>using</c> variable cannot be passed
         /// by <c>ref</c> (CS1657). If the window between Compose and Execute can throw, use try/finally and
-        /// call <see cref="RespCommandHandler.Dispose"/>.
+        /// call <see cref="RespCommandHandler.Dispose"/>. This is the same constraint
+        /// <c>DefaultInterpolatedStringHandler</c> lives under, and accepted for the same reason - see
+        /// design doc section 6.5, where the identical precedent covers abandoning the rented buffer when
+        /// an interpolation throws.
         /// </para>
         /// </remarks>
         public RespCommandHandler Compose([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)

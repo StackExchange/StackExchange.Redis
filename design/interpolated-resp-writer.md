@@ -1081,6 +1081,11 @@ does exactly the same — it rents from `ArrayPool<char>.Shared` and abandons th
 interpolation throws, because the compiler emits no `try`/`finally` around the append sequence. Broken
 usage dumping an incomplete buffer is the established behaviour of the pattern.
 
+The same precedent settles a second wart in the `Compose` path: the handler cannot be held by `using`,
+because a `using` variable cannot be passed by `ref` (CS1657), so a throwing window between `Compose` and
+`Execute` needs try/finally. `DefaultInterpolatedStringHandler` has exactly this shape and exactly this
+limitation; it is a property of the pattern rather than of this design.
+
 It is also harmless here: `MemoryTrackedPool` is a thin wrapper over `ArrayPool<T>.Shared`
 (`MemoryTrackedPool.cs:34`) with no outstanding-rental tracking and no budget, so a dropped buffer is
 simply garbage.
