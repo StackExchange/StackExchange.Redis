@@ -2503,6 +2503,52 @@ break" is spent once at the interface rather than again at the entry point.
 deliberately avoids and which a large constituency depends on. Fine for a spike; but keeping the sync
 member means a real sync path can arrive later without reshaping the API, and it costs nothing now.
 
+### 9.5 Layering: why this stays in SE.Redis for now
+
+**Decision: it stays. Not moving `RespCommandHandler` to RESPite.**
+
+The prize would be real — RESPite already owns `RespReader`, and a matching writer would let anything
+build RESP commands with pooled buffers, key marks and slot folding, with no Redis semantics attached.
+The route looked available too: give the writer an `AppendKey(ReadOnlySpan<byte>)` primitive, let
+`RedisKey` reach it through `IRespArgument`, and key reporting flows down a layer while `RedisKey` stays
+up here.
+
+**What stops it is the command, not the key.** A `RedisCommand` hole can only ever be served by an
+instance member of the handler type (§2.2 — extension lookup never runs for the handler pattern, and the
+CS1503 case proves it), and `RedisCommand` is an `enum`, so `IRespArgument` is closed to it as well.
+Whatever assembly declares the handler must therefore know about `RedisCommand`. `RespCommand` does not
+rescue it either: it *holds* a `RedisCommand`, and resolves through `RespContext.ResolveCommand`, i.e.
+`CommandMap` — renames, disabled commands, per-server-type maps. That is policy, not protocol.
+
+A key is *bytes*; a command is *a lookup*. Bytes hand down a layer cleanly. A lookup drags its policy
+with it.
+
+**The shape that would work, when it is worth doing:** split the type, do not relocate it. RESPite owns a
+`RespWriter` — buffer rental, bulk framing, the `*N` back-fill, argument counters, key marks, slot folding
+— exposing primitives only (`AppendBulk`, `AppendKey(prefix, body)`, a pre-framed form, `Complete`).
+SE.Redis keeps `RespCommandHandler` as the `[InterpolatedStringHandler]`, holding a `RespWriter` **by
+value** and owning the whole hole vocabulary. Verified to compile and run: a `ref struct` may contain
+another `ref struct` by value, and the outer type's `AppendFormatted` members bind normally while
+delegating the writing inward. (CS9050 bars a ref *field* to a ref struct; by-value containment is fine.)
+
+Two things move with it whenever that happens:
+
+- `AppendKey` needs a **two-span** form, `(prefix, body)`. Today the context prefix and any prefix the key
+  already carries from a `KeyPrefixed*` decorator are written straight into the frame rather than
+  concatenated, specifically to avoid the allocation `RedisKey.WithPrefix` would cost.
+- `FoldSlot` calls `ServerSelectionStrategy.GetClusterSlot` — CRC16 over the key bytes. Standard Redis
+  Cluster, so it belongs in the lower layer anyway.
+
+**Why not now:** it is a pure refactor with no behavioural change, across a spike that is still growing;
+moving files today churns everything in flight for nothing. Revisit when the surface stops moving, or
+when something outside this repo actually wants to write RESP commands — whichever comes first.
+
+**Rejected along the way:** "never put a command in a hole, always `Compose(RedisCommand.SET, $"...")`".
+That form is already preferred (§6.5 — resolution happens before the buffer is rented, so a disabled
+command drops nothing on the floor), but it does not rescue the move: `COMMAND INFO <name>`,
+`COMMAND DOCS` and `ACL` rules need a command *as an argument*, which is a hole by definition.
+
+
 ## 10. Open questions
 
 - **Should a `RedisChannel` fold into the same slot as keys?** The spike folds it unconditionally, which
