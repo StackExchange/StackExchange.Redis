@@ -381,3 +381,11 @@ static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redi
 [SER010]StackExchange.Redis.Interpolated.CacheTrackingMode
 [SER010]StackExchange.Redis.Interpolated.CacheTrackingMode.Broadcast = 0 -> StackExchange.Redis.Interpolated.CacheTrackingMode
 [SER010]StackExchange.Redis.Interpolated.CacheTrackingMode.PerKey = 1 -> StackExchange.Redis.Interpolated.CacheTrackingMode
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.EvictionSampleSize.get -> int
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.EvictionSampleSize.init -> void
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.MaxBytes.get -> long?
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.MaxBytes.init -> void
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.MaxEntries.get -> int?
+[SER010]StackExchange.Redis.Interpolated.CacheOptions.MaxEntries.init -> void
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Bytes.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespClientCache.Evicted.get -> long

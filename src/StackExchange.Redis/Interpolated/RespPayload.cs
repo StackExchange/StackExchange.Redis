@@ -67,6 +67,17 @@ namespace StackExchange.Redis.Interpolated
         internal int RefCount => _lease.RefCount;
 
         /// <summary>
+        /// The memory this payload actually holds, which is not the same as the number of bytes it carries.
+        /// </summary>
+        /// <remarks>
+        /// A reply is copied into its own rent from <see cref="ArrayPool{T}"/>, and the shared pool serves
+        /// from power-of-two buckets - so a 33-byte reply holds 64, and a budget counted in payload lengths
+        /// would under-report by up to a factor of two. That is exactly the error that lets a quota fail to
+        /// bind under the workload that most needs it to, so the quota counts this instead.
+        /// </remarks>
+        internal int RetainedBytes => _lease.GetSpan().Length;
+
+        /// <summary>
         /// This reply as a <see cref="RespResult"/> that <b>shares</b> these bytes rather than copying them.
         /// </summary>
         /// <returns>The reply, or <c>null</c> if the buffer had already gone.</returns>

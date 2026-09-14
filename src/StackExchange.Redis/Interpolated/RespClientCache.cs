@@ -54,6 +54,9 @@ namespace StackExchange.Redis.Interpolated
         private long _refusedNoKeys;
         private long _refusedNotTracked;
         private long _refusedTooLarge;
+        private long _evicted;
+        private long _bytes;
+        private int _evictCursor;
         private long _lastSweep = Stopwatch.GetTimestamp();
         private long _refusedRaced;
         private long _redundantFills;
@@ -153,6 +156,24 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>Fills refused because an invalidation landed while the command was in flight.</summary>
         public long RefusedRaced => Volatile.Read(ref _refusedRaced);
+
+        /// <summary>Entries dropped to stay inside <see cref="CacheOptions.MaxBytes"/> or <see cref="CacheOptions.MaxEntries"/>.</summary>
+        /// <remarks>
+        /// Distinct from <see cref="Expired"/> and from a sweep: nothing was wrong with these entries, there
+        /// was simply not room. Rising alongside a healthy hit rate means the budget is the binding
+        /// constraint rather than the data's lifetime, which is a different conversation from "why is
+        /// nothing being cached".
+        /// </remarks>
+        public long Evicted => Volatile.Read(ref _evicted);
+
+        /// <summary>
+        /// The memory currently held by cached replies.
+        /// </summary>
+        /// <remarks>
+        /// What the entries actually hold, not what they carry: replies live in pooled arrays that round up
+        /// to the pool's bucket sizes. See <see cref="CacheOptions.MaxBytes"/>.
+        /// </remarks>
+        public long Bytes => Volatile.Read(ref _bytes);
 
         /// <summary>Fills refused because the reply was larger than <see cref="CacheOptions.MaxPayloadBytes"/>.</summary>
         /// <remarks>
@@ -727,21 +748,26 @@ namespace StackExchange.Redis.Interpolated
             // stays owned by the dictionary. TryRemove hands back the value but NOT the stored key, so
             // removing would strand that key's reference - and disposing our own copy instead would release
             // the wrong one.
+            var entry = new Entry(response, fill.Dependencies);
             if (fill.Replaces
                 && _entries.TryGetValue(entryKey, out var previous)
-                && _entries.TryUpdate(entryKey, new Entry(response, fill.Dependencies), previous))
+                && _entries.TryUpdate(entryKey, entry, previous))
             {
+                Interlocked.Add(ref _bytes, entry.Bytes - previous.Bytes);
                 previous.Payload.Dispose(); // the superseded reply
                 stored.Dispose();           // our key copy was spare; the dictionary kept its own
                 fill.Key.Dispose();
                 Interlocked.Increment(ref _stored);
+                EvictToBudget();
                 return true;
             }
 
-            if (_entries.TryAdd(entryKey, new Entry(response, fill.Dependencies)))
+            if (_entries.TryAdd(entryKey, entry))
             {
+                Interlocked.Add(ref _bytes, entry.Bytes);
                 fill.Key.Dispose(); // the dictionary holds its own references now
                 Interlocked.Increment(ref _stored);
+                EvictToBudget();
                 return true;
             }
 
@@ -780,8 +806,7 @@ namespace StackExchange.Redis.Interpolated
                 if (entry.IsValid && !CachePolicy.IsOlderThan(entry.FilledAt, lifetime)) continue;
                 if (_entries.TryRemove(pair.Key, out var removing))
                 {
-                    removing.Payload.Dispose();
-                    pair.Key.Frame.Dispose();
+                    Release(pair.Key, removing);
                     removed++;
                 }
             }
@@ -820,14 +845,139 @@ namespace StackExchange.Redis.Interpolated
             return Sweep();
         }
 
+        /// <summary>
+        /// Let go of an entry that has already been removed from the table: its payload, its key, and its
+        /// share of the budget.
+        /// </summary>
+        /// <remarks>
+        /// One place, called only by whoever won the <c>TryRemove</c>, so the byte count cannot drift and a
+        /// payload cannot be released twice - which would hand a live buffer back to the pool, since
+        /// <c>Release()</c> is a bare decrement with no idempotence guard.
+        /// </remarks>
+        private void Release(in EntryKey key, Entry entry)
+        {
+            Interlocked.Add(ref _bytes, -entry.Bytes);
+            entry.Payload.Dispose();
+            key.Frame.Dispose();
+        }
+
+        /// <summary>
+        /// Drop entries until the cache is back inside <see cref="CacheOptions.MaxBytes"/> and
+        /// <see cref="CacheOptions.MaxEntries"/>.
+        /// </summary>
+        /// <returns>The number of entries dropped.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Sampled, oldest-of-the-sample.</b> True LRU needs the moment of last use, which means writing
+        /// to an entry on every read - and a read is the one path here that is currently free. Redis
+        /// approximates its own keyspace LRU by sampling for the same reason. See
+        /// <see cref="CacheOptions.EvictionSampleSize"/>.
+        /// </para>
+        /// <para>
+        /// <b>Invalid entries first, and for free.</b> The sample is walked anyway, so anything already dead
+        /// is taken on sight rather than being scored: it costs nothing to release and, unlike a live entry,
+        /// nobody wanted it. Only if the sample was all-live does the oldest of them go.
+        /// </para>
+        /// <para>
+        /// Runs after a store, so the budget is a target the cache returns to rather than a wall - it is
+        /// briefly overshot by one entry. Refusing the store instead would throw away a reply already paid
+        /// for in full.
+        /// </para>
+        /// <para>
+        /// The loop is bounded by <see cref="Count"/> rather than by "until it fits": under concurrent
+        /// stores it might otherwise never catch up, and evicting for ever is a worse failure than being
+        /// briefly over budget.
+        /// </para>
+        /// </remarks>
+        private int EvictToBudget()
+        {
+            if (!Options.HasBudget) return 0;
+
+            var evicted = 0;
+            for (var attempts = _entries.Count; attempts > 0 && IsOverBudget(); attempts--)
+            {
+                if (!TryEvictOne()) break;
+                evicted++;
+            }
+
+            if (evicted != 0) Interlocked.Add(ref _evicted, evicted);
+            return evicted;
+        }
+
+        private bool IsOverBudget()
+            => (Options.MaxBytes is long maxBytes && Volatile.Read(ref _bytes) > maxBytes)
+               || (Options.MaxEntries is int maxEntries && _entries.Count > maxEntries);
+
+        /// <remarks>
+        /// <para>
+        /// The enumerator of a <see cref="ConcurrentDictionary{TKey, TValue}"/> is a moving target and that
+        /// is fine here: a sample does not need to be a snapshot, only a handful of real entries. Taking the
+        /// first few is a poor sample when the enumeration order is stable, which is why the starting point
+        /// moves - otherwise the same few entries would be offered up every time and evicted in turn,
+        /// regardless of age.
+        /// </para>
+        /// <para>
+        /// Two details that are easy to get subtly wrong. The start is chosen so a <b>whole</b> sample is
+        /// always available - stopping at the end of the enumeration rather than wrapping would truncate
+        /// samples that began near it, which quietly under-samples everything at the front of the table.
+        /// And the cursor advances per call rather than coming from the clock: a burst of evictions happens
+        /// far faster than <c>Environment.TickCount</c> changes, so a clock-derived start would hand out
+        /// the same window repeatedly within one burst.
+        /// </para>
+        /// </remarks>
+        private bool TryEvictOne()
+        {
+            var sampleSize = Options.EvictionSampleSize;
+            var count = _entries.Count;
+            var skip = count <= sampleSize
+                ? 0
+                : (int)((uint)Interlocked.Increment(ref _evictCursor) % (uint)(count - sampleSize + 1));
+
+            EntryKey oldestKey = default;
+            Entry? oldest = null;
+            var seen = 0;
+            var index = 0;
+
+            foreach (var pair in _entries)
+            {
+                if (index++ < skip) continue;
+
+                // already dead: no scoring needed, and nobody is losing anything they wanted
+                if (!pair.Value.IsValid)
+                {
+                    if (!_entries.TryRemove(pair.Key, out var dead)) continue;
+                    Release(pair.Key, dead);
+                    return true;
+                }
+
+                if (oldest is null || pair.Value.FilledAt < oldest.FilledAt)
+                {
+                    oldest = pair.Value;
+                    oldestKey = pair.Key;
+                }
+
+                if (++seen >= sampleSize) break;
+            }
+
+            if (oldest is null)
+            {
+                // the enumeration started past the end of a table that has since shrunk; the caller's
+                // bounded loop will come back round if we are still over budget
+                return false;
+            }
+
+            if (!_entries.TryRemove(oldestKey, out var removed)) return false;
+            Release(oldestKey, removed);
+            return true;
+        }
+
         /// <summary>Release every cached payload and key.</summary>
         public void Dispose()
         {
             foreach (var pair in _entries)
             {
                 if (!_entries.TryRemove(pair.Key, out var entry)) continue;
-                entry.Payload.Dispose();
-                pair.Key.Frame.Dispose();
+                Release(pair.Key, entry);
             }
 
             _keys.InvalidateAll();
@@ -1020,6 +1170,14 @@ namespace StackExchange.Redis.Interpolated
             private int _refreshing;
 
             internal RespPayload Payload { get; } = payload;
+
+            /// <summary>What this entry holds, for the budget; see <see cref="CacheOptions.MaxBytes"/>.</summary>
+            /// <remarks>
+            /// Captured once rather than read from the payload each time: the payload is released when the
+            /// entry goes, and the budget has to be credited by exactly what it was debited, whichever side
+            /// of that release the accounting happens on.
+            /// </remarks>
+            internal int Bytes { get; } = payload.RetainedBytes;
 
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
             internal long FilledAt { get; } = Stopwatch.GetTimestamp();

@@ -1226,4 +1226,181 @@ public class RespClientCacheTests
         Assert.Equal(0, cache.RefusedNotTracked);
     }
 
+    /// <summary>Fill a cache with <paramref name="count"/> distinct single-key entries.</summary>
+    private static void Fill(RespClientCache cache, int count, string response = "$1\r\nx\r\n")
+    {
+        for (var i = 0; i < count; i++)
+        {
+            var frame = Get("key" + i);
+            if (cache.TryBeginFill(ref frame, 0, out var fill))
+            {
+                Complete(cache, fill, response);
+            }
+            else
+            {
+                frame.Dispose();
+            }
+        }
+    }
+
+    /// <summary>An entry limit is honoured, by evicting rather than by refusing.</summary>
+    /// <remarks>
+    /// Eviction runs after the store, so the budget is a target the cache returns to rather than a wall:
+    /// refusing instead would throw away a reply already paid for in full, having no idea yet whether it
+    /// was worth more than what is already held.
+    /// </remarks>
+    [Fact]
+    public void AnEntryLimitEvictsDownToSize()
+    {
+        using var cache = new RespClientCache(new CacheOptions { MaxEntries = 10 });
+
+        Fill(cache, 50);
+
+        Assert.Equal(10, cache.Count);
+        Assert.Equal(50, cache.Stored);   // everything really was stored...
+        Assert.Equal(40, cache.Evicted);  // ...and the excess evicted, not refused
+    }
+
+    /// <summary>A byte budget is honoured, and counts what entries hold rather than what they carry.</summary>
+    [Fact]
+    public void AByteBudgetEvictsDownToSize()
+    {
+        // sizing matters here: a 7-byte reply is rented from the pool's 16-byte bucket, so 200 of them
+        // hold ~3.2KB. A budget above that would be tested by a cache that never reached it.
+        using var cache = new RespClientCache(new CacheOptions { MaxBytes = 512 });
+
+        Fill(cache, 200);
+
+        Assert.True(cache.Bytes <= 512, $"over budget: {cache.Bytes}");
+        Assert.True(cache.Count > 0, "evicted everything");
+        Assert.True(cache.Evicted > 0, "nothing was evicted");
+    }
+
+    /// <summary>The byte count tracks stores, evictions, sweeps and disposal alike.</summary>
+    /// <remarks>
+    /// Drift here is the failure that makes a budget useless without looking broken: a count that only ever
+    /// rises stops admitting anything, and one that only ever falls stops binding. Both are silent.
+    /// </remarks>
+    [Fact]
+    public void TheByteCountReturnsToZeroWhenEverythingGoes()
+    {
+        var cache = new RespClientCache();
+        try
+        {
+            Assert.Equal(0, cache.Bytes);
+            Fill(cache, 20);
+            Assert.True(cache.Bytes > 0);
+
+            // invalidate half, and sweep them
+            for (var i = 0; i < 10; i++) cache.OnInvalidate(Utf8("key" + i));
+            Assert.Equal(10, cache.Sweep());
+            Assert.Equal(10, cache.Count);
+            Assert.True(cache.Bytes > 0);
+        }
+        finally
+        {
+            cache.Dispose();
+        }
+
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(0, cache.Bytes);
+    }
+
+    /// <summary>A refresh replacing an entry adjusts the budget by the difference, not by the whole.</summary>
+    /// <remarks>
+    /// The replace path swaps the value in place rather than removing and re-adding, so it is the one store
+    /// that has to credit the old entry itself. Getting it wrong leaks budget on every refresh, which shows
+    /// up only after a cache has been running for a while - the worst kind of bug to go looking for.
+    /// </remarks>
+    [Fact]
+    public async Task ARefreshAdjustsTheBudgetByTheDifference()
+    {
+        using var cache = new RespClientCache(new CacheOptions
+        {
+            DefaultPolicy = new CachePolicy
+            {
+                RefreshAfter = TimeSpan.FromMilliseconds(40),
+                TimeToLive = TimeSpan.FromMinutes(5),
+            },
+        });
+        var executor = new FakeExecutor("$1\r\nx\r\n");
+        var context = Via(executor, cache);
+
+        var frame = Get("abc");
+        Assert.Equal("$1|x|", await context.SendAsync(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance));
+        var first = cache.Bytes;
+        Assert.True(first > 0);
+
+        await Task.Delay(90); // past the soft threshold: the next read is served AND starts a refresh
+        var again = Get("abc");
+        Assert.Equal("$1|x|", await context.SendAsync(ref again, CommandFlags.CommandRetryReadOnly, TextHandler.Instance));
+
+        Assert.True(
+            await WaitUntil(() => cache.Stored == 2),
+            $"the refresh never landed: stored={cache.Stored} refreshes={cache.Refreshes}");
+
+        Assert.Equal(1, cache.Count);
+        Assert.Equal(first, cache.Bytes); // same size reply: replacing must not have doubled the budget
+    }
+
+    private static async Task<bool> WaitUntil(Func<bool> condition, int millis = 2000)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < millis)
+        {
+            if (condition()) return true;
+            await Task.Delay(10);
+        }
+
+        return condition();
+    }
+
+    /// <summary>Eviction prefers entries that are already dead, and only then the oldest of a sample.</summary>
+    /// <remarks>
+    /// The sample is being walked anyway, so a dead entry is taken on sight: it costs nothing to release
+    /// and, unlike a live one, nobody wanted it. Anything else would evict something useful while something
+    /// useless sat next to it.
+    /// </remarks>
+    [Fact]
+    public void EvictionTakesDeadEntriesBeforeLiveOnes()
+    {
+        // a sample at least as large as the table means the whole table is examined, so this asserts the
+        // preference rather than the luck of which window was sampled
+        using var cache = new RespClientCache(new CacheOptions { MaxEntries = 10, EvictionSampleSize = 64 });
+
+        Fill(cache, 10);
+        Assert.Equal(10, cache.Count);
+
+        // key3 is invalidated but still resident - it is key0 that is OLDEST, so an age-only policy would
+        // take that one and leave the dead entry sitting there
+        cache.OnInvalidate(Utf8("key3"));
+
+        var extra = Get("pushes-us-over");
+        Assert.True(cache.TryBeginFill(ref extra, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+
+        Assert.Equal(10, cache.Count);
+        Assert.Equal(1, cache.Evicted);
+
+        using var dead = Get("key3");
+        Assert.False(cache.TryGet(dead.AsLookupKey(), 0, out _), "the dead entry should have been the one to go");
+
+        using var oldest = Get("key0");
+        Assert.True(cache.TryGet(oldest.AsLookupKey(), 0, out var alive), "the oldest LIVE entry should have survived");
+        alive.Release();
+    }
+
+    /// <summary>Budgets must be positive; null is how you say "no limit".</summary>
+    [Fact]
+    public void NonPositiveBudgetsAreRejected()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxBytes = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxEntries = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { EvictionSampleSize = 0 });
+
+        // and unbounded is the default, because that is what a cache without a budget actually is
+        Assert.Null(CacheOptions.Default.MaxBytes);
+        Assert.Null(CacheOptions.Default.MaxEntries);
+    }
+
 }

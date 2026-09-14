@@ -80,6 +80,88 @@ namespace StackExchange.Redis.Interpolated
         private readonly int? _maxPayloadBytes = 1024 * 1024;
 
         /// <summary>
+        /// The most memory cached replies may hold; <see langword="null"/> for no limit.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Counted as memory held, not bytes carried.</b> Each reply is copied into its own rent from
+        /// <see cref="System.Buffers.ArrayPool{T}"/>, and the shared pool serves from power-of-two buckets,
+        /// so a 33-byte reply holds 64. Budgeting on payload lengths would under-report by up to a factor
+        /// of two - which is the error that lets a quota fail to bind under exactly the workload that
+        /// needed it to.
+        /// </para>
+        /// <para>
+        /// Enforced after a store rather than before: whether an entry fits is not knowable until the reply
+        /// has arrived, and refusing it at that point would throw away something already paid for in full.
+        /// So it is stored, and the cache then evicts down to the budget - which also means the budget is a
+        /// <i>target</i> the cache returns to, briefly overshot, rather than a wall.
+        /// </para>
+        /// <para>
+        /// <see langword="null"/> is the default and means unbounded, which is the honest description of
+        /// what a client-side cache is without one. Pair it with <see cref="MaxEntries"/>: bytes do not
+        /// bound the tracked-key table, which grows with the number of distinct requests rather than their
+        /// size.
+        /// </para>
+        /// </remarks>
+        public long? MaxBytes
+        {
+            get => _maxBytes;
+            init => _maxBytes = value is null or > 0
+                ? value
+                : throw new ArgumentOutOfRangeException(nameof(value), "The memory budget must be positive, or null for no limit.");
+        }
+
+        private readonly long? _maxBytes;
+
+        /// <summary>
+        /// The most entries that may be cached; <see langword="null"/> for no limit.
+        /// </summary>
+        /// <remarks>
+        /// The companion to <see cref="MaxBytes"/>, and not redundant with it: a workload of many tiny
+        /// replies spends almost no memory on payloads while still growing the entry table and the
+        /// tracked-key table, whose costs a byte budget cannot see.
+        /// </remarks>
+        public int? MaxEntries
+        {
+            get => _maxEntries;
+            init => _maxEntries = value is null or > 0
+                ? value
+                : throw new ArgumentOutOfRangeException(nameof(value), "The entry limit must be positive, or null for no limit.");
+        }
+
+        private readonly int? _maxEntries;
+
+        /// <summary>Whether either budget is set.</summary>
+        internal bool HasBudget => _maxBytes is not null || _maxEntries is not null;
+
+        /// <summary>
+        /// How many entries are examined when choosing what to evict.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Sampled, not exact, and deliberately so.</b> True LRU needs the moment of last use, which
+        /// means a write on every <i>read</i> - and a read is the one path in this cache that is currently
+        /// free: a dictionary lookup and a reference-count bump, nothing else. Paying for eviction on every
+        /// hit to make eviction slightly better is the wrong trade, and Redis reached the same conclusion
+        /// about its own keyspace, approximating LRU by sampling rather than maintaining it.
+        /// </para>
+        /// <para>
+        /// So eviction samples this many entries and takes the oldest of them, by fill time. A larger
+        /// sample is a closer approximation at proportionally more work, and the work happens on eviction -
+        /// which is already the expensive path - rather than on every hit.
+        /// </para>
+        /// </remarks>
+        public int EvictionSampleSize
+        {
+            get => _evictionSampleSize;
+            init => _evictionSampleSize = value > 0
+                ? value
+                : throw new ArgumentOutOfRangeException(nameof(value), "The eviction sample size must be positive.");
+        }
+
+        private readonly int _evictionSampleSize = 8;
+
+        /// <summary>
         /// How often dead entries are reclaimed; <see cref="TimeSpan.Zero"/> or less to never sweep.
         /// </summary>
         /// <remarks>

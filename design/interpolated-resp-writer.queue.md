@@ -66,18 +66,6 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Later / decide first
 
-- [ ] **Byte quota and eviction.** `MaxPayloadBytes` bounds one entry; nothing yet bounds the total. Count
-      the *buffer*, not the payload: each reply is copied into its own `ArrayPool<byte>.Shared` rent, and
-      the shared pool rounds to power-of-two buckets, so accounting on payload length under-counts by up to
-      ~2x - which is the error that makes a quota fail to bind under the workload that most needs it.
-      `RefCountedBuffer.Length` is the honest number. A secondary entry-count cap is worth having too,
-      since the key table grows independently of payload bytes.
-      On eviction policy: **LRU would tax the one path that is currently free.** A hit today is a dictionary
-      lookup plus a refcount bump; recency tracking adds a write to every read. Redis approximates LRU by
-      sampling for exactly this reason, and the same answer is available here. Whatever the policy, eviction
-      must release exactly its own reference while readers hold theirs - `Release()` is a bare decrement
-      with no idempotence guard, and `TryRemove` does not hand back the stored key.
-
 - [ ] **Per-context `CachePolicy` override** (`WithCachePolicy`). The other half of the options/policy
       split: policy settings are read-time, so they can vary per call, and the override rides in the
       context's service slot exactly as `MaxCacheAgeService` does. `WithMaxCacheAge` stays as the
@@ -124,7 +112,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Refuse to cache keys outside the tracked prefixes: no announcement, no invalidation path — `e42c8d22`
 - [x] Fire-and-forget is neither cached nor served; sync F+F no longer throws `"No reply."` — `abd87708`
 - [x] Split `CacheOptions` (settled once: prefixes, budget) from `CachePolicy` (read-time, per-call) — `286a461a`
-- [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — this change
+- [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
+- [x] Byte and entry quotas, with sampled eviction — this change
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and
       `Sweep` reclaiming expired entries rather than only invalidated ones — `e2d2ea3c`
 
