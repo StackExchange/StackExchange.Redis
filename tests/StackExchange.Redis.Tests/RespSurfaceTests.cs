@@ -37,6 +37,20 @@ public class RespSurfaceTests
         => new(new RespContext().WithExecutor(executor).WithCache(cache));
 
     [Fact]
+    public void AGroupStructCostsNothingOverTheContext()
+    {
+        // RespStrings holds exactly one RespContext, so it is the same size - the wrapper IS the pun, and
+        // this is what says so. If it ever diverges, someone has added a field to a grouping type.
+        Assert.Equal(
+            System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>(),
+            System.Runtime.CompilerServices.Unsafe.SizeOf<RespStrings>());
+
+        // 64 bytes as of writing, of which RedisChannel ChannelPrefix is 16 - see design notes 3.3 on
+        // shrinking it. Asserted loosely: the point is that it is past register size, not the exact value.
+        Assert.True(System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>() > 32);
+    }
+
+    [Fact]
     public async Task SetAndGetThroughTheGroupedSurface()
     {
         var executor = new FakeExecutor("+OK\r\n", "$5\r\nhello\r\n");

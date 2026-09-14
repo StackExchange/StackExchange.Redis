@@ -544,6 +544,28 @@ If the context is unavailable for some path, command resolution can be **deferre
 handler stores the `RedisCommand` and the concrete implementation resolves it at `Close`/`Execute`.
 That is the same mechanism §3.2 already needs, and it keeps mocks working.
 
+#### How big is it, and should `.Context` be a field?
+
+Measured: **`RespContext` is 64 bytes**, which is past the point where the JIT keeps a struct in registers,
+so a by-value copy is a real one. That prompted the question of whether the grouping structs should expose
+their context as a public *field* rather than a property, to avoid a copy on `strings.Context`.
+
+**No — but the measurement points at something better.** The 64 bytes break down as four references (32),
+a `CancellationToken` (8), `Database` + `ServerType` (8), and **`RedisChannel ChannelPrefix` (16)**. A
+quarter of every context copy is a channel prefix that only pub/sub uses and that the `Strings`, `Hashes`
+and every other data-type group never touch.
+
+So the fix is to **shrink the thing being copied**, not to dodge one copy of it. `ChannelPrefix` is the
+obvious candidate for the services slot that already exists for optional capabilities (§6.7), or for being
+stored as the `byte[]` it is normalised to - the writer only ever wants the bytes. That would take the
+context to 48 bytes and help *every* copy, including the ones inside `Send` on the hot path, rather than
+only the rare external `.Context` read.
+
+Against the public field specifically: the JIT inlines a trivial getter, so partial uses like
+`strings.Context.Database` are usually forwarded anyway; and a public field locks the representation,
+which is precisely what the paragraph above wants to change. (Style is not the objection -
+`.editorconfig` sets SA1401 to `silent`, so public fields are allowed here.)
+
 ### 3.4 The context is not a new idea — it is `MessageWriter`'s parameter list
 
 Long term this replaces `MessageWriter`, and that is the clearest way to see what the context is for:
@@ -2331,6 +2353,10 @@ Added while building the cache (§6.6-6.9):
   context — so it needs a synthetic context or a narrower interface (§6.8).
 - **Bounding the cache.** Invalidated entries linger until `Sweep`, and the key table grows with distinct
   keys seen. Both need a size bound; both fail closed, so bounding is safe (§6.6).
+
+- **Shrink `RespContext`.** 64 bytes, of which `RedisChannel ChannelPrefix` is 16 - a quarter of every
+  copy, for something only pub/sub uses. Moving it into the services slot, or storing the `byte[]` the
+  writer actually wants, takes it to 48. See §3.3.
 
 - **Static key bitmaps.** For fixed-arity commands the key positions are statically known, so the JIT
   may constant-fold the bitmap when the Append chain inlines. Not to be designed around, but the
