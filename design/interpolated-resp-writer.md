@@ -2298,8 +2298,40 @@ cache hit. Per-type rules do not work, because the *same* type is safe in one to
 also makes it immune to the streaming case that makes a byte-lease conditional (a chunked scalar has to be
 assembled to be handed over as bytes; it does not have to be assembled to be *stored*).
 
-A read-only byte lease is parked rather than rejected. `ReadLease` is the template if it comes back, and the
-rule is "share when contiguous **and** single-owner; copy otherwise".
+#### Decided: share internally, copy on the way out
+
+The interpolated surface **always copies what it hands to a caller**. Not a retreat — three reasons, and the
+first is the one that is easy to miss:
+
+- **Sharing pins.** `ReadLease`'s own comment accepts that "a small payload can pin the whole reply -
+  deliberate, and cheaper than the copy". That trade is fine for a reply about to be dropped. With a cache
+  it is much worse: entries live for *minutes*, so a caller keeping one field of a large multi-key reply
+  holds the entire buffer for the life of the entry. Copying a small value out is not only safer, it is
+  **smaller**.
+- **The economics were never there.** The cache's win is skipping a network round trip, not skipping a
+  memcpy of a typically-tiny reply.
+- **It dissolves the whole topology problem.** No `IReadOnlyPayloadReservationProvider`, no "is this buffer
+  shared" flag on `RespReader`, no retiring `ReadLease` by removing its `this`, and therefore no source break
+  on a shipped API.
+
+And a pleasing consequence: **always-copy makes `Lease<byte>` correct again**. It was only ever wrong when
+shared; if nothing outgoing shares, the caller genuinely owns those bytes and a mutable lease is the honest
+type. `ReadOnlyLease<byte>` stops being needed for safety — and arguably at all.
+
+The rule, in one line: **share internally, copy on the way out.** The cache still shares the reply payload
+with itself (`TryComplete` retains rather than copies, §6.3); what it never does is hand a caller a view of
+something anybody else can reach.
+
+**Scope: the new surface only.** Sharing on the existing `ResultProcessor` path is *correct* — it is
+single-owner — and the pinning cost there was a deliberate trade by whoever wrote it. Making that copy too
+is a separate decision, and a larger one than it looks: `ReadLease` is the **only** consumer of
+`TryReservePayload`, so it would leave `IPayloadReservationProvider`, `TryReserve` and `PayloadReservation`
+as dead code, and `RespResult`'s reference counting — which exists precisely so leases can point into it —
+would never exceed one. Worth doing on its own merits or not at all, rather than as a side effect of this.
+
+A read-only byte lease is therefore parked, and would only come back if the outgoing-copy rule were
+revisited. `ReadLease` is the template if so, and the rule would be "share when contiguous **and**
+single-owner; copy otherwise".
 
 
 ## 7. Analyzer rules
