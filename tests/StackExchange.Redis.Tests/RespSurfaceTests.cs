@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite;
 using StackExchange.Redis.Interpolated;
 using Xunit;
 
@@ -39,6 +40,43 @@ public class RespSurfaceTests
 
     private static RespDatabase Target(FakeExecutor executor, RespClientCache? cache = null)
         => new(new RespContext().WithExecutor(executor).WithCache(cache));
+
+    [Fact]
+    public async Task AResultLessSendStillSurfacesAServerError()
+    {
+        // the whole reason the result-less form reads the reply at all: with nothing returned, an error is
+        // the ONLY thing the call can report, so discarding the reply would discard the failure too
+        var executor = new FakeExecutor("-ERR no such key\r\n");
+        var context = new RespContext().WithExecutor(executor);
+
+        await Assert.ThrowsAsync<RespException>(
+            async () => await context.SendAsync($"{RedisCommand.DEL}{(RedisKey)"k"}"));
+    }
+
+    [Fact]
+    public async Task AResultLessSendSendsTheSameBytes()
+    {
+        var executor = new FakeExecutor(":1\r\n");
+        var context = new RespContext().WithExecutor(executor);
+
+        await context.SendAsync($"{RedisCommand.DEL}{(RedisKey)"k"}", CommandFlags.FireAndForget);
+
+        Assert.Equal("*2|$3|DEL|$1|k|", Assert.Single(executor.Sent));
+        Assert.Equal(CommandFlags.FireAndForget, Assert.Single(executor.Flags) & CommandFlags.FireAndForget);
+    }
+
+    [Fact]
+    public void AResultLessSendThatCompletesSynchronouslyAllocatesNoTask()
+    {
+        // the generic overload promises a synchronous completion costs no state machine and no Task;
+        // wrapping it in a plain `async ValueTask` would have quietly given that up
+        var executor = new FakeExecutor(":1\r\n");
+        var context = new RespContext().WithExecutor(executor);
+
+        var pending = context.SendAsync($"{RedisCommand.DEL}{(RedisKey)"k"}");
+        Assert.True(pending.IsCompletedSuccessfully);
+        Assert.Equal(default, pending);
+    }
 
     [Fact]
     public void AGroupStructCostsNothingOverTheContext()

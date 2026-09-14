@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -228,6 +228,47 @@ namespace StackExchange.Redis.Interpolated
         {
             var frame = request.Complete();
             return SendAsync(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require());
+        }
+
+        /// <summary>
+        /// Compose and send a command whose reply carries nothing worth reading:
+        /// <c>await ctx.SendAsync($"{cmd}{key}", flags)</c>.
+        /// </summary>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="request">The command, written as an interpolated string.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <remarks>
+        /// <para>
+        /// The result-less form removes the last piece of ceremony from a command that has no result:
+        /// there is no <c>TResult</c> to name, so there is no type argument, and a command body is just
+        /// <c>=&gt; ctx.SendAsync($"...", flags);</c>.
+        /// </para>
+        /// <para>
+        /// <b>It still reads the reply</b> - via <see cref="RespHandlers.Success"/> - because a server
+        /// error is the only thing a call with no return value can report, and discarding the reply
+        /// wholesale would discard that too.
+        /// </para>
+        /// <para>
+        /// No ambiguity with the generic overloads: a result type cannot be inferred from a return type,
+        /// so an un-annotated call can only bind here, and a <c>SendAsync&lt;T&gt;</c> call can only bind
+        /// there.
+        /// </para>
+        /// <para>
+        /// A synchronously-completed send - notably a cache hit - returns a default
+        /// <see cref="ValueTask"/> and allocates nothing, which is the same promise the generic overload
+        /// makes and would be lost by simply awaiting it in an <c>async</c> wrapper.
+        /// </para>
+        /// </remarks>
+        public static ValueTask SendAsync(
+            this RespContext context,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var frame = request.Complete();
+            var pending = SendAsync(context, ref frame, flags, RespHandlers.Success);
+            return pending.IsCompletedSuccessfully ? default : Awaited(pending);
+
+            static async ValueTask Awaited(ValueTask<bool> pending) => await pending.ConfigureAwait(false);
         }
 
         /// <inheritdoc cref="SendAsync{TResult}(RespContext, ref RespCommandHandler, CommandFlags, IRespHandler{TResult})"/>
