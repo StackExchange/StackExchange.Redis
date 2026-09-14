@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -721,6 +722,49 @@ public class RespClientCacheTests
         // metadata and nothing else: cannot be classified, so it fails closed rather than being stored
         Assert.False(Complete(cache, fill, Attribute));
         Assert.Equal(0, cache.Count);
+    }
+
+    [Fact]
+    public void ADetachedRequestCanStillAnswerForItself()
+    {
+        // the point of the widening: an executor decorator sees a RespRequest and nothing else, so the
+        // request has to carry what routing, retry and caching each need to ask
+        using var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+        using var request = frame.Detach(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache);
+
+        Assert.Equal(4, request.ArgCount);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, request.Flags);
+        Assert.Equal(3, request.KeyCount);
+
+        var ranges = new KeyRange[request.KeyCount];
+        Assert.Equal(3, request.TryGetKeys(ranges));
+        Assert.Equal(
+            new[] { "a", "b", "c" },
+            ranges.Select(r => Encoding.UTF8.GetString(request.GetKey(r).ToArray())).ToArray());
+    }
+
+    [Fact]
+    public void RoutingNeedsOnlyTheSlotAndTheRequestCarriesIt()
+    {
+        var cluster = new RespContext(serverType: ServerType.Cluster);
+        using var frame = cluster.Execute($"{RedisCommand.GET}{(RedisKey)"{tag}:x"}");
+        var slot = frame.Slot;
+        Assert.NotEqual(ServerSelectionStrategy.NoSlot, slot);
+
+        using var request = frame.Detach();
+        Assert.Equal(slot, request.Slot); // one int; no key marks involved in routing at all
+    }
+
+    [Fact]
+    public void MetadataDoesNotAffectRequestIdentity()
+    {
+        using var plain = Get("abc").Detach(CommandFlags.CommandRetryReadOnly);
+        using var different = Get("abc").Detach(CommandFlags.CommandRetryNever | CommandFlags.NoClientCache);
+
+        // identity is the rendered bytes and only the rendered bytes: two callers issuing the same command
+        // with different flags are asking the same question, so they must share a cache entry
+        Assert.Equal(plain, different);
+        Assert.Equal(plain.GetHashCode(), different.GetHashCode());
     }
 
     private static string[] KeyStrings(in RespFrame frame)

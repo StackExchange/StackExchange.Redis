@@ -72,8 +72,8 @@ StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.C
 [SER010]StackExchange.Redis.Interpolated.RespFragment.RespFragment() -> void
 [SER010]StackExchange.Redis.Interpolated.RespFrame
 [SER010]StackExchange.Redis.Interpolated.RespFrame.ArgCount.get -> int
-[SER010]StackExchange.Redis.Interpolated.RespFrame.AsLookupKey() -> StackExchange.Redis.Interpolated.RespRequest
-[SER010]StackExchange.Redis.Interpolated.RespFrame.Detach() -> StackExchange.Redis.Interpolated.RespRequest
+[SER010]StackExchange.Redis.Interpolated.RespFrame.AsLookupKey(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Interpolated.RespRequest
+[SER010]StackExchange.Redis.Interpolated.RespFrame.Detach(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Interpolated.RespRequest
 [SER010]StackExchange.Redis.Interpolated.RespFrame.Dispose() -> void
 [SER010]StackExchange.Redis.Interpolated.RespFrame.GetKey(in StackExchange.Redis.Interpolated.KeyRange range) -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespFrame.HasNoKeys.get -> bool
@@ -98,13 +98,19 @@ StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.C
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespPayload.TryRetain() -> bool
 [SER010]StackExchange.Redis.Interpolated.RespRequest
+[SER010]StackExchange.Redis.Interpolated.RespRequest.ArgCount.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespRequest.Dispose() -> void
 [SER010]StackExchange.Redis.Interpolated.RespRequest.Equals(StackExchange.Redis.Interpolated.RespRequest other) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespRequest.Flags.get -> StackExchange.Redis.CommandFlags
+[SER010]StackExchange.Redis.Interpolated.RespRequest.GetKey(in StackExchange.Redis.Interpolated.KeyRange range) -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespRequest.GetReader() -> RESPite.Messages.RespReader
 [SER010]StackExchange.Redis.Interpolated.RespRequest.IsEmpty.get -> bool
 [SER010]StackExchange.Redis.Interpolated.RespRequest.IsOwned.get -> bool
+[SER010]StackExchange.Redis.Interpolated.RespRequest.KeyCount.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespRequest.RespRequest() -> void
+[SER010]StackExchange.Redis.Interpolated.RespRequest.Slot.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespRequest.Span.get -> System.ReadOnlySpan<byte>
+[SER010]StackExchange.Redis.Interpolated.RespRequest.TryGetKeys(scoped System.Span<StackExchange.Redis.Interpolated.KeyRange> target) -> int
 [SER010]StackExchange.Redis.Interpolated.RespRequest.TryRetain(out StackExchange.Redis.Interpolated.RespRequest retained) -> bool
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.Equals(object? obj) -> bool
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.GetHashCode() -> int

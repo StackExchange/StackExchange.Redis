@@ -42,14 +42,58 @@ namespace StackExchange.Redis.Interpolated
         private readonly int _length;
         private readonly int _hash;
 
-        internal RespRequest(byte[] array, RefCountedBuffer? lease, int offset, int length)
+        // carried over from the frame, because an executor decorator sees only a request. Routing needs the
+        // slot; a cache needs the key marks to register dependencies; retry and cacheability need the flags.
+        // Without these a decorator can ask nothing about what it is sending.
+        private readonly ulong _keyMarks;
+
+        internal RespRequest(
+            byte[] array,
+            RefCountedBuffer? lease,
+            int offset,
+            int length,
+            ulong keyMarks = 0,
+            int slot = ServerSelectionStrategy.NoSlot,
+            int argCount = 0,
+            CommandFlags flags = CommandFlags.None)
         {
             _array = array;
             _lease = lease;
             _offset = offset;
             _length = length;
             _hash = RedisValue.GetHashCode(array.AsSpan(offset, length));
+            _keyMarks = keyMarks;
+            Slot = slot;
+            ArgCount = argCount;
+            Flags = flags;
         }
+
+        /// <summary>The combined cluster slot; routing needs this and nothing else about the keys.</summary>
+        public int Slot { get; }
+
+        /// <summary>The number of RESP arguments, including the command itself.</summary>
+        public int ArgCount { get; }
+
+        /// <summary>
+        /// The command's flags: the retry category a retrying executor needs, and the caching gates.
+        /// </summary>
+        public CommandFlags Flags { get; }
+
+        /// <summary>
+        /// How many arguments were keys, or <c>-1</c> when the request cannot report them.
+        /// </summary>
+        /// <inheritdoc cref="RespFrame.KeyCount" path="/remarks"/>
+        public int KeyCount => RespFrame.KeyCountOf(_keyMarks);
+
+        /// <summary>Recover the key payloads; see <see cref="RespFrame.TryGetKeys"/>.</summary>
+        /// <param name="target">Receives the ranges; size it from <see cref="KeyCount"/>.</param>
+        public int TryGetKeys(scoped Span<KeyRange> target)
+            => _array is null ? -1 : RespFrame.ResolveKeys(_array, _offset, _length, _keyMarks, target);
+
+        /// <summary>Resolve a <see cref="KeyRange"/> against the underlying buffer.</summary>
+        /// <param name="range">The range to resolve.</param>
+        public ReadOnlySpan<byte> GetKey(in KeyRange range)
+            => _array is null ? default : new(_array, range.Offset, range.Length);
 
         /// <summary>Whether this key refers to anything; a <c>default</c> instance does not.</summary>
         public bool IsEmpty => _array is null;
@@ -114,6 +158,11 @@ namespace StackExchange.Redis.Interpolated
         /// Content equality is the entire point: the lookup key and the stored key are different rentals of
         /// different arrays. Canonicality of the rendering is therefore a correctness property - see design
         /// doc section 6.
+        /// </remarks>
+        /// <remarks>
+        /// Note what is NOT compared: slot, arg count, flags and key marks. Identity is the rendered bytes
+        /// and only the rendered bytes, because that is what the cache is keyed on - two callers issuing
+        /// the same command with different <see cref="CommandFlags"/> are asking the same question.
         /// </remarks>
         public bool Equals(RespRequest other)
             => _hash == other._hash && _length == other._length && Span.SequenceEqual(other.Span);

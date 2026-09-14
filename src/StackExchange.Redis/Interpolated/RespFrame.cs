@@ -69,18 +69,18 @@ namespace StackExchange.Redis.Interpolated
         /// caller tracking keys for invalidation would believe it had them all. Commands with that many keys
         /// are rare and large; callers should decline to cache such a frame.
         /// </remarks>
-        public readonly int KeyCount
-        {
-            get
-            {
-                if ((_keyMarks & OverflowFlag) == 0)
-                {
-                    if (_keyMarks == 0) return 0;
-                    return ((_keyMarks >> SlotBits) & SlotMask) == 0 ? 1 : 2;
-                }
+        public readonly int KeyCount => KeyCountOf(_keyMarks);
 
-                return (_keyMarks & TruncatedFlag) != 0 ? -1 : PopCount(_keyMarks & ~OverflowFlag);
+        /// <summary>As <see cref="KeyCount"/>, for a caller holding only the packed marks.</summary>
+        internal static int KeyCountOf(ulong keyMarks)
+        {
+            if ((keyMarks & OverflowFlag) == 0)
+            {
+                if (keyMarks == 0) return 0;
+                return ((keyMarks >> SlotBits) & SlotMask) == 0 ? 1 : 2;
             }
+
+            return (keyMarks & TruncatedFlag) != 0 ? -1 : PopCount(keyMarks & ~OverflowFlag);
         }
 
         private static int PopCount(ulong value)
@@ -108,24 +108,36 @@ namespace StackExchange.Redis.Interpolated
         /// once per frame should cache the result.
         /// </remarks>
         public readonly int TryGetKeys(scoped Span<KeyRange> target)
+            => ResolveKeys(_buffer!, _start, _length, _keyMarks, target);
+
+        /// <summary>
+        /// As <see cref="TryGetKeys"/>, for a caller holding the buffer and marks rather than a frame -
+        /// which is how <see cref="RespRequest"/> answers the same question after <see cref="Detach"/>.
+        /// </summary>
+        internal static int ResolveKeys(
+            byte[] buffer,
+            int start,
+            int length,
+            ulong keyMarks,
+            scoped Span<KeyRange> target)
         {
-            if ((_keyMarks & OverflowFlag) == 0)
+            if ((keyMarks & OverflowFlag) == 0)
             {
                 var count = 0;
-                var a = (int)(_keyMarks & SlotMask);
-                var b = (int)((_keyMarks >> SlotBits) & SlotMask);
+                var a = (int)(keyMarks & SlotMask);
+                var b = (int)((keyMarks >> SlotBits) & SlotMask);
                 var needed = (a != 0 ? 1 : 0) + (b != 0 ? 1 : 0);
                 if (target.Length < needed) return -1;
-                if (a != 0) target[count++] = PayloadOf(a);
-                if (b != 0) target[count++] = PayloadOf(b);
+                if (a != 0) target[count++] = PayloadOf(buffer, a);
+                if (b != 0) target[count++] = PayloadOf(buffer, b);
                 return count;
             }
 
-            if ((_keyMarks & TruncatedFlag) != 0) return -1;
+            if ((keyMarks & TruncatedFlag) != 0) return -1;
 
-            var bitmap = _keyMarks & ~OverflowFlag;
+            var bitmap = keyMarks & ~OverflowFlag;
             if (target.Length < PopCount(bitmap)) return -1;
-            return WalkKeys(bitmap, target);
+            return WalkKeys(buffer, start, length, bitmap, target);
         }
 
         /// <summary>
@@ -136,12 +148,11 @@ namespace StackExchange.Redis.Interpolated
         /// skipping - no <c>RespReader</c>, no allocation. Argument 0 is the command, matching the indices
         /// the writer recorded.
         /// </remarks>
-        private readonly int WalkKeys(ulong bitmap, scoped Span<KeyRange> target)
+        private static int WalkKeys(byte[] buffer, int start, int length, ulong bitmap, scoped Span<KeyRange> target)
         {
-            var buffer = _buffer!;
-            var end = _start + _length;
+            var end = start + length;
 
-            var i = _start;
+            var i = start;
             while (buffer[i] != (byte)'\n') i++; // past the '*N\r\n' header
             i++;
 
@@ -149,20 +160,20 @@ namespace StackExchange.Redis.Interpolated
             while (i < end)
             {
                 var j = i + 1; // past the '$'
-                var length = 0;
+                var bulk = 0;
                 while (buffer[j] != (byte)'\r')
                 {
-                    length = (length * 10) + (buffer[j] - (byte)'0');
+                    bulk = (bulk * 10) + (buffer[j] - (byte)'0');
                     j++;
                 }
 
                 var payload = j + 2;
                 if (arg <= MaxBitmapArg && (bitmap & (1UL << arg)) != 0)
                 {
-                    target[count++] = new KeyRange(payload, length);
+                    target[count++] = new KeyRange(payload, bulk);
                 }
 
-                i = payload + length + 2;
+                i = payload + bulk + 2;
                 arg++;
             }
 
@@ -176,9 +187,8 @@ namespace StackExchange.Redis.Interpolated
         /// Given the buffer-absolute offset of a fragment's '$', parse the self-describing length and return
         /// the payload range; no length needs to be stored alongside the offset.
         /// </summary>
-        private readonly KeyRange PayloadOf(int offset)
+        private static KeyRange PayloadOf(byte[] buffer, int offset)
         {
-            var buffer = _buffer!;
             int i = offset + 1, length = 0;
             while (buffer[i] != (byte)'\r')
             {
@@ -208,11 +218,19 @@ namespace StackExchange.Redis.Interpolated
         /// the frame, so a copy taken earlier still holds the array reference and must not be disposed.
         /// </para>
         /// </remarks>
-        public RespRequest Detach()
+        public RespRequest Detach(CommandFlags flags = CommandFlags.None)
         {
             var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
             _buffer = null; // ownership moves to the lease
-            return new RespRequest(buffer, RefCountedBuffer.Adopt(buffer, buffer.Length), _start, _length);
+            return new RespRequest(
+                buffer,
+                RefCountedBuffer.Adopt(buffer, buffer.Length),
+                _start,
+                _length,
+                _keyMarks,
+                Slot,
+                ArgCount,
+                flags);
         }
 
         /// <summary>
@@ -232,10 +250,18 @@ namespace StackExchange.Redis.Interpolated
         /// when ownership is actually wanted.
         /// </para>
         /// </remarks>
-        public RespRequest AsLookupKey()
+        public RespRequest AsLookupKey(CommandFlags flags = CommandFlags.None)
         {
             var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
-            return new RespRequest(buffer, lease: null, _start, _length);
+            return new RespRequest(
+                buffer,
+                lease: null,
+                _start,
+                _length,
+                _keyMarks,
+                Slot,
+                ArgCount,
+                flags);
         }
 
         /// <summary>Return the underlying buffer to the pool; safe to call more than once.</summary>

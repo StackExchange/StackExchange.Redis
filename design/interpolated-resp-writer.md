@@ -1962,15 +1962,25 @@ that the blast radius is not the author's own code.
    take `in` on parameters. And keep `RespContext` a `readonly struct`; making it a `ref struct` to "make
    it cheap" would make it unusable in the very methods it exists for.
 
-2. **`RespRequest` must carry its own metadata first.** `Detach()` keeps bytes, lease, offset, length and
-   hash — and drops the key marks, the slot and the argument count. So inside
-   `IRespExecutor.Send(in RespRequest)` there is no way to ask which arguments were keys, and a cache
-   decorator cannot begin a fill. Widening the request (a `ulong`, two `int`s) is a prerequisite for the
-   executor-decorator model, not a refinement of it.
+2. ~~**`RespRequest` must carry its own metadata first.**~~ **Done.** `Detach(flags)` and
+   `AsLookupKey(flags)` now carry the key marks, slot, argument count and flags, and the request exposes
+   `KeyCount`/`TryGetKeys`/`GetKey`/`Slot`/`ArgCount`/`Flags`. The mark-resolution logic moved to statics
+   on `RespFrame` so both types answer identically rather than by duplicated code.
 
-3. **A retry executor needs the flags.** "Is this safe to resend" is the `CommandFlags` retry category,
-   and `Send` does not receive it. Same fix as (2), and they should land together or the decorator model
-   does not close. Retry otherwise fits well: it must hold the preformed payload across attempts, which is
+   Note the division of labour this exposes: **routing needs the slot and nothing else** — one `int`,
+   already folded during the write and gated on `ServerType == Cluster`, since CRC16 over every key is the
+   expensive part. Only *caching* needs the key marks, which are a few field writes and so are not gated.
+   The cheap thing is unconditional, the expensive thing is conditional; that asymmetry is deliberate.
+
+   The fold still covers **every** key rather than just the first, because it is not only producing a
+   routing value: it detects cross-slot, which is a correctness check in cluster. First-key-only would
+   yield a plausible slot for a command that must be rejected outright.
+
+   Identity deliberately ignores all of it: `Equals`/`GetHashCode` remain the rendered bytes alone, so two
+   callers issuing the same command with different `CommandFlags` share a cache entry. Pinned by a test.
+
+3. ~~**A retry executor needs the flags.**~~ **Done, with (2)** — `RespRequest.Flags` carries the retry
+   category. Retry otherwise fits well: it must hold the preformed payload across attempts, which is
    exactly what `RespRequest.TryRetain` is for.
 
 4. **Decorator order is silent and load-bearing.** `cache(retry(raw))`: a hit must not traverse retry
@@ -1980,6 +1990,11 @@ that the blast radius is not the author's own code.
 **Cache and retry are not an either/or between "executor" and "context".** The decorator *is* an executor;
 installing it is a `With` on the context. Behaviour composes in the executor chain, configuration composes
 on the context.
+
+**`GetDatabase()` becomes the secondary API.** Long term the primary entry point returns the new root
+interface rather than `IDatabase`; for now it can simply be `NewThing() => GetDatabase()`, since
+`IDatabase` implements it. That keeps the transition a rename rather than a fork, and means the "last
+break" is spent once at the interface rather than again at the entry point.
 
 **Keep `IRespExecutor.Send` (the synchronous member).** Driving sync as
 `AsTask().GetAwaiter().GetResult()` blocks a pool thread for a whole round trip, which today's sync path
