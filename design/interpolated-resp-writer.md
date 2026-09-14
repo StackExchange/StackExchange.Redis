@@ -289,9 +289,32 @@ public static void AppendFormatted(this H h, Vec v)       // no
 extension(ref H h) { public void AppendFormatted(Blob v) } // no (C# 14 extension block)
 ```
 
-The lowering does member lookup against instance members declared on the handler type and stops.
-So nobody — not a consumer, not another assembly here — can extend it after the fact **by adding a
-method**. `IRespArgument` (below) is the sanctioned way back in.
+Re-verified on the current compiler against the real `RespCommandHandler`, and the third case below is
+the one that settles it — it is not "an instance member wins", it is that **extension lookup never runs**:
+
+| setup | `$"{x}"` |
+|---|---|
+| classic `this ref` extension, other instance members present | CS0315 against the *instance* generic |
+| C# 14 `extension(ref H h)` block | CS0315 against the *instance* generic |
+| handler whose only member is `AppendFormatted(int)`, extension takes `Geo` | **CS1503, "cannot convert from 'Geo' to 'int'"** |
+
+The third row is the proof. Ordinary C# consults extensions when no instance method is applicable; here
+none was applicable and the compiler still bound to the instance member and failed the conversion. (That
+is also where the "CS1503 names an arbitrary overload" cost below comes from.)
+
+**Positive control:** the very same extension methods, in the same file with the same usings, compile and
+*run* as ordinary calls — `cmd.AppendFormatted(new Geo())`. So they are genuinely in scope and valid; the
+lowering simply does not look at them.
+
+So nobody — not a consumer, not another assembly here — can extend the hole vocabulary after the fact
+**by adding a method**. `IRespArgument` (below) is the sanctioned way back in, and being an interface on
+the *argument* rather than a method on the *handler* is exactly why it works.
+
+**Consequence for layering (§9.5):** a `RedisCommand` hole can only ever be served by an instance member
+of the handler type. `RedisCommand` is an `enum`, so it cannot implement `IRespArgument` either. Whatever
+assembly declares the handler type must therefore know about `RedisCommand` — which is why the handler
+cannot simply move to RESPite, and why the split is by *layer* (a RESPite `RespWriter` held by value
+inside the SE.Redis handler) rather than by relocation.
 
 Consequences:
 
