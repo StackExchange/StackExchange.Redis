@@ -48,6 +48,28 @@ public sealed class RespResult : IDisposable
         _buffer = buffer;
     }
 
+    /// <summary>
+    /// Capture a complete, already-framed reply from a span.
+    /// </summary>
+    /// <param name="frame">The raw reply, header bytes included.</param>
+    /// <param name="pool">The pool to rent the copy from.</param>
+    /// <remarks>
+    /// The entry point for the interpolated surface, whose replies arrive as a finished frame rather than
+    /// through a connection's reader. It <b>copies</b>, exactly as the connection path does - and for the
+    /// interpolated path that copy is not yet avoidable: sharing needs the reader to know which buffer the
+    /// bytes live in, and a <see cref="ReadOnlySpan{T}"/> does not carry that. See design notes 6.16.
+    /// </remarks>
+    internal static RespResult Capture(ReadOnlySpan<byte> frame, MemoryPool<byte>? pool = null)
+    {
+        var probe = new RespReader(frame);
+        probe.MovePastBof();
+
+        var buffer = RefCountedBuffer.Rent(frame.Length, pool);
+        var result = new RespResult(probe.Prefix, probe.IsNull, buffer);
+        frame.CopyTo(result.RawSpan);
+        return result;
+    }
+
     internal static RespResult Capture(RespPrefix prefix, bool isNull, ref RespReader reader, int length, MemoryPool<byte>? pool)
     {
         if (isNull)

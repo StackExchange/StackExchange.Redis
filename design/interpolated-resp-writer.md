@@ -2247,6 +2247,61 @@ in §6.14. Growing `RespContext` field-by-field past its 48 bytes for those is t
 single small `CacheOptions` in the service slot, which is the pattern `ChannelPrefix` already set (§3.3).
 
 
+### 6.16 `RespResult`, and why a span cannot share a buffer
+
+`RespResult` is registered as a built-in result type, so any command can come back undecoded:
+`ctx.SendAsync<RespResult>($"...")`. That matters most for **other people's** commands — a library like
+NRedisStack reaches the server through the escape hatch and wants the reply, not a shape this library
+happens to model. Registering one handler lights the whole surface up without enumerating a single command.
+
+Keep two things apart: this is the *mechanism*, not permission. Whether a given reply may be **cached** is
+still per-command, and the server does not track the `FT.*` family for invalidation at all.
+
+#### The finding: `Parse(ReadOnlySpan<byte>)` structurally cannot share
+
+`ReadLease` already implements the sharing we want, and picks between two strategies:
+
+```csharp
+if (reader.TryReservePayload(out var reservation))     // contiguous, and the buffer is known
+    return Lease<byte>.Create(reservation.Owner, reservation.Offset, reservation.Length);
+// otherwise rent and copy
+```
+
+The first branch needs the reader to know **which buffer the bytes live in** — which is why
+`RespResult.Read()` constructs `new RespReader(buffer.GetSpan(), buffer)`, passing the buffer as a reader
+*service*.
+
+A `ReadOnlySpan<byte>` cannot carry that. So every handler on the interpolated surface copies, whatever it
+returns, and this is not a quality-of-implementation problem — it is the signature. It shows up concretely
+in the `Lease<byte>` handler, which builds `new RespReader(response)` with no service and therefore always
+takes the copy branch, where the connection path shares.
+
+**So `Parse(ref RespReader)` is not merely about composability.** If the executor constructs the reader with
+the buffer attached, one change unlocks three things: composable handlers (§2.2's argument), `ReadLease`
+sharing instead of copying, and a `RespResult` that reserves rather than captures.
+
+#### ...but sharing is safe per *topology*, not per *type*
+
+The reason the connection path can hand out a **mutable** `Lease<byte>` into its own reply buffer is that a
+reply is **single-owner**: whoever received it owns it, and a lease into it is transitively theirs. The
+existing comment even accepts the consequence — a small payload pins the whole reply, "deliberate, and
+cheaper than the copy".
+
+A **cache entry is multi-owner**. The same move there lets one caller mutate bytes another will read, and
+`Lease<byte>.ArraySegment` hands out the underlying pooled array, so it is not even bounded by the entry.
+
+So the reader's buffer service is precisely the switch: attach it for a fresh reply, withhold it for a
+cache hit. Per-type rules do not work, because the *same* type is safe in one topology and not the other.
+
+`RespResult` is the exception that proves it: its public surface is read-only readers, so it is safe in
+**both** topologies, and it holds the **raw frame** with interpretation deferred to `RespReader` — which
+also makes it immune to the streaming case that makes a byte-lease conditional (a chunked scalar has to be
+assembled to be handed over as bytes; it does not have to be assembled to be *stored*).
+
+A read-only byte lease is parked rather than rejected. `ReadLease` is the template if it comes back, and the
+rule is "share when contiguous **and** single-owner; copy otherwise".
+
+
 ## 7. Analyzer rules
 
 The analyzer **does** reach consumers: `StackExchange.Redis.csproj:83-100` packs both

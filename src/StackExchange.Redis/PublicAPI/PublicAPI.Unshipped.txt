@@ -226,3 +226,4 @@ static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackEx
 [SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, long maxAgeTicks, out StackExchange.Redis.Interpolated.RespPayload? payload) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]static StackExchange.Redis.Interpolated.CachePolicy.Default.get -> StackExchange.Redis.Interpolated.CachePolicy!
+[SER010]static StackExchange.Redis.Interpolated.RespHandlers.Result.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.RespResult!>!

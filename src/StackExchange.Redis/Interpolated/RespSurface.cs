@@ -69,6 +69,9 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static IRespHandler<Lease<byte>?> Lease { get; } = new LeaseHandler();
 
+        /// <summary>The whole reply, undecoded - the general-purpose answer for commands we do not model.</summary>
+        public static IRespHandler<RespResult> Result { get; } = new RespResultHandler();
+
         /// <summary>Checks the reply for a server error, and reads nothing else.</summary>
         /// <remarks>
         /// What a command with no result still has to do. Without it a failed command would complete
@@ -104,6 +107,7 @@ namespace StackExchange.Redis.Interpolated
                 else if (typeof(T) == typeof(RedisValue[])) handler = Values;
                 else if (typeof(T) == typeof(string)) handler = String;
                 else if (typeof(T) == typeof(Lease<byte>)) handler = Lease;
+                else if (typeof(T) == typeof(RespResult)) handler = Result;
 
                 // Below this line: shapes that belong to ONE command. They are registered so a command
                 // body stays one expression, but they are not exposed as named properties - a handler
@@ -207,6 +211,33 @@ namespace StackExchange.Redis.Interpolated
                 reader.MoveNext();
                 return reader.IsNull ? null : reader.ReadString();
             }
+        }
+
+        /// <summary>
+        /// Captures the whole reply, undecoded, as a <see cref="RespResult"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The general-purpose answer, and the one that matters most for <i>other people's</i> commands: a
+        /// library like NRedisStack reaches the server through the escape hatch and wants the reply, not a
+        /// decoded shape this library happens to know. Registering it here means every such command gets
+        /// the new surface without anyone enumerating commands - the plumbing lights up once.
+        /// </para>
+        /// <para>
+        /// Note it is not the same as "cacheable": whether a given command's reply <i>may</i> be cached is
+        /// still per-command, and the server does not track the <c>FT.*</c> family for invalidation at all.
+        /// What generalises is the mechanism.
+        /// </para>
+        /// <para>
+        /// <b>This copies today, and that is not yet avoidable here.</b> Sharing the buffer needs the reader
+        /// to know which buffer the bytes live in - <c>RespResult.Read</c> passes it as a reader service for
+        /// exactly that reason - and a <see cref="ReadOnlySpan{T}"/> parameter cannot carry it. See design
+        /// notes 6.16.
+        /// </para>
+        /// </remarks>
+        private sealed class RespResultHandler : IRespHandler<RespResult>
+        {
+            public RespResult Parse(ReadOnlySpan<byte> response) => RespResult.Capture(response);
         }
 
         private sealed class LeaseHandler : IRespHandler<Lease<byte>?>
