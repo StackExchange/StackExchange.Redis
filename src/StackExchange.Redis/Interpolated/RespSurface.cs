@@ -387,6 +387,12 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        /// <remarks>
+        /// The copying form, matching <see cref="Lease"/> rather than <see cref="ReadOnlyLease"/>: this
+        /// exists to serve <c>IDatabase.HashFieldGetLease*</c>, whose signatures say <see cref="Lease{T}"/>.
+        /// A sharing singleton would be a <see cref="ReadOnlyLease{T}"/> sibling, which is a decision for
+        /// whoever finishes design notes 6.16 rather than one to guess at here.
+        /// </remarks>
         private sealed class SingletonLeaseHandler : IRespHandler<Lease<byte>?>
         {
             public Lease<byte>? Parse(ReadOnlySpan<byte> response)
@@ -395,7 +401,9 @@ namespace StackExchange.Redis.Interpolated
                 reader.MoveNext();
                 if (reader.IsNull) return null;
                 reader.MoveNext();
-                return reader.ReadLease();
+#pragma warning disable CS0618 // the copying form is what this contract needs; see the remarks
+                return RespReaderExtensions.ReadLease(in reader);
+#pragma warning restore CS0618
             }
         }
 
