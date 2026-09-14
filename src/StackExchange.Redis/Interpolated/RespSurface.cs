@@ -35,8 +35,39 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Reads a bulk string reply as a <see cref="RedisValue"/>; null stays null.</summary>
         public static IRespHandler<RedisValue> Value { get; } = new ValueHandler();
 
-        /// <summary>Reads a simple-string reply as success.</summary>
-        public static IRespHandler<bool> Ok { get; } = new OkHandler();
+        /// <summary>Reads a reply as a boolean, in any of the spellings the server uses for one.</summary>
+        /// <remarks>
+        /// <b>One handler, not two.</b> <c>SET</c> replies <c>+OK</c>, <c>SETBIT</c> replies <c>:0</c>/<c>:1</c>,
+        /// RESP3 has <c>#t</c>/<c>#f</c>, and a conditional write that did not happen replies nil -
+        /// four wire shapes for the same question. <see cref="RespReader.ReadBoolean"/> already accepts
+        /// the first three (its two-byte simple-string case IS the <c>IsOK</c> compare), so the only thing
+        /// left to decide here is that nil means "no", which is what it means everywhere it appears.
+        /// A separate OK-only handler would buy one branch and cost every caller a decision.
+        /// </remarks>
+        public static IRespHandler<bool> Boolean { get; } = new BooleanHandler();
+
+        /// <summary>Reads an integer reply.</summary>
+        public static IRespHandler<long> Int64 { get; } = new Int64Handler();
+
+        /// <summary>Reads an integer reply that may be nil, as <c>BITFIELD</c>'s overflow case is.</summary>
+        public static IRespHandler<long?> NullableInt64 { get; } = new NullableInt64Handler();
+
+        /// <summary>Reads a floating-point reply; RESP2 sends these as bulk strings.</summary>
+        public static IRespHandler<double> Double { get; } = new DoubleHandler();
+
+        /// <summary>Reads an array reply as <see cref="RedisValue"/>s; a nil array reads as empty.</summary>
+        public static IRespHandler<RedisValue[]> Values { get; } = new ValuesHandler();
+
+        /// <summary>Reads a bulk string reply as a <see cref="string"/>; null stays null.</summary>
+        public static IRespHandler<string?> String { get; } = new StringHandler();
+
+        /// <summary>Reads a bulk string reply as a <see cref="Lease{T}"/>; null stays null.</summary>
+        /// <remarks>
+        /// The lease always <b>copies</b> here, where the same read against a live reply may instead point
+        /// into the reply's buffer: a handler is handed a span whose lifetime ends when it returns, so
+        /// there is nothing to share. See <see cref="RespReaderExtensions.ReadLease"/>.
+        /// </remarks>
+        public static IRespHandler<Lease<byte>?> Lease { get; } = new LeaseHandler();
 
         /// <summary>Checks the reply for a server error, and reads nothing else.</summary>
         /// <remarks>
@@ -66,7 +97,23 @@ namespace StackExchange.Redis.Interpolated
             {
                 object? handler = null;
                 if (typeof(T) == typeof(RedisValue)) handler = Value;
-                else if (typeof(T) == typeof(bool)) handler = Ok;
+                else if (typeof(T) == typeof(bool)) handler = Boolean;
+                else if (typeof(T) == typeof(long)) handler = Int64;
+                else if (typeof(T) == typeof(long?)) handler = NullableInt64;
+                else if (typeof(T) == typeof(double)) handler = Double;
+                else if (typeof(T) == typeof(RedisValue[])) handler = Values;
+                else if (typeof(T) == typeof(string)) handler = String;
+                else if (typeof(T) == typeof(Lease<byte>)) handler = Lease;
+
+                // Below this line: shapes that belong to ONE command. They are registered so a command
+                // body stays one expression, but they are not exposed as named properties - a handler
+                // nobody can reuse is not part of a vocabulary, and RespHandlers is the vocabulary. If a
+                // shape ever earns a second caller, promoting it is a one-line change.
+                else if (typeof(T) == typeof(ValueCondition?)) handler = s_digest;
+                else if (typeof(T) == typeof(LCSMatchResult)) handler = s_lcsMatch;
+                else if (typeof(T) == typeof(StringIncrementResult<long>)) handler = s_incrementInt64;
+                else if (typeof(T) == typeof(StringIncrementResult<double>)) handler = s_incrementDouble;
+                else if (typeof(T) == typeof(Lease<long?>)) handler = s_nullableInt64Lease;
                 return (IRespHandler<T>?)handler;
             }
         }
@@ -91,13 +138,184 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        private sealed class OkHandler : IRespHandler<bool>
+        private sealed class BooleanHandler : IRespHandler<bool>
         {
             public bool Parse(ReadOnlySpan<byte> response)
             {
                 var reader = new RespReader(response);
                 reader.MoveNext();
-                return reader.IsOK(); // one 16-bit compare, inlined - and accepts '+ok' as well as '+OK'
+
+                // nil is not a failure here, and this is the one place that has to say so: a SET under
+                // NX/XX that did not write, a GETEX on a missing key - the command worked, the answer is no
+                return !reader.IsNull && reader.ReadBoolean();
+            }
+        }
+
+        private sealed class Int64Handler : IRespHandler<long>
+        {
+            public long Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadInt64();
+            }
+        }
+
+        private sealed class NullableInt64Handler : IRespHandler<long?>
+        {
+            public long? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+
+                // a single-operation BITFIELD still replies with an array; unwrap a unit one, as the
+                // MessageWriter path's NullableInt64Processor does, so the caller sees one value
+                if (reader.IsAggregate) reader.MoveNext();
+
+                return reader.IsNull ? null : reader.ReadInt64();
+            }
+        }
+
+        private sealed class DoubleHandler : IRespHandler<double>
+        {
+            public double Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadDouble();
+            }
+        }
+
+        private sealed class ValuesHandler : IRespHandler<RedisValue[]>
+        {
+            public RedisValue[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+
+                // a nil array - which MGET does not send, but a RESP3 server may for an empty aggregate -
+                // reads as empty rather than null, because every caller of an array reply wants to iterate it
+                return reader.ReadPastRedisValues() ?? Array.Empty<RedisValue>();
+            }
+        }
+
+        private sealed class StringHandler : IRespHandler<string?>
+        {
+            public string? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.IsNull ? null : reader.ReadString();
+            }
+        }
+
+        private sealed class LeaseHandler : IRespHandler<Lease<byte>?>
+        {
+            public Lease<byte>? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadLease();
+            }
+        }
+
+        // ---- one-command shapes; reachable through Inbuilt<T>, deliberately not named above ----
+        private static readonly IRespHandler<ValueCondition?> s_digest = new DigestHandler();
+        private static readonly IRespHandler<LCSMatchResult> s_lcsMatch = new LCSMatchHandler();
+        private static readonly IRespHandler<StringIncrementResult<long>> s_incrementInt64 = new IncrementInt64Handler();
+        private static readonly IRespHandler<StringIncrementResult<double>> s_incrementDouble = new IncrementDoubleHandler();
+        private static readonly IRespHandler<Lease<long?>> s_nullableInt64Lease = new NullableInt64LeaseHandler();
+
+        private sealed class DigestHandler : IRespHandler<ValueCondition?>
+        {
+            public ValueCondition? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return ValueCondition.TryReadDigest(in reader, out var digest)
+                    ? digest
+                    : throw new RespException("Unexpected DIGEST reply.");
+            }
+        }
+
+        private sealed class LCSMatchHandler : IRespHandler<LCSMatchResult>
+        {
+            public LCSMatchResult Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return LCSMatchResult.TryRead(ref reader, out var result)
+                    ? result
+                    : throw new RespException("Unexpected LCS IDX reply.");
+            }
+        }
+
+        private sealed class IncrementInt64Handler : IRespHandler<StringIncrementResult<long>>
+        {
+            public StringIncrementResult<long> Parse(ReadOnlySpan<byte> response)
+            {
+                // [value, applied-increment]; under a bound the second is not the one that was asked for
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                if (reader.IsAggregate
+                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var value)
+                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var applied))
+                {
+                    return new StringIncrementResult<long>(value, applied);
+                }
+
+                throw new RespException("Unexpected INCREX reply.");
+            }
+        }
+
+        private sealed class NullableInt64LeaseHandler : IRespHandler<Lease<long?>>
+        {
+            public Lease<long?> Parse(ReadOnlySpan<byte> response)
+            {
+                // BITFIELD's reply: a flat array with one element per sub-operation, nil where
+                // OVERFLOW FAIL skipped one
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                reader.DemandAggregate();
+                if (reader.IsNull) return Lease<long?>.Empty;
+
+                var length = reader.AggregateLength();
+                if (length == 0) return Lease<long?>.Empty;
+
+                var lease = Lease<long?>.Create(length, clear: false);
+                try
+                {
+                    var target = lease.Span;
+                    for (var i = 0; i < length; i++)
+                    {
+                        reader.MoveNextScalar();
+                        target[i] = reader.IsNull ? null : reader.ReadInt64();
+                    }
+                }
+                catch
+                {
+                    lease.Dispose();
+                    throw;
+                }
+
+                return lease;
+            }
+        }
+
+        private sealed class IncrementDoubleHandler : IRespHandler<StringIncrementResult<double>>
+        {
+            public StringIncrementResult<double> Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                if (reader.IsAggregate
+                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var value)
+                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var applied))
+                {
+                    return new StringIncrementResult<double>(value, applied);
+                }
+
+                throw new RespException("Unexpected INCREX reply.");
             }
         }
     }

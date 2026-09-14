@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO.Hashing;
 using System.Runtime.CompilerServices;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
@@ -420,6 +421,36 @@ public readonly struct ValueCondition : Interpolated.IRespArgument
 
     internal ValueCondition ThrowInvalidOperation([CallerMemberName] string? operation = null)
         => throw new InvalidOperationException($"{operation} cannot be used with a {_kind} condition.");
+
+    /// <summary>
+    /// Read a <c>DIGEST</c> reply as the condition a later write can be gated on; null for a key that
+    /// does not exist.
+    /// </summary>
+    /// <param name="reader">The reader, positioned on the reply.</param>
+    /// <param name="digest">The parsed digest, when this returns <see langword="true"/>.</param>
+    /// <remarks>
+    /// Shared by both readers - the <c>ResultProcessor</c> path and the interpolated surface's handler -
+    /// for the same reason <see cref="KeywordResp"/> is shared by both writers: one copy of the shape
+    /// knowledge, so there is nothing to fall out of step.
+    /// </remarks>
+    internal static bool TryReadDigest(in RespReader reader, out ValueCondition? digest)
+    {
+        if (reader.IsNull) // for example, key doesn't exist
+        {
+            digest = null;
+            return true;
+        }
+
+        if (reader.ScalarLengthIs(2 * DigestBytes))
+        {
+            var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[2 * DigestBytes]);
+            digest = ParseDigest(span);
+            return true;
+        }
+
+        digest = null;
+        return false;
+    }
 
     internal When AsWhen() => _kind switch
     {

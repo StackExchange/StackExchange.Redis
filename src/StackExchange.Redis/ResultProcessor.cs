@@ -2076,86 +2076,11 @@ The coordinates as an array of two items x,y (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.IsAggregate)
-                {
-                    // Top-level array: ["matches", matches_array, "len", length_value]
-                    // Use nominal access instead of positional
-                    LCSMatchResult.LCSMatch[]? matchesArray = null;
-                    long longestMatchLength = 0;
+                // the shape lives on the type it produces, so the interpolated surface's handler reads
+                // the identical reply the identical way; see LCSMatchResult.Read.cs
+                if (!StackExchange.Redis.LCSMatchResult.TryRead(ref reader, out var result)) return false;
 
-                    var iter = reader.AggregateChildren();
-                    while (iter.MoveNext() && iter.Value.IsScalar)
-                    {
-                        LCSField field;
-                        unsafe
-                        {
-                            if (!iter.Value.TryParseScalar(&LCSFieldMetadata.TryParse, out field))
-                            {
-                                field = LCSField.Unknown;
-                            }
-                        }
-
-                        if (!iter.MoveNext()) break; // out of data
-
-                        switch (field)
-                        {
-                            case LCSField.Matches:
-                                // Read the matches array
-                                if (iter.Value.IsAggregate)
-                                {
-                                    bool failed = false;
-                                    matchesArray = iter.Value.ReadPastArray(ref failed, static (ref failed, ref reader) =>
-                                    {
-                                        // Don't even bother if we've already failed
-                                        if (!failed && reader.IsAggregate)
-                                        {
-                                            var matchChildren = reader.AggregateChildren();
-                                            if (matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var firstPos)
-                                                && matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var secondPos)
-                                                && matchChildren.MoveNext() && matchChildren.Value.IsScalar && matchChildren.Value.TryReadInt64(out var length))
-                                            {
-                                                return new LCSMatchResult.LCSMatch(firstPos, secondPos, length);
-                                            }
-                                        }
-                                        failed = true;
-                                        return default;
-                                    });
-
-                                    // Check if anything went wrong
-                                    if (failed) matchesArray = null;
-                                }
-                                break;
-
-                            case LCSField.Len:
-                                // Read the length value
-                                if (iter.Value.IsScalar)
-                                {
-                                    longestMatchLength = iter.Value.TryReadInt64(out var totalLen) ? totalLen : 0;
-                                }
-                                break;
-                        }
-                    }
-
-                    if (matchesArray is not null)
-                    {
-                        SetResult(message, new LCSMatchResult(matchesArray, longestMatchLength));
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            private static bool TryReadPosition(ref RespReader reader, out LCSMatchResult.LCSPosition position)
-            {
-                // Expecting a 2-element array: [start, end]
-                position = default;
-                if (!reader.IsAggregate) return false;
-
-                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var start))) return false;
-
-                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var end))) return false;
-
-                position = new LCSMatchResult.LCSPosition(start, end);
+                SetResult(message, result);
                 return true;
             }
         }
