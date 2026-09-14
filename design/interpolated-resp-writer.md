@@ -1393,9 +1393,12 @@ value**, so if the first byte is not `|` then it *is* the first content element'
 test is **exact, not approximate**:
 
 ```csharp
-var prefix = response[0];
-if (prefix == (byte)RespPrefix.Attribute) return IsCacheableBehindAttributes(response); // NoInlining
-return prefix != (byte)RespPrefix.SimpleError && prefix != (byte)RespPrefix.BulkError;
+return (RespPrefix)response[0] switch
+{
+    RespPrefix.Attribute => IsCacheableBehindAttributes(response), // NoInlining
+    RespPrefix.SimpleError or RespPrefix.BulkError => false,
+    _ => true,
+};
 ```
 
 Protocol parsing is reserved for the branch that needs it, which — no server emitting attributes today —

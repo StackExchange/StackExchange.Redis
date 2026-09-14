@@ -383,13 +383,15 @@ namespace StackExchange.Redis.Interpolated
         {
             if (response.IsEmpty) return false;
 
-            // Attributes are the ONLY construct that can precede a value, so if the first byte is not '|'
-            // it IS the first content element's prefix and this test is exact, not approximate. Parsing is
-            // reserved for the case that needs it - which, no server emitting attributes today, is never.
-            var prefix = response[0];
-            if (prefix == (byte)RespPrefix.Attribute) return IsCacheableBehindAttributes(response);
-
-            return prefix != (byte)RespPrefix.SimpleError && prefix != (byte)RespPrefix.BulkError;
+            // Attributes are the ONLY construct that can precede a value, so any other first byte IS the
+            // first content element's prefix - which makes this exact, not approximate. Parsing is reserved
+            // for the one case that needs it; no server emits attributes today, so that is in practice never.
+            return (RespPrefix)response[0] switch
+            {
+                RespPrefix.Attribute => IsCacheableBehindAttributes(response),
+                RespPrefix.SimpleError or RespPrefix.BulkError => false,
+                _ => true,
+            };
         }
 
         /// <summary>
