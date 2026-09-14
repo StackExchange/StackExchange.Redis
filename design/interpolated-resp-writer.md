@@ -1990,9 +1990,27 @@ Two things still to settle:
   slot keeps it there at the cost of a chain walk per cache read. That is the same trade `ChannelPrefix`
   was measured for (§3.3), so measure rather than guess — noting this one is on the *hit* path, where the
   alternative is a network round trip.
-- **There should be a default, not only an override.** The server documentation recommends a maximum TTL on
-  every entry as a backstop against exactly the staleness bugs above. So: a default on the cache, overridable
-  per context.
+- **There must be a default, and it must be finite.** There is no such thing as "no TTL policy" - the
+  absence of a TTL is a policy, and it is `TTL = infinity`. An entry that is never invalidated and never
+  expires is **permanently** stale, which is strictly worse than being briefly over-stale. The server
+  documentation says so directly: *"Putting a max TTL on every key is a good idea, even if it has no TTL.
+  This protects against bugs or connection issues that would make the client have old data in the local
+  copy."*
+
+  Note which way the argument runs. "Invalidation delivery is not wired yet, so a number would be
+  arbitrary" is exactly backwards: while delivery is unwired, the TTL is the **only** freshness mechanism
+  there is, so the backstop matters more, not less.
+
+  **Proposed default: 60 seconds**, and it is a safety bound rather than a tuning knob. What it protects
+  against is a missed invalidation - a connection blip we did not notice, or a bug. Flushing on disconnect
+  (still unwired) plus keepalive detects a real disconnect within seconds to tens of seconds, so a minute
+  is comfortably longer than detection while still bounding the damage when detection itself fails.
+
+  **A second tier is worth considering**: the right default depends on whether invalidation is actually
+  live. With `CLIENT TRACKING` confirmed, the TTL is a backstop against rare losses and can be generous.
+  Without it, the cache is a stale-data generator with a timer, and the honest options are a much shorter
+  bound or refusing to cache at all. Either way the client should be loud about which regime it is in,
+  rather than the difference being invisible.
 
 **Still unwired, and both come straight from the same documentation:** losing the connection must flush the
 cache (`OnFlush()` exists; nothing calls it on disconnect), and there is no TTL of any kind today.
