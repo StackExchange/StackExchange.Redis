@@ -56,9 +56,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="field">The field to read.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue> Get(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.HGET}{key}{field}", flags.WithDefaultCategory(RedisCommand.HGET));
 
@@ -71,9 +69,7 @@ namespace StackExchange.Redis.Interpolated
         /// No fields means no command, as elsewhere: an arity-zero <c>HMGET</c> is a server error, and the
         /// values of no fields is an empty array without asking anyone.
         /// </remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue[]> Get(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => fields.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : hashes.Context.SendAsync<RedisValue[]>(
@@ -85,9 +81,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="field">The field to read.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-#pragma warning disable RS0026 // the hash group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<Lease<byte>?> GetLease(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync<Lease<byte>?>(
                 $"{RedisCommand.HGET}{key}{field}", flags.WithDefaultCategory(RedisCommand.HGET));
 
@@ -119,9 +113,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="hashes">The hash command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the hash group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<long> Length(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync<long>(
                 $"{RedisCommand.HLEN}{key}", flags.WithDefaultCategory(RedisCommand.HLEN));
 
@@ -193,7 +185,6 @@ namespace StackExchange.Redis.Interpolated
         /// <c>SET</c>: there is no way to store "no value", and an empty string is a different one.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool> Set(
             this in RespHashes hashes,
             RedisKey key,
@@ -213,7 +204,6 @@ namespace StackExchange.Redis.Interpolated
 
             return hashes.Context.SendAsync<bool>($"{command}{key}{field}{value}", flags.WithDefaultCategory(command));
         }
-#pragma warning restore RS0026
 
         /// <summary>HMSET: set several fields in one command.</summary>
         /// <param name="hashes">The hash command group.</param>
@@ -225,9 +215,7 @@ namespace StackExchange.Redis.Interpolated
         /// is nothing to return - but the reply is still read, because a server error is the only thing
         /// such a call can report.
         /// </remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask Set(this in RespHashes hashes, RedisKey key, ReadOnlySpan<HashEntry> entries, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => entries.IsEmpty
                 ? default
                 : hashes.Context.SendAsync(
@@ -238,9 +226,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="field">The field to remove.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool> Delete(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync<bool>(
                 $"{RedisCommand.HDEL}{key}{field}", flags.WithDefaultCategory(RedisCommand.HDEL));
 
@@ -249,9 +235,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="fields">The fields to remove.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<long> Delete(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => fields.IsEmpty
                 ? new ValueTask<long>(0L)
                 : hashes.Context.SendAsync<long>(
@@ -268,9 +252,7 @@ namespace StackExchange.Redis.Interpolated
         /// <see cref="Increment(in RespStrings, RedisKey, long, CommandFlags)"/>: the server has no
         /// HDECRBY, and the old surface's HashDecrement is already a negation.
         /// </remarks>
-#pragma warning disable RS0026 // long/double are disambiguated by the amount's type
         public static ValueTask<long> Increment(this in RespHashes hashes, RedisKey key, RedisValue field, long value = 1, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync<long>(
                 $"{RedisCommand.HINCRBY}{key}{field}{value}", flags.WithDefaultCategory(RedisCommand.HINCRBY));
 
@@ -280,9 +262,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="field">The field to increment.</param>
         /// <param name="value">The amount to add.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // long/double are disambiguated by the amount's type
         public static ValueTask<double> Increment(this in RespHashes hashes, RedisKey key, RedisValue field, double value, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync<double>(
                 $"{RedisCommand.HINCRBYFLOAT}{key}{field}{value}", flags.WithDefaultCategory(RedisCommand.HINCRBYFLOAT));
 
@@ -373,9 +353,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="field">The field to read and remove.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue> GetDelete(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync(
                 $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{1}{field}",
                 flags.WithDefaultCategory(RedisCommand.HGETDEL),
@@ -386,9 +364,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="fields">The fields to read and remove.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue[]> GetDelete(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => fields.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : hashes.Context.SendAsync<RedisValue[]>(
@@ -417,9 +393,7 @@ namespace StackExchange.Redis.Interpolated
         /// </param>
         /// <param name="flags">Command flags.</param>
         /// <remarks><inheritdoc cref="GetSetExpiry(in RespStrings, RedisKey, Expiration, CommandFlags)" path="/remarks/para[2]"/></remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue> GetSetExpiry(this in RespHashes hashes, RedisKey key, RedisValue field, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => hashes.Context.SendAsync(
                 $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}",
                 WithGetExCategory(expiry, flags),
@@ -431,9 +405,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="fields">The fields to read.</param>
         /// <param name="expiry">The expiration to apply.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue[]> GetSetExpiry(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => fields.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : hashes.Context.SendAsync<RedisValue[]>(
@@ -476,7 +448,6 @@ namespace StackExchange.Redis.Interpolated
         /// <see cref="When"/> is.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool> SetWithExpiry(
             this in RespHashes hashes,
             RedisKey key,
@@ -485,7 +456,6 @@ namespace StackExchange.Redis.Interpolated
             Expiration expiry = default,
             When when = When.Always,
             CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
         {
             expiry.GetTokenCount(allowEnx: false); // HSETEX has no ENX; say so here rather than on the wire
             return hashes.Context.SendAsync<bool>(
@@ -501,7 +471,6 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="when">Whether the fields must already exist, or must not.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks><inheritdoc cref="SetWithExpiry(in RespHashes, RedisKey, RedisValue, RedisValue, Expiration, When, CommandFlags)" path="/remarks"/></remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool> SetWithExpiry(
             this in RespHashes hashes,
             RedisKey key,
@@ -509,7 +478,6 @@ namespace StackExchange.Redis.Interpolated
             Expiration expiry = default,
             When when = When.Always,
             CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
         {
             if (entries.IsEmpty) return new ValueTask<bool>(false);
 

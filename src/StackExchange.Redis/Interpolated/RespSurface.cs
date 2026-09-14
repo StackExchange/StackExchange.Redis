@@ -139,6 +139,11 @@ namespace StackExchange.Redis.Interpolated
                 else if (typeof(T) == typeof(ExpireResult[])) handler = s_expireResults;
                 else if (typeof(T) == typeof(PersistResult[])) handler = s_persistResults;
                 else if (typeof(T) == typeof(bool[])) handler = s_booleans;
+                else if (typeof(T) == typeof(double?)) handler = s_nullableDouble;
+                else if (typeof(T) == typeof(double?[])) handler = s_nullableDoubles;
+                else if (typeof(T) == typeof(SortedSetEntry[])) handler = s_sortedSetEntries;
+                else if (typeof(T) == typeof(SortedSetEntry?)) handler = s_sortedSetEntry;
+                else if (typeof(T) == typeof(SortedSetPopResult)) handler = s_sortedSetPop;
                 return (IRespHandler<T>?)handler;
             }
         }
@@ -300,6 +305,11 @@ namespace StackExchange.Redis.Interpolated
         private static readonly IRespHandler<ExpireResult[]> s_expireResults = new ExpireResultHandler();
         private static readonly IRespHandler<PersistResult[]> s_persistResults = new PersistResultHandler();
         private static readonly IRespHandler<bool[]> s_booleans = new BooleanArrayHandler();
+        private static readonly IRespHandler<double?> s_nullableDouble = new NullableDoubleHandler();
+        private static readonly IRespHandler<double?[]> s_nullableDoubles = new NullableDoubleArrayHandler();
+        private static readonly IRespHandler<SortedSetEntry[]> s_sortedSetEntries = new SortedSetEntryArrayHandler();
+        private static readonly IRespHandler<SortedSetEntry?> s_sortedSetEntry = new SortedSetEntryHandler();
+        private static readonly IRespHandler<SortedSetPopResult> s_sortedSetPop = new SortedSetPopHandler();
 
         private sealed class DigestHandler : IRespHandler<ValueCondition?>
         {
@@ -447,6 +457,66 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        private sealed class NullableDoubleHandler : IRespHandler<double?>
+        {
+            public double? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.IsNull ? null : reader.ReadDouble();
+            }
+        }
+
+        private sealed class NullableDoubleArrayHandler : IRespHandler<double?[]>
+        {
+            public double?[] Parse(ReadOnlySpan<byte> response)
+            {
+                // ZMSCORE replies nil for a member that is not there, so the element type has to be nullable
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => r.IsNull ? (double?)null : r.ReadDouble(), scalar: true)
+                       ?? Array.Empty<double?>();
+            }
+        }
+
+        private sealed class SortedSetEntryArrayHandler : IRespHandler<SortedSetEntry[]>
+        {
+            // as HashEntryHandler: interleaved in RESP2, possibly jagged in RESP3, decided from the content
+            private static readonly ResultProcessor.SortedSetEntryArrayProcessor Shape = new();
+
+            public SortedSetEntry[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return Shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
+                       ?? Array.Empty<SortedSetEntry>();
+            }
+        }
+
+        private sealed class SortedSetEntryHandler : IRespHandler<SortedSetEntry?>
+        {
+            public SortedSetEntry? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return SortedSetEntry.TryRead(ref reader, out var result)
+                    ? result
+                    : throw new RespException("Unexpected sorted-set pop reply.");
+            }
+        }
+
+        private sealed class SortedSetPopHandler : IRespHandler<SortedSetPopResult>
+        {
+            public SortedSetPopResult Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return SortedSetPopResult.TryRead(ref reader, out var result)
+                    ? result
+                    : throw new RespException("Unexpected ZMPOP reply.");
+            }
+        }
+
         private sealed class BooleanArrayHandler : IRespHandler<bool[]>
         {
             public bool[] Parse(ReadOnlySpan<byte> response)
@@ -501,6 +571,16 @@ namespace StackExchange.Redis.Interpolated
     /// </para>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+
+    // RS0026 warns about overloads that carry optional parameters, because adding one later can make an
+    // existing call ambiguous. That hazard cannot arise here, and saying so once beats a pragma per
+    // command: every member of this class is an extension method whose FIRST parameter is a group type -
+    // RespStrings, RespHashes, RespSets, ... - so two members sharing a name are only ever candidates for
+    // the same call when their receivers are the same group, and within a group the overloads differ in a
+    // parameter that has no default (a span versus a single value, a long versus a double). The names
+    // repeat across groups on purpose: ctx.Strings.Length and ctx.Sets.Length are the same word because
+    // they are the same idea, which is the entire argument for grouping.
+    [SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Extension members on distinct group types; see the comment above")]
     public static partial class RespSurface
     {
     }

@@ -94,9 +94,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the key/keys overloads are disambiguated by the first parameter
         public static ValueTask<RedisValue> Get(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => strings.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
 
@@ -116,9 +114,7 @@ namespace StackExchange.Redis.Interpolated
         /// synchronously and allocates nothing.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the key/keys overloads are disambiguated by the first parameter
         public static ValueTask<RedisValue[]> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => keys.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : strings.Context.SendAsync<RedisValue[]>(
@@ -133,9 +129,7 @@ namespace StackExchange.Redis.Interpolated
         /// overload: the two differ only in return type, and C# does not overload on that. The lease must
         /// be disposed.
         /// </remarks>
-#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<Lease<byte>?> GetLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => strings.Context.SendAsync<Lease<byte>?>(
                 $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
 
@@ -153,9 +147,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read and remove.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<RedisValue> GetDelete(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => strings.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.GETDEL}{key}", flags.WithDefaultCategory(RedisCommand.GETDEL));
 
@@ -181,9 +173,7 @@ namespace StackExchange.Redis.Interpolated
         /// render into a command the server will reject.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<RedisValue> GetSetExpiry(this in RespStrings strings, RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
         {
             var mutatesTtl = expiry.GetTokenCount(allowEnx: false) != 0;
             if (mutatesTtl) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
@@ -196,9 +186,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<long> Length(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => strings.Context.SendAsync<long>(
                 $"{RedisCommand.STRLEN}{key}", flags.WithDefaultCategory(RedisCommand.STRLEN));
 
@@ -297,7 +285,6 @@ namespace StackExchange.Redis.Interpolated
         /// delete and are dropped, which is also what the old builder does.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the single-key and multi-key overloads are disambiguated by the second parameter
         public static ValueTask<bool> Set(
             this in RespStrings strings,
             RedisKey key,
@@ -311,7 +298,6 @@ namespace StackExchange.Redis.Interpolated
                     $"{RedisCommand.SET}{key}{value}{when}{expiry}",
                     flags.WithRetryCategory(when.RetryCategory)
                          .WithDefaultCategory(RedisCommand.SET));
-#pragma warning restore RS0026
 
         /// <summary>MSET/MSETNX/MSETEX: set several keys in one command.</summary>
         /// <param name="strings">The string command group.</param>
@@ -337,7 +323,6 @@ namespace StackExchange.Redis.Interpolated
         /// writing nothing succeeded.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the single-key and multi-key overloads are disambiguated by the second parameter
         public static ValueTask<bool> Set(
             this in RespStrings strings,
             ReadOnlySpan<KeyValuePair<RedisKey, RedisValue>> values,
@@ -368,7 +353,6 @@ namespace StackExchange.Redis.Interpolated
                 ? strings.Context.SendAsync<bool>($"{command}{values.Length}{values}{expiry}{when}", flags)
                 : strings.Context.SendAsync<bool>($"{command}{values}", flags);
         }
-#pragma warning restore RS0026
 
         /// <summary>SET ... GET: write the value, and reply with the one it replaced.</summary>
         /// <param name="strings">The string command group.</param>
@@ -427,7 +411,6 @@ namespace StackExchange.Redis.Interpolated
         /// <see cref="ValueCondition.Always"/> would delete the key the caller was protecting.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the string group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<bool> Delete(
             this in RespStrings strings,
             RedisKey key,
@@ -453,7 +436,6 @@ namespace StackExchange.Redis.Interpolated
                     return ThrowUnsupportedCondition<ValueTask<bool>>(when, nameof(Delete));
             }
         }
-#pragma warning restore RS0026
 
         /// <summary>INCRBY, and INCRBYFLOAT for the floating-point twin.</summary>
         /// <param name="strings">The string command group.</param>
@@ -473,9 +455,7 @@ namespace StackExchange.Redis.Interpolated
         /// branch on every call.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
         public static ValueTask<long> Increment(this in RespStrings strings, RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => strings.Context.SendAsync<long>(
                 $"{RedisCommand.INCRBY}{key}{value}", flags.WithDefaultCategory(RedisCommand.INCRBY));
 
@@ -484,9 +464,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to increment.</param>
         /// <param name="value">The amount to add.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
         public static ValueTask<double> Increment(this in RespStrings strings, RedisKey key, double value, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => strings.Context.SendAsync<double>(
                 $"{RedisCommand.INCRBYFLOAT}{key}{value}", flags.WithDefaultCategory(RedisCommand.INCRBYFLOAT));
 
@@ -512,7 +490,6 @@ namespace StackExchange.Redis.Interpolated
         /// a command the server refuses.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
         public static ValueTask<StringIncrementResult<long>> Increment(
             this in RespStrings strings,
             RedisKey key,
@@ -542,7 +519,6 @@ namespace StackExchange.Redis.Interpolated
             var frame = cmd.Complete();
             return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<long>>.Require());
         }
-#pragma warning restore RS0026
 
         /// <inheritdoc cref="Increment(in RespStrings, RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags)"/>
         /// <param name="strings">The string command group.</param>
@@ -553,7 +529,6 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="upperBound">The highest value the result may take, if any.</param>
         /// <param name="options">Whether a bound clamps the result or rejects the increment.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // long/double, and INCRBY/INCREX, are disambiguated by the amount's type and by the required expiry
         public static ValueTask<StringIncrementResult<double>> Increment(
             this in RespStrings strings,
             RedisKey key,
@@ -583,7 +558,6 @@ namespace StackExchange.Redis.Interpolated
             var frame = cmd.Complete();
             return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<double>>.Require());
         }
-#pragma warning restore RS0026
 
         /// <summary>LCS: the longest common subsequence of two keys' values.</summary>
         /// <param name="strings">The string command group.</param>

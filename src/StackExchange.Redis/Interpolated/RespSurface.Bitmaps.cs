@@ -55,9 +55,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="offset">The bit offset.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the bitmap group's Get/Set/Field share names with other groups' extension methods, but not receiver types
         public static ValueTask<bool> Get(this in RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => bitmaps.Context.SendAsync<bool>(
                 $"{RedisCommand.GETBIT}{key}{offset}", flags.WithDefaultCategory(RedisCommand.GETBIT));
 
@@ -67,9 +65,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="offset">The bit offset; the value is zero-extended up to it.</param>
         /// <param name="bit">The bit to set.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the bitmap group's Get/Set/Field share names with other groups' extension methods, but not receiver types
         public static ValueTask<bool> Set(this in RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => bitmaps.Context.SendAsync<bool>(
                 $"{RedisCommand.SETBIT}{key}{offset}{bit}", flags.WithDefaultCategory(RedisCommand.SETBIT));
 
@@ -205,7 +201,6 @@ namespace StackExchange.Redis.Interpolated
         /// <c>OVERFLOW FAIL</c>.
         /// </para>
         /// </remarks>
-#pragma warning disable RS0026 // the bitmap group's Get/Set/Field share names with other groups' extension methods, but not receiver types
         public static ValueTask<Lease<long?>> Field(
             this in RespBitmaps bitmaps,
             RedisKey key,
@@ -237,7 +232,6 @@ namespace StackExchange.Redis.Interpolated
             var frame = cmd.Complete();
             return bitmaps.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<Lease<long?>>.Require());
         }
-#pragma warning restore RS0026
 
         /// <summary>BITFIELD with a single sub-operation, whose reply is one value rather than a run.</summary>
         /// <param name="bitmaps">The bitmap command group.</param>
@@ -249,9 +243,7 @@ namespace StackExchange.Redis.Interpolated
         /// replies with - so the common case costs neither a lease nor a disposal. <see langword="null"/>
         /// means the operation was skipped by <c>OVERFLOW FAIL</c>.
         /// </remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the third parameter
         public static ValueTask<long?> Field(this in RespBitmaps bitmaps, RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
         {
             // deliberately NOT a one-element span: BitFieldOperation holds a RedisValue, so it cannot be
             // stackalloc'd, and the span-from-a-single-value constructor does not exist on every target

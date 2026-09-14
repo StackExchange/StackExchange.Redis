@@ -46,9 +46,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="value">The member to add.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool> Add(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.SADD}{key}{value}", flags.WithDefaultCategory(RedisCommand.SADD));
 
@@ -57,9 +55,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="values">The members to add.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<long> Add(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => values.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sets.Context.SendAsync<long>(
@@ -70,9 +66,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="value">The member to remove.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool> Remove(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.SREM}{key}{value}", flags.WithDefaultCategory(RedisCommand.SREM));
 
@@ -81,9 +75,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="values">The members to remove.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<long> Remove(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => values.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sets.Context.SendAsync<long>(
@@ -94,9 +86,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="value">The member to look for.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool> Contains(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.SISMEMBER}{key}{value}", flags.WithDefaultCategory(RedisCommand.SISMEMBER));
 
@@ -105,9 +95,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="values">The members to look for.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<bool[]> Contains(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => values.IsEmpty
                 ? new ValueTask<bool[]>(Array.Empty<bool>())
                 : sets.Context.SendAsync<bool[]>(
@@ -117,9 +105,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the set group's members share names with other groups' extension methods, but not receiver types
         public static ValueTask<long> Length(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => sets.Context.SendAsync<long>(
                 $"{RedisCommand.SCARD}{key}", flags.WithDefaultCategory(RedisCommand.SCARD));
 
@@ -145,9 +131,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="flags">Command flags.</param>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue> Pop(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => sets.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.SPOP}{key}", flags.WithDefaultCategory(RedisCommand.SPOP));
 
@@ -161,9 +145,7 @@ namespace StackExchange.Redis.Interpolated
         /// sends a bare <c>SPOP</c> and would remove <b>one</b>. That is a divergence, and a deliberate
         /// one: "pop none" quietly popping one is the kind of thing a caller discovers in production.
         /// </remarks>
-#pragma warning disable RS0026 // the one/many overloads are disambiguated by the second parameter
         public static ValueTask<RedisValue[]> Pop(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
             => count == 0
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : sets.Context.SendAsync<RedisValue[]>(
