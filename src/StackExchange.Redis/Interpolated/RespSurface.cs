@@ -138,6 +138,7 @@ namespace StackExchange.Redis.Interpolated
                 else if (typeof(T) == typeof(long[])) handler = s_int64Array;
                 else if (typeof(T) == typeof(ExpireResult[])) handler = s_expireResults;
                 else if (typeof(T) == typeof(PersistResult[])) handler = s_persistResults;
+                else if (typeof(T) == typeof(bool[])) handler = s_booleans;
                 return (IRespHandler<T>?)handler;
             }
         }
@@ -298,6 +299,7 @@ namespace StackExchange.Redis.Interpolated
         private static readonly IRespHandler<long[]> s_int64Array = new Int64ArrayHandler();
         private static readonly IRespHandler<ExpireResult[]> s_expireResults = new ExpireResultHandler();
         private static readonly IRespHandler<PersistResult[]> s_persistResults = new PersistResultHandler();
+        private static readonly IRespHandler<bool[]> s_booleans = new BooleanArrayHandler();
 
         private sealed class DigestHandler : IRespHandler<ValueCondition?>
         {
@@ -442,6 +444,16 @@ namespace StackExchange.Redis.Interpolated
                 reader.MoveNext();
                 return reader.ReadPastArray(static (ref r) => (ExpireResult)r.ReadInt64(), scalar: true)
                        ?? Array.Empty<ExpireResult>();
+            }
+        }
+
+        private sealed class BooleanArrayHandler : IRespHandler<bool[]>
+        {
+            public bool[] Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.ReadPastArray(static (ref r) => r.ReadBoolean(), scalar: true) ?? Array.Empty<bool>();
             }
         }
 

@@ -82,6 +82,15 @@ public class TransitionalHashFieldTests(ITestOutputHelper output, SharedConnecti
         => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
 }
 
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalSetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : SetTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
 /// <summary>
 /// That the re-runs above are actually re-running anything.
 /// </summary>
@@ -115,6 +124,7 @@ public class TransitionalCoverageTests
     [Theory]
     [InlineData("String")]
     [InlineData("Hash")]
+    [InlineData("Set")]
     public void EveryMemberOfAMovedGroupIsImplemented(string prefix)
     {
         var generated = Generated(prefix, typeof(IDatabase)).Concat(Generated(prefix, typeof(IDatabaseAsync)))
@@ -130,6 +140,7 @@ public class TransitionalCoverageTests
             .Where(x => !x.StartsWith("StringGetWithExpiry", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("HashImport", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("HashScan", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("SetScan", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Empty(expected);

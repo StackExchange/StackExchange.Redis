@@ -127,6 +127,14 @@
         [Resp]
         internal static partial RespFragment Fxx { get; }
 
+        /// <summary>The <c>LIMIT</c> operand; a count follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Limit { get; }
+
+        /// <summary>The <c>APPROX</c> operand of the set-cardinality commands.</summary>
+        [Resp]
+        internal static partial RespFragment Approx { get; }
+
         /// <summary>The <c>NX</c> condition of the hash field-expiry commands.</summary>
         [Resp]
         internal static partial RespFragment Nx { get; }
