@@ -66,8 +66,12 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
     /// <remarks>
     /// The prefix is not decoration: under <c>BCAST</c> with no prefix this connection is told about every
     /// key the rest of the suite touches, and any assertion about a particular key is then competing with
-    /// that traffic. It also gives the test a control - a key outside the prefix is cached but never
-    /// announced, so it can show the cache is genuinely serving rather than quietly missing.
+    /// that traffic.
+    /// <para>
+    /// The <b>same</b> prefix goes on the policy and on the wire, which is the point of
+    /// <see cref="CachePolicy.Prefixes"/>: the set the cache will admit and the set the server agreed to
+    /// announce have to be one set, or entries fall in the gap and stay there.
+    /// </para>
     /// </remarks>
     private async Task<(ConnectionMultiplexer Muxer, RespClientCache Cache)> TrackedAsync(
         string prefix,
@@ -78,7 +82,7 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
         {
             EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } },
             Protocol = RedisProtocol.Resp3,
-            ClientCache = policy ?? new CachePolicy(),
+            ClientCache = policy ?? new CachePolicy { Prefixes = [prefix] },
             DefaultDatabase = database,
             AllowAdmin = true,
         };
@@ -121,13 +125,17 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
 
         var db = muxer.GetDatabase();
         await PrimeAsync(db, cache, tracked, "v1");
-        await PrimeAsync(db, cache, untracked, "v1");
 
         // a repeat read is served locally: nothing new is stored
         var stored = cache.Stored;
         Assert.Equal("v1", await db.Strings.Get(tracked));
-        Assert.Equal("v1", await db.Strings.Get(untracked));
         Assert.Equal(stored, cache.Stored);
+
+        // the untracked key is outside the PREFIX the server agreed to announce, so it is never cached at
+        // all: a hit there could only ever be retired by the lifetime, with nothing able to say it is wrong
+        // sooner. It reads correctly every time, straight from the server.
+        Assert.Equal("v1", await db.Strings.Get(untracked));
+        Assert.Equal(1, cache.RefusedNotTracked);
 
         await writer.StringSetAsync(untracked, "v2");
         await writer.StringSetAsync(tracked, "v2");
@@ -137,10 +145,9 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
             await WaitFor(async () => (string?)await db.Strings.Get(tracked) == "v2"),
             "the invalidation for the tracked key never arrived");
 
-        // ...while the untracked one is outside the PREFIX filter, so nothing is ever said about it and we
-        // keep serving the value we have. That is the cache proving it was in the path all along - without
-        // it, this read would have gone to the server and come back "v2" like the other one.
-        Assert.Equal("v1", await db.Strings.Get(untracked));
+        // ...and the untracked one was never stale, because it was never stored
+        Assert.Equal("v2", await db.Strings.Get(untracked));
+        Assert.Equal(2, cache.RefusedNotTracked); // both reads of it, refused both times
     }
 
     [Fact]
@@ -160,17 +167,15 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
             Writer);
         var writer = other.GetDatabase(dbId);
 
-        // deliberately outside the tracking prefix: a flush is the one invalidation PREFIX cannot filter,
-        // so if this entry goes, it went because the null payload was understood as "everything you have".
-        RedisKey key = "un" + me + ":flushed";
+        RedisKey key = me + ":flushed";
         await writer.StringSetAsync(key, "v1");
 
         var db = muxer.GetDatabase();
         await PrimeAsync(db, cache, key, "v1");
 
-        await writer.StringSetAsync(key, "v2");
-        Assert.Equal("v1", await db.Strings.Get(key)); // still ours; no push could have named it
-
+        // nothing writes the key from here on, so the only thing that can dislodge this entry is the null
+        // payload being understood as "everything you have is gone". Without that, the value is ours for
+        // the whole lifetime and the read below keeps saying "v1" long after the server has forgotten it.
         var server = other.GetServer(TestConfig.Current.PrimaryServerAndPort);
         await server.FlushDatabaseAsync(dbId); // a dedicated database: FLUSHDB on the shared one would take the suite with it
 

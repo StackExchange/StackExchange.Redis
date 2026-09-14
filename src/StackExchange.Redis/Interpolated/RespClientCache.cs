@@ -52,6 +52,7 @@ namespace StackExchange.Redis.Interpolated
         private long _stored;
         private long _refusedByFlags;
         private long _refusedNoKeys;
+        private long _refusedNotTracked;
         private long _refusedRaced;
         private long _redundantFills;
         private long _refusedError;
@@ -127,6 +128,22 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>Fills refused because the request named no keys, so nothing could ever invalidate it.</summary>
         public long RefusedNoKeys => Volatile.Read(ref _refusedNoKeys);
+
+        /// <summary>
+        /// Fills refused because a key falls outside <see cref="CachePolicy.Prefixes"/>, so the server will
+        /// never announce a change to it.
+        /// </summary>
+        /// <remarks>
+        /// The same defect as <see cref="RefusedNoKeys"/>, arrived at from the other direction: there, the
+        /// request declared nothing to depend on; here, it declared something the server was never asked to
+        /// watch. Either way the entry would be served until <see cref="CachePolicy.TimeToLive"/> retires
+        /// it, with nothing in the system able to say it is wrong sooner.
+        /// <para>
+        /// A high count is the signal that the prefix list and the workload disagree - either the list is
+        /// too narrow to be worth having, or commands are reaching keys nobody meant to cache.
+        /// </para>
+        /// </remarks>
+        public long RefusedNotTracked => Volatile.Read(ref _refusedNotTracked);
 
         /// <summary>Fills refused because an invalidation landed while the command was in flight.</summary>
         public long RefusedRaced => Volatile.Read(ref _refusedRaced);
@@ -374,6 +391,11 @@ namespace StackExchange.Redis.Interpolated
         /// Key generations are captured here, before the refresh is sent, exactly as for a first fill: a
         /// write landing while the refresh is in flight must lose, not win.
         /// </para>
+        /// <para>
+        /// No <see cref="CachePolicy.Prefixes"/> check, deliberately: a refresh only ever exists for an
+        /// entry the first fill already admitted, and the policy is fixed for the life of the cache, so
+        /// re-testing it would be work that cannot change the answer.
+        /// </para>
         /// </remarks>
         public bool TryBeginRefresh(in RespRequest request, int database, out RespFill fill)
         {
@@ -503,6 +525,22 @@ namespace StackExchange.Redis.Interpolated
             {
                 fill = default;
                 return false;
+            }
+
+            // EVERY key, not any: the entry depends on all of them, so one key the server was never asked
+            // to watch is enough to make the whole reply uninvalidatable. MGET tracked untracked is not
+            // "mostly fine".
+            if (Policy.HasPrefixes)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    if (!Policy.IsTracked(frame.GetKey(ranges[i])))
+                    {
+                        Interlocked.Increment(ref _refusedNotTracked);
+                        fill = default;
+                        return false;
+                    }
+                }
             }
 
             var deps = count == 0 ? [] : new Dependency[count];

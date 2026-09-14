@@ -2069,6 +2069,48 @@ What is still missing is the negotiation: nothing yet sends `CLIENT TRACKING` on
 sets `ClientCache` and stops there gets a cache that fills, expires on TTL, and is never invalidated. That
 is the next item, and it must refuse loudly without RESP3 rather than quietly behave this way.
 
+#### A prefix list is also a statement about what may be cached
+
+The test above originally had a second key, outside the `PREFIX`, and asserted that it **kept serving the
+old value** — offered as proof that the cache was in the path at all, since without a cache that read would
+have gone to the server and come back changed. It did prove that. It also enshrined a bug.
+
+Under `BCAST` the server announces only keys matching a prefix. An entry whose key matches none of them has
+nothing that will ever say it is wrong: it is served until `TimeToLive` alone retires it. That is the
+`RefusedNoKeys` argument reached from the other side — there the request declared nothing to depend on,
+here it declared something the server was never asked to watch — and it deserves the same answer.
+
+So `CachePolicy.Prefixes` now carries the list, and `TryBeginFill` refuses anything outside it, counted as
+`RefusedNotTracked`. Four decisions inside that:
+
+- **Every key, not any.** The entry depends on all of its keys, so one untracked key makes the whole reply
+  uninvalidatable. `MGET tracked untracked` is not "mostly fine".
+- **Bytes, not characters**, compared against the key as written to the wire. That is the only comparison
+  that means anything: the server matches the bytes it received and names those bytes back, so a context
+  key-prefix or keyspace isolation is already baked in by the time the cache sees it.
+- **Empty list means everything**; an empty *string* is rejected. `""` matches every key, so accepting one
+  would silently turn a deliberately narrow list into a total one — a cache that looks scoped and is not.
+- **Overlap is rejected at construction**, because `CLIENT TRACKING` rejects it at the handshake. Better
+  the failure lands where the mistake was made.
+
+The list lives on the policy rather than being derived from anything, for the reason already recorded in
+this section: prefixes are connection-global, must not overlap, and cannot be removed individually, whereas
+context key-prefixes routinely nest. Declaring it once means the set the cache will admit and the set the
+server agreed to announce are **one set** — and when negotiation lands, the `PREFIX` arguments come from
+here rather than from a second list that could drift.
+
+The honest cost: narrowing the prefix list narrows the cache. That is the trade — broadcasting everything
+means being told about every key every client touches, and scoping it down buys quiet by only caching
+what is in scope. Which is the right way round: the alternative was caching things nobody would ever
+correct.
+
+One thing this does **not** change: a flush is still unfilterable, so `invalidate null` must still be
+honoured. It is simply no longer observable through an out-of-prefix entry, because there are none.
+
+A note on the verification: the empty-prefix rule initially survived its mutant. The test spelled the case
+as `["app:", ""]`, which the *overlap* rule catches first — every string starts with `""` — so deleting the
+empty check changed nothing. A lone `[""]` is the case that matters, and it now asserts on the message.
+
 ### 6.14 Global cache, contextual TTL
 
 **The cache is global.** Two facts force it. Tracking is per-*connection* (by client id), and the server

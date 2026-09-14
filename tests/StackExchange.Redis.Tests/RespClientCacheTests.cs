@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -846,4 +846,127 @@ public class RespClientCacheTests
             Assert.False(TryRead(cache, "abc", out _)); // settled state: gone
         }
     }
+    /// <summary>
+    /// With <c>PREFIX</c> in play, a key outside the tracked set is refused rather than cached.
+    /// </summary>
+    /// <remarks>
+    /// Under <c>BCAST</c> the server announces only keys matching a prefix, so an entry outside the set has
+    /// nothing that will ever say it is wrong: it would be served until the lifetime alone retired it. That
+    /// is the same defect as caching a keyless reply, and it gets the same answer.
+    /// </remarks>
+    [Theory]
+    [InlineData("app:user:1", true)]
+    [InlineData("app:", true)]      // the prefix itself is inside the set
+    [InlineData("apple", false)]    // shares a leading "app" but not the prefix
+    [InlineData("other:1", false)]
+    [InlineData("", false)]
+    public void UntrackedKeysAreNotCached(string key, bool cacheable)
+    {
+        using var cache = new RespClientCache(new CachePolicy { Prefixes = ["app:", "session:"] });
+
+        var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)key}");
+        var admitted = cache.TryBeginFill(ref frame, 0, out var fill);
+        Assert.Equal(cacheable, admitted);
+        if (admitted)
+        {
+            Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+        }
+        else
+        {
+            frame.Dispose();
+        }
+
+        Assert.Equal(cacheable ? 0 : 1, cache.RefusedNotTracked);
+        Assert.Equal(cacheable ? 1 : 0, cache.Count);
+    }
+
+    /// <summary>
+    /// Every key must be tracked, not merely one of them.
+    /// </summary>
+    /// <remarks>
+    /// The entry depends on all of its keys, so one key the server was never asked to watch is enough to
+    /// make the whole reply uninvalidatable - a write to it would go unannounced and the reply would go on
+    /// being served. "Mostly invalidatable" is not a thing.
+    /// </remarks>
+    [Fact]
+    public void OneUntrackedKeySpoilsAMultiKeyCommand()
+    {
+        using var cache = new RespClientCache(new CachePolicy { Prefixes = ["app:"] });
+
+        var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"other"}");
+        Assert.False(cache.TryBeginFill(ref frame, 0, out _));
+        frame.Dispose();
+        Assert.Equal(1, cache.RefusedNotTracked);
+
+        // ...and the same command with every key inside the set is fine
+        var ok = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"app:c"}");
+        Assert.True(cache.TryBeginFill(ref ok, 0, out var fill));
+        Assert.True(Complete(cache, fill, "*3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n"));
+    }
+
+    /// <summary>An empty prefix list means "track everything", so nothing is refused for being outside it.</summary>
+    [Fact]
+    public void NoPrefixesMeansEverythingIsCacheable()
+    {
+        using var cache = new RespClientCache(new CachePolicy()); // the default: BCAST with no prefix
+
+        var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"anything at all"}");
+        Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+        Assert.Equal(0, cache.RefusedNotTracked);
+    }
+
+    /// <summary>
+    /// An empty prefix is rejected rather than treated as "everything".
+    /// </summary>
+    /// <remarks>
+    /// "" matches every key, so accepting it would silently turn a deliberately narrow list into a total
+    /// one - the failure mode being a cache that looks scoped and is not. An empty <i>list</i> already says
+    /// "everything", unambiguously.
+    /// </remarks>
+    [Fact]
+    public void AnEmptyPrefixIsRejected()
+    {
+        // ALONE, and checked by message. Paired with a real prefix it is caught by the overlap rule
+        // instead - every string starts with "" - so that spelling passes even with this rule deleted,
+        // which is exactly what it did until a mutant walked through it.
+        var ex = Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = [""] });
+        Assert.Contains("matches every key", ex.Message);
+
+        Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = ["app:", ""] });
+    }
+
+    /// <summary>
+    /// Overlapping prefixes are rejected here, because the server rejects them there.
+    /// </summary>
+    /// <remarks>
+    /// <c>CLIENT TRACKING</c> refuses a prefix list where one entry is a prefix of another. Catching it at
+    /// construction puts the failure where the mistake was made rather than in a handshake much later.
+    /// </remarks>
+    [Fact]
+    public void OverlappingPrefixesAreRejected()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = ["app:", "app:user:"] });
+        Assert.Contains("must not overlap", ex.Message);
+
+        // ...including a prefix repeated, which overlaps itself in the most literal way available
+        Assert.Throws<ArgumentException>(() => new CachePolicy { Prefixes = ["app:", "app:"] });
+    }
+
+    /// <summary>Prefix matching is on the bytes, so a multi-byte prefix is not matched by accident.</summary>
+    [Fact]
+    public void PrefixesMatchWholeBytesNotCharacters()
+    {
+        using var cache = new RespClientCache(new CachePolicy { Prefixes = ["é:"] }); // 0xC3 0xA9
+
+        // a key starting with the first byte of the prefix but not the second must not match
+        var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"è:x"}"); // 0xC3 0xA8
+        Assert.False(cache.TryBeginFill(ref frame, 0, out _));
+        frame.Dispose();
+
+        var ok = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"é:x"}");
+        Assert.True(cache.TryBeginFill(ref ok, 0, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+    }
+
 }

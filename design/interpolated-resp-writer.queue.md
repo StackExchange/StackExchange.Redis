@@ -32,7 +32,10 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 - [ ] **`CLIENT TRACKING` negotiation in the real client.** RESP3-only, `BCAST`, empty prefix by default
       (§6.13). Must refuse **loudly** when RESP3 is unavailable rather than silently caching without
-      invalidation. **Now the only thing left between `ClientCache` and a cache that works by itself:**
+      invalidation, and the `PREFIX` arguments must come from `CachePolicy.Prefixes` rather than a second
+      list — the cache already refuses keys outside that set, so the two drifting apart would mean either
+      caching what nothing announces, or refusing what something does.
+      **Now the only thing left between `ClientCache` and a cache that works by itself:**
       hosting and routing are done, so a caller who sets the policy and never issues `CLIENT TRACKING`
       gets a cache that fills, expires on TTL, and is never invalidated — the exact silent-wrongness this
       item exists to prevent. Until it lands, `ConfigurationOptions.ClientCache` is experimental in the
@@ -88,7 +91,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Invalidation grace period, with the read-your-own-writes carve-out — `6b94d588`
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
-      invalidation pushes to it through `PhysicalConnection` — this change
+      invalidation pushes to it through `PhysicalConnection` — `4d608ddd`
+- [x] Refuse to cache keys outside `CachePolicy.Prefixes`: no announcement, no invalidation path — this change
 
 ## Decided against
 
