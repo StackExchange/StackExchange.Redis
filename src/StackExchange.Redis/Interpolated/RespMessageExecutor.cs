@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
@@ -57,14 +57,45 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>A message whose body is already framed: writing it is a blit.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Ownership, and the one case where a blit is not enough.</b> The pipeline writes a message
+        /// some time after the caller regains control, and the caller's <c>RespRequest</c> owns a pooled,
+        /// reference-counted buffer that it disposes when its own call is done. For an ordinary command
+        /// those two orderings cannot cross: "the call is done" means the reply arrived, which is strictly
+        /// after the write.
+        /// </para>
+        /// <para>
+        /// <b>Fire-and-forget breaks that.</b> The caller has declined the reply, so its call completes the
+        /// instant the message is queued - and its dispose then hands the buffer back to the pool while it
+        /// is still sitting in the write queue. The symptom is not subtle but it is far away: an
+        /// <see cref="ObjectDisposedException"/> from inside <c>WriteMessageToServerInsideWriteLock</c>,
+        /// which kills the connection and fails every other command in flight on it. Found by running the
+        /// existing test suite against this path, which is exactly what that exercise is for.
+        /// </para>
+        /// <para>
+        /// So a fire-and-forget message takes a plain copy of the bytes. Not a pooled one: a rented array
+        /// would need returning, and "when is it safe to return this?" is the question that just went
+        /// wrong. Fire-and-forget is the path that has already chosen throughput over bookkeeping, and one
+        /// short-lived array is a cheaper answer than a lifetime protocol.
+        /// </para>
+        /// </remarks>
         private sealed class FrameMessage : Message
         {
             private readonly RespRequest _request;
+            private readonly byte[]? _copy;
 
             internal FrameMessage(int database, in RespRequest request)
-                : base(database, request.Flags & ~Message.MaskRetryCategory | request.Flags, RedisCommand.UNKNOWN)
+                // the command's identity, not just its bytes: without it the pipeline cannot tell a write
+                // from a read, so IsPrimaryOnly lets a write be routed to a replica, and a profiler
+                // reports every command in the library as UNKNOWN
+                : base(database, request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
             {
                 _request = request;
+                if ((request.Flags & CommandFlags.FireAndForget) != 0)
+                {
+                    _copy = request.Span.ToArray();
+                }
             }
 
             // an over-estimate is allowed, and the frame knows exactly
@@ -73,7 +104,8 @@ namespace StackExchange.Redis.Interpolated
             // the slot was folded during the write, so routing needs no second look at the keys
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
 
-            protected override void WriteImpl(in MessageWriter writer) => writer.WriteRaw(_request.Span);
+            protected override void WriteImpl(in MessageWriter writer)
+                => writer.WriteRaw(_copy ?? _request.Span);
         }
 
         /// <summary>Captures the raw reply, undecoded, for the handler (or the cache) to read.</summary>

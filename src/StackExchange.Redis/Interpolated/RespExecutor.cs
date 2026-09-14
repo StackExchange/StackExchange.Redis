@@ -82,6 +82,26 @@ namespace StackExchange.Redis.Interpolated
     public static class RespExecutor
     {
         /// <summary>
+        /// Parse a reply, or produce the default when there was none.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Fire-and-forget has no reply at all.</b> The caller has explicitly declined it, so the
+        /// pipeline never captures one and the executor hands back <see langword="null"/> - which is not an
+        /// error, and is why every path that reaches a handler goes through here rather than dereferencing
+        /// the payload. <c>default</c> is what the existing surface has always returned for such a call
+        /// (<c>ExecuteSync</c>/<c>ExecuteAsync</c> return <c>default(T)</c>), so the two agree.
+        /// </para>
+        /// <para>
+        /// Stated once, on purpose: there are five places a reply reaches a handler, and the cost of one of
+        /// them forgetting this is a <see cref="NullReferenceException"/> from inside an <c>await</c>,
+        /// which says nothing about fire-and-forget to whoever has to read it.
+        /// </para>
+        /// </remarks>
+        private static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
+            => response is null ? default! : handler.Parse(response.Span);
+
+        /// <summary>
         /// Send a request and parse the reply, optionally serving it from - and populating - the context's cache.
         /// </summary>
         /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
@@ -142,12 +162,18 @@ namespace StackExchange.Redis.Interpolated
 
                     try
                     {
+                        if (filled is null)
+                        {
+                            fill.Abandon(); // fire-and-forget: no reply is coming, so nothing can fill this
+                            return default!;
+                        }
+
                         cache.TryComplete(fill, filled);
-                        return handler.Parse(filled.Span);
+                        return Parse(handler, filled);
                     }
                     finally
                     {
-                        filled.Release();
+                        filled?.Release();
                     }
                 }
 
@@ -161,11 +187,11 @@ namespace StackExchange.Redis.Interpolated
                 var response = executor.Send(owned);
                 try
                 {
-                    return handler.Parse(response.Span);
+                    return Parse(handler, response);
                 }
                 finally
                 {
-                    response.Release();
+                    response?.Release();
                 }
             }
             finally
@@ -365,12 +391,18 @@ namespace StackExchange.Redis.Interpolated
 
             try
             {
+                if (response is null)
+                {
+                    fill.Abandon(); // fire-and-forget: no reply is coming, so nothing can fill this
+                    return default!;
+                }
+
                 cache.TryComplete(fill, response);
-                return handler.Parse(response.Span);
+                return Parse(handler, response);
             }
             finally
             {
-                response.Release();
+                response?.Release();
             }
         }
 
@@ -422,11 +454,11 @@ namespace StackExchange.Redis.Interpolated
                 var response = await executor.SendAsync(owned, cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    return handler.Parse(response.Span);
+                    return Parse(handler, response);
                 }
                 finally
                 {
-                    response.Release();
+                    response?.Release();
                 }
             }
             finally
@@ -446,11 +478,11 @@ namespace StackExchange.Redis.Interpolated
                 var response = await executor.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    return handler.Parse(response.Span);
+                    return Parse(handler, response);
                 }
                 finally
                 {
-                    response.Release();
+                    response?.Release();
                 }
             }
             finally
