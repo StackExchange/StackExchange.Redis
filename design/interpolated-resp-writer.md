@@ -2314,24 +2314,43 @@ first is the one that is easy to miss:
   shared" flag on `RespReader`, no retiring `ReadLease` by removing its `this`, and therefore no source break
   on a shipped API.
 
-And a pleasing consequence: **always-copy makes `Lease<byte>` correct again**. It was only ever wrong when
-shared; if nothing outgoing shares, the caller genuinely owns those bytes and a mutable lease is the honest
-type. `ReadOnlyLease<byte>` stops being needed for safety — and arguably at all.
+**"Always copy" applies to the *mutable* outgoing type, not to every outgoing type.** Two types, two
+different reasons to be safe:
 
-The rule, in one line: **share internally, copy on the way out.** The cache still shares the reply payload
-with itself (`TryComplete` retains rather than copies, §6.3); what it never does is hand a caller a view of
-something anybody else can reach.
+| outgoing type | strategy | safe because |
+|---|---|---|
+| `Lease<byte>` | always copies | the caller owns bytes nobody else can reach |
+| `ReadOnlyLease<byte>` | shares when it can | nobody can write through it |
 
-**Scope: the new surface only.** Sharing on the existing `ResultProcessor` path is *correct* — it is
-single-owner — and the pinning cost there was a deliberate trade by whoever wrote it. Making that copy too
-is a separate decision, and a larger one than it looks: `ReadLease` is the **only** consumer of
-`TryReservePayload`, so it would leave `IPayloadReservationProvider`, `TryReserve` and `PayloadReservation`
-as dead code, and `RespResult`'s reference counting — which exists precisely so leases can point into it —
-would never exceed one. Worth doing on its own merits or not at all, rather than as a side effect of this.
+So `Lease<byte>` becomes correct again — it was only ever wrong when shared — **and** `ReadOnlyLease<byte>`
+earns its existence by being the one that may share. Collapsing both into "copy" throws away the only
+reason to have the second type.
 
-A read-only byte lease is therefore parked, and would only come back if the outgoing-copy rule were
-revisited. `ReadLease` is the template if so, and the rule would be "share when contiguous **and**
-single-owner; copy otherwise".
+**The pinning argument flips by topology, and in favour of sharing where it matters.** Sharing a *fresh
+reply* pins a buffer that would otherwise be recycled at once — a real cost, and the one `ReadLease`'s
+comment is about. Sharing a *cache entry* pins **nothing extra**: the cache is holding that buffer for the
+entry's lifetime whatever the caller does. So a read-only lease over a cache hit is safe *and* free, which
+is the case the whole exercise is about.
+
+**And the machinery collapses.** No "is this buffer shared" flag on `RespReader`, no second reservation
+interface: the mutable path simply **never calls `TryReservePayload`**, and the read-only path does. The
+*type* decides, at compile time, with no topology reasoning at any call site. `TryReservePayload` and
+`IPayloadReservationProvider` stay alive serving the read-only path, so there is no dead-code cascade
+either.
+
+Streaming behaves as it does today: a read-only lease shares when the payload is one contiguous run and
+copies when it is chunked — exactly the two branches `ReadLease` already has, and exactly what `Lease<T>`'s
+dual backing (`T[]` *or* `IMemoryOwner<T>`) exists to express.
+
+The rule, in one line: **share what cannot be written; copy what can.** The cache also shares the reply
+payload with itself (`TryComplete` retains rather than copies, §6.3).
+
+**What this means for the existing `ReadLease`.** It is the mutable one, and today it shares — which is
+correct where it is used (single-owner) but is the wrong default under the rule above. Retiring that
+spelling in favour of a read-only one is the plan sketched in §6.17: the old method keeps its symbol for
+binary compatibility and loses its `this`, while a read-only `ReadLease` takes over the call site. The
+return-type change is a **source** break on a shipped API — caught at compile time, and a rebuild on upgrade
+picks up the copy-safe version.
 
 
 ## 7. Analyzer rules
