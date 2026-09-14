@@ -32,6 +32,38 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Next
 
+- [ ] **Get the arrays off the new API.** There should be very close to zero. Counted today: 32 array
+      occurrences on the `SER010`/`SER011` surface, of which **29 are `ValueTask<T[]>` returns** -
+      `RedisValue[]`, `HashEntry[]`, `SortedSetEntry[]`, `double?[]`, `long[]`, `bool[]`,
+      `ExpireResult[]`, `PersistResult[]`. Inherited wholesale from the old surface, where there was no
+      alternative; here there is.
+      The *inputs* were already done right - `ReadOnlySpan<T>` throughout - so this is one-sided, and it is
+      the side that allocates per call with nothing able to reclaim it.
+
+      **Why now and not later.** An array return is a binary-compat trap of its own: `T[]` can never
+      become anything else without a break, so the experimental window is the only chance. And the cost
+      grows with every command group added - each new group written in the old shape is more to undo, and
+      groups are being added right now.
+
+      **The shape.** A return cannot be a span, because these are all `async`; it has to be something that
+      carries a count and can be given back. `ReadOnlyLease<T>` already exists for exactly this reason and
+      already solved the hard part (see 6.16 - `Release()` is a bare decrement, which is why it is a class
+      and not a struct). The value-type element arrays are the sweetest: `double?[]`, `long[]`, `bool[]`,
+      `ExpireResult[]`, `PersistResult[]` pool with *no* element allocation at all. For `RedisValue[]` the
+      lease saves the array and not the elements - `RedisValue` has no lifetime, which is settled and not
+      to be relitigated - but on a large `MGET` the array is the part that lands in gen-2.
+
+      **The honest cost:** a lease must be disposed and an array need not be, so this trades forgiveness
+      for reclaim. That trade is already made elsewhere in this design (`RespResult`, `ReadOnlyLease<byte>`),
+      so the inconsistency today is that these were left behind, not that changing them is novel.
+
+      **The one real exception:** `RespAttribute` - `params string[]` and `Tokens`. Attribute arguments
+      must be arrays; the CLR gives no choice. Worth stating so it is not "fixed" by someone later.
+
+      Blocked on nothing, but it wants `Parse(ref RespReader)` (below) to land first or alongside: filling
+      a pooled buffer straight from the reader is the mechanism, and doing it twice would be silly.
+
+
 - [ ] **`Parse(ref RespReader)`** (§2.2, §6.16). Smaller prize than it looked once the outgoing-copy rule
       landed — the sharing argument moved to `ReadOnlyLease` — so it is back to being about
       **composability**: `IRespHandler<T[]>` built from `IRespHandler<T>`. Cheapest while handlers live in
