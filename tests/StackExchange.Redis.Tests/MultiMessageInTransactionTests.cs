@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interpolated;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -115,5 +116,58 @@ public class MultiMessageInTransactionTests(ITestOutputHelper output, SharedConn
         var ex = Assert.Throws<NotSupportedException>(
             () => { _ = tran.HashImportAsync(Me(), fieldSet, new RedisValue[] { "v" }); });
         Assert.Contains("not supported inside a transaction", ex.Message);
+    }
+
+    /// <summary>
+    /// The frame surface's composed pair lands in the refused column, and by <b>structure</b> rather than
+    /// by a sixth hand-written guard.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the scenario the queue named as the one blocker on offering the command groups from
+    /// <c>IBatch</c>/<c>ITransaction</c>: a <c>SCRIPT LOAD</c> composed in front of an <c>EVALSHA</c> would,
+    /// inside a <c>MULTI</c>, put its reply into the <c>EXEC</c> array and shift every result position
+    /// after it. Silent positional corruption is the worst failure shape available here, so the pair
+    /// refuses instead.
+    /// </para>
+    /// <para>
+    /// It needs no guard of its own: <c>QueuedMessage</c> default-refuses anything that says its
+    /// <c>WriteImpl</c> does not stand alone, and <c>FramePairMessage</c> says exactly that. So the count
+    /// of hand-written "am I in a transaction" guards stops at four rather than growing with every new
+    /// composing type - which was the point of making the question a member instead of a convention.
+    /// </para>
+    /// <para>
+    /// <b>What the refusal is worth, measured by removing it.</b> Flipping
+    /// <c>FramePairMessage.CanWriteWithoutExpansion</c> to <c>true</c> does not make this test fail - it
+    /// makes it <b>hang, indefinitely</b>. The pair's own remark says why: the caller's result box is on
+    /// the <c>FramePairMessage</c>, and only the messages yielded from <c>GetMessages</c> are enqueued for
+    /// a reply, so with the expansion dropped the message is written but never enqueued, and the caller's
+    /// task is never completed. A permanently pending task is worse than a wrong answer, which is the
+    /// strongest possible argument for default-refuse.
+    /// </para>
+    /// <para>
+    /// Note the cast: the groups are not on <c>ITransaction</c> yet, so this is how the scenario is
+    /// reachable today. When they are, it becomes reachable the ordinary way, and this pins what happens.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheFrameSurfacesComposedPairIsRefused()
+    {
+        await using var muxer = Create();
+        var tran = muxer.GetDatabase().CreateTransaction();
+        var ctx = ((IRespTarget)tran).Context;
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(
+            async () => await ctx.Scripts.EvaluateAsync("return 1", [], []));
+
+        Assert.Contains("not supported inside a transaction", ex.Message);
+        Assert.Contains("positional EXEC result array", ex.Message);
+
+        // and the ordinary single-frame command through the same context is unaffected - the refusal is
+        // about composing, not about the surface
+        var pending = ctx.Strings.GetAsync(Me());
+        Assert.False(pending.IsCompleted, "DEFERRED-OK");
+        Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
+        _ = await pending;
     }
 }

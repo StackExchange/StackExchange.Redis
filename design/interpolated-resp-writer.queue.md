@@ -548,12 +548,30 @@ Four consequences, none of them cosmetic:
       transaction's context both queue rather than send, because their executor's target is the batch and
       `ExecuteAsync` is overridden to queue. Pinned in `RespEndToEndTests`.
 
-      **One blocker, and it is specific:** `Scripts.Evaluate` composes a pair, and a `SCRIPT LOAD` injected
-      inside `MULTI` puts its reply into the `EXEC` array and shifts every result position. Today that is
-      unreachable-by-accident, which is a poor defence but a real one; adding the interface is exactly what
-      makes it reachable. Either move the preamble decision outward to the composite first, or have
-      `FramePairMessage` refuse inside a transaction with a clear message - a loud refusal beats a silent
-      positional corruption, and beats "you cannot get there from here".
+      ~~**One blocker, and it is specific:**~~ **Resolved 2026-09-15 - the blocker was already fixed and the
+      entry had not caught up.** `Scripts.Evaluate` composes a pair, and a `SCRIPT LOAD` injected inside
+      `MULTI` would put its reply into the `EXEC` array and shift every result position. The second of the
+      two options here is what shipped, and by structure rather than by a sixth hand-written guard:
+      `QueuedMessage` default-refuses anything whose `CanWriteWithoutExpansion` is false, and
+      `FramePairMessage` says exactly that - so the pair throws `NotSupportedException` naming the
+      positional array. Pinned by `MultiMessageInTransactionTests.TheFrameSurfacesComposedPairIsRefused`,
+      which also reaches the scenario today via `((IRespTarget)tran).Context`, so it is not
+      unreachable-by-accident either.
+
+      **The refusal is worth more than it looks.** Flipping `CanWriteWithoutExpansion` to `true` does not
+      make that test fail - it makes it **hang indefinitely**. The pair's result box is on the
+      `FramePairMessage`, and only messages yielded from `GetMessages` are enqueued for a reply, so with the
+      expansion dropped it is written but never enqueued and the caller's task never completes. A
+      permanently pending task is worse than a wrong answer.
+
+      So this item is **unblocked**; what remains is the public-surface decision below.
+
+      **The remaining question is compatibility, not design.** `IDatabaseAsync` is shipped, so adding
+      `IRespKeyspaceTarget` to it makes `Context` a required member for anyone implementing `IDatabaseAsync`,
+      `IBatch` or `ITransaction` - mocks and wrappers included. `IDatabase` already took that break on this
+      branch, so the precedent exists and anyone mocking `IDatabase` is already affected; extending it to
+      `IBatch`/`ITransaction` widens the blast radius to people who mock only those. Worth a human call
+      rather than an inference from precedent.
 
 - [ ] **The retry executor** (`WithRetry`). Prerequisites in place; no design written.
 
