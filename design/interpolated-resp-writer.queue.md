@@ -67,24 +67,6 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-- [ ] **`WithCache` can hand out a cache the connection never negotiated tracking for.** Found while
-      wiring the handshake, and it is the same silent-wrongness the RESP2 guard exists to prevent,
-      reached by a different door: `RespClientCache`'s constructor is public and `WithCache` is public, so
-      `ctx.WithCache(new RespClientCache())` on a muxer configured with **no** `ConfigurationOptions.
-      ClientCache` gives a context that fills a cache nothing will ever invalidate. The handshake only
-      negotiates when the *muxer* was configured with a cache, so nothing sent `CLIENT TRACKING`.
-
-      Not fixed on the spot because it is a public-shape decision in a file another agent is working in,
-      and there are at least three defensible answers: make the muxer the only thing that can mint a cache
-      (constructor internal); have `WithCache` refuse a cache the connection did not negotiate for; or
-      keep it and let the connection state say whether invalidation is live, so the cache can refuse fills
-      rather than the call refusing outright. The last is the most honest under reconnects — tracking is a
-      per-connection fact, and a downgrade on reconnect has exactly the same shape as this bug.
-
-      Related, and the reason it is worth deciding rather than patching: the muxer's cache is now a
-      service the *connection* has told the server it relies on, so "which cache is in play" stopped being
-      a purely client-side question when the handshake started reading it.
-
 ## Next
 
 - [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
@@ -362,6 +344,21 @@ Four consequences, none of them cosmetic:
       **(c)** asserting what the *client* cached cannot see a wrong `PREFIX` on the wire — dropping it only
       means being told about more keys than you asked for. The in-proc server exposes what it negotiated
       so the test can check the wire, which is the only thing that kills that mutant.
+- [x] `RespClientCache` is internal; the public opt-out is `RespContext.WithoutCache()`.
+      Closes the hole above by removing the ability to mint one: the type was public by default rather
+      than by design, and the numbers said so - one non-test caller (`RedisDatabase` passing
+      `multiplexer.ClientCache`, itself internal), 99 test constructions, and **no way for a caller to
+      obtain an instance at all**. So 43 public API entries served nobody, while the one thing they did
+      enable - `new RespClientCache()` attached by hand - was the unsound case.
+
+      The argument for keeping it public was the diagnostic counters (`Stored`, `RefusedRaced`,
+      `RefusedNotTracked` ...), which exist so "why is this stale?" and "why is nothing being cached?" are
+      answerable without a debugger. That argument does not survive contact: with the muxer's property
+      internal, nobody outside could read them anyway. Going internal loses nothing that existed, and
+      internal -> public later is additive where the reverse is a break - so it is the reversible direction
+      to sit in while the spike is a spike. **Re-exposing the counters needs a designed home**, and that is
+      the open question this leaves behind, not the visibility.
+
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
       invalidation pushes to it through `PhysicalConnection` — `4d608ddd`

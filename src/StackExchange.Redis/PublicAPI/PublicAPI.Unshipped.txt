@@ -67,46 +67,6 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespBitmaps.Context.get -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespBitmaps.RespBitmaps() -> void
 [SER010]StackExchange.Redis.Interpolated.RespBitmaps.RespBitmaps(in StackExchange.Redis.Interpolated.RespContext context) -> void
-[SER010]StackExchange.Redis.Interpolated.RespCacheConnectionExtensions
-[SER010]StackExchange.Redis.Interpolated.RespClientCache
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Bytes.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Coalesced.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Count.get -> int
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Dispose() -> void
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.EndRefresh(in StackExchange.Redis.Interpolated.RespRequest frame, int database) -> void
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Evicted.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Expired.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.InFlightCount.get -> int
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.OnFlush() -> void
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.OnInvalidate(System.ReadOnlySpan<byte> key) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.OnLocalWrite(System.ReadOnlySpan<byte> key) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Options.get -> StackExchange.Redis.Interpolated.CacheOptions!
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Policy.get -> StackExchange.Redis.Interpolated.CachePolicy!
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RedundantFills.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Refreshes.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedByFlags.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedError.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedNoKeys.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedNotTracked.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedRaced.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RefusedTooLarge.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespClientCache(StackExchange.Redis.Interpolated.CacheOptions? options = null, int keyCapacity = 256) -> void
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.Abandon() -> void
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.RespFill.RespFill() -> void
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.ServedStale.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Stored.get -> long
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.Sweep() -> int
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.SweepIfDue() -> int
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TrackedKeyCount.get -> int
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryAwaitInFlight(in StackExchange.Redis.Interpolated.RespRequest frame, int database, out System.Threading.Tasks.Task? pending) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginFill(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, StackExchange.Redis.CommandFlags flags, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginFill(ref StackExchange.Redis.Interpolated.RespFrame frame, int database, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryBeginRefresh(in StackExchange.Redis.Interpolated.RespRequest request, int database, out StackExchange.Redis.Interpolated.RespClientCache.RespFill fill) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryComplete(in StackExchange.Redis.Interpolated.RespClientCache.RespFill fill, StackExchange.Redis.Interpolated.RespPayload! response) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, long maxAgeTicks, out StackExchange.Redis.Interpolated.RespPayload? payload) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, long maxAgeTicks, out StackExchange.Redis.Interpolated.RespPayload? payload, out bool shouldRefresh) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespClientCache.TryGet(in StackExchange.Redis.Interpolated.RespRequest frame, int database, out StackExchange.Redis.Interpolated.RespPayload? payload) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespCommand
 [SER010]StackExchange.Redis.Interpolated.RespCommand.IsEmpty.get -> bool
 [SER010]StackExchange.Redis.Interpolated.RespCommand.IsKnown.get -> bool
@@ -134,7 +94,6 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.RespCommandHandler(int literalLength, int formattedCount, scoped ref StackExchange.Redis.Interpolated.RespCommandHandler command) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommands
 [SER010]StackExchange.Redis.Interpolated.RespContext
-[SER010]StackExchange.Redis.Interpolated.RespContext.Cache.get -> StackExchange.Redis.Interpolated.RespClientCache?
 [SER010]StackExchange.Redis.Interpolated.RespContext.CancellationToken.get -> System.Threading.CancellationToken
 [SER010]StackExchange.Redis.Interpolated.RespContext.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
 [SER010]StackExchange.Redis.Interpolated.RespContext.CommandMap.get -> StackExchange.Redis.CommandMap!
@@ -149,7 +108,6 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespContext.ScriptCache.get -> StackExchange.Redis.Interpolated.RespScriptCache?
 [SER010]StackExchange.Redis.Interpolated.RespContext.ServerType.get -> StackExchange.Redis.ServerType
 [SER010]StackExchange.Redis.Interpolated.RespContext.TryGetService<T>(out T? service) -> bool
-[SER010]StackExchange.Redis.Interpolated.RespContext.WithCache(StackExchange.Redis.Interpolated.RespClientCache? cache) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithCancellationToken(System.Threading.CancellationToken cancellationToken) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithChannelPrefix(StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithDatabase(int database) -> StackExchange.Redis.Interpolated.RespContext
@@ -158,6 +116,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithScriptCache(StackExchange.Redis.Interpolated.RespScriptCache? scripts) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithServerType(StackExchange.Redis.ServerType serverType) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithServices(object? services) -> StackExchange.Redis.Interpolated.RespContext
+[SER010]StackExchange.Redis.Interpolated.RespContext.WithoutCache() -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespDatabase
 [SER010]StackExchange.Redis.Interpolated.RespDatabase.AsDatabase(StackExchange.Redis.IConnectionMultiplexer! multiplexer, object? asyncState = null) -> StackExchange.Redis.IDatabase!
 [SER010]StackExchange.Redis.Interpolated.RespDatabase.Context.get -> StackExchange.Redis.Interpolated.RespContext
@@ -271,7 +230,6 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.CacheOptions.Default.get -> StackExchange.Redis.Interpolated.CacheOptions!
 [SER010]static StackExchange.Redis.Interpolated.CachePolicy.Default.get -> StackExchange.Redis.Interpolated.CachePolicy!
 [SER010]static StackExchange.Redis.Interpolated.RespAppend.Append(this ref StackExchange.Redis.Interpolated.RespCommandHandler command, ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> void
-[SER010]static StackExchange.Redis.Interpolated.RespCacheConnectionExtensions.FlushOnDisconnect(this StackExchange.Redis.Interpolated.RespClientCache! cache, StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> System.IDisposable!
 [SER010]static StackExchange.Redis.Interpolated.RespCommands.Command(this System.ReadOnlySpan<byte> name) -> StackExchange.Redis.Interpolated.RespCommand
 [SER010]static StackExchange.Redis.Interpolated.RespCommands.Command(this string! name, bool preform = false) -> StackExchange.Redis.Interpolated.RespCommand
 [SER010]static StackExchange.Redis.Interpolated.RespExecutor.Send<TResult>(this StackExchange.Redis.Interpolated.RespContext context, ref StackExchange.Redis.Interpolated.RespCommandHandler request, StackExchange.Redis.CommandFlags flags, StackExchange.Redis.Interpolated.IRespHandler<TResult>? handler = null) -> TResult

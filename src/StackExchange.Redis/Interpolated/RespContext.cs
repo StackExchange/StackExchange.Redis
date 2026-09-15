@@ -194,7 +194,7 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>The client-side cache attached to this context, or <c>null</c> for none.</summary>
         /// <remarks>Convenience over <see cref="TryGetService{T}"/>; the cache is not a field.</remarks>
-        public RespClientCache? Cache => TryGetService<RespClientCache>(out var cache) ? cache : null;
+        internal RespClientCache? Cache => TryGetService<RespClientCache>(out var cache) ? cache : null;
 
         /// <summary>The rendered-script registry attached to this context, or <c>null</c> for none.</summary>
         /// <remarks>
@@ -346,8 +346,23 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="cache">The cache to consult, or <c>null</c> for none.</param>
         /// <remarks>Sugar over <see cref="WithServices"/>; "a context with a cache" is just a context whose
         /// services include one.</remarks>
-        public RespContext WithCache(RespClientCache? cache)
+        internal RespContext WithCache(RespClientCache? cache)
             => cache is null ? WithoutService(typeof(RespClientCache)) : WithServices(cache);
+
+        /// <summary>A copy of this context that does not consult the client-side cache.</summary>
+        /// <remarks>
+        /// <para>
+        /// The opt-out, and the only direction a caller needs: attaching a cache is the multiplexer's job,
+        /// because a cache is only sound while the connection it belongs to has negotiated
+        /// <c>CLIENT TRACKING</c> for it. One that a caller minted and attached by hand would fill, expire
+        /// on its own lifetime, and never be invalidated - silently, and for as long as the entries live.
+        /// </para>
+        /// <para>
+        /// Shadows the cache for this context rather than emptying the service slot, so anything else
+        /// attached alongside it survives. See <see cref="WithServices"/>.
+        /// </para>
+        /// </remarks>
+        public RespContext WithoutCache() => WithoutService(typeof(RespClientCache));
 
         /// <summary>A copy of this context that renders each script only once.</summary>
         /// <param name="scripts">The registry to use, or <c>null</c> for none.</param>

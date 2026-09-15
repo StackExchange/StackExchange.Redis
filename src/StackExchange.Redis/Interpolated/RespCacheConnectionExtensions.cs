@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Interpolated
     /// EXPERIMENTAL SPIKE. Tying a client-side cache to the connection whose invalidations keep it honest.
     /// </summary>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public static class RespCacheConnectionExtensions
+    internal static class RespCacheConnectionExtensions
     {
         /// <summary>
         /// Empty the cache whenever a connection is lost.

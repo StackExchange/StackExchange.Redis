@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Interpolated
     /// </para>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public sealed class RespClientCache : IDisposable
+    internal sealed class RespClientCache : IDisposable
     {
         private readonly ConcurrentDictionary<EntryKey, Entry> _entries = new();
 

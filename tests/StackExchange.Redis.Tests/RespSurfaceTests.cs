@@ -146,8 +146,10 @@ public class RespSurfaceTests
             .WithChannelPrefix(RedisChannel.Literal("app:"));
 
         // "no cache" has to remain expressible now that the slot composes - it shadows just that lookup,
-        // which is the whole reason the chain can veto as well as supply
-        var uncached = ctx.WithCache(null);
+        // which is the whole reason the chain can veto as well as supply. This is the *public* spelling:
+        // attaching a cache is the multiplexer's job, since one the caller minted has no CLIENT TRACKING
+        // behind it, so opting out is the only direction a caller needs.
+        var uncached = ctx.WithoutCache();
         Assert.Null(uncached.Cache);
         Assert.Same(scripts, uncached.ScriptCache);
         Assert.Equal("app:", (string?)uncached.ChannelPrefix);
@@ -160,14 +162,17 @@ public class RespSurfaceTests
 
         // a veto shadows rather than removes, so putting one back is just another add
         Assert.Same(cache, uncached.WithCache(cache).Cache);
+
+        // and the public opt-out is exactly the internal one, not a near-miss with its own behaviour
+        Assert.Null(ctx.WithCache(null).Cache);
     }
 
     [Fact]
     public void TurningOffWhatWasNeverOnCostsNothing()
     {
-        // the common shape in tests and in any optional-cache wiring: WithCache(null) on a context that
-        // has no services at all should not allocate a veto to shadow something that is not there
-        var ctx = new RespContext().WithCache(null).WithScriptCache(null);
+        // the common shape in tests and in any optional-cache wiring: opting out on a context that has no
+        // services at all should not allocate a veto to shadow something that is not there
+        var ctx = new RespContext().WithoutCache().WithScriptCache(null);
 
         Assert.Null(ctx.Cache);
         Assert.False(ctx.TryGetService<Marker>(out _));
