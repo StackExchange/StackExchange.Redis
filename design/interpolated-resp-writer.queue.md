@@ -375,7 +375,7 @@ Four consequences, none of them cosmetic:
       to sit in while the spike is a spike. **Re-exposing the counters needs a designed home**, and that is
       the open question this leaves behind, not the visibility.
 
-- [x] Command groups bind to `IRespKeyspaceTarget`, not `IRespTarget` — `<pending>`.
+- [x] Command groups bind to `IRespKeyspaceTarget`, not `IRespTarget` — `3abb43e2`.
       `IRedis` carried `IRespTarget`, so `IDatabase`, `IServer` and `ISubscriber` all offered `Strings`,
       `Hashes`, `Keys` and `Scripts`: `server.Strings.Get(key)` compiled. Discoverability aimed straight at
       a cliff. `IRespTarget` moves down to the three interfaces individually, `IRespKeyspaceTarget` and
