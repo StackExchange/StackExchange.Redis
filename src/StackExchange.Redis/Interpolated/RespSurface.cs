@@ -58,6 +58,14 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Reads an array reply as <see cref="RedisValue"/>s; a nil array reads as empty.</summary>
         public static IRespHandler<RedisValue[]> Values { get; } = DefaultHandlers.Instance;
 
+        /// <summary>Reads an array reply into a pooled <see cref="ReadOnlyLease{T}"/> the caller gives back.</summary>
+        /// <remarks>
+        /// What the new surface returns, where <see cref="Values"/> is what the old one needs. See the
+        /// queue notes on getting arrays off this API: the difference is who owns the storage, not what is
+        /// in it.
+        /// </remarks>
+        public static IRespHandler<ReadOnlyLease<RedisValue>> ValueLease { get; } = DefaultHandlers.Instance;
+
         /// <summary>Reads a bulk string reply as a <see cref="string"/>; null stays null.</summary>
         public static IRespHandler<string?> String { get; } = DefaultHandlers.Instance;
 
@@ -161,6 +169,7 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<ReadOnlyLease<byte>?>,
             IRespHandler<RedisValue>,
             IRespHandler<RedisValue[]>,
+            IRespHandler<ReadOnlyLease<RedisValue>>,
             IRespHandler<SortedSetEntry?>,
             IRespHandler<SortedSetEntry[]>,
             IRespHandler<SortedSetPopResult>,
@@ -221,6 +230,44 @@ namespace StackExchange.Redis.Interpolated
                 var reader = new RespReader(response);
                 reader.MoveNext();
                 return reader.ReadDouble();
+            }
+
+            /// <remarks>
+            /// The pooled counterpart of the array handler below. Same reply, same elements; what differs is
+            /// that the caller can give the storage back, which on a large <c>MGET</c> is the part that
+            /// would otherwise reach gen 2. The elements themselves still allocate - <c>RedisValue</c> has
+            /// no lifetime and cannot be handed one - so this saves the array, not its contents.
+            /// </remarks>
+            ReadOnlyLease<RedisValue> IRespHandler<ReadOnlyLease<RedisValue>>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+
+                // as the array handler: a nil aggregate reads as empty, because every caller of an array
+                // reply wants to iterate it
+                if (reader.IsNull) return ReadOnlyLease<RedisValue>.Empty;
+
+                var count = reader.AggregateLength();
+                if (count <= 0) return ReadOnlyLease<RedisValue>.Empty;
+
+                var lease = ReadOnlyLease<RedisValue>.Rent(count, null, out var target);
+                try
+                {
+                    var children = reader.AggregateChildren();
+                    var index = 0;
+                    while (index < count && children.MoveNext())
+                    {
+                        target[index++] = children.Value.ReadRedisValue();
+                    }
+
+                    return lease;
+                }
+                catch
+                {
+                    // the lease is rented by now, and nobody else has a reference to give back
+                    lease.Dispose();
+                    throw;
+                }
             }
 
             RedisValue[] IRespHandler<RedisValue[]>.Parse(ReadOnlySpan<byte> response)

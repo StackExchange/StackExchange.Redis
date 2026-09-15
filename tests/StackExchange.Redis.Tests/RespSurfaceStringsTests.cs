@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -162,7 +163,7 @@ public class RespSurfaceStringsTests
         var (ctx, exec) = Target("*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
         RedisKey[] keys = ["k1", "k2", "k3"];
-        await ctx.WithKeyPrefix("t:").Strings.Get(keys);
+        (await ctx.WithKeyPrefix("t:").Strings.Get(keys)).Dispose();
 
         // every key in the run is prefixed, exactly as a single key is
         Assert.Equal("*4|$4|MGET|$4|t:k1|$4|t:k2|$4|t:k3|", Assert.Single(exec.Sent));
@@ -173,7 +174,13 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target();
 
-        Assert.Empty(await ctx.Strings.Get(ReadOnlySpan<RedisKey>.Empty));
+        // the empty case hands back the shared Empty lease, so there is nothing pooled to give back -
+        // but it is disposed anyway, because a caller cannot know that and should not have to
+        using (var none = await ctx.Strings.Get(ReadOnlySpan<RedisKey>.Empty))
+        {
+            Assert.Equal(0, none.Length);
+        }
+
         Assert.True(await ctx.Strings.Set(ReadOnlySpan<KeyValuePair<RedisKey, RedisValue>>.Empty));
 
         // an arity-zero MGET or MSET is a server error; "nothing" is answerable without asking
@@ -507,4 +514,55 @@ public class RespSurfaceStringsTests
 
         await Task.CompletedTask;
     }
+    /// <summary>MGET comes back as a pooled lease carrying the same values an array would.</summary>
+    /// <remarks>
+    /// The point of the shape change is who owns the storage, not what is in it - so the values must be
+    /// indistinguishable from the array form, including the nulls that a missing key produces.
+    /// </remarks>
+    [Fact]
+    public async Task MultiGetReturnsTheValuesAsALease()
+    {
+        var (ctx, _) = Target("*3\r\n$1\r\na\r\n_\r\n$2\r\nbc\r\n");
+
+        using var values = await ctx.Strings.Get([(RedisKey)"k1", (RedisKey)"k2", (RedisKey)"k3"]);
+
+        Assert.Equal(3, values.Length);
+        Assert.Equal("a", values.Span[0]);
+        Assert.True(values.Span[1].IsNull);
+        Assert.Equal("bc", values.Span[2]);
+    }
+
+    /// <summary>
+    /// The lease really is pooled: disposing one and asking again reuses the same storage.
+    /// </summary>
+    /// <remarks>
+    /// Without this the shape change would be pure ceremony - a disposable wrapper around a fresh
+    /// allocation buys nothing and costs a <c>using</c>. Asserted through <see cref="ArrayPool{T}"/>
+    /// rather than by identity, because the lease does not expose its buffer; renting the same size back
+    /// is the only observation available, and it is an implementation detail rather than a contract, so
+    /// this asserts only that a returned buffer is being offered again.
+    /// </remarks>
+    [Fact]
+    public async Task TheLeaseStorageGoesBackToThePool()
+    {
+        var (ctx, _) = Target("*3\r\n$1\r\na\r\n$1\r\nb\r\n$1\r\nc\r\n");
+        RedisKey[] keys = [(RedisKey)"k1", (RedisKey)"k2", (RedisKey)"k3"];
+
+        var first = await ctx.Strings.Get(keys);
+        Assert.Equal(3, first.Length);
+        first.Dispose();
+
+        // the shared pool hands back the most recently returned buffer of a bucket, so a rent of the same
+        // size should find one waiting - and it must have been wiped, since RedisValue holds a reference
+        var reused = ArrayPool<RedisValue>.Shared.Rent(3);
+        try
+        {
+            Assert.All(reused, v => Assert.True(v.IsNull));
+        }
+        finally
+        {
+            ArrayPool<RedisValue>.Shared.Return(reused);
+        }
+    }
+
 }

@@ -113,12 +113,43 @@ namespace StackExchange.Redis.Interpolated
         /// keys" is an empty array without asking anyone. The send is skipped, so this completes
         /// synchronously and allocates nothing.
         /// </para>
+        /// <para>
+        /// <b>A pooled lease, not an array</b>, and it must be disposed. The reply is a block of values the
+        /// caller almost always walks once, so handing over an array means a per-call allocation that
+        /// nothing can reclaim; a lease can be given back. The elements still allocate - <c>RedisValue</c>
+        /// has no lifetime - so what this saves is the array, which on a large <c>MGET</c> is the part
+        /// that reaches gen 2. The array shape the old surface still needs lives on the internal <c>GetArray</c> sibling.
+        /// </para>
         /// </remarks>
-        public static ValueTask<RedisValue[]> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+            => keys.IsEmpty
+                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
+                : strings.Context.SendAsync(
+                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.ValueLease);
+
+        /// <summary>MGET, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="keys">The keys to read.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Internal, and deliberately a sibling rather than a conversion.</b> <c>IDatabase.StringGet</c>
+        /// promises an array the caller owns outright, so bridging through <c>Get</c> would rent a
+        /// pooled buffer only to copy out of it and hand it straight back - strictly worse than allocating
+        /// the array in the first place. Two handlers over one command costs one duplicated interpolated
+        /// line and no knowledge; the command is still written once anywhere it matters.
+        /// </para>
+        /// <para>
+        /// Internal because it must never reach the public surface: it exists to serve a shape that is on
+        /// its way out, and when the old surface goes, so does this - with no binary consequence, because
+        /// nothing outside this assembly could ever have bound to it.
+        /// </para>
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> GetArray(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
             => keys.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
-                : strings.Context.SendAsync<RedisValue[]>(
-                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET));
+                : strings.Context.SendAsync(
+                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.Values);
 
         /// <summary>GET, retaining the payload as a <see cref="Lease{T}"/> rather than a value.</summary>
         /// <param name="strings">The string command group.</param>

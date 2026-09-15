@@ -25,7 +25,7 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Next
 
-- [ ] **Get the arrays off the new API.** There should be very close to zero. Counted today: 32 array
+- [ ] **Get the arrays off the new API.** There should be very close to zero. Counted at the start: 32 array
       occurrences on the `SER010`/`SER011` surface, of which **29 are `ValueTask<T[]>` returns** -
       `RedisValue[]`, `HashEntry[]`, `SortedSetEntry[]`, `double?[]`, `long[]`, `bool[]`,
       `ExpireResult[]`, `PersistResult[]`. Inherited wholesale from the old surface, where there was no
@@ -53,8 +53,15 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       **The one real exception:** `RespAttribute` - `params string[]` and `Tokens`. Attribute arguments
       must be arrays; the CLR gives no choice. Worth stating so it is not "fixed" by someone later.
 
-      Blocked on nothing, but it wants `Parse(ref RespReader)` (below) to land first or alongside: filling
-      a pooled buffer straight from the reader is the mechanism, and doing it twice would be silly.
+      **Worked example landed:** `Strings.Get(keys)` (MGET) now returns `ReadOnlyLease<RedisValue>`, with
+      an internal `GetArray` sibling for `TransitionalDatabase`, and `RespHandlers.ValueLease` beside
+      `RespHandlers.Values`. 28 array returns left, all the same transformation. Prerequisite found and
+      fixed on the way: `ReadOnlyLease<T>` was returning pooled arrays unwiped, which is right for `byte`
+      and retention for any `T` holding a reference.
+
+      It does not need `Parse(ref RespReader)` after all - a handler can fill a rented span from a span
+      reply perfectly well - but the two still compose, and doing the remaining groups after that lands
+      would avoid touching each handler twice.
 
       **Satisfying the old API, which still says `T[]`.** `TransitionalDatabase` has to keep returning
       arrays, so something has to bridge. The obvious move - give `ReadOnlyLease<T>` an internal "hand me
@@ -178,7 +185,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Refuse to cache keys outside the tracked prefixes: no announcement, no invalidation path — `e42c8d22`
 - [x] Fire-and-forget is neither cached nor served; sync F+F no longer throws `"No reply."` — `abd87708`
 - [x] Split `CacheOptions` (settled once: prefixes, budget) from `CachePolicy` (read-time, per-call) — `286a461a`
-- [x] `Execute` -> `Render` on the context: rendering is not executing — this change
+- [x] `Execute` -> `Render` on the context: rendering is not executing — `682cc687`
+- [x] Wipe pooled arrays whose elements can hold references — `2c905046`
+- [x] MGET returns a pooled lease; the array shape moves to an internal sibling — this change
 - [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
 - [x] Byte and entry quotas, with sampled eviction — `87d5afa2`
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and

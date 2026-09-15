@@ -117,12 +117,16 @@ namespace StackExchange.Redis.Interpolated
             => Context.Strings.SetAndGet(key, value, flags: flags).AsTask();
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// <c>GetArray</c>, not <c>Get</c>: this signature promises an array the caller owns, so it takes
+        /// the sibling that produces one directly rather than renting a lease and copying out of it.
+        /// </remarks>
         public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Strings.Get(Required(keys, nameof(keys)), flags));
+            => Wait(Context.Strings.GetArray(Required(keys, nameof(keys)), flags));
 
-        /// <inheritdoc/>
+        /// <inheritdoc cref="StringGet(RedisKey[], CommandFlags)"/>
         public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Context.Strings.Get(Required(keys, nameof(keys)), flags).AsTask();
+            => Context.Strings.GetArray(Required(keys, nameof(keys)), flags).AsTask();
 
         /// <inheritdoc/>
         public Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
