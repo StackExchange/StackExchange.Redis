@@ -95,6 +95,48 @@ public class ScriptLoadPairingTests(ITestOutputHelper output) : TestBase(output)
             "the RespResult script path did not pair its SCRIPT LOAD - it has its own copy of this logic");
     }
 
+    /// <summary>
+    /// Inside a transaction a script goes as <c>EVAL &lt;body&gt;</c>, so <c>-NOSCRIPT</c> cannot arise.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the right behaviour and it happens by <b>accident</b>, which is worth knowing before the
+    /// frame path changes it. <c>QueuedMessage</c> wraps each inner operation and is not itself an
+    /// <c>IMultiMessage</c>, so a <c>ScriptEvalMessage</c>'s expansion is never asked for: <c>GetMessages</c>
+    /// does not run, the hash it would have resolved stays null, and <c>WriteImpl</c> falls through to the
+    /// body-carrying spelling.
+    /// </para>
+    /// <para>
+    /// It has to end that way whatever the mechanism. Redis queues commands inside <c>MULTI</c> without
+    /// executing them, so an unknown hash is accepted with <c>+QUEUED</c> and only fails as an element of
+    /// the <c>EXEC</c> array - at which point the usual recovery, reissuing as <c>EVAL</c>, is impossible:
+    /// the transaction has already run. Composing <c>SCRIPT LOAD</c> in front would work, but only outside
+    /// the <c>MULTI</c>, since inside it its reply joins the <c>EXEC</c> array and shifts every result.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task InsideATransactionAScriptCarriesItsBody()
+    {
+        await using var muxer = Create();
+        var endpoint = muxer.GetEndPoints()[0];
+        var server = GetEndPoint(muxer, endpoint);
+        var db = muxer.GetDatabase();
+
+        var script = $"return '{Me()}'";
+        server.FlushScriptCache();
+
+        var tran = db.CreateTransaction();
+        var pending = tran.ScriptEvaluateAsync(script, flags: CommandFlags.None);
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal(Me(), (await pending).ToString());
+
+        // no SCRIPT LOAD was sent, so nothing learned the hash - which is the observable proof that the
+        // body went with the command rather than a hash that the server might not have recognised
+        Assert.False(
+            server.IsScriptLoaded(script),
+            "a SCRIPT LOAD was paired inside the transaction - its reply would shift every EXEC result");
+    }
+
     /// <summary>NoScriptCache opts out of the pairing entirely, and leaves no belief behind.</summary>
     [Fact]
     public async Task NoScriptCacheLearnsNothing()
