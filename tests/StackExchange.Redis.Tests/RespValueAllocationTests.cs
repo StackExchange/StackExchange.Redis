@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using RESPite.Messages;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -80,6 +82,46 @@ public class RespValueAllocationTests(ITestOutputHelper log)
         {
             Assert.Equal(values.Span[i], windows.Span[i].AsRedisValue());
         }
+    }
+
+    private sealed class OneReply(byte[] reply) : IRespExecutor
+    {
+        public int Sends { get; private set; }
+
+        public int Database => 0;
+
+        public RespPayload Send(in RespRequest request)
+        {
+            Sends++;
+            return RespPayload.Create(reply);
+        }
+
+        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+            => new(Send(request));
+    }
+
+    [Fact]
+    public async Task ACacheHitIsReadInPlaceRatherThanCopied()
+    {
+        // the case the whole design is for: a cached reply is a buffer many callers share, and a window
+        // into it costs nothing. The pipeline releases its own reference in a finally as soon as parsing
+        // returns, so the values are only readable afterwards because the lease took one of its own.
+        var executor = new OneReply(Reply());
+        using var cache = new RespClientCache();
+        var ctx = new RespContext().WithExecutor(executor).WithCache(cache);
+
+        RedisKey[] keys = ["k1", "k2"];
+
+        using (var first = await ctx.Strings.Get(keys, CommandFlags.PreferReplica))
+        {
+            Assert.Equal(Elements, first.Length);
+        }
+
+        using var second = await ctx.Strings.Get(keys, CommandFlags.PreferReplica);
+
+        Assert.Equal(1, executor.Sends); // served from the cache, not the wire
+        Assert.Equal(Elements, second.Length);
+        Assert.Equal("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", (string?)second.Span[0]);
     }
 
     [Fact]

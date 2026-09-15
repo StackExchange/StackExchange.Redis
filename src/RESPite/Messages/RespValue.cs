@@ -69,12 +69,16 @@ public readonly struct RespValue : IEquatable<RespValue>
     private readonly int _start;
     private readonly int _length;
 
+    // "has a value" rather than "is null", so that default(RespValue) is nil rather than a present value
+    // with no bytes - a struct's default has to be the absent one, and Null hands back exactly that
+    private readonly bool _hasValue;
+
     private RespValue(object? owner, int start, int length, bool isNull)
     {
         _owner = owner;
         _start = start;
         _length = length;
-        IsNull = isNull;
+        _hasValue = !isNull;
     }
 
     /// <summary>A value that is not there: the server's nil, however it spelled it.</summary>
@@ -85,10 +89,10 @@ public readonly struct RespValue : IEquatable<RespValue>
     public static RespValue Null => default;
 
     /// <summary>Whether this is the server's nil rather than a value.</summary>
-    public bool IsNull { get; }
+    public bool IsNull => !_hasValue;
 
     /// <summary>Whether this is a value at all, as opposed to nil.</summary>
-    public bool HasValue => !IsNull;
+    public bool HasValue => _hasValue;
 
     /// <summary>How many bytes this value's payload holds, however it arrived.</summary>
     public int Length => IsNull ? 0 : Reader().ScalarLength();
@@ -192,7 +196,8 @@ public readonly struct RespValue : IEquatable<RespValue>
     /// every single time, so it is not an <c>As*</c>, and <see cref="ToString"/> cannot be it because that
     /// may not return null.
     /// </remarks>
-    public static explicit operator string?(RespValue value) => value.Reader().ReadString();
+    public static explicit operator string?(RespValue value)
+        => value.IsNull ? null : value.Reader().ReadString();
 
     /// <inheritdoc/>
     /// <remarks>
@@ -273,8 +278,17 @@ public readonly struct RespValue : IEquatable<RespValue>
 
     private RespReader Reader()
     {
+        // default(RespValue) is nil AND has no bytes, which is not the same as a captured nil: the server
+        // said "$-1" there, and that is a frame to read. Here there is nothing, so say so rather than
+        // running off the end of an empty span.
+        if (_owner is null) ThrowNoContent();
+
         var reader = new RespReader(Frame);
         reader.MoveNext();
         return reader;
+
+        [DoesNotReturn]
+        static void ThrowNoContent()
+            => throw new InvalidOperationException("This value has no content; it is the default RespValue.");
     }
 }

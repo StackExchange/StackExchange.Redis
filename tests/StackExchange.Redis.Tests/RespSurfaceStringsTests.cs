@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 using StackExchange.Redis.Interpolated;
 using Xunit;
 
@@ -673,15 +674,17 @@ public class RespSurfaceStringsTests
         first.Dispose();
 
         // the shared pool hands back the most recently returned buffer of a bucket, so a rent of the same
-        // size should find one waiting - and it must have been wiped, since RedisValue holds a reference
-        var reused = ArrayPool<RedisValue>.Shared.Rent(3);
+        // size should find one waiting - and it must have been wiped, since a RespValue holds a reference
+        // to whoever owns its bytes. The pool is RespValue's, not RedisValue's: reading the wrong bucket
+        // finds whatever some other test left in it, which passes alone and fails under load.
+        var reused = ArrayPool<RespValue>.Shared.Rent(3);
         try
         {
             Assert.All(reused, v => Assert.True(v.IsNull));
         }
         finally
         {
-            ArrayPool<RedisValue>.Shared.Return(reused);
+            ArrayPool<RespValue>.Shared.Return(reused);
         }
     }
 

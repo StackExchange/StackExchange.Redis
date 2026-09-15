@@ -30,6 +30,17 @@ public class RespValueTests
     }
 
     [Fact]
+    public void TheDefaultValueIsNil()
+    {
+        // a struct's default has to be the ABSENT one: RespValue.Null hands back default, so default must
+        // agree, or a freshly-rented pool buffer looks like an array of present values with no bytes
+        Assert.True(default(RespValue).IsNull);
+        Assert.False(default(RespValue).HasValue);
+        Assert.True(RespValue.Null.IsNull);
+        Assert.Null((string?)default(RespValue));
+    }
+
+    [Fact]
     public void TheReaderBracketsEachElement()
     {
         // THE assumption the capture rests on: BytesConsumed counts to the END of what was just read, so
