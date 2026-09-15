@@ -45,7 +45,7 @@ namespace StackExchange.Redis
                         serverType: multiplexer.ServerSelectionStrategy.ServerType)
                         .WithExecutor(new Interpolated.RespMessageExecutor(this, Database))
                         .WithCache(multiplexer.ClientCache)
-                        .WithAdditionalService(new ServerFeatureProbe(this));
+                        .WithServices(new ServerFeatureProbe(this));
                     _haveContext = true;
                 }
 
