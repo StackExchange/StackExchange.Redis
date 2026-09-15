@@ -32,8 +32,18 @@ namespace StackExchange.Redis
     /// out the underlying array - which for a shared buffer is a way to reach outside the lease entirely.
     /// </para>
     /// </remarks>
-    public sealed class ReadOnlyLease<T> : IDisposable
+    public sealed class ReadOnlyLease<T> : IDisposable, RESPite.Messages.IRespBufferOwner
     {
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Only meaningful for a lease of bytes, which is the only kind a <c>RespValue</c> can point into;
+        /// anything else would be asking for the raw bytes of something that is not bytes.
+        /// </remarks>
+        ReadOnlySpan<byte> RESPite.Messages.IRespBufferOwner.GetReadOnlySpan()
+            => this is ReadOnlyLease<byte> bytes
+                ? bytes.Span
+                : throw new NotSupportedException($"A lease of {typeof(T).Name} is not a RESP buffer.");
+
         /// <summary>
         /// A lease of length zero.
         /// </summary>

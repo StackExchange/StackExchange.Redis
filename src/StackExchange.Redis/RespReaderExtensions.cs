@@ -14,6 +14,31 @@ namespace StackExchange.Redis;
 public static class RespReaderExtensions
 {
     /// <summary>
+    /// A captured scalar as a <see cref="RedisValue"/>, which owns its own bytes and outlives the buffer.
+    /// </summary>
+    /// <param name="value">The value to convert.</param>
+    /// <remarks>
+    /// <para>
+    /// The bridge from the borrowed world to the owned one, and an extension rather than a member because
+    /// <see cref="RespValue"/> lives in RESPite, which knows nothing of <see cref="RedisValue"/>. Same
+    /// arrangement as <see cref="ReadRedisValue"/>, one layer up.
+    /// </para>
+    /// <para>
+    /// <c>As</c> rather than <c>To</c>, because it is usually free: nil, booleans, integers, anything of
+    /// eight bytes or fewer, and any canonically-numeric payload all pack into the struct itself. Only a
+    /// long non-numeric value copies. It is never a borrow, whichever path it takes.
+    /// </para>
+    /// </remarks>
+    public static RedisValue AsRedisValue(this in RespValue value)
+    {
+        if (value.IsNull) return RedisValue.Null;
+
+        var reader = new RespReader(value.Frame);
+        reader.MoveNext();
+        return reader.ReadRedisValue();
+    }
+
+    /// <summary>
     /// Read a scalar value as a <see cref="RedisValue"/>.
     /// </summary>
     public static RedisValue ReadRedisValue(this in RespReader reader)
