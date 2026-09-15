@@ -1403,4 +1403,129 @@ public class RespClientCacheTests
         Assert.Null(CacheOptions.Default.MaxEntries);
     }
 
+    /// <summary>
+    /// A write of ours evicts what we had cached for that key, without waiting for the server to say so.
+    /// </summary>
+    /// <remarks>
+    /// The window this closes is real and measured: a write's own invalidation arrives after its reply, and
+    /// after the replies of anything pipelined behind it, so the server can never tell us in time. Without
+    /// this the read below is answered from cache with the value we just replaced - which is not staleness
+    /// a caller can shrug at, it is a wrong answer.
+    /// </remarks>
+    [Fact]
+    public async Task OurOwnWriteEvictsWhatWeCached()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$2\r\nv1\r\n");
+        var context = Via(executor, cache);
+
+        var read = Get("abc");
+        Assert.Equal("$2|v1|", await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance));
+        Assert.Equal(1, executor.Sent);
+
+        // cached: a second read does not reach the executor
+        var again = Get("abc");
+        Assert.Equal("$2|v1|", await context.SendAsync(ref again, CommandFlags.CommandRetryReadOnly, TextHandler.Instance));
+        Assert.Equal(1, executor.Sent);
+
+        // now WE write it - no server invalidation involved anywhere in this test
+        var write = Ctx.Render($"{RedisCommand.SET}{(RedisKey)"abc"}{(RedisValue)"v2"}");
+        await context.SendAsync(ref write, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance);
+
+        // ...and the next read must go and ask, rather than hand back what we just replaced
+        var after = Get("abc");
+        Assert.Equal("$2|v1|", await context.SendAsync(ref after, CommandFlags.CommandRetryReadOnly, TextHandler.Instance));
+        Assert.Equal(3, executor.Sent); // read, write, re-read
+    }
+
+    /// <summary>A read of ours does not invalidate anything.</summary>
+    /// <remarks>
+    /// The other half: if the mutation test were simply "anything that is not cacheable invalidates", a
+    /// fire-and-forget read or a NoClientCache read would evict the very entry it declined to use.
+    /// </remarks>
+    [Theory]
+    [InlineData(CommandFlags.CommandRetryReadOnly)]
+    [InlineData(CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget)]
+    [InlineData(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache)]
+    public async Task ReadsDoNotInvalidate(CommandFlags readFlags)
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$2\r\nv1\r\n");
+        var context = Via(executor, cache);
+
+        var read = Get("abc");
+        await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance);
+        Assert.Equal(1, cache.Count);
+
+        var other = Get("abc");
+        await context.SendAsync(ref other, readFlags, TextHandler.Instance);
+
+        // still cached, and still servable
+        using var probe = Get("abc");
+        Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var hit));
+        hit.Release();
+    }
+
+    /// <summary>
+    /// An undeclared retry category is treated as a write.
+    /// </summary>
+    /// <remarks>
+    /// The same judgement the caching side makes from the other direction. Undeclared cannot mean safe: for
+    /// storing it means "do not", and for invalidating it means "assume it wrote". An ad-hoc command
+    /// through <c>ExecuteAsync</c> with no category is exactly this case.
+    /// </remarks>
+    [Fact]
+    public async Task AnUndeclaredCategoryIsAssumedToWrite()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$2\r\nv1\r\n");
+        var context = Via(executor, cache);
+
+        var read = Get("abc");
+        await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance);
+        Assert.Equal(1, cache.Count);
+
+        var unknown = Ctx.Render($"{RedisCommand.SET}{(RedisKey)"abc"}{(RedisValue)"v2"}");
+        await context.SendAsync(ref unknown, CommandFlags.None, TextHandler.Instance);
+
+        using var probe = Get("abc");
+        Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), "an undeclared command should be assumed to write");
+    }
+
+    /// <summary>A write we cannot enumerate the keys of invalidates everything.</summary>
+    /// <remarks>
+    /// <c>TryGetKeys</c> returning -1 means "there are keys, but I cannot tell you which". A write is
+    /// precisely where guessing is not allowed, so the whole cache goes - over-flushing costs round trips,
+    /// under-flushing costs correctness.
+    /// </remarks>
+    [Fact]
+    public async Task AWriteWithUnknowableKeysFlushesEverything()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$2\r\nv1\r\n");
+        var context = Via(executor, cache);
+
+        foreach (var key in new[] { "a", "b", "c" })
+        {
+            var read = Get(key);
+            await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance);
+        }
+
+        Assert.Equal(3, cache.Count);
+
+        // more keys than the frame can mark individually: KeyCount goes negative, meaning "not enumerable"
+        var many = Ctx.Compose($"{RedisCommand.MSET}");
+        for (var i = 0; i < 80; i++) many.Append($"{(RedisKey)("k" + i)}{(RedisValue)"v"}");
+        var frame = Ctx.Render(ref many);
+        Assert.True(frame.KeyCount < 0, $"expected unknowable keys, got KeyCount={frame.KeyCount}");
+
+        await context.SendAsync(ref frame, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance);
+
+        foreach (var key in new[] { "a", "b", "c" })
+        {
+            using var probe = Get(key);
+            Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), $"'{key}' should have gone with the flush");
+        }
+    }
+
 }

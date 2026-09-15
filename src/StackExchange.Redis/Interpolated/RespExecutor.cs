@@ -122,6 +122,45 @@ namespace StackExchange.Redis.Interpolated
         /// which says nothing about fire-and-forget to whoever has to read it.
         /// </para>
         /// </remarks>
+        /// <summary>
+        /// Whether this command changes keys, so far as its flags admit.
+        /// </summary>
+        /// <remarks>
+        /// The retry category is a severity ladder; anything past
+        /// <see cref="CommandFlags.CommandRetryReadOnly"/> writes. <b>An undeclared category counts as a
+        /// write too</b>, which is the same judgement the caching side makes from the other direction:
+        /// undeclared cannot mean safe, so there it means "do not cache" and here it means "assume it
+        /// wrote". Both err towards a miss.
+        /// </remarks>
+        private static bool Mutates(CommandFlags flags)
+        {
+            var category = flags & Message.MaskRetryCategory;
+            return category == 0 || category > CommandFlags.CommandRetryReadOnly;
+        }
+
+        /// <summary>
+        /// Tell the cache about a write of ours <b>before it goes out</b>, so a read cannot slip between the
+        /// send and the server's echo of it.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Server-assisted invalidation cannot do this job. Measured against a real server, a write's own
+        /// invalidation arrives <i>after</i> its reply - and after the replies of anything pipelined behind
+        /// it - so <c>SET k v</c> followed by <c>GET k</c> returns the read before the notice about the
+        /// write. Without this, that read is answered from a stale entry and corrected afterwards, which is
+        /// the one kind of staleness this design refuses: handing a caller back the value they just
+        /// replaced. See design notes 6.13.
+        /// </para>
+        /// <para>
+        /// Outside the "may I cache this?" gate, because a write is exactly what that gate excludes - which
+        /// is why nothing called <c>OnLocalWrite</c> until now.
+        /// </para>
+        /// </remarks>
+        private static void NoteLocalWrite(RespClientCache? cache, in RespFrame request, CommandFlags flags)
+        {
+            if (cache is not null && Mutates(flags)) cache.OnLocalWrite(request.AsLookupKey());
+        }
+
         private static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
             => response switch
             {
@@ -167,6 +206,7 @@ namespace StackExchange.Redis.Interpolated
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
+            NoteLocalWrite(cache, in request, flags);
 
             // NoClientCache suppresses the PROBE as well as the store: opting out must mean the caller does
             // not get a cached answer either, not merely that this reply is not kept
@@ -259,6 +299,7 @@ namespace StackExchange.Redis.Interpolated
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
             var cancellationToken = context.CancellationToken;
+            NoteLocalWrite(cache, in request, flags);
 
             if (cache is not null && cache.PermitsCaching(flags))
             {

@@ -252,6 +252,54 @@ namespace StackExchange.Redis.Interpolated
         public bool OnLocalWrite(ReadOnlySpan<byte> key) => _keys.Invalidate(key, local: true, Policy.ServesStale);
 
         /// <summary>
+        /// Note that this process is <b>about to send</b> a command that changes keys, and invalidate every
+        /// key it names.
+        /// </summary>
+        /// <param name="frame">The rendered command, read for its keys.</param>
+        /// <returns>The number of keys stamped.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Before the send, not after the reply</b>, and that is the whole point. A read's dependencies
+        /// are captured when it is sent, so a stamp that lands after our reply can be overtaken by a read
+        /// issued in between - which would then be considered valid, and stored. Stamping first widens the
+        /// window; the cost of a window that is too wide is a miss.
+        /// </para>
+        /// <para>
+        /// If the write then fails, we invalidated for nothing. That is the right way to be wrong.
+        /// </para>
+        /// <para>
+        /// <b>A frame that cannot enumerate its keys invalidates everything.</b> <c>TryGetKeys</c> returning
+        /// -1 means "I have keys but cannot tell you which" - and a write whose keys we cannot name is
+        /// precisely the case where guessing is not allowed.
+        /// </para>
+        /// </remarks>
+        internal int OnLocalWrite(in RespRequest frame)
+        {
+            var keyCount = frame.KeyCount;
+            if (keyCount == 0) return 0;
+            if (keyCount < 0)
+            {
+                OnFlush();
+                return -1;
+            }
+
+            Span<KeyRange> ranges = keyCount <= 16 ? stackalloc KeyRange[16] : new KeyRange[keyCount];
+            var count = frame.TryGetKeys(ranges);
+            if (count < 0)
+            {
+                OnFlush();
+                return -1;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                OnLocalWrite(frame.GetKey(ranges[i]));
+            }
+
+            return count;
+        }
+
+        /// <summary>
         /// Invalidate everything - a null invalidation (<c>FLUSHALL</c>/<c>FLUSHDB</c>), a lost connection,
         /// or <c>tracking-redir-broken</c>.
         /// </summary>

@@ -25,12 +25,6 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Next
 
-- [ ] **Wire `OnLocalWrite`** — it has no caller in `src`, and the timing measurements (6.13) make that a
-      **correctness** gap rather than a missing optimisation. A self-invalidation always trails its own
-      reply, and trails the replies of anything pipelined behind it: `SET k v` then `GET k` returns the
-      read *before* the notification about the write. So the server's message can never close the
-      read-your-own-writes window, and the local hook is the only thing that can.
-
 - [ ] **Teach the in-proc server `CLIENT TRACKING`** (`toys/StackExchange.Redis.Server`), for test
       isolation: the cache suite currently needs a shared 6379, where one test's `FLUSHDB` reaches every
       other test's tracking connection. Most of the seams already exist - `RespServer.Touch(db, key)` is
@@ -43,7 +37,10 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       invalidations are *accumulated across the write cycle* and emitted **after** the replies - two
       pipelined `SET`s produce one two-key push after both `+OK`s - so the fake needs an accumulator
       flushed at the end of a batch, not a send inside `Touch`. `FLUSHDB` is the exception: its
-      `invalidate null` goes out **before** its own `+OK`.
+      `invalidate null` goes out **before** its own `+OK` - though the fake may emit it after, and that
+      is a deliberate, recorded divergence rather than an oversight: the ordering only matters to the client
+      doing the flushing, which has already called `OnFlush` locally, and everyone else receives it
+      unsolicited where ordering means nothing.
 
       Per-key (non-`BCAST`) mode is nearly as cheap - `OnKey` already runs per key with a `ReadOnly` flag -
       and is worth having because it is the mode whose "server forgets the key once it has told you"
@@ -212,7 +209,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Split `CacheOptions` (settled once: prefixes, budget) from `CachePolicy` (read-time, per-call) — `286a461a`
 - [x] `Execute` -> `Render` on the context: rendering is not executing — `682cc687`
 - [x] Wipe pooled arrays whose elements can hold references — `2c905046`
-- [x] MGET returns a pooled lease; the array shape moves to an internal sibling — this change
+- [x] MGET returns a pooled lease; the array shape moves to an internal sibling — `ae3abb1e`
+- [x] Measured invalidation timing against a real server (6.13) — `eddb3b5f`
+- [x] Wire `OnLocalWrite`: a write tells the cache before it is sent — this change
 - [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
 - [x] Byte and entry quotas, with sampled eviction — `87d5afa2`
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and
