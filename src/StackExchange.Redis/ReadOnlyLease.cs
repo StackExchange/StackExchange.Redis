@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Threading;
 
@@ -113,6 +113,31 @@ namespace StackExchange.Redis
 
         private static T[] ThrowDisposed() => throw new ObjectDisposedException(nameof(ReadOnlyLease<T>));
 
+        /// <summary>
+        /// Whether a returned array must be wiped before it goes back to the pool.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Only when <typeparamref name="T"/> can hold a reference. For <c>byte</c> - the only element type
+        /// this began with - clearing is pure cost and buys nothing. For <see cref="RedisValue"/>,
+        /// <see cref="HashEntry"/> and friends it is not optional: a pooled array that is handed back still
+        /// points at whatever was in it, so every one of those objects stays reachable until the buffer
+        /// happens to be rented and overwritten. That is not a leak that ever throws; it is a heap that
+        /// quietly does not shrink, which is materially harder to find.
+        /// </para>
+        /// <para>
+        /// <c>RuntimeHelpers.IsReferenceOrContainsReferences</c> answers this exactly, but does not exist on
+        /// <c>net461</c>/<c>netstandard2.0</c>. Down-level the fallback errs towards clearing: a needless
+        /// wipe costs a memset, a missed one costs retention, and those are not the same size of mistake.
+        /// </para>
+        /// </remarks>
+        private static readonly bool ClearOnReturn =
+#if NET
+            System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+#else
+            !(typeof(T).IsPrimitive || typeof(T).IsEnum);
+#endif
+
         /// <summary>Release the memory owned or referenced by this lease.</summary>
         /// <remarks>
         /// Exchange-to-null makes this once-only however many times it is called, which matters because the
@@ -126,7 +151,7 @@ namespace StackExchange.Redis
             switch (buffer)
             {
                 case T[] array:
-                    ArrayPool<T>.Shared.Return(array);
+                    ArrayPool<T>.Shared.Return(array, ClearOnReturn);
                     break;
                 case IMemoryOwner<T> owner:
                     owner.Dispose();

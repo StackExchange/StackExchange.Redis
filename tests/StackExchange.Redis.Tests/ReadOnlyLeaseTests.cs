@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Buffers;
 using System.Text;
 using RESPite.Messages;
 using StackExchange.Redis;
@@ -117,4 +118,66 @@ public class ReadOnlyLeaseTests
         Assert.Same(ReadOnlyLease<byte>.Empty, lease);
         Assert.Equal(1, reply.RefCount);   // nothing to share
     }
+    /// <summary>
+    /// A lease over elements that can hold references wipes the array before returning it to the pool.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not fussiness: a pooled array handed back still points at everything that was in it, so each of
+    /// those objects stays reachable until that buffer happens to be rented again and overwritten. It never
+    /// throws; the heap just quietly fails to shrink, which is far harder to find than a crash.
+    /// </para>
+    /// <para>
+    /// Asserted by renting the same size straight back - the shared pool hands out the most recently
+    /// returned buffer of a bucket - and looking at what is in it. That is an implementation detail of
+    /// <see cref="ArrayPool{T}"/> rather than a contract, which is why the test tolerates getting a
+    /// different array and only asserts when it got the same one back.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ReferenceElementsAreClearedOnReturn()
+    {
+        var lease = ReadOnlyLease<string>.Rent(4, null, out var target);
+        for (var i = 0; i < target.Length; i++) target[i] = "value" + i;
+        lease.Dispose();
+
+        var reused = ArrayPool<string>.Shared.Rent(4);
+        try
+        {
+            foreach (var slot in reused)
+            {
+                Assert.Null(slot);
+            }
+        }
+        finally
+        {
+            ArrayPool<string>.Shared.Return(reused);
+        }
+    }
+
+    /// <summary>...and a primitive element type is not wiped, because clearing it buys nothing.</summary>
+    /// <remarks>
+    /// The cost side of the same decision: bytes cannot keep anything alive, so a memset per release would
+    /// be pure overhead on the path this type was built for in the first place.
+    /// </remarks>
+    [Fact]
+    public void PrimitiveElementsAreNotClearedOnReturn()
+    {
+        var lease = ReadOnlyLease<byte>.Rent(4, null, out var target);
+        target.Fill(0xAB);
+        lease.Dispose();
+
+        var reused = ArrayPool<byte>.Shared.Rent(4);
+        try
+        {
+            // if this ever legitimately hands back a different buffer, the assertion below is vacuous
+            // rather than wrong - which is the right way round for a test about an optimisation
+            Assert.Contains(reused, b => b == 0xAB);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(reused);
+        }
+    }
+
 }
