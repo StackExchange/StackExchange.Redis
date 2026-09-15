@@ -51,7 +51,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     private static async Task PrimeAsync(IDatabase db, RespClientCache cache, string key, string expected, int expectedCount = 1)
     {
         Assert.True(
-            await WaitFor(async () => (string?)await db.Strings.Get(key) == expected && cache.Count == expectedCount),
+            await WaitFor(async () => (string?)await db.Strings.GetAsync(key) == expected && cache.Count == expectedCount),
             $"'{key}' never stayed in the cache (stored: {cache.Stored}, raced: {cache.RefusedRaced}, count: {cache.Count})");
     }
 
@@ -83,7 +83,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         // read - after somebody else writes - meaningful
         await PrimeAsync(db, cache, "k", "v1");
         var stored = cache.Stored;
-        Assert.Equal("v1", await db.Strings.Get("k"));
+        Assert.Equal("v1", await db.Strings.GetAsync("k"));
         Assert.Equal(stored, cache.Stored);
 
         // a write from elsewhere; nothing in this test ever sent CLIENT TRACKING
@@ -91,7 +91,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         await other.GetDatabase().StringSetAsync("k", "v2");
 
         Assert.True(
-            await WaitFor(async () => (string?)await db.Strings.Get("k") == "v2"),
+            await WaitFor(async () => (string?)await db.Strings.GetAsync("k") == "v2"),
             "the invalidation never arrived - did the handshake stop sending CLIENT TRACKING?");
     }
 
@@ -114,7 +114,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         await db.StringSetAsync("other", "v1");
 
         await PrimeAsync(db, cache, "app:k", "v1");
-        Assert.Equal("v1", await db.Strings.Get("other"));
+        Assert.Equal("v1", await db.Strings.GetAsync("other"));
 
         Assert.Equal(1, cache.Count);              // only the tracked one is held
         Assert.True(cache.RefusedNotTracked > 0);  // and the other was refused, not cached-and-hoped
@@ -167,7 +167,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         await other.GetDatabase().StringSetAsync("k", "v2");
 
         Assert.True(
-            await WaitFor(async () => (string?)await db.Strings.Get("k") == "v2"),
+            await WaitFor(async () => (string?)await db.Strings.GetAsync("k") == "v2"),
             "the per-key invalidation never arrived");
     }
 
@@ -186,7 +186,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         await muxer.GetServer(server.DefaultEndPoint).FlushDatabaseAsync();
 
         Assert.True(
-            await WaitFor(async () => (string?)await db.Strings.Get("app:k") is null),
+            await WaitFor(async () => (string?)await db.Strings.GetAsync("app:k") is null),
             "the flush push never arrived, or did not empty the cache");
     }
 

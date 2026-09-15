@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Tests;
 /// <para>
 /// The groups used to bind to <see cref="IRespTarget"/>, which <c>IRedis</c> carried, so every one of
 /// <c>IDatabase</c>, <c>IServer</c> and <c>ISubscriber</c> offered <c>Strings</c>, <c>Hashes</c>,
-/// <c>Keys</c> and <c>Scripts</c>. <c>server.Strings.Get(key)</c> compiled - discoverability pointing
+/// <c>Keys</c> and <c>Scripts</c>. <c>server.Strings.GetAsync(key)</c> compiled - discoverability pointing
 /// straight at a cliff, since an <c>IServer</c> is pinned to one endpoint and has no business doing
 /// key-routed work.
 /// </para>
@@ -38,7 +38,7 @@ public class RespTargetSplitTests
     {
         Assert.False(
             typeof(IRespKeyspaceTarget).IsAssignableFrom(typeof(IServer)),
-            "IServer must not offer key-routed groups: 'server.Strings.Get(key)' should not compile");
+            "IServer must not offer key-routed groups: 'server.Strings.GetAsync(key)' should not compile");
 
         // it keeps a context, though - server-scoped groups will bind to IRespServerTarget
         Assert.True(typeof(IRespServerTarget).IsAssignableFrom(typeof(IServer)));

@@ -7,7 +7,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The set-command group: <c>target.Sets.Add(...)</c>.
+    /// EXPERIMENTAL SPIKE. The set-command group: <c>target.Sets.AddAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// The smallest group so far, and the one where the variadic hole does most of the work: nearly every
@@ -47,7 +47,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="value">The member to add.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Add(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> AddAsync(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.SADD}{key}{value}", flags.WithDefaultCategory(RedisCommand.SADD));
 
@@ -56,7 +56,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="values">The members to add.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Add(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> AddAsync(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
             => values.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sets.Context.SendAsync<long>(
@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="value">The member to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Remove(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> RemoveAsync(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.SREM}{key}{value}", flags.WithDefaultCategory(RedisCommand.SREM));
 
@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="values">The members to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Remove(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RemoveAsync(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
             => values.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sets.Context.SendAsync<long>(
@@ -87,7 +87,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="value">The member to look for.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Contains(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> ContainsAsync(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.SISMEMBER}{key}{value}", flags.WithDefaultCategory(RedisCommand.SISMEMBER));
 
@@ -96,7 +96,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="values">The members to look for.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<bool>> Contains(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<bool>> ContainsAsync(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
             => values.IsEmpty
                 ? new ValueTask<ReadOnlyLease<bool>>(ReadOnlyLease<bool>.Empty)
                 : sets.Context.SendAsync<ReadOnlyLease<bool>>(
@@ -124,7 +124,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Length(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LengthAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<long>(
                 $"{RedisCommand.SCARD}{key}", flags.WithDefaultCategory(RedisCommand.SCARD));
 
@@ -132,7 +132,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RespValue>> Members(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> MembersAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.SMEMBERS}{key}", flags.WithDefaultCategory(RedisCommand.SMEMBERS));
 
@@ -158,7 +158,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="destination">The key to add to.</param>
         /// <param name="value">The member to move.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Move(this in RespSets sets, RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> MoveAsync(this in RespSets sets, RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.SMOVE}{source}{destination}{value}", flags.WithDefaultCategory(RedisCommand.SMOVE));
 
@@ -166,7 +166,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> Pop(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> PopAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.SPOP}{key}", flags.WithDefaultCategory(RedisCommand.SPOP));
 
@@ -180,7 +180,7 @@ namespace StackExchange.Redis.Interpolated
         /// sends a bare <c>SPOP</c> and would remove <b>one</b>. That is a divergence, and a deliberate
         /// one: "pop none" quietly popping one is the kind of thing a caller discovers in production.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> Pop(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> PopAsync(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => count == 0
                 ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
                 : sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
@@ -208,7 +208,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> RandomMember(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> RandomMemberAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.SRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
 
@@ -217,7 +217,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembers(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
 
@@ -247,7 +247,7 @@ namespace StackExchange.Redis.Interpolated
         /// building a variadic message used to be work, and with a run of keys as a hole it is the same
         /// expression either way.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> Combine(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> CombineAsync(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
@@ -281,7 +281,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="destination">The key to write the result to.</param>
         /// <param name="keys">The keys to combine.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> CombineAndStore(this in RespSets sets, SetOperation operation, RedisKey destination, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> CombineAndStoreAsync(this in RespSets sets, SetOperation operation, RedisKey destination, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
@@ -301,7 +301,7 @@ namespace StackExchange.Redis.Interpolated
         /// accepts <c>APPROX</c> and the others will error - but a stale client-side check would block a
         /// later server that extended it, so the server decides. Same reasoning as <c>RedisDatabase</c>.
         /// </remarks>
-        public static ValueTask<long> CombineLength(
+        public static ValueTask<long> CombineLengthAsync(
             this in RespSets sets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,

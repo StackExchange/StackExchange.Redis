@@ -59,8 +59,8 @@ public class RespSurfaceHyperLogLogTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.HyperLogLog.Add("k", "a");
-        await ctx.HyperLogLog.Add("k", ["a", "b"]);
+        await ctx.HyperLogLog.AddAsync("k", "a");
+        await ctx.HyperLogLog.AddAsync("k", ["a", "b"]);
 
         Assert.Equal(
             new[] { "*3|$5|PFADD|$1|k|$1|a|", "*4|$5|PFADD|$1|k|$1|a|$1|b|" },
@@ -74,7 +74,7 @@ public class RespSurfaceHyperLogLogTests
 
         // unlike SADD, an arity-zero PFADD is a real request: it creates the structure if absent and says
         // whether it had to. There is an answer, so there is nothing to invent by short-circuiting.
-        await ctx.HyperLogLog.Add("k", ReadOnlySpan<RedisValue>.Empty);
+        await ctx.HyperLogLog.AddAsync("k", ReadOnlySpan<RedisValue>.Empty);
 
         Assert.Equal("*2|$5|PFADD|$1|k|", Assert.Single(exec.Sent));
     }
@@ -84,9 +84,9 @@ public class RespSurfaceHyperLogLogTests
     {
         var (ctx, exec) = Target(":7\r\n", ":9\r\n", "+OK\r\n");
 
-        Assert.Equal(7, await ctx.HyperLogLog.Length("k"));
-        Assert.Equal(9, await ctx.HyperLogLog.Length(["a", "b"]));
-        await ctx.HyperLogLog.Merge("dst", ["a", "b"]);
+        Assert.Equal(7, await ctx.HyperLogLog.LengthAsync("k"));
+        Assert.Equal(9, await ctx.HyperLogLog.LengthAsync(["a", "b"]));
+        await ctx.HyperLogLog.MergeAsync("dst", ["a", "b"]);
 
         Assert.Equal(
             new[]
@@ -105,8 +105,8 @@ public class RespSurfaceHyperLogLogTests
 
         // PFCOUNT caches the cardinality back into the key, so before 2.8.18 it is a write however much
         // it reads - which means a replica cannot serve it, whatever the caller preferred
-        await Server(bare, 2, 8, 0).HyperLogLog.Length("k", CommandFlags.PreferReplica);
-        await Server(bare, 2, 8, 0).HyperLogLog.Length(["a", "b"], CommandFlags.PreferReplica);
+        await Server(bare, 2, 8, 0).HyperLogLog.LengthAsync("k", CommandFlags.PreferReplica);
+        await Server(bare, 2, 8, 0).HyperLogLog.LengthAsync(["a", "b"], CommandFlags.PreferReplica);
 
         Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.DemandMaster, Message.GetPrimaryReplicaFlags(f)));
     }
@@ -116,11 +116,11 @@ public class RespSurfaceHyperLogLogTests
     {
         var (bare, exec) = Target(":7\r\n", ":7\r\n");
 
-        await Server(bare, 2, 8, 18).HyperLogLog.Length("k", CommandFlags.PreferReplica);
+        await Server(bare, 2, 8, 18).HyperLogLog.LengthAsync("k", CommandFlags.PreferReplica);
 
         // and with no probe at all, the caller's routing stands: the old surface demotes only when it
         // actually selected a server, so "not sure" has to leave this alone rather than guess
-        await bare.HyperLogLog.Length("k", CommandFlags.PreferReplica);
+        await bare.HyperLogLog.LengthAsync("k", CommandFlags.PreferReplica);
 
         Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.PreferReplica, Message.GetPrimaryReplicaFlags(f)));
     }
@@ -133,7 +133,7 @@ public class RespSurfaceHyperLogLogTests
         // the one case that cannot be honoured: the caller demanded a replica and the command may not go
         // to one. Overriding silently would send the write somewhere they excluded on purpose.
         var ex = Assert.Throws<RedisCommandException>(
-            () => Server(bare, 2, 8, 0).HyperLogLog.Length("k", CommandFlags.DemandReplica));
+            () => Server(bare, 2, 8, 0).HyperLogLog.LengthAsync("k", CommandFlags.DemandReplica));
 
         Assert.Contains("Command cannot be issued to a replica", ex.Message);
         Assert.Empty(exec.Sent);
@@ -144,9 +144,9 @@ public class RespSurfaceHyperLogLogTests
     {
         var (ctx, exec) = Target(":1\r\n", ":7\r\n", "+OK\r\n");
 
-        await ctx.HyperLogLog.Add("k", "a");
-        await ctx.HyperLogLog.Length("k");
-        await ctx.HyperLogLog.Merge("dst", ["a"]);
+        await ctx.HyperLogLog.AddAsync("k", "a");
+        await ctx.HyperLogLog.LengthAsync("k");
+        await ctx.HyperLogLog.MergeAsync("dst", ["a"]);
 
         // PFADD sits with SADD and HDEL: a replay adds the same elements again, and the set of observed
         // elements is unchanged - only the "did this alter the estimate" answer can differ

@@ -74,7 +74,7 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target(":8\r\n");
 
-        Assert.Equal(8, await ctx.Strings.Append("k", "defgh"));
+        Assert.Equal(8, await ctx.Strings.AppendAsync("k", "defgh"));
         Assert.Equal("*3|$6|APPEND|$1|k|$5|defgh|", Assert.Single(exec.Sent));
     }
 
@@ -83,8 +83,8 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target(":3\r\n", "$3\r\nabc\r\n");
 
-        await ctx.Strings.Length("k");
-        await ctx.Strings.GetRange("k", 0, -1);
+        await ctx.Strings.LengthAsync("k");
+        await ctx.Strings.GetRangeAsync("k", 0, -1);
 
         Assert.Equal(
             new[] { "*2|$6|STRLEN|$1|k|", "*4|$8|GETRANGE|$1|k|$1|0|$2|-1|" },
@@ -100,7 +100,7 @@ public class RespSurfaceStringsTests
         var (ctx, exec) = Target(":11\r\n");
 
         // long, not RedisValue: SETRANGE has only ever replied with an integer
-        Assert.Equal(11, await ctx.Strings.SetRange("k", 6, "Redis"));
+        Assert.Equal(11, await ctx.Strings.SetRangeAsync("k", 6, "Redis"));
         Assert.Equal("*4|$8|SETRANGE|$1|k|$1|6|$5|Redis|", Assert.Single(exec.Sent));
     }
 
@@ -109,9 +109,9 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target(":1\r\n", ":-1\r\n", ":5\r\n");
 
-        await ctx.Strings.Increment("k");
-        await ctx.Strings.Increment("k", -1);
-        await ctx.Strings.Increment("k", 5);
+        await ctx.Strings.IncrementAsync("k");
+        await ctx.Strings.IncrementAsync("k", -1);
+        await ctx.Strings.IncrementAsync("k", 5);
 
         // no INCR/DECR/DECRBY: the argument is always written, so there is no arity branch and no second
         // spelling to keep in step. See the remarks on Increment.
@@ -133,7 +133,7 @@ public class RespSurfaceStringsTests
         // a value with an exact binary form, on purpose: a RedisValue renders a double round-trippably
         // (G17), so 0.14 would go out as 0.14000000000000001 - which is what the old writer sends too,
         // since it takes the same RedisValue conversion
-        Assert.Equal(1.5, await ctx.Strings.Increment("k", 1.5));
+        Assert.Equal(1.5, await ctx.Strings.IncrementAsync("k", 1.5));
         Assert.Equal("*3|$11|INCRBYFLOAT|$1|k|$3|1.5|", Assert.Single(exec.Sent));
     }
 
@@ -142,10 +142,10 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target("$3\r\nabc\r\n");
 
-        await ctx.Strings.GetSetExpiry("k", default);                        // leave the TTL alone
-        await ctx.Strings.GetSetExpiry("k", TimeSpan.FromSeconds(300));      // EX
-        await ctx.Strings.GetSetExpiry("k", TimeSpan.FromMilliseconds(1500)); // PX
-        await ctx.Strings.GetSetExpiry("k", Expiration.Persist);             // PERSIST
+        await ctx.Strings.GetSetExpiryAsync("k", default);                        // leave the TTL alone
+        await ctx.Strings.GetSetExpiryAsync("k", TimeSpan.FromSeconds(300));      // EX
+        await ctx.Strings.GetSetExpiryAsync("k", TimeSpan.FromMilliseconds(1500)); // PX
+        await ctx.Strings.GetSetExpiryAsync("k", Expiration.Persist);             // PERSIST
 
         Assert.Equal(
             new[]
@@ -169,7 +169,7 @@ public class RespSurfaceStringsTests
 
         // ENX has no place in GETEX's grammar; say so here rather than let the server say it later
         Assert.Throws<NotSupportedException>(
-            () => ctx.Strings.GetSetExpiry("k", new Expiration(TimeSpan.FromSeconds(30), ExpirationFlags.ExpireIfNotExists)));
+            () => ctx.Strings.GetSetExpiryAsync("k", new Expiration(TimeSpan.FromSeconds(30), ExpirationFlags.ExpireIfNotExists)));
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public class RespSurfaceStringsTests
         var (ctx, exec) = Target("*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
         RedisKey[] keys = ["k1", "k2", "k3"];
-        (await ctx.WithKeyPrefix("t:").Strings.Get(keys)).Dispose();
+        (await ctx.WithKeyPrefix("t:").Strings.GetAsync(keys)).Dispose();
 
         // every key in the run is prefixed, exactly as a single key is
         Assert.Equal("*4|$4|MGET|$4|t:k1|$4|t:k2|$4|t:k3|", Assert.Single(exec.Sent));
@@ -191,12 +191,12 @@ public class RespSurfaceStringsTests
 
         // the empty case hands back the shared Empty lease, so there is nothing pooled to give back -
         // but it is disposed anyway, because a caller cannot know that and should not have to
-        using (var none = await ctx.Strings.Get(ReadOnlySpan<RedisKey>.Empty))
+        using (var none = await ctx.Strings.GetAsync(ReadOnlySpan<RedisKey>.Empty))
         {
             Assert.Equal(0, none.Length);
         }
 
-        Assert.True(await ctx.Strings.Set(ReadOnlySpan<KeyValuePair<RedisKey, RedisValue>>.Empty));
+        Assert.True(await ctx.Strings.SetAsync(ReadOnlySpan<KeyValuePair<RedisKey, RedisValue>>.Empty));
 
         // an arity-zero MGET or MSET is a server error; "nothing" is answerable without asking
         Assert.Empty(exec.Sent);
@@ -208,10 +208,10 @@ public class RespSurfaceStringsTests
         var (ctx, exec) = Target();
         KeyValuePair<RedisKey, RedisValue>[] values = [new("a", "1"), new("b", "2")];
 
-        await ctx.Strings.Set(values);
-        await ctx.Strings.Set(values, when: ValueCondition.NotExists);
-        await ctx.Strings.Set(values, expiry: TimeSpan.FromSeconds(60));
-        await ctx.Strings.Set(values, expiry: TimeSpan.FromSeconds(60), when: ValueCondition.Exists);
+        await ctx.Strings.SetAsync(values);
+        await ctx.Strings.SetAsync(values, when: ValueCondition.NotExists);
+        await ctx.Strings.SetAsync(values, expiry: TimeSpan.FromSeconds(60));
+        await ctx.Strings.SetAsync(values, expiry: TimeSpan.FromSeconds(60), when: ValueCondition.Exists);
 
         Assert.Equal(
             new[]
@@ -233,7 +233,7 @@ public class RespSurfaceStringsTests
         KeyValuePair<RedisKey, RedisValue>[] values = [new("a", "1"), new("b", "2")];
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await ctx.Strings.Set(values, when: ValueCondition.Equal("old")));
+            async () => await ctx.Strings.SetAsync(values, when: ValueCondition.Equal("old")));
     }
 
     [Fact]
@@ -241,7 +241,7 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target("$3\r\nold\r\n");
 
-        await ctx.Strings.SetAndGet("k", "v", TimeSpan.FromSeconds(4), When.Exists);
+        await ctx.Strings.SetAndGetAsync("k", "v", TimeSpan.FromSeconds(4), When.Exists);
 
         // condition, then GET, then expiration - the grammar as documented, not EX n XX GET
         Assert.Equal("*7|$3|SET|$1|k|$1|v|$2|XX|$3|GET|$2|EX|$1|4|", Assert.Single(exec.Sent));
@@ -254,8 +254,8 @@ public class RespSurfaceStringsTests
 
         // the long-standing meaning on this library's surface: there is no SET that stores "no value",
         // and writing an empty string instead would be a different value, silently
-        await ctx.Strings.Set("k", RedisValue.Null);
-        await ctx.Strings.SetAndGet("k", RedisValue.Null);
+        await ctx.Strings.SetAsync("k", RedisValue.Null);
+        await ctx.Strings.SetAndGetAsync("k", RedisValue.Null);
 
         Assert.Equal(new[] { "*2|$3|DEL|$1|k|", "*2|$6|GETDEL|$1|k|" }, exec.Sent);
     }
@@ -265,9 +265,9 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target(":1\r\n");
 
-        await ctx.Strings.Delete("k");
-        await ctx.Strings.Delete("k", ValueCondition.Exists);
-        await ctx.Strings.Delete("k", ValueCondition.Equal("old"));
+        await ctx.Strings.DeleteAsync("k");
+        await ctx.Strings.DeleteAsync("k", ValueCondition.Exists);
+        await ctx.Strings.DeleteAsync("k", ValueCondition.Equal("old"));
 
         Assert.Equal(
             new[]
@@ -286,7 +286,7 @@ public class RespSurfaceStringsTests
 
         // "delete it if it is absent" would quietly become "delete it"
         await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await ctx.Strings.Delete("k", ValueCondition.NotExists));
+            async () => await ctx.Strings.DeleteAsync("k", ValueCondition.NotExists));
     }
 
     [Fact]
@@ -294,8 +294,8 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target("*2\r\n:5\r\n:5\r\n");
 
-        await ctx.Strings.Increment("k", 5, TimeSpan.FromSeconds(60));
-        await ctx.Strings.Increment("k", 5, TimeSpan.FromSeconds(60), lowerBound: 0, upperBound: 100, options: IncrementOptions.Saturate);
+        await ctx.Strings.IncrementAsync("k", 5, TimeSpan.FromSeconds(60));
+        await ctx.Strings.IncrementAsync("k", 5, TimeSpan.FromSeconds(60), lowerBound: 0, upperBound: 100, options: IncrementOptions.Saturate);
 
         Assert.Equal(
             new[]
@@ -313,7 +313,7 @@ public class RespSurfaceStringsTests
 
         // under a bound the applied increment is not the one that was asked for; that is the whole reason
         // INCREX has a two-element reply and a result type of its own
-        var result = await ctx.Strings.Increment("k", 60, TimeSpan.FromSeconds(60), upperBound: 100, options: IncrementOptions.Saturate);
+        var result = await ctx.Strings.IncrementAsync("k", 60, TimeSpan.FromSeconds(60), upperBound: 100, options: IncrementOptions.Saturate);
         Assert.Equal(100, result.Value);
         Assert.Equal(40, result.AppliedIncrement);
     }
@@ -323,8 +323,8 @@ public class RespSurfaceStringsTests
     {
         var (ctx, _) = Target();
 
-        Assert.Throws<ArgumentException>(() => ctx.Strings.Increment("k", 1, Expiration.KeepTtl));
-        Assert.Throws<ArgumentException>(() => ctx.Strings.Increment("k", 1, Expiration.Persist));
+        Assert.Throws<ArgumentException>(() => ctx.Strings.IncrementAsync("k", 1, Expiration.KeepTtl));
+        Assert.Throws<ArgumentException>(() => ctx.Strings.IncrementAsync("k", 1, Expiration.Persist));
     }
 
     [Fact]
@@ -332,8 +332,8 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target("$2\r\nab\r\n", ":2\r\n");
 
-        await ctx.Strings.LongestCommonSubsequence("a", "b");
-        await ctx.Strings.LongestCommonSubsequenceLength("a", "b");
+        await ctx.Strings.LongestCommonSubsequenceAsync("a", "b");
+        await ctx.Strings.LongestCommonSubsequenceLengthAsync("a", "b");
 
         Assert.Equal(
             new[]
@@ -352,7 +352,7 @@ public class RespSurfaceStringsTests
             "*4\r\n$7\r\nmatches\r\n*1\r\n*3\r\n*2\r\n:4\r\n:7\r\n*2\r\n:5\r\n:8\r\n:4\r\n$3\r\nlen\r\n:6\r\n";
         var (ctx, exec) = Target(Reply);
 
-        var result = await ctx.Strings.LongestCommonSubsequenceWithMatches("a", "b", minLength: 4);
+        var result = await ctx.Strings.LongestCommonSubsequenceWithMatchesAsync("a", "b", minLength: 4);
 
         Assert.Equal("*7|$3|LCS|$1|a|$1|b|$3|IDX|$11|MINMATCHLEN|$1|4|$12|WITHMATCHLEN|", Assert.Single(exec.Sent));
         Assert.Equal(6, result.LongestMatchLength);
@@ -367,7 +367,7 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target("$16\r\n0123456789abcdef\r\n");
 
-        var digest = await ctx.Strings.Digest("k");
+        var digest = await ctx.Strings.DigestAsync("k");
         Assert.Equal("*2|$6|DIGEST|$1|k|", Assert.Single(exec.Sent));
 
         // the point of returning a ValueCondition rather than bytes: it goes straight back into a write
@@ -379,7 +379,7 @@ public class RespSurfaceStringsTests
     public async Task AMissingKeyHasNoDigest()
     {
         var (ctx, _) = Target("$-1\r\n");
-        Assert.Null(await ctx.Strings.Digest("k"));
+        Assert.Null(await ctx.Strings.DigestAsync("k"));
     }
 
     [Fact]
@@ -387,10 +387,10 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target(":2\r\n");
 
-        await ctx.Bitmaps.Count("k");
-        await ctx.Bitmaps.Count("k", 0, 4, StringIndexType.Bit);
-        await ctx.Bitmaps.Position("k", true, 0, 4, StringIndexType.Bit);
-        await ctx.Bitmaps.Position("k", true, 2, StringIndex.Unbounded);
+        await ctx.Bitmaps.CountAsync("k");
+        await ctx.Bitmaps.CountAsync("k", 0, 4, StringIndexType.Bit);
+        await ctx.Bitmaps.PositionAsync("k", true, 0, 4, StringIndexType.Bit);
+        await ctx.Bitmaps.PositionAsync("k", true, 2, StringIndex.Unbounded);
 
         Assert.Equal(
             new[]
@@ -410,7 +410,7 @@ public class RespSurfaceStringsTests
 
         // there is nowhere to put the token, and dropping it would reinterpret `start` as a byte offset
         Assert.Throws<ArgumentException>(
-            () => ctx.Bitmaps.Position("k", false, 2, StringIndex.Unbounded, StringIndexType.Bit));
+            () => ctx.Bitmaps.PositionAsync("k", false, 2, StringIndex.Unbounded, StringIndexType.Bit));
     }
 
     [Fact]
@@ -419,8 +419,8 @@ public class RespSurfaceStringsTests
         var (ctx, exec) = Target(":1\r\n");
 
         RedisKey[] sources = ["x", "y1", "y2"];
-        await ctx.Bitmaps.Operation(Bitwise.Diff1, "dest", sources);
-        await ctx.Bitmaps.Operation(Bitwise.Not, "dest", ["x"]);
+        await ctx.Bitmaps.OperationAsync(Bitwise.Diff1, "dest", sources);
+        await ctx.Bitmaps.OperationAsync(Bitwise.Not, "dest", ["x"]);
 
         Assert.Equal(
             new[]
@@ -436,8 +436,8 @@ public class RespSurfaceStringsTests
     {
         var (ctx, _) = Target();
 
-        Assert.Throws<ArgumentException>(() => ctx.Bitmaps.Operation(Bitwise.And, "dest", ReadOnlySpan<RedisKey>.Empty));
-        Assert.Throws<ArgumentException>(() => ctx.Bitmaps.Operation(Bitwise.Not, "dest", ["a", "b"]));
+        Assert.Throws<ArgumentException>(() => ctx.Bitmaps.OperationAsync(Bitwise.And, "dest", ReadOnlySpan<RedisKey>.Empty));
+        Assert.Throws<ArgumentException>(() => ctx.Bitmaps.OperationAsync(Bitwise.Not, "dest", ["a", "b"]));
     }
 
     [Fact]
@@ -445,8 +445,8 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target(":1\r\n", ":0\r\n");
 
-        Assert.True(await ctx.Bitmaps.Get("k", 10));
-        Assert.False(await ctx.Bitmaps.Set("k", 10, true));
+        Assert.True(await ctx.Bitmaps.GetAsync("k", 10));
+        Assert.False(await ctx.Bitmaps.SetAsync("k", 10, true));
 
         Assert.Equal(
             new[] { "*3|$6|GETBIT|$1|k|$2|10|", "*4|$6|SETBIT|$1|k|$2|10|$1|1|" },
@@ -466,7 +466,7 @@ public class RespSurfaceStringsTests
             BitFieldOperation.IncrementBy(BitFieldEncoding.Int8, 0, 100, BitFieldOverflow.Fail),
         ];
 
-        using var lease = await ctx.Bitmaps.Field("k", operations);
+        using var lease = await ctx.Bitmaps.FieldAsync("k", operations);
 
         // WRAP is in force to begin with, so the first SET emits no OVERFLOW; the GET does not disturb the
         // sticky state, which is why the FAIL after it is the second and last transition
@@ -487,7 +487,7 @@ public class RespSurfaceStringsTests
         var (bare, exec) = Target("*1\r\n:7\r\n");
         var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))));
 
-        Assert.Equal(7, await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0)));
+        Assert.Equal(7, await ctx.Bitmaps.FieldAsync("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0)));
 
         // BITFIELD is a write to the server however read-only its sub-operations are, so an all-GET
         // payload has to say BITFIELD_RO or a replica will refuse it - but only where it exists, which
@@ -502,7 +502,7 @@ public class RespSurfaceStringsTests
         var (bare, exec) = Target("*1\r\n:7\r\n");
         var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(5, 0))));
 
-        await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
+        await ctx.Bitmaps.FieldAsync("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
 
         // BITFIELD_RO arrived in 6.0; on anything older the read-only spelling is an unknown-command
         // error, which is strictly worse than losing replica eligibility
@@ -559,7 +559,7 @@ public class RespSurfaceStringsTests
         var probe = new FakeFeatures(new RedisFeatures(new Version(7, 0)));
         var ctx = bare.WithServices(probe).WithKeyPrefix("t:");
 
-        await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
+        await ctx.Bitmaps.FieldAsync("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
 
         // on this surface the key prefix is CONTEXT state applied at write time, not something a
         // KeyPrefixed* decorator already baked into the RedisKey - so "k" is not the key that goes out. The
@@ -594,7 +594,7 @@ public class RespSurfaceStringsTests
         // command at a time rather than all at once.
         var (ctx, exec) = Target("*1\r\n:7\r\n");
 
-        await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
+        await ctx.Bitmaps.FieldAsync("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
 
         Assert.StartsWith("*5|$8|BITFIELD|", Assert.Single(exec.Sent));
     }
@@ -604,7 +604,7 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target("*1\r\n:0\r\n");
 
-        await ctx.Bitmaps.Field("k", BitFieldOperation.Set(BitFieldEncoding.UInt8, 0, 1));
+        await ctx.Bitmaps.FieldAsync("k", BitFieldOperation.Set(BitFieldEncoding.UInt8, 0, 1));
 
         Assert.StartsWith("*6|$8|BITFIELD|", Assert.Single(exec.Sent));
 
@@ -618,7 +618,7 @@ public class RespSurfaceStringsTests
         var (ctx, exec) = Target("*1\r\n:0\r\n");
 
         await ctx.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))))
-            .Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Element(2)));
+            .Bitmaps.FieldAsync("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Element(2)));
 
         Assert.Equal("*5|$11|BITFIELD_RO|$1|k|$3|GET|$2|u8|$2|#2|", Assert.Single(exec.Sent));
     }
@@ -645,7 +645,7 @@ public class RespSurfaceStringsTests
     {
         var (ctx, _) = Target("*3\r\n$1\r\na\r\n_\r\n$2\r\nbc\r\n");
 
-        using var values = await ctx.Strings.Get([(RedisKey)"k1", (RedisKey)"k2", (RedisKey)"k3"]);
+        using var values = await ctx.Strings.GetAsync([(RedisKey)"k1", (RedisKey)"k2", (RedisKey)"k3"]);
 
         Assert.Equal(3, values.Length);
         Assert.Equal("a", (string?)values.Span[0]);
@@ -669,7 +669,7 @@ public class RespSurfaceStringsTests
         var (ctx, _) = Target("*3\r\n$1\r\na\r\n$1\r\nb\r\n$1\r\nc\r\n");
         RedisKey[] keys = [(RedisKey)"k1", (RedisKey)"k2", (RedisKey)"k3"];
 
-        var first = await ctx.Strings.Get(keys);
+        var first = await ctx.Strings.GetAsync(keys);
         Assert.Equal(3, first.Length);
         first.Dispose();
 

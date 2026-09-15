@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -69,14 +69,14 @@ public class RespCacheExclusionTests
     {
         var cases = new (string Name, string Reply, Func<RespContext, ValueTask> Run)[]
         {
-            ("SRANDMEMBER", "$1\r\na\r\n", static c => Discard(c.Sets.RandomMember("k"))),
-            ("SRANDMEMBER count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Sets.RandomMembers("k", 2))),
-            ("HRANDFIELD", "$1\r\na\r\n", static c => Discard(c.Hashes.RandomField("k"))),
-            ("HRANDFIELD count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Hashes.RandomFields("k", 2))),
-            ("HRANDFIELD WITHVALUES", "*2\r\n$1\r\na\r\n$1\r\nb\r\n", static c => DiscardLease(c.Hashes.RandomFieldsWithValues("k", 2))),
-            ("ZRANDMEMBER", "$1\r\na\r\n", static c => Discard(c.SortedSets.RandomMember("k"))),
-            ("ZRANDMEMBER count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.SortedSets.RandomMembers("k", 2))),
-            ("ZRANDMEMBER WITHSCORES", "*2\r\n$1\r\na\r\n$1\r\n1\r\n", static c => DiscardLease(c.SortedSets.RandomMembersWithScores("k", 2))),
+            ("SRANDMEMBER", "$1\r\na\r\n", static c => Discard(c.Sets.RandomMemberAsync("k"))),
+            ("SRANDMEMBER count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Sets.RandomMembersAsync("k", 2))),
+            ("HRANDFIELD", "$1\r\na\r\n", static c => Discard(c.Hashes.RandomFieldAsync("k"))),
+            ("HRANDFIELD count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Hashes.RandomFieldsAsync("k", 2))),
+            ("HRANDFIELD WITHVALUES", "*2\r\n$1\r\na\r\n$1\r\nb\r\n", static c => DiscardLease(c.Hashes.RandomFieldsWithValuesAsync("k", 2))),
+            ("ZRANDMEMBER", "$1\r\na\r\n", static c => Discard(c.SortedSets.RandomMemberAsync("k"))),
+            ("ZRANDMEMBER count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.SortedSets.RandomMembersAsync("k", 2))),
+            ("ZRANDMEMBER WITHSCORES", "*2\r\n$1\r\na\r\n$1\r\n1\r\n", static c => DiscardLease(c.SortedSets.RandomMembersWithScoresAsync("k", 2))),
         };
 
         foreach (var (name, reply, run) in cases)
@@ -102,13 +102,13 @@ public class RespCacheExclusionTests
     {
         var (ttlCached, ttlRefused) = await RunTwice(
             "*1\r\n:1000\r\n",
-            static c => DiscardLease(c.Hashes.GetTimeToLive("k", ["f"])));
+            static c => DiscardLease(c.Hashes.GetTimeToLiveAsync("k", ["f"])));
         Assert.False(ttlCached, "HPTTL was served from cache");
         Assert.True(ttlRefused > 0);
 
         var (whenCached, _) = await RunTwice(
             "*1\r\n:1700000000000\r\n",
-            static c => DiscardLease(c.Hashes.GetExpireDateTime("k", ["f"])));
+            static c => DiscardLease(c.Hashes.GetExpireDateTimeAsync("k", ["f"])));
         Assert.True(whenCached, "HPEXPIRETIME should be cacheable: an instant does not drift");
     }
 
@@ -122,7 +122,7 @@ public class RespCacheExclusionTests
     {
         var (cached, refused) = await RunTwice(
             "*1\r\n$1\r\na\r\n",
-            static c => DiscardLease(c.Sets.Members("k")));
+            static c => DiscardLease(c.Sets.MembersAsync("k")));
 
         Assert.True(cached, "SMEMBERS should be cached");
         Assert.Equal(0, refused);

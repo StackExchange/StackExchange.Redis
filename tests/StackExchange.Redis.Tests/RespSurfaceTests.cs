@@ -10,7 +10,7 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
-/// The context-based surface: <c>target.Strings.Set(...)</c>, with nothing but a fake executor underneath.
+/// The context-based surface: <c>target.Strings.SetAsync(...)</c>, with nothing but a fake executor underneath.
 /// See design notes section 9.4.
 /// </summary>
 public class RespSurfaceTests
@@ -198,7 +198,7 @@ public class RespSurfaceTests
 
         // FireAndForget must not cost the command its retry category. It would have, when the category
         // lived in the parameter's DEFAULT value - passing any flag replaced it with nothing.
-        await target.Strings.Set("k", "v", flags: CommandFlags.FireAndForget);
+        await target.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
 
         var sent = Assert.Single(executor.Flags);
         Assert.Equal(CommandFlags.FireAndForget, sent & CommandFlags.FireAndForget);
@@ -212,7 +212,7 @@ public class RespSurfaceTests
         var target = Target(executor);
 
         // WithRetryCategory is first-wins, so a caller who names one keeps it
-        await target.Strings.Set("k", "v", flags: CommandFlags.CommandRetryNever);
+        await target.Strings.SetAsync("k", "v", flags: CommandFlags.CommandRetryNever);
         Assert.Equal(CommandFlags.CommandRetryNever, Assert.Single(executor.Flags) & Message.MaskRetryCategory);
     }
 
@@ -244,8 +244,8 @@ public class RespSurfaceTests
         var executor = new FakeExecutor("+OK\r\n", "$5\r\nhello\r\n");
         var target = Target(executor);
 
-        Assert.True(await target.Strings.Set("mykey", "hello"));
-        Assert.Equal("hello", await target.Strings.Get("mykey"));
+        Assert.True(await target.Strings.SetAsync("mykey", "hello"));
+        Assert.Equal("hello", await target.Strings.GetAsync("mykey"));
 
         Assert.Equal(
             new[] { "*3|$3|SET|$5|mykey|$5|hello|", "*2|$3|GET|$5|mykey|" },
@@ -256,7 +256,7 @@ public class RespSurfaceTests
     public async Task NullRepliesSurfaceAsRedisValueNull()
     {
         var target = Target(new FakeExecutor("$-1\r\n"));
-        Assert.True((await target.Strings.Get("missing")).IsNull);
+        Assert.True((await target.Strings.GetAsync("missing")).IsNull);
     }
 
     [Fact]
@@ -265,7 +265,7 @@ public class RespSurfaceTests
         // both shapes exist: from the root object, and from a context someone already holds
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var ctx = new RespContext().WithExecutor(executor);
-        Assert.Equal("hello", await ctx.Strings.Get("mykey"));
+        Assert.Equal("hello", await ctx.Strings.GetAsync("mykey"));
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public class RespSurfaceTests
 
         // this is the whole of KeyPrefixedDatabase's write half - no per-method forwarding
         var tenant = target.WithKeyPrefix("t7:");
-        await tenant.Strings.Set("user:1", "marc");
+        await tenant.Strings.SetAsync("user:1", "marc");
 
         Assert.Equal("*3|$3|SET|$9|t7:user:1|$4|marc|", Assert.Single(executor.Sent));
     }
@@ -288,12 +288,12 @@ public class RespSurfaceTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var target = Target(executor, cache);
 
-        Assert.Equal("hello", await target.Strings.Get("mykey"));
-        Assert.Equal("hello", await target.Strings.Get("mykey"));
+        Assert.Equal("hello", await target.Strings.GetAsync("mykey"));
+        Assert.Equal("hello", await target.Strings.GetAsync("mykey"));
         Assert.Single(executor.Sent); // the second read never reached the executor
 
         cache.OnInvalidate(Encoding.UTF8.GetBytes("mykey"));
-        Assert.Equal("hello", await target.Strings.Get("mykey"));
+        Assert.Equal("hello", await target.Strings.GetAsync("mykey"));
         Assert.Equal(2, executor.Sent.Count);
     }
 
@@ -304,8 +304,8 @@ public class RespSurfaceTests
         var executor = new FakeExecutor("+OK\r\n");
         var target = Target(executor, cache);
 
-        await target.Strings.Set("mykey", "hello");
-        await target.Strings.Set("mykey", "hello");
+        await target.Strings.SetAsync("mykey", "hello");
+        await target.Strings.SetAsync("mykey", "hello");
 
         // SET defaults to a write retry category, which the flag gate rejects - so both were sent
         Assert.Equal(2, executor.Sent.Count);
@@ -320,8 +320,8 @@ public class RespSurfaceTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var target = Target(executor, cache);
 
-        await target.Strings.Get("mykey");
-        await target.Strings.Get("mykey", CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache);
+        await target.Strings.GetAsync("mykey");
+        await target.Strings.GetAsync("mykey", CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache);
 
         Assert.Equal(2, executor.Sent.Count); // the opted-out call did not read the cached entry
     }
@@ -339,6 +339,6 @@ public class RespSurfaceTests
     public void MissingExecutorFailsLoudlyRatherThanSilently()
     {
         var target = new RespDatabase(new RespContext());
-        Assert.Throws<InvalidOperationException>(() => target.Strings.Get("mykey"));
+        Assert.Throws<InvalidOperationException>(() => target.Strings.GetAsync("mykey"));
     }
 }

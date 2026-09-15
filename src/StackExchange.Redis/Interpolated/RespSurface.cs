@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Interpolated
     /// The keyspace groups - <c>Strings</c>, <c>Hashes</c>, <c>Keys</c> and the rest - bind here rather
     /// than to <see cref="IRespTarget"/>, so that resolving them is what decides whether they make sense.
     /// They used to bind to <see cref="IRespTarget"/>, which <c>IServer</c> and <c>ISubscriber</c> also
-    /// carry, so <c>server.Strings.Get(key)</c> compiled - an offer of something an <c>IServer</c> has no
+    /// carry, so <c>server.Strings.GetAsync(key)</c> compiled - an offer of something an <c>IServer</c> has no
     /// business doing, discovered by exactly the tab-completion that is meant to be the point.
     /// </para>
     /// <para>
@@ -928,7 +928,7 @@ namespace StackExchange.Redis.Interpolated
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the shape the whole design exists to enable: <c>ctx.Strings.Set(key, value)</c> reads like a
+    /// This is the shape the whole design exists to enable: <c>ctx.Strings.SetAsync(key, value)</c> reads like a
     /// built-in method, groups the surface the way Redis documents itself, and is reachable by any library -
     /// including one that is not this one - without a wrapper interface or a forked surface.
     /// </para>

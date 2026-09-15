@@ -15,43 +15,43 @@ namespace StackExchange.Redis.Interpolated
     {
         /// <inheritdoc/>
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Add(key, value, flags));
+            => Wait(Context.Sets.AddAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Add(key, value, flags).AsTask();
+            => Context.Sets.AddAsync(key, value, flags).AsTask();
 
         /// <inheritdoc/>
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Add(key, Required(values, nameof(values)), flags));
+            => Wait(Context.Sets.AddAsync(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Add(key, Required(values, nameof(values)), flags).AsTask();
+            => Context.Sets.AddAsync(key, Required(values, nameof(values)), flags).AsTask();
 
         /// <inheritdoc/>
         public bool SetRemove(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Remove(key, value, flags));
+            => Wait(Context.Sets.RemoveAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetRemoveAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Remove(key, value, flags).AsTask();
+            => Context.Sets.RemoveAsync(key, value, flags).AsTask();
 
         /// <inheritdoc/>
         public long SetRemove(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Remove(key, Required(values, nameof(values)), flags));
+            => Wait(Context.Sets.RemoveAsync(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<long> SetRemoveAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Remove(key, Required(values, nameof(values)), flags).AsTask();
+            => Context.Sets.RemoveAsync(key, Required(values, nameof(values)), flags).AsTask();
 
         /// <inheritdoc/>
         public bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Contains(key, value, flags));
+            => Wait(Context.Sets.ContainsAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Contains(key, value, flags).AsTask();
+            => Context.Sets.ContainsAsync(key, value, flags).AsTask();
 
         /// <inheritdoc/>
         public bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -63,11 +63,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Length(key, flags));
+            => Wait(Context.Sets.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Length(key, flags).AsTask();
+            => Context.Sets.LengthAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] SetMembers(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -79,19 +79,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public bool SetMove(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Move(source, destination, value, flags));
+            => Wait(Context.Sets.MoveAsync(source, destination, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetMoveAsync(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Move(source, destination, value, flags).AsTask();
+            => Context.Sets.MoveAsync(source, destination, value, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue SetPop(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Pop(key, flags));
+            => Wait(Context.Sets.PopAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> SetPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Pop(key, flags).AsTask();
+            => Context.Sets.PopAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -103,11 +103,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.RandomMember(key, flags));
+            => Wait(Context.Sets.RandomMemberAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> SetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.RandomMember(key, flags).AsTask();
+            => Context.Sets.RandomMemberAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -138,35 +138,35 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.CombineAndStore(operation, destination, Pair(first, second), flags));
+            => Wait(Context.Sets.CombineAndStoreAsync(operation, destination, Pair(first, second), flags));
 
         /// <inheritdoc/>
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.CombineAndStore(operation, destination, Pair(first, second), flags).AsTask();
+            => Context.Sets.CombineAndStoreAsync(operation, destination, Pair(first, second), flags).AsTask();
 
         /// <inheritdoc/>
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.CombineAndStore(operation, destination, Required(keys, nameof(keys)), flags));
+            => Wait(Context.Sets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.CombineAndStore(operation, destination, Required(keys, nameof(keys)), flags).AsTask();
+            => Context.Sets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), flags).AsTask();
 
         /// <inheritdoc/>
         public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.CombineLength(SetOperation.Intersect, Required(keys, nameof(keys)), limit, approximate: false, flags));
+            => Wait(Context.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit, approximate: false, flags));
 
         /// <inheritdoc/>
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.CombineLength(SetOperation.Intersect, Required(keys, nameof(keys)), limit, approximate: false, flags).AsTask();
+            => Context.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit, approximate: false, flags).AsTask();
 
         /// <inheritdoc/>
         public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.CombineLength(operation, Required(keys, nameof(keys)), limit, approximate, flags));
+            => Wait(Context.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit, approximate, flags));
 
         /// <inheritdoc/>
         public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.CombineLength(operation, Required(keys, nameof(keys)), limit, approximate, flags).AsTask();
+            => Context.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit, approximate, flags).AsTask();
 
         /// <summary>
         /// The old <c>(first, second)</c> shape as a run of keys; a default <c>second</c> means one key.

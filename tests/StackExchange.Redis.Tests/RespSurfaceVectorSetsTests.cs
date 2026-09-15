@@ -49,7 +49,7 @@ public class RespSurfaceVectorSetsTests
 
         var request = VectorSetAddRequest.Member("m", new[] { 1f, 2f }.AsMemory());
         request.UseFp32 = false; // VALUES, so the bytes are readable here
-        await ctx.VectorSets.Add("k", request);
+        await ctx.VectorSets.AddAsync("k", request);
 
         // the element comes AFTER its vector, which is the one part of this grammar that reads backwards
         // from the way the method is called
@@ -63,7 +63,7 @@ public class RespSurfaceVectorSetsTests
 
         var request = VectorSetAddRequest.Member("m", new[] { 1f, 2f }.AsMemory());
         request.UseFp32 = true;
-        await ctx.VectorSets.Add("k", request);
+        await ctx.VectorSets.AddAsync("k", request);
 
         // FP32 is one bulk string of raw little-endian floats rather than a token each: four arguments
         // for any length of vector, and exact rather than round-tripped through text
@@ -84,7 +84,7 @@ public class RespSurfaceVectorSetsTests
         request.BuildExplorationFactor = 200;
         request.MaxConnections = 8;
 
-        await ctx.VectorSets.Add("k", request);
+        await ctx.VectorSets.AddAsync("k", request);
 
         // REDUCE before the vector; CAS, quantization and EF after the element; SETATTR then M last
         Assert.Equal(
@@ -101,7 +101,7 @@ public class RespSurfaceVectorSetsTests
         request.UseFp32 = false;
         request.Quantization = VectorSetQuantization.Int8;
 
-        await ctx.VectorSets.Add("k", request);
+        await ctx.VectorSets.AddAsync("k", request);
 
         // int8 is what the server does anyway, so naming it would be three bytes for nothing
         Assert.DoesNotContain("NOQUANT", Assert.Single(exec.Sent));
@@ -113,11 +113,11 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        using (await ctx.VectorSets.SimilaritySearch("k", VectorSetSimilaritySearchRequest.ByMember("m"))) { }
+        using (await ctx.VectorSets.SimilaritySearchAsync("k", VectorSetSimilaritySearchRequest.ByMember("m"))) { }
 
         var byVector = VectorSetSimilaritySearchRequest.ByVector(new[] { 1f, 2f }.AsMemory());
         byVector.UseFp32 = false;
-        using (await ctx.VectorSets.SimilaritySearch("k", byVector)) { }
+        using (await ctx.VectorSets.SimilaritySearchAsync("k", byVector)) { }
 
         Assert.Equal(
             new[]
@@ -144,7 +144,7 @@ public class RespSurfaceVectorSetsTests
         query.UseExactSearch = true;
         query.DisableThreading = true;
 
-        using (await ctx.VectorSets.SimilaritySearch("k", query)) { }
+        using (await ctx.VectorSets.SimilaritySearchAsync("k", query)) { }
 
         Assert.Equal(
             "*18|$4|VSIM|$1|k|$3|ELE|$1|m|$10|WITHSCORES|$11|WITHATTRIBS|$5|COUNT|$1|5|$7|EPSILON|$3|0.5|$2|EF|$3|100|$6|FILTER|$9|.size > 1|$9|FILTER-EF|$2|20|$5|TRUTH|$8|NOTHREAD|",
@@ -159,7 +159,7 @@ public class RespSurfaceVectorSetsTests
         var query = VectorSetSimilaritySearchRequest.ByMember("m");
         query.FilterExpression = "   ";
 
-        using (await ctx.VectorSets.SimilaritySearch("k", query)) { }
+        using (await ctx.VectorSets.SimilaritySearchAsync("k", query)) { }
 
         // the property keeps what it was given, but a blank filter is absent rather than a filter that
         // matches everything - writing one is a syntax error at the server, which is how this was found
@@ -181,7 +181,7 @@ public class RespSurfaceVectorSetsTests
             query.WithScores = true;
             query.WithAttributes = true;
 
-            using var results = await ctx.VectorSets.SimilaritySearch("k", query);
+            using var results = await ctx.VectorSets.SimilaritySearchAsync("k", query);
 
             var only = Assert.Single(results!.Span.ToArray());
             Assert.Equal("a", only.Member);
@@ -195,11 +195,11 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target(":3\r\n", ":8\r\n", ":1\r\n", "$2\r\n{}\r\n", "$1\r\nm\r\n");
 
-        Assert.Equal(3, await ctx.VectorSets.Length("k"));
-        Assert.Equal(8, await ctx.VectorSets.Dimension("k"));
-        Assert.True(await ctx.VectorSets.Contains("k", "m"));
-        Assert.Equal("{}", await ctx.VectorSets.GetAttributesJson("k", "m"));
-        Assert.Equal("m", await ctx.VectorSets.RandomMember("k"));
+        Assert.Equal(3, await ctx.VectorSets.LengthAsync("k"));
+        Assert.Equal(8, await ctx.VectorSets.DimensionAsync("k"));
+        Assert.True(await ctx.VectorSets.ContainsAsync("k", "m"));
+        Assert.Equal("{}", await ctx.VectorSets.GetAttributesJsonAsync("k", "m"));
+        Assert.Equal("m", await ctx.VectorSets.RandomMemberAsync("k"));
 
         Assert.Equal(
             new[]
@@ -218,8 +218,8 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target(":1\r\n");
 
-        await ctx.VectorSets.Remove("k", "m");
-        await ctx.VectorSets.SetAttributesJson("k", "m", "{\"a\":1}");
+        await ctx.VectorSets.RemoveAsync("k", "m");
+        await ctx.VectorSets.SetAttributesJsonAsync("k", "m", "{\"a\":1}");
 
         Assert.Equal(
             new[]
@@ -235,12 +235,12 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target("*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
-        using var some = await ctx.VectorSets.RandomMembers("k", 2);
+        using var some = await ctx.VectorSets.RandomMembersAsync("k", 2);
         Assert.Equal(new RedisValue[] { "a", "b" }, System.Array.ConvertAll(some.Span.ToArray(), v => v.AsRedisValue()));
 
         // negative counts are meaningful here - they allow the same member more than once - so the count
         // is written as given rather than clamped
-        using (await ctx.VectorSets.RandomMembers("k", -2)) { }
+        using (await ctx.VectorSets.RandomMembersAsync("k", -2)) { }
 
         Assert.Equal(
             new[] { "*3|$11|VRANDMEMBER|$1|k|$1|2|", "*3|$11|VRANDMEMBER|$1|k|$2|-2|" },
@@ -252,7 +252,7 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target("*3\r\n$3\r\n0.5\r\n$4\r\n-0.5\r\n$1\r\n1\r\n");
 
-        using var vector = await ctx.VectorSets.GetApproximateVector("k", "m");
+        using var vector = await ctx.VectorSets.GetApproximateVectorAsync("k", "m");
 
         Assert.NotNull(vector);
         Assert.Equal(new[] { 0.5f, -0.5f, 1f }, vector.Span.ToArray());
@@ -266,7 +266,7 @@ public class RespSurfaceVectorSetsTests
 
         // nil, not empty: "no such member" and "a zero-dimensional vector" are different answers, which is
         // why this result is nullable where most array replies are not
-        Assert.Null(await ctx.VectorSets.GetApproximateVector("k", "m"));
+        Assert.Null(await ctx.VectorSets.GetApproximateVectorAsync("k", "m"));
     }
 
     [Fact]
@@ -274,7 +274,7 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target("*2\r\n*1\r\n$1\r\na\r\n*2\r\n$1\r\nb\r\n$1\r\nc\r\n");
 
-        using var links = await ctx.VectorSets.GetLinks("k", "m");
+        using var links = await ctx.VectorSets.GetLinksAsync("k", "m");
 
         // the reply is one array per HNSW layer; the layers are an implementation detail of the index
         // rather than something the caller asked about, so they arrive as one run
@@ -288,7 +288,7 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target("*1\r\n*4\r\n$1\r\na\r\n$3\r\n0.5\r\n$1\r\nb\r\n$4\r\n0.25\r\n");
 
-        using var links = await ctx.VectorSets.GetLinksWithScores("k", "m");
+        using var links = await ctx.VectorSets.GetLinksWithScoresAsync("k", "m");
 
         // WITHSCORES sends a flat run of member/score pairs, NOT an array of two-element arrays - reading
         // it as the latter takes a member for a score
@@ -309,7 +309,7 @@ public class RespSurfaceVectorSetsTests
         var (ctx, exec) = Target(
             "*8\r\n$10\r\nquant-type\r\n$4\r\nint8\r\n$10\r\nvector-dim\r\n:4\r\n$4\r\nsize\r\n:7\r\n$7\r\nfuture!\r\n*1\r\n:1\r\n");
 
-        var info = await ctx.VectorSets.Info("k");
+        var info = await ctx.VectorSets.InfoAsync("k");
 
         Assert.NotNull(info);
         Assert.Equal(4, info!.Value.Dimension);
@@ -325,7 +325,7 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, _) = Target("*-1\r\n");
 
-        Assert.Null(await ctx.VectorSets.Info("k"));
+        Assert.Null(await ctx.VectorSets.InfoAsync("k"));
     }
 
     [Fact]
@@ -333,9 +333,9 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        using (await ctx.VectorSets.Range("k")) { }
-        using (await ctx.VectorSets.Range("k", "a", "z")) { }
-        using (await ctx.VectorSets.Range("k", "a", "z", count: 10, exclude: Exclude.Both)) { }
+        using (await ctx.VectorSets.RangeAsync("k")) { }
+        using (await ctx.VectorSets.RangeAsync("k", "a", "z")) { }
+        using (await ctx.VectorSets.RangeAsync("k", "a", "z", count: 10, exclude: Exclude.Both)) { }
 
         // an open end is - or +; a bound is the value behind [ for inclusive or ( for exclusive, which is
         // the same spelling the sorted-set lex ranges use
@@ -354,8 +354,8 @@ public class RespSurfaceVectorSetsTests
     {
         var (ctx, exec) = Target(":1\r\n", ":1\r\n");
 
-        await ctx.VectorSets.Length("k");
-        await ctx.VectorSets.Remove("k", "m");
+        await ctx.VectorSets.LengthAsync("k");
+        await ctx.VectorSets.RemoveAsync("k", "m");
 
         Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
         Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[1] & Message.MaskRetryCategory);

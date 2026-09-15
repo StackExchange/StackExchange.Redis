@@ -7,7 +7,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The list-command group: <c>target.Lists.LeftPush(...)</c>.
+    /// EXPERIMENTAL SPIKE. The list-command group: <c>target.Lists.LeftPushAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="index">The index to read; negative counts back from the end.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> GetByIndex(this in RespLists lists, RedisKey key, long index, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> GetByIndexAsync(this in RespLists lists, RedisKey key, long index, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.LINDEX}{key}{index}", flags.WithDefaultCategory(RedisCommand.LINDEX));
 
@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Length(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LengthAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
                 $"{RedisCommand.LLEN}{key}", flags.WithDefaultCategory(RedisCommand.LLEN));
 
@@ -77,7 +77,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last index to take; negative counts back from the end.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>A pooled lease, not an array, and it must be disposed; see <c>Strings.Get</c>.</remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> Range(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LRANGE}{key}{start}{stop}",
                 flags.WithDefaultCategory(RedisCommand.LRANGE),
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Interpolated
         /// <c>RANK</c> and <c>MAXLEN</c> are always written, as the old surface writes them - the server's
         /// defaults are the same values, so this costs four arguments and keeps one shape.
         /// </remarks>
-        public static ValueTask<long> Position(
+        public static ValueTask<long> PositionAsync(
             this in RespLists lists,
             RedisKey key,
             RedisValue element,
@@ -118,7 +118,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="maxLength">How many entries to compare before giving up; zero for the whole list.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<ReadOnlyLease<long>> Positions(
+        public static ValueTask<ReadOnlyLease<long>> PositionsAsync(
             this in RespLists lists,
             RedisKey key,
             RedisValue element,
@@ -145,10 +145,10 @@ namespace StackExchange.Redis.Interpolated
         /// <c>LPUSHX</c> survives for the reason <c>HSETNX</c> did and <c>SETNX</c> did not: <c>LPUSH</c>
         /// has no conditional operand at all, so the two really are two commands.
         /// </remarks>
-        public static ValueTask<long> LeftPush(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LeftPushAsync(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
             => Push(in lists, key, value, when, left: true, flags);
 
-        /// <inheritdoc cref="LeftPush(in RespLists, RedisKey, RedisValue, When, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, RedisValue, When, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="values">The values to push.</param>
@@ -160,25 +160,25 @@ namespace StackExchange.Redis.Interpolated
         /// returns - so an empty run sends <c>LLEN</c>. Kept because the reply is observable and callers
         /// building a batch from a filtered collection do hit it.
         /// </remarks>
-        public static ValueTask<long> LeftPush(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LeftPushAsync(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
             => Push(in lists, key, values, when, left: true, flags);
 
-        /// <inheritdoc cref="LeftPush(in RespLists, RedisKey, RedisValue, When, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, RedisValue, When, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="value">The value to push.</param>
         /// <param name="when">Whether the list must already exist.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RightPush(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RightPushAsync(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
             => Push(in lists, key, value, when, left: false, flags);
 
-        /// <inheritdoc cref="LeftPush(in RespLists, RedisKey, ReadOnlySpan{RedisValue}, When, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, ReadOnlySpan{RedisValue}, When, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="values">The values to push.</param>
         /// <param name="when">Whether the list must already exist.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RightPush(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RightPushAsync(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
             => Push(in lists, key, values, when, left: false, flags);
 
         // ---- pops --------------------------------------------------------------------------------------
@@ -187,7 +187,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> LeftPop(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> LeftPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.LPOP}{key}", flags.WithDefaultCategory(RedisCommand.LPOP));
 
@@ -197,7 +197,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> LeftPop(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> LeftPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LPOP}{key}{count}",
                 flags.WithDefaultCategory(RedisCommand.LPOP),
@@ -207,7 +207,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> RightPop(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> RightPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.RPOP}{key}", flags.WithDefaultCategory(RedisCommand.RPOP));
 
@@ -217,7 +217,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> RightPop(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RightPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.RPOP}{key}{count}",
                 flags.WithDefaultCategory(RedisCommand.RPOP),
@@ -231,15 +231,15 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// The result carries which key answered, since the caller asked about several.
         /// </remarks>
-        public static ValueTask<ListPopResult> LeftPop(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ListPopResult> LeftPopAsync(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None)
             => MultiPop(in lists, keys, count, left: true, flags);
 
-        /// <inheritdoc cref="LeftPop(in RespLists, ReadOnlySpan{RedisKey}, long, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPopAsync(in RespLists, ReadOnlySpan{RedisKey}, long, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="keys">The keys to try, in order.</param>
         /// <param name="count">How many to take from whichever key answers.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ListPopResult> RightPop(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ListPopResult> RightPopAsync(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None)
             => MultiPop(in lists, keys, count, left: false, flags);
 
         // ---- moves and edits ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ namespace StackExchange.Redis.Interpolated
         /// here the server takes it as an operand too. <c>RPOPLPUSH</c> is this command with both sides
         /// named, which is why it has no method of its own.
         /// </remarks>
-        public static ValueTask<RedisValue> Move(
+        public static ValueTask<RedisValue> MoveAsync(
             this in RespLists lists,
             RedisKey sourceKey,
             RedisKey destinationKey,
@@ -277,7 +277,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         /// <remarks>
         /// Internal, and deliberately not part of the group's own surface: naming both sides is all
-        /// <c>RPOPLPUSH</c> is, so <see cref="Move(in RespLists, RedisKey, RedisKey, ListSide, ListSide, CommandFlags)"/>
+        /// <c>RPOPLPUSH</c> is, so <see cref="MoveAsync(in RespLists, RedisKey, RedisKey, ListSide, ListSide, CommandFlags)"/>
         /// is the method callers want. This exists so that a caller of the <b>old</b> method keeps working
         /// against a server older than 6.2, where <c>LMOVE</c> does not exist.
         /// </remarks>
@@ -292,7 +292,7 @@ namespace StackExchange.Redis.Interpolated
                 && context.TryGetFeatures(RedisCommand.LMOVE, in sourceKey, flags, out var features)
                 && features.ListMove)
             {
-                return Move(in lists, sourceKey, destinationKey, ListSide.Right, ListSide.Left, flags);
+                return MoveAsync(in lists, sourceKey, destinationKey, ListSide.Right, ListSide.Left, flags);
             }
 
             // the version is asked about the SOURCE key, which is the one the command routes on; in a
@@ -317,7 +317,7 @@ namespace StackExchange.Redis.Interpolated
         /// library where those two are different answers; see <see cref="RespHandlers.ValueWindowHandler.NullableLease"/>.
         /// The lease must be disposed.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>?> Move(
+        public static ValueTask<ReadOnlyLease<RespValue>?> MoveAsync(
             this in RespLists lists,
             RedisKey sourceKey,
             RedisKey destinationKey,
@@ -338,7 +338,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="pivot">The existing element to insert next to.</param>
         /// <param name="value">The value to insert.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> InsertBefore(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> InsertBeforeAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
                 $"{RedisCommand.LINSERT}{key}{RespLiterals.Before}{pivot}{value}", flags.WithDefaultCategory(RedisCommand.LINSERT));
 
@@ -348,7 +348,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="pivot">The existing element to insert next to.</param>
         /// <param name="value">The value to insert.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> InsertAfter(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> InsertAfterAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
                 $"{RedisCommand.LINSERT}{key}{RespLiterals.After}{pivot}{value}", flags.WithDefaultCategory(RedisCommand.LINSERT));
 
@@ -358,7 +358,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="value">The value to remove.</param>
         /// <param name="count">How many to remove; zero for all, negative to work from the tail.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Remove(this in RespLists lists, RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RemoveAsync(this in RespLists lists, RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
                 $"{RedisCommand.LREM}{key}{count}{value}", flags.WithDefaultCategory(RedisCommand.LREM));
 
@@ -370,7 +370,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         /// <remarks>Result-less: the reply is <c>+OK</c> and carries nothing, but is still read, because
         /// an error is the only thing such a call can report.</remarks>
-        public static ValueTask SetByIndex(this in RespLists lists, RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask SetByIndexAsync(this in RespLists lists, RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LSET}{key}{index}{value}", flags.WithDefaultCategory(RedisCommand.LSET));
 
@@ -380,8 +380,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="start">The first index to keep.</param>
         /// <param name="stop">The last index to keep.</param>
         /// <param name="flags">Command flags.</param>
-        /// <remarks><inheritdoc cref="SetByIndex" path="/remarks"/></remarks>
-        public static ValueTask Trim(this in RespLists lists, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
+        /// <remarks><inheritdoc cref="SetByIndexAsync" path="/remarks"/></remarks>
+        public static ValueTask TrimAsync(this in RespLists lists, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LTRIM}{key}{start}{stop}", flags.WithDefaultCategory(RedisCommand.LTRIM));
 
@@ -389,7 +389,7 @@ namespace StackExchange.Redis.Interpolated
         // Internal, as everywhere else: the array is the OLD spelling, it allocates where the lease need
         // not, and nothing outside this assembly should be able to choose it. See Strings.GetArray.
 
-        /// <inheritdoc cref="Range(in RespLists, RedisKey, long, long, CommandFlags)"/>
+        /// <inheritdoc cref="RangeAsync(in RespLists, RedisKey, long, long, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="start">The first index to take.</param>
@@ -401,7 +401,7 @@ namespace StackExchange.Redis.Interpolated
                 flags.WithDefaultCategory(RedisCommand.LRANGE),
                 RespHandlers.Values);
 
-        /// <inheritdoc cref="Positions"/>
+        /// <inheritdoc cref="PositionsAsync"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to search.</param>
         /// <param name="element">The element to look for.</param>
@@ -424,7 +424,7 @@ namespace StackExchange.Redis.Interpolated
                 flags,
                 Array.Empty<long>());
 
-        /// <inheritdoc cref="LeftPop(in RespLists, RedisKey, long, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPopAsync(in RespLists, RedisKey, long, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="count">How many to take.</param>
@@ -435,7 +435,7 @@ namespace StackExchange.Redis.Interpolated
                 flags.WithDefaultCategory(RedisCommand.LPOP),
                 RespHandlers.Values);
 
-        /// <inheritdoc cref="RightPop(in RespLists, RedisKey, long, CommandFlags)"/>
+        /// <inheritdoc cref="RightPopAsync(in RespLists, RedisKey, long, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="count">How many to take.</param>
@@ -446,7 +446,7 @@ namespace StackExchange.Redis.Interpolated
                 flags.WithDefaultCategory(RedisCommand.RPOP),
                 RespHandlers.Values);
 
-        /// <inheritdoc cref="Move(in RespLists, RedisKey, RedisKey, ListSide, ListSide, long, ListMoveCount, ListMoveOrder, CommandFlags)"/>
+        /// <inheritdoc cref="MoveAsync(in RespLists, RedisKey, RedisKey, ListSide, ListSide, long, ListMoveCount, ListMoveOrder, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="sourceKey">The key to take from.</param>
         /// <param name="destinationKey">The key to add to.</param>

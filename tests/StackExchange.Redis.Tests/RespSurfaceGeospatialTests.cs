@@ -59,8 +59,8 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target(":1\r\n", ":2\r\n");
 
-        await ctx.Geospatial.Add("k", new GeoEntry(1, 2, "a"));
-        await ctx.Geospatial.Add("k", [new GeoEntry(1, 2, "a"), new GeoEntry(3, 4, "b")]);
+        await ctx.Geospatial.AddAsync("k", new GeoEntry(1, 2, "a"));
+        await ctx.Geospatial.AddAsync("k", [new GeoEntry(1, 2, "a"), new GeoEntry(3, 4, "b")]);
 
         // longitude first: the order trips people up, and it is the opposite of how coordinates are
         // usually said out loud
@@ -78,7 +78,7 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target();
 
-        Assert.Equal(0, await ctx.Geospatial.Add("k", ReadOnlySpan<GeoEntry>.Empty));
+        Assert.Equal(0, await ctx.Geospatial.AddAsync("k", ReadOnlySpan<GeoEntry>.Empty));
         Assert.Empty(exec.Sent);
     }
 
@@ -87,7 +87,7 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target(":1\r\n");
 
-        await ctx.Geospatial.Remove("k", "a");
+        await ctx.Geospatial.RemoveAsync("k", "a");
 
         // there is no GEOREM and there never was: a geo set is a sorted set
         Assert.Equal("*3|$4|ZREM|$1|k|$1|a|", Assert.Single(exec.Sent));
@@ -98,9 +98,9 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target("$5\r\n123.4\r\n", "*1\r\n$11\r\nsqc8b49rny0\r\n", "*1\r\n*2\r\n$1\r\n1\r\n$1\r\n2\r\n");
 
-        Assert.Equal(123.4, await ctx.Geospatial.Distance("k", "a", "b", GeoUnit.Kilometers));
-        Assert.Equal("sqc8b49rny0", await ctx.Geospatial.Hash("k", "a"));
-        Assert.Equal(new GeoPosition(1, 2), await ctx.Geospatial.Position("k", "a"));
+        Assert.Equal(123.4, await ctx.Geospatial.DistanceAsync("k", "a", "b", GeoUnit.Kilometers));
+        Assert.Equal("sqc8b49rny0", await ctx.Geospatial.HashAsync("k", "a"));
+        Assert.Equal(new GeoPosition(1, 2), await ctx.Geospatial.PositionAsync("k", "a"));
 
         Assert.Equal(
             new[]
@@ -120,8 +120,8 @@ public class RespSurfaceGeospatialTests
 
         // GEOPOS and GEOHASH always reply with an array, one element per member asked about; the single
         // forms have to unwrap it, and a nil element is "no such member"
-        Assert.Null(await hash.Geospatial.Hash("k", "a"));
-        Assert.Null(await position.Geospatial.Position("k", "a"));
+        Assert.Null(await hash.Geospatial.HashAsync("k", "a"));
+        Assert.Null(await position.Geospatial.PositionAsync("k", "a"));
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target();
 
-        using (await ctx.Geospatial.Search("k", "a", new GeoSearchCircle(5, GeoUnit.Kilometers), options: GeoRadiusOptions.None)) { }
-        using (await ctx.Geospatial.Search("k", 1, 2, new GeoSearchBox(3, 4, GeoUnit.Meters), options: GeoRadiusOptions.None)) { }
+        using (await ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5, GeoUnit.Kilometers), options: GeoRadiusOptions.None)) { }
+        using (await ctx.Geospatial.SearchAsync("k", 1, 2, new GeoSearchBox(3, 4, GeoUnit.Meters), options: GeoRadiusOptions.None)) { }
 
         Assert.Equal(
             new[]
@@ -146,7 +146,7 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target();
 
-        using (await ctx.Geospatial.Search(
+        using (await ctx.Geospatial.SearchAsync(
             "k",
             "a",
             new GeoSearchCircle(5),
@@ -168,13 +168,13 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target();
 
-        using (await ctx.Geospatial.Search("k", "a", new GeoSearchCircle(5), count: 2, demandClosest: false, options: GeoRadiusOptions.None)) { }
+        using (await ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5), count: 2, demandClosest: false, options: GeoRadiusOptions.None)) { }
 
         Assert.EndsWith("$5|COUNT|$1|2|$3|ANY|", Assert.Single(exec.Sent));
 
         // and without one the server has nothing to stop at, which the old surface rejects too
         var ex = Assert.Throws<ArgumentException>(
-            () => ctx.Geospatial.Search("k", "a", new GeoSearchCircle(5), demandClosest: false));
+            () => ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5), demandClosest: false));
         Assert.Contains("demandClosest", ex.Message);
     }
 
@@ -183,7 +183,7 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target(":2\r\n");
 
-        await ctx.Geospatial.SearchAndStore("dst", "k", "a", new GeoSearchCircle(5), storeDistances: true);
+        await ctx.Geospatial.SearchAndStoreAsync("dst", "k", "a", new GeoSearchCircle(5), storeDistances: true);
 
         // GEOSEARCHSTORE puts the destination before the source, which is the reverse of the old
         // surface's parameter order
@@ -197,7 +197,7 @@ public class RespSurfaceGeospatialTests
     {
         var (bare, exec) = Target();
 
-        using (await Server(bare, 7).Geospatial.Search("k", "a", new GeoSearchCircle(5), options: GeoRadiusOptions.None)) { }
+        using (await Server(bare, 7).Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5), options: GeoRadiusOptions.None)) { }
         await Server(bare, 7).Geospatial.RadiusArray("k", "a", double.NaN, double.NaN, 5, GeoUnit.Meters, -1, null, GeoRadiusOptions.None, CommandFlags.None);
 
         // GEORADIUS is exactly a circular GEOSEARCH, deprecated in its favour since 6.2 - so the old
@@ -243,8 +243,8 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, exec) = Target("*0\r\n", ":0\r\n");
 
-        using (await ctx.Geospatial.Search("k", "a", new GeoSearchCircle(5))) { }
-        await ctx.Geospatial.SearchAndStore("dst", "k", "a", new GeoSearchCircle(5));
+        using (await ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5))) { }
+        await ctx.Geospatial.SearchAndStoreAsync("dst", "k", "a", new GeoSearchCircle(5));
 
         Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
         Assert.Equal(CommandFlags.CommandRetryWriteLastWins, exec.Flags[1] & Message.MaskRetryCategory);
@@ -256,7 +256,7 @@ public class RespSurfaceGeospatialTests
         // one result with every extra: [member, distance, hash, [lon, lat]]
         var (ctx, _) = Target("*1\r\n*4\r\n$1\r\na\r\n$5\r\n123.4\r\n:42\r\n*2\r\n$1\r\n1\r\n$1\r\n2\r\n");
 
-        using var results = await ctx.Geospatial.Search(
+        using var results = await ctx.Geospatial.SearchAsync(
             "k",
             "a",
             new GeoSearchCircle(5),
@@ -274,7 +274,7 @@ public class RespSurfaceGeospatialTests
     {
         var (ctx, _) = Target("*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
-        using var results = await ctx.Geospatial.Search("k", "a", new GeoSearchCircle(5), options: GeoRadiusOptions.None);
+        using var results = await ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5), options: GeoRadiusOptions.None);
 
         // the shape changes with the options, which is why the handler has to know them
         Assert.Equal(new RedisValue[] { "a", "b" }, System.Array.ConvertAll(results.Span.ToArray(), x => x.Member));

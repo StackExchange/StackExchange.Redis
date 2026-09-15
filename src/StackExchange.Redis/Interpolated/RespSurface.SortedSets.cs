@@ -7,7 +7,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The sorted-set command group: <c>target.SortedSets.Add(...)</c>.
+    /// EXPERIMENTAL SPIKE. The sorted-set command group: <c>target.SortedSets.AddAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Interpolated
         /// one token on the wire (<c>CH</c>) and changes what the reply counts, which is a parameter rather
         /// than a command.
         /// </remarks>
-        public static ValueTask<bool> Add(
+        public static ValueTask<bool> AddAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             RedisValue member,
@@ -89,7 +89,7 @@ namespace StackExchange.Redis.Interpolated
         /// Each entry writes <b>score then element</b>, which is the reverse of how a
         /// <see cref="SortedSetEntry"/> reads; the type owns that ordering, so the whole run is one hole.
         /// </remarks>
-        public static ValueTask<long> Add(
+        public static ValueTask<long> AddAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             ReadOnlySpan<SortedSetEntry> entries,
@@ -124,7 +124,7 @@ namespace StackExchange.Redis.Interpolated
         /// only form that has one.
         /// </para>
         /// </remarks>
-        public static ValueTask<double?> Increment(
+        public static ValueTask<double?> IncrementAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             RedisValue member,
@@ -149,7 +149,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="member">The member to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Remove(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> RemoveAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<bool>(
                 $"{RedisCommand.ZREM}{key}{member}", flags.WithDefaultCategory(RedisCommand.ZREM));
 
@@ -158,7 +158,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="members">The members to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Remove(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RemoveAsync(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
             => members.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sortedSets.Context.SendAsync<long>(
@@ -171,7 +171,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to look up.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<double?> Score(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<double?> ScoreAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<double?>(
                 $"{RedisCommand.ZSCORE}{key}{member}", flags.WithDefaultCategory(RedisCommand.ZSCORE));
 
@@ -180,7 +180,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="members">The members to look up.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<double?>> Scores(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<double?>> ScoresAsync(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
             => members.IsEmpty
                 ? new ValueTask<ReadOnlyLease<double?>>(ReadOnlyLease<double?>.Empty)
                 : sortedSets.Context.SendAsync<ReadOnlyLease<double?>>(
@@ -216,7 +216,7 @@ namespace StackExchange.Redis.Interpolated
         /// walk anything - so the default arguments pick a different command, exactly as the old surface
         /// does.
         /// </remarks>
-        public static ValueTask<long> Length(
+        public static ValueTask<long> LengthAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             double min = double.NegativeInfinity,
@@ -242,7 +242,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="max">The highest member to count.</param>
         /// <param name="exclude">Which bounds are exclusive.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> LengthByValue(
+        public static ValueTask<long> LengthByValueAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             RedisValue min,
@@ -262,7 +262,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="member">The member to locate.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long?> Rank(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long?> RankAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANK : RedisCommand.ZRANK;
             return sortedSets.Context.SendAsync<long?>(
@@ -273,7 +273,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> RandomMember(this in RespSortedSets sortedSets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> RandomMemberAsync(this in RespSortedSets sortedSets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.ZRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
@@ -282,7 +282,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembers(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
@@ -307,7 +307,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScores(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScoresAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
                 flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
@@ -338,7 +338,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last rank to take.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RespValue>> RangeByRank(
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeByRankAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             long start = 0,
@@ -376,14 +376,14 @@ namespace StackExchange.Redis.Interpolated
                 $"{command}{key}{start}{stop}", flags.WithDefaultCategory(command));
         }
 
-        /// <inheritdoc cref="RangeByRank"/>
+        /// <inheritdoc cref="RangeByRankAsync"/>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="start">The first rank to take.</param>
         /// <param name="stop">The last rank to take.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByRankWithScores(
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByRankWithScoresAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             long start = 0,
@@ -437,7 +437,7 @@ namespace StackExchange.Redis.Interpolated
         /// asked to walk. That is the old builder's rule, kept exactly, because a caller who passed
         /// <c>(10, 1)</c> descending has always meant the same thing.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> RangeByScore(
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeByScoreAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             double start = double.NegativeInfinity,
@@ -473,7 +473,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => RangeByScoreCore<RedisValue[]>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
 
-        /// <inheritdoc cref="RangeByScore"/>
+        /// <inheritdoc cref="RangeByScoreAsync"/>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="start">The lowest score to take.</param>
@@ -483,7 +483,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="skip">How many to discard from the front.</param>
         /// <param name="take">How many to return; -1 for all.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByScoreWithScores(
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByScoreWithScoresAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             double start = double.NegativeInfinity,
@@ -534,7 +534,7 @@ namespace StackExchange.Redis.Interpolated
         /// the open bounds then flip too, which is why <c>-</c> and <c>+</c> are chosen by the order
         /// rather than by the position.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> RangeByValue(
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeByValueAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             RedisValue min = default,
@@ -607,7 +607,7 @@ namespace StackExchange.Redis.Interpolated
         /// are rejected - the server has no operand for either in that mode, so silently dropping them
         /// would store a different range than was asked for.
         /// </remarks>
-        public static ValueTask<long> RangeAndStore(
+        public static ValueTask<long> RangeAndStoreAsync(
             this in RespSortedSets sortedSets,
             RedisKey sourceKey,
             RedisKey destinationKey,
@@ -662,7 +662,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="start">The first rank to remove.</param>
         /// <param name="stop">The last rank to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveRangeByRank(this in RespSortedSets sortedSets, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RemoveRangeByRankAsync(this in RespSortedSets sortedSets, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZREMRANGEBYRANK}{key}{start}{stop}", flags.WithDefaultCategory(RedisCommand.ZREMRANGEBYRANK));
 
@@ -673,7 +673,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The highest score to remove.</param>
         /// <param name="exclude">Which bounds are exclusive.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveRangeByScore(this in RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RemoveRangeByScoreAsync(this in RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZREMRANGEBYSCORE}{key}{RedisDatabase.GetRange(start, exclude, isStart: true)}{RedisDatabase.GetRange(stop, exclude, isStart: false)}",
                 flags.WithDefaultCategory(RedisCommand.ZREMRANGEBYSCORE));
@@ -685,7 +685,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="max">The highest member to remove.</param>
         /// <param name="exclude">Which bounds are exclusive.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveRangeByValue(this in RespSortedSets sortedSets, RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> RemoveRangeByValueAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         {
             RedisDatabase.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
             return sortedSets.Context.SendAsync<long>(
@@ -702,7 +702,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RespValue>> Combine(
+        public static ValueTask<ReadOnlyLease<RespValue>> CombineAsync(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
@@ -738,14 +738,14 @@ namespace StackExchange.Redis.Interpolated
             return CombineCore<RedisValue[]>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
         }
 
-        /// <inheritdoc cref="Combine(in RespSortedSets, SetOperation, ReadOnlySpan{RedisKey}, ReadOnlySpan{double}, Aggregate, CommandFlags)"/>
+        /// <inheritdoc cref="CombineAsync(in RespSortedSets, SetOperation, ReadOnlySpan{RedisKey}, ReadOnlySpan{double}, Aggregate, CommandFlags)"/>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="operation">The operation to apply.</param>
         /// <param name="keys">The keys to combine.</param>
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<SortedSetEntry>> CombineWithScores(
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> CombineWithScoresAsync(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
@@ -789,7 +789,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> CombineAndStore(
+        public static ValueTask<long> CombineAndStoreAsync(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             RedisKey destination,
@@ -807,7 +807,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The keys to intersect.</param>
         /// <param name="limit">Stop counting at this many; zero for no limit.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> CombineLength(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long limit = 0, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> CombineLengthAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long limit = 0, CommandFlags flags = CommandFlags.None)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
@@ -823,7 +823,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="order">Which end to take from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetEntry?> Pop(this in RespSortedSets sortedSets, RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<SortedSetEntry?> PopAsync(this in RespSortedSets sortedSets, RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
             return sortedSets.Context.SendAsync<SortedSetEntry?>($"{command}{key}", flags.WithDefaultCategory(command));
@@ -835,7 +835,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take.</param>
         /// <param name="order">Which end to take from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<SortedSetEntry>> Pop(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> PopAsync(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             // unlike SPOP, a count of zero here is well defined on the wire - but sending it is a round
             // trip to be told nothing, which the old surface also declines to make
@@ -873,7 +873,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take from whichever key answers.</param>
         /// <param name="order">Which end to take from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetPopResult> Pop(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<SortedSetPopResult> PopAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             if (keys.IsEmpty) throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
 

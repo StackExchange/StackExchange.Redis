@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Interpolated
@@ -24,18 +24,18 @@ namespace StackExchange.Redis.Interpolated
     {
         /// <inheritdoc/>
         public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Scripts.Evaluate(script, keys.Span, values.Span, flags));
+            => Wait(Context.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags));
 
         /// <inheritdoc/>
         public Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Context.Scripts.Evaluate(script, keys.Span, values.Span, flags).AsTask();
+            => Context.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags).AsTask();
 
         /// <inheritdoc/>
         public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Scripts.EvaluateReadOnly(script, keys.Span, values.Span, flags));
+            => Wait(Context.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags));
 
         /// <inheritdoc/>
         public Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Context.Scripts.EvaluateReadOnly(script, keys.Span, values.Span, flags).AsTask();
+            => Context.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags).AsTask();
     }
 }

@@ -16,27 +16,27 @@ namespace StackExchange.Redis.Interpolated
     {
         /// <inheritdoc/>
         public bool VectorSetAdd(RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.Add(key, request, flags));
+            => Wait(Context.VectorSets.AddAsync(key, request, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetAddAsync(RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.Add(key, request, flags).AsTask();
+            => Context.VectorSets.AddAsync(key, request, flags).AsTask();
 
         /// <inheritdoc/>
         public long VectorSetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.Length(key, flags));
+            => Wait(Context.VectorSets.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.Length(key, flags).AsTask();
+            => Context.VectorSets.LengthAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public int VectorSetDimension(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.Dimension(key, flags));
+            => Wait(Context.VectorSets.DimensionAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<int> VectorSetDimensionAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.Dimension(key, flags).AsTask();
+            => Context.VectorSets.DimensionAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public Lease<float>? VectorSetGetApproximateVector(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -48,27 +48,27 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public string? VectorSetGetAttributesJson(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.GetAttributesJson(key, member, flags));
+            => Wait(Context.VectorSets.GetAttributesJsonAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<string?> VectorSetGetAttributesJsonAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.GetAttributesJson(key, member, flags).AsTask();
+            => Context.VectorSets.GetAttributesJsonAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public VectorSetInfo? VectorSetInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.Info(key, flags));
+            => Wait(Context.VectorSets.InfoAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.Info(key, flags).AsTask();
+            => Context.VectorSets.InfoAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public bool VectorSetContains(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.Contains(key, member, flags));
+            => Wait(Context.VectorSets.ContainsAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.Contains(key, member, flags).AsTask();
+            => Context.VectorSets.ContainsAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -88,11 +88,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue VectorSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.RandomMember(key, flags));
+            => Wait(Context.VectorSets.RandomMemberAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.RandomMember(key, flags).AsTask();
+            => Context.VectorSets.RandomMemberAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] VectorSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -104,19 +104,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.Remove(key, member, flags));
+            => Wait(Context.VectorSets.RemoveAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.Remove(key, member, flags).AsTask();
+            => Context.VectorSets.RemoveAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.VectorSets.SetAttributesJson(key, member, attributesJson, flags));
+            => Wait(Context.VectorSets.SetAttributesJsonAsync(key, member, attributesJson, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
-            => Context.VectorSets.SetAttributesJson(key, member, attributesJson, flags).AsTask();
+            => Context.VectorSets.SetAttributesJsonAsync(key, member, attributesJson, flags).AsTask();
 
         /// <inheritdoc/>
         public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)

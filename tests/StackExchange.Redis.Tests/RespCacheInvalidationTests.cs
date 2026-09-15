@@ -57,7 +57,7 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
         Assert.True(
             await WaitFor(async () =>
             {
-                Assert.Equal(expected, (string?)await db.Strings.Get(key));
+                Assert.Equal(expected, (string?)await db.Strings.GetAsync(key));
                 return cache.Count >= target;
             }),
             $"'{key}' never cached: stored={cache.Stored} raced={cache.RefusedRaced} " +
@@ -131,13 +131,13 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
 
         // a repeat read is served locally: nothing new is stored
         var stored = cache.Stored;
-        Assert.Equal("v1", await db.Strings.Get(tracked));
+        Assert.Equal("v1", await db.Strings.GetAsync(tracked));
         Assert.Equal(stored, cache.Stored);
 
         // the untracked key is outside the PREFIX the server agreed to announce, so it is never cached at
         // all: a hit there could only ever be retired by the lifetime, with nothing able to say it is wrong
         // sooner. It reads correctly every time, straight from the server.
-        Assert.Equal("v1", await db.Strings.Get(untracked));
+        Assert.Equal("v1", await db.Strings.GetAsync(untracked));
         Assert.Equal(1, cache.RefusedNotTracked);
 
         await writer.StringSetAsync(untracked, "v2");
@@ -145,11 +145,11 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
 
         // the tracked key is announced, so the entry goes and the next read refetches...
         Assert.True(
-            await WaitFor(async () => (string?)await db.Strings.Get(tracked) == "v2"),
+            await WaitFor(async () => (string?)await db.Strings.GetAsync(tracked) == "v2"),
             "the invalidation for the tracked key never arrived");
 
         // ...and the untracked one was never stale, because it was never stored
-        Assert.Equal("v2", await db.Strings.Get(untracked));
+        Assert.Equal("v2", await db.Strings.GetAsync(untracked));
         Assert.Equal(2, cache.RefusedNotTracked); // both reads of it, refused both times
     }
 
@@ -183,7 +183,7 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
         await server.FlushDatabaseAsync(dbId); // a dedicated database: FLUSHDB on the shared one would take the suite with it
 
         Assert.True(
-            await WaitFor(async () => (string?)await db.Strings.Get(key) is null),
+            await WaitFor(async () => (string?)await db.Strings.GetAsync(key) is null),
             "the flush push never arrived, or did not empty the cache");
     }
 }

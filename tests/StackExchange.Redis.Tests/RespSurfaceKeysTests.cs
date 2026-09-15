@@ -47,10 +47,10 @@ public class RespSurfaceKeysTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.Keys.Delete("k");
-        await ctx.Keys.Delete([(RedisKey)"a", (RedisKey)"b"]);
-        await ctx.Keys.Exists("k");
-        await ctx.Keys.Exists([(RedisKey)"a", (RedisKey)"b"]);
+        await ctx.Keys.DeleteAsync("k");
+        await ctx.Keys.DeleteAsync([(RedisKey)"a", (RedisKey)"b"]);
+        await ctx.Keys.ExistsAsync("k");
+        await ctx.Keys.ExistsAsync([(RedisKey)"a", (RedisKey)"b"]);
 
         Assert.Equal(
             new[]
@@ -69,9 +69,9 @@ public class RespSurfaceKeysTests
     {
         var (ctx, exec) = Target();
 
-        Assert.Equal(0, await ctx.Keys.Delete(ReadOnlySpan<RedisKey>.Empty));
-        Assert.Equal(0, await ctx.Keys.Exists(ReadOnlySpan<RedisKey>.Empty));
-        Assert.Equal(0, await ctx.Keys.Touch(ReadOnlySpan<RedisKey>.Empty));
+        Assert.Equal(0, await ctx.Keys.DeleteAsync(ReadOnlySpan<RedisKey>.Empty));
+        Assert.Equal(0, await ctx.Keys.ExistsAsync(ReadOnlySpan<RedisKey>.Empty));
+        Assert.Equal(0, await ctx.Keys.TouchAsync(ReadOnlySpan<RedisKey>.Empty));
         Assert.Empty(exec.Sent);
     }
 
@@ -100,7 +100,7 @@ public class RespSurfaceKeysTests
             _ => DateTimeOffset.FromUnixTimeMilliseconds(1700000000500).UtcDateTime,
         };
 
-        await ctx.Keys.Expire("k", expiry);
+        await ctx.Keys.ExpireAsync("k", expiry);
         Assert.Equal(expected, Assert.Single(exec.Sent));
     }
 
@@ -109,7 +109,7 @@ public class RespSurfaceKeysTests
     public async Task PersistIsNotAnExpiration()
     {
         var (ctx, _) = Target();
-        await Assert.ThrowsAsync<ArgumentException>(async () => await ctx.Keys.Expire("k", Expiration.Persist));
+        await Assert.ThrowsAsync<ArgumentException>(async () => await ctx.Keys.ExpireAsync("k", Expiration.Persist));
     }
 
     /// <summary>The optional COPY operands are holes: one command shape covers all four combinations.</summary>
@@ -121,7 +121,7 @@ public class RespSurfaceKeysTests
     public async Task CopyOperandsAreHolesNotBranches(int db, bool replace, string expected)
     {
         var (ctx, exec) = Target();
-        await ctx.Keys.Copy("a", "b", db, replace);
+        await ctx.Keys.CopyAsync("a", "b", db, replace);
         Assert.Equal(expected, Assert.Single(exec.Sent));
     }
 
@@ -134,7 +134,7 @@ public class RespSurfaceKeysTests
     public async Task TypeIsReadThroughTheTokenTable(string reply, RedisType expected)
     {
         var (ctx, _) = Target(reply);
-        Assert.Equal(expected, await ctx.Keys.Type("k"));
+        Assert.Equal(expected, await ctx.Keys.TypeAsync("k"));
     }
 
     /// <summary>"No such key" and "no expiry" both read as null; EXISTS is what tells them apart.</summary>
@@ -144,22 +144,22 @@ public class RespSurfaceKeysTests
     public async Task AbsentDeadlinesReadAsNull(string reply)
     {
         var (ctx, _) = Target(reply);
-        Assert.Null(await ctx.Keys.TimeToLive("k"));
+        Assert.Null(await ctx.Keys.TimeToLiveAsync("k"));
 
         var (ctx2, _) = Target(reply);
-        Assert.Null(await ctx2.Keys.ExpireTime("k"));
+        Assert.Null(await ctx2.Keys.ExpireTimeAsync("k"));
     }
 
     [Fact]
     public async Task DeadlinesComeBackAsTimeAndInstant()
     {
         var (ctx, _) = Target(":60000\r\n");
-        Assert.Equal(TimeSpan.FromSeconds(60), await ctx.Keys.TimeToLive("k"));
+        Assert.Equal(TimeSpan.FromSeconds(60), await ctx.Keys.TimeToLiveAsync("k"));
 
         var (ctx2, _) = Target(":1700000000000\r\n");
         Assert.Equal(
             DateTimeOffset.FromUnixTimeMilliseconds(1700000000000).UtcDateTime,
-            await ctx2.Keys.ExpireTime("k"));
+            await ctx2.Keys.ExpireTimeAsync("k"));
     }
 
     /// <summary>
@@ -184,18 +184,18 @@ public class RespSurfaceKeysTests
             return (executor.Sent.Count == 1, cache.RefusedByFlags);
         }
 
-        var (touch, touchRefused) = await Run(":1\r\n", static async c => await c.Keys.Touch("k"));
+        var (touch, touchRefused) = await Run(":1\r\n", static async c => await c.Keys.TouchAsync("k"));
         Assert.False(touch, "TOUCH was served from cache");
         Assert.True(touchRefused > 0);
 
-        var (random, _) = await Run("$1\r\na\r\n", static async c => await c.Keys.Random());
+        var (random, _) = await Run("$1\r\na\r\n", static async c => await c.Keys.RandomAsync());
         Assert.False(random, "RANDOMKEY was served from cache");
 
-        var (ttl, _) = await Run(":60000\r\n", static async c => await c.Keys.TimeToLive("k"));
+        var (ttl, _) = await Run(":60000\r\n", static async c => await c.Keys.TimeToLiveAsync("k"));
         Assert.False(ttl, "PTTL was served from cache");
 
         // ...and the control: an instant does not drift, so this one is cacheable
-        var (when, _) = await Run(":1700000000000\r\n", static async c => await c.Keys.ExpireTime("k"));
+        var (when, _) = await Run(":1700000000000\r\n", static async c => await c.Keys.ExpireTimeAsync("k"));
         Assert.True(when, "PEXPIRETIME should be cacheable");
     }
 }

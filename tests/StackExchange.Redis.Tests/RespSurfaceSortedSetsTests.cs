@@ -56,7 +56,7 @@ public class RespSurfaceSortedSetsTests
         var (ctx, exec) = Target();
 
         SortedSetEntry[] entries = [new("a", 1), new("b", 2)];
-        await ctx.SortedSets.Add("k", entries);
+        await ctx.SortedSets.AddAsync("k", entries);
 
         // the reverse of how SortedSetEntry reads, and the order ZADD wants; getting this backwards
         // produces a command the server accepts and misinterprets
@@ -68,9 +68,9 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.SortedSets.Add("k", "m", 1);
-        await ctx.SortedSets.Add("k", "m", 1, SortedSetWhen.GreaterThan, change: true);
-        await ctx.SortedSets.Add("k", "m", 1, SortedSetWhen.NotExists);
+        await ctx.SortedSets.AddAsync("k", "m", 1);
+        await ctx.SortedSets.AddAsync("k", "m", 1, SortedSetWhen.GreaterThan, change: true);
+        await ctx.SortedSets.AddAsync("k", "m", 1, SortedSetWhen.NotExists);
 
         Assert.Equal(
             new[]
@@ -87,10 +87,10 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.SortedSets.Add("k", "m", 1);
-        await ctx.SortedSets.Add("k", "m", 1, SortedSetWhen.Exists);
-        await ctx.SortedSets.Increment("k", "m", 1, SortedSetWhen.Exists);
-        await ctx.SortedSets.Increment("k", "m", 1, SortedSetWhen.NotExists);
+        await ctx.SortedSets.AddAsync("k", "m", 1);
+        await ctx.SortedSets.AddAsync("k", "m", 1, SortedSetWhen.Exists);
+        await ctx.SortedSets.IncrementAsync("k", "m", 1, SortedSetWhen.Exists);
+        await ctx.SortedSets.IncrementAsync("k", "m", 1, SortedSetWhen.NotExists);
 
         // a bare ZADD overwrites, so last-wins; NX/XX/GT/LT make a replay converge, so checked; INCR
         // compounds - unless NX, where a replay can only find the member present and no-op
@@ -105,8 +105,8 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("$1\r\n5\r\n");
 
-        await ctx.SortedSets.Increment("k", "m", 5);
-        await ctx.SortedSets.Increment("k", "m", 5, SortedSetWhen.Exists);
+        await ctx.SortedSets.IncrementAsync("k", "m", 5);
+        await ctx.SortedSets.IncrementAsync("k", "m", 5, SortedSetWhen.Exists);
 
         Assert.Equal(
             new[]
@@ -122,9 +122,9 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.SortedSets.Length("k");
-        await ctx.SortedSets.Length("k", 1, 10);
-        await ctx.SortedSets.Length("k", 1, 10, Exclude.Start);
+        await ctx.SortedSets.LengthAsync("k");
+        await ctx.SortedSets.LengthAsync("k", 1, 10);
+        await ctx.SortedSets.LengthAsync("k", 1, 10, Exclude.Start);
 
         // the whole set is what ZCARD answers without walking anything; and an exclusive bound is a '('
         Assert.Equal(
@@ -142,10 +142,10 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        await ctx.SortedSets.RangeByScore("k", 1, 10);
-        await ctx.SortedSets.RangeByScore("k", 10, 1, order: Order.Descending);
-        await ctx.SortedSets.RangeByScore("k", 10, 1, Exclude.Start, Order.Descending);
-        await ctx.SortedSets.RangeByScore("k", 1, 10, Exclude.Start, Order.Descending);
+        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10);
+        await ctx.SortedSets.RangeByScoreAsync("k", 10, 1, order: Order.Descending);
+        await ctx.SortedSets.RangeByScoreAsync("k", 10, 1, Exclude.Start, Order.Descending);
+        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10, Exclude.Start, Order.Descending);
 
         // each command wants its bounds in the direction it walks - ascending low-then-high, descending
         // high-then-low - so a caller who wrote them the other way round gets them swapped, and the
@@ -167,9 +167,9 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        await ctx.SortedSets.RangeByScore("k", 1, 10);
-        await ctx.SortedSets.RangeByScore("k", 1, 10, skip: 5, take: 2);
-        await ctx.SortedSets.RangeByScoreWithScores("k", 1, 10, skip: 5, take: 2);
+        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10);
+        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10, skip: 5, take: 2);
+        await ctx.SortedSets.RangeByScoreWithScoresAsync("k", 1, 10, skip: 5, take: 2);
 
         Assert.Equal(
             new[]
@@ -186,10 +186,10 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        await ctx.SortedSets.RangeByValue("k");
-        await ctx.SortedSets.RangeByValue("k", order: Order.Descending);
-        await ctx.SortedSets.RangeByValue("k", "a", "j");
-        await ctx.SortedSets.RangeByValue("k", "a", "j", Exclude.Both);
+        await ctx.SortedSets.RangeByValueAsync("k");
+        await ctx.SortedSets.RangeByValueAsync("k", order: Order.Descending);
+        await ctx.SortedSets.RangeByValueAsync("k", "a", "j");
+        await ctx.SortedSets.RangeByValueAsync("k", "a", "j", Exclude.Both);
 
         // '-' and '+' are chosen by the ORDER, not by the position; the bounds themselves stay in
         // start-then-stop order even for the reversed command
@@ -209,10 +209,10 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.SortedSets.RangeAndStore("src", "dst", 0, -1);
-        await ctx.SortedSets.RangeAndStore("src", "dst", "a", "j", SortedSetOrder.ByLex);
-        await ctx.SortedSets.RangeAndStore("src", "dst", 1, 10, SortedSetOrder.ByScore);
-        await ctx.SortedSets.RangeAndStore("src", "dst", "a", "j", SortedSetOrder.ByLex, take: 3);
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", 0, -1);
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", "a", "j", SortedSetOrder.ByLex);
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", 1, 10, SortedSetOrder.ByScore);
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", "a", "j", SortedSetOrder.ByLex, take: 3);
 
         // the destination comes FIRST, and a by-lex bound is bracketed where a by-score one is bare -
         // an asymmetry that belongs to the server and is exactly what gets "tidied" into a bug
@@ -234,8 +234,8 @@ public class RespSurfaceSortedSetsTests
 
         // by rank the server has no operand for either, so dropping them silently would store a
         // different range than was asked for
-        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStore("s", "d", 0, -1, take: 3));
-        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStore("s", "d", 0, -1, exclude: Exclude.Start));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStoreAsync("s", "d", 0, -1, take: 3));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStoreAsync("s", "d", 0, -1, exclude: Exclude.Start));
     }
 
     [Fact]
@@ -244,10 +244,10 @@ public class RespSurfaceSortedSetsTests
         var (ctx, exec) = Target("*0\r\n", "*0\r\n", "*0\r\n", ":0\r\n");
 
         RedisKey[] keys = ["a", "b"];
-        await ctx.SortedSets.Combine(SetOperation.Union, keys);
-        await ctx.SortedSets.Combine(SetOperation.Union, keys, [1, 2]);
-        await ctx.SortedSets.CombineWithScores(SetOperation.Intersect, keys, default, Aggregate.Max);
-        await ctx.SortedSets.CombineAndStore(SetOperation.Union, "dest", keys, [1, 2], Aggregate.Count);
+        await ctx.SortedSets.CombineAsync(SetOperation.Union, keys);
+        await ctx.SortedSets.CombineAsync(SetOperation.Union, keys, [1, 2]);
+        await ctx.SortedSets.CombineWithScoresAsync(SetOperation.Intersect, keys, default, Aggregate.Max);
+        await ctx.SortedSets.CombineAndStoreAsync(SetOperation.Union, "dest", keys, [1, 2], Aggregate.Count);
 
         // SUM is the server's own default and renders as nothing; the STORE form puts its destination
         // before the count, which is the one place the key list is not what follows numkeys
@@ -269,14 +269,14 @@ public class RespSurfaceSortedSetsTests
         RedisKey[] keys = ["a", "b"];
 
         // the message names whichever command was asked for, as the old surface does
-        var diff = Assert.Throws<ArgumentException>(() => ctx.SortedSets.Combine(SetOperation.Difference, keys, [1, 2]));
+        var diff = Assert.Throws<ArgumentException>(() => ctx.SortedSets.CombineAsync(SetOperation.Difference, keys, [1, 2]));
         Assert.StartsWith("ZDIFF ", diff.Message);
 
-        var store = Assert.Throws<ArgumentException>(() => ctx.SortedSets.CombineAndStore(SetOperation.Difference, "d", keys, [1, 2]));
+        var store = Assert.Throws<ArgumentException>(() => ctx.SortedSets.CombineAndStoreAsync(SetOperation.Difference, "d", keys, [1, 2]));
         Assert.StartsWith("ZDIFFSTORE ", store.Message);
 
-        Assert.Throws<ArgumentException>(() => ctx.SortedSets.Combine(SetOperation.Union, keys, [1]));
-        Assert.Throws<ArgumentException>(() => ctx.SortedSets.Combine(SetOperation.Union, ReadOnlySpan<RedisKey>.Empty));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.CombineAsync(SetOperation.Union, keys, [1]));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.CombineAsync(SetOperation.Union, ReadOnlySpan<RedisKey>.Empty));
     }
 
     [Fact]
@@ -284,8 +284,8 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("*2\r\n$1\r\na\r\n$1\r\n1\r\n");
 
-        await ctx.SortedSets.Pop("k");
-        await ctx.SortedSets.Pop("k", 2, Order.Descending);
+        await ctx.SortedSets.PopAsync("k");
+        await ctx.SortedSets.PopAsync("k", 2, Order.Descending);
 
         Assert.Equal(
             new[] { "*2|$7|ZPOPMIN|$1|k|", "*3|$7|ZPOPMAX|$1|k|$1|2|" },
@@ -299,7 +299,7 @@ public class RespSurfaceSortedSetsTests
 
         // `count: 0` rather than a bare 0, because Order is an enum and so a literal zero is ambiguous
         // between the two overloads - a wart this surface inherits from the pair it replaces
-        Assert.Empty((await ctx.SortedSets.Pop("k", count: 0)).Span.ToArray());
+        Assert.Empty((await ctx.SortedSets.PopAsync("k", count: 0)).Span.ToArray());
         Assert.Empty(exec.Sent);
     }
 
@@ -309,7 +309,7 @@ public class RespSurfaceSortedSetsTests
         var (ctx, exec) = Target("*-1\r\n");
 
         RedisKey[] keys = ["a", "b"];
-        await ctx.SortedSets.Pop(keys, 3, Order.Descending);
+        await ctx.SortedSets.PopAsync(keys, 3, Order.Descending);
 
         Assert.Equal("*7|$5|ZMPOP|$1|2|$1|a|$1|b|$3|MAX|$5|COUNT|$1|3|", Assert.Single(exec.Sent));
     }
@@ -319,7 +319,7 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, _) = Target();
 
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ctx.SortedSets.Pop(ReadOnlySpan<RedisKey>.Empty, 1));
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ctx.SortedSets.PopAsync(ReadOnlySpan<RedisKey>.Empty, 1));
         Assert.Contains("keys must have a size of at least 1", ex.Message);
     }
 
@@ -329,7 +329,7 @@ public class RespSurfaceSortedSetsTests
         var (ctx, exec) = Target("*3\r\n$1\r\n1\r\n$-1\r\n$1\r\n3\r\n");
 
         RedisValue[] members = ["a", "b", "c"];
-        Assert.Equal(new double?[] { 1, null, 3 }, (await ctx.SortedSets.Scores("k", members)).Span.ToArray());
+        Assert.Equal(new double?[] { 1, null, 3 }, (await ctx.SortedSets.ScoresAsync("k", members)).Span.ToArray());
 
         Assert.Equal("*5|$7|ZMSCORE|$1|k|$1|a|$1|b|$1|c|", Assert.Single(exec.Sent));
     }
@@ -340,8 +340,8 @@ public class RespSurfaceSortedSetsTests
         var (ctx, exec) = Target();
 
         RedisKey[] keys = ["a", "b"];
-        await ctx.SortedSets.CombineLength(keys);
-        await ctx.SortedSets.CombineLength(keys, limit: 7);
+        await ctx.SortedSets.CombineLengthAsync(keys);
+        await ctx.SortedSets.CombineLengthAsync(keys, limit: 7);
 
         Assert.Equal(
             new[]

@@ -8,7 +8,7 @@ using RESPite;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The scripting command group: <c>target.Scripts.Evaluate(...)</c>.
+    /// EXPERIMENTAL SPIKE. The scripting command group: <c>target.Scripts.EvaluateAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Interpolated
         /// is already broken before caching enters the picture.
         /// </para>
         /// </remarks>
-        public static ValueTask<RespResult> Evaluate(
+        public static ValueTask<RespResult> EvaluateAsync(
             this in RespScripts scripts,
             string script,
             ReadOnlySpan<RedisKey> keys = default,
@@ -152,7 +152,7 @@ namespace StackExchange.Redis.Interpolated
         /// is - which is the same constraint that puts the loaded-script belief at write time.
         /// </para>
         /// </remarks>
-        public static ValueTask<RespResult> EvaluateReadOnly(
+        public static ValueTask<RespResult> EvaluateReadOnlyAsync(
             this in RespScripts scripts,
             string script,
             ReadOnlySpan<RedisKey> keys = default,

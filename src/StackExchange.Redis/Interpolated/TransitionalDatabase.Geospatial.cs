@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Interpolated
@@ -23,51 +23,51 @@ namespace StackExchange.Redis.Interpolated
     {
         /// <inheritdoc/>
         public bool GeoAdd(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.Add(key, new GeoEntry(longitude, latitude, member), flags));
+            => Wait(Context.Geospatial.AddAsync(key, new GeoEntry(longitude, latitude, member), flags));
 
         /// <inheritdoc/>
         public Task<bool> GeoAddAsync(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.Add(key, new GeoEntry(longitude, latitude, member), flags).AsTask();
+            => Context.Geospatial.AddAsync(key, new GeoEntry(longitude, latitude, member), flags).AsTask();
 
         /// <inheritdoc/>
         public bool GeoAdd(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.Add(key, value, flags));
+            => Wait(Context.Geospatial.AddAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> GeoAddAsync(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.Add(key, value, flags).AsTask();
+            => Context.Geospatial.AddAsync(key, value, flags).AsTask();
 
         /// <inheritdoc/>
         public long GeoAdd(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.Add(key, Required(values, nameof(values)), flags));
+            => Wait(Context.Geospatial.AddAsync(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<long> GeoAddAsync(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.Add(key, Required(values, nameof(values)), flags).AsTask();
+            => Context.Geospatial.AddAsync(key, Required(values, nameof(values)), flags).AsTask();
 
         /// <inheritdoc/>
         public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.Remove(key, member, flags));
+            => Wait(Context.Geospatial.RemoveAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.Remove(key, member, flags).AsTask();
+            => Context.Geospatial.RemoveAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.Distance(key, member1, member2, unit, flags));
+            => Wait(Context.Geospatial.DistanceAsync(key, member1, member2, unit, flags));
 
         /// <inheritdoc/>
         public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.Distance(key, member1, member2, unit, flags).AsTask();
+            => Context.Geospatial.DistanceAsync(key, member1, member2, unit, flags).AsTask();
 
         /// <inheritdoc/>
         public string? GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.Hash(key, member, flags));
+            => Wait(Context.Geospatial.HashAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<string?> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.Hash(key, member, flags).AsTask();
+            => Context.Geospatial.HashAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public string?[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -79,11 +79,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.Position(key, member, flags));
+            => Wait(Context.Geospatial.PositionAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.Position(key, member, flags).AsTask();
+            => Context.Geospatial.PositionAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -133,19 +133,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.SearchAndStore(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags));
+            => Wait(Context.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags));
 
         /// <inheritdoc/>
         public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.SearchAndStore(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags).AsTask();
+            => Context.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags).AsTask();
 
         /// <inheritdoc/>
         public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Geospatial.SearchAndStore(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags));
+            => Wait(Context.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags));
 
         /// <inheritdoc/>
         public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Context.Geospatial.SearchAndStore(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags).AsTask();
+            => Context.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags).AsTask();
 
         /// <summary>
         /// The old surface rejects a numeric member here, because it is almost certainly a longitude that

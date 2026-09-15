@@ -24,11 +24,11 @@ namespace StackExchange.Redis.Interpolated
     {
         /// <inheritdoc/>
         public RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Get(key, hashField, flags));
+            => Wait(Context.Hashes.GetAsync(key, hashField, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> HashGetAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Get(key, hashField, flags).AsTask();
+            => Context.Hashes.GetAsync(key, hashField, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] HashGet(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
@@ -72,35 +72,35 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long HashLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Length(key, flags));
+            => Wait(Context.Hashes.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Length(key, flags).AsTask();
+            => Context.Hashes.LengthAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.StringLength(key, hashField, flags));
+            => Wait(Context.Hashes.StringLengthAsync(key, hashField, flags));
 
         /// <inheritdoc/>
         public Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.StringLength(key, hashField, flags).AsTask();
+            => Context.Hashes.StringLengthAsync(key, hashField, flags).AsTask();
 
         /// <inheritdoc/>
         public bool HashExists(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Exists(key, hashField, flags));
+            => Wait(Context.Hashes.ExistsAsync(key, hashField, flags));
 
         /// <inheritdoc/>
         public Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Exists(key, hashField, flags).AsTask();
+            => Context.Hashes.ExistsAsync(key, hashField, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.RandomField(key, flags));
+            => Wait(Context.Hashes.RandomFieldAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> HashRandomFieldAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.RandomField(key, flags).AsTask();
+            => Context.Hashes.RandomFieldAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -120,51 +120,51 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Set(key, hashField, value, when, flags));
+            => Wait(Context.Hashes.SetAsync(key, hashField, value, when, flags));
 
         /// <inheritdoc/>
         public Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Set(key, hashField, value, when, flags).AsTask();
+            => Context.Hashes.SetAsync(key, hashField, value, when, flags).AsTask();
 
         /// <inheritdoc/>
         public void HashSet(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Set(key, Required(hashFields, nameof(hashFields)), flags));
+            => Wait(Context.Hashes.SetAsync(key, Required(hashFields, nameof(hashFields)), flags));
 
         /// <inheritdoc/>
         public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Set(key, Required(hashFields, nameof(hashFields)), flags).AsTask();
+            => Context.Hashes.SetAsync(key, Required(hashFields, nameof(hashFields)), flags).AsTask();
 
         /// <inheritdoc/>
         public bool HashDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Delete(key, hashField, flags));
+            => Wait(Context.Hashes.DeleteAsync(key, hashField, flags));
 
         /// <inheritdoc/>
         public Task<bool> HashDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Delete(key, hashField, flags).AsTask();
+            => Context.Hashes.DeleteAsync(key, hashField, flags).AsTask();
 
         /// <inheritdoc/>
         public long HashDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Delete(key, Required(hashFields, nameof(hashFields)), flags));
+            => Wait(Context.Hashes.DeleteAsync(key, Required(hashFields, nameof(hashFields)), flags));
 
         /// <inheritdoc/>
         public Task<long> HashDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Delete(key, Required(hashFields, nameof(hashFields)), flags).AsTask();
+            => Context.Hashes.DeleteAsync(key, Required(hashFields, nameof(hashFields)), flags).AsTask();
 
         /// <inheritdoc/>
         public long HashIncrement(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Increment(key, hashField, value, flags));
+            => Wait(Context.Hashes.IncrementAsync(key, hashField, value, flags));
 
         /// <inheritdoc/>
         public Task<long> HashIncrementAsync(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Increment(key, hashField, value, flags).AsTask();
+            => Context.Hashes.IncrementAsync(key, hashField, value, flags).AsTask();
 
         /// <inheritdoc/>
         public double HashIncrement(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.Increment(key, hashField, value, flags));
+            => Wait(Context.Hashes.IncrementAsync(key, hashField, value, flags));
 
         /// <inheritdoc/>
         public Task<double> HashIncrementAsync(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.Increment(key, hashField, value, flags).AsTask();
+            => Context.Hashes.IncrementAsync(key, hashField, value, flags).AsTask();
 
         // Decrement is a negation, here as it already was in RedisDatabase; the server has no HDECRBY
 
@@ -233,11 +233,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue HashFieldGetAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.GetDelete(key, hashField, flags));
+            => Wait(Context.Hashes.GetDeleteAsync(key, hashField, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.GetDelete(key, hashField, flags).AsTask();
+            => Context.Hashes.GetDeleteAsync(key, hashField, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] HashFieldGetAndDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
@@ -260,19 +260,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.GetSetExpiry(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags));
+            => Wait(Context.Hashes.GetSetExpiryAsync(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.GetSetExpiry(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags).AsTask();
+            => Context.Hashes.GetSetExpiryAsync(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.GetSetExpiry(key, hashField, new Expiration(expiry), flags));
+            => Wait(Context.Hashes.GetSetExpiryAsync(key, hashField, new Expiration(expiry), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.GetSetExpiry(key, hashField, new Expiration(expiry), flags).AsTask();
+            => Context.Hashes.GetSetExpiryAsync(key, hashField, new Expiration(expiry), flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
@@ -311,35 +311,35 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(Wait(Context.Hashes.SetWithExpiry(key, field, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags)));
+            => AsValue(Wait(Context.Hashes.SetWithExpiryAsync(key, field, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags)));
 
         /// <inheritdoc/>
         public async Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(await Context.Hashes.SetWithExpiry(key, field, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags).ConfigureAwait(false));
+            => AsValue(await Context.Hashes.SetWithExpiryAsync(key, field, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags).ConfigureAwait(false));
 
         /// <inheritdoc/>
         public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(Wait(Context.Hashes.SetWithExpiry(key, field, value, new Expiration(expiry), when, flags)));
+            => AsValue(Wait(Context.Hashes.SetWithExpiryAsync(key, field, value, new Expiration(expiry), when, flags)));
 
         /// <inheritdoc/>
         public async Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(await Context.Hashes.SetWithExpiry(key, field, value, new Expiration(expiry), when, flags).ConfigureAwait(false));
+            => AsValue(await Context.Hashes.SetWithExpiryAsync(key, field, value, new Expiration(expiry), when, flags).ConfigureAwait(false));
 
         /// <inheritdoc/>
         public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(Wait(Context.Hashes.SetWithExpiry(key, Required(hashFields, nameof(hashFields)), Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags)));
+            => AsValue(Wait(Context.Hashes.SetWithExpiryAsync(key, Required(hashFields, nameof(hashFields)), Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags)));
 
         /// <inheritdoc/>
         public async Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(await Context.Hashes.SetWithExpiry(key, Required(hashFields, nameof(hashFields)), Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags).ConfigureAwait(false));
+            => AsValue(await Context.Hashes.SetWithExpiryAsync(key, Required(hashFields, nameof(hashFields)), Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags).ConfigureAwait(false));
 
         /// <inheritdoc/>
         public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(Wait(Context.Hashes.SetWithExpiry(key, Required(hashFields, nameof(hashFields)), new Expiration(expiry), when, flags)));
+            => AsValue(Wait(Context.Hashes.SetWithExpiryAsync(key, Required(hashFields, nameof(hashFields)), new Expiration(expiry), when, flags)));
 
         /// <inheritdoc/>
         public async Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => AsValue(await Context.Hashes.SetWithExpiry(key, Required(hashFields, nameof(hashFields)), new Expiration(expiry), when, flags).ConfigureAwait(false));
+            => AsValue(await Context.Hashes.SetWithExpiryAsync(key, Required(hashFields, nameof(hashFields)), new Expiration(expiry), when, flags).ConfigureAwait(false));
 
         /// <summary>
         /// The 1/0 the old surface reports as a <see cref="RedisValue"/> for HSETEX; an empty hash-field

@@ -74,7 +74,7 @@ public class RespSurfaceScriptsTests
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var ctx = new RespContext().WithExecutor(executor);
 
-        using var result = await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"], [(RedisValue)"a"]);
+        using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"], [(RedisValue)"a"]);
 
         Assert.Equal(1, executor.Pairs); // written as a unit, not as two independent sends
         Assert.NotNull(executor.Gate);   // and with the means to skip the preamble once it is redundant
@@ -97,7 +97,7 @@ public class RespSurfaceScriptsTests
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var ctx = new RespContext().WithExecutor(executor);
 
-        using var result = await ctx.Scripts.Evaluate(Script);
+        using var result = await ctx.Scripts.EvaluateAsync(Script);
 
         var occurrences = 0;
         foreach (var sent in executor.Sent)
@@ -122,7 +122,7 @@ public class RespSurfaceScriptsTests
         var executor = new FakeExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var ctx = new RespContext().WithExecutor(executor);
 
-        using var result = await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"]);
+        using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]);
 
         Assert.Equal(2, executor.Sent.Count);
         Assert.StartsWith("*3|$6|SCRIPT|$4|LOAD|", executor.Sent[0]);
@@ -140,7 +140,7 @@ public class RespSurfaceScriptsTests
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var ctx = new RespContext().WithExecutor(executor);
 
-        using var result = await ctx.Scripts.Evaluate(Script, [(RedisKey)"k1", (RedisKey)"k2"]);
+        using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k1", (RedisKey)"k2"]);
 
         Assert.Equal($"*5|$7|EVALSHA|$40|{Sha}|$1|2|$2|k1|$2|k2|", executor.Sent[1]);
     }
@@ -152,7 +152,7 @@ public class RespSurfaceScriptsTests
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var ctx = new RespContext().WithExecutor(executor).WithKeyPrefix("t:");
 
-        using var result = await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"]);
+        using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]);
 
         Assert.Contains("$3|t:k|", executor.Sent[1]);
     }
@@ -181,7 +181,7 @@ public class RespSurfaceScriptsTests
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n") { ParkRequests = true };
         var ctx = new RespContext().WithExecutor(executor);
 
-        using (var result = await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"]))
+        using (var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]))
         {
             Assert.Equal(2, executor.Parked.Count);
         }
@@ -222,7 +222,7 @@ public class RespSurfaceScriptsTests
 
         for (var i = 0; i < 5; i++)
         {
-            (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"])).Dispose();
+            (await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"])).Dispose();
         }
 
         Assert.Equal(1, registry.Rendered);
@@ -259,7 +259,7 @@ public class RespSurfaceScriptsTests
         var registry = new RespScriptCache();
         var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
 
-        (await ctx.Scripts.Evaluate(Script)).Dispose();
+        (await ctx.Scripts.EvaluateAsync(Script)).Dispose();
 
         // the fake records the frame with CRLF collapsed to '|'; restore it to recover the true length
         var onTheWire = executor.Sent[0].Replace("|", "\r\n").Length;
@@ -283,7 +283,7 @@ public class RespSurfaceScriptsTests
         var registry = new RespScriptCache();
         var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
 
-        (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"], flags: CommandFlags.NoScriptCache)).Dispose();
+        (await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"], flags: CommandFlags.NoScriptCache)).Dispose();
 
         Assert.Equal(0, executor.Pairs);       // one command, no preamble
         Assert.Single(executor.Sent);
@@ -299,8 +299,8 @@ public class RespSurfaceScriptsTests
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var ctx = new RespContext().WithExecutor(executor);
 
-        (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"])).Dispose();
-        (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"])).Dispose();
+        (await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"])).Dispose();
+        (await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"])).Dispose();
 
         Assert.Equal(2, executor.Pairs);
         Assert.Equal(executor.Sent[0], executor.Sent[2]);

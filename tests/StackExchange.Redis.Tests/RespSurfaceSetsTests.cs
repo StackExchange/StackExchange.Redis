@@ -47,8 +47,8 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.Sets.Add("k", "a");
-        await ctx.Sets.Add("k", ["a", "b"]);
+        await ctx.Sets.AddAsync("k", "a");
+        await ctx.Sets.AddAsync("k", ["a", "b"]);
 
         // unlike the string group's Get, the arity is the ONLY difference here - so the two overloads
         // exist for their return types (bool versus a count), not for the command
@@ -62,7 +62,7 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.WithKeyPrefix("t:").Sets.Remove("k", ["a", "b"]);
+        await ctx.WithKeyPrefix("t:").Sets.RemoveAsync("k", ["a", "b"]);
 
         Assert.Equal("*4|$4|SREM|$3|t:k|$1|a|$1|b|", Assert.Single(exec.Sent));
     }
@@ -72,9 +72,9 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target();
 
-        Assert.Equal(0, await ctx.Sets.Add("k", ReadOnlySpan<RedisValue>.Empty));
-        Assert.Equal(0, await ctx.Sets.Remove("k", ReadOnlySpan<RedisValue>.Empty));
-        Assert.Empty((await ctx.Sets.Contains("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
+        Assert.Equal(0, await ctx.Sets.AddAsync("k", ReadOnlySpan<RedisValue>.Empty));
+        Assert.Equal(0, await ctx.Sets.RemoveAsync("k", ReadOnlySpan<RedisValue>.Empty));
+        Assert.Empty((await ctx.Sets.ContainsAsync("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
 
         Assert.Empty(exec.Sent);
     }
@@ -86,10 +86,10 @@ public class RespSurfaceSetsTests
 
         // the old surface sends a bare SPOP for a count of zero, which removes ONE. Diverging here is
         // deliberate: "pop none" quietly popping one is discovered in production, not in review.
-        Assert.Empty((await ctx.Sets.Pop("k", 0L)).Span.ToArray());
+        Assert.Empty((await ctx.Sets.PopAsync("k", 0L)).Span.ToArray());
         Assert.Empty(exec.Sent);
 
-        await ctx.Sets.Pop("k", 2);
+        await ctx.Sets.PopAsync("k", 2);
         Assert.Equal("*3|$4|SPOP|$1|k|$1|2|", Assert.Single(exec.Sent));
     }
 
@@ -98,8 +98,8 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target(":1\r\n", "*2\r\n:1\r\n:0\r\n");
 
-        Assert.True(await ctx.Sets.Contains("k", "a"));
-        Assert.Equal(new[] { true, false }, (await ctx.Sets.Contains("k", ["a", "b"])).Span.ToArray());
+        Assert.True(await ctx.Sets.ContainsAsync("k", "a"));
+        Assert.Equal(new[] { true, false }, (await ctx.Sets.ContainsAsync("k", ["a", "b"])).Span.ToArray());
 
         Assert.Equal(
             new[] { "*3|$9|SISMEMBER|$1|k|$1|a|", "*4|$10|SMISMEMBER|$1|k|$1|a|$1|b|" },
@@ -112,8 +112,8 @@ public class RespSurfaceSetsTests
         var (ctx, exec) = Target("*1\r\n$1\r\na\r\n");
 
         RedisKey[] keys = ["s1", "s2", "s3"];
-        await ctx.Sets.Combine(SetOperation.Union, keys);
-        await ctx.Sets.Combine(SetOperation.Difference, ["s1"]);
+        await ctx.Sets.CombineAsync(SetOperation.Union, keys);
+        await ctx.Sets.CombineAsync(SetOperation.Difference, ["s1"]);
 
         Assert.Equal(
             new[]
@@ -130,7 +130,7 @@ public class RespSurfaceSetsTests
         var (ctx, exec) = Target();
 
         RedisKey[] keys = ["s1", "s2"];
-        await ctx.Sets.CombineAndStore(SetOperation.Intersect, "dest", keys);
+        await ctx.Sets.CombineAndStoreAsync(SetOperation.Intersect, "dest", keys);
 
         Assert.Equal("*4|$11|SINTERSTORE|$4|dest|$2|s1|$2|s2|", Assert.Single(exec.Sent));
     }
@@ -140,9 +140,9 @@ public class RespSurfaceSetsTests
     {
         var (ctx, _) = Target();
 
-        Assert.Throws<ArgumentException>(() => ctx.Sets.Combine(SetOperation.Union, ReadOnlySpan<RedisKey>.Empty));
-        Assert.Throws<ArgumentException>(() => ctx.Sets.CombineAndStore(SetOperation.Union, "d", ReadOnlySpan<RedisKey>.Empty));
-        Assert.Throws<ArgumentException>(() => ctx.Sets.CombineLength(SetOperation.Union, ReadOnlySpan<RedisKey>.Empty));
+        Assert.Throws<ArgumentException>(() => ctx.Sets.CombineAsync(SetOperation.Union, ReadOnlySpan<RedisKey>.Empty));
+        Assert.Throws<ArgumentException>(() => ctx.Sets.CombineAndStoreAsync(SetOperation.Union, "d", ReadOnlySpan<RedisKey>.Empty));
+        Assert.Throws<ArgumentException>(() => ctx.Sets.CombineLengthAsync(SetOperation.Union, ReadOnlySpan<RedisKey>.Empty));
     }
 
     [Fact]
@@ -151,9 +151,9 @@ public class RespSurfaceSetsTests
         var (ctx, exec) = Target();
 
         RedisKey[] keys = ["s1", "s2"];
-        await ctx.Sets.CombineLength(SetOperation.Intersect, keys);
-        await ctx.Sets.CombineLength(SetOperation.Intersect, keys, limit: 10);
-        await ctx.Sets.CombineLength(SetOperation.Union, keys, limit: 10, approximate: true);
+        await ctx.Sets.CombineLengthAsync(SetOperation.Intersect, keys);
+        await ctx.Sets.CombineLengthAsync(SetOperation.Intersect, keys, limit: 10);
+        await ctx.Sets.CombineLengthAsync(SetOperation.Union, keys, limit: 10, approximate: true);
 
         // numkeys comes FIRST here, unlike the plain combinations - the trailing LIMIT/APPROX operands are
         // exactly why the server has to be told where the key list stops
@@ -173,7 +173,7 @@ public class RespSurfaceSetsTests
         var (ctx, exec) = Target();
 
         RedisKey[] keys = ["s1"];
-        await ctx.Sets.CombineLength(SetOperation.Intersect, keys, limit: 0);
+        await ctx.Sets.CombineLengthAsync(SetOperation.Intersect, keys, limit: 0);
 
         // RespLimit writes two arguments or none; this is the "none", and it is why a fragment could not
         // have spelled it - the keyword is constant but the count is not
@@ -185,7 +185,7 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.WithKeyPrefix("t:").Sets.Move("src", "dst", "m");
+        await ctx.WithKeyPrefix("t:").Sets.MoveAsync("src", "dst", "m");
 
         // both are keys, so both are prefixed; the member is not
         Assert.Equal("*4|$5|SMOVE|$5|t:src|$5|t:dst|$1|m|", Assert.Single(exec.Sent));
@@ -196,9 +196,9 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target("*0\r\n", ":1\r\n", "$1\r\na\r\n");
 
-        await ctx.Sets.Members("k");
-        await ctx.Sets.Add("k", "a");
-        await ctx.Sets.Pop("k");
+        await ctx.Sets.MembersAsync("k");
+        await ctx.Sets.AddAsync("k", "a");
+        await ctx.Sets.PopAsync("k");
 
         Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
 

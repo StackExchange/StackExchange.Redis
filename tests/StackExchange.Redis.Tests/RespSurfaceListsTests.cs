@@ -47,10 +47,10 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.Lists.LeftPush("k", "a");
-        await ctx.Lists.RightPush("k", "a");
-        await ctx.Lists.LeftPush("k", "a", When.Exists);
-        await ctx.Lists.RightPush("k", "a", When.Exists);
+        await ctx.Lists.LeftPushAsync("k", "a");
+        await ctx.Lists.RightPushAsync("k", "a");
+        await ctx.Lists.LeftPushAsync("k", "a", When.Exists);
+        await ctx.Lists.RightPushAsync("k", "a", When.Exists);
 
         // LPUSH and RPUSH are two commands, not one with an operand - which is why the side stays in the
         // method name here and only Move takes a ListSide
@@ -72,7 +72,7 @@ public class RespSurfaceListsTests
 
         // an arity-zero LPUSH is a server error, but "how long is it now" still has an answer, and that
         // is what the old surface returns - so the empty run becomes LLEN
-        Assert.Equal(7, await ctx.Lists.LeftPush("k", ReadOnlySpan<RedisValue>.Empty));
+        Assert.Equal(7, await ctx.Lists.LeftPushAsync("k", ReadOnlySpan<RedisValue>.Empty));
         Assert.Equal("*2|$4|LLEN|$1|k|", Assert.Single(exec.Sent));
     }
 
@@ -81,7 +81,7 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.WithKeyPrefix("t:").Lists.RightPush("k", ["a", "b"]);
+        await ctx.WithKeyPrefix("t:").Lists.RightPushAsync("k", ["a", "b"]);
 
         Assert.Equal("*4|$5|RPUSH|$3|t:k|$1|a|$1|b|", Assert.Single(exec.Sent));
     }
@@ -91,10 +91,10 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target("$1\r\na\r\n", "*1\r\n$1\r\na\r\n", "$1\r\na\r\n", "*1\r\n$1\r\na\r\n");
 
-        await ctx.Lists.LeftPop("k");
-        using (await ctx.Lists.LeftPop("k", 2)) { }
-        await ctx.Lists.RightPop("k");
-        using (await ctx.Lists.RightPop("k", 2)) { }
+        await ctx.Lists.LeftPopAsync("k");
+        using (await ctx.Lists.LeftPopAsync("k", 2)) { }
+        await ctx.Lists.RightPopAsync("k");
+        using (await ctx.Lists.RightPopAsync("k", 2)) { }
 
         Assert.Equal(
             new[]
@@ -113,8 +113,8 @@ public class RespSurfaceListsTests
         var (ctx, exec) = Target("*-1\r\n");
 
         RedisKey[] keys = ["a", "b"];
-        await ctx.Lists.LeftPop(keys, 1);
-        await ctx.Lists.RightPop(keys, 3);
+        await ctx.Lists.LeftPopAsync(keys, 1);
+        await ctx.Lists.RightPopAsync(keys, 3);
 
         // COUNT is written even at 1, where the old builder omits it; both are valid and one shape beats
         // four bytes. What does NOT work is a null value in the hole to skip the number - a null still
@@ -133,7 +133,7 @@ public class RespSurfaceListsTests
     {
         var (ctx, _) = Target();
 
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Lists.LeftPop(ReadOnlySpan<RedisKey>.Empty, 1));
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Lists.LeftPopAsync(ReadOnlySpan<RedisKey>.Empty, 1));
         Assert.Contains("keys must have a size of at least 1", ex.Message);
     }
 
@@ -142,8 +142,8 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target(":3\r\n");
 
-        await ctx.Lists.Position("k", "v");
-        await ctx.Lists.Position("k", "v", rank: -1, maxLength: 20);
+        await ctx.Lists.PositionAsync("k", "v");
+        await ctx.Lists.PositionAsync("k", "v", rank: -1, maxLength: 20);
 
         // the server's defaults are the same values, so writing them costs four arguments and keeps one
         // shape; the old builder does the same
@@ -163,7 +163,7 @@ public class RespSurfaceListsTests
 
         // LPOS replies nil for "not found"; the old surface has always reported that as -1, and zero is
         // a perfectly good position, so this cannot just be default(long)
-        Assert.Equal(-1, await ctx.Lists.Position("k", "nope"));
+        Assert.Equal(-1, await ctx.Lists.PositionAsync("k", "nope"));
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class RespSurfaceListsTests
 
         // fire-and-forget parses nothing, so the executor would hand back default - which for LPOS is a
         // WRONG answer rather than an absent one. The command still goes out.
-        Assert.Equal(-1, await ctx.Lists.Position("k", "v", flags: CommandFlags.FireAndForget));
+        Assert.Equal(-1, await ctx.Lists.PositionAsync("k", "v", flags: CommandFlags.FireAndForget));
         Assert.Single(exec.Sent);
     }
 
@@ -182,7 +182,7 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target("*2\r\n:1\r\n:4\r\n");
 
-        using var found = await ctx.Lists.Positions("k", "v", count: 0);
+        using var found = await ctx.Lists.PositionsAsync("k", "v", count: 0);
         Assert.Equal(new long[] { 1, 4 }, found.Span.ToArray());
 
         Assert.Equal("*9|$4|LPOS|$1|k|$1|v|$4|RANK|$1|1|$6|MAXLEN|$1|0|$5|COUNT|$1|0|", Assert.Single(exec.Sent));
@@ -243,7 +243,7 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target("$1\r\na\r\n");
 
-        await ctx.Lists.Move("src", "dst", ListSide.Right, ListSide.Left);
+        await ctx.Lists.MoveAsync("src", "dst", ListSide.Right, ListSide.Left);
 
         // and this is what RPOPLPUSH is, which is why the group has no method for it
         Assert.Equal("*5|$5|LMOVE|$3|src|$3|dst|$5|RIGHT|$4|LEFT|", Assert.Single(exec.Sent));
@@ -254,8 +254,8 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target("*1\r\n$1\r\na\r\n");
 
-        using (await ctx.Lists.Move("src", "dst", ListSide.Left, ListSide.Right, 3)) { }
-        using (await ctx.Lists.Move("src", "dst", ListSide.Left, ListSide.Right, 3, ListMoveCount.Exactly, ListMoveOrder.OneByOne)) { }
+        using (await ctx.Lists.MoveAsync("src", "dst", ListSide.Left, ListSide.Right, 3)) { }
+        using (await ctx.Lists.MoveAsync("src", "dst", ListSide.Left, ListSide.Right, 3, ListMoveCount.Exactly, ListMoveOrder.OneByOne)) { }
 
         Assert.Equal(
             new[]
@@ -273,9 +273,9 @@ public class RespSurfaceListsTests
         var (empty, _) = Target("*0\r\n");
 
         // the one array reply in this library where those are different answers: nil means nothing moved
-        Assert.Null(await nothing.Lists.Move("s", "d", ListSide.Left, ListSide.Right, 1));
+        Assert.Null(await nothing.Lists.MoveAsync("s", "d", ListSide.Left, ListSide.Right, 1));
 
-        using var moved = await empty.Lists.Move("s", "d", ListSide.Left, ListSide.Right, 1);
+        using var moved = await empty.Lists.MoveAsync("s", "d", ListSide.Left, ListSide.Right, 1);
         Assert.NotNull(moved);
         Assert.True(moved.IsEmpty);
     }
@@ -285,8 +285,8 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target(":4\r\n");
 
-        await ctx.Lists.InsertBefore("k", "pivot", "v");
-        await ctx.Lists.InsertAfter("k", "pivot", "v");
+        await ctx.Lists.InsertBeforeAsync("k", "pivot", "v");
+        await ctx.Lists.InsertAfterAsync("k", "pivot", "v");
 
         Assert.Equal(
             new[]
@@ -302,7 +302,7 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target(":2\r\n");
 
-        await ctx.Lists.Remove("k", "v", -2);
+        await ctx.Lists.RemoveAsync("k", "v", -2);
 
         // LREM key count element, not key element count - the one ordering here that reads backwards
         Assert.Equal("*4|$4|LREM|$1|k|$2|-2|$1|v|", Assert.Single(exec.Sent));
@@ -313,8 +313,8 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target("+OK\r\n");
 
-        await ctx.Lists.SetByIndex("k", 0, "v");
-        await ctx.Lists.Trim("k", 0, 9);
+        await ctx.Lists.SetByIndexAsync("k", 0, "v");
+        await ctx.Lists.TrimAsync("k", 0, 9);
 
         Assert.Equal(
             new[] { "*4|$4|LSET|$1|k|$1|0|$1|v|", "*4|$5|LTRIM|$1|k|$1|0|$1|9|" },
@@ -326,7 +326,7 @@ public class RespSurfaceListsTests
     {
         var (ctx, _) = Target("-ERR no such key\r\n");
 
-        await Assert.ThrowsAsync<RespException>(async () => await ctx.Lists.Trim("k", 0, 9));
+        await Assert.ThrowsAsync<RespException>(async () => await ctx.Lists.TrimAsync("k", 0, 9));
     }
 
     [Fact]
@@ -334,9 +334,9 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target("*0\r\n", ":1\r\n", "$1\r\na\r\n");
 
-        using (await ctx.Lists.Range("k")) { }
-        await ctx.Lists.LeftPush("k", "a");
-        await ctx.Lists.LeftPop("k");
+        using (await ctx.Lists.RangeAsync("k")) { }
+        await ctx.Lists.LeftPushAsync("k", "a");
+        await ctx.Lists.LeftPopAsync("k");
 
         Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
 

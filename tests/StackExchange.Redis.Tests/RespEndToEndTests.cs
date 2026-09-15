@@ -39,8 +39,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.NotNull(((IRespTarget)db).Context.Executor);
 
         // no casts, no executor, no context construction - GetDatabase() is already an IRespTarget
-        Assert.True(await db.Strings.Set(key, "marc"));
-        Assert.Equal("marc", await db.Strings.Get(key));
+        Assert.True(await db.Strings.SetAsync(key, "marc"));
+        Assert.Equal("marc", await db.Strings.GetAsync(key));
         Assert.Equal("marc", await db.StringGetAsync(key));
     }
 
@@ -53,7 +53,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await db.KeyDeleteAsync(key);
 
         Assert.Equal(3, db.Context.Database);
-        Assert.True(await db.Strings.Set(key, "on-three"));
+        Assert.True(await db.Strings.SetAsync(key, "on-three"));
 
         // it really went to db 3, not db 0
         Assert.Equal("on-three", await conn.GetDatabase(3).StringGetAsync(key));
@@ -70,8 +70,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         var surface = NewSurface(conn, legacy.Database);
 
-        Assert.True(await surface.Strings.Set(key, "marc"));
-        Assert.Equal("marc", await surface.Strings.Get(key));
+        Assert.True(await surface.Strings.SetAsync(key, "marc"));
+        Assert.Equal("marc", await surface.Strings.GetAsync(key));
 
         // cross-check with the existing API: the bytes the new writer produced really did land
         Assert.Equal("marc", await legacy.StringGetAsync(key));
@@ -85,7 +85,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await conn.GetDatabase().KeyDeleteAsync(key);
 
         var surface = NewSurface(conn, conn.GetDatabase().Database);
-        Assert.True((await surface.Strings.Get(key)).IsNull);
+        Assert.True((await surface.Strings.GetAsync(key)).IsNull);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await legacy.StringSetAsync(key, "from-legacy");
 
         var surface = NewSurface(conn, legacy.Database);
-        Assert.Equal("from-legacy", await surface.Strings.Get(key));
+        Assert.Equal("from-legacy", await surface.Strings.GetAsync(key));
     }
 
     [Fact]
@@ -110,13 +110,13 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         // the framing is length-prefixed, so this is really asking whether the length was computed in
         // BYTES rather than characters - the classic way to desynchronise a connection
-        Assert.True(await surface.Strings.Set(key, "héllo wörld 中文"));
-        Assert.Equal("héllo wörld 中文", await surface.Strings.Get(key));
+        Assert.True(await surface.Strings.SetAsync(key, "héllo wörld 中文"));
+        Assert.Equal("héllo wörld 中文", await surface.Strings.GetAsync(key));
 
         var blob = new byte[512];
         for (var i = 0; i < blob.Length; i++) blob[i] = (byte)(i % 251);
-        Assert.True(await surface.Strings.Set(key, blob));
-        Assert.Equal(blob, (byte[])(await surface.Strings.Get(key))!);
+        Assert.True(await surface.Strings.SetAsync(key, blob));
+        Assert.Equal(blob, (byte[])(await surface.Strings.GetAsync(key))!);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await legacy.KeyDeleteAsync("t7:" + key);
 
         var tenant = NewSurface(conn, legacy.Database).WithKeyPrefix("t7:");
-        Assert.True(await tenant.Strings.Set(key, "marc"));
+        Assert.True(await tenant.Strings.SetAsync(key, "marc"));
 
         // written under the prefix, and NOT under the bare key
         Assert.Equal("marc", await legacy.StringGetAsync("t7:" + key));
@@ -146,18 +146,18 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         using var cache = new RespClientCache();
         var surface = NewSurface(conn, legacy.Database, cache);
 
-        Assert.Equal("first", await surface.Strings.Get(key));
+        Assert.Equal("first", await surface.Strings.GetAsync(key));
         Assert.Equal(1, cache.Stored);
 
         // change it behind the cache's back - with no CLIENT TRACKING there is no invalidation, so the
         // cache still answers "first". That is the correct behaviour for a cache nobody is invalidating,
         // and it is exactly why tracking is the next piece of work.
         await legacy.StringSetAsync(key, "second");
-        Assert.Equal("first", await surface.Strings.Get(key));
+        Assert.Equal("first", await surface.Strings.GetAsync(key));
 
         // and once told, it stops
         Assert.True(cache.OnInvalidate(Encoding.UTF8.GetBytes(key)));
-        Assert.Equal("second", await surface.Strings.Get(key));
+        Assert.Equal("second", await surface.Strings.GetAsync(key));
     }
     /// <summary>
     /// A synchronous fire-and-forget command against a real server returns the default, rather than
@@ -221,7 +221,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await using var conn = Create();
         var surface = NewSurface(conn, 0);
 
-        using var result = await surface.Context.Scripts.Evaluate("return 41 + 1");
+        using var result = await surface.Context.Scripts.EvaluateAsync("return 41 + 1");
         Assert.Equal(42, result.ReadScalar().ReadInt32());
     }
 
@@ -253,13 +253,13 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         server.FlushScriptCache();
         Assert.False(server.IsScriptLoaded(script));
 
-        (await surface.Context.Scripts.Evaluate(script)).Dispose();
+        (await surface.Context.Scripts.EvaluateAsync(script)).Dispose();
         Assert.True(server.IsScriptLoaded(script), "the first evaluation did not load the script");
 
         // now it is believed loaded, the gate must decline - and the call must still work, which is the
         // half that matters: declining the preamble writes the EVALSHA alone
-        (await surface.Context.Scripts.Evaluate(script)).Dispose();
-        using var third = await surface.Context.Scripts.Evaluate(script);
+        (await surface.Context.Scripts.EvaluateAsync(script)).Dispose();
+        using var third = await surface.Context.Scripts.EvaluateAsync(script);
         Assert.Equal(Me(), third.ReadScalar().ReadString());
     }
 
@@ -279,7 +279,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await conn.GetDatabase(0).KeyDeleteAsync(key);
 
         var surface = NewSurface(conn, Db);
-        using var result = await surface.Context.Scripts.Evaluate(
+        using var result = await surface.Context.Scripts.EvaluateAsync(
             "return redis.call('GET', KEYS[1])", [(RedisKey)key]);
 
         Assert.Equal("in-three", result.ReadScalar().ReadString());
@@ -309,7 +309,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         var batch = db.CreateBatch();
         var ctx = ((IRespTarget)batch).Context;
-        var pending = ctx.Strings.Get(key);
+        var pending = ctx.Strings.GetAsync(key);
         Assert.False(pending.IsCompleted, "DEFERRED-OK: batch did not send immediately");
         batch.Execute();
         Assert.Equal("batched", (string?)await pending);
@@ -332,7 +332,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         var tran = db.CreateTransaction();
         var ctx = ((IRespTarget)tran).Context;
-        var pending = ctx.Strings.Get(key);
+        var pending = ctx.Strings.GetAsync(key);
         Assert.False(pending.IsCompleted, "DEFERRED-OK: transaction did not send immediately");
         Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
         Assert.Equal("tranned", (string?)await pending);
@@ -366,7 +366,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var script = $"return '{Me()}'";
 
         sep.FlushScriptCache();
-        (await surface.Context.Scripts.Evaluate(script)).Dispose();
+        (await surface.Context.Scripts.EvaluateAsync(script)).Dispose();
         Assert.True(sep.IsScriptLoaded(script), "the first call should have loaded it");
 
         // the server forgets, behind the client's back
@@ -375,7 +375,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         // the call that meets the stale belief now recovers by itself: the NOSCRIPT is noticed, the belief
         // dropped, and the message re-issued from the read path - so the caller never sees the failure
-        using var recovered = await surface.Context.Scripts.Evaluate(script);
+        using var recovered = await surface.Context.Scripts.EvaluateAsync(script);
         Assert.Equal(Me(), recovered.ReadScalar().ReadString());
         Assert.True(sep.IsScriptLoaded(script), "the retry should have re-loaded it");
     }

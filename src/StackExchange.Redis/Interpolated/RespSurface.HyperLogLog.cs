@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The HyperLogLog group: <c>target.HyperLogLog.Add(...)</c>.
+    /// EXPERIMENTAL SPIKE. The HyperLogLog group: <c>target.HyperLogLog.AddAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// Three commands, and the whole group would be unremarkable but for <c>PFCOUNT</c>: it rewrites the
@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="value">The element to observe.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Add(this in RespHyperLogLog log, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> AddAsync(this in RespHyperLogLog log, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => log.Context.SendAsync<bool>(
                 $"{RedisCommand.PFADD}{key}{value}", flags.WithDefaultCategory(RedisCommand.PFADD));
 
@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Interpolated
         /// elements is a request in its own right - it creates an empty structure and reports whether it
         /// had to - so there is a real answer to give and nothing to guess.
         /// </remarks>
-        public static ValueTask<bool> Add(this in RespHyperLogLog log, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> AddAsync(this in RespHyperLogLog log, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
             => log.Context.SendAsync<bool>(
                 $"{RedisCommand.PFADD}{key}{values}", flags.WithDefaultCategory(RedisCommand.PFADD));
 
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks><inheritdoc cref="RespHyperLogLog" path="/remarks"/></remarks>
-        public static ValueTask<long> Length(this in RespHyperLogLog log, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LengthAsync(this in RespHyperLogLog log, RedisKey key, CommandFlags flags = CommandFlags.None)
             => log.Context.SendAsync<long>(
                 $"{RedisCommand.PFCOUNT}{key}", CountFlags(log.Context, in key, flags));
 
@@ -78,7 +78,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The keys to read.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks><inheritdoc cref="RespHyperLogLog" path="/remarks"/></remarks>
-        public static ValueTask<long> Length(this in RespHyperLogLog log, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LengthAsync(this in RespHyperLogLog log, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
         {
             // routing follows the first key, as the old surface does; with no keys there is nothing to
             // route on, and the server will reject the arity anyway
@@ -92,7 +92,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="destination">The key to write the union to; it is included in the union.</param>
         /// <param name="sourceKeys">The keys to fold in.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask Merge(this in RespHyperLogLog log, RedisKey destination, ReadOnlySpan<RedisKey> sourceKeys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask MergeAsync(this in RespHyperLogLog log, RedisKey destination, ReadOnlySpan<RedisKey> sourceKeys, CommandFlags flags = CommandFlags.None)
             => log.Context.SendAsync(
                 $"{RedisCommand.PFMERGE}{destination}{sourceKeys}", flags.WithDefaultCategory(RedisCommand.PFMERGE));
 

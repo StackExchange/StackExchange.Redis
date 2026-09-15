@@ -7,7 +7,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The vector-set group: <c>target.VectorSets.Add(...)</c>.
+    /// EXPERIMENTAL SPIKE. The vector-set group: <c>target.VectorSets.AddAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Interpolated
         /// The request object rather than a dozen parameters, as the old surface has it: most of them are
         /// index-construction knobs that are set once for a deployment and never touched again.
         /// </remarks>
-        public static ValueTask<bool> Add(this in RespVectorSets sets, RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> AddAsync(this in RespVectorSets sets, RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
         {
             if (request is null) throw new ArgumentNullException(nameof(request));
 
@@ -88,7 +88,7 @@ namespace StackExchange.Redis.Interpolated
         /// match, except in RESP3 with both asked for, where they arrive as a sub-array instead. The
         /// handler reads that structurally rather than being told the protocol, so it does not need one.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<VectorSetSimilaritySearchResult>?> SimilaritySearch(
+        public static ValueTask<ReadOnlyLease<VectorSetSimilaritySearchResult>?> SimilaritySearchAsync(
             this in RespVectorSets sets,
             RedisKey key,
             VectorSetSimilaritySearchRequest query,
@@ -99,7 +99,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Length(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LengthAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<long>(
                 $"{RedisCommand.VCARD}{key}", flags.WithDefaultCategory(RedisCommand.VCARD));
 
@@ -107,7 +107,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<int> Dimension(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<int> DimensionAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
                 $"{RedisCommand.VDIM}{key}", flags.WithDefaultCategory(RedisCommand.VDIM), Int32Handler.Instance);
 
@@ -116,7 +116,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to look for.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Contains(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> ContainsAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.VISMEMBER}{key}{member}", flags.WithDefaultCategory(RedisCommand.VISMEMBER));
 
@@ -125,7 +125,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="member">The member to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Remove(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> RemoveAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.VREM}{key}{member}", flags.WithDefaultCategory(RedisCommand.VREM));
 
@@ -133,7 +133,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> RandomMember(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> RandomMemberAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.VRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.VRANDMEMBER));
 
@@ -142,7 +142,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; negative to allow the same member more than once.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembers(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.VRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.VRANDMEMBER));
 
@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<string?> GetAttributesJson(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<string?> GetAttributesJsonAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<string?>(
                 $"{RedisCommand.VGETATTR}{key}{member}", flags.WithDefaultCategory(RedisCommand.VGETATTR));
 
@@ -161,7 +161,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="member">The member to annotate.</param>
         /// <param name="attributesJson">The attributes, as JSON.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> SetAttributesJson(
+        public static ValueTask<bool> SetAttributesJsonAsync(
             this in RespVectorSets sets,
             RedisKey key,
             RedisValue member,
@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Interpolated
         /// Approximate because quantization is lossy: what comes back is what the index holds, not what
         /// was written, unless the set was built with <see cref="VectorSetQuantization.None"/>.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<float>?> GetApproximateVector(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<float>?> GetApproximateVectorAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
                 $"{RedisCommand.VEMB}{key}{member}", flags.WithDefaultCategory(RedisCommand.VEMB), Float32Handler.Lease);
 
@@ -192,7 +192,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>?> GetLinks(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>?> GetLinksAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
                 $"{RedisCommand.VLINKS}{key}{member}", flags.WithDefaultCategory(RedisCommand.VLINKS), LinkHandler.MembersLease);
 
@@ -201,7 +201,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<VectorSetLink>?> GetLinksWithScores(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<VectorSetLink>?> GetLinksWithScoresAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
                 $"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}",
                 flags.WithDefaultCategory(RedisCommand.VLINKS),
@@ -211,7 +211,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<VectorSetInfo?> Info(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<VectorSetInfo?> InfoAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
                 $"{RedisCommand.VINFO}{key}", flags.WithDefaultCategory(RedisCommand.VINFO), InfoHandler.Instance);
 
@@ -227,7 +227,7 @@ namespace StackExchange.Redis.Interpolated
         /// Deliberately not called a scan: the server has no <c>VSCAN</c>, and if one arrives it should be
         /// free to take the name.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> Range(
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(
             this in RespVectorSets sets,
             RedisKey key,
             RedisValue start = default,
@@ -251,7 +251,7 @@ namespace StackExchange.Redis.Interpolated
         // Internal, as everywhere else: Lease<T> is the OLD spelling, the caller may write to it, and so
         // it cannot share storage with the reply the way a read-only lease does.
 
-        /// <inheritdoc cref="GetApproximateVector"/>
+        /// <inheritdoc cref="GetApproximateVectorAsync"/>
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to read.</param>
@@ -260,7 +260,7 @@ namespace StackExchange.Redis.Interpolated
             => sets.Context.SendAsync(
                 $"{RedisCommand.VEMB}{key}{member}", flags.WithDefaultCategory(RedisCommand.VEMB), Float32Handler.Writable);
 
-        /// <inheritdoc cref="GetLinks"/>
+        /// <inheritdoc cref="GetLinksAsync"/>
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to read.</param>
@@ -269,7 +269,7 @@ namespace StackExchange.Redis.Interpolated
             => sets.Context.SendAsync(
                 $"{RedisCommand.VLINKS}{key}{member}", flags.WithDefaultCategory(RedisCommand.VLINKS), LinkHandler.MembersWritable);
 
-        /// <inheritdoc cref="GetLinksWithScores"/>
+        /// <inheritdoc cref="GetLinksWithScoresAsync"/>
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to read.</param>
@@ -280,7 +280,7 @@ namespace StackExchange.Redis.Interpolated
                 flags.WithDefaultCategory(RedisCommand.VLINKS),
                 LinkHandler.ScoredWritable);
 
-        /// <inheritdoc cref="SimilaritySearch"/>
+        /// <inheritdoc cref="SimilaritySearchAsync"/>
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to search.</param>
         /// <param name="query">What to search for.</param>
@@ -292,7 +292,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => SimilaritySearchCore(in sets, key, query, flags, SimilarityHandler.Writable(query));
 
-        /// <inheritdoc cref="Range(in RespVectorSets, RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags)"/>
+        /// <inheritdoc cref="RangeAsync(in RespVectorSets, RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags)"/>
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="start">The lower bound.</param>
@@ -319,7 +319,7 @@ namespace StackExchange.Redis.Interpolated
                     $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags.WithDefaultCategory(RedisCommand.VRANGE), ValueLeaseHandler.Writable);
         }
 
-        /// <inheritdoc cref="RandomMembers(in RespVectorSets, RedisKey, long, CommandFlags)"/>
+        /// <inheritdoc cref="RandomMembersAsync(in RespVectorSets, RedisKey, long, CommandFlags)"/>
         /// <param name="sets">The vector-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take.</param>

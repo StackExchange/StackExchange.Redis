@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Interpolated
         /// substitution buys is a command the server itself classifies as a read.
         /// </para>
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> Sort(
+        public static ValueTask<ReadOnlyLease<RespValue>> SortAsync(
             this in RespKeys keys,
             RedisKey key,
             long skip = 0,
@@ -50,19 +50,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The key command group.</param>
         /// <param name="destination">The key to write the sorted result to.</param>
         /// <param name="key">The key to sort.</param>
-        /// <param name="skip"><inheritdoc cref="Sort" path="/param[@name='skip']"/></param>
-        /// <param name="take"><inheritdoc cref="Sort" path="/param[@name='take']"/></param>
-        /// <param name="order"><inheritdoc cref="Sort" path="/param[@name='order']"/></param>
-        /// <param name="sortType"><inheritdoc cref="Sort" path="/param[@name='sortType']"/></param>
-        /// <param name="by"><inheritdoc cref="Sort" path="/param[@name='by']"/></param>
-        /// <param name="get"><inheritdoc cref="Sort" path="/param[@name='get']"/></param>
+        /// <param name="skip"><inheritdoc cref="SortAsync" path="/param[@name='skip']"/></param>
+        /// <param name="take"><inheritdoc cref="SortAsync" path="/param[@name='take']"/></param>
+        /// <param name="order"><inheritdoc cref="SortAsync" path="/param[@name='order']"/></param>
+        /// <param name="sortType"><inheritdoc cref="SortAsync" path="/param[@name='sortType']"/></param>
+        /// <param name="by"><inheritdoc cref="SortAsync" path="/param[@name='by']"/></param>
+        /// <param name="get"><inheritdoc cref="SortAsync" path="/param[@name='get']"/></param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>
         /// Always <c>SORT</c>, never <c>SORT_RO</c>: a destination makes this a write however read-only
         /// the sort itself is, which is also why the retry category is raised here and nowhere else in
         /// the pair.
         /// </remarks>
-        public static ValueTask<long> SortAndStore(
+        public static ValueTask<long> SortAndStoreAsync(
             this in RespKeys keys,
             RedisKey destination,
             RedisKey key,
@@ -79,17 +79,17 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
-        /// <see cref="Sort"/> for the old <see cref="IDatabase"/> shape, which promises an array the caller
+        /// <see cref="SortAsync"/> for the old <see cref="IDatabase"/> shape, which promises an array the caller
         /// owns rather than a lease it has to return.
         /// </summary>
         /// <param name="keys">The key command group.</param>
-        /// <param name="key"><inheritdoc cref="Sort" path="/param[@name='key']"/></param>
-        /// <param name="skip"><inheritdoc cref="Sort" path="/param[@name='skip']"/></param>
-        /// <param name="take"><inheritdoc cref="Sort" path="/param[@name='take']"/></param>
-        /// <param name="order"><inheritdoc cref="Sort" path="/param[@name='order']"/></param>
-        /// <param name="sortType"><inheritdoc cref="Sort" path="/param[@name='sortType']"/></param>
-        /// <param name="by"><inheritdoc cref="Sort" path="/param[@name='by']"/></param>
-        /// <param name="get"><inheritdoc cref="Sort" path="/param[@name='get']"/></param>
+        /// <param name="key"><inheritdoc cref="SortAsync" path="/param[@name='key']"/></param>
+        /// <param name="skip"><inheritdoc cref="SortAsync" path="/param[@name='skip']"/></param>
+        /// <param name="take"><inheritdoc cref="SortAsync" path="/param[@name='take']"/></param>
+        /// <param name="order"><inheritdoc cref="SortAsync" path="/param[@name='order']"/></param>
+        /// <param name="sortType"><inheritdoc cref="SortAsync" path="/param[@name='sortType']"/></param>
+        /// <param name="by"><inheritdoc cref="SortAsync" path="/param[@name='by']"/></param>
+        /// <param name="get"><inheritdoc cref="SortAsync" path="/param[@name='get']"/></param>
         /// <param name="flags">Command flags.</param>
         internal static ValueTask<RedisValue[]> SortArray(
             this in RespKeys keys,

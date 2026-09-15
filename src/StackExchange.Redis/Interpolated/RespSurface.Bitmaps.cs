@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The bitmap-command group: <c>target.Bitmaps.Count(...)</c>.
+    /// EXPERIMENTAL SPIKE. The bitmap-command group: <c>target.Bitmaps.CountAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -55,7 +55,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="offset">The bit offset.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Get(this in RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> GetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None)
             => bitmaps.Context.SendAsync<bool>(
                 $"{RedisCommand.GETBIT}{key}{offset}", flags.WithDefaultCategory(RedisCommand.GETBIT));
 
@@ -65,7 +65,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="offset">The bit offset; the value is zero-extended up to it.</param>
         /// <param name="bit">The bit to set.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Set(this in RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> SetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
             => bitmaps.Context.SendAsync<bool>(
                 $"{RedisCommand.SETBIT}{key}{offset}{bit}", flags.WithDefaultCategory(RedisCommand.SETBIT));
 
@@ -82,7 +82,7 @@ namespace StackExchange.Redis.Interpolated
         /// expression with no branch at the call site. <c>BYTE</c> is not omitted to save bytes but
         /// because it is the server's own default, and older servers do not accept the token at all.
         /// </remarks>
-        public static ValueTask<long> Count(
+        public static ValueTask<long> CountAsync(
             this in RespBitmaps bitmaps,
             RedisKey key,
             long start = 0,
@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Interpolated
         /// <i>after</i> an explicit end, so there is nowhere to put it. Dropping it silently would
         /// reinterpret <paramref name="start"/> as a byte offset, which is why this says so instead.
         /// </remarks>
-        public static ValueTask<long> Position(
+        public static ValueTask<long> PositionAsync(
             this in RespBitmaps bitmaps,
             RedisKey key,
             bool bit,
@@ -157,7 +157,7 @@ namespace StackExchange.Redis.Interpolated
         /// away from the mistake.
         /// </para>
         /// </remarks>
-        public static ValueTask<long> Operation(
+        public static ValueTask<long> OperationAsync(
             this in RespBitmaps bitmaps,
             Bitwise operation,
             RedisKey destination,
@@ -201,14 +201,14 @@ namespace StackExchange.Redis.Interpolated
         /// <c>OVERFLOW FAIL</c>, which is why the element type is nullable.
         /// </para>
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<long?>> Field(
+        public static ValueTask<ReadOnlyLease<long?>> FieldAsync(
             this in RespBitmaps bitmaps,
             RedisKey key,
             ReadOnlySpan<BitFieldOperation> operations,
             CommandFlags flags = CommandFlags.None)
             => FieldCore<ReadOnlyLease<long?>>(in bitmaps, key, operations, ReadOnlyLease<long?>.Empty, flags);
 
-        /// <inheritdoc cref="Field(in RespBitmaps, RedisKey, ReadOnlySpan{BitFieldOperation}, CommandFlags)"/>
+        /// <inheritdoc cref="FieldAsync(in RespBitmaps, RedisKey, ReadOnlySpan{BitFieldOperation}, CommandFlags)"/>
         /// <param name="bitmaps">The bitmap command group.</param>
         /// <param name="key">The key to operate on.</param>
         /// <param name="operations">The sub-operations, in order.</param>
@@ -270,7 +270,7 @@ namespace StackExchange.Redis.Interpolated
         /// replies with - so the common case costs neither a lease nor a disposal. <see langword="null"/>
         /// means the operation was skipped by <c>OVERFLOW FAIL</c>.
         /// </remarks>
-        public static ValueTask<long?> Field(this in RespBitmaps bitmaps, RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long?> FieldAsync(this in RespBitmaps bitmaps, RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
         {
             // deliberately NOT a one-element span: BitFieldOperation holds a RedisValue, so it cannot be
             // stackalloc'd, and the span-from-a-single-value constructor does not exist on every target

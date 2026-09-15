@@ -59,7 +59,7 @@ public class RespSurfaceSortTests
     {
         var (ctx, exec) = Target();
 
-        using (await ctx.Keys.Sort("k")) { }
+        using (await ctx.Keys.SortAsync("k")) { }
 
         // ascending, numeric, no limit, no by, no get: the server assumes every one of those, so an
         // untouched call is two arguments and not eight
@@ -71,7 +71,7 @@ public class RespSurfaceSortTests
     {
         var (ctx, exec) = Target();
 
-        using (await ctx.Keys.Sort(
+        using (await ctx.Keys.SortAsync(
             "k",
             skip: 1,
             take: 2,
@@ -94,7 +94,7 @@ public class RespSurfaceSortTests
     {
         var (ctx, exec) = Target();
 
-        using (await ctx.Keys.Sort("k", get: ["a", "b", "c"])) { }
+        using (await ctx.Keys.SortAsync("k", get: ["a", "b", "c"])) { }
 
         // GET is the one operand that is not a single fragment: it prefixes every pattern, so three
         // patterns are six arguments
@@ -106,9 +106,9 @@ public class RespSurfaceSortTests
     {
         var (bare, exec) = Target();
 
-        using (await Server(bare, 7).Keys.Sort("k")) { }
-        using (await Server(bare, 6).Keys.Sort("k")) { }
-        using (await bare.Keys.Sort("k")) { }
+        using (await Server(bare, 7).Keys.SortAsync("k")) { }
+        using (await Server(bare, 6).Keys.SortAsync("k")) { }
+        using (await bare.Keys.SortAsync("k")) { }
 
         // SORT_RO is 7.0; before that it is an unknown command, and with no probe "not sure" has to mean
         // the spelling that exists everywhere
@@ -122,7 +122,7 @@ public class RespSurfaceSortTests
     {
         var (bare, exec) = Target(":3\r\n");
 
-        await Server(bare, 7).Keys.SortAndStore("dst", "k");
+        await Server(bare, 7).Keys.SortAndStoreAsync("dst", "k");
 
         // a destination makes this a write, so SORT_RO is not an option however new the server is
         Assert.Equal("*4|$4|SORT|$1|k|$5|STORE|$3|dst|", Assert.Single(exec.Sent));
@@ -133,8 +133,8 @@ public class RespSurfaceSortTests
     {
         var (bare, exec) = Target("*0\r\n", ":0\r\n");
 
-        using (await Server(bare, 7).Keys.Sort("k")) { }
-        await Server(bare, 7).Keys.SortAndStore("dst", "k");
+        using (await Server(bare, 7).Keys.SortAsync("k")) { }
+        await Server(bare, 7).Keys.SortAndStoreAsync("dst", "k");
 
         Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
 
@@ -150,7 +150,7 @@ public class RespSurfaceSortTests
 
         // SORT is deliberately NOT in the primary-only list - it is one of the writable commands a
         // writable replica may serve - so asking for a replica is honoured rather than overridden
-        var pending = Server(bare, 6).Keys.Sort("k", flags: CommandFlags.DemandReplica);
+        var pending = Server(bare, 6).Keys.SortAsync("k", flags: CommandFlags.DemandReplica);
 
         Assert.Equal(CommandFlags.DemandReplica, Message.GetPrimaryReplicaFlags(Assert.Single(exec.Flags)));
         pending.GetAwaiter().GetResult().Dispose();
@@ -161,9 +161,9 @@ public class RespSurfaceSortTests
     {
         var (ctx, exec) = Target();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Keys.Sort("k", order: (Order)42));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Keys.Sort("k", sortType: (SortType)42));
-        Assert.Throws<ArgumentNullException>(() => ctx.Keys.SortAndStore(default, "k"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Keys.SortAsync("k", order: (Order)42));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Keys.SortAsync("k", sortType: (SortType)42));
+        Assert.Throws<ArgumentNullException>(() => ctx.Keys.SortAndStoreAsync(default, "k"));
 
         Assert.Empty(exec.Sent);
     }

@@ -116,12 +116,12 @@ public class RespValueAllocationTests(ITestOutputHelper log)
 
         RedisKey[] keys = ["k1", "k2"];
 
-        using (var first = await ctx.Strings.Get(keys, CommandFlags.PreferReplica))
+        using (var first = await ctx.Strings.GetAsync(keys, CommandFlags.PreferReplica))
         {
             Assert.Equal(Elements, first.Length);
         }
 
-        using var second = await ctx.Strings.Get(keys, CommandFlags.PreferReplica);
+        using var second = await ctx.Strings.GetAsync(keys, CommandFlags.PreferReplica);
 
         Assert.Equal(1, executor.Sends); // served from the cache, not the wire
         Assert.Equal(Elements, second.Length);

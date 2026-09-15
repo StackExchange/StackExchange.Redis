@@ -23,19 +23,19 @@ namespace StackExchange.Redis.Interpolated
     {
         /// <inheritdoc/>
         public RedisValue ListGetByIndex(RedisKey key, long index, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.GetByIndex(key, index, flags));
+            => Wait(Context.Lists.GetByIndexAsync(key, index, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> ListGetByIndexAsync(RedisKey key, long index, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.GetByIndex(key, index, flags).AsTask();
+            => Context.Lists.GetByIndexAsync(key, index, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.Length(key, flags));
+            => Wait(Context.Lists.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> ListLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.Length(key, flags).AsTask();
+            => Context.Lists.LengthAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
@@ -47,11 +47,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.Position(key, element, rank, maxLength, flags));
+            => Wait(Context.Lists.PositionAsync(key, element, rank, maxLength, flags));
 
         /// <inheritdoc/>
         public Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.Position(key, element, rank, maxLength, flags).AsTask();
+            => Context.Lists.PositionAsync(key, element, rank, maxLength, flags).AsTask();
 
         /// <inheritdoc/>
         public long[] ListPositions(RedisKey key, RedisValue element, long count, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
@@ -66,19 +66,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long ListLeftPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.LeftPush(key, value, when, flags));
+            => Wait(Context.Lists.LeftPushAsync(key, value, when, flags));
 
         /// <inheritdoc/>
         public Task<long> ListLeftPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.LeftPush(key, value, when, flags).AsTask();
+            => Context.Lists.LeftPushAsync(key, value, when, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListLeftPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.LeftPush(key, Required(values, nameof(values)), when, flags));
+            => Wait(Context.Lists.LeftPushAsync(key, Required(values, nameof(values)), when, flags));
 
         /// <inheritdoc/>
         public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.LeftPush(key, Required(values, nameof(values)), when, flags).AsTask();
+            => Context.Lists.LeftPushAsync(key, Required(values, nameof(values)), when, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags)
@@ -90,19 +90,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long ListRightPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.RightPush(key, value, when, flags));
+            => Wait(Context.Lists.RightPushAsync(key, value, when, flags));
 
         /// <inheritdoc/>
         public Task<long> ListRightPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.RightPush(key, value, when, flags).AsTask();
+            => Context.Lists.RightPushAsync(key, value, when, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListRightPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.RightPush(key, Required(values, nameof(values)), when, flags));
+            => Wait(Context.Lists.RightPushAsync(key, Required(values, nameof(values)), when, flags));
 
         /// <inheritdoc/>
         public Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.RightPush(key, Required(values, nameof(values)), when, flags).AsTask();
+            => Context.Lists.RightPushAsync(key, Required(values, nameof(values)), when, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListRightPush(RedisKey key, RedisValue[] values, CommandFlags flags)
@@ -116,11 +116,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue ListLeftPop(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.LeftPop(key, flags));
+            => Wait(Context.Lists.LeftPopAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> ListLeftPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.LeftPop(key, flags).AsTask();
+            => Context.Lists.LeftPopAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -132,11 +132,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue ListRightPop(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.RightPop(key, flags));
+            => Wait(Context.Lists.RightPopAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.RightPop(key, flags).AsTask();
+            => Context.Lists.RightPopAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -148,29 +148,29 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public ListPopResult ListLeftPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.LeftPop(Required(keys, nameof(keys)), count, flags));
+            => Wait(Context.Lists.LeftPopAsync(Required(keys, nameof(keys)), count, flags));
 
         /// <inheritdoc/>
         public Task<ListPopResult> ListLeftPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.LeftPop(Required(keys, nameof(keys)), count, flags).AsTask();
+            => Context.Lists.LeftPopAsync(Required(keys, nameof(keys)), count, flags).AsTask();
 
         /// <inheritdoc/>
         public ListPopResult ListRightPop(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.RightPop(Required(keys, nameof(keys)), count, flags));
+            => Wait(Context.Lists.RightPopAsync(Required(keys, nameof(keys)), count, flags));
 
         /// <inheritdoc/>
         public Task<ListPopResult> ListRightPopAsync(RedisKey[] keys, long count, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.RightPop(Required(keys, nameof(keys)), count, flags).AsTask();
+            => Context.Lists.RightPopAsync(Required(keys, nameof(keys)), count, flags).AsTask();
 
         // ---- moves and edits ---------------------------------------------------------------------------
 
         /// <inheritdoc/>
         public RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.Move(sourceKey, destinationKey, sourceSide, destinationSide, flags));
+            => Wait(Context.Lists.MoveAsync(sourceKey, destinationKey, sourceSide, destinationSide, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.Move(sourceKey, destinationKey, sourceSide, destinationSide, flags).AsTask();
+            => Context.Lists.MoveAsync(sourceKey, destinationKey, sourceSide, destinationSide, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[]? ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None)
@@ -196,42 +196,42 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long ListInsertBefore(RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.InsertBefore(key, pivot, value, flags));
+            => Wait(Context.Lists.InsertBeforeAsync(key, pivot, value, flags));
 
         /// <inheritdoc/>
         public Task<long> ListInsertBeforeAsync(RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.InsertBefore(key, pivot, value, flags).AsTask();
+            => Context.Lists.InsertBeforeAsync(key, pivot, value, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListInsertAfter(RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.InsertAfter(key, pivot, value, flags));
+            => Wait(Context.Lists.InsertAfterAsync(key, pivot, value, flags));
 
         /// <inheritdoc/>
         public Task<long> ListInsertAfterAsync(RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.InsertAfter(key, pivot, value, flags).AsTask();
+            => Context.Lists.InsertAfterAsync(key, pivot, value, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListRemove(RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.Remove(key, value, count, flags));
+            => Wait(Context.Lists.RemoveAsync(key, value, count, flags));
 
         /// <inheritdoc/>
         public Task<long> ListRemoveAsync(RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.Remove(key, value, count, flags).AsTask();
+            => Context.Lists.RemoveAsync(key, value, count, flags).AsTask();
 
         /// <inheritdoc/>
         public void ListSetByIndex(RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.SetByIndex(key, index, value, flags));
+            => Wait(Context.Lists.SetByIndexAsync(key, index, value, flags));
 
         /// <inheritdoc/>
         public Task ListSetByIndexAsync(RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.SetByIndex(key, index, value, flags).AsTask();
+            => Context.Lists.SetByIndexAsync(key, index, value, flags).AsTask();
 
         /// <inheritdoc/>
         public void ListTrim(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.Trim(key, start, stop, flags));
+            => Wait(Context.Lists.TrimAsync(key, start, stop, flags));
 
         /// <inheritdoc/>
         public Task ListTrimAsync(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.Trim(key, start, stop, flags).AsTask();
+            => Context.Lists.TrimAsync(key, start, stop, flags).AsTask();
     }
 }

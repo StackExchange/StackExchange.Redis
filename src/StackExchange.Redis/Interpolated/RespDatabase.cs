@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Interpolated
     /// <remarks>
     /// <para>
     /// This is what the context surface looks like without a live connection behind it - enough to exercise
-    /// <c>target.Strings.Set(...)</c> end to end, and to show that the whole public surface really is one
+    /// <c>target.Strings.SetAsync(...)</c> end to end, and to show that the whole public surface really is one
     /// member plus extension members. The connection-backed types (<c>RedisDatabase</c> and friends) throw
     /// from <see cref="IRespTarget.Context"/> for now: routing a rendered frame through the existing
     /// message pipeline is separate work, and there is no reason to hold this up behind it.

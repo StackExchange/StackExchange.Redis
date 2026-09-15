@@ -114,11 +114,11 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         var key = Me();
         await WriteAndSettleAsync(executor, "SET", key, "first");
 
-        Assert.Equal("first", await context.Strings.Get(key));
+        Assert.Equal("first", await context.Strings.GetAsync(key));
         Assert.Equal(1, cache.Count);
 
         // served from cache: the server never sees the second read
-        Assert.Equal("first", await context.Strings.Get(key));
+        Assert.Equal("first", await context.Strings.GetAsync(key));
         Assert.Equal(1, cache.Count);
 
         // somebody else changes it - a different connection entirely
@@ -133,7 +133,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.Equal(0, cache.Count);
 
         // and the next read gets the new value, from the server
-        Assert.Equal("second", await context.Strings.Get(key));
+        Assert.Equal("second", await context.Strings.GetAsync(key));
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         var key = Me() + ":éü中文";
         await WriteAndSettleAsync(executor, "SET", key, "value");
 
-        Assert.Equal("value", await context.Strings.Get(key));
+        Assert.Equal("value", await context.Strings.GetAsync(key));
         Assert.Equal(1, cache.Count);
 
         await using var other = Create();
@@ -161,7 +161,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
             await WaitFor(() => Contains(executor, key)),
             "the server never named this key - its bytes did not match ours");
 
-        Assert.Equal("changed", await context.Strings.Get(key));
+        Assert.Equal("changed", await context.Strings.GetAsync(key));
     }
 
     [Fact]
@@ -176,8 +176,8 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         await WriteAndSettleAsync(executor, "MSET", A, "1", B, "2");
         var seenBefore = executor.KeysInvalidated;
 
-        Assert.Equal("1", await context.Strings.Get(A));
-        Assert.Equal("2", await context.Strings.Get(B));
+        Assert.Equal("1", await context.Strings.GetAsync(A));
+        Assert.Equal("2", await context.Strings.GetAsync(B));
         Assert.Equal(2, cache.Count);
 
         await using var other = Create();
@@ -202,7 +202,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
 
         var key = Me();
         await WriteAndSettleAsync(executor, "SET", key, "value");
-        Assert.Equal("value", await context.Strings.Get(key));
+        Assert.Equal("value", await context.Strings.GetAsync(key));
 
         var channel = Me() + ":channel";
         await executor.CommandAsync("SUBSCRIBE", channel);
@@ -220,7 +220,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
         // database, sends every tracking client an unfilterable `invalidate null` - PREFIX cannot scope a
         // flush, because a flush names no keys. Verified against the server. So the entry legitimately
         // disappears at random here, and asserting otherwise tests the suite's scheduling, not the code.
-        Assert.Equal("value", await context.Strings.Get(key));
+        Assert.Equal("value", await context.Strings.GetAsync(key));
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
 
         var key = Me();
         await WriteAndSettleAsync(executor, "SET", key, "value");
-        Assert.Equal("value", await context.Strings.Get(key));
+        Assert.Equal("value", await context.Strings.GetAsync(key));
         Assert.Equal(1, cache.Count);
 
         // The only destructive test here. FLUSHDB on the shared primary would wipe the database out from

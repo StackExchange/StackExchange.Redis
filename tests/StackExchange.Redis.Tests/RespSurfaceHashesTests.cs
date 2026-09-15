@@ -47,8 +47,8 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target("$3\r\nabc\r\n", "*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
-        await ctx.Hashes.Get("k", "f1");
-        await ctx.Hashes.Get("k", ["f1", "f2"]);
+        await ctx.Hashes.GetAsync("k", "f1");
+        await ctx.Hashes.GetAsync("k", ["f1", "f2"]);
 
         Assert.Equal(
             new[] { "*3|$4|HGET|$1|k|$2|f1|", "*4|$5|HMGET|$1|k|$2|f1|$2|f2|" },
@@ -60,7 +60,7 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target("*1\r\n$1\r\na\r\n");
 
-        await ctx.WithKeyPrefix("t:").Hashes.Get("k", ["f1"]);
+        await ctx.WithKeyPrefix("t:").Hashes.GetAsync("k", ["f1"]);
 
         // the key is prefixed; the field is not. Writing a field through the key path would silently
         // prefix it, and nothing downstream could tell
@@ -72,10 +72,10 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target();
 
-        Assert.Empty((await ctx.Hashes.Get("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
-        Assert.Equal(0, await ctx.Hashes.Delete("k", ReadOnlySpan<RedisValue>.Empty));
-        Assert.Empty((await ctx.Hashes.Persist("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
-        await ctx.Hashes.Set("k", ReadOnlySpan<HashEntry>.Empty);
+        Assert.Empty((await ctx.Hashes.GetAsync("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
+        Assert.Equal(0, await ctx.Hashes.DeleteAsync("k", ReadOnlySpan<RedisValue>.Empty));
+        Assert.Empty((await ctx.Hashes.PersistAsync("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
+        await ctx.Hashes.SetAsync("k", ReadOnlySpan<HashEntry>.Empty);
 
         Assert.Empty(exec.Sent);
     }
@@ -85,9 +85,9 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.Hashes.Set("k", "f", "v");
-        await ctx.Hashes.Set("k", "f", "v", When.NotExists);
-        await ctx.Hashes.Set("k", "f", RedisValue.Null);
+        await ctx.Hashes.SetAsync("k", "f", "v");
+        await ctx.Hashes.SetAsync("k", "f", "v", When.NotExists);
+        await ctx.Hashes.SetAsync("k", "f", RedisValue.Null);
 
         Assert.Equal(
             new[]
@@ -105,7 +105,7 @@ public class RespSurfaceHashesTests
         var (ctx, exec) = Target("+OK\r\n");
 
         HashEntry[] entries = [new("f1", "v1"), new("f2", "v2")];
-        await ctx.Hashes.Set("k", entries);
+        await ctx.Hashes.SetAsync("k", entries);
 
         // HashEntry writes its own two arguments, name then value, so a whole field set is one hole
         Assert.Equal("*6|$5|HMSET|$1|k|$2|f1|$2|v1|$2|f2|$2|v2|", Assert.Single(exec.Sent));
@@ -116,9 +116,9 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target("$2\r\nf1\r\n", "*1\r\n$2\r\nf1\r\n", "*2\r\n$2\r\nf1\r\n$2\r\nv1\r\n");
 
-        await ctx.Hashes.RandomField("k");
-        await ctx.Hashes.RandomFields("k", -5);
-        await ctx.Hashes.RandomFieldsWithValues("k", 2);
+        await ctx.Hashes.RandomFieldAsync("k");
+        await ctx.Hashes.RandomFieldsAsync("k", -5);
+        await ctx.Hashes.RandomFieldsWithValuesAsync("k", 2);
 
         Assert.Equal(
             new[]
@@ -139,8 +139,8 @@ public class RespSurfaceHashesTests
         var (jagged, _) = Target("*2\r\n*2\r\n$2\r\nf1\r\n$2\r\nv1\r\n*2\r\n$2\r\nf2\r\n$2\r\nv2\r\n");
 
         HashEntry[] expected = [new("f1", "v1"), new("f2", "v2")];
-        Assert.Equal(expected, (await interleaved.Hashes.GetAll("k")).Span.ToArray());
-        Assert.Equal(expected, (await jagged.Hashes.GetAll("k")).Span.ToArray());
+        Assert.Equal(expected, (await interleaved.Hashes.GetAllAsync("k")).Span.ToArray());
+        Assert.Equal(expected, (await jagged.Hashes.GetAllAsync("k")).Span.ToArray());
     }
 
     [Fact]
@@ -149,11 +149,11 @@ public class RespSurfaceHashesTests
         var (ctx, exec) = Target("*1\r\n:1\r\n");
 
         RedisValue[] fields = ["f1"];
-        await ctx.Hashes.Expire("k", fields, TimeSpan.FromSeconds(300));         // relative, whole seconds
-        await ctx.Hashes.Expire("k", fields, TimeSpan.FromMilliseconds(1500));   // relative, milliseconds
+        await ctx.Hashes.ExpireAsync("k", fields, TimeSpan.FromSeconds(300));         // relative, whole seconds
+        await ctx.Hashes.ExpireAsync("k", fields, TimeSpan.FromMilliseconds(1500));   // relative, milliseconds
         var whole = new DateTime(2101, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        await ctx.Hashes.Expire("k", fields, whole);                    // absolute, whole seconds
-        await ctx.Hashes.Expire("k", fields, whole.AddMilliseconds(1)); // absolute, milliseconds
+        await ctx.Hashes.ExpireAsync("k", fields, whole);                    // absolute, whole seconds
+        await ctx.Hashes.ExpireAsync("k", fields, whole.AddMilliseconds(1)); // absolute, milliseconds
 
         // the mode is in the COMMAND NAME here, not in an operand - which is the one thing that makes this
         // group's expiry different from SET's, and the only reason Expiration is read rather than written.
@@ -170,7 +170,7 @@ public class RespSurfaceHashesTests
         var (ctx, exec) = Target("*1\r\n:1\r\n");
 
         RedisValue[] fields = ["f1"];
-        await ctx.Hashes.Expire("k", fields, TimeSpan.FromSeconds(60), ExpireWhen.GreaterThanCurrentExpiry);
+        await ctx.Hashes.ExpireAsync("k", fields, TimeSpan.FromSeconds(60), ExpireWhen.GreaterThanCurrentExpiry);
 
         Assert.Equal("*7|$7|HEXPIRE|$1|k|$2|60|$2|GT|$6|FIELDS|$1|1|$2|f1|", Assert.Single(exec.Sent));
 
@@ -184,9 +184,9 @@ public class RespSurfaceHashesTests
         var (ctx, _) = Target();
         RedisValue[] fields = ["f1"];
 
-        Assert.Throws<ArgumentException>(() => ctx.Hashes.Expire("k", fields, Expiration.KeepTtl));
-        Assert.Throws<ArgumentException>(() => ctx.Hashes.Expire("k", fields, Expiration.Persist));
-        Assert.Throws<ArgumentException>(() => ctx.Hashes.Expire("k", fields, default));
+        Assert.Throws<ArgumentException>(() => ctx.Hashes.ExpireAsync("k", fields, Expiration.KeepTtl));
+        Assert.Throws<ArgumentException>(() => ctx.Hashes.ExpireAsync("k", fields, Expiration.Persist));
+        Assert.Throws<ArgumentException>(() => ctx.Hashes.ExpireAsync("k", fields, default));
     }
 
     [Fact]
@@ -195,9 +195,9 @@ public class RespSurfaceHashesTests
         var (ctx, exec) = Target("*1\r\n:1000\r\n");
 
         RedisValue[] fields = ["f1", "f2"];
-        await ctx.Hashes.GetTimeToLive("k", fields);
-        await ctx.Hashes.GetExpireDateTime("k", fields);
-        await ctx.Hashes.Persist("k", fields);
+        await ctx.Hashes.GetTimeToLiveAsync("k", fields);
+        await ctx.Hashes.GetExpireDateTimeAsync("k", fields);
+        await ctx.Hashes.PersistAsync("k", fields);
 
         Assert.Equal(
             new[]
@@ -214,9 +214,9 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target("*1\r\n$2\r\nv1\r\n");
 
-        await ctx.Hashes.GetSetExpiry("k", "f1");
-        await ctx.Hashes.GetSetExpiry("k", "f1", TimeSpan.FromSeconds(60));
-        await ctx.Hashes.GetSetExpiry("k", "f1", Expiration.Persist);
+        await ctx.Hashes.GetSetExpiryAsync("k", "f1");
+        await ctx.Hashes.GetSetExpiryAsync("k", "f1", TimeSpan.FromSeconds(60));
+        await ctx.Hashes.GetSetExpiryAsync("k", "f1", Expiration.Persist);
 
         Assert.Equal(
             new[]
@@ -239,8 +239,8 @@ public class RespSurfaceHashesTests
 
         // the FIELDS commands always reply with an array, one element per field - so asking for one field
         // still gets *1, and the caller still wanted one value
-        Assert.Equal("v1", await ctx.Hashes.GetDelete("k", "f1"));
-        Assert.True((await ctx.Hashes.GetDelete("k", "f1")).IsNull);
+        Assert.Equal("v1", await ctx.Hashes.GetDeleteAsync("k", "f1"));
+        Assert.True((await ctx.Hashes.GetDeleteAsync("k", "f1")).IsNull);
 
         Assert.Equal("*5|$7|HGETDEL|$1|k|$6|FIELDS|$1|1|$2|f1|", exec.Sent[0]);
     }
@@ -250,8 +250,8 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.Hashes.SetWithExpiry("k", "f1", "v1");
-        await ctx.Hashes.SetWithExpiry("k", "f1", "v1", TimeSpan.FromSeconds(60), When.NotExists);
+        await ctx.Hashes.SetWithExpiryAsync("k", "f1", "v1");
+        await ctx.Hashes.SetWithExpiryAsync("k", "f1", "v1", TimeSpan.FromSeconds(60), When.NotExists);
 
         Assert.Equal(
             new[]
@@ -270,7 +270,7 @@ public class RespSurfaceHashesTests
         var (ctx, exec) = Target();
 
         HashEntry[] entries = [new("f1", "v1"), new("f2", "v2")];
-        await ctx.Hashes.SetWithExpiry("k", entries, Expiration.KeepTtl, When.Exists);
+        await ctx.Hashes.SetWithExpiryAsync("k", entries, Expiration.KeepTtl, When.Exists);
 
         Assert.Equal(
             "*10|$6|HSETEX|$1|k|$3|FXX|$7|KEEPTTL|$6|FIELDS|$1|2|$2|f1|$2|v1|$2|f2|$2|v2|",
@@ -283,7 +283,7 @@ public class RespSurfaceHashesTests
         var (ctx, _) = Target();
 
         Assert.Throws<NotSupportedException>(
-            () => ctx.Hashes.SetWithExpiry("k", "f", "v", new Expiration(TimeSpan.FromSeconds(30), ExpirationFlags.ExpireIfNotExists)));
+            () => ctx.Hashes.SetWithExpiryAsync("k", "f", "v", new Expiration(TimeSpan.FromSeconds(30), ExpirationFlags.ExpireIfNotExists)));
     }
 
     [Fact]
@@ -291,8 +291,8 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target(":4\r\n", "$3\r\n1.5\r\n");
 
-        await ctx.Hashes.Increment("k", "f", -6);
-        await ctx.Hashes.Increment("k", "f", 1.5);
+        await ctx.Hashes.IncrementAsync("k", "f", -6);
+        await ctx.Hashes.IncrementAsync("k", "f", 1.5);
 
         // the server has no HDECRBY, so a negative amount is the only spelling there has ever been
         Assert.Equal(
@@ -310,7 +310,7 @@ public class RespSurfaceHashesTests
         var (ctx, _) = Target("*3\r\n:1\r\n:0\r\n:-2\r\n");
 
         RedisValue[] fields = ["a", "b", "c"];
-        using var results = await ctx.Hashes.Expire("k", fields, TimeSpan.FromSeconds(60));
+        using var results = await ctx.Hashes.ExpireAsync("k", fields, TimeSpan.FromSeconds(60));
 
         Assert.Equal(
             new[] { ExpireResult.Success, ExpireResult.ConditionNotMet, ExpireResult.NoSuchField },

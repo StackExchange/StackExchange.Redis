@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Interpolated
@@ -22,10 +22,10 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Keys.SortAndStore(destination, key, skip, take, order, sortType, by, get, flags));
+            => Wait(Context.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags));
 
         /// <inheritdoc/>
         public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => Context.Keys.SortAndStore(destination, key, skip, take, order, sortType, by, get, flags).AsTask();
+            => Context.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags).AsTask();
     }
 }

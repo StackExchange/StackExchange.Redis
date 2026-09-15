@@ -41,11 +41,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Add(key, member, score, when, change: false, flags));
+            => Wait(Context.SortedSets.AddAsync(key, member, score, when, change: false, flags));
 
         /// <inheritdoc/>
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Add(key, member, score, when, change: false, flags).AsTask();
+            => Context.SortedSets.AddAsync(key, member, score, when, change: false, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
@@ -65,49 +65,49 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Add(key, Required(values, nameof(values)), when, change: false, flags));
+            => Wait(Context.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: false, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Add(key, Required(values, nameof(values)), when, change: false, flags).AsTask();
+            => Context.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: false, flags).AsTask();
 
         // SortedSetUpdate is SortedSetAdd with CH - the same command, counting changed members rather than
         // new ones, which is a parameter on the group method
 
         /// <inheritdoc/>
         public bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Add(key, member, score, when, change: true, flags));
+            => Wait(Context.SortedSets.AddAsync(key, member, score, when, change: true, flags));
 
         /// <inheritdoc/>
         public Task<bool> SortedSetUpdateAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Add(key, member, score, when, change: true, flags).AsTask();
+            => Context.SortedSets.AddAsync(key, member, score, when, change: true, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Add(key, Required(values, nameof(values)), when, change: true, flags));
+            => Wait(Context.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: true, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetUpdateAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Add(key, Required(values, nameof(values)), when, change: true, flags).AsTask();
+            => Context.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: true, flags).AsTask();
 
         // an unconditional increment cannot be refused, so the old signature's non-nullable double is safe;
         // the conditional overload is the one that reports null, and it already says so
 
         /// <inheritdoc/>
         public double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Increment(key, member, value, SortedSetWhen.Always, flags)).GetValueOrDefault();
+            => Wait(Context.SortedSets.IncrementAsync(key, member, value, SortedSetWhen.Always, flags)).GetValueOrDefault();
 
         /// <inheritdoc/>
         public async Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None)
-            => (await Context.SortedSets.Increment(key, member, value, SortedSetWhen.Always, flags).ConfigureAwait(false)).GetValueOrDefault();
+            => (await Context.SortedSets.IncrementAsync(key, member, value, SortedSetWhen.Always, flags).ConfigureAwait(false)).GetValueOrDefault();
 
         /// <inheritdoc/>
         public double? SortedSetIncrement(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags)
-            => Wait(Context.SortedSets.Increment(key, member, value, AsSortedSetWhen(when), flags));
+            => Wait(Context.SortedSets.IncrementAsync(key, member, value, AsSortedSetWhen(when), flags));
 
         /// <inheritdoc/>
         public Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags)
-            => Context.SortedSets.Increment(key, member, value, AsSortedSetWhen(when), flags).AsTask();
+            => Context.SortedSets.IncrementAsync(key, member, value, AsSortedSetWhen(when), flags).AsTask();
 
         /// <inheritdoc/>
         public double SortedSetDecrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None)
@@ -119,29 +119,29 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public bool SortedSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Remove(key, member, flags));
+            => Wait(Context.SortedSets.RemoveAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> SortedSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Remove(key, member, flags).AsTask();
+            => Context.SortedSets.RemoveAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetRemove(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Remove(key, Required(members, nameof(members)), flags));
+            => Wait(Context.SortedSets.RemoveAsync(key, Required(members, nameof(members)), flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Remove(key, Required(members, nameof(members)), flags).AsTask();
+            => Context.SortedSets.RemoveAsync(key, Required(members, nameof(members)), flags).AsTask();
 
         // ---- simple reads ------------------------------------------------------------------------------
 
         /// <inheritdoc/>
         public double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Score(key, member, flags));
+            => Wait(Context.SortedSets.ScoreAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Score(key, member, flags).AsTask();
+            => Context.SortedSets.ScoreAsync(key, member, flags).AsTask();
 
         /// <inheritdoc/>
         public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -153,35 +153,35 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SortedSetLength(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Length(key, min, max, exclude, flags));
+            => Wait(Context.SortedSets.LengthAsync(key, min, max, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetLengthAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Length(key, min, max, exclude, flags).AsTask();
+            => Context.SortedSets.LengthAsync(key, min, max, exclude, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.LengthByValue(key, min, max, exclude, flags));
+            => Wait(Context.SortedSets.LengthByValueAsync(key, min, max, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.LengthByValue(key, min, max, exclude, flags).AsTask();
+            => Context.SortedSets.LengthByValueAsync(key, min, max, exclude, flags).AsTask();
 
         /// <inheritdoc/>
         public long? SortedSetRank(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Rank(key, member, order, flags));
+            => Wait(Context.SortedSets.RankAsync(key, member, order, flags));
 
         /// <inheritdoc/>
         public Task<long?> SortedSetRankAsync(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Rank(key, member, order, flags).AsTask();
+            => Context.SortedSets.RankAsync(key, member, order, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue SortedSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.RandomMember(key, flags));
+            => Wait(Context.SortedSets.RandomMemberAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.RandomMember(key, flags).AsTask();
+            => Context.SortedSets.RandomMemberAsync(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] SortedSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -251,37 +251,37 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SortedSetRangeAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long? take = null, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.RangeAndStore(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags));
+            => Wait(Context.SortedSets.RangeAndStoreAsync(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRangeAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long? take = null, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.RangeAndStore(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags).AsTask();
+            => Context.SortedSets.RangeAndStoreAsync(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags).AsTask();
 
         // ---- removal by range --------------------------------------------------------------------------
 
         /// <inheritdoc/>
         public long SortedSetRemoveRangeByRank(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.RemoveRangeByRank(key, start, stop, flags));
+            => Wait(Context.SortedSets.RemoveRangeByRankAsync(key, start, stop, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveRangeByRankAsync(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.RemoveRangeByRank(key, start, stop, flags).AsTask();
+            => Context.SortedSets.RemoveRangeByRankAsync(key, start, stop, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetRemoveRangeByScore(RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.RemoveRangeByScore(key, start, stop, exclude, flags));
+            => Wait(Context.SortedSets.RemoveRangeByScoreAsync(key, start, stop, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveRangeByScoreAsync(RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.RemoveRangeByScore(key, start, stop, exclude, flags).AsTask();
+            => Context.SortedSets.RemoveRangeByScoreAsync(key, start, stop, exclude, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetRemoveRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.RemoveRangeByValue(key, min, max, exclude, flags));
+            => Wait(Context.SortedSets.RemoveRangeByValueAsync(key, min, max, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.RemoveRangeByValue(key, min, max, exclude, flags).AsTask();
+            => Context.SortedSets.RemoveRangeByValueAsync(key, min, max, exclude, flags).AsTask();
 
         // ---- combinations ------------------------------------------------------------------------------
 
@@ -303,37 +303,37 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.CombineAndStore(operation, destination, [first, second], default, aggregate, flags));
+            => Wait(Context.SortedSets.CombineAndStoreAsync(operation, destination, [first, second], default, aggregate, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.CombineAndStore(operation, destination, [first, second], default, aggregate, flags).AsTask();
+            => Context.SortedSets.CombineAndStoreAsync(operation, destination, [first, second], default, aggregate, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.CombineAndStore(operation, destination, Required(keys, nameof(keys)), weights, aggregate, flags));
+            => Wait(Context.SortedSets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), weights, aggregate, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.CombineAndStore(operation, destination, Required(keys, nameof(keys)), weights, aggregate, flags).AsTask();
+            => Context.SortedSets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), weights, aggregate, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.CombineLength(Required(keys, nameof(keys)), limit, flags));
+            => Wait(Context.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.CombineLength(Required(keys, nameof(keys)), limit, flags).AsTask();
+            => Context.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit, flags).AsTask();
 
         // ---- pops --------------------------------------------------------------------------------------
 
         /// <inheritdoc/>
         public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Pop(key, order, flags));
+            => Wait(Context.SortedSets.PopAsync(key, order, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Pop(key, order, flags).AsTask();
+            => Context.SortedSets.PopAsync(key, order, flags).AsTask();
 
         /// <inheritdoc/>
         public SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -345,11 +345,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.Pop(Required(keys, nameof(keys)), count, order, flags));
+            => Wait(Context.SortedSets.PopAsync(Required(keys, nameof(keys)), count, order, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetPopResult> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.Pop(Required(keys, nameof(keys)), count, order, flags).AsTask();
+            => Context.SortedSets.PopAsync(Required(keys, nameof(keys)), count, order, flags).AsTask();
 
         /// <summary>
         /// The existence half of a <see cref="ValueCondition"/>, which is all <c>ZADD</c> can express.

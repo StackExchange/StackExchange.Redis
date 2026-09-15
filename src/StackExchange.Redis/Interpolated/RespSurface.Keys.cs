@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The key-command group: <c>target.Keys.Delete(...)</c>.
+    /// EXPERIMENTAL SPIKE. The key-command group: <c>target.Keys.DeleteAsync(...)</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The key command group.</param>
         /// <param name="key">The key to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Delete(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> DeleteAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<bool>(
                 $"{RedisCommand.DEL}{key}", flags.WithDefaultCategory(RedisCommand.DEL));
 
@@ -65,7 +65,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The key command group.</param>
         /// <param name="targets">The keys to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Delete(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> DeleteAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
             => targets.IsEmpty
                 ? new ValueTask<long>(0L)
                 : keys.Context.SendAsync<long>(
@@ -80,15 +80,15 @@ namespace StackExchange.Redis.Interpolated
         /// operator rather than to the caller, and hiding it behind an option would make the choice
         /// invisible at the call site, which is where it is made.
         /// </remarks>
-        public static ValueTask<bool> Unlink(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> UnlinkAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<bool>(
                 $"{RedisCommand.UNLINK}{key}", flags.WithDefaultCategory(RedisCommand.UNLINK));
 
-        /// <inheritdoc cref="Unlink(in RespKeys, RedisKey, CommandFlags)"/>
+        /// <inheritdoc cref="UnlinkAsync(in RespKeys, RedisKey, CommandFlags)"/>
         /// <param name="keys">The key command group.</param>
         /// <param name="targets">The keys to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Unlink(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> UnlinkAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
             => targets.IsEmpty
                 ? new ValueTask<long>(0L)
                 : keys.Context.SendAsync<long>(
@@ -98,7 +98,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The key command group.</param>
         /// <param name="key">The key to test.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Exists(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> ExistsAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<bool>(
                 $"{RedisCommand.EXISTS}{key}", flags.WithDefaultCategory(RedisCommand.EXISTS));
 
@@ -106,7 +106,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The key command group.</param>
         /// <param name="targets">The keys to test.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Exists(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> ExistsAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
             => targets.IsEmpty
                 ? new ValueTask<long>(0L)
                 : keys.Context.SendAsync<long>(
@@ -125,7 +125,7 @@ namespace StackExchange.Redis.Interpolated
         /// <c>Persist</c> is deliberately not reachable from here - it is a different command with a
         /// different reply, and <see cref="Expiration.Persist"/> is rejected rather than silently rerouted.
         /// </remarks>
-        public static ValueTask<bool> Expire(
+        public static ValueTask<bool> ExpireAsync(
             this in RespKeys keys,
             RedisKey key,
             Expiration expiry,
@@ -142,7 +142,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The key command group.</param>
         /// <param name="key">The key to make permanent.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Persist(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> PersistAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<bool>(
                 $"{RedisCommand.PERSIST}{key}", flags.WithDefaultCategory(RedisCommand.PERSIST));
 
@@ -153,14 +153,14 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// <b>Never cached</b>, and it is the clearest case in the library: the answer counts down, so it is
         /// already wrong by the time it is stored, and no correction is coming because the server announces
-        /// expiry to nobody. Contrast <see cref="ExpireTime"/>, which names an instant and does not drift.
+        /// expiry to nobody. Contrast <see cref="ExpireTimeAsync"/>, which names an instant and does not drift.
         /// <para>
         /// "No such key" and "no deadline" both read as null - the caller asked how long is left, and the
-        /// answer is "no deadline" either way. <see cref="Exists(in RespKeys, RedisKey, CommandFlags)"/>
+        /// answer is "no deadline" either way. <see cref="ExistsAsync(in RespKeys, RedisKey, CommandFlags)"/>
         /// distinguishes them.
         /// </para>
         /// </remarks>
-        public static ValueTask<TimeSpan?> TimeToLive(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<TimeSpan?> TimeToLiveAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<TimeSpan?>(
                 $"{RedisCommand.PTTL}{key}", flags.WithDefaultCategory(RedisCommand.PTTL).NeverCached());
 
@@ -169,11 +169,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to ask about.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>
-        /// Cacheable where <see cref="TimeToLive"/> is not: an instant does not drift, so this only becomes
+        /// Cacheable where <see cref="TimeToLiveAsync"/> is not: an instant does not drift, so this only becomes
         /// wrong once the key actually expires - the same exposure every cached read of a volatile key
         /// already has, and what <see cref="CachePolicy.TimeToLive"/> exists to bound.
         /// </remarks>
-        public static ValueTask<DateTime?> ExpireTime(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<DateTime?> ExpireTimeAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<DateTime?>(
                 $"{RedisCommand.PEXPIRETIME}{key}", flags.WithDefaultCategory(RedisCommand.PEXPIRETIME));
 
@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="newKey">The name to give it.</param>
         /// <param name="when">Whether an existing destination may be replaced.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Rename(
+        public static ValueTask<bool> RenameAsync(
             this in RespKeys keys,
             RedisKey key,
             RedisKey newKey,
@@ -210,15 +210,15 @@ namespace StackExchange.Redis.Interpolated
         /// bookkeeping, so answering it locally would skip the only thing it was called for - and the reply
         /// it happens to return would then be a cached statement about existence with nothing to correct it.
         /// </remarks>
-        public static ValueTask<bool> Touch(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> TouchAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<bool>(
                 $"{RedisCommand.TOUCH}{key}", flags.WithDefaultCategory(RedisCommand.TOUCH).NeverCached());
 
-        /// <inheritdoc cref="Touch(in RespKeys, RedisKey, CommandFlags)"/>
+        /// <inheritdoc cref="TouchAsync(in RespKeys, RedisKey, CommandFlags)"/>
         /// <param name="keys">The key command group.</param>
         /// <param name="targets">The keys to touch.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> Touch(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> TouchAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None)
             => targets.IsEmpty
                 ? new ValueTask<long>(0L)
                 : keys.Context.SendAsync<long>(
@@ -232,7 +232,7 @@ namespace StackExchange.Redis.Interpolated
         /// and the command names no key, so nothing could ever invalidate an entry for it. Either one alone
         /// would be enough.
         /// </remarks>
-        public static ValueTask<RedisKey> Random(this in RespKeys keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisKey> RandomAsync(this in RespKeys keys, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<RedisKey>(
                 $"{RedisCommand.RANDOMKEY}", flags.WithDefaultCategory(RedisCommand.RANDOMKEY).NeverCached());
 
@@ -240,7 +240,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The key command group.</param>
         /// <param name="key">The key to inspect.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisType> Type(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisType> TypeAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<RedisType>(
                 $"{RedisCommand.TYPE}{key}", flags.WithDefaultCategory(RedisCommand.TYPE));
 
@@ -255,7 +255,7 @@ namespace StackExchange.Redis.Interpolated
         /// The two optional operands are holes rather than branches: an absent <c>DB</c> and an absent
         /// <c>REPLACE</c> are zero-argument fragments, so one interpolated string covers all four shapes.
         /// </remarks>
-        public static ValueTask<bool> Copy(
+        public static ValueTask<bool> CopyAsync(
             this in RespKeys keys,
             RedisKey source,
             RedisKey destination,
@@ -271,7 +271,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to move.</param>
         /// <param name="database">The database to move it into.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> Move(this in RespKeys keys, RedisKey key, int database, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<bool> MoveAsync(this in RespKeys keys, RedisKey key, int database, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<bool>(
                 $"{RedisCommand.MOVE}{key}{database}", flags.WithDefaultCategory(RedisCommand.MOVE));
 
@@ -295,7 +295,7 @@ namespace StackExchange.Redis.Interpolated
         /// by <see cref="CacheOptions.MaxPayloadBytes"/>.
         /// </para>
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<byte>?> Dump(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<byte>?> DumpAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<ReadOnlyLease<byte>?>(
                 $"{RedisCommand.DUMP}{key}", flags.WithDefaultCategory(RedisCommand.DUMP));
 
