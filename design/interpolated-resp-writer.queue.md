@@ -384,8 +384,8 @@ Four consequences, none of them cosmetic:
       The abstraction has not needed a new concept yet; it has needed one more axis on an existing one.
 
 
-- [ ] **`Parse(ref RespReader)`, and the row-parser collapse** (§2.2, §6.16). `Parse(ref RespReader)` is
-      **done**; the collapse below is partly done and partly wrong, see the correction at the end. Now with evidence rather
+- [x] **`Parse(ref RespReader)`, and the row-parser collapse** (§2.2, §6.16). **Done**, though not as
+      described - see the correction at the end, which is the more useful half of this entry. Now with evidence rather
       than a hunch: converting the arrays produced **16 handlers that are all "aggregate of X"** - eight
       array, eight lease - of which six differ only by a one-line projection, which is why they were
       factored onto a shared `ReadScalarLease`. With `Parse(ref RespReader)` the row parser *is* the scalar
@@ -432,10 +432,18 @@ Four consequences, none of them cosmetic:
       element by element, so the next type that writes its own lambda gets caught (verified by mutation:
       flipping one array projection fails exactly that pair's test).
 
-      **Still open:** the pair types. `HashEntry`/`SortedSetEntry` go through
-      `ResultProcessor.*ArrayProcessor.ParseArray`, which already hides jagged-vs-interleaved from its
-      implementers - so the arity-2 walker described above is still the right idea, and is now the whole of
-      what is left here.
+      **The pair types, and the second thing this entry got wrong.** `HashEntry`/`SortedSetEntry` needed no
+      arity-2 walker, because **the walker already exists**: `ValuePairInterleavedProcessorBase<T>.ParseArray`
+      decides jagged-versus-interleaved from the reply's *content*, once per reply, and runs one of two
+      loops that both call the same per-row parse. What was actually missing was two lines of derivation -
+      `ReadPairArray` and `ReadPairLease` - so a pair type now declares one processor and gets both
+      aggregate forms, exactly as a scalar type declares one `Elements` projection and gets both.
+
+      That is the whole item closed: **one shape per element type, every aggregate form derived from it**,
+      for scalars and pairs alike. `RespAggregateFormTests` covers the pair types in *both* wire shapes,
+      since which one arrives is decided by content rather than by the negotiated protocol and so both are
+      reachable on either connection. Verified by mutation: passing `Resp2` instead of `Resp3` to one of the
+      two forms fails exactly the two jagged cases.
 
       A refactor that **deletes** code. Deliberately sequenced after the signature change: the public
       shapes were binary-breaking and time-limited, the handler internals are internal and can be

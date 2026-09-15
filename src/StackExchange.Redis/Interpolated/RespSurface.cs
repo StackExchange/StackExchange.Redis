@@ -292,6 +292,42 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
+        /// Both aggregate forms of a <b>pair</b> element type, derived from the one shape that reads it.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The pair counterpart of <see cref="Elements"/> and <see cref="ReadScalarLease"/>: a pair type
+        /// declares one <c>ValuePairInterleavedProcessorBase&lt;T&gt;</c> and gets the array and the lease
+        /// from it, rather than writing the rent-and-adopt dance once per type per form.
+        /// </para>
+        /// <para>
+        /// <b>Jagged versus interleaved is already handled, and deliberately not re-derived here.</b> RESP2
+        /// sends a row as two interleaved elements and RESP3 may send it as a nested two-element array;
+        /// <c>ParseArray</c> decides which from the <i>content</i>, once per reply, and runs one of two
+        /// loops that both call the same per-row parse. So the walker the queue imagined building already
+        /// exists on the processor - what was missing was only these two lines of derivation.
+        /// </para>
+        /// </remarks>
+        /// <typeparam name="T">The row type.</typeparam>
+        /// <param name="reader">The reply, positioned on the aggregate.</param>
+        /// <param name="shape">The processor that knows how to read one row.</param>
+        internal static T[] ReadPairArray<T>(ref RespReader reader, ResultProcessor.ValuePairInterleavedProcessorBase<T> shape)
+            => shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
+               ?? Array.Empty<T>();
+
+        /// <inheritdoc cref="ReadPairArray"/>
+        /// <remarks>
+        /// <b>No copy.</b> <c>ParseArray(allowOversized: true)</c> already rents from <c>ArrayPool</c> and
+        /// reports the live length separately, which is a lease wearing different clothes - so this adopts
+        /// the rental rather than copying out of it.
+        /// </remarks>
+        internal static ReadOnlyLease<T> ReadPairLease<T>(ref RespReader reader, ResultProcessor.ValuePairInterleavedProcessorBase<T> shape)
+        {
+            var pooled = shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
+            return pooled is null ? ReadOnlyLease<T>.Empty : ReadOnlyLease<T>.Adopt(pooled, count);
+        }
+
+        /// <summary>
         /// An array reply as a lease of scalar windows, all pointing into the one reply buffer.
         /// </summary>
         /// <remarks>
@@ -627,16 +663,8 @@ namespace StackExchange.Redis.Interpolated
                     : throw new RespException("Unexpected LMPOP reply.");
             }
 
-            /// <remarks>
-            /// <b>No copy.</b> <c>ParseArray(allowOversized: true)</c> already rents from
-            /// <c>ArrayPool</c> and reports the live length separately, which is exactly a lease
-            /// wearing different clothes - so this adopts the rental rather than copying out of it.
-            /// </remarks>
             ReadOnlyLease<HashEntry> IRespHandler<ReadOnlyLease<HashEntry>>.Parse(ref RespReader reader)
-            {
-                var pooled = HashEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
-                return pooled is null ? ReadOnlyLease<HashEntry>.Empty : ReadOnlyLease<HashEntry>.Adopt(pooled, count);
-            }
+                => ReadPairLease(ref reader, HashEntryShape);
 
             // the window shape is registered HERE, not just on ValueWindowHandler, because Inbuilt<T> asks
             // this object and nothing else: a handler that is not on the defaults is reachable only by
@@ -651,10 +679,7 @@ namespace StackExchange.Redis.Interpolated
 
             /// <inheritdoc cref="IRespHandler{T}.Parse" path="/remarks"/>
             ReadOnlyLease<SortedSetEntry> IRespHandler<ReadOnlyLease<SortedSetEntry>>.Parse(ref RespReader reader)
-            {
-                var pooled = SortedSetEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
-                return pooled is null ? ReadOnlyLease<SortedSetEntry>.Empty : ReadOnlyLease<SortedSetEntry>.Adopt(pooled, count);
-            }
+                => ReadPairLease(ref reader, SortedSetEntryShape);
 
             RedisKey IRespHandler<RedisKey>.Parse(ref RespReader reader)
             {
@@ -810,10 +835,7 @@ namespace StackExchange.Redis.Interpolated
             private static readonly ResultProcessor.HashEntryArrayProcessor HashEntryShape = new();
 
             HashEntry[] IRespHandler<HashEntry[]>.Parse(ref RespReader reader)
-            {
-                return HashEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
-                       ?? Array.Empty<HashEntry>();
-            }
+                => ReadPairArray(ref reader, HashEntryShape);
 
             long[] IRespHandler<long[]>.Parse(ref RespReader reader)
             {
@@ -840,10 +862,7 @@ namespace StackExchange.Redis.Interpolated
             private static readonly ResultProcessor.SortedSetEntryArrayProcessor SortedSetEntryShape = new();
 
             SortedSetEntry[] IRespHandler<SortedSetEntry[]>.Parse(ref RespReader reader)
-            {
-                return SortedSetEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
-                       ?? Array.Empty<SortedSetEntry>();
-            }
+                => ReadPairArray(ref reader, SortedSetEntryShape);
 
             SortedSetEntry? IRespHandler<SortedSetEntry?>.Parse(ref RespReader reader)
             {

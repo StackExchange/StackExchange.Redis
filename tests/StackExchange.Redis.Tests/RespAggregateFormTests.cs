@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using RESPite.Messages;
 using StackExchange.Redis.Interpolated;
@@ -61,6 +61,26 @@ public class RespAggregateFormTests
     /// <remarks>ZMSCORE replies nil for a member that is not there, so the nil element is the point.</remarks>
     [Fact]
     public void NullableDoubleFormsAgree() => AssertFormsAgree<double?>("*3\r\n$3\r\n1.5\r\n$-1\r\n$2\r\n-2\r\n");
+
+    /// <summary>
+    /// The pair types agree too, in <b>both</b> wire shapes: RESP2 interleaves a row, RESP3 may nest it.
+    /// </summary>
+    /// <remarks>
+    /// Which shape arrives is decided from the reply's content rather than the negotiated protocol, so both
+    /// are reachable on either connection - and the array and lease forms must agree on both. They now
+    /// derive from one processor per row type (<c>ReadPairArray</c>/<c>ReadPairLease</c>), which is what
+    /// makes that structural rather than a coincidence worth re-checking.
+    /// </remarks>
+    [Theory]
+    [InlineData("*4\r\n$1\r\na\r\n$1\r\n1\r\n$1\r\nb\r\n$1\r\n2\r\n")]                     // RESP2: interleaved
+    [InlineData("*2\r\n*2\r\n$1\r\na\r\n$1\r\n1\r\n*2\r\n$1\r\nb\r\n$1\r\n2\r\n")]     // RESP3: jagged
+    public void HashEntryFormsAgree(string reply) => AssertFormsAgree<HashEntry>(reply);
+
+    /// <inheritdoc cref="HashEntryFormsAgree"/>
+    [Theory]
+    [InlineData("*4\r\n$1\r\na\r\n$1\r\n1\r\n$1\r\nb\r\n$1\r\n2\r\n")]
+    [InlineData("*2\r\n*2\r\n$1\r\na\r\n$1\r\n1\r\n*2\r\n$1\r\nb\r\n$1\r\n2\r\n")]
+    public void SortedSetEntryFormsAgree(string reply) => AssertFormsAgree<SortedSetEntry>(reply);
 
     /// <summary>
     /// The one element type with <b>three</b> forms, and so the one most likely to drift: the writable
