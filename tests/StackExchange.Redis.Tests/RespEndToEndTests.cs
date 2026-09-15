@@ -127,7 +127,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var legacy = conn.GetDatabase();
         await legacy.KeyDeleteAsync("t7:" + key);
 
-        var tenant = NewSurface(conn, legacy.Database).WithKeyPrefix("t7:");
+        var tenant = NewSurface(conn, legacy.Database).AppendKeyPrefix("t7:");
         Assert.True(await tenant.Strings.SetAsync(key, "marc"));
 
         // written under the prefix, and NOT under the bare key

@@ -178,7 +178,7 @@ public class RespSurfaceStringsTests
         var (ctx, exec) = Target("*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
         RedisKey[] keys = ["k1", "k2", "k3"];
-        (await ctx.WithKeyPrefix("t:").Strings.GetAsync(keys)).Dispose();
+        (await ctx.AppendKeyPrefix("t:").Strings.GetAsync(keys)).Dispose();
 
         // every key in the run is prefixed, exactly as a single key is
         Assert.Equal("*4|$4|MGET|$4|t:k1|$4|t:k2|$4|t:k3|", Assert.Single(exec.Sent));
@@ -557,7 +557,7 @@ public class RespSurfaceStringsTests
     {
         var (bare, exec) = Target("*1\r\n:7\r\n");
         var probe = new FakeFeatures(new RedisFeatures(new Version(7, 0)));
-        var ctx = bare.WithServices(probe).WithKeyPrefix("t:");
+        var ctx = bare.WithServices(probe).AppendKeyPrefix("t:");
 
         await ctx.Bitmaps.FieldAsync("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
 
@@ -573,7 +573,7 @@ public class RespSurfaceStringsTests
     public void TheFeatureProbeSeesBothPrefixesAndNeitherWhenThereIsNoKey()
     {
         var probe = new FakeFeatures(new RedisFeatures(new Version(7, 0)));
-        var ctx = new RespContext().WithServices(probe).WithKeyPrefix("t:");
+        var ctx = new RespContext().WithServices(probe).AppendKeyPrefix("t:");
 
         // a key may ALREADY carry a prefix of its own; the two compose rather than one winning, exactly as
         // AppendFormatted composes them when writing

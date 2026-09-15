@@ -52,7 +52,7 @@ public class InterpolatedWriterDemo
     [Fact]
     public void KeyspaceIsolation()
     {
-        var tenant = Cluster.WithKeyPrefix("t7:");
+        var tenant = Cluster.AppendKeyPrefix("t7:");
         using var frame = tenant.Render(RedisCommand.GET, $"{(RedisKey)"user:1"}");
 
         Assert.Equal("*2|$3|GET|$9|t7:user:1|", Frame(frame));
@@ -142,7 +142,7 @@ public class InterpolatedWriterDemo
     [Fact]
     public void ChannelPrefix()
     {
-        var pub = Cluster.WithChannelPrefix(new RedisChannel("app:", RedisChannel.PatternMode.Literal));
+        var pub = Cluster.AppendChannelPrefix(new RedisChannel("app:", RedisChannel.PatternMode.Literal));
         var channel = new RedisChannel("news", RedisChannel.PatternMode.Literal);
         using var frame = pub.Render(RedisCommand.PUBLISH, $"{channel} {(RedisValue)"hi"}");
 

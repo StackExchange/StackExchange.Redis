@@ -663,11 +663,11 @@ one allocation, immutable, and shared by every context clone.
 
 > **Correction.** This paragraph originally read "*and 'remove' needs none, because setting a prefix back to
 > `default` shadows it with an empty one that reads as absent*" - treating free replacement and free removal
-> as a virtue of the mechanism, and wiring `WithChannelPrefix` straight onto it. For a *capability* like the
+> as a virtue of the mechanism, and wiring the channel prefix straight onto it. For a *capability* like the
 > cache that is right, and `WithoutCache()` is exactly that shape. For a **prefix** it is a bug, and it
 > shipped as one: `WithChannelPrefix(a).WithChannelPrefix(b)` gave `b`, and `WithChannelPrefix(default)`
 > escaped the prefix entirely. Both halves of keyspace isolation have to behave the same way, and the other
-> half already composed - `WithKeyPrefix` folds via `WithPrefix` (§8.2), matching `DatabaseExtensions.WithKeyPrefix`,
+> half already composed - it folds via `WithPrefix` (§8.2), matching `DatabaseExtensions.WithKeyPrefix`,
 > which detects an already-prefixed database and re-wraps the *inner* one with the two prefixes joined.
 > The reason is the same one that made the slot compose rather than assign in the first place: a context is
 > handed down through code that does not know what its caller applied, so a library reaching for its own
@@ -677,6 +677,17 @@ one allocation, immutable, and shared by every context clone.
 > (The null-prefix early-out that remains is an allocation saving, not the mechanism: composing nothing onto
 > the existing bytes already yields the existing bytes. Confirmed by mutation, since a guard that looks
 > load-bearing and is not is exactly what a later edit gets wrong.)
+>
+> **And then the names followed the semantics.** Fixing the behaviour left `With*` still saying the wrong
+> thing: `With` reads as "the result differs in this respect", which invites "so the second call wins" - the
+> exact misreading that had just been a bug. On the context they are now **`AppendKeyPrefix`** and
+> **`AppendChannelPrefix`**, which say what happens when there is already a prefix and leave no room for the
+> other guess. `Append` and not `Prepend` because the *new* prefix lands nearest the key:
+> `AppendKeyPrefix("a").AppendKeyPrefix("b")` sends `k` as `abk`. Everything else on the context keeps `With*`,
+> which is now a real distinction rather than a habit: `WithDatabase`/`WithServerType` replace a value,
+> `WithCache`/`WithScriptCache` rebind a capability by shadowing, and only the prefixes accumulate.
+> `DatabaseExtensions.WithKeyPrefix` on `IDatabase` is **shipped and stays** - renaming it would be a source
+> and binary break on a widely-used API to fix a name, which is not a trade worth making.
 
 It is allocated per context *configuration* and never per command - and only from the second service
 onwards, since a context with exactly one keeps the bare object and never sees the chain at all.
@@ -1942,7 +1953,7 @@ CLIENT TRACKING on BCAST PREFIX foo PREFIX foob    → ERR Prefix 'foo' overlaps
 
 Multiple prefixes are an OR; no prefix under `BCAST` means the empty prefix, i.e. every key.
 
-**`PREFIX` does not map onto `WithKeyPrefix`, and this is the trap worth recording.** Prefixes are
+**`PREFIX` does not map onto `AppendKeyPrefix`, and this is the trap worth recording.** Prefixes are
 connection-global, must not overlap, and cannot be removed individually ("to remove all prefixes, disable
 and re-enable tracking"). Context key-prefixes routinely *nest* — `app:` and `app:users:` — which is
 precisely the rejected case, and a context going out of scope has no way to deregister. So the prefix set
@@ -2789,7 +2800,7 @@ the key's own prefix. So writing the context prefix immediately ahead of them co
 intermediate object. Verified: **0 bytes allocated over 128 renders** with both prefixes in play.
 
 The context normalises its key prefix to bytes once at construction, so a string-backed prefix does not
-re-convert per command. `WithKeyPrefix` still composes eagerly via `WithPrefix`, but that is once per
+re-convert per command. `AppendKeyPrefix` still composes eagerly via `WithPrefix`, but that is once per
 context clone, not per command.
 
 The two mechanisms stay distinguishable as *values* (`RedisKey.Equals` compares the carried prefix) but
@@ -2799,7 +2810,7 @@ object.
 
 #### The new `KeyPrefixedDatabase`
 
-The write half collapses to `localCtx = downstreamCtx.WithKeyPrefix(prefix)` with no per-method
+The write half collapses to `localCtx = downstreamCtx.AppendKeyPrefix(prefix)` with no per-method
 overrides — roughly 2600 lines of forwarding in `KeyspaceIsolation/` become one context clone.
 
 **The read half is the open part**, and today it is largely unhandled rather than merely imperfect:
@@ -2882,7 +2893,7 @@ What the tests pin, grouped by the section they belong to:
   the frame start moves as `*N` gains digits; it also asserts the key offset survives that.
 - **CommandMap (§2.4)** — `CommandMapRenamesAreApplied`, `DisabledCommandThrows`, `CommandMustComeFirst`.
 - **Prefixes (§3.4, §8.4)** — `KeyPrefixIsAppliedToTheWire`, `KeyPrefixComposesWithAKeyThatAlreadyHasOne`,
-  `NestedWithKeyPrefixComposes`, `BothPrefixMechanismsRenderIdenticalBytes`,
+  `NestedAppendKeyPrefixComposes`, `BothPrefixMechanismsRenderIdenticalBytes`,
   `ComposingBothPrefixMechanismsDoesNotAllocate`, `ChannelPrefixIsApplied`,
   `ChannelPrefixIsSkippedWhenTheChannelOptsOut`.
 - **Keys and routing (§5)** — `NoKeysMeansNoSlotAndNoMarks`, `OneAndTwoKeysResolveWithoutScanning`,
@@ -3161,7 +3172,7 @@ that the blast radius is not the author's own code.
 
 Built as `IRespTarget` + `RespStrings` + `RespSurface` (`RespSurfaceTests`), with a fake executor
 underneath. `target.Strings.Set(key, value)` and `.Get(key)` work end to end, through the cache, with
-`WithKeyPrefix` as a context clone and no per-method forwarding.
+`AppendKeyPrefix` as a context clone and no per-method forwarding.
 
 - **Extension members compile on every target**, `net461` and `netstandard2.0` included. They are compiler
   lowering, like the interpolated handler itself, so the down-level story that made §1 work holds here too.
@@ -3195,7 +3206,7 @@ sounds:
 | --- | --- |
 | `RedisBase` | throws - covers `RedisDatabase`, `RedisServer`, `RedisSubscriber` |
 | `MultiGroupDatabase`, `MultiGroupSubscriber` | throw |
-| `KeyPrefixedDatabase` | **implemented**: `Inner.Context.WithKeyPrefix(Prefix)` |
+| `KeyPrefixedDatabase` | **implemented**: `Inner.Context.AppendKeyPrefix(Prefix)` |
 | `RespDatabase` (new) | the minimal one that actually works |
 
 `KeyPrefixedDatabase` is worth calling out: that single line is the whole write half of what the class

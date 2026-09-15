@@ -14,7 +14,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         /// context clone. Everything this class does by forwarding ~2600 lines of overrides, the
         /// context-based surface gets from this single line.
         /// </remarks>
-        public Interpolated.RespContext Context => Inner.Context.WithKeyPrefix(Prefix);
+        public Interpolated.RespContext Context => Inner.Context.AppendKeyPrefix(Prefix);
 
         public KeyPrefixedDatabase(IDatabase inner, byte[] prefix) : base(inner, prefix)
         {

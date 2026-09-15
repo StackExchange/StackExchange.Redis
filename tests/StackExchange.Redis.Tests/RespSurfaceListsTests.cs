@@ -81,7 +81,7 @@ public class RespSurfaceListsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.WithKeyPrefix("t:").Lists.RightPushAsync("k", ["a", "b"]);
+        await ctx.AppendKeyPrefix("t:").Lists.RightPushAsync("k", ["a", "b"]);
 
         Assert.Equal("*4|$5|RPUSH|$3|t:k|$1|a|$1|b|", Assert.Single(exec.Sent));
     }

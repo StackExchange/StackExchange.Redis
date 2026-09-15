@@ -642,5 +642,5 @@ Four consequences, none of them cosmetic:
   still points at it". That is not a gap to be plugged; it is the absence of a lifetime, and `RespResult`
   exists because it *has* one.
 
-- **Deriving `BCAST PREFIX` from `WithKeyPrefix`.** Prefixes are connection-global, must not overlap —
+- **Deriving `BCAST PREFIX` from `AppendKeyPrefix`.** Prefixes are connection-global, must not overlap —
   context prefixes routinely nest — and cannot be removed individually. §6.13.

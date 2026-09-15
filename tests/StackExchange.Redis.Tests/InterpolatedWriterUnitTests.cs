@@ -117,7 +117,7 @@ public class InterpolatedWriterUnitTests
     [Fact]
     public void KeyPrefixIsAppliedToTheWire()
     {
-        var ctx = new RespContext().WithKeyPrefix("tenant7:");
+        var ctx = new RespContext().AppendKeyPrefix("tenant7:");
         using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}");
 
         Assert.Equal(new[] { "GET", "tenant7:user:1" }, Parse(frame.Span));
@@ -129,7 +129,7 @@ public class InterpolatedWriterUnitTests
     {
         // a key that already carries a prefix, as the KeyPrefixed* decorators produce today
         var prefixed = RedisKey.WithPrefix(Encoding.UTF8.GetBytes("inner:"), "user:1");
-        var ctx = new RespContext().WithKeyPrefix("outer:");
+        var ctx = new RespContext().AppendKeyPrefix("outer:");
         using var frame = ctx.Render($"{RedisCommand.GET}{prefixed}");
 
         Assert.Equal(new[] { "GET", "outer:inner:user:1" }, Parse(frame.Span));
@@ -185,9 +185,9 @@ public class InterpolatedWriterUnitTests
 #endif
 
     [Fact]
-    public void NestedWithKeyPrefixComposes()
+    public void NestedAppendKeyPrefixComposes()
     {
-        var ctx = new RespContext().WithKeyPrefix("a:").WithKeyPrefix("b:");
+        var ctx = new RespContext().AppendKeyPrefix("a:").AppendKeyPrefix("b:");
         using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
 
         Assert.Equal(new[] { "GET", "a:b:k" }, Parse(frame.Span));
@@ -297,7 +297,7 @@ public class InterpolatedWriterUnitTests
     public void SlotIsComputedFromThePrefixedKey()
     {
         var plain = new RespContext(serverType: ServerType.Cluster);
-        var prefixed = plain.WithKeyPrefix("tenant7:");
+        var prefixed = plain.AppendKeyPrefix("tenant7:");
 
         using var a = plain.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}");
         using var b = prefixed.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}");

@@ -100,7 +100,7 @@ public class RespSurfaceTests
         using var cache = new RespClientCache();
         var ctx = new RespContext()
             .WithCache(cache)
-            .WithChannelPrefix(RedisChannel.Literal("app:"));
+            .AppendChannelPrefix(RedisChannel.Literal("app:"));
 
         // the second service must not evict the first - the slot is a chain, not a variable
         Assert.Same(cache, ctx.Cache);
@@ -108,34 +108,34 @@ public class RespSurfaceTests
 
         // the newest of a given type wins by lookup order, with no replace logic - which is how the
         // composed prefix below gets to be the one that is read back
-        var rebound = ctx.WithChannelPrefix(RedisChannel.Literal("other:"));
+        var rebound = ctx.AppendChannelPrefix(RedisChannel.Literal("other:"));
         Assert.Same(cache, rebound.Cache);
     }
 
     [Fact]
     public void ChannelPrefixesComposeAndCannotBeEscaped()
     {
-        var tenant = new RespContext().WithChannelPrefix(RedisChannel.Literal("app:"));
+        var tenant = new RespContext().AppendChannelPrefix(RedisChannel.Literal("app:"));
 
         // the point of the test: a second prefix appends to the first, it does not take its place. Anything
         // else lets code that was handed a tenant-scoped context quietly publish outside that tenant.
-        var nested = tenant.WithChannelPrefix(RedisChannel.Literal("v2:"));
+        var nested = tenant.AppendChannelPrefix(RedisChannel.Literal("v2:"));
         Assert.Equal("app:v2:", (string?)nested.ChannelPrefix);
 
         // and there is no reset: null adds nothing rather than clearing what is already in force
-        Assert.Equal("app:", (string?)tenant.WithChannelPrefix(default).ChannelPrefix);
-        Assert.Equal("app:v2:", (string?)nested.WithChannelPrefix(default).ChannelPrefix);
+        Assert.Equal("app:", (string?)tenant.AppendChannelPrefix(default).ChannelPrefix);
+        Assert.Equal("app:v2:", (string?)nested.AppendChannelPrefix(default).ChannelPrefix);
 
         // which is exactly what the key prefix does, and what nesting the KeyPrefixed* decorators does;
         // the two halves of keyspace isolation must not disagree about this
-        var keys = new RespContext().WithKeyPrefix("app:").WithKeyPrefix("v2:");
+        var keys = new RespContext().AppendKeyPrefix("app:").AppendKeyPrefix("v2:");
         Assert.Equal("app:v2:", (string?)keys.KeyPrefix);
 
         // including the no-escape half: a null key prefix is a no-op, not a reset. Note this differs from
         // the old API on purpose - DatabaseExtensions.WithKeyPrefix THROWS on null - because there is no
         // argument to validate here, just a prefix that adds nothing
-        Assert.Equal("app:v2:", (string?)keys.WithKeyPrefix(default).KeyPrefix);
-        Assert.True(new RespContext().WithKeyPrefix(default).KeyPrefix.IsNull);
+        Assert.Equal("app:v2:", (string?)keys.AppendKeyPrefix(default).KeyPrefix);
+        Assert.True(new RespContext().AppendKeyPrefix(default).KeyPrefix.IsNull);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class RespSurfaceTests
             .WithCache(cache)
             .WithScriptCache(scripts)
             .WithServices(probe)
-            .WithChannelPrefix(RedisChannel.Literal("app:"));
+            .AppendChannelPrefix(RedisChannel.Literal("app:"));
 
         // "no cache" has to remain expressible now that the slot composes - it shadows just that lookup,
         // which is the whole reason the chain can veto as well as supply. This is the *public* spelling:
@@ -208,7 +208,7 @@ public class RespSurfaceTests
     [Fact]
     public void ChannelPrefixSurvivesUnrelatedClones()
     {
-        var ctx = new RespContext().WithChannelPrefix(RedisChannel.Literal("app:")).WithDatabase(4).WithKeyPrefix("t7:");
+        var ctx = new RespContext().AppendChannelPrefix(RedisChannel.Literal("app:")).WithDatabase(4).AppendKeyPrefix("t7:");
 
         // it travels in services now, so every With* has to carry it without naming it
         Assert.Equal("app:", (string?)ctx.ChannelPrefix);
@@ -294,13 +294,13 @@ public class RespSurfaceTests
     }
 
     [Fact]
-    public async Task WithKeyPrefixIsJustAContextClone()
+    public async Task AppendKeyPrefixIsJustAContextClone()
     {
         var executor = new FakeExecutor("+OK\r\n");
         var target = Target(executor);
 
         // this is the whole of KeyPrefixedDatabase's write half - no per-method forwarding
-        var tenant = target.WithKeyPrefix("t7:");
+        var tenant = target.AppendKeyPrefix("t7:");
         await tenant.Strings.SetAsync("user:1", "marc");
 
         Assert.Equal("*3|$3|SET|$9|t7:user:1|$4|marc|", Assert.Single(executor.Sent));

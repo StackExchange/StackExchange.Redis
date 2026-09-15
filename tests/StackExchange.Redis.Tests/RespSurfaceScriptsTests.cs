@@ -150,7 +150,7 @@ public class RespSurfaceScriptsTests
     public async Task KeysArePrefixedLikeAnyOthers()
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
-        var ctx = new RespContext().WithExecutor(executor).WithKeyPrefix("t:");
+        var ctx = new RespContext().WithExecutor(executor).AppendKeyPrefix("t:");
 
         using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]);
 

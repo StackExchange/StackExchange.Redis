@@ -60,7 +60,7 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target("*1\r\n$1\r\na\r\n");
 
-        await ctx.WithKeyPrefix("t:").Hashes.GetAsync("k", ["f1"]);
+        await ctx.AppendKeyPrefix("t:").Hashes.GetAsync("k", ["f1"]);
 
         // the key is prefixed; the field is not. Writing a field through the key path would silently
         // prefix it, and nothing downstream could tell

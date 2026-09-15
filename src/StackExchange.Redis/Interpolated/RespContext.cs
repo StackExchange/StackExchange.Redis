@@ -289,11 +289,28 @@ namespace StackExchange.Redis.Interpolated
             => new(CommandMap, KeyPrefix, default, Database, serverType, Executor, _services);
 
         /// <summary>
-        /// Returns a context whose keys are prefixed. This is what replaces wrapping the database in a
-        /// <c>KeyPrefixedDatabase</c> decorator: the prefix is state on a value type, not a new object graph.
-        /// Nested calls compose, matching the decorator's behaviour.
+        /// Returns a context whose keys carry <paramref name="keyPrefix"/>, <b>appended to</b> any prefix
+        /// already in force. This is what replaces wrapping the database in a <c>KeyPrefixedDatabase</c>
+        /// decorator: the prefix is state on a value type, not a new object graph.
         /// </summary>
-        public RespContext WithKeyPrefix(RedisKey keyPrefix)
+        /// <param name="keyPrefix">The prefix to append; the result is <c>existing + this + key</c>.</param>
+        /// <remarks>
+        /// <para>
+        /// Named <c>Append</c> rather than <c>With</c> because the two read as opposites and only one of them
+        /// is true: <c>With</c> says the result differs in this respect, which invites "so the second call
+        /// wins". It does not - <c>AppendKeyPrefix("a").AppendKeyPrefix("b")</c> sends key <c>k</c> as
+        /// <c>abk</c>, and there is deliberately no way back to <c>k</c>. That matches nesting the
+        /// <c>KeyPrefixed*</c> decorators, and <see cref="KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix"/>,
+        /// which folds the two prefixes and re-wraps the inner database.
+        /// </para>
+        /// <para>
+        /// A null or empty prefix appends nothing, rather than resetting. The shipped
+        /// <see cref="KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix"/> throws on null instead, which is
+        /// right there and not here: there the prefix is the entire point of the call, so null is a caller
+        /// error; here it is one setting among several on a context, where "adds nothing" is well defined.
+        /// </para>
+        /// </remarks>
+        public RespContext AppendKeyPrefix(RedisKey keyPrefix)
             => new(
                 CommandMap,
                 _keyPrefix is null ? keyPrefix : RedisKey.WithPrefix(_keyPrefix, keyPrefix),
@@ -304,8 +321,9 @@ namespace StackExchange.Redis.Interpolated
                 _services);
 
         /// <summary>
-        /// Returns a context whose channels are prefixed. Nested calls <b>compose</b>, exactly as
-        /// <see cref="WithKeyPrefix"/> does, and as nesting the <c>KeyPrefixed*</c> decorators does.
+        /// Returns a context whose channels carry <paramref name="channelPrefix"/>, <b>appended to</b> any
+        /// prefix already in force - exactly as <see cref="AppendKeyPrefix"/> does, and as nesting the
+        /// <c>KeyPrefixed*</c> decorators does.
         /// </summary>
         /// <param name="channelPrefix">The prefix to apply to channels, appended to any already in force.</param>
         /// <remarks>
@@ -317,7 +335,7 @@ namespace StackExchange.Redis.Interpolated
         /// <b>there is deliberately no way to escape a prefix already in force</b>, which matches the key
         /// prefix (you cannot un-prefix a <see cref="RedisKey"/>) and the decorators (you cannot unwrap one).
         /// </remarks>
-        public RespContext WithChannelPrefix(RedisChannel channelPrefix)
+        public RespContext AppendChannelPrefix(RedisChannel channelPrefix)
         {
             // nothing to add. Note this is an allocation saving, NOT what makes null a no-op: composing
             // nothing onto the existing bytes already yields the existing bytes (verified by mutation)

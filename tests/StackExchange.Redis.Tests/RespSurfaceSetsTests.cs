@@ -62,7 +62,7 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.WithKeyPrefix("t:").Sets.RemoveAsync("k", ["a", "b"]);
+        await ctx.AppendKeyPrefix("t:").Sets.RemoveAsync("k", ["a", "b"]);
 
         Assert.Equal("*4|$4|SREM|$3|t:k|$1|a|$1|b|", Assert.Single(exec.Sent));
     }
@@ -185,7 +185,7 @@ public class RespSurfaceSetsTests
     {
         var (ctx, exec) = Target();
 
-        await ctx.WithKeyPrefix("t:").Sets.MoveAsync("src", "dst", "m");
+        await ctx.AppendKeyPrefix("t:").Sets.MoveAsync("src", "dst", "m");
 
         // both are keys, so both are prefixed; the member is not
         Assert.Equal("*4|$5|SMOVE|$5|t:src|$5|t:dst|$1|m|", Assert.Single(exec.Sent));

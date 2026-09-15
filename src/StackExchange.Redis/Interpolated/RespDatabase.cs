@@ -31,13 +31,14 @@ namespace StackExchange.Redis.Interpolated
         /// <inheritdoc/>
         public RespContext Context { get; }
 
-        /// <summary>A database for the same connection, with every key prefixed.</summary>
-        /// <param name="prefix">The prefix to apply.</param>
+        /// <summary>A database for the same connection, with <paramref name="prefix"/> appended to whatever
+        /// key prefix is already in force.</summary>
+        /// <param name="prefix">The prefix to append; the result is <c>existing + this + key</c>.</param>
         /// <remarks>
         /// One context clone, with no per-method forwarding - the whole write half of
         /// <c>KeyPrefixedDatabase</c>.
         /// </remarks>
-        public RespDatabase WithKeyPrefix(RedisKey prefix) => new(Context.WithKeyPrefix(prefix));
+        public RespDatabase AppendKeyPrefix(RedisKey prefix) => new(Context.AppendKeyPrefix(prefix));
 
         /// <summary>A database bound to a different database index.</summary>
         /// <param name="database">The database index.</param>
