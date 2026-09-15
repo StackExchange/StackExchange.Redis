@@ -321,9 +321,47 @@ Four consequences, none of them cosmetic:
         pinning a connection at all. The frame surface just has no frame-shaped participant in it.
         `CLIENT TRACKING` negotiation wants the same mechanism.
 
+        **Probed 2026-09-15, against a real server (`RespHashImportProbeTests`). It is not a third seam.**
+        `FramePairMessage` + `IRespPreambleGate` already covers it, with **no new mechanism**: `GetMessages`
+        is called from `WriteMessageInsideLock` with the `PhysicalConnection` in hand, which is exactly the
+        "once the connection is known, inside the write lock" the bridge injection has. So the difference
+        between this and `EVALSHA` is *only the gate's scope* - connection versus endpoint - which the gate
+        interface already anticipated in its own doc comment, having taken a `PhysicalConnection` from the
+        start. Two `HIMPORT SET`s through the frame surface inject one `HIMPORT PREPARE` and both land.
+
+        **What the probe did find is a second axis the interface does not name: *when* the belief is
+        recorded.** `ScriptLoadGate` confirms in `OnEstablished`, on the reply, because the effect is the
+        server's and only the reply proves it. A field-set cannot afford that: every import issued before
+        the first `PREPARE`'s reply lands still reads "not prepared". Measured under a contended burst of 8:
+        **confirm-on-reply injects 8 preambles, claim-on-write injects 1.** Both are correct - `PREPARE` is
+        idempotent - so it is a cost difference that is invisible without counting, which is why the
+        existing bridge code claims at write time (`TryAddPreparedFieldSet`) and is right to.
+
+        The claim is safe precisely where it is made: `IsNeeded` runs inside the write lock, so
+        test-and-set there is the only place where "has this connection prepared it?" and "write it" are
+        one decision. A claim that is then not written dies with the connection, which starts empty.
+
+        **Two smaller findings, both worth keeping.**
+        - *An exception thrown from `OnEstablished` is swallowed.* The first draft of the probe "proved"
+          the callback was never invoked by throwing from it - and passed. It is invoked; the throw was
+          contained to the preamble message, which nobody awaits. Counting is the honest instrument, and
+          the swallowing is worth a look on its own terms.
+        - *A burst has to be made to contend.* Issuing the 8 sends from one loop showed 1 preamble either
+          way, because each reply landed while the next frame was still being rendered. That measured the
+          loop, not the burst; a `Barrier` fixed it.
+
+        **Not yet done:** wiring the real `HashImport` field-set through this path, which would let the
+        bridge's hard-coded `if (cmd is RedisCommand.HIMPORT)` type test retire. The probe says the shape
+        fits; it does not say the migration is free.
+
       With `EVALSHA` folded in, all three are the same mechanism at two seams - compose, or inject once the
       connection is known. If they work, the abstraction covers the space and `Fallback<T>()` can reach
       zero. If one does not, we learn which seam is short, rather than that "some commands are awkward".
+
+      **Standing after two of the three probes:** `EVALSHA` and `HIMPORT` both land on the *same* seam -
+      compose a pair, gate the preamble at write time - so the count is down to **two** mechanisms, not
+      three, and the second one (`MULTI`, accumulate) is the one still blocked on the `Message` refactor.
+      The abstraction has not needed a new concept yet; it has needed one more axis on an existing one.
 
 
 - [ ] **`Parse(ref RespReader)`, and the row-parser collapse** (§2.2, §6.16). `Parse(ref RespReader)` is
