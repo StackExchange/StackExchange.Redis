@@ -31,6 +31,12 @@ Four consequences, none of them cosmetic:
    **deletion**, not a reconciliation. The innards may evolve once sync is no longer a requirement; that is
    deferred, and it is a smaller cut than it first looked.
 
+   `ArgCount` shrinks with them. Its consumers are the `REDIS_MAX_ARGS` guard, composite forwarding, and
+   per-command arithmetic that lives in the subclasses being deleted - so it stops being something each
+   command must compute correctly and becomes a field the frame already holds, having counted while
+   writing. That is the `IRespArgument`-over-`RespFragment` argument again: a count taken during the write
+   cannot disagree with the bytes.
+
 2. **`Fallback<T>()` must reach zero.** `TransitionalDatabase` currently delegates transactions to
    `RedisDatabase`. With nothing to delegate to, `MULTI`/`WATCH`/`HIMPORT`/`EVALSHA` stop being acceptable
    permanent residue and become **release blockers**. Deferring them is a temporary state with a mandatory
@@ -68,6 +74,28 @@ Four consequences, none of them cosmetic:
       `PFCOUNT` are not on the new surface yet; when the `Keys` group lands, `TOUCH` needs `.NeverCached()`.
 
 ## Next
+
+- [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
+      commands and are better understood as three *different seams*, which is why doing all three settles
+      the question and doing one does not.
+
+      - **`EVALSHA` is frame-level.** It needs a frame that can carry an **alternate rendering**, so a
+        `NOSCRIPT` is recovered by re-sending the same logical request spelled as `EVAL <script>`. Nothing
+        about connections. The other agent's note claims this is portable; it is the only claim of the
+        three, so it is the one worth falsifying first.
+      - **`MULTI` is context-level**, and needs no new caller-facing concept: a transaction is *a context
+        whose executor accumulates instead of sending*. `WithExecutor` is already internal for exactly this
+        - the caller picks a scope (`CreateTransaction`), the scope picks the executor. On `ExecuteAsync`
+        the parked frames become one `IMultiMessage`, which is how `TransactionMessage` already works.
+        `WATCH` is the hard minority: it needs a round trip before deciding what to send.
+      - **`HIMPORT` is bridge-level.** It needs a connection-local preamble injected once the connection is
+        known - which already exists, inside the bridge's write lock, and is what lets `HashImport` avoid
+        pinning a connection at all. The frame surface just has no frame-shaped participant in it.
+        `CLIENT TRACKING` negotiation wants the same mechanism.
+
+      If all three work, the abstraction covers the space and `Fallback<T>()` can reach zero. If one does
+      not, we learn which layer is short, rather than learning that "some commands are awkward".
+
 
 - [ ] **Teach the in-proc server `CLIENT TRACKING`** (`toys/StackExchange.Redis.Server`), for test
       isolation: the cache suite currently needs a shared 6379, where one test's `FLUSHDB` reaches every
