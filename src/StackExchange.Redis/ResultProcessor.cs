@@ -38,7 +38,12 @@ namespace StackExchange.Redis
         {
             if (errorReader.IsError && RedisErrorKindMetadata.Classify(errorReader) == RedisErrorKind.NoScript)
             {
-                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
+                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH").
+                // Still true for the scripts we track, though the reasoning is subtler than when it was written:
+                // since 7.4 the server DOES evict individually, but only scripts that arrived via EVAL/EVAL_RO -
+                // and those are exactly the ones we never record as loaded and never address by hash, because
+                // that path is NoScriptCache. So anything we track got there by SCRIPT LOAD, and its absence
+                // still implies a wholesale event rather than eviction. See CommandFlags.NoScriptCache.
                 connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                 message.SetScriptUnavailable();
                 return true;

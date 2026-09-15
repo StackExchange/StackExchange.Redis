@@ -125,6 +125,13 @@ namespace StackExchange.Redis
         /// The corollary: do <b>not</b> reach for this on a hot script. There it only adds the body to
         /// every call and puts the script in the pool that gets evicted first.
         /// </para>
+        /// <para>
+        /// <b>The two populations do not overlap, which is what keeps this simple.</b> A script sent this
+        /// way is never recorded as loaded and is never afterwards addressed by hash, so its eviction is
+        /// invisible to us; a script we do track got there by <c>SCRIPT LOAD</c>, which the eviction rule
+        /// does not name. That is why the client needs no notion of "believed loaded, but only for a
+        /// while" - the evictable scripts are exactly the ones nothing is believed about.
+        /// </para>
         /// </remarks>
         NoScriptCache = 512,
 
