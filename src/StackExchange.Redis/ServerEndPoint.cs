@@ -792,7 +792,11 @@ namespace StackExchange.Redis
             foreach (var prefix in prefixes)
             {
                 args[index++] = RedisLiterals.PREFIX;
-                args[index++] = prefix;
+
+                // a write, so the string really is the payload: AsRedisValue per docs/exp/StringToRedisValue.
+                // The implicit conversion is [Experimental] in DEBUG only, so Release never sees this - which
+                // is exactly how it was missed.
+                args[index++] = prefix.AsRedisValue();
             }
 
             var tracking = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, args);
