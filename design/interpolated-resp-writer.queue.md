@@ -119,13 +119,13 @@ Four consequences, none of them cosmetic:
       Open: whether an unsignalled drop *during* a signalled window reverts to flush-immediately (probably
       yes - the signal said what would happen, and this is not it).
 
-- [ ] **Down-level consumers: a `Downlevel` namespace of method-shims. Investigated 2026-09-15; the
-      strategy below is proposed, not yet built.**
+- [x] **Down-level consumers: a `Downlevel` namespace of method-shims. Investigated and built 2026-09-15.**
 
       The commands are already classic `this in` extension methods, so they bind everywhere. Only the
-      **group accessors** (`db.Strings`) are extension-block properties, and those need **C# 14**. The
-      proposal: keep the properties in the main namespace always, and put method-shims (`db.Strings()`) in
-      an opt-in `StackExchange.Redis.Downlevel`.
+      **group accessors** (`db.Strings`) are extension-block properties, and those need **C# 14**. Shipped:
+      the properties stay in `StackExchange.Redis.Interpolated` always, and method-shims (`db.Strings()`)
+      live in an opt-in `StackExchange.Redis.Interpolated.Downlevel.RespGroups` - 22 of them, one per group
+      per receiver (`IRespKeyspaceTarget` and `in RespContext`).
 
       **Measured across four real toolchains** - not by pinning `LangVersion`, which is not the same thing
       (see the warning below). Each built a consumer with the shim *and* the property both in scope:
@@ -153,19 +153,25 @@ Four consequences, none of them cosmetic:
       **`[OverloadResolutionPriority]` does not help** - tested. `CS9339` is extension *member lookup*
       between a property and a method group, which never reaches overload resolution.
 
-      **Consequence for namespace shape:** the accessors and the shims must be in different namespaces from
-      each other, with the shared types (`RespStrings` and friends) in the namespace everyone imports. That
-      is a public reshuffle, and it gets more expensive per command group added.
+      **No reshuffle was needed** - an earlier draft of this entry claimed one, and the probes disproved it.
+      Only the *shims* move to their own namespace; the accessors, the commands and the shared types
+      (`RespStrings` and friends) all stay where they are. A down-level consumer imports **both** namespaces
+      - which is exactly the combination all four toolchains above compiled - and only an up-level consumer
+      must leave `Downlevel` alone. So the cost per new command group is one shim line per receiver, not a
+      public move.
 
       **Generating the shims was raised and declined** (2026-09-15), so it does not get re-proposed:
       **generators cost build time on every consumer build**, and analyzers already account for ~40% of a
       clean build here - which is why they are limited to one TFM. Paying that on every build to save
       writing one line per group is the wrong trade.
 
-      Write the shims by hand, and **keep them honest with a unit test** rather than a generator: assert
-      that every group accessor has a matching `Downlevel` shim. Same shape as
-      `RespTargetSplitTests.NoGroupBindsToTheBareTarget` and the transitional coverage tests - the rule is
-      enforced, the build stays fast, and a missing shim fails a test rather than silently shipping.
+      The shims are written by hand and **kept honest by a unit test** rather than a generator:
+      `RespDownlevelShimTests` asserts that every group accessor on each receiver has a matching `Downlevel`
+      shim, and that a shim composes with the commands that hang off it. Same shape as
+      `RespTargetSplitTests.NoGroupBindsToTheBareTarget` - the rule is enforced, the build stays fast, and a
+      missing shim fails a test rather than silently shipping. (Verified by mutation: deleting one shim
+      *and* its API entry - deleting only the shim does not compile, so it proves nothing - fails exactly
+      that one test.)
 
       **Do not validate this by pinning `LangVersion`.** A modern compiler at `/langversion:12` reports
       `CS9202`+`CS9339` where a *real* C# 12 compiler succeeds: it still sees the metadata and then refuses
