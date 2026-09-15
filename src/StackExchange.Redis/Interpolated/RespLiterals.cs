@@ -248,5 +248,21 @@
         /// <summary>The <c>LOAD</c> subcommand of <c>SCRIPT</c>.</summary>
         [Resp]
         internal static partial RespFragment Load { get; }
+
+        /// <summary>The <c>BY</c> operand of <c>SORT</c>; a pattern follows it.</summary>
+        [Resp]
+        internal static partial RespFragment By { get; }
+
+        /// <summary>The <c>DESC</c> operand of <c>SORT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Desc { get; }
+
+        /// <summary>The <c>ALPHA</c> operand of <c>SORT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Alpha { get; }
+
+        /// <summary>The <c>STORE</c> operand of <c>SORT</c>; a destination key follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Store { get; }
     }
 }

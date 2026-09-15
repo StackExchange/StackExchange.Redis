@@ -118,6 +118,15 @@ public class TransitionalHyperLogLogTests(ITestOutputHelper output, SharedConnec
         => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
 }
 
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalSortTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : SortTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
 /// <summary>
 /// That the re-runs above are actually re-running anything.
 /// </summary>
@@ -155,6 +164,7 @@ public class TransitionalCoverageTests
     [InlineData("SortedSet")]
     [InlineData("List")]
     [InlineData("HyperLogLog")]
+    [InlineData("Sort")]
     [InlineData("Key")]
     [InlineData("Script")]
     public void EveryMemberOfAMovedGroupIsImplemented(string prefix)
@@ -216,7 +226,7 @@ public class TransitionalCoverageTests
     [Fact]
     public void EveryImplementedMemberBelongsToATestedGroup()
     {
-        string[] tested = ["String", "Hash", "Set", "SortedSet", "List", "HyperLogLog", "Key", "Script"];
+        string[] tested = ["String", "Hash", "Set", "SortedSet", "List", "HyperLogLog", "Sort", "Key", "Script"];
 
         // the members that belong to no command group: funnels, fallbacks, and the ad-hoc Execute family.
         // A second list, but a STABLE one - infrastructure does not come and go, whereas command groups
