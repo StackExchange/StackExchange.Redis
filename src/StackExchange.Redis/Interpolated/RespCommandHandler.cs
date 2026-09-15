@@ -604,7 +604,24 @@ namespace StackExchange.Redis.Interpolated
         /// </summary>
         public RespFrame Complete()
         {
-            if (!_hasCommand) throw new InvalidOperationException("No command was written.");
+            if (!_hasCommand)
+            {
+                Dispose(); // the buffer is rented by now, and nobody else has a reference to give back
+                throw new InvalidOperationException("No command was written.");
+            }
+
+            // the writer's own limit, applied in the writer's terms: it counts arguments WITHOUT the
+            // command and adds one for the header, whereas _args already includes it. Checked here rather
+            // than only at dispatch because this is where the count is final and where the '*N' is about to
+            // be written - a header past the limit is a frame that is invalid by construction, and a frame
+            // may never be dispatched at all (a cache lookup key, an ad-hoc composition).
+            if (_args - 1 >= MessageWriter.REDIS_MAX_ARGS)
+            {
+                var command = _command;
+                var count = _args - 1;
+                Dispose();
+                throw ExceptionFactory.TooManyArgs(command.ToString(), count);
+            }
 
             Span<byte> header = stackalloc byte[HeaderMax];
             header[0] = (byte)'*';

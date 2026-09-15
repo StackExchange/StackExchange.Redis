@@ -112,7 +112,14 @@ namespace StackExchange.Redis.Interpolated
             }
 
             // an over-estimate is allowed, and the frame knows exactly
-            public override int ArgCount => _request.ArgCount;
+
+            /// <remarks>
+            /// <b>Minus the command.</b> Every other <see cref="Message"/> reports the count the writer
+            /// then adds one to for the <c>*N</c> header, whereas a frame's own count already includes the
+            /// command - it counted while writing. Reporting the frame's number directly would make
+            /// <c>CheckMessage</c> reject a frame one argument earlier than the identical classic message.
+            /// </remarks>
+            public override int ArgCount => _request.ArgCount - 1;
 
             // the slot was folded during the write, so routing needs no second look at the keys
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;

@@ -132,4 +132,67 @@ public partial class InterpolatedAppendTests
         Assert.Equal("a", Encoding.UTF8.GetString(frame.GetKey(ranges[0]).ToArray()));
         Assert.Equal("b", Encoding.UTF8.GetString(frame.GetKey(ranges[1]).ToArray()));
     }
+    /// <summary>
+    /// A frame past the protocol's argument limit is refused when it is closed, not when it is sent.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>Complete</c> is where the count is final and where the <c>*N</c> header is about to be written, so
+    /// a frame past the limit is invalid by construction from that point on. Waiting for dispatch would also
+    /// miss the frames that are never dispatched at all - a cache lookup key, an ad-hoc composition, or
+    /// anything built through the public <c>Render</c>.
+    /// </para>
+    /// <para>
+    /// The limit is counted the way the writer counts it - arguments <i>without</i> the command - so a frame
+    /// and the equivalent classic message are accepted and refused at exactly the same point. Spelled with
+    /// try/catch rather than <c>Assert.Throws</c> because a ref struct cannot be captured by a lambda.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AFramePastTheArgumentLimitIsRefusedWhenClosed()
+    {
+        const int Max = 1024 * 1024; // MessageWriter.REDIS_MAX_ARGS
+
+        // command + (Max - 1) arguments: the largest frame that is still legal
+        var cmd = Ctx.Compose($"{RedisCommand.RPUSH}{(RedisKey)"k"}");
+        for (var i = 2; i < Max; i++) cmd.Append($"{(RedisValue)1}");
+        using (var ok = Ctx.Render(ref cmd))
+        {
+            Assert.Equal(Max, ok.ArgCount); // the frame's own count includes the command
+        }
+
+        // one more, and it is refused - without leaking the several megabytes it had rented
+        var over = Ctx.Compose($"{RedisCommand.RPUSH}{(RedisKey)"k"}");
+        for (var i = 2; i <= Max; i++) over.Append($"{(RedisValue)1}");
+        Assert.True(RenderThrows(ref over), "a frame past the limit should be refused when closed");
+        over.Dispose(); // no-op if the refusal returned the buffer; a double-return otherwise
+    }
+
+    /// <summary>Whether closing this command is refused for being over the argument limit.</summary>
+    private static bool RenderThrows(ref RespCommandHandler handler)
+    {
+        try
+        {
+            handler.Complete().Dispose();
+            return false;
+        }
+        catch (RedisCommandException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>A refused close hands its buffer back rather than leaking it.</summary>
+    /// <remarks>
+    /// The buffer is rented by the time <c>Complete</c> runs - the handler is built in the caller's frame,
+    /// before the method is entered - so throwing without returning it would leak a pooled array, and for
+    /// the over-limit case a very large one.
+    /// </remarks>
+    [Fact]
+    public void ARefusedCloseReturnsTheBuffer()
+    {
+        var empty = new RespCommandHandler(0, 0, Ctx);
+        Assert.True(CompleteThrows(ref empty), "an empty command should be refused");
+        empty.Dispose(); // no-op if Complete gave the buffer back; a double-return otherwise
+    }
 }
