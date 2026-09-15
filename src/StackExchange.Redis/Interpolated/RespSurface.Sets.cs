@@ -191,7 +191,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> RandomMember(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.SRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER));
+                $"{RedisCommand.SRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
 
         /// <summary>SRANDMEMBER with a count.</summary>
         /// <param name="sets">The set command group.</param>
@@ -200,7 +200,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RedisValue>> RandomMembers(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
-                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER));
+                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
 
         /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -210,7 +210,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER));
+                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
 
         /// <summary>SUNION/SINTER/SDIFF.</summary>
         /// <param name="sets">The set command group.</param>

@@ -11,17 +11,11 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Now
 
-- [ ] **Cacheability metadata for the seven exclusions** (§6.9). `SRANDMEMBER`, `HRANDFIELD`,
-      `ZRANDMEMBER`, the `*SCAN` family, `TTL`/`PTTL`, `TOUCH`, `PFCOUNT` all sit in
-      `CommandRetryReadOnly` alongside `GET` and would be cached wrongly today. A correctness hole, and
-      small. `DUMP` wants a second opinion.
-      **Narrowed, not closed, by `CachePolicy.Prefixes`.** These are *command*-shaped defects and prefixes
-      are a *key-space* opt-in, so a non-deterministic command on a declared key is still cached wrongly.
-      What changed is the blast radius: nothing is cached unless its key space was positively declared, so
-      a caller who scopes tightly is no longer exposed on key families they never meant to cache at all.
-      It does largely answer the module worry below for free — `FT.*` names indexes, and an index name is
-      not usually in a data-key prefix list, so those replies now fall out as `RefusedNotTracked` rather
-      than being cached with nothing to invalidate them.
+- [ ] **Two cacheability calls wanting a second opinion.** `DUMP` (a serialised payload - stable for a
+      given value, and invalidated like any other read, so arguably fine) and `HPEXPIRETIME`, which is
+      currently left *cacheable* on the grounds that an absolute instant does not drift, where `HPTTL`
+      counts down and is stale the moment it is stored. The rest of the exclusion list is done. `TOUCH` and
+      `PFCOUNT` are not on the new surface yet; when the `Keys` group lands, `TOUCH` needs `.NeverCached()`.
 
 ## Next
 
@@ -99,6 +93,13 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [ ] **More command groups**, in `RespSurface.<Group>.cs` + `TransitionalDatabase.<Group>.cs` pairs.
       Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left.
 
+- [ ] **A `Keys` command group** (`RespSurface.Keys.cs`), covering the old `Key*` prefix: `Delete`,
+      `Exists`, `Expire`, `TimeToLive`, `Persist`, `Rename`, `Touch`, `Random`, `Type`. Named `Keys`
+      rather than `Keyspace` to match the other groups (`Strings`, `Hashes`, `Sets`, `SortedSets` are all
+      plural-of-the-thing) and because `Keyspace` collides with `KeyspaceIsolation`, which means something
+      quite different. Note `DbSize` is `IServer.DatabaseSize`, so it belongs to the `IServer` context
+      rather than here. `Touch` and the relative-TTL readers need `.NeverCached()`.
+
 ## Later / decide first
 
 - [ ] **Per-context `CachePolicy` override** (`WithCachePolicy`). The other half of the options/policy
@@ -153,7 +154,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Measured invalidation timing against a real server (6.13) — `eddb3b5f`
 - [x] Wire `OnLocalWrite`: a write tells the cache before it is sent — `b21ad97a`
 - [x] A bulk write invalidates its own arguments, not the whole cache — `bbb91af6`
-- [x] Arrays off the new API: 28 returns become `ReadOnlyLease<T>`, with internal `...Array` siblings — this change
+- [x] Arrays off the new API: 28 returns become `ReadOnlyLease<T>`, with internal `...Array` siblings — `9625bde1`
+- [x] Cacheability exclusions: `.NeverCached()` on the random readers and `HPTTL` — this change
 - [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
 - [x] Byte and entry quotas, with sampled eviction — `87d5afa2`
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and

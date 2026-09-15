@@ -268,7 +268,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> RandomMember(this in RespSortedSets sortedSets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.ZRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
+                $"{RedisCommand.ZRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
         /// <summary>ZRANDMEMBER with a count.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -277,7 +277,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RedisValue>> RandomMembers(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
-                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
         /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -287,7 +287,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
         /// <summary>ZRANDMEMBER ... WITHSCORES.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -297,7 +297,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScores(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-                flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
+                flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
         /// <summary>RandomMembersWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -308,7 +308,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<SortedSetEntry[]> RandomMembersWithScoresArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<SortedSetEntry[]>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-                flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
+                flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
         // ---- ranges ------------------------------------------------------------------------------------
 

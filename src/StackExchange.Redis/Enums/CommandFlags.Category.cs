@@ -56,6 +56,31 @@ public static class CommandFlagsExtensions
         _ => CommandFlags.CommandRetryWriteChecked,
     };
 
+    /// <summary>
+    /// Mark a command as one whose reply must never be cached, whatever its retry category says.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Client-side caching is opt-<i>out</i>: a command that declares a read-only retry category and names
+    /// a key is cacheable by default, which is right for the overwhelming majority and wrong for a handful.
+    /// This is how those few say so, at the one place that knows - the command definition - rather than in
+    /// a table the cache has to consult and keep in step.
+    /// </para>
+    /// <para>
+    /// Two reasons a command lands here. <b>Non-determinism</b>: <c>SRANDMEMBER</c>, <c>HRANDFIELD</c> and
+    /// <c>ZRANDMEMBER</c> are asked precisely because the answer should differ each time, so a cache would
+    /// defeat the command rather than accelerate it - and nothing would ever invalidate it, because nothing
+    /// changed. <b>Time-variance</b>: a reply that counts down, such as <c>HPTTL</c>, is already wrong by
+    /// the time it is stored, and no invalidation is coming because the server announces expiry to nobody
+    /// (design notes 6.13).
+    /// </para>
+    /// <para>
+    /// It uses the same bit as the caller-facing <see cref="CommandFlags.NoClientCache"/> deliberately: the
+    /// effect is identical, and a caller cannot unset what the command surface has already or-ed in.
+    /// </para>
+    /// </remarks>
+    internal static CommandFlags NeverCached(this CommandFlags flags) => flags | CommandFlags.NoClientCache;
+
     internal static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {
         if ((flags & Message.MaskRetryCategory) is 0)

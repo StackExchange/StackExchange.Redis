@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> RandomField(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.HRANDFIELD}{key}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
+                $"{RedisCommand.HRANDFIELD}{key}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD).NeverCached());
 
         /// <summary>HRANDFIELD with a count.</summary>
         /// <param name="hashes">The hash command group.</param>
@@ -192,7 +192,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RedisValue>> RandomFields(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
-                $"{RedisCommand.HRANDFIELD}{key}{count}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
+                $"{RedisCommand.HRANDFIELD}{key}{count}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD).NeverCached());
 
         /// <summary>RandomFields, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -202,7 +202,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<RedisValue[]> RandomFieldsArray(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.HRANDFIELD}{key}{count}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
+                $"{RedisCommand.HRANDFIELD}{key}{count}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD).NeverCached());
 
         /// <summary>HRANDFIELD ... WITHVALUES.</summary>
         /// <param name="hashes">The hash command group.</param>
@@ -212,7 +212,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<HashEntry>> RandomFieldsWithValues(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<ReadOnlyLease<HashEntry>>(
                 $"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}",
-                flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
+                flags.WithDefaultCategory(RedisCommand.HRANDFIELD).NeverCached());
 
         /// <summary>RandomFieldsWithValues, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -223,7 +223,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<HashEntry[]> RandomFieldsWithValuesArray(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<HashEntry[]>(
                 $"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}",
-                flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
+                flags.WithDefaultCategory(RedisCommand.HRANDFIELD).NeverCached());
 
         // ---- writes ------------------------------------------------------------------------------------
 
@@ -429,7 +429,7 @@ namespace StackExchange.Redis.Interpolated
                 ? new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty)
                 : hashes.Context.SendAsync<ReadOnlyLease<long>>(
                     $"{RedisCommand.HPTTL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                    flags.WithDefaultCategory(RedisCommand.HPTTL));
+                    flags.WithDefaultCategory(RedisCommand.HPTTL).NeverCached());
 
         /// <summary>GetTimeToLive, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -442,14 +442,28 @@ namespace StackExchange.Redis.Interpolated
                 ? new ValueTask<long[]>(Array.Empty<long>())
                 : hashes.Context.SendAsync<long[]>(
                     $"{RedisCommand.HPTTL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                    flags.WithDefaultCategory(RedisCommand.HPTTL));
+                    flags.WithDefaultCategory(RedisCommand.HPTTL).NeverCached());
 
         /// <summary>HPEXPIRETIME: when the fields expire, as a Unix time in milliseconds.</summary>
         /// <param name="hashes">The hash command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="fields">The fields to ask about.</param>
         /// <param name="flags">Command flags.</param>
-        /// <remarks><inheritdoc cref="GetTimeToLive" path="/remarks"/></remarks>
+        /// <remarks>
+        /// <inheritdoc cref="GetTimeToLive" path="/remarks"/>
+        /// <para>
+        /// <b>Cacheable, where <c>GetTimeToLive</c> is not</b>, and the difference is absolute versus
+        /// relative rather than a slip. <c>HPTTL</c> counts down: the answer is different a millisecond
+        /// later, so it is stale the instant it is stored and nothing will ever say so, because expiry is
+        /// announced to nobody. This returns a fixed instant, which does not drift - it only becomes wrong
+        /// once the field actually expires, which is the same exposure every cached read of a volatile key
+        /// already has, and is what <see cref="CachePolicy.TimeToLive"/> is there to bound.
+        /// </para>
+        /// <para>
+        /// Recorded as a judgement rather than an obvious call: it is on the queue for a second opinion,
+        /// next to <c>DUMP</c>.
+        /// </para>
+        /// </remarks>
         public static ValueTask<ReadOnlyLease<long>> GetExpireDateTime(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
                 ? new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty)
