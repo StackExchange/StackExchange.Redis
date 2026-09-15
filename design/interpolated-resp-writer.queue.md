@@ -93,12 +93,10 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [ ] **More command groups**, in `RespSurface.<Group>.cs` + `TransitionalDatabase.<Group>.cs` pairs.
       Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left.
 
-- [ ] **A `Keys` command group** (`RespSurface.Keys.cs`), covering the old `Key*` prefix: `Delete`,
-      `Exists`, `Expire`, `TimeToLive`, `Persist`, `Rename`, `Touch`, `Random`, `Type`. Named `Keys`
-      rather than `Keyspace` to match the other groups (`Strings`, `Hashes`, `Sets`, `SortedSets` are all
-      plural-of-the-thing) and because `Keyspace` collides with `KeyspaceIsolation`, which means something
-      quite different. Note `DbSize` is `IServer.DatabaseSize`, so it belongs to the `IServer` context
-      rather than here. `Touch` and the relative-TTL readers need `.NeverCached()`.
+- [ ] **The `OBJECT` family and `DBSIZE`.** Deferred out of the `Keys` group: `OBJECT ENCODING/REFCOUNT/
+      FREQ/IDLETIME` are a different command shape, better done together, and `IDLETIME` will want
+      `.NeverCached()` for the same reason `PTTL` does. `DBSIZE` is an `IServer` command and belongs to
+      that context, not to `Keys`.
 
 ## Later / decide first
 
@@ -155,7 +153,8 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Wire `OnLocalWrite`: a write tells the cache before it is sent — `b21ad97a`
 - [x] A bulk write invalidates its own arguments, not the whole cache — `bbb91af6`
 - [x] Arrays off the new API: 28 returns become `ReadOnlyLease<T>`, with internal `...Array` siblings — `9625bde1`
-- [x] Cacheability exclusions: `.NeverCached()` on the random readers and `HPTTL` — this change
+- [x] Cacheability exclusions: `.NeverCached()` on the random readers and `HPTTL` — `28d7fa3d`
+- [x] The `Keys` command group, and awaiting the flush `CountKeys` depended on — this change
 - [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
 - [x] Byte and entry quotas, with sampled eviction — `87d5afa2`
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and

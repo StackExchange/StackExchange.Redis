@@ -200,5 +200,13 @@
         /// <inheritdoc cref="Nx"/>
         [Resp]
         internal static partial RespFragment Lt { get; }
+
+        /// <summary>The <c>DB</c> operand of <c>COPY</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Db { get; }
+
+        /// <summary>The <c>REPLACE</c> operand of <c>COPY</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Replace { get; }
     }
 }

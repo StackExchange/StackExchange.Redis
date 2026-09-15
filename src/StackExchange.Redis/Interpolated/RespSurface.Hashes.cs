@@ -348,7 +348,7 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// <para>
         /// <see cref="Expiration.KeepTtl"/> and <see cref="Expiration.Persist"/> have no spelling: the
-        /// first is not a deadline and the second is <see cref="Persist"/>, which is a different command
+        /// first is not a deadline and the second is <c>Persist</c>, which is a different command
         /// with a different reply. An absent expiry is likewise not a request.
         /// </para>
         /// </remarks>

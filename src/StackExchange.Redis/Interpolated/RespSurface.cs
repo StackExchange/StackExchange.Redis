@@ -171,6 +171,10 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<ReadOnlyLease<PersistResult>>,
             IRespHandler<ReadOnlyLease<byte>?>,
             IRespHandler<RedisValue>,
+            IRespHandler<RedisKey>,
+            IRespHandler<RedisType>,
+            IRespHandler<TimeSpan?>,
+            IRespHandler<DateTime?>,
             IRespHandler<RedisValue[]>,
             IRespHandler<ReadOnlyLease<RedisValue>>,
             IRespHandler<SortedSetEntry?>,
@@ -355,6 +359,52 @@ namespace StackExchange.Redis.Interpolated
                 reader.MoveNext();
                 var pooled = SortedSetEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
                 return pooled is null ? ReadOnlyLease<SortedSetEntry>.Empty : ReadOnlyLease<SortedSetEntry>.Adopt(pooled, count);
+            }
+
+            RedisKey IRespHandler<RedisKey>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.IsNull ? default : (RedisKey)reader.ReadString()!;
+            }
+
+            /// <remarks>
+            /// Parsed through the generated token table rather than <c>Enum.TryParse</c>, because the wire
+            /// spellings are not the member names: a sorted set is <c>zset</c>.
+            /// </remarks>
+            RedisType IRespHandler<RedisType>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                RedisType result;
+                unsafe
+                {
+                    if (!reader.TryParseScalar(&RedisTypeMetadata.TryParse, out result)) result = RedisType.Unknown;
+                }
+
+                return result;
+            }
+
+            /// <remarks>
+            /// <c>PTTL</c> answers <c>-2</c> for "no such key" and <c>-1</c> for "no expiry", and the old
+            /// surface collapses both to null - the caller asked how long is left, and in both cases the
+            /// answer is "no deadline". Distinguishing them is what <c>EXISTS</c> is for.
+            /// </remarks>
+            TimeSpan? IRespHandler<TimeSpan?>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                var ms = reader.ReadInt64();
+                return ms < 0 ? null : TimeSpan.FromMilliseconds(ms);
+            }
+
+            /// <remarks>As the <see cref="TimeSpan"/> handler: negative means there is no deadline to report.</remarks>
+            DateTime? IRespHandler<DateTime?>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                var ms = reader.ReadInt64();
+                return ms < 0 ? null : DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
             }
 
             RedisValue[] IRespHandler<RedisValue[]>.Parse(ReadOnlySpan<byte> response)
