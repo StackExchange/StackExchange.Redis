@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 
 namespace StackExchange.Redis
@@ -439,25 +440,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets a string that can be used as a hash-tag to reference a specific slot.
         /// </summary>
-        internal string GetHashTag(ServerEndPoint endpoint)
-        {
-            if (map is { } arr)
-            {
-                // inefficient way of finding a slot for a given endpoint, but: it'll work
-                for (int i = 0; i < arr.Length; i++)
-                {
-                    if (arr[i] == endpoint)
-                    {
-                        return HashTags.Get(i);
-                    }
-                }
-            }
-            return "";
-        }
-
-        /// <summary>
-        /// Gets a string that can be used as a hash-tag to reference a specific slot.
-        /// </summary>
         internal static string GetHashTag(int slot) => slot < 0 ? "" : HashTags.Get(slot);
+
+        internal static RedisKey CreateKeyForSlot(int slot, RedisKey suffix) =>
+            suffix.Prepend(Encoding.ASCII.GetBytes("{" + HashTags.Get(slot) + "}"));
     }
 }
