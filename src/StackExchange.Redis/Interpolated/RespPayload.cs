@@ -36,8 +36,16 @@ namespace StackExchange.Redis.Interpolated
     /// </para>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public sealed class RespPayload : IDisposable
+    public sealed class RespPayload : IDisposable, RESPite.Messages.IRespBufferOwner
     {
+        /// <inheritdoc/>
+        /// <remarks>
+        /// What lets a <see cref="RespValue"/> point into this reply rather than copy out of it. The
+        /// payload rather than the buffer underneath, because the window a value records is relative to
+        /// <see cref="Span"/> - and because this is where the disposal check already lives.
+        /// </remarks>
+        ReadOnlySpan<byte> RESPite.Messages.IRespBufferOwner.GetReadOnlySpan() => Span;
+
         private readonly RefCountedBuffer _lease;
         private readonly int _offset;
         private readonly int _length;

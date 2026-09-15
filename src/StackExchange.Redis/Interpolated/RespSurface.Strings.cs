@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -114,18 +115,24 @@ namespace StackExchange.Redis.Interpolated
         /// synchronously and allocates nothing.
         /// </para>
         /// <para>
-        /// <b>A pooled lease, not an array</b>, and it must be disposed. The reply is a block of values the
-        /// caller almost always walks once, so handing over an array means a per-call allocation that
-        /// nothing can reclaim; a lease can be given back. The elements still allocate - <c>RedisValue</c>
-        /// has no lifetime - so what this saves is the array, which on a large <c>MGET</c> is the part
-        /// that reaches gen 2. The array shape the old surface still needs lives on the internal <c>GetArray</c> sibling.
+        /// <b>A pooled lease of windows, not an array of values</b>, and it must be disposed. The reply is
+        /// a block the caller almost always walks once, so an array means a per-call allocation nothing
+        /// can reclaim; a lease can be given back. The elements are <see cref="RespValue"/> rather than
+        /// <see cref="RedisValue"/>, which is what makes them free: a value is a window into the one reply
+        /// buffer the lease holds, where a <c>RedisValue</c> has no lifetime and so has to own its bytes -
+        /// an allocation each, for anything that is neither small nor a canonical number.
+        /// </para>
+        /// <para>
+        /// Each element reads with <c>AsInt64</c>, <c>AsRedisValue</c>, <c>(string?)</c> and the rest, and
+        /// stays valid until the lease is disposed. The array shape the old surface still needs lives on
+        /// the internal <c>GetArray</c> sibling, which pays one <c>AsRedisValue</c> per element.
         /// </para>
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
             => keys.IsEmpty
-                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
+                ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
                 : strings.Context.SendAsync(
-                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.ValueLease);
+                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.ValueWindowHandler.Instance);
 
         /// <summary>MGET, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <param name="strings">The string command group.</param>

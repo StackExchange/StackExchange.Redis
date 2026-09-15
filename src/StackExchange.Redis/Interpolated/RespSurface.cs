@@ -243,6 +243,106 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        /// <summary>
+        /// An array reply as a lease of scalar windows, all pointing into the one reply buffer.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The point of <see cref="RespValue"/>.</b> The <see cref="RedisValue"/> equivalent is one
+        /// pooled array plus an allocation per element that is neither small nor a canonical number; this
+        /// is one pooled array of windows, and the reply buffer they share.
+        /// </para>
+        /// <para>
+        /// The lease owns both: its own array, and - as its secondary - the payload whose reference this
+        /// handler took. Disposing the lease gives back both, in either order, because neither depends on
+        /// the other.
+        /// </para>
+        /// <para>
+        /// Losing the retain race means the buffer is already on its way back to the pool, so the copying
+        /// path takes over - exactly as <c>ShareAsResult</c> does, and for the same reason: resurrecting
+        /// it is the one thing that must not happen.
+        /// </para>
+        /// </remarks>
+        internal sealed class ValueWindowHandler :
+            IRespHandler<ReadOnlyLease<RespValue>>,
+            IRespPayloadHandler<ReadOnlyLease<RespValue>>
+        {
+            internal static readonly ValueWindowHandler Instance = new();
+
+            ReadOnlyLease<RespValue> IRespPayloadHandler<ReadOnlyLease<RespValue>>.Parse(RespPayload payload)
+            {
+                if (!payload.TryRetain()) return Copy(payload.Span);
+
+                try
+                {
+                    return Capture(payload.Span, payload, payload);
+                }
+                catch
+                {
+                    payload.Release();
+                    throw;
+                }
+            }
+
+            ReadOnlyLease<RespValue> IRespHandler<ReadOnlyLease<RespValue>>.Parse(ReadOnlySpan<byte> response)
+                => Copy(response);
+
+            /// <summary>No payload to hold, so take a copy of the bytes and own that instead.</summary>
+            private static ReadOnlyLease<RespValue> Copy(ReadOnlySpan<byte> response)
+            {
+                var bytes = ReadOnlyLease<byte>.Rent(response.Length, null, out var target);
+                if (bytes.IsEmpty) return ReadOnlyLease<RespValue>.Empty;
+
+                try
+                {
+                    response.CopyTo(target);
+                    return Capture(bytes.Span, bytes, bytes);
+                }
+                catch
+                {
+                    bytes.Dispose();
+                    throw;
+                }
+            }
+
+            private static ReadOnlyLease<RespValue> Capture(ReadOnlySpan<byte> frame, object owner, IDisposable secondary)
+            {
+                var reader = new RespReader(frame);
+                reader.MoveNext();
+
+                // a nil aggregate reads as empty, as it does for the array handlers
+                if (reader.IsNull) return Release(secondary);
+
+                var count = reader.AggregateLength();
+                if (count <= 0) return Release(secondary);
+
+                var lease = ReadOnlyLease<RespValue>.Rent(count, null, out var target, secondary);
+                try
+                {
+                    for (var i = 0; i < count; i++)
+                    {
+                        if (!RespValue.TryCaptureNext(owner, ref reader, out target[i]))
+                        {
+                            throw new RespException("Fewer elements than the reply promised.");
+                        }
+                    }
+
+                    return lease;
+                }
+                catch
+                {
+                    lease.Dispose(); // takes the secondary with it
+                    throw;
+                }
+
+                static ReadOnlyLease<RespValue> Release(IDisposable held)
+                {
+                    held.Dispose();
+                    return ReadOnlyLease<RespValue>.Empty;
+                }
+            }
+        }
+
         /// <summary>The handler used when a call does not name one; resolved by result type.</summary>
         /// <typeparam name="T">The result type.</typeparam>
         /// <remarks>

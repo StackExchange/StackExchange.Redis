@@ -647,9 +647,9 @@ public class RespSurfaceStringsTests
         using var values = await ctx.Strings.Get([(RedisKey)"k1", (RedisKey)"k2", (RedisKey)"k3"]);
 
         Assert.Equal(3, values.Length);
-        Assert.Equal("a", values.Span[0]);
+        Assert.Equal("a", (string?)values.Span[0]);
         Assert.True(values.Span[1].IsNull);
-        Assert.Equal("bc", values.Span[2]);
+        Assert.Equal("bc", (string?)values.Span[2]);
     }
 
     /// <summary>
