@@ -197,6 +197,57 @@ namespace StackExchange.Redis.Interpolated
         public static IRespHandler<bool> Success { get; } = new SuccessHandler();
 
         /// <summary>
+        /// One projection per element type, shared by <b>every</b> aggregate form of that type.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The same element was being read by two or three hand-written lambdas - the array handler, the
+        /// lease handler, and for <c>long?</c> a third inside <c>Lease&lt;long?&gt;</c>'s own loop - sitting
+        /// up to 250 lines apart. They agreed, checked one by one, but nothing made them: the array and
+        /// lease forms of one command silently disagreeing is a bug with no symptom at the call site.
+        /// Naming the projection once makes that unexpressible, and gives the next element type an obvious
+        /// home rather than a lambda to copy.
+        /// </para>
+        /// <para>
+        /// <b>These are not the scalar handlers, and must not become them.</b> A top-level handler carries
+        /// reply-level semantics that are wrong per element: <c>IRespHandler&lt;bool&gt;</c> reads nil as
+        /// <i>false</i> (a conditional <c>SET</c> that did not write), and <c>IRespHandler&lt;long?&gt;</c>
+        /// unwraps a unit aggregate (a one-operation <c>BITFIELD</c> still replies <c>*1</c>). Inside an
+        /// aggregate both of those would be nonsense. So "implement the element handler and get the
+        /// aggregate free" is the wrong shape by exactly the amount those two differ.
+        /// </para>
+        /// </remarks>
+        internal static class Elements
+        {
+            /// <summary>An integer element.</summary>
+            internal static readonly RespReader.Projection<long> Int64 = static (ref r) => r.ReadInt64();
+
+            /// <summary>A boolean element; unlike the top-level handler, nil is not "no" here.</summary>
+            internal static readonly RespReader.Projection<bool> Boolean = static (ref r) => r.ReadBoolean();
+
+            /// <summary>A per-key outcome from the <c>EXPIRE</c> family.</summary>
+            internal static readonly RespReader.Projection<ExpireResult> Expire = static (ref r) => (ExpireResult)r.ReadInt64();
+
+            /// <summary>A per-key outcome from <c>PERSIST</c>.</summary>
+            internal static readonly RespReader.Projection<PersistResult> Persist = static (ref r) => (PersistResult)r.ReadInt64();
+
+            /// <summary>A score element; <c>ZMSCORE</c> replies nil for a member that is not there.</summary>
+            internal static readonly RespReader.Projection<double?> NullableDouble = static (ref r) => r.IsNull ? (double?)null : r.ReadDouble();
+
+            /// <summary>A <c>BITFIELD</c> element; nil where <c>OVERFLOW FAIL</c> skipped an operation.</summary>
+            internal static readonly RespReader.Projection<long?> NullableInt64 = static (ref r) => r.IsNull ? (long?)null : r.ReadInt64();
+
+            /// <summary>A coordinate element; nil for a member the key does not hold.</summary>
+            internal static readonly RespReader.Projection<GeoPosition?> Position = static (ref r) => GeoPosition.TryRead(ref r);
+
+            /// <summary>A string element that may be nil.</summary>
+            internal static readonly RespReader.Projection<string?> NullableString = static (ref r) => r.IsNull ? null : r.ReadString();
+
+            /// <summary>A vector element; the server sends these as doubles.</summary>
+            internal static readonly RespReader.Projection<float> Single = static (ref r) => (float)r.ReadDouble();
+        }
+
+        /// <summary>
         /// Read an aggregate of scalars straight into a pooled lease.
         /// </summary>
         /// <remarks>
@@ -550,24 +601,24 @@ namespace StackExchange.Redis.Interpolated
             }
 
             ReadOnlyLease<long> IRespHandler<ReadOnlyLease<long>>.Parse(ref RespReader reader)
-                => ReadScalarLease(ref reader, static (ref r) => r.ReadInt64());
+                => ReadScalarLease(ref reader, Elements.Int64);
 
             ReadOnlyLease<bool> IRespHandler<ReadOnlyLease<bool>>.Parse(ref RespReader reader)
-                => ReadScalarLease(ref reader, static (ref r) => r.ReadBoolean());
+                => ReadScalarLease(ref reader, Elements.Boolean);
 
             ReadOnlyLease<ExpireResult> IRespHandler<ReadOnlyLease<ExpireResult>>.Parse(ref RespReader reader)
-                => ReadScalarLease(ref reader, static (ref r) => (ExpireResult)r.ReadInt64());
+                => ReadScalarLease(ref reader, Elements.Expire);
 
             ReadOnlyLease<PersistResult> IRespHandler<ReadOnlyLease<PersistResult>>.Parse(ref RespReader reader)
-                => ReadScalarLease(ref reader, static (ref r) => (PersistResult)r.ReadInt64());
+                => ReadScalarLease(ref reader, Elements.Persist);
 
             /// <remarks>ZMSCORE replies nil for a member that is not there, so the element type is nullable.</remarks>
             ReadOnlyLease<double?> IRespHandler<ReadOnlyLease<double?>>.Parse(ref RespReader reader)
-                => ReadScalarLease(ref reader, static (ref r) => r.IsNull ? (double?)null : r.ReadDouble());
+                => ReadScalarLease(ref reader, Elements.NullableDouble);
 
             /// <remarks>BITFIELD replies nil for an operation skipped by OVERFLOW FAIL, hence nullable.</remarks>
             ReadOnlyLease<long?> IRespHandler<ReadOnlyLease<long?>>.Parse(ref RespReader reader)
-                => ReadScalarLease(ref reader, static (ref r) => r.IsNull ? (long?)null : r.ReadInt64());
+                => ReadScalarLease(ref reader, Elements.NullableInt64);
 
             ListPopResult IRespHandler<ListPopResult>.Parse(ref RespReader reader)
             {
@@ -740,7 +791,7 @@ namespace StackExchange.Redis.Interpolated
                     for (var i = 0; i < length; i++)
                     {
                         reader.MoveNextScalar();
-                        target[i] = reader.IsNull ? null : reader.ReadInt64();
+                        target[i] = Elements.NullableInt64(ref reader);
                     }
                 }
                 catch
@@ -766,13 +817,12 @@ namespace StackExchange.Redis.Interpolated
 
             long[] IRespHandler<long[]>.Parse(ref RespReader reader)
             {
-                return reader.ReadPastArray(static (ref r) => r.ReadInt64(), scalar: true) ?? Array.Empty<long>();
+                return reader.ReadPastArray(Elements.Int64, scalar: true) ?? Array.Empty<long>();
             }
 
             ExpireResult[] IRespHandler<ExpireResult[]>.Parse(ref RespReader reader)
             {
-                return reader.ReadPastArray(static (ref r) => (ExpireResult)r.ReadInt64(), scalar: true)
-                       ?? Array.Empty<ExpireResult>();
+                return reader.ReadPastArray(Elements.Expire, scalar: true) ?? Array.Empty<ExpireResult>();
             }
 
             double? IRespHandler<double?>.Parse(ref RespReader reader)
@@ -783,8 +833,7 @@ namespace StackExchange.Redis.Interpolated
             double?[] IRespHandler<double?[]>.Parse(ref RespReader reader)
             {
                 // ZMSCORE replies nil for a member that is not there, so the element type has to be nullable
-                return reader.ReadPastArray(static (ref r) => r.IsNull ? (double?)null : r.ReadDouble(), scalar: true)
-                       ?? Array.Empty<double?>();
+                return reader.ReadPastArray(Elements.NullableDouble, scalar: true) ?? Array.Empty<double?>();
             }
 
             // as HashEntryHandler: interleaved in RESP2, possibly jagged in RESP3, decided from the content
@@ -812,13 +861,12 @@ namespace StackExchange.Redis.Interpolated
 
             bool[] IRespHandler<bool[]>.Parse(ref RespReader reader)
             {
-                return reader.ReadPastArray(static (ref r) => r.ReadBoolean(), scalar: true) ?? Array.Empty<bool>();
+                return reader.ReadPastArray(Elements.Boolean, scalar: true) ?? Array.Empty<bool>();
             }
 
             PersistResult[] IRespHandler<PersistResult[]>.Parse(ref RespReader reader)
             {
-                return reader.ReadPastArray(static (ref r) => (PersistResult)r.ReadInt64(), scalar: true)
-                       ?? Array.Empty<PersistResult>();
+                return reader.ReadPastArray(Elements.Persist, scalar: true) ?? Array.Empty<PersistResult>();
             }
 
             StringIncrementResult<double> IRespHandler<StringIncrementResult<double>>.Parse(ref RespReader reader)

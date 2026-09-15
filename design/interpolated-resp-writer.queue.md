@@ -67,12 +67,12 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-- [ ] **`*Async` suffixes on the new surface.** MSFT review, 2026-09-15. Checked whether the suffix would
+- [x] **`*Async` suffixes on the new surface.** MSFT review, 2026-09-15; done the same day. Checked whether the suffix would
       be redundant: the surface is async-only (22 `ValueTask` returns in Strings alone, zero sync twins), so
       the *compiler* never needs it - but the justification is the reader, not the compiler, and
       `db.Strings.Get(key)` sitting beside `db.StringGetAsync(key)` makes you check a return type to know
       what you are holding. Mechanical across 11 groups, free while SER010 is experimental, expensive after.
-      Agreed; do it in the same pass as the cancellation change below, since both touch every signature.
+      Agreed, and done in the same pass as the cancellation change below, since both touch every signature.
 
 - [x] **`CancellationToken` moved off the context onto the call** - see the Done entry. Recorded here
       because one idea was raised and rejected with evidence: having the **interpolated string handler**
@@ -90,13 +90,19 @@ Four consequences, none of them cosmetic:
       `SendAsync($"...", flags, handler, token)` escape hatch, and there it would trade the convention for
       one rent-and-dispose on a call that is about to throw anyway.
 
-- [ ] **(superseded) Move `CancellationToken` off the context.** MSFT review.
+- [x] **(superseded) Move `CancellationToken` off the context.** MSFT review; done 2026-09-15.
       Conventional, per-call, and it shrinks the context (see the sizing item). **But it is two decisions,
       not one:** the token currently *cancels nothing*. `RespMessageExecutor.SendAsync` says so - "the
       existing pipeline has no cancellation; the token is observed by the caller's await". On a context that
       reads as configuration; on every method signature it reads as a promise. So either wire it into the
       pipeline or document plainly that it is observed at the await - do not ship per-call tokens that do
       not cancel.
+
+      **Resolved by taking neither branch.** A token that cannot cancel is not documented away and not
+      silently observed: `Send`/`SendAsync` take one, and a token that *can* be cancelled throws
+      `NotImplementedException` naming the reason. An already-cancelled token is honoured, because that one
+      genuinely can be - and it recycles the command first, so the obvious no-op does not leak a pooled
+      buffer. Wiring it into the pipeline is the real fix and belongs with the `Message` refactor.
 
 - [ ] **Degraded state: may the cache prefer stale to offline?** MSFT review. Today it does the opposite,
       and deliberately: `OnConnectionFailed` calls `ClientCache.OnFlush()` *first*, synchronously, because
@@ -320,7 +326,8 @@ Four consequences, none of them cosmetic:
       zero. If one does not, we learn which seam is short, rather than that "some commands are awkward".
 
 
-- [ ] **`Parse(ref RespReader)`, and the row-parser collapse** (§2.2, §6.16). Now with evidence rather
+- [ ] **`Parse(ref RespReader)`, and the row-parser collapse** (§2.2, §6.16). `Parse(ref RespReader)` is
+      **done**; the collapse below is partly done and partly wrong, see the correction at the end. Now with evidence rather
       than a hunch: converting the arrays produced **16 handlers that are all "aggregate of X"** - eight
       array, eight lease - of which six differ only by a one-line projection, which is why they were
       factored onto a shared `ReadScalarLease`. With `Parse(ref RespReader)` the row parser *is* the scalar
@@ -340,6 +347,37 @@ Four consequences, none of them cosmetic:
 
       The shape is endemic - `HGETALL`, `ZRANGE WITHSCORES`, `XRANGE`, `CONFIG GET` - so hoisting it once
       pays on every group added, and leaving it per-handler means re-deriving the jagged check each time.
+
+      **Correction, 2026-09-15, after reading the handlers rather than remembering them.** The premise
+      *"with `Parse(ref RespReader)` the row parser **is** the scalar handler"* is **false**, and building on
+      it would have changed behaviour silently. A top-level handler carries reply-level semantics that are
+      wrong per element:
+
+      - `IRespHandler<bool>` reads nil as **false** - a conditional `SET` that did not write, a `GETEX` on a
+        missing key. The element projection is a bare `ReadBoolean()`.
+      - `IRespHandler<long?>` **unwraps a unit aggregate** (`if (reader.IsAggregate) reader.MoveNext()`),
+        because a one-operation `BITFIELD` still replies `*1`. Inside an aggregate that is nonsense.
+
+      Of the element types with an aggregate form, only `long` and `RedisValue` have a scalar handler whose
+      body matches the element projection. So "implement the element handler, get the aggregate free" is the
+      wrong shape by exactly the amount those two differ, and the honest rule is the entry's own title:
+      **one projection per element type, every aggregate form derived from it** - which does not involve the
+      scalar handlers at all.
+
+      **The half that was real is done.** The duplication was never scalar-vs-aggregate; it was
+      array-vs-lease: seven element types (`long`, `bool`, `ExpireResult`, `PersistResult`, `double?`,
+      `GeoPosition?`, `string?`) had the same projection written twice, up to 250 lines apart and sometimes
+      in different files, and `long?` had it **three** times - the third inside `Lease<long?>`'s own walk.
+      They all agreed, checked one by one, but nothing made them, and a pair that disagreed would be
+      invisible: both calls succeed and return the length the caller expected. They now share
+      `RespHandlers.Elements`, and `RespAggregateFormTests` reads one reply through both forms and compares
+      element by element, so the next type that writes its own lambda gets caught (verified by mutation:
+      flipping one array projection fails exactly that pair's test).
+
+      **Still open:** the pair types. `HashEntry`/`SortedSetEntry` go through
+      `ResultProcessor.*ArrayProcessor.ParseArray`, which already hides jagged-vs-interleaved from its
+      implementers - so the arity-2 walker described above is still the right idea, and is now the whole of
+      what is left here.
 
       A refactor that **deletes** code. Deliberately sequenced after the signature change: the public
       shapes were binary-breaking and time-limited, the handler internals are internal and can be
@@ -491,7 +529,7 @@ Four consequences, none of them cosmetic:
       server-side tracking — though a prefix list that names data keys already excludes index names, so
       the exposure now requires someone to have declared a prefix covering them.
 
-- [ ] **`RespContext` sizing.** Currently 48 bytes. `CachePolicy` rides on the cache and the freshness
+- [ ] **`RespContext` sizing.** Currently **40** bytes, down from 48 when cancellation left the context. `CachePolicy` rides on the cache and the freshness
       override rides in the service slot, so nothing has grown it yet — but SWR adds knobs, and the
       measurement that justified moving `ChannelPrefix` out (§3.3) should be repeated rather than assumed.
 

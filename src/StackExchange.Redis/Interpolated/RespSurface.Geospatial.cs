@@ -555,11 +555,11 @@ namespace StackExchange.Redis.Interpolated
             internal static IRespHandler<GeoPosition?[]> Array => Instance;
 
             ReadOnlyLease<GeoPosition?> IRespHandler<ReadOnlyLease<GeoPosition?>>.Parse(ref RespReader reader)
-                => RespHandlers.ReadScalarLease<GeoPosition?>(ref reader, static (ref r) => GeoPosition.TryRead(ref r));
+                => RespHandlers.ReadScalarLease(ref reader, RespHandlers.Elements.Position);
 
             GeoPosition?[] IRespHandler<GeoPosition?[]>.Parse(ref RespReader reader)
             {
-                return reader.IsNull ? [] : reader.ReadPastArray(static (ref r) => GeoPosition.TryRead(ref r)) ?? [];
+                return reader.IsNull ? [] : reader.ReadPastArray(RespHandlers.Elements.Position) ?? [];
             }
         }
 
@@ -574,11 +574,11 @@ namespace StackExchange.Redis.Interpolated
             internal static IRespHandler<string?[]> Array => Instance;
 
             ReadOnlyLease<string?> IRespHandler<ReadOnlyLease<string?>>.Parse(ref RespReader reader)
-                => RespHandlers.ReadScalarLease<string?>(ref reader, static (ref r) => r.IsNull ? null : r.ReadString());
+                => RespHandlers.ReadScalarLease(ref reader, RespHandlers.Elements.NullableString);
 
             string?[] IRespHandler<string?[]>.Parse(ref RespReader reader)
             {
-                return reader.IsNull ? [] : reader.ReadPastArray(static (ref r) => r.IsNull ? null : r.ReadString()) ?? [];
+                return reader.IsNull ? [] : reader.ReadPastArray(RespHandlers.Elements.NullableString) ?? [];
             }
         }
 

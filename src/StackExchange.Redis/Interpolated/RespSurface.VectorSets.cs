@@ -493,7 +493,7 @@ namespace StackExchange.Redis.Interpolated
             internal static IRespHandler<Lease<float>?> Writable => Instance;
 
             ReadOnlyLease<float>? IRespHandler<ReadOnlyLease<float>?>.Parse(ref RespReader reader)
-                => reader.IsNull ? null : RespHandlers.ReadScalarLease<float>(ref reader, static (ref r) => (float)r.ReadDouble());
+                => reader.IsNull ? null : RespHandlers.ReadScalarLease(ref reader, RespHandlers.Elements.Single);
 
             Lease<float>? IRespHandler<Lease<float>?>.Parse(ref RespReader reader)
                 => CopyOut(((IRespHandler<ReadOnlyLease<float>?>)Instance).Parse(ref reader));
