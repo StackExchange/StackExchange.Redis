@@ -555,6 +555,74 @@ Four consequences, none of them cosmetic:
       staying) or deliberately not yet moved (stream reads). Pick it up when there is appetite for a shape
       decision rather than a transcription.
 
+      ### The proposal, and what prototyping it actually showed
+
+      **Shape** (Marc, 2026-09-15): a disposable root owning the leased contiguous buffer, and a
+      `readonly struct RespAggregate<T>` holding a *slice* of it plus a projection - "think `RespValue` but
+      with an enumerator", with custom leaf types decomposing by walking. The gnarly shapes become deferred
+      walks rather than materialised arrays.
+
+      **It is buildable on what exists, and that was checked rather than assumed.**
+      - `RespValue` is already `(object? owner, int start, int length)`, already documents *"it holds the
+        frame, not the payload"*, and already has exactly this ownership model: *"Uncounted, deliberately...
+        the owner holds the single reference and these are views valid for as long as it is - one disposal
+        on the owner, none on the values inside it."* The only thing making it scalar-only is one
+        `reader.DemandScalar()` at capture.
+      - The capture primitive needs no new reader machinery: `MoveNext()` + `SkipChildren()` bracketed by
+        `BytesConsumed` yields exactly one sub-tree, and `SkipChildren` is already non-recursive. Verified
+        against the real `XRANGE` shape: each window came back as `*2|$3|1-1|*2|$1|f|$1|v|`, independently
+        readable as a complete frame.
+      - Payloads are contiguous (`RespPayload.Span` slices one lease), so `(owner, start, length)` addresses
+        any sub-tree, at any depth.
+
+      **The measurement corrects the motivation.** Prototyped in the test project (it needs nothing
+      non-public) over a 1000-element MGET reply - `RespAggregateProtoTests`:
+
+      | arm | bytes |
+      | --- | --- |
+      | payload alone | 80 |
+      | payload + capture | 80 |
+      | deferred walk | 696 |
+      | lease of windows, indexed | 736 |
+
+      So **capturing is free**, and the deferred walk beats the lease by *40 bytes per 1000 elements* - not
+      the several hundred that "MGET without even a lease or a write-to-array" implies. The reason is that
+      the array is **pooled**, so it was already nearly free; the 40B is the lease object. The ~600B both
+      arms share is the **walk**, which the lease path pays too while filling its array, so it is not a
+      difference between the designs. (What that ~600B *is* remains unattributed - a trivial projection
+      measures the same as a real one, so it is the child enumeration itself. Worth its own look; the reader
+      is meant to be allocation-free.)
+
+      **So the case for this is not flat MGET.** It is:
+      - **nested shapes**, where materialising costs N+1 arrays (`StreamEntry[]` each holding
+        `NameValueEntry[]`) and a deferred walk costs none;
+      - **one field out of a big reply**, where materialising the whole thing to read one entry is waste.
+
+      For flat, indexed, single-pass reads the lease is already the right answer and should stay.
+
+      **Constraints found while exploring, all of which shape the API:**
+      - **Random access is O(n).** RESP is forward-only with variable-length elements, and a
+        `readonly struct` cannot memoise a cursor (and a copy would lose it). `for (i..) agg[i]` is quietly
+        O(n^2) on a type that looks like a list. Offer enumeration; make materialising an explicit step.
+      - **The root should not be generic.** Nesting proves it: one root, a `RespAggregate<StreamEntry>` over
+        it, and inside each entry a `RespAggregate<NameValueEntry>` over the *same* root. Different `T`,
+        same owner - so `RespRoot` (non-generic, `IDisposable`) plus `RespAggregate<T>`.
+      - **The factory takes `(owner, start, length)`, not `ReadOnlyMemory<byte>`** - a memory cannot address
+        a non-array owner without a `MemoryManager`, which is why `RespValue` uses the triple. And prefer a
+        struct projection (`where TProj : struct, IRespProjection<T>`) over a delegate: constrained call, no
+        indirect dispatch per element.
+      - **Deferring the walk defers the errors.** A malformed reply currently throws at parse time, near the
+        send; lazily it throws at access time, possibly after the root is disposed, where it becomes
+        `ObjectDisposedException` instead. A deliberate change, not a detail.
+      - **Holding one entry pins the whole reply buffer.** For a large `XRANGE` where the caller keeps one
+        field that is a big retention, so the `As*` convention from `RespValue` - *"hands back something you
+        own... safe to keep after the buffer has gone"* - has to carry across as the escape hatch.
+      - **Pairwise children need a helper** (Marc): something that takes the span and yields the next
+        element *pairwise*, handling both the linear/interleaved and jagged forms. This must not be a third
+        implementation of that rule - `ValuePairInterleavedProcessorBase.ParseArray` already decides
+        jagged-versus-interleaved from the reply's *content*, once per reply, and the walker should expose
+        that as a pair enumerator rather than re-derive it.
+
 - [ ] **`ARGREP`, the one array command left.** `ArrayGrepRequest` is a mutable builder whose `Predicate`
       subclasses render themselves through the **old** `MessageWriter`, so moving it means deciding how a
       caller-supplied builder writes into the new handler - the same question `StreamConfigure` asks from
