@@ -6360,7 +6360,10 @@ namespace StackExchange.Redis
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
                 => _args.GetHashSlot(serverSelectionStrategy);
 
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            // Not an iterator: the per-connection resolution below has to happen on every write attempt,
+            // including the usual one where nothing is composed and we decline. An iterator would defer it
+            // to the first MoveNext, which never comes when the answer is null.
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
             {
                 // resolved per connection, and re-resolved if we end up talking to a different server
                 useReadOnly = IsReadOnlyScript(command) && CanUseReadOnlyScripts(connection);
@@ -6373,14 +6376,20 @@ namespace StackExchange.Redis
                     // a script was provided (rather than a hash); check it is known and supported
                     asciiHash = bridge.ServerEndPoint.GetScriptHash(_script, command);
 
-                    if (asciiHash == null)
-                    {
-                        var msg = new ScriptLoadMessage(Flags, _script);
-                        msg.SetInternalCall();
-                        msg.SetSource(ResultProcessor.ScriptLoad, null);
-                        yield return msg;
-                    }
+                    if (asciiHash == null) return LoadThenEvaluate();
                 }
+
+                // believed loaded already, or no SCRIPT support to lean on: there is nothing to pair with,
+                // so take the ordinary single-message path rather than an enumerator carrying only us
+                return null;
+            }
+
+            private IEnumerable<Message> LoadThenEvaluate()
+            {
+                var msg = new ScriptLoadMessage(Flags, _script);
+                msg.SetInternalCall();
+                msg.SetSource(ResultProcessor.ScriptLoad, null);
+                yield return msg;
                 yield return this;
             }
 
@@ -6446,7 +6455,8 @@ namespace StackExchange.Redis
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(keys);
 
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            // See the note on the sibling above: deciding is eager, expanding is not.
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
             {
                 // resolved per connection, and re-resolved if we end up talking to a different server
                 useReadOnly = IsReadOnlyScript(command) && CanUseReadOnlyScripts(connection);
@@ -6459,14 +6469,18 @@ namespace StackExchange.Redis
                     // a script was provided (rather than a hash); check it is known and supported
                     asciiHash = bridge.ServerEndPoint.GetScriptHash(script, command);
 
-                    if (asciiHash == null)
-                    {
-                        var msg = new ScriptLoadMessage(Flags, script);
-                        msg.SetInternalCall();
-                        msg.SetSource(ResultProcessor.ScriptLoad, null);
-                        yield return msg;
-                    }
+                    if (asciiHash == null) return LoadThenEvaluate(script);
                 }
+
+                return null; // nothing to pair with; see the sibling above
+            }
+
+            private IEnumerable<Message> LoadThenEvaluate(string script)
+            {
+                var msg = new ScriptLoadMessage(Flags, script);
+                msg.SetInternalCall();
+                msg.SetSource(ResultProcessor.ScriptLoad, null);
+                yield return msg;
                 yield return this;
             }
 

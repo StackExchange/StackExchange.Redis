@@ -809,11 +809,13 @@ namespace StackExchange.Redis
             }
 
             physical.SetWriting();
-            if (message is IMultiMessage multiMessage)
+            // a multi-message may decline to expand - null means "nothing to compose here", and takes the
+            // ordinary single-message path below rather than an enumerator carrying one element
+            if (message is IMultiMessage multiMessage && multiMessage.GetMessages(physical) is { } subCommands)
             {
                 var messageIsSent = false;
                 SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                foreach (var subCommand in multiMessage.GetMessages(physical))
+                foreach (var subCommand in subCommands)
                 {
                     result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                     if (result != WriteResult.Success)

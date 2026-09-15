@@ -573,6 +573,20 @@ namespace StackExchange.Redis
 
         internal void Activate(ConnectionType type, ILogger? log) => GetBridge(type, true, log);
 
+        /// <summary>Whether this endpoint is believed to already hold <paramref name="script"/>.</summary>
+        /// <remarks>
+        /// The belief is <b>soft</b>, and safely so in both directions: believing wrongly that it is held
+        /// costs a <c>NOSCRIPT</c> and a retry, and believing wrongly that it is not costs a redundant
+        /// <c>SCRIPT LOAD</c>, which is idempotent. So it needs no careful invalidation beyond the
+        /// <c>RunId</c> check and <see cref="FlushScriptCache"/> that already exist.
+        /// <para>
+        /// Unlike <see cref="GetScriptHash"/> this has no side effect: that one adopts a hash it was handed
+        /// as an <c>EVALSHA</c> argument, which is a write, and is the wrong question to ask when all you
+        /// want to know is whether a preamble can be skipped.
+        /// </para>
+        /// </remarks>
+        internal bool IsScriptLoaded(string script) => knownScripts[script] is not null;
+
         internal void AddScript(string script, byte[] hash)
         {
             lock (knownScripts)
