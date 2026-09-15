@@ -21,6 +21,7 @@
         public const string GeoRedundantFailover = "SER007";
         public const string Server_8_10 = "SER008";
         public const string Transport = "SER009";
+        public const string MaintenanceNotifications = "SER010";
 
         // ReSharper restore InconsistentNaming
 

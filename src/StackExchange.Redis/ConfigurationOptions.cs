@@ -73,6 +73,58 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            internal static DefaultOptionsProvider ParseDefaultsProvider(string key, string value)
+            {
+                if (!DefaultOptionsProvider.TryGetByName(value, out var provider))
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a known defaults provider name; '{value}' is not one of: {DefaultOptionsProvider.GetKnownNames()}.");
+                }
+                return provider;
+            }
+
+            internal static MaintenanceNotificationMode ParseMaintenanceNotifications(string key, string value)
+            {
+                if (!Enum.TryParse(value, true, out MaintenanceNotificationMode tmp) || !Enum.IsDefined(typeof(MaintenanceNotificationMode), tmp))
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a MaintenanceNotificationMode value; the value '{value}' is not recognised.");
+                }
+                return tmp;
+            }
+
+            internal static MaintenanceEndpointType ParseMaintenanceEndpointType(string key, string value)
+            {
+                if (!Enum.TryParse(value, true, out MaintenanceEndpointType tmp) || !Enum.IsDefined(typeof(MaintenanceEndpointType), tmp))
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a MaintenanceEndpointType value; the value '{value}' is not recognised.");
+                }
+                return tmp;
+            }
+
+            /// <summary>
+            /// Parses one of the maintenance durations, which are expressed in <em>seconds</em> - the unit the
+            /// cross-client contract uses for <c>maintRelaxedTimeout</c>, so a documented value can be pasted
+            /// between clients.
+            /// </summary>
+            /// <remarks>
+            /// Seconds is the odd one out in this file, where every other timeout is milliseconds, and the
+            /// mistake is silent in one direction: a caller who assumes milliseconds and writes 30000 would
+            /// otherwise get an eight-hour relaxed timeout. Hence the upper bound, whose message names the
+            /// unit - it exists to turn that into a diagnosable error rather than a mystery.
+            /// </remarks>
+            internal static TimeSpan ParseMaintenanceSeconds(string key, string value)
+            {
+                const int MaxSeconds = 600;
+                if (!Format.TryParseInt32(value, out int seconds) || seconds < 0)
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a non-negative integer number of seconds; the value '{value}' is not valid.");
+                }
+                if (seconds > MaxSeconds)
+                {
+                    throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' is expressed in seconds, and {seconds}s exceeds the maximum of {MaxSeconds}s; note that this option is not in milliseconds.");
+                }
+                return TimeSpan.FromSeconds(seconds);
+            }
+
             internal static SslProtocols ParseSslProtocols(string key, string? value)
             {
                 // Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
@@ -99,6 +151,7 @@ namespace StackExchange.Redis
                 ChannelPrefix = "channelPrefix",
                 ConfigChannel = "configChannel",
                 ConfigCheckSeconds = "configCheckSeconds",
+                TopologyRefreshSeconds = "topologyRefreshSeconds",
                 ConnectRetry = "connectRetry",
                 ConnectTimeout = "connectTimeout",
                 DefaultDatabase = "defaultDatabase",
@@ -125,6 +178,12 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
+                Defaults = "defaults",
+                MaintenanceNotifications = "maintNotifications",
+                MaintenanceMovingEndpointType = "maintMovingEndpointType",
+                MaintenanceRelaxedTimeout = "maintRelaxedTimeout",
+                MaintenanceRelaxedWindowMax = "maintRelaxedWindowMax",
+                MaintenancePostEventRelaxedDuration = "maintPostEventRelaxed",
                 HighIntegrity = "highIntegrity",
                 TcpKeepAlive = "tcpKeepAlive";
 
@@ -137,6 +196,7 @@ namespace StackExchange.Redis
                 ClientName,
                 ConfigChannel,
                 ConfigCheckSeconds,
+                TopologyRefreshSeconds,
                 ConnectRetry,
                 ConnectTimeout,
                 DefaultDatabase,
@@ -162,6 +222,12 @@ namespace StackExchange.Redis
                 Tunnel,
                 SetClientLibrary,
                 Protocol,
+                Defaults,
+                MaintenanceMovingEndpointType,
+                MaintenanceNotifications,
+                MaintenanceRelaxedTimeout,
+                MaintenanceRelaxedWindowMax,
+                MaintenancePostEventRelaxedDuration,
                 HighIntegrity,
                 TcpKeepAlive,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
@@ -217,6 +283,13 @@ namespace StackExchange.Redis
             SslProtocolsHasValue = 1UL << 32,
             ProtocolHasValue = 1UL << 33,
             AllowSimulateConnectionFailure = 1UL << 34,
+            MaintenanceNotificationsHasValue = 1UL << 35,
+            MaintenanceMovingEndpointTypeHasValue = 1UL << 40,
+            DefaultsHasValue = 1UL << 36,
+            MaintenanceRelaxedTimeoutHasValue = 1UL << 37,
+            MaintenanceRelaxedWindowMaxHasValue = 1UL << 38,
+            MaintenancePostEventRelaxedDurationHasValue = 1UL << 39,
+            TopologyRefreshSecondsHasValue = 1UL << 41,
         }
 
         private OptionFlags optionFlags;
@@ -230,6 +303,7 @@ namespace StackExchange.Redis
         private Version? defaultVersion;
 
         private int keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, connectRetry, configCheckSeconds, defaultDatabase;
+        private int topologyRefreshSeconds;
 
         private Proxy proxy;
 
@@ -242,6 +316,9 @@ namespace StackExchange.Redis
         private SslProtocols sslProtocols;
 
         private RedisProtocol _protocol;
+        private MaintenanceNotificationMode _maintenanceNotifications;
+        private MaintenanceEndpointType _maintenanceMovingEndpointType;
+        private TimeSpan _maintenanceRelaxedTimeout, _maintenanceRelaxedWindowMax, _maintenancePostEventRelaxedDuration;
 
         private bool HasValue(OptionFlags hasValue) => (optionFlags & hasValue) != 0;
 
@@ -314,7 +391,15 @@ namespace StackExchange.Redis
         public DefaultOptionsProvider Defaults
         {
             get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
-            set => defaultOptions = value;
+            set
+            {
+                defaultOptions = value;
+
+                // the getter memoizes an *inferred* provider into the same field, so a flag is the only way to
+                // tell "the caller chose this" from "we worked it out from the endpoints" - and only the former
+                // may be written back out to a configuration string
+                optionFlags |= OptionFlags.DefaultsHasValue;
+            }
         }
 
         /// <summary>
@@ -933,12 +1018,51 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Check configuration every n seconds (every minute by default).
+        /// How often to re-check the replication role of each connected server, in seconds (every minute by
+        /// default), or <c>0</c> to never do so.
         /// </summary>
+        /// <remarks>
+        /// Sends an <c>INFO replication</c> on each *established* interactive connection. That is how a
+        /// primary/replica change is noticed on a deployment that does not announce one, and it doubles as the
+        /// keep-alive for those sockets, which is why the interval is short.
+        /// <para>
+        /// Despite the name, this is not a topology re-read. It asks a server we are already talking to what it
+        /// says about itself, so it reveals nothing about servers we cannot reach, about endpoints that have
+        /// left the deployment, or about cluster slot ownership. <see cref="TopologyRefreshSeconds"/> is the
+        /// setting for that, and is deliberately much less frequent because it costs much more.
+        /// </para>
+        /// </remarks>
         public int ConfigCheckSeconds
         {
             get => HasValue(OptionFlags.ConfigCheckSecondsHasValue) ? configCheckSeconds : (int)Defaults.ConfigCheckInterval.TotalSeconds;
             set => SetWithValue(OptionFlags.ConfigCheckSecondsHasValue, ref configCheckSeconds, value);
+        }
+
+        /// <summary>
+        /// Re-read the deployment's topology every n seconds even when nothing has gone wrong, or <c>0</c> to
+        /// never do so (every 30 minutes by default).
+        /// </summary>
+        /// <remarks>
+        /// A backstop, not the primary mechanism. Topology is normally learned from something happening: a
+        /// redirect from a reachable node, a configuration announcement, a maintenance notification, or a
+        /// connection failing. Each of those needs *somebody* to notice, and the case none of them covers is an
+        /// endpoint that is reachable, answers a handshake, and is no longer part of the deployment - no
+        /// failure, no redirect, nothing announced.
+        /// <para>
+        /// The default is deliberately long, and each refresh is spread by up to 30 seconds of jitter, because
+        /// the cost of this is paid per client: a fleet of them re-reading configuration on the same schedule
+        /// is exactly the stampede that the failure-driven paths are careful to avoid. If you want it off, set
+        /// it to zero.
+        /// </para>
+        /// <para>
+        /// Distinct from <see cref="ConfigCheckSeconds"/>, which despite its name does not re-read topology -
+        /// it sends an <c>INFO replication</c> on an established connection to check a server's role.
+        /// </para>
+        /// </remarks>
+        public int TopologyRefreshSeconds
+        {
+            get => HasValue(OptionFlags.TopologyRefreshSecondsHasValue) ? topologyRefreshSeconds : (int)Defaults.TopologyRefreshInterval.TotalSeconds;
+            set => SetWithValue(OptionFlags.TopologyRefreshSecondsHasValue, ref topologyRefreshSeconds, value);
         }
 
         /// <summary>
@@ -990,6 +1114,7 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618 // Type or member is obsolete
             connectRetry = connectRetry,
             configCheckSeconds = configCheckSeconds,
+            topologyRefreshSeconds = topologyRefreshSeconds,
             responseTimeout = responseTimeout,
             defaultDatabase = defaultDatabase,
             reconnectRetryPolicy = reconnectRetryPolicy,
@@ -1004,6 +1129,10 @@ namespace StackExchange.Redis
             Tunnel = Tunnel,
             LibraryName = LibraryName,
             _protocol = _protocol,
+            _maintenanceNotifications = _maintenanceNotifications,
+            _maintenanceRelaxedTimeout = _maintenanceRelaxedTimeout,
+            _maintenanceRelaxedWindowMax = _maintenanceRelaxedWindowMax,
+            _maintenancePostEventRelaxedDuration = _maintenancePostEventRelaxedDuration,
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
             CircuitBreaker = CircuitBreaker,
@@ -1092,11 +1221,20 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConnectRetry, OptionFlags.ConnectRetryHasValue, in connectRetry);
             Append(sb, OptionKeys.Proxy, OptionFlags.ProxyHasValue, in proxy);
             Append(sb, OptionKeys.ConfigCheckSeconds, OptionFlags.ConfigCheckSecondsHasValue, in configCheckSeconds);
+            Append(sb, OptionKeys.TopologyRefreshSeconds, OptionFlags.TopologyRefreshSecondsHasValue, in topologyRefreshSeconds);
             Append(sb, OptionKeys.ResponseTimeout, OptionFlags.ResponseTimeoutHasValue, in responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, OptionFlags.DefaultDatabaseHasValue, in defaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
             Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
             if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
+            // only when the caller set it *and* it can be named: an inferred provider must not be baked into
+            // the string, or re-parsing would pin a choice that was only ever a guess from the endpoints
+            if (HasValue(OptionFlags.DefaultsHasValue) && defaultOptions?.Name is { } defaultsName) Append(sb, OptionKeys.Defaults, defaultsName);
+            if (HasValue(OptionFlags.MaintenanceNotificationsHasValue)) Append(sb, OptionKeys.MaintenanceNotifications, _maintenanceNotifications.ToString());
+            if (HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)) Append(sb, OptionKeys.MaintenanceMovingEndpointType, _maintenanceMovingEndpointType.ToString());
+            if (HasValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue)) Append(sb, OptionKeys.MaintenanceRelaxedTimeout, FormatMaintenanceSeconds(_maintenanceRelaxedTimeout));
+            if (HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)) Append(sb, OptionKeys.MaintenanceRelaxedWindowMax, FormatMaintenanceSeconds(_maintenanceRelaxedWindowMax));
+            if (HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)) Append(sb, OptionKeys.MaintenancePostEventRelaxedDuration, FormatMaintenanceSeconds(_maintenancePostEventRelaxedDuration));
             Append(sb, OptionKeys.TcpKeepAlive, OptionFlags.TcpKeepAliveHasValue, OptionFlags.TcpKeepAliveValue);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
@@ -1212,6 +1350,8 @@ namespace StackExchange.Redis
 #endif
             Tunnel = null;
             _protocol = default;
+            _maintenanceNotifications = default;
+            _maintenanceRelaxedTimeout = _maintenanceRelaxedWindowMax = _maintenancePostEventRelaxedDuration = default;
             WriteMode = default;
             CircuitBreaker = null;
             RetryPolicy = null;
@@ -1295,6 +1435,9 @@ namespace StackExchange.Redis
                         case OptionKeys.ConnectRetry:
                             ConnectRetry = OptionKeys.ParseInt32(key, value);
                             break;
+                        case OptionKeys.TopologyRefreshSeconds:
+                            TopologyRefreshSeconds = OptionKeys.ParseInt32(key, value);
+                            break;
                         case OptionKeys.ConfigCheckSeconds:
                             ConfigCheckSeconds = OptionKeys.ParseInt32(key, value);
                             break;
@@ -1368,6 +1511,24 @@ namespace StackExchange.Redis
                         case OptionKeys.Protocol:
                             SetWithValue(OptionFlags.ProtocolHasValue, ref _protocol, OptionKeys.ParseRedisProtocol(key, value));
                             break;
+                        case OptionKeys.Defaults:
+                            Defaults = OptionKeys.ParseDefaultsProvider(key, value);
+                            break;
+                        case OptionKeys.MaintenanceNotifications:
+                            SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, OptionKeys.ParseMaintenanceNotifications(key, value));
+                            break;
+                        case OptionKeys.MaintenanceMovingEndpointType:
+                            SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, OptionKeys.ParseMaintenanceEndpointType(key, value));
+                            break;
+                        case OptionKeys.MaintenanceRelaxedTimeout:
+                            SetWithValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue, ref _maintenanceRelaxedTimeout, OptionKeys.ParseMaintenanceSeconds(key, value));
+                            break;
+                        case OptionKeys.MaintenanceRelaxedWindowMax:
+                            SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, OptionKeys.ParseMaintenanceSeconds(key, value));
+                            break;
+                        case OptionKeys.MaintenancePostEventRelaxedDuration:
+                            SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, OptionKeys.ParseMaintenanceSeconds(key, value));
+                            break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
                         case OptionKeys.PreserveAsyncOrder:
@@ -1419,6 +1580,112 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.ProtocolHasValue) ? _protocol : Defaults.Protocol;
             set => Set(OptionFlags.ProtocolHasValue, ref _protocol, value);
         }
+
+        /// <summary>
+        /// Whether to ask servers to send maintenance notifications; note that
+        /// <see cref="MaintenanceNotificationMode.Enabled"/> means <i>required</i> and <b>rejects connections
+        /// that cannot deliver them</b> - <see cref="MaintenanceNotificationMode.Auto"/> is the best-effort
+        /// mode.
+        /// </summary>
+        /// <remarks>
+        /// Requires RESP3, and only Redis Enterprise and Redis Cloud emit them - so the default is
+        /// <see cref="MaintenanceNotificationMode.Disabled"/> rather than spending an extra handshake command
+        /// asking every server in existence a question almost none of them understand.
+        /// <para>
+        /// One exception to <see cref="MaintenanceNotificationMode.Enabled"/> meaning "reject the connection":
+        /// inside a multi-group (geo-redundant) connection the feature is not activated at all, whatever this
+        /// is set to. Combining the two is in development and not yet supported, so the connection succeeds
+        /// without it and a warning says so - failing instead would make an explicit opt-in impossible to
+        /// configure for a group. Expect the restriction to be lifted.
+        /// </para>
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public MaintenanceNotificationMode MaintenanceNotifications
+        {
+            get => HasValue(OptionFlags.MaintenanceNotificationsHasValue) ? _maintenanceNotifications : Defaults.MaintenanceNotifications;
+            set => SetWithValue(OptionFlags.MaintenanceNotificationsHasValue, ref _maintenanceNotifications, value);
+        }
+
+        /// <summary>
+        /// Which form of address a server should name when it announces that an endpoint is moving.
+        /// </summary>
+        /// <remarks>
+        /// Sent as <c>moving-endpoint-type</c> on the maintenance-notification opt-in.
+        /// <see cref="MaintenanceEndpointType.ServerDefault"/> (the default) sends no preference at all, which
+        /// is what the client has always done - and every <c>MOVING</c> observed that way carried no address, so
+        /// a client that wants a named replacement should ask for one. Prefer an FQDN form under TLS: an address
+        /// cannot be validated against a certificate carrying only DNS names.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public MaintenanceEndpointType MaintenanceMovingEndpointType
+        {
+            get => HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)
+                ? _maintenanceMovingEndpointType
+                : Defaults.MaintenanceMovingEndpointType;
+            set => SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
+        }
+
+        /// <summary>
+        /// The value command timeouts are relaxed <em>to</em> while a server has announced a disruption.
+        /// </summary>
+        /// <remarks>
+        /// This is a floor, never a reduction: the effective timeout inside a window is
+        /// <c>max(configured, this)</c>, so a caller with a generous timeout keeps it. Expressed in seconds in
+        /// a configuration string (<c>maintRelaxedTimeout=10</c>), matching the cross-client contract - note
+        /// that this is unlike every other timeout here, which are milliseconds. Only command timeouts are
+        /// relaxed; keep-alive, the heartbeat and connection-failure detection are deliberately untouched, so
+        /// a server that dies mid-maintenance is still noticed on the usual schedule.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public TimeSpan MaintenanceRelaxedTimeout
+        {
+            get => HasValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue) ? _maintenanceRelaxedTimeout : Defaults.MaintenanceRelaxedTimeout;
+            set => SetWithValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue, ref _maintenanceRelaxedTimeout, value);
+        }
+
+        /// <summary>
+        /// The longest a relaxed window may last, however long the server said the disruption would take.
+        /// </summary>
+        /// <remarks>
+        /// A backstop for a closing notification that never arrives, and <em>our invention</em> - the
+        /// notification contract names no upper bound. A window that never closes is worse than one that
+        /// closes early, since relaxation delays the point at which a genuinely slow server surfaces as a
+        /// timeout. Expressed in seconds in a configuration string.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public TimeSpan MaintenanceRelaxedWindowMax
+        {
+            get => HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)
+                ? _maintenanceRelaxedWindowMax
+                : Defaults.MaintenanceRelaxedWindowMax ?? Multiply(MaintenanceRelaxedTimeout, 3);
+            set => SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+        }
+
+        /// <summary>
+        /// How long to keep timeouts relaxed after a disruption reports that it has finished.
+        /// </summary>
+        /// <remarks>
+        /// Also <em>our invention</em>. A closing notification means the server-side operation completed, not
+        /// that the server is back to normal latency - and the moment after it completes is precisely when
+        /// every other client that received the same notification re-engages, so the load spike arrives
+        /// slightly after the all-clear. Does <em>not</em> apply when a window ended by hitting
+        /// <see cref="MaintenanceRelaxedWindowMax"/>: in that case nothing told us the event finished, and
+        /// extending past the backstop would defeat it. Expressed in seconds in a configuration string.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public TimeSpan MaintenancePostEventRelaxedDuration
+        {
+            get => HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)
+                ? _maintenancePostEventRelaxedDuration
+                : Defaults.MaintenancePostEventRelaxedDuration ?? Multiply(MaintenanceRelaxedTimeout, 2);
+            set => SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+        }
+
+        // TimeSpan * int is netstandard2.1+, so this is ticks arithmetic to keep the down-level TFMs building
+        private static TimeSpan Multiply(TimeSpan value, int factor) => TimeSpan.FromTicks(value.Ticks * factor);
+
+        private static string FormatMaintenanceSeconds(TimeSpan value)
+            => ((int)value.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
 

@@ -40,6 +40,7 @@
     <Project Path="tests/RedisConfigs/RedisConfigs.csproj" />
     <Project Path="tests/RESPite.Tests/RESPite.Tests.csproj" />
     <Project Path="tests/StackExchange.Redis.Benchmarks/StackExchange.Redis.Benchmarks.csproj" />
+    <Project Path="tests/StackExchange.Redis.FaultInjector.Tests/StackExchange.Redis.FaultInjector.Tests.csproj" />
     <Project Path="tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj" />
   </Folder>
   <Folder Name="/toys/">
