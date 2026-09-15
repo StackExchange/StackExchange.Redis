@@ -101,22 +101,29 @@ namespace StackExchange.Redis
         /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA.
         /// </summary>
         /// <remarks>
-        /// <b>This controls what the client sends, and nothing more.</b> The name invites a stronger
-        /// reading than it can deliver: the server loads a script into its cache when it runs an
-        /// <c>EVAL</c> too, so the script ends up cached either way. Measured against 8.9.241 - a fresh
-        /// script reports <c>SCRIPT EXISTS</c> 0, then 1 after a single <c>EVAL</c>, and <c>EVALSHA</c>
-        /// then works; <c>EVAL_RO</c> behaves the same.
         /// <para>
-        /// This is documented server behaviour, not an accident - <i>"every script you execute with EVAL is
-        /// stored in a dedicated cache that the server keeps"</i> - so the flag cannot avoid it. What it
-        /// does guarantee is the protocol choice: no <c>SCRIPT LOAD</c> is issued and the script body is
-        /// sent with every call. To remove a script from the server, the command is <c>SCRIPT FLUSH</c>.
+        /// <b>Read it as "a weaker claim on the server's script cache", not as "no cache".</b> The name
+        /// promises more than it can deliver, and the server has moved since it was chosen: a script is
+        /// cached when it is run, not only when it is loaded - <i>"every script you execute with EVAL is
+        /// stored in a dedicated cache that the server keeps"</i> - so nothing a client sends can keep a
+        /// script out of that cache. To remove one, the command is <c>SCRIPT FLUSH</c>.
         /// </para>
         /// <para>
-        /// One consequence worth knowing: from Redis 7.4 the server evicts scripts <i>loaded with EVAL or
-        /// EVAL_RO</i> from the cache under pressure, least-recently-used first. So scripts that arrive
-        /// this way are the evictable ones, where a <c>SCRIPT LOAD</c> is not described as subject to that
-        /// - which is a reason to prefer the default path, not this flag, for anything hot.
+        /// <b>What it does control</b> is the protocol: the script body is sent with every call, no
+        /// <c>SCRIPT LOAD</c> is issued, and no client-side hash is kept - so there is no <c>NOSCRIPT</c>
+        /// round trip to recover from, at the cost of the body on the wire each time.
+        /// </para>
+        /// <para>
+        /// <b>And since Redis 7.4 that is a real choice rather than merely a cheaper one.</b> The server
+        /// evicts scripts <i>loaded with EVAL or EVAL_RO</i> when the cache grows too large,
+        /// least-recently-used first, and that does not extend to <c>SCRIPT LOAD</c>. So this is the
+        /// considerate way to send a script you cannot reuse - a one-off, or one generated per call, which
+        /// the Redis documentation calls an anti-pattern precisely because such scripts accumulate. Sent
+        /// this way they age out under pressure; loaded the usual way they do not.
+        /// </para>
+        /// <para>
+        /// The corollary: do <b>not</b> reach for this on a hot script. There it only adds the body to
+        /// every call and puts the script in the pool that gets evicted first.
         /// </para>
         /// </remarks>
         NoScriptCache = 512,
