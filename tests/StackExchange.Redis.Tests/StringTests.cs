@@ -384,6 +384,42 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
+    public async Task GetSet()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        // GETSET is deprecated in favour of SET ... GET, and the transitional surface sends the modern
+        // spelling - so this is here to pin that the OLD method's semantics survive the substitution.
+        // Without it the only coverage is the KeyPrefixed suites, which assert forwarding, never a server.
+        Assert.True(db.StringGetSet(key, "one").IsNull); // absent: null back, and the value is stored
+        Assert.Equal("one", db.StringGetSet(key, "two"));
+        Assert.Equal("two", await db.StringGetSetAsync(key, "three"));
+        Assert.Equal("three", await db.StringGetAsync(key));
+    }
+
+    [Fact]
+    public async Task GetSetClearsAnyExistingExpiry()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "one", TimeSpan.FromMinutes(10), flags: CommandFlags.FireAndForget);
+
+        Assert.NotNull(await db.KeyTimeToLiveAsync(key));
+
+        // the half of GETSET that a naive rewrite gets wrong: it is a plain SET underneath, so the TTL
+        // goes. The modern spelling only matches while it does NOT also say KEEPTTL.
+        Assert.Equal("one", db.StringGetSet(key, "two"));
+        Assert.Null(await db.KeyTimeToLiveAsync(key));
+    }
+
+    [Fact]
     public async Task SetNotExistsAndGet()
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
