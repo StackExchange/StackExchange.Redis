@@ -67,6 +67,24 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **`WithCache` can hand out a cache the connection never negotiated tracking for.** Found while
+      wiring the handshake, and it is the same silent-wrongness the RESP2 guard exists to prevent,
+      reached by a different door: `RespClientCache`'s constructor is public and `WithCache` is public, so
+      `ctx.WithCache(new RespClientCache())` on a muxer configured with **no** `ConfigurationOptions.
+      ClientCache` gives a context that fills a cache nothing will ever invalidate. The handshake only
+      negotiates when the *muxer* was configured with a cache, so nothing sent `CLIENT TRACKING`.
+
+      Not fixed on the spot because it is a public-shape decision in a file another agent is working in,
+      and there are at least three defensible answers: make the muxer the only thing that can mint a cache
+      (constructor internal); have `WithCache` refuse a cache the connection did not negotiate for; or
+      keep it and let the connection state say whether invalidation is live, so the cache can refuse fills
+      rather than the call refusing outright. The last is the most honest under reconnects — tracking is a
+      per-connection fact, and a downgrade on reconnect has exactly the same shape as this bug.
+
+      Related, and the reason it is worth deciding rather than patching: the muxer's cache is now a
+      service the *connection* has told the server it relies on, so "which cache is in play" stopped being
+      a purely client-side question when the handshake started reading it.
+
 ## Next
 
 - [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
@@ -180,28 +198,6 @@ Four consequences, none of them cosmetic:
       zero. If one does not, we learn which seam is short, rather than that "some commands are awkward".
 
 
-- [ ] **Teach the in-proc server `CLIENT TRACKING`** (`toys/StackExchange.Redis.Server`), for test
-      isolation: the cache suite currently needs a shared 6379, where one test's `FLUSHDB` reaches every
-      other test's tracking connection. Most of the seams already exist - `RespServer.Touch(db, key)` is
-      already a virtual broadcast to every client on every non-readonly key access, `node.OnOutOfBand`
-      already delivers pushes for pub/sub, `TypedRedisValue.Rent(n, out span, PushKind)` builds the frame,
-      and the writer already handles `RespPrefix.Push when value.IsNullArray`, which is the flush shape.
-      New: parse `CLIENT TRACKING ON|OFF [BCAST] [PREFIX p ...]` into per-client state, and fan out.
-
-      **Timing is the part to get right, and it is measured rather than guessed (6.13).** Key
-      invalidations are *accumulated across the write cycle* and emitted **after** the replies - two
-      pipelined `SET`s produce one two-key push after both `+OK`s - so the fake needs an accumulator
-      flushed at the end of a batch, not a send inside `Touch`. `FLUSHDB` is the exception: its
-      `invalidate null` goes out **before** its own `+OK` - though the fake may emit it after, and that
-      is a deliberate, recorded divergence rather than an oversight: the ordering only matters to the client
-      doing the flushing, which has already called `OnFlush` locally, and everyone else receives it
-      unsolicited where ordering means nothing.
-
-      Per-key (non-`BCAST`) mode is nearly as cheap - `OnKey` already runs per key with a `ReadOnly` flag -
-      and is worth having because it is the mode whose "server forgets the key once it has told you"
-      behaviour the `NOLOOP` argument rests on.
-
-
 - [ ] **`Parse(ref RespReader)`, and the row-parser collapse** (§2.2, §6.16). Now with evidence rather
       than a hunch: converting the arrays produced **16 handlers that are all "aggregate of X"** - eight
       array, eight lease - of which six differ only by a one-line projection, which is why they were
@@ -226,18 +222,6 @@ Four consequences, none of them cosmetic:
       A refactor that **deletes** code. Deliberately sequenced after the signature change: the public
       shapes were binary-breaking and time-limited, the handler internals are internal and can be
       collapsed whenever without touching a caller.
-
-- [ ] **`CLIENT TRACKING` negotiation in the real client.** RESP3-only; the mode and prefixes now come
-      from `CacheOptions.TrackingMode` / `CacheOptions.Prefixes`, which are already validated against each
-      other (§6.13). Must refuse **loudly** when RESP3 is unavailable rather than silently caching without
-      invalidation, and the `PREFIX` arguments must come from `CachePolicy.Prefixes` rather than a second
-      list — the cache already refuses keys outside that set, so the two drifting apart would mean either
-      caching what nothing announces, or refusing what something does.
-      **Now the only thing left between `ClientCache` and a cache that works by itself:**
-      hosting and routing are done, so a caller who sets the policy and never issues `CLIENT TRACKING`
-      gets a cache that fills, expires on TTL, and is never invalidated — the exact silent-wrongness this
-      item exists to prevent. Until it lands, `ConfigurationOptions.ClientCache` is experimental in the
-      strong sense.
 
 - [ ] **The rest of the `Execute` family on `TransitionalDatabase`.** `ExecuteResp`/`ExecuteRespAsync` are
       done (a pass-through; the signatures agree exactly). `Execute`/`ExecuteAsync` returning `RedisResult`
@@ -366,6 +350,18 @@ Four consequences, none of them cosmetic:
 - [x] Interface-based default handler lookup; `IRespHandler` made invariant — `a539a538`
 - [x] Stale-while-revalidate on expiry, with background refresh — `253cc2e4`
 - [x] Invalidation grace period, with the read-your-own-writes carve-out — `6b94d588`
+- [x] `CLIENT TRACKING` negotiated by the handshake, and taught to the in-proc server — `75933c61`.
+      Closes both items at once, because they only prove anything together: the real-server tests used to
+      send the command themselves, so they exercised the server and said nothing about the client. Three
+      findings worth keeping:
+      **(a)** the RESP3 check must test the negotiated *intent*, not `connection.Protocol` — `HELLO` is
+      written no-flush/fire-and-forget, so its reply has not landed and the protocol is still unknown at
+      that point in the handshake. Gating on it threw on every connection and the command was never sent.
+      **(b)** "write, read, assert it cached" is a race: our own write is announced back to us (no
+      `NOLOOP`) and can land mid-read, where refusing the fill is correct. Tests read until one sticks.
+      **(c)** asserting what the *client* cached cannot see a wrong `PREFIX` on the wire — dropping it only
+      means being told about more keys than you asked for. The in-proc server exposes what it negotiated
+      so the test can check the wire, which is the only thing that kills that mutant.
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
       invalidation pushes to it through `PhysicalConnection` — `4d608ddd`
