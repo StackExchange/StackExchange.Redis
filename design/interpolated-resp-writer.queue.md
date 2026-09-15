@@ -141,6 +141,16 @@ Four consequences, none of them cosmetic:
       each other, with the shared types (`RespStrings` and friends) in the namespace everyone imports. That
       is a public reshuffle, and it gets more expensive per command group added.
 
+      **Generating the shims was raised and declined** (2026-09-15), so it does not get re-proposed:
+      **generators cost build time on every consumer build**, and analyzers already account for ~40% of a
+      clean build here - which is why they are limited to one TFM. Paying that on every build to save
+      writing one line per group is the wrong trade.
+
+      Write the shims by hand, and **keep them honest with a unit test** rather than a generator: assert
+      that every group accessor has a matching `Downlevel` shim. Same shape as
+      `RespTargetSplitTests.NoGroupBindsToTheBareTarget` and the transitional coverage tests - the rule is
+      enforced, the build stays fast, and a missing shim fails a test rather than silently shipping.
+
       **Do not validate this by pinning `LangVersion`.** A modern compiler at `/langversion:12` reports
       `CS9202`+`CS9339` where a *real* C# 12 compiler succeeds: it still sees the metadata and then refuses
       the feature, where an old compiler never sees it. The emulation is stricter than reality, so anyone
