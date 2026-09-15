@@ -288,6 +288,29 @@ Four consequences, none of them cosmetic:
       store belongs in *inspect* - otherwise a reply nobody awaits promptly, or at all, never populates the
       cache, and a fire-and-forget read silently stops warming it.
 
+      **The split is already ~94% observed, which makes this bounded.** `SetResult` versus `SetResultCore`
+      is the existing proxy for the two jobs, and counting them:
+
+      | | count | becomes |
+      | --- | --- | --- |
+      | override `SetResultCore` only | **89** | pure parse - deferred wholesale, untouched |
+      | override `SetResult` | **6** | the inspection population |
+
+      And the six sort into the verdicts rather than resisting them:
+
+      - `ScriptResultProcessor` - `NoteIfScriptUnavailable`. The only true **reissue** in the library.
+      - `AutoConfigureProcessor`, `TracerProcessor` - read the reply for its effect on the *connection*
+        (server version and features; `SetLatency`). The third verdict is therefore not speculative: it has
+        two occupants before `HELLO`/`CONFIG`/`CLIENT TRACKING` arrive.
+      - `TransactionProcessor`, `HashImportProcessor` - composites and injected preambles, which is the
+        seam the three probes above are already about.
+      - `RespResultProcessor` - a **false positive, and the best argument for the change**. It overrides
+        the outer method only to capture the raw frame *before* `MovePastBof()` advances the reader: it
+        exists because parsing is eager. Under deferred parse, "capture the undecoded bytes and decide
+        later" is the default, so most of it stops having a reason to exist.
+
+      Net: 89 move unchanged, 3 need a verdict, 2 are composite work already planned, 1 gets deleted.
+
 
 - [ ] **Per-context `CachePolicy` override** (`WithCachePolicy`). The other half of the options/policy
       split: policy settings are read-time, so they can vary per call, and the override rides in the
