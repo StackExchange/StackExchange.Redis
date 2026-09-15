@@ -415,7 +415,7 @@ Four consequences, none of them cosmetic:
       `RequiresDatabase`, which is how a server context surfaced it. Fixed by resolving the identity
       alongside the bytes. Invisible until now because a database context has `db >= 0`, where the check
       does not fire.
-- [x] **The inspect/parse split** — `ea26ce61`, `a86e563b`, `7d521699`, `<pending>`. `SetResult` always did
+- [x] **The inspect/parse split** — `ea26ce61`, `a86e563b`, `7d521699`, `d338591e`. `SetResult` always did
       two jobs; `Inspect` is now the first, and it can direct as well as record - `Complete` or `Reissue`,
       with `NotYet` reserved for `WATCH`. A `Reissue` re-writes the message and returns `false` from
       `SetResult` ("re-issued, do not complete"), which is not new machinery: it is what `MOVED` has always
