@@ -1903,17 +1903,8 @@ namespace StackExchange.Redis
             }
         }
 
-        private static GeoPosition? ParseGeoPosition(ref RespReader reader)
-        {
-            if (reader.IsAggregate && reader.AggregateLengthIs(2)
-                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var longitude)
-                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var latitude)
-                && !reader.TryMoveNext())
-            {
-                return new GeoPosition(longitude, latitude);
-            }
-            return null;
-        }
+        // as GeoRadiusResult: the shape lives on the type, and both readers go through it
+        private static GeoPosition? ParseGeoPosition(ref RespReader reader) => GeoPosition.TryRead(ref reader);
 
         private sealed class GeoRadiusResultArrayProcessor : ResultProcessor<GeoRadiusResult[]>
         {
@@ -1943,54 +1934,10 @@ namespace StackExchange.Redis
                 return false;
             }
 
+            // the shape lives on the type it produces, so the interpolated surface's handler reads the
+            // identical reply the identical way; see GeoRadiusResult.Resp.cs
             private static GeoRadiusResult Parse(ref RespReader reader, GeoRadiusOptions options)
-            {
-                if (options == GeoRadiusOptions.None)
-                {
-                    // Without any WITH option specified, the command just returns a linear array like ["New York","Milan","Paris"].
-                    return new GeoRadiusResult(reader.ReadRedisValue(), null, null, null);
-                }
-
-                // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                if (!reader.IsAggregate)
-                {
-                    return default;
-                }
-
-                reader.MoveNext(); // Move to first element in the sub-array
-
-                // the first item in the sub-array is always the name of the returned item.
-                var member = reader.ReadRedisValue();
-
-                /*  The other information is returned in the following order as successive elements of the sub-array.
-The distance from the center as a floating point number, in the same unit specified in the radius.
-The geohash integer.
-The coordinates as an array of two items x,y (longitude,latitude).
-                 */
-                double? distance = null;
-                GeoPosition? position = null;
-                long? hash = null;
-
-                if ((options & GeoRadiusOptions.WithDistance) != 0)
-                {
-                    reader.MoveNextScalar();
-                    distance = reader.ReadDouble();
-                }
-
-                if ((options & GeoRadiusOptions.WithGeoHash) != 0)
-                {
-                    reader.MoveNextScalar();
-                    hash = reader.TryReadInt64(out var h) ? h : null;
-                }
-
-                if ((options & GeoRadiusOptions.WithCoordinates) != 0)
-                {
-                    reader.MoveNextAggregate();
-                    position = ParseGeoPosition(ref reader);
-                }
-
-                return new GeoRadiusResult(member, distance, hash, position);
-            }
+                => GeoRadiusResult.Read(ref reader, options);
         }
 
         /// <summary>

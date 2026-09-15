@@ -264,5 +264,45 @@
         /// <summary>The <c>STORE</c> operand of <c>SORT</c>; a destination key follows it.</summary>
         [Resp]
         internal static partial RespFragment Store { get; }
+
+        /// <summary>The <c>ASC</c> ordering.</summary>
+        [Resp]
+        internal static partial RespFragment Asc { get; }
+
+        /// <summary>The <c>FROMMEMBER</c> origin of <c>GEOSEARCH</c>; a member follows it.</summary>
+        [Resp]
+        internal static partial RespFragment FromMember { get; }
+
+        /// <summary>The <c>FROMLONLAT</c> origin of <c>GEOSEARCH</c>; two coordinates follow it.</summary>
+        [Resp]
+        internal static partial RespFragment FromLonLat { get; }
+
+        /// <summary>The <c>BYRADIUS</c> shape; a radius and a unit follow it.</summary>
+        [Resp]
+        internal static partial RespFragment ByRadius { get; }
+
+        /// <summary>The <c>BYBOX</c> shape; a width, a height and a unit follow it.</summary>
+        [Resp]
+        internal static partial RespFragment ByBox { get; }
+
+        /// <summary>The <c>ANY</c> operand of <c>GEOSEARCH</c>: stop as soon as COUNT is satisfied.</summary>
+        [Resp]
+        internal static partial RespFragment Any { get; }
+
+        /// <summary>The <c>WITHCOORD</c> operand of the geo queries.</summary>
+        [Resp]
+        internal static partial RespFragment WithCoord { get; }
+
+        /// <summary>The <c>WITHDIST</c> operand of the geo queries.</summary>
+        [Resp]
+        internal static partial RespFragment WithDist { get; }
+
+        /// <summary>The <c>WITHHASH</c> operand of the geo queries.</summary>
+        [Resp]
+        internal static partial RespFragment WithHash { get; }
+
+        /// <summary>The <c>STOREDIST</c> operand of <c>GEOSEARCHSTORE</c>.</summary>
+        [Resp]
+        internal static partial RespFragment StoreDist { get; }
     }
 }

@@ -105,6 +105,11 @@ namespace StackExchange.Redis
         public bool GetDelete => Version.IsAtLeast(v6_2_0);
 
         /// <summary>
+        /// Is <see href="https://redis.io/commands/geosearch/">GEOSEARCH</see> available?
+        /// </summary>
+        public bool GeoSearch => Version.IsAtLeast(v6_2_0);
+
+        /// <summary>
         /// Is <see href="https://redis.io/commands/hstrlen/">HSTRLEN</see> available?
         /// </summary>
         public bool HashStringLength => Version.IsAtLeast(v3_2_0);
