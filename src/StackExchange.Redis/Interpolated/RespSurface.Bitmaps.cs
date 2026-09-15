@@ -238,7 +238,7 @@ namespace StackExchange.Redis.Interpolated
 
             // counted up front, so a default operation throws at the caller rather than mid-write
             var argCount = BitFieldOperation.CountArgs(operations, nameof(operations));
-            var command = SelectCommand(bitmaps.Context, operations, ref flags);
+            var command = SelectCommand(bitmaps.Context, key, operations, ref flags);
 
             var cmd = bitmaps.Context.Compose(command, argCount);
             try
@@ -277,6 +277,7 @@ namespace StackExchange.Redis.Interpolated
             var argCount = BitFieldOperation.CountArgs(in operation, nameof(operation));
             var command = SelectCommand(
                 bitmaps.Context,
+                key,
                 allGet: operation.Kind == BitFieldOperation.OperationKind.Get,
                 anyIncrement: operation.Kind == BitFieldOperation.OperationKind.IncrementBy,
                 ref flags);
@@ -308,7 +309,7 @@ namespace StackExchange.Redis.Interpolated
         /// state, and only INCRBY compounds. Only the "is the read-only command available?" input differs,
         /// because here it is answered by the command map instead of by the endpoint's version.
         /// </remarks>
-        private static RedisCommand SelectCommand(in RespContext context, ReadOnlySpan<BitFieldOperation> operations, ref CommandFlags flags)
+        private static RedisCommand SelectCommand(in RespContext context, in RedisKey key, ReadOnlySpan<BitFieldOperation> operations, ref CommandFlags flags)
         {
             bool allGet = true, anyIncrement = false;
             foreach (ref readonly var operation in operations)
@@ -327,13 +328,20 @@ namespace StackExchange.Redis.Interpolated
                 }
             }
 
-            return SelectCommand(in context, allGet, anyIncrement, ref flags);
+            return SelectCommand(in context, key, allGet, anyIncrement, ref flags);
         }
 
-        /// <inheritdoc cref="SelectCommand(in RespContext, ReadOnlySpan{BitFieldOperation}, ref CommandFlags)"/>
-        private static RedisCommand SelectCommand(in RespContext context, bool allGet, bool anyIncrement, ref CommandFlags flags)
+        /// <inheritdoc cref="SelectCommand(in RespContext, in RedisKey, ReadOnlySpan{BitFieldOperation}, ref CommandFlags)"/>
+        private static RedisCommand SelectCommand(in RespContext context, in RedisKey key, bool allGet, bool anyIncrement, ref CommandFlags flags)
         {
-            var readOnlyAvailable = allGet && context.CommandMap.IsAvailable(RedisCommand.BITFIELD_RO);
+            // BITFIELD_RO has to be BOTH mapped and actually present: the map is configuration, the
+            // version is fact, and guessing wrong here costs an unknown-command error rather than a
+            // slower path. Where nothing is known - a bare context, a cold multiplexer - this reports
+            // false and the writable command goes out, which works everywhere.
+            var readOnlyAvailable = allGet
+                && context.CommandMap.IsAvailable(RedisCommand.BITFIELD_RO)
+                && context.TryGetFeatures(RedisCommand.BITFIELD_RO, in key, flags, out var features)
+                && features.BitFieldReadOnly;
             var command = RedisDatabase.SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags);
             flags = flags.WithDefaultCategory(command);
             return command;

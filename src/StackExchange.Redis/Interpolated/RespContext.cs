@@ -66,6 +66,20 @@ namespace StackExchange.Redis.Interpolated
             internal RedisChannel Channel { get; } = channel;
         }
 
+        /// <summary>
+        /// An entry meaning "explicitly nothing of this type", so that a context can turn a service off
+        /// without discarding the rest of the chain.
+        /// </summary>
+        /// <remarks>
+        /// The chain is prepend-and-shadow, which gives replacement for free but leaves no way to say
+        /// <i>none</i> - and <c>WithCache(null)</c> has to mean something. Matching is by exact type, the
+        /// type whose lookup it answers, so a veto is invisible to any other request.
+        /// </remarks>
+        private sealed class ServiceVeto(Type serviceType)
+        {
+            internal Type ServiceType { get; } = serviceType;
+        }
+
         /// <summary>Services in one slot, as a chain: a service plus whatever was already there.</summary>
         /// <remarks>
         /// <para>
@@ -83,11 +97,25 @@ namespace StackExchange.Redis.Interpolated
         {
             public object? GetService(Type serviceType)
             {
-                if (serviceType.IsInstanceOfType(service)) return service;
+                if (TryMatch(service, serviceType, out var match)) return match;
 
                 return tail is IServiceProvider provider
                     ? provider.GetService(serviceType)
-                    : serviceType.IsInstanceOfType(tail) ? tail : null;
+                    : TryMatch(tail, serviceType, out match) ? match : null;
+            }
+
+            /// <summary>Whether one entry answers a request - with the service, or with nothing for a veto.</summary>
+            private static bool TryMatch(object candidate, Type serviceType, out object? match)
+            {
+                if (candidate is ServiceVeto veto)
+                {
+                    // a veto answers its own type and stops the walk there; anything else carries on past
+                    match = null;
+                    return veto.ServiceType == serviceType;
+                }
+
+                match = serviceType.IsInstanceOfType(candidate) ? candidate : null;
+                return match is not null;
             }
 
             internal static object Add(object? existing, object service)
@@ -111,7 +139,9 @@ namespace StackExchange.Redis.Interpolated
         {
             switch (_services)
             {
-                case T typed:
+                // a lone ServiceVeto is a "none" and nothing else, so it falls through to not-found rather
+                // than being handed back as a service
+                case not ServiceVeto and T typed:
                     service = typed;
                     return true;
                 case IServiceProvider provider when provider.GetService(typeof(T)) is T resolved:
@@ -175,6 +205,39 @@ namespace StackExchange.Redis.Interpolated
         public RespScriptCache? ScriptCache => TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
 
         private readonly CommandMap? _commandMap;
+
+        /// <summary>
+        /// Ask what the server that would receive <paramref name="command"/> can do; see
+        /// <see cref="IRespServerFeatures"/> for why this is a service and not something the context knows.
+        /// </summary>
+        /// <param name="command">The command whose routing decides which server answers.</param>
+        /// <param name="key">The key being addressed, or <c>default</c> when the command routes to none.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <param name="features">The best answer available; populated either way.</param>
+        /// <returns><see langword="false"/> when nothing is known - including when no such service is present.</returns>
+        internal bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
+        {
+            if (TryGetService<IRespServerFeatures>(out var probe))
+            {
+                // the key prefix is part of the CONTEXT here, not of the key, and it is applied at write
+                // time - so the key a caller hands us is not yet the key the server will see, and in a
+                // cluster those bytes are what pick the node. Compose first, exactly as AppendFormatted
+                // will, or we would sample the version of a node that never sees this command. A null key
+                // means "routes to no particular key" and stays null: prefixing it would invent one.
+                if (_keyPrefix is { Length: > 0 } && !key.IsNull)
+                {
+                    var prefixed = RedisKey.WithPrefix(_keyPrefix, key);
+                    return probe.TryGetFeatures(command, in prefixed, flags, out features);
+                }
+
+                return probe.TryGetFeatures(command, in key, flags, out features);
+            }
+
+            // no probe: a bare context, a test fake, a hand-wired executor. Nothing is known, and every
+            // caller of this treats that as "use the spelling that works everywhere".
+            features = default;
+            return false;
+        }
 
         /// <summary>
         /// The command map. Note this copes with <c>default(RespContext)</c>: a struct always has an implicit
@@ -246,29 +309,52 @@ namespace StackExchange.Redis.Interpolated
         public RespContext WithChannelPrefix(RedisChannel channelPrefix)
             // a null prefix shadows any earlier one with an empty service rather than removing it: the
             // chain stays append-only, and ChannelPrefix reads default from it either way
-            => WithServices(ServiceLink.Add(_services, new ChannelPrefixService(channelPrefix)));
+            => WithServices(new ChannelPrefixService(channelPrefix));
 
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>
         internal RespContext WithExecutor(IRespExecutor? executor)
             => new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, executor, _services);
 
-        /// <summary>A copy of this context carrying <paramref name="services"/>.</summary>
-        /// <param name="services">The service, or an <see cref="IServiceProvider"/>, or <c>null</c>.</param>
+        /// <summary>
+        /// A copy of this context carrying <paramref name="services"/> <i>in addition to</i> whatever it
+        /// already has.
+        /// </summary>
+        /// <param name="services">The service, or an <see cref="IServiceProvider"/>; <c>null</c> adds nothing.</param>
+        /// <remarks>
+        /// <para>
+        /// Composing, never replacing. A context is built up in stages by callers who do not know each
+        /// other - the multiplexer attaches a cache, a caller adds a probe - so a slot that assigned would
+        /// make <c>.WithCache(x).WithServices(y)</c> quietly lose the cache, with nothing to see but cache
+        /// misses much later. Re-binding still needs no code: the newest of a type wins by lookup order.
+        /// </para>
+        /// <para>
+        /// Turning something off is <see cref="WithCache"/>/<see cref="WithScriptCache"/> with
+        /// <c>null</c>, which shadows just that one rather than emptying the slot.
+        /// </para>
+        /// </remarks>
         public RespContext WithServices(object? services)
-            => new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, Executor, services);
+            => services is null
+                ? this
+                : new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, Executor, ServiceLink.Add(_services, services));
+
+        /// <summary>A copy of this context where <paramref name="serviceType"/> reads as absent.</summary>
+        private RespContext WithoutService(Type serviceType)
+            => _services is null ? this : WithServices(new ServiceVeto(serviceType));
 
         /// <summary>A copy of this context that consults <paramref name="cache"/>.</summary>
         /// <param name="cache">The cache to consult, or <c>null</c> for none.</param>
         /// <remarks>Sugar over <see cref="WithServices"/>; "a context with a cache" is just a context whose
         /// services include one.</remarks>
-        public RespContext WithCache(RespClientCache? cache) => WithServices(cache);
+        public RespContext WithCache(RespClientCache? cache)
+            => cache is null ? WithoutService(typeof(RespClientCache)) : WithServices(cache);
 
         /// <summary>A copy of this context that renders each script only once.</summary>
         /// <param name="scripts">The registry to use, or <c>null</c> for none.</param>
         /// <remarks>Without one, a script's <c>SCRIPT LOAD</c> is rendered afresh on every call - correct,
         /// and wasteful for anything used more than once.</remarks>
-        public RespContext WithScriptCache(RespScriptCache? scripts) => WithServices(scripts);
+        public RespContext WithScriptCache(RespScriptCache? scripts)
+            => scripts is null ? WithoutService(typeof(RespScriptCache)) : WithServices(scripts);
 
         /// <summary>
         /// Run an arbitrary command and return the raw reply - the escape hatch, for commands this library
@@ -341,7 +427,7 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// </remarks>
         public RespContext WithMaxCacheAge(TimeSpan maxAge)
-            => WithServices(ServiceLink.Add(_services, new MaxCacheAgeService(maxAge)));
+            => WithServices(new MaxCacheAgeService(maxAge));
 
         /// <summary>The caller's freshness requirement, if they stated one.</summary>
         internal long MaxCacheAgeTicks

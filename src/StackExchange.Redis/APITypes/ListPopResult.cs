@@ -5,7 +5,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// A contiguous portion of a redis list.
 /// </summary>
-public readonly struct ListPopResult
+public readonly partial struct ListPopResult
 {
     /// <summary>
     /// A null ListPopResult, indicating no results.

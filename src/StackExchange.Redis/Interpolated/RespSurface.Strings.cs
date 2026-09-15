@@ -449,6 +449,54 @@ namespace StackExchange.Redis.Interpolated
                     flags.WithRetryCategory(when.RetryCategory)
                          .WithDefaultCategory(RedisCommand.SET));
 
+        /// <summary>
+        /// <c>SET ... GET</c> where the server has it, <c>GETSET</c> where it does not: the old
+        /// <c>StringGetSet</c> shape, and nothing more.
+        /// </summary>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to write.</param>
+        /// <param name="value">The value to write.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// Internal, and deliberately not part of the group's own surface: the modern spelling is
+        /// <see cref="SetAndGet(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>,
+        /// which composes with a condition and an expiration as <c>GETSET</c> never could. This exists so
+        /// that a caller of the <b>old</b> method keeps working against a server older than 6.2, where
+        /// <c>SET ... GET</c> is a syntax error.
+        /// </para>
+        /// <para>
+        /// A null value throws, as the old method always has - it builds a key/value message, and those
+        /// assert. <c>SetAndGet</c> instead reads a null as a delete, matching <c>Set</c>; inheriting that
+        /// here would turn a call that used to fail loudly into one that silently removes the key.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="ArgumentException">If <paramref name="value"/> is null.</exception>
+        internal static ValueTask<RedisValue> GetSet(
+            this in RespStrings strings,
+            RedisKey key,
+            RedisValue value,
+            CommandFlags flags = CommandFlags.None)
+        {
+            value.AssertNotNull();
+
+            var context = strings.Context;
+            if (context.CommandMap.IsAvailable(RedisCommand.SET)
+                && context.TryGetFeatures(RedisCommand.SET, in key, flags, out var features)
+                && features.SetAndGet)
+            {
+                return context.SendAsync<RedisValue>(
+                    $"{RedisCommand.SET}{key}{value}{RespLiterals.Get}",
+                    flags.WithDefaultCategory(RedisCommand.SET));
+            }
+
+            // not known to be 6.2+, so the deprecated spelling, which every server understands. "Not sure"
+            // has to mean the old one: the new one fails outright where it is missing.
+            return context.SendAsync<RedisValue>(
+                $"{RedisCommand.GETSET}{key}{value}",
+                flags.WithDefaultCategory(RedisCommand.GETSET));
+        }
+
         /// <summary>DEL/DELEX: remove a key, optionally only if it still holds what you think it does.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to remove.</param>

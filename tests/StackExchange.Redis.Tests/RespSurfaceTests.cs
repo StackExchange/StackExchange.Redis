@@ -114,6 +114,68 @@ public class RespSurfaceTests
     }
 
     [Fact]
+    public void WithServicesAddsRatherThanReplaces()
+    {
+        using var cache = new RespClientCache();
+        var probe = new Marker();
+
+        // a context is built up in stages by callers who do not know each other - the multiplexer attaches
+        // a cache, someone downstream adds a probe - so an assigning slot would drop the cache here, with
+        // nothing to see but cache misses much later. That bug was real; this is what caught it.
+        var ctx = new RespContext().WithCache(cache).WithServices(probe);
+
+        Assert.Same(cache, ctx.Cache);
+        Assert.True(ctx.TryGetService<Marker>(out var found));
+        Assert.Same(probe, found);
+
+        // and nothing is not something: adding it leaves the context alone rather than emptying the slot
+        Assert.Same(cache, ctx.WithServices(null).Cache);
+    }
+
+    [Fact]
+    public void ACacheCanBeTurnedOffWithoutLosingTheRestOfTheChain()
+    {
+        using var cache = new RespClientCache();
+        var scripts = new RespScriptCache();
+        var probe = new Marker();
+
+        var ctx = new RespContext()
+            .WithCache(cache)
+            .WithScriptCache(scripts)
+            .WithServices(probe)
+            .WithChannelPrefix(RedisChannel.Literal("app:"));
+
+        // "no cache" has to remain expressible now that the slot composes - it shadows just that lookup,
+        // which is the whole reason the chain can veto as well as supply
+        var uncached = ctx.WithCache(null);
+        Assert.Null(uncached.Cache);
+        Assert.Same(scripts, uncached.ScriptCache);
+        Assert.Equal("app:", (string?)uncached.ChannelPrefix);
+        Assert.True(uncached.TryGetService<Marker>(out _));
+
+        // the same for the script registry, and the two do not shadow each other
+        var unscripted = ctx.WithScriptCache(null);
+        Assert.Null(unscripted.ScriptCache);
+        Assert.Same(cache, unscripted.Cache);
+
+        // a veto shadows rather than removes, so putting one back is just another add
+        Assert.Same(cache, uncached.WithCache(cache).Cache);
+    }
+
+    [Fact]
+    public void TurningOffWhatWasNeverOnCostsNothing()
+    {
+        // the common shape in tests and in any optional-cache wiring: WithCache(null) on a context that
+        // has no services at all should not allocate a veto to shadow something that is not there
+        var ctx = new RespContext().WithCache(null).WithScriptCache(null);
+
+        Assert.Null(ctx.Cache);
+        Assert.False(ctx.TryGetService<Marker>(out _));
+    }
+
+    private sealed class Marker;
+
+    [Fact]
     public void ChannelPrefixSurvivesUnrelatedClones()
     {
         var ctx = new RespContext().WithChannelPrefix(RedisChannel.Literal("app:")).WithDatabase(4).WithKeyPrefix("t7:");

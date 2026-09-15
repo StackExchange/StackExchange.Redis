@@ -44,11 +44,33 @@ namespace StackExchange.Redis
                         database: Database,
                         serverType: multiplexer.ServerSelectionStrategy.ServerType)
                         .WithExecutor(new Interpolated.RespMessageExecutor(this, Database))
-                        .WithCache(multiplexer.ClientCache);
+                        .WithCache(multiplexer.ClientCache)
+                        .WithServices(new ServerFeatureProbe(this));
                     _haveContext = true;
                 }
 
                 return _context;
+            }
+        }
+
+        /// <summary>
+        /// Lets the context surface ask what the receiving server can do, which is the one thing a context
+        /// cannot know for itself; see <see cref="Interpolated.IRespServerFeatures"/>.
+        /// </summary>
+        /// <remarks>
+        /// A thin adapter over <see cref="RedisBase.GetFeatures"/> rather than a second copy of the rule -
+        /// so the two surfaces necessarily agree about what a given server supports, and a
+        /// <c>KeyPrefixedDatabase</c> or anything else that overrides that method is honoured for free.
+        /// </remarks>
+        private sealed class ServerFeatureProbe(RedisBase database) : Interpolated.IRespServerFeatures
+        {
+            public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
+            {
+                features = database.GetFeatures(key, flags, command, out var server);
+
+                // the features are always usable - GetFeatures falls back to the configured default
+                // version - but only a selected server makes them an observation rather than a guess
+                return server is not null;
             }
         }
 

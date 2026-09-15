@@ -48,6 +48,20 @@ public class RespSurfaceStringsTests
             => new(Send(request));
     }
 
+    /// <summary>A feature probe that answers with whatever version it was told.</summary>
+    private sealed class FakeFeatures(RedisFeatures features, bool known = true) : IRespServerFeatures
+    {
+        /// <summary>The keys this was asked about, as the probe saw them.</summary>
+        public List<RedisKey> Keys { get; } = [];
+
+        public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures result)
+        {
+            Keys.Add(key);
+            result = features;
+            return known;
+        }
+    }
+
     private static (RespContext Context, FakeExecutor Executor) Target(params string[] replies)
     {
         var executor = new FakeExecutor(replies.Length == 0 ? ["+OK\r\n"] : replies);
@@ -469,14 +483,119 @@ public class RespSurfaceStringsTests
     [Fact]
     public async Task AnAllGetBitFieldGoesOutAsTheReadOnlyCommand()
     {
-        var (ctx, exec) = Target("*1\r\n:7\r\n");
+        var (bare, exec) = Target("*1\r\n:7\r\n");
+        var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))));
 
         Assert.Equal(7, await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0)));
 
         // BITFIELD is a write to the server however read-only its sub-operations are, so an all-GET
-        // payload has to say BITFIELD_RO or a replica will refuse it
+        // payload has to say BITFIELD_RO or a replica will refuse it - but only where it exists, which
+        // is what the feature probe is for
         Assert.Equal("*5|$11|BITFIELD_RO|$1|k|$3|GET|$2|u8|$1|0|", Assert.Single(exec.Sent));
         Assert.Equal(CommandFlags.CommandRetryReadOnly, Assert.Single(exec.Flags) & Message.MaskRetryCategory);
+    }
+
+    [Fact]
+    public async Task AnAllGetBitFieldStaysWritableWhenTheServerIsTooOld()
+    {
+        var (bare, exec) = Target("*1\r\n:7\r\n");
+        var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(5, 0))));
+
+        await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
+
+        // BITFIELD_RO arrived in 6.0; on anything older the read-only spelling is an unknown-command
+        // error, which is strictly worse than losing replica eligibility
+        Assert.StartsWith("*5|$8|BITFIELD|", Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task GetSetUsesTheModernSpellingWhereTheServerHasIt()
+    {
+        var (bare, exec) = Target("$3\r\nold\r\n");
+        var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))));
+
+        Assert.Equal("old", await ctx.Strings.GetSet("k", "new"));
+
+        // GETSET has been deprecated since 6.2 in favour of SET ... GET; same request, same reply
+        Assert.Equal("*4|$3|SET|$1|k|$3|new|$3|GET|", Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task GetSetStaysDeprecatedWhereTheServerIsTooOldOrUnknown()
+    {
+        var (old, oldExec) = Target("$3\r\nold\r\n");
+        var (bare, bareExec) = Target("$3\r\nold\r\n");
+
+        await old.WithServices(new FakeFeatures(new RedisFeatures(new Version(6, 0)))).Strings.GetSet("k", "new");
+
+        // and with no probe at all - a bare context, a cold multiplexer - "not sure" has to mean the old
+        // spelling: SET ... GET is a syntax error before 6.2, where GETSET works everywhere
+        await bare.Strings.GetSet("k", "new");
+
+        Assert.Equal("*3|$6|GETSET|$1|k|$3|new|", Assert.Single(oldExec.Sent));
+        Assert.Equal("*3|$6|GETSET|$1|k|$3|new|", Assert.Single(bareExec.Sent));
+    }
+
+    [Fact]
+    public void GetSetRejectsANullValueRatherThanDeletingTheKey()
+    {
+        var (bare, exec) = Target("$3\r\nold\r\n");
+        var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))));
+
+        // SetAndGet reads a null value as a delete, matching Set - but the old StringGetSet builds a
+        // key/value message and those assert, so it has always thrown here. Inheriting the improvement
+        // would turn a loud failure into a silent KeyDelete, which is why both spellings refuse it.
+        Assert.Throws<ArgumentException>(() => ctx.Strings.GetSet("k", RedisValue.Null));
+        Assert.Throws<ArgumentException>(() => bare.Strings.GetSet("k", RedisValue.Null));
+
+        Assert.Empty(exec.Sent);
+    }
+
+    [Fact]
+    public async Task TheFeatureProbeIsAskedAboutTheKeyTheServerWillSee()
+    {
+        var (bare, exec) = Target("*1\r\n:7\r\n");
+        var probe = new FakeFeatures(new RedisFeatures(new Version(7, 0)));
+        var ctx = bare.WithServices(probe).WithKeyPrefix("t:");
+
+        await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
+
+        // on this surface the key prefix is CONTEXT state applied at write time, not something a
+        // KeyPrefixed* decorator already baked into the RedisKey - so "k" is not the key that goes out. The
+        // probe routes by those bytes, so in a cluster asking about "k" samples the version of whichever
+        // node owns the unprefixed slot, which may not be the node that answers this command.
+        Assert.Equal("t:k", Assert.Single(probe.Keys));
+        Assert.Equal("*5|$11|BITFIELD_RO|$3|t:k|$3|GET|$2|u8|$1|0|", Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public void TheFeatureProbeSeesBothPrefixesAndNeitherWhenThereIsNoKey()
+    {
+        var probe = new FakeFeatures(new RedisFeatures(new Version(7, 0)));
+        var ctx = new RespContext().WithServices(probe).WithKeyPrefix("t:");
+
+        // a key may ALREADY carry a prefix of its own; the two compose rather than one winning, exactly as
+        // AppendFormatted composes them when writing
+        ctx.TryGetFeatures(RedisCommand.BITFIELD_RO, ((RedisKey)"k").Prepend("inner:"), CommandFlags.None, out _);
+
+        // and a null key means "routes to no particular key"; prefixing that would invent a key made only
+        // of the prefix, and route on it
+        ctx.TryGetFeatures(RedisCommand.PING, default, CommandFlags.None, out _);
+
+        Assert.Equal(new RedisKey[] { "t:inner:k", default }, probe.Keys);
+    }
+
+    [Fact]
+    public async Task AnAllGetBitFieldStaysWritableWhenNothingIsKnown()
+    {
+        // no probe at all: a bare context, a hand-wired executor, a cold multiplexer. "Not sure" has to
+        // mean "use the spelling that works everywhere", which is what makes the probe safe to adopt one
+        // command at a time rather than all at once.
+        var (ctx, exec) = Target("*1\r\n:7\r\n");
+
+        await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, 0));
+
+        Assert.StartsWith("*5|$8|BITFIELD|", Assert.Single(exec.Sent));
     }
 
     [Fact]
@@ -497,7 +616,8 @@ public class RespSurfaceStringsTests
     {
         var (ctx, exec) = Target("*1\r\n:0\r\n");
 
-        await ctx.Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Element(2)));
+        await ctx.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))))
+            .Bitmaps.Field("k", BitFieldOperation.Get(BitFieldEncoding.UInt8, BitFieldOffset.Element(2)));
 
         Assert.Equal("*5|$11|BITFIELD_RO|$1|k|$3|GET|$2|u8|$2|#2|", Assert.Single(exec.Sent));
     }
