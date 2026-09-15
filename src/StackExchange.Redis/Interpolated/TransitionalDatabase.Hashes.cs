@@ -15,9 +15,9 @@ namespace StackExchange.Redis.Interpolated
     /// <c>persist</c>/<c>keepTtl</c> parameters were spelling out between them.
     /// </para>
     /// <para>
-    /// <c>HashScan</c> stays in <c>TransitionalDatabase.Scans.cs</c>, and <c>HashImport</c> stays with the
-    /// generated members: it needs a connection-local <c>PREPARE</c> injected ahead of it, which is a
-    /// property of the write path rather than of the command, and the frame path has no way to say it.
+    /// <c>HashScan</c> stays in <c>TransitionalDatabase.Scans.cs</c>. <c>HashImport</c> stays with the
+    /// generated members, and the reason is worth stating precisely because the obvious version of it is
+    /// wrong: see <see cref="HashImport"/>.
     /// </para>
     /// </remarks>
     internal sealed partial class TransitionalDatabase

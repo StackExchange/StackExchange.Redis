@@ -144,7 +144,9 @@ public class TransitionalCoverageTests
 
         // the ones deliberately left behind, each for a reason that is not "not done yet":
         // - StringGetWithExpiry pipelines TTL+GET, and a composite is not a frame
-        // - HashImport needs a connection-local PREPARE injected ahead of it
+        // - HashImport references connection-local state and has no self-contained fallback, so its
+        //   recovery is two ordered commands on one socket; see the remarks on HashImport, which also
+        //   record why EVALSHA - the same shape - escapes this and HIMPORT cannot
         // - the scans are deferred-execution cursors
         var expected = generated
             .Where(x => !x.StartsWith("StringGetWithExpiry", StringComparison.Ordinal))

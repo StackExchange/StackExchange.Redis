@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -28,6 +28,41 @@ namespace StackExchange.Redis;
 /// hygiene for long-lived connections.
 /// </para>
 /// <para>A single <see cref="HashImport"/> is safe to use concurrently and against multiple databases/multiplexers.</para>
+/// <para>
+/// <b>Why this cannot currently move to the interpolated command surface.</b> Every other command moved so far
+/// is a pure function from arguments to bytes; <c>HIMPORT SET</c> is not, because it references state that must
+/// already exist on the socket it lands on. The nearest sibling is <c>EVALSHA</c>, which has the same shape -
+/// an optimistic short reference to a named, cached payload, where the client's belief that the payload is
+/// present can be wrong - and the comparison is instructive precisely because of where it breaks:
+/// </para>
+/// <list type="bullet">
+/// <item><description>
+/// <b>Scope.</b> The script cache is server-wide, so an <c>EVALSHA</c> recovery can be routed like any other
+/// command. A field-set is connection-local, so a recovery must reach one specific socket.
+/// </description></item>
+/// <item><description>
+/// <b>Fallback form.</b> <c>EVAL &lt;script&gt;</c> is a single self-contained command carrying everything the
+/// hash referenced, so a <c>NOSCRIPT</c> is recovered by re-rendering one message (see
+/// <c>ResultProcessor.RespResult</c>, which keeps the request buffer alive for exactly that). <c>HIMPORT SET</c>
+/// has <b>no</b> such form. <c>HSET</c> is not it: this command <i>replaces</i> the hash at the key, where
+/// <c>HSET</c> merges into it, so the inline expansion would be <c>DEL</c> plus <c>HSET</c> - two commands,
+/// not atomic, and a different failure profile. Recovery is therefore inherently two ordered commands that
+/// must share a connection.
+/// </description></item>
+/// </list>
+/// <para>
+/// Which is why the <c>PREPARE</c> is injected inside the bridge's write lock rather than anywhere earlier:
+/// that is the only point at which the connection is known and nothing has been written yet, and it is exactly
+/// the window a two-command, connection-local recovery needs. Acting there is what lets this type avoid pinning
+/// a connection at all. A frame-based surface has no such point - it hands an opaque payload to an executor and
+/// the connection is chosen afterwards - so expressing this outside the bridge would need <i>connection</i>
+/// affinity across a retry, and <c>CommandServerSpecific</c> pins an endpoint, not a connection.
+/// </para>
+/// <para>
+/// Note the comparison with <c>SELECT</c> injection is a red herring, tempting though the shared mechanism is:
+/// a database index is a register the client mirrors and is the sole author of, so it can never miss. This and
+/// <c>EVALSHA</c> are lookups by name that can.
+/// </para>
 /// </remarks>
 [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
 public sealed class HashImport : IDisposable, IAsyncDisposable
