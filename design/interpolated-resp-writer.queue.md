@@ -474,9 +474,17 @@ Four consequences, none of them cosmetic:
   `RedisResult`; only the top level throws. That is the difference between "this operation failed" and "one
   element of this aggregate failed", not an oversight.
 
-  **A deferral, not a door closing:** `RespResult` already stores the `Prefix` and the raw frame *including*
-  the prefix bytes, so `-ERR` is representable today - the processor simply routes errors to the failing
-  path. If the need ever arrives it is an additive API on a type that can already carry it.
+  **This is `redis.call` vs `redis.pcall`**, and that is the precedent rather than an analogy: `call`
+  aborts and propagates, `pcall` hands the error back as a value with an `err` field - and Redis made
+  `call` the default and `pcall` the thing you deliberately ask for. Same answer, arrived at by the people
+  who had to live with both.
+
+  **A deferral, not a door closing**, and the analogy gives it its shape: `RespResult` already stores the
+  `Prefix` and the raw frame *including* the prefix bytes, so `-ERR` is representable today - the processor
+  simply routes errors to the failing path. So if the need arrives it is an additive, **per-call** opt-in,
+  chosen at the call site the way you choose `pcall` - never a global mode and never a changed return type
+  on `ExecuteResp`. That is the only version where "remember to check" is not a silent hazard: the person
+  who gets a value back is the person who asked for one.
 
 
 - **A "buffer is shared" flag on `RespReader`**, and a second read-only reservation interface. Unnecessary
