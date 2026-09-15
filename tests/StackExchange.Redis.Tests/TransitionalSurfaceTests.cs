@@ -135,6 +135,8 @@ public class TransitionalCoverageTests
     [InlineData("Hash")]
     [InlineData("Set")]
     [InlineData("SortedSet")]
+    [InlineData("Key")]
+    [InlineData("Script")]
     public void EveryMemberOfAMovedGroupIsImplemented(string prefix)
     {
         var generated = Generated(prefix, typeof(IDatabase)).Concat(Generated(prefix, typeof(IDatabaseAsync)))
@@ -154,9 +156,83 @@ public class TransitionalCoverageTests
             .Where(x => !x.StartsWith("HashScan", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("SetScan", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("SortedSetScan", StringComparison.Ordinal))
+
+            // Key: the OBJECT family is a different command shape, deferred as a unit; MIGRATE and RESTORE
+            // are not on the new surface at all
+            .Where(x => !x.StartsWith("KeyEncoding", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("KeyFrequency", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("KeyIdleTime", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("KeyRefCount", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("KeyMigrate", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("KeyRestore", StringComparison.Ordinal))
+
+            // Script: only the Resp-returning forms have moved; see TransitionalDatabase.Scripts.cs for
+            // why the RedisResult, LuaScript and hash-addressed overloads are waiting rather than missed
+            .Where(x => !x.StartsWith("ScriptEvaluateAsync", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("ScriptEvaluate(", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("ScriptEvaluateReadOnly(", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("ScriptEvaluateReadOnlyAsync", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Empty(expected);
+    }
+
+    /// <summary>
+    /// Every group that has been moved is actually named above.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The second-order control.</b> <c>EveryMemberOfAMovedGroupIsImplemented</c> is honest about the
+    /// prefixes it is handed and silent about the ones it is not - so a group could be written, wired, and
+    /// never checked, with nothing complaining that nothing was checking. That is exactly what happened to
+    /// <c>Key</c> and <c>Script</c>: both surfaces existed, neither was listed, and the suite stayed green.
+    /// </para>
+    /// <para>
+    /// This closes it without a second list to maintain. Every hand-written member must fall under one of
+    /// the tested prefixes, so adding a group's adapter without adding its <c>[InlineData]</c> fails here,
+    /// naming the members that nothing is covering.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryImplementedMemberBelongsToATestedGroup()
+    {
+        string[] tested = ["String", "Hash", "Set", "SortedSet", "Key", "Script"];
+
+        // the members that belong to no command group: funnels, fallbacks, and the ad-hoc Execute family.
+        // A second list, but a STABLE one - infrastructure does not come and go, whereas command groups
+        // arrive regularly, and it is the arriving ones this exists to catch.
+        string[] infrastructure =
+        [
+            "CreateBatch", "CreateTransaction", "Execute", "ExecuteAsync", "ExecuteResp", "ExecuteRespAsync",
+            "IdentifyEndpoint", "IdentifyEndpointAsync", "IsConnected", "Ping", "PingAsync",
+            "Publish", "PublishAsync", "WithKeyPrefix", "DebugObject", "DebugObjectAsync",
+            "get_Database",
+
+            // the cursor members are forwarded one at a time from TransitionalDatabase.Scans.cs rather than
+            // moved as a group - deferred execution is not a frame - so they have no group to be tested as
+            "VectorSetRangeEnumerate", "VectorSetRangeEnumerateAsync",
+        ];
+
+        var uncovered = HandWritten(typeof(IDatabase)).Concat(HandWritten(typeof(IDatabaseAsync)))
+            .Where(name => !infrastructure.Contains(name, StringComparer.Ordinal))
+            .Where(name => !tested.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
+            .Distinct()
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(uncovered);
+    }
+
+    /// <summary>Members the class implements itself; the complement of <see cref="Generated"/>.</summary>
+    private static string[] HandWritten(Type iface)
+    {
+        var map = typeof(TransitionalDatabase).GetInterfaceMap(iface);
+        return map.InterfaceMethods
+            .Select((m, i) => (Interface: m, Target: map.TargetMethods[i]))
+            .Where(x => !x.Target.IsPrivate) // public target: declared by the class, not generated
+            .Select(x => x.Interface.Name)
+            .Distinct()
+            .ToArray();
     }
 
     [Fact]

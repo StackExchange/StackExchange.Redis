@@ -252,7 +252,11 @@ Four consequences, none of them cosmetic:
       Not added yet, deliberately: no caller, no API.
 
 - [ ] **More command groups**, in `RespSurface.<Group>.cs` + `TransitionalDatabase.<Group>.cs` pairs.
-      Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left.
+      Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left (312).
+      **Both halves, and the `[InlineData]`, or it does not count as done** - `Keys` and `Scripts` were
+      written with only the surface half, which left ~66 members generated and, worse, unwatched:
+      `EveryMemberOfAMovedGroupIsImplemented` is honest about the prefixes it is handed and silent about
+      the ones it is not. `EveryImplementedMemberBelongsToATestedGroup` now closes that.
 
 - [ ] **The `OBJECT` family and `DBSIZE`.** Deferred out of the `Keys` group: `OBJECT ENCODING/REFCOUNT/
       FREQ/IDLETIME` are a different command shape, better done together, and `IDLETIME` will want

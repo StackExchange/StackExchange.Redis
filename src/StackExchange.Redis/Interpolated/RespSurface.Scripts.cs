@@ -80,6 +80,15 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<RedisKey> keys = default,
             ReadOnlySpan<RedisValue> args = default,
             CommandFlags flags = CommandFlags.None)
+            => Evaluate(in scripts, script, keys, args, flags, readOnly: false);
+
+        private static ValueTask<RespResult> Evaluate(
+            in RespScripts scripts,
+            string script,
+            ReadOnlySpan<RedisKey> keys,
+            ReadOnlySpan<RedisValue> args,
+            CommandFlags flags,
+            bool readOnly)
         {
             if (script is null) throw new ArgumentNullException(nameof(script));
 
@@ -91,9 +100,10 @@ namespace StackExchange.Redis.Interpolated
             // admitted to the registry below: the caller has told us it is not worth keeping.
             if ((flags & CommandFlags.NoScriptCache) != 0)
             {
+                var eval = readOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL;
                 return context.SendAsync<RespResult>(
-                    $"{RedisCommand.EVAL}{(RedisValue)script}{(RedisValue)keys.Length}{keys}{args}",
-                    flags.WithDefaultCategory(RedisCommand.EVAL));
+                    $"{eval}{(RedisValue)script}{(RedisValue)keys.Length}{keys}{args}",
+                    flags.WithDefaultCategory(eval));
             }
 
             var registry = context.ScriptCache;
@@ -104,7 +114,7 @@ namespace StackExchange.Redis.Interpolated
                 var fresh = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
                 try
                 {
-                    return SendPair(in context, ref fresh, hash, keys, args, flags);
+                    return SendPair(in context, ref fresh, hash, keys, args, flags, readOnly);
                 }
                 finally
                 {
@@ -113,8 +123,34 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var preamble = registry.GetPreamble(in context, script, out var known);
-            return SendPair(in context, preamble, known, keys, args, flags);
+            return SendPair(in context, preamble, known, keys, args, flags, readOnly);
         }
+
+        /// <summary>EVALSHA_RO, preceded by SCRIPT LOAD; the read-only form of <c>Evaluate</c>.</summary>
+        /// <param name="scripts">The scripting command group.</param>
+        /// <param name="script">The Lua source; it must not write.</param>
+        /// <param name="keys">The keys the script accesses; these route the command.</param>
+        /// <param name="args">Everything else the script needs.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// A separate method rather than a flag on <c>Evaluate</c>, because it is a separate command with a
+        /// different retry category: <c>EVALSHA_RO</c> is read-only, where <c>EVALSHA</c> must be treated as
+        /// a write. Hiding that behind a boolean would let a caller's retry semantics change invisibly.
+        /// </para>
+        /// <para>
+        /// <b>Requires a server that has the read-only forms</b> (7.0 and later). The older surface probes
+        /// the connection and falls back; this does not, because the frame is chosen before the connection
+        /// is - which is the same constraint that puts the loaded-script belief at write time.
+        /// </para>
+        /// </remarks>
+        public static ValueTask<RespResult> EvaluateReadOnly(
+            this in RespScripts scripts,
+            string script,
+            ReadOnlySpan<RedisKey> keys = default,
+            ReadOnlySpan<RedisValue> args = default,
+            CommandFlags flags = CommandFlags.None)
+            => Evaluate(in scripts, script, keys, args, flags, readOnly: true);
 
         /// <summary>Render the EVALSHA and send it behind the preamble.</summary>
         private static ValueTask<RespResult> SendPair(
@@ -123,13 +159,15 @@ namespace StackExchange.Redis.Interpolated
             string hash,
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<RedisValue> args,
-            CommandFlags flags)
+            CommandFlags flags,
+            bool readOnly)
         {
-            var request = context.Render($"{RedisCommand.EVALSHA}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
+            var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
+            var request = context.Render($"{command}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
             try
             {
                 return context.SendWithPreambleAsync(
-                    ref preamble, ref request, flags.WithDefaultCategory(RedisCommand.EVALSHA), RespHandlers.Result);
+                    ref preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result);
             }
             finally
             {
@@ -137,7 +175,7 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="SendPair(in RespContext, ref RespFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags)"/>
+        /// <inheritdoc cref="SendPair(in RespContext, ref RespFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags, bool)"/>
         /// <remarks>
         /// The registry's preamble owns nothing poolable - it is a fixed array that is never returned - so
         /// it needs no disposal and can be handed over directly.
@@ -148,13 +186,15 @@ namespace StackExchange.Redis.Interpolated
             string hash,
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<RedisValue> args,
-            CommandFlags flags)
+            CommandFlags flags,
+            bool readOnly)
         {
-            var request = context.Render($"{RedisCommand.EVALSHA}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
+            var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
+            var request = context.Render($"{command}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
             try
             {
                 return context.SendWithPreambleAsync(
-                    preamble, ref request, flags.WithDefaultCategory(RedisCommand.EVALSHA), RespHandlers.Result);
+                    preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result);
             }
             finally
             {
