@@ -300,11 +300,9 @@ Four consequences, none of them cosmetic:
       timestamp *write* in the invalidation path, which sees every key the server mentions. So arming it
       belongs on `CacheOptions` and only the duration can vary per context.
 
-- [ ] **`IServer` / `ISubscriber` contexts** still throw from `IRespTarget.Context`. Narrower than it was:
-      the keyspace groups no longer resolve on them (they take `IRespServerTarget` / `IRespTarget`), so this
-      is now "wire the context" rather than "wire it and hope nobody calls `server.Strings`". `IServer`
-      needs no new executor - `RedisServer.ExecuteAsync` already injects its own endpoint, exactly as
-      `RedisBatch` already queues - so this is a `Context` property, not a routing problem.
+- [ ] **`ISubscriber`'s context** still throws from `IRespTarget.Context`. `IServer`'s is wired (below);
+      this one wants its own executor question answered first - a subscriber connection is a different
+      bridge, not just a different endpoint.
 
 - [ ] **`IRespTarget` on `IDatabaseAsync`**, so `IBatch`/`ITransaction` offer the keyspace groups by name.
       Unblocked by the target split, and the probe says the hard part is already done: a batch's and a
@@ -385,6 +383,19 @@ Four consequences, none of them cosmetic:
       server's pins to one endpoint already, because the executor's target is the batch/server and
       `ExecuteAsync` is overridden on both. The split is about which commands are *offered*. Free to do now
       only because `IRespTarget` is unshipped (SER010); after it ships, moving it is a break.
+- [x] `IServer`'s context is wired — `<pending>`. Handover for the first server group: bind it to
+      `IRespServerTarget`, and take the database number explicitly the way `IServer`'s own members do -
+      the context carries `-1`, so a database-scoped command fails at construction rather than silently
+      running against database 0. No cache is attached, deliberately: invalidation is reported by key and
+      server commands are keyless, so nothing could ever invalidate a cached `INFO`.
+
+      **Found while wiring it, and worth more than the wiring:** the ad-hoc `ExecuteAsync(string, ...)`
+      handler never assigned `_command`, so every ad-hoc frame carried `RedisCommand.NONE` - the enum's
+      zero - rather than the parsed command or an honest `UNKNOWN`. The pipeline reads `Command` to decide
+      `IsPrimaryOnly`, so **an ad-hoc write could be routed to a replica**; it also fails
+      `RequiresDatabase`, which is how a server context surfaced it. Fixed by resolving the identity
+      alongside the bytes. Invisible until now because a database context has `db >= 0`, where the check
+      does not fire.
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
       invalidation pushes to it through `PhysicalConnection` — `4d608ddd`

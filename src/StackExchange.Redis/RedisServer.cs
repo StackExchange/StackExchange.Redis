@@ -28,6 +28,48 @@ namespace StackExchange.Redis
             this.server = server; // definitely can't be null because .Multiplexer in base call
         }
 
+        private Interpolated.RespContext _context;
+        private bool _haveContext;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>
+        /// <b>No database.</b> A server is not database-scoped, so the context carries <c>-1</c> and a
+        /// command that does need one fails loudly at construction ("A database is required for ...")
+        /// rather than silently running against database 0. <c>IServer</c>'s own database-scoped members
+        /// take the number explicitly, which is the model a server group should follow.
+        /// </para>
+        /// <para>
+        /// <b>No client-side cache</b>, and not as an oversight: invalidation is reported by key, and
+        /// server commands are keyless, so nothing could ever invalidate a cached <c>INFO</c>. The cache
+        /// already refuses keyless requests for exactly that reason - attaching it here would be a no-op
+        /// dressed as a feature.
+        /// </para>
+        /// <para>
+        /// <b>No executor of its own is needed.</b> <c>ExecuteAsync</c> below injects this endpoint into
+        /// every message, so a frame routed through it is pinned to this server for free - the same
+        /// inheritance that makes a batch's context queue rather than send.
+        /// </para>
+        /// </remarks>
+        public new Interpolated.RespContext Context
+        {
+            get
+            {
+                if (!_haveContext)
+                {
+                    _context = new Interpolated.RespContext(
+                        multiplexer.CommandMap,
+                        database: -1,
+                        serverType: server.ServerType)
+                        .WithExecutor(new Interpolated.RespMessageExecutor(this, -1))
+                        .WithServices(new ServerFeatureProbe(this));
+                    _haveContext = true;
+                }
+
+                return _context;
+            }
+        }
+
         int IServer.DatabaseCount => server.Databases;
 
         public ClusterConfiguration? ClusterConfiguration => server.ClusterConfiguration;

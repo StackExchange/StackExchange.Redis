@@ -62,18 +62,6 @@ namespace StackExchange.Redis
         /// so the two surfaces necessarily agree about what a given server supports, and a
         /// <c>KeyPrefixedDatabase</c> or anything else that overrides that method is honoured for free.
         /// </remarks>
-        private sealed class ServerFeatureProbe(RedisBase database) : Interpolated.IRespServerFeatures
-        {
-            public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
-            {
-                features = database.GetFeatures(key, flags, command, out var server);
-
-                // the features are always usable - GetFeatures falls back to the configured default
-                // version - but only a selected server makes them an observation rather than a guess
-                return server is not null;
-            }
-        }
-
         DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
         {
             name = multiplexer.ClientName;

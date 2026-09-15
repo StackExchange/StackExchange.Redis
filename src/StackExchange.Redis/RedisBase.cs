@@ -16,6 +16,24 @@ namespace StackExchange.Redis
             => throw new NotImplementedException(
                 "The context surface is not yet wired to a live connection; see RespDatabase.");
 
+        /// <summary>Lets the context surface ask what the receiving server can do.</summary>
+        /// <remarks>
+        /// Lives here rather than on <c>RedisDatabase</c> because a server context wants it too, and wants
+        /// it <i>more</i>: <c>RedisServer.GetFeatures</c> answers from its own endpoint, so the probe
+        /// reports an observation rather than the guess a database has to make before a server is selected.
+        /// </remarks>
+        internal sealed class ServerFeatureProbe(RedisBase target) : Interpolated.IRespServerFeatures
+        {
+            public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
+            {
+                features = target.GetFeatures(key, flags, command, out var server);
+
+                // the features are always usable - GetFeatures falls back to the configured default
+                // version - but only a selected server makes them an observation rather than a guess
+                return server is not null;
+            }
+        }
+
         internal static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         internal readonly ConnectionMultiplexer multiplexer;
         protected readonly object? asyncState;

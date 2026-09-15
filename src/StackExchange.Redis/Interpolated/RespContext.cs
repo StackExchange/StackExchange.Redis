@@ -181,14 +181,24 @@ namespace StackExchange.Redis.Interpolated
         /// exactly the sort of three-step rule that drifts when it is written out four times.
         /// </remarks>
         internal bool TryResolveCommand(ReadOnlySpan<char> name, out ReadOnlySpan<byte> resp)
+            => TryResolveCommand(name, out resp, out _);
+
+        /// <inheritdoc cref="TryResolveCommand(ReadOnlySpan{char}, out ReadOnlySpan{byte})"/>
+        /// <param name="name">The command name to resolve.</param>
+        /// <param name="resp">The mapped command, already framed.</param>
+        /// <param name="command">The command it resolved to, for callers that need its identity and not
+        /// just its bytes.</param>
+        internal bool TryResolveCommand(ReadOnlySpan<char> name, out ReadOnlySpan<byte> resp, out RedisCommand command)
         {
             if (RedisCommandMetadata.TryParseCI(name, out var parsed) && parsed != RedisCommand.UNKNOWN)
             {
                 resp = ResolveCommand(parsed);
+                command = parsed;
                 return true;
             }
 
             resp = default;
+            command = RedisCommand.UNKNOWN;
             return false;
         }
 

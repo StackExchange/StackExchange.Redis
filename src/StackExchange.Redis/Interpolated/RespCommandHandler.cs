@@ -108,10 +108,17 @@ namespace StackExchange.Redis.Interpolated
         {
             if (command is null) throw new ArgumentNullException(nameof(command));
 
-            var known = context.TryResolveCommand(command.AsSpan(), out var resp);
+            var known = context.TryResolveCommand(command.AsSpan(), out var resp, out var parsed);
 
             var nameBytes = known ? 0 : Encoding.UTF8.GetByteCount(command);
             _context = context;
+
+            // the command's identity, not just its bytes. This used to be left at the field default -
+            // RedisCommand.NONE, which is 0 - so an ad-hoc command was neither a known command nor honestly
+            // UNKNOWN. That matters beyond tidiness: the pipeline reads Command to decide IsPrimaryOnly, so
+            // an ad-hoc write could be routed to a replica, and NONE is not on RequiresDatabase's allow-list,
+            // so the same frame is rejected outright by a context with no database (a server's).
+            _command = parsed;
             _buffer = ArrayPool<byte>.Shared.Rent(HeaderMax + 64 + resp.Length + nameBytes + literalLength + (formattedCount * 24));
             _offset = HeaderMax;
             _slot = ServerSelectionStrategy.NoSlot;
