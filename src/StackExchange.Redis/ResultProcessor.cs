@@ -727,31 +727,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array of 2: [key, array of values] or null aggregate
-                if (reader.IsAggregate)
-                {
-                    // Handle null (RESP3 pure null or RESP2 null array)
-                    if (reader.IsNull)
-                    {
-                        SetResult(message, Redis.ListPopResult.Null);
-                        return true;
-                    }
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see ListPopResult.Resp.cs
+                if (!Redis.ListPopResult.TryRead(ref reader, out var result)) return false;
 
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var key = reader.ReadRedisKey();
-
-                        // Read the second element (array of RedisValue)
-                        if (reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var values = reader.ReadPastRedisValues();
-                            SetResult(message, new ListPopResult(key, values!));
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 

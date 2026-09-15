@@ -185,6 +185,42 @@
         [Resp]
         internal static partial RespFragment Count { get; }
 
+        /// <summary>The <c>LEFT</c> end, as the list commands name it.</summary>
+        [Resp]
+        internal static partial RespFragment Left { get; }
+
+        /// <inheritdoc cref="Left"/>
+        [Resp]
+        internal static partial RespFragment Right { get; }
+
+        /// <summary>The <c>BEFORE</c> position of <c>LINSERT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Before { get; }
+
+        /// <inheritdoc cref="Before"/>
+        [Resp]
+        internal static partial RespFragment After { get; }
+
+        /// <summary>The <c>RANK</c> operand of <c>LPOS</c>; a rank follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Rank { get; }
+
+        /// <summary>The <c>MAXLEN</c> operand of <c>LPOS</c>; a length follows it.</summary>
+        [Resp]
+        internal static partial RespFragment MaxLen { get; }
+
+        /// <summary>The <c>BULK</c> ordering of <c>LMOVEM</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Bulk { get; }
+
+        /// <summary>The <c>OBO</c> (one-by-one) ordering of <c>LMOVEM</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Obo { get; }
+
+        /// <summary>The <c>EXACTLY</c> count mode of <c>LMOVEM</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Exactly { get; }
+
         /// <summary>The <c>NX</c> condition of the hash field-expiry commands.</summary>
         [Resp]
         internal static partial RespFragment Nx { get; }

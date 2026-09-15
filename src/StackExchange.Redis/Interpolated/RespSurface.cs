@@ -110,6 +110,34 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks><inheritdoc cref="Lease" path="/remarks"/></remarks>
         internal static IRespHandler<Lease<byte>?> SingletonLease { get; } = new SingletonLeaseHandler();
 
+        /// <summary>
+        /// Reads an array reply as <see cref="RedisValue"/>s, keeping nil distinct from empty.
+        /// </summary>
+        /// <remarks>
+        /// <b>The one array shape where nil and empty are different answers.</b> <c>LMOVEM</c> replies nil
+        /// when nothing moved, and that is worth telling apart from "moved, but nothing was there".
+        /// Everywhere else a nil aggregate collapses to empty, because every caller of an array reply
+        /// wants to iterate it. A separate handler rather than another interface on the shared one:
+        /// nullability of a reference type does not make a distinct interface, so the two cannot coexist
+        /// on one class (CS8645).
+        /// </remarks>
+        public static IRespHandler<ReadOnlyLease<RedisValue>?> NullableValueLease { get; } = new NullableValueLeaseHandler();
+
+        /// <summary>Reads an integer reply, reporting -1 where the server replies nil.</summary>
+        /// <remarks>
+        /// <c>LPOS</c>'s "not found", which the old surface has always reported as -1 rather than as a
+        /// nullable. Named rather than built in, because -1 is a perfectly ordinary integer everywhere
+        /// else and nothing should get this by accident.
+        /// </remarks>
+        public static IRespHandler<long> Int64OrMinusOne { get; } = new Int64OrMinusOneHandler();
+
+        /// <inheritdoc cref="NullableValueLease"/>
+        /// <remarks>
+        /// The array flavour, for the <c>IDatabase</c> signature that promises a nullable array; internal
+        /// for the reason every other array shape is.
+        /// </remarks>
+        internal static IRespHandler<RedisValue[]?> NullableValues { get; } = new NullableValuesHandler();
+
         /// <inheritdoc cref="SingletonLease"/>
         /// <remarks>
         /// The sharing flavour, which is what the command surface hands out; <see cref="SingletonLease"/>
@@ -193,6 +221,7 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<ReadOnlyLease<PersistResult>>,
             IRespHandler<ReadOnlyLease<byte>?>,
             IRespHandler<ReadOnlyLease<long?>>,
+            IRespHandler<ListPopResult>,
             IRespHandler<RedisValue>,
             IRespHandler<RedisKey>,
             IRespHandler<RedisType>,
@@ -365,6 +394,15 @@ namespace StackExchange.Redis.Interpolated
             /// <remarks>BITFIELD replies nil for an operation skipped by OVERFLOW FAIL, hence nullable.</remarks>
             ReadOnlyLease<long?> IRespHandler<ReadOnlyLease<long?>>.Parse(ReadOnlySpan<byte> response)
                 => ReadScalarLease(response, static (ref r) => r.IsNull ? (long?)null : r.ReadInt64());
+
+            ListPopResult IRespHandler<ListPopResult>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return ListPopResult.TryRead(ref reader, out var result)
+                    ? result
+                    : throw new RespException("Unexpected LMPOP reply.");
+            }
 
             /// <remarks>
             /// <b>No copy.</b> <c>ParseArray(allowOversized: true)</c> already rents from
@@ -711,6 +749,41 @@ namespace StackExchange.Redis.Interpolated
 #pragma warning disable CS0618 // the copying form is what this contract needs; see the remarks
                 return RespReaderExtensions.ReadLease(in reader);
 #pragma warning restore CS0618
+            }
+        }
+
+        /// <inheritdoc cref="Int64OrMinusOne"/>
+        private sealed class Int64OrMinusOneHandler : IRespHandler<long>
+        {
+            public long Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                return reader.IsNull ? -1 : reader.ReadInt64();
+            }
+        }
+
+        /// <inheritdoc cref="NullableValues"/>
+        private sealed class NullableValuesHandler : IRespHandler<RedisValue[]?>
+        {
+            public RedisValue[]? Parse(ReadOnlySpan<byte> response)
+            {
+                var probe = new RespReader(response);
+                probe.MoveNext();
+                return probe.IsNull ? null : RespHandlers.Values.Parse(response);
+            }
+        }
+
+        /// <inheritdoc cref="NullableValueLease"/>
+        private sealed class NullableValueLeaseHandler : IRespHandler<ReadOnlyLease<RedisValue>?>
+        {
+            public ReadOnlyLease<RedisValue>? Parse(ReadOnlySpan<byte> response)
+            {
+                var probe = new RespReader(response);
+                probe.MoveNext();
+                if (probe.IsNull) return null;
+
+                return RespHandlers.ValueLease.Parse(response);
             }
         }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Reflection;
@@ -78,7 +78,11 @@ public class TransitionalDatabaseTests
     {
         var db = Target(new FakeExecutor("+OK\r\n"));
 
-        var ex = Assert.Throws<NotImplementedException>(() => db.KeyDelete("k"));
+        // the exemplar has to be a command that genuinely has not moved, so it changes as groups land -
+        // KeyDelete was this until the Key group arrived, and ListLeftPush until the List group did.
+        // Stream is also what AnUnmovedGroupIsStillGenerated uses as its control, so the two now go stale
+        // together and loudly rather than one of them quietly.
+        var ex = Assert.Throws<NotImplementedException>(() => db.StreamLength("k"));
         Assert.Contains("has not yet moved", ex.Message);
     }
 
