@@ -1,9 +1,9 @@
-namespace StackExchange.Redis;
+﻿namespace StackExchange.Redis;
 
 /// <summary>
 /// Contains metadata information about a vectorset returned by VINFO command.
 /// </summary>
-public readonly struct VectorSetInfo(
+public readonly partial struct VectorSetInfo(
     VectorSetQuantization quantization,
     string? quantizationRaw,
     int dimension,

@@ -388,7 +388,7 @@ namespace StackExchange.Redis.Interpolated
         // Internal, as everywhere else: the array is the OLD spelling, it allocates where the lease need
         // not, and nothing outside this assembly should be able to choose it. See Strings.GetArray.
 
-        /// <inheritdoc cref="Range"/>
+        /// <inheritdoc cref="Range(in RespLists, RedisKey, long, long, CommandFlags)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="start">The first index to take.</param>
