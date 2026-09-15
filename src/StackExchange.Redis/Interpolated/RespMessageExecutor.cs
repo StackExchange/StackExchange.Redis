@@ -93,6 +93,13 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         private sealed class FramePairMessage : Message, IMultiMessage
         {
+            /// <remarks>
+            /// No: the request half alone would be an <c>EVALSHA</c> with no <c>SCRIPT LOAD</c> behind it.
+            /// Unlike the classic script messages there is no body-carrying spelling to fall back to, so a
+            /// dropped expansion is a <c>NOSCRIPT</c> waiting inside someone's <c>EXEC</c> array.
+            /// </remarks>
+            public bool CanWriteWithoutExpansion => false;
+
             private readonly int _database;
             private readonly RespRequest _preamble;
             private readonly RespRequest _request;

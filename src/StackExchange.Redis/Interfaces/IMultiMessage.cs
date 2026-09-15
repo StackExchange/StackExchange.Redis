@@ -36,5 +36,30 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         IEnumerable<Message>? GetMessages(PhysicalConnection connection);
+
+        /// <summary>
+        /// Whether writing this message <b>without</b> its expansion is still correct.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Inside a transaction the expansion is never asked for: <c>QueuedMessage</c> wraps each inner
+        /// operation and is not itself an <see cref="IMultiMessage"/>, so only <c>WriteImpl</c> runs. For
+        /// most of these that silently drops something load-bearing, which is why each such type carries a
+        /// hand-written guard somewhere up the call - three of them, in three different places, none of
+        /// which the next implementer will know to copy.
+        /// </para>
+        /// <para>
+        /// <b>Deliberately has no default</b>, so the compiler asks. A default of <c>false</c> would be
+        /// safe and would also let the next implementer never think about it; requiring the member means
+        /// the question is answered once, explicitly, by the person who knows. (Down-level targets have no
+        /// default interface members anyway, so this costs nothing.)
+        /// </para>
+        /// <para>
+        /// Saying <c>true</c> is a claim about <c>WriteImpl</c>: that it renders a complete, correct
+        /// command on its own - as the script messages do, falling back to the body-carrying spelling when
+        /// no hash was resolved.
+        /// </para>
+        /// </remarks>
+        bool CanWriteWithoutExpansion { get; }
     }
 }

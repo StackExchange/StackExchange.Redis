@@ -6348,6 +6348,13 @@ namespace StackExchange.Redis
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
                 => _args.GetHashSlot(serverSelectionStrategy);
 
+            /// <remarks>
+            /// Inside a transaction the expansion is dropped and this writes EVAL with the body, which is
+            /// not a degradation but the <i>right</i> answer: a composed SCRIPT LOAD would put its reply
+            /// into the EXEC array and shift every result position after it.
+            /// </remarks>
+            public bool CanWriteWithoutExpansion => true;
+
             // Not an iterator: the per-connection resolution below has to happen on every write attempt,
             // including the usual one where nothing is composed and we decline. An iterator would defer it
             // to the first MoveNext, which never comes when the answer is null.
@@ -6442,6 +6449,9 @@ namespace StackExchange.Redis
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(keys);
+
+            /// <inheritdoc cref="ScriptEvalMessage.CanWriteWithoutExpansion"/>
+            public bool CanWriteWithoutExpansion => true;
 
             // See the note on the sibling above: deciding is eager, expanding is not.
             public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
@@ -6630,6 +6640,13 @@ namespace StackExchange.Redis
 
         private sealed class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
         {
+            /// <remarks>
+            /// The TTL result box is created <i>inside</i> the expansion, so writing without it leaves the
+            /// expiry half unreadable. Refused up front by <c>GetStringGetWithExpiryMessage</c>, which can
+            /// name the two commands to issue instead; this is the backstop.
+            /// </remarks>
+            public bool CanWriteWithoutExpansion => false;
+
             private readonly RedisCommand ttlCommand;
             private IResultBox<TimeSpan?>? box;
 
