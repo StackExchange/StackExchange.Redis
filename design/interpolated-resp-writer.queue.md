@@ -1,4 +1,4 @@
-# Queue — interpolated RESP writer / client-side caching
+﻿# Queue — interpolated RESP writer / client-side caching
 
 Working list for the `marc/interpolated-writer-design` branch. Kept separate from
 `interpolated-resp-writer.md` so it can be edited without conflicting with the design notes, which are
@@ -230,6 +230,29 @@ Four consequences, none of them cosmetic:
       that context, not to `Keys`.
 
 ## Later / decide first
+
+- [ ] **Locking waits for transactions.** Decided 2026-09-15: the group does not move yet, and not because
+      of effort - `LockTake` is `SET key value NX PX` and `LockQuery` is `GET key`, both already
+      expressible. `LockRelease` and `LockExtend` are the problem, and each has three branches:
+
+      1. **Atomic:** `DELEX key IFEQ token` / `SET key token PX ms IFEQ token`. One frame, and already
+         renderable - but `SetWithValueCheck`/`DeleteWithValueCheck` are **8.4 RC1**, so today this is the
+         rare path rather than the common one.
+      2. **A `WATCH`/`MULTI` transaction:** `Condition.StringEqual` plus `KeyDelete`/`KeyExpire`. What
+         nearly every deployment actually gets, and the new surface cannot render it: a transaction is not
+         a frame.
+      3. **Neither** (no `MULTI`, e.g. twemproxy): degrades to `DEL`/`EXPIRE` with the token unenforced.
+
+      So this is the HIMPORT shape - a command whose *fallback* needs connection-affine multi-command
+      state - and it moves when `RespContext` can express a transaction, which is the same unlock HIMPORT
+      and the `Condition` API are waiting on. `LockingTests` exists, so a half-move would fail the re-run
+      rather than skip quietly.
+
+      **A Lua fallback was considered and not taken.** `EVALSHA <get-compare-delete>` is self-contained,
+      one round trip, and needs no watch state - the EVALSHA-shaped answer that lets a command move where
+      HIMPORT could not. It was declined because it changes behaviour for deployments that have `MULTI`
+      but not scripting, and locking is the wrong place to spend that: the commands are tiny and the
+      transaction unlock is coming anyway.
 
 - [ ] **Two-phase replies: inspect on the reader, parse at the consumer.** A future direction rather than
       a task - logged now because it changes what a "handler" is, and several things below will otherwise
