@@ -72,8 +72,9 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="context">The context to render through.</param>
         /// <param name="script">The Lua source.</param>
         /// <param name="hash">The script's SHA1, lower-case hex, as the server reports it.</param>
+        /// <param name="gate">Decides at write time whether the endpoint still needs this preamble.</param>
         /// <returns>A request over the cached bytes; it owns nothing poolable, so disposing it is a no-op.</returns>
-        internal RespRequest GetPreamble(in RespContext context, string script, out string hash)
+        internal RespRequest GetPreamble(in RespContext context, string script, out string hash, out IRespPreambleGate gate)
         {
             if (!_entries.TryGetValue(script, out var entry))
             {
@@ -85,6 +86,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             hash = entry.Hash;
+            gate = entry.Gate;
             return entry.AsRequest();
         }
 
@@ -95,7 +97,7 @@ namespace StackExchange.Redis.Interpolated
             var frame = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
             try
             {
-                return new Entry(RespSurface.Sha1Hex(script), frame.Span.ToArray(), frame.ArgCount);
+                return new Entry(script, RespSurface.Sha1Hex(script), frame.Span.ToArray(), frame.ArgCount);
             }
             finally
             {
@@ -104,9 +106,17 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        private sealed class Entry(string hash, byte[] bytes, int argCount)
+        private sealed class Entry(string script, string hash, byte[] bytes, int argCount)
         {
             internal string Hash { get; } = hash;
+
+            /// <summary>Whether the endpoint being written to still needs this preamble.</summary>
+            /// <remarks>
+            /// One per entry rather than one per call: the entry is global and immutable, and so is the
+            /// (script, hash) pair the gate closes over. The belief it consults is per-endpoint and lives
+            /// on the endpoint, so sharing this costs nothing and keeps the ASCII hash rendered once.
+            /// </remarks>
+            internal IRespPreambleGate Gate { get; } = new ScriptLoadGate(script, hash);
 
             /// <summary>The exact size of the rendering; see <see cref="RespScriptCache.Bytes"/>.</summary>
             internal int Length => bytes.Length;

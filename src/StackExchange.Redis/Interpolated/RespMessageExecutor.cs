@@ -79,9 +79,9 @@ namespace StackExchange.Redis.Interpolated
         /// through it rather than around it means the pair inherits ordering, the backlog, retry and the
         /// reconnect handshake, none of which a second write path could have shared.
         /// </remarks>
-        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, CancellationToken cancellationToken = default)
+        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
         {
-            var message = new FramePairMessage(Database, preamble, request);
+            var message = new FramePairMessage(Database, preamble, request, gate);
             return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);
         }
 
@@ -96,13 +96,15 @@ namespace StackExchange.Redis.Interpolated
             private readonly int _database;
             private readonly RespRequest _preamble;
             private readonly RespRequest _request;
+            private readonly IRespPreambleGate? _gate;
 
-            internal FramePairMessage(int database, in RespRequest preamble, in RespRequest request)
+            internal FramePairMessage(int database, in RespRequest preamble, in RespRequest request, IRespPreambleGate? gate = null)
                 : base(database, request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
             {
                 _database = database;
                 _preamble = preamble;
                 _request = request;
+                _gate = gate;
             }
 
             public override int ArgCount => _request.ArgCount - 1;
@@ -116,11 +118,14 @@ namespace StackExchange.Redis.Interpolated
             /// one holding the caller's task, never enqueued, and therefore never completed. Same shape as
             /// <c>ScriptEvalMessage</c>, which yields itself for the same reason.
             /// </remarks>
-            public IEnumerable<Message>? GetMessages(PhysicalConnection connection) => Expand();
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
+                // the write-time half: the connection - and so the endpoint whose script cache is in
+                // question - is not known until here, which is why this cannot be decided when rendering
+                => _gate is { } gate && !gate.IsNeeded(connection) ? null : Expand();
 
             private IEnumerable<Message> Expand()
             {
-                var head = new FrameMessage(_database, _preamble);
+                var head = new FrameMessage(_database, _preamble, _gate);
                 head.SetInternalCall();
                 head.SetSource(PreambleProcessor.Instance, null);
                 yield return head;
@@ -163,13 +168,17 @@ namespace StackExchange.Redis.Interpolated
             private readonly RespRequest _request;
             private readonly byte[]? _copy;
 
-            internal FrameMessage(int database, in RespRequest request)
+            /// <summary>Set only on a preamble, and only when it establishes something skippable.</summary>
+            internal IRespPreambleGate? Gate { get; }
+
+            internal FrameMessage(int database, in RespRequest request, IRespPreambleGate? gate = null)
                 // the command's identity, not just its bytes: without it the pipeline cannot tell a write
                 // from a read, so IsPrimaryOnly lets a write be routed to a replica, and a profiler
                 // reports every command in the library as UNKNOWN
                 : base(DatabaseFor(database, request.Command), request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
             {
                 _request = request;
+                Gate = gate;
                 if ((request.Flags & CommandFlags.FireAndForget) != 0)
                 {
                     _copy = request.Span.ToArray();
@@ -219,6 +228,11 @@ namespace StackExchange.Redis.Interpolated
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
+                // reached only on success - the base handles errors before this - so this is the point at
+                // which the effect is known to hold, matching where ResultProcessor.ScriptLoad records the
+                // classic path's belief. Recording on send would claim an effect the server never confirmed.
+                if (message is FrameMessage { Gate: { } gate }) gate.OnEstablished(connection);
+
                 SetResult(message, true);
                 return true;
             }

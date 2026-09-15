@@ -67,8 +67,9 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Issue <paramref name="preamble"/> and <paramref name="request"/> as one unit.</summary>
         /// <param name="preamble">Written first; its reply is consumed and discarded.</param>
         /// <param name="request">The request whose reply the caller wants.</param>
+        /// <param name="gate">If set, decides at write time whether the preamble is still needed.</param>
         /// <param name="cancellationToken">Cancels the send.</param>
-        ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, CancellationToken cancellationToken = default);
+        ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default);
     }
 
     /// <summary>
@@ -157,6 +158,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="request">The request whose reply the caller wants.</param>
         /// <param name="flags">The request's flags.</param>
         /// <param name="handler">Turns the request's reply into a result.</param>
+        /// <param name="gate">If set, decides at write time whether the preamble is still needed.</param>
         /// <remarks>
         /// <para>
         /// Bypasses the cache entirely: the only user so far is a script evaluation, and a preamble exists
@@ -174,7 +176,8 @@ namespace StackExchange.Redis.Interpolated
             ref RespFrame preamble,
             ref RespFrame request,
             CommandFlags flags,
-            IRespHandler<TResult> handler)
+            IRespHandler<TResult> handler,
+            IRespPreambleGate? gate = null)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
@@ -186,7 +189,7 @@ namespace StackExchange.Redis.Interpolated
             // the caller's frames really are emptied, and their Dispose is the no-op it looks like.
             var head = preamble.Detach(CommandFlags.CommandRetryAlways);
             var body = request.Detach(flags);
-            return AwaitPair(executor, head, body, handler, context.CancellationToken);
+            return AwaitPair(executor, head, body, gate, handler, context.CancellationToken);
         }
 
         /// <summary>
@@ -198,6 +201,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="request">The request whose reply the caller wants.</param>
         /// <param name="flags">The request's flags.</param>
         /// <param name="handler">Turns the request's reply into a result.</param>
+        /// <param name="gate">If set, decides at write time whether the preamble is still needed.</param>
         /// <remarks>
         /// No <c>ref</c> on the preamble, and no ownership question either: it is a fixed buffer that is
         /// never returned to a pool, so the release at the end of the send is a no-op rather than a
@@ -208,19 +212,21 @@ namespace StackExchange.Redis.Interpolated
             RespRequest preamble,
             ref RespFrame request,
             CommandFlags flags,
-            IRespHandler<TResult> handler)
+            IRespHandler<TResult> handler,
+            IRespPreambleGate? gate = null)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
 
             var body = request.Detach(flags);
-            return AwaitPair(executor, preamble, body, handler, context.CancellationToken);
+            return AwaitPair(executor, preamble, body, gate, handler, context.CancellationToken);
         }
 
         private static async ValueTask<TResult> AwaitPair<TResult>(
             IRespExecutor executor,
             RespRequest head,
             RespRequest body,
+            IRespPreambleGate? gate,
             IRespHandler<TResult> handler,
             CancellationToken cancellationToken)
         {
@@ -229,12 +235,13 @@ namespace StackExchange.Redis.Interpolated
                 RespPayload? response;
                 if (executor is IRespPreambleExecutor together)
                 {
-                    response = await together.SendAsync(head, body, cancellationToken).ForAwait();
+                    response = await together.SendAsync(head, body, gate, cancellationToken).ForAwait();
                 }
                 else
                 {
                     // sequential fallback: wait for the preamble, then send. Ordering is what matters, and
-                    // awaiting gives it - at the cost of the round trip a unit would have saved.
+                    // awaiting gives it - at the cost of the round trip a unit would have saved. The gate is
+                    // not consulted here: it asks about a connection, and this path has no notion of one.
                     (await executor.SendAsync(head, cancellationToken).ForAwait())?.Release();
                     response = await executor.SendAsync(body, cancellationToken).ForAwait();
                 }

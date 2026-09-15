@@ -48,9 +48,16 @@ public class RespSurfaceScriptsTests
     {
         public int Pairs { get; private set; }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, CancellationToken cancellationToken = default)
+        /// <summary>The gate the surface handed over, so tests can assert one was supplied at all.</summary>
+        public IRespPreambleGate? Gate { get; private set; }
+
+        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
         {
             Pairs++;
+            Gate = gate;
+
+            // deliberately NOT consulted here: the gate asks about a PhysicalConnection, which a fake
+            // executor does not have. Skipping is decided in the message pipeline, and is tested there.
             Send(preamble).Release();   // the preamble's reply is consumed and discarded
             return new(Send(request));
         }
@@ -70,6 +77,7 @@ public class RespSurfaceScriptsTests
         using var result = await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"], [(RedisValue)"a"]);
 
         Assert.Equal(1, executor.Pairs); // written as a unit, not as two independent sends
+        Assert.NotNull(executor.Gate);   // and with the means to skip the preamble once it is redundant
         Assert.Equal(2, executor.Sent.Count);
         Assert.StartsWith("*3|$6|SCRIPT|$4|LOAD|", executor.Sent[0]);
         Assert.Equal($"*5|$7|EVALSHA|$40|{Sha}|$1|1|$1|k|$1|a|", executor.Sent[1]);

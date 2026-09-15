@@ -19,12 +19,18 @@ namespace StackExchange.Redis.Interpolated
     /// composition, where transactions and <c>HIMPORT</c> already live.
     /// </para>
     /// <para>
-    /// <b>This is the unconditional first cut:</b> the pair is sent every time, so nothing yet consults
-    /// whether the script is already loaded. That is deliberate. A duplicate <c>SCRIPT LOAD</c> is
-    /// idempotent and costs only the body on the wire, which leaves the composition mechanism as the single
-    /// thing being proven here. See design notes for the two pieces that follow: a registry holding the
-    /// rendered <c>SCRIPT LOAD</c> frame so the body is encoded once ever, and the write-time belief check
-    /// that skips the preamble entirely.
+    /// <b>The preamble is decided at write time, not here.</b> The pair is always built, and an
+    /// <see cref="IRespPreambleGate"/> decides when the connection is finally known whether the
+    /// <c>SCRIPT LOAD</c> half expands at all - because the endpoint whose script cache is in question is
+    /// not chosen until the write, and a resend after <c>NOSCRIPT</c>, a reconnect or a <c>MOVED</c> must
+    /// re-decide. That is also what makes the retry terminate.
+    /// </para>
+    /// <para>
+    /// The belief lives on the endpoint, shared with the classic path rather than duplicated: one table,
+    /// one <c>SCRIPT FLUSH</c>/restart invalidation, no second thing to keep honest. It is soft in both
+    /// directions - a wrong "loaded" costs a <c>NOSCRIPT</c> and a retry, a wrong "not loaded" costs an
+    /// idempotent <c>SCRIPT LOAD</c> - which is what lets this be an optimisation over something already
+    /// correct rather than a thing the correctness rests on.
     /// </para>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
@@ -114,7 +120,9 @@ namespace StackExchange.Redis.Interpolated
                 var fresh = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
                 try
                 {
-                    return SendPair(in context, ref fresh, hash, keys, args, flags, readOnly);
+                    // a gate per call here, where the registry keeps one per script: without a registry
+                    // there is nowhere to keep it, and the skip is worth more than the allocation
+                    return SendPair(in context, ref fresh, hash, keys, args, flags, readOnly, new ScriptLoadGate(script, hash));
                 }
                 finally
                 {
@@ -122,8 +130,8 @@ namespace StackExchange.Redis.Interpolated
                 }
             }
 
-            var preamble = registry.GetPreamble(in context, script, out var known);
-            return SendPair(in context, preamble, known, keys, args, flags, readOnly);
+            var preamble = registry.GetPreamble(in context, script, out var known, out var gate);
+            return SendPair(in context, preamble, known, keys, args, flags, readOnly, gate);
         }
 
         /// <summary>EVALSHA_RO, preceded by SCRIPT LOAD; the read-only form of <c>Evaluate</c>.</summary>
@@ -160,14 +168,15 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<RedisValue> args,
             CommandFlags flags,
-            bool readOnly)
+            bool readOnly,
+            IRespPreambleGate gate)
         {
             var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
             var request = context.Render($"{command}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
             try
             {
                 return context.SendWithPreambleAsync(
-                    ref preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result);
+                    ref preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result, gate);
             }
             finally
             {
@@ -175,7 +184,7 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="SendPair(in RespContext, ref RespFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags, bool)"/>
+        /// <inheritdoc cref="SendPair(in RespContext, ref RespFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags, bool, IRespPreambleGate)"/>
         /// <remarks>
         /// The registry's preamble owns nothing poolable - it is a fixed array that is never returned - so
         /// it needs no disposal and can be handed over directly.
@@ -187,14 +196,15 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<RedisValue> args,
             CommandFlags flags,
-            bool readOnly)
+            bool readOnly,
+            IRespPreambleGate gate)
         {
             var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
             var request = context.Render($"{command}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
             try
             {
                 return context.SendWithPreambleAsync(
-                    preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result);
+                    preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result, gate);
             }
             finally
             {

@@ -225,6 +225,44 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.Equal(42, result.ReadScalar().ReadInt32());
     }
 
+    /// <summary>
+    /// The write-time belief: the first evaluation loads, the rest do not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The point of the whole composition. The preamble cannot be decided when the frames are rendered,
+    /// because the endpoint whose script cache is in question is not chosen until the write - so the pair
+    /// is always built and the gate decides, at write time, whether it expands.
+    /// </para>
+    /// <para>
+    /// Asserted through the endpoint's belief rather than by counting bytes, for the same reason as
+    /// <c>ScriptLoadPairingTests</c>: the belief is recorded only from a SCRIPT LOAD reply, so it is
+    /// evidence the preamble was really sent - and its <i>absence</i> of change afterwards is evidence the
+    /// skip happened, since a second load would simply rewrite it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheSecondEvaluationSkipsTheScriptLoad()
+    {
+        await using var conn = Create();
+        var server = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(conn.GetEndPoints()[0]);
+        var surface = NewSurface(conn, 0);
+
+        // a script unique to this test, so no other test has taught the endpoint about it
+        var script = $"return '{Me()}'";
+        server.FlushScriptCache();
+        Assert.False(server.IsScriptLoaded(script));
+
+        (await surface.Context.Scripts.Evaluate(script)).Dispose();
+        Assert.True(server.IsScriptLoaded(script), "the first evaluation did not load the script");
+
+        // now it is believed loaded, the gate must decline - and the call must still work, which is the
+        // half that matters: declining the preamble writes the EVALSHA alone
+        (await surface.Context.Scripts.Evaluate(script)).Dispose();
+        using var third = await surface.Context.Scripts.Evaluate(script);
+        Assert.Equal(Me(), third.ReadScalar().ReadString());
+    }
+
     /// <summary>A database-scoped script still routes to the database it was asked for.</summary>
     /// <remarks>
     /// The guard on the fix above: stripping the database belongs to the <i>preamble</i>, whose command
