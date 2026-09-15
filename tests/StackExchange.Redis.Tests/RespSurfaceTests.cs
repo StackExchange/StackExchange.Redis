@@ -130,6 +130,12 @@ public class RespSurfaceTests
         // the two halves of keyspace isolation must not disagree about this
         var keys = new RespContext().WithKeyPrefix("app:").WithKeyPrefix("v2:");
         Assert.Equal("app:v2:", (string?)keys.KeyPrefix);
+
+        // including the no-escape half: a null key prefix is a no-op, not a reset. Note this differs from
+        // the old API on purpose - DatabaseExtensions.WithKeyPrefix THROWS on null - because there is no
+        // argument to validate here, just a prefix that adds nothing
+        Assert.Equal("app:v2:", (string?)keys.WithKeyPrefix(default).KeyPrefix);
+        Assert.True(new RespContext().WithKeyPrefix(default).KeyPrefix.IsNull);
     }
 
     [Fact]
