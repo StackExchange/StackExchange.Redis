@@ -1606,11 +1606,23 @@ diverge. Its entry in the category table reads:
 Correct for retry, and exactly wrong for caching. That comment is the clearest single argument that
 cacheability cannot be read off the retry category.
 
-**One I would question rather than accept.** `DUMP` was also flagged, but it looks *correctly*
-invalidated: the payload is a deterministic function of the value, and the key is tracked, so a write
-invalidates it properly. The case against is benefit rather than correctness — large payloads, rarely
-re-read — which is what `NoClientCache` is for. Worth a second opinion before it joins a list of things
-that are *unsafe*, since mixing "wrong" with "not worth it" makes the list harder to trust.
+**One I questioned rather than accepted, and it was settled: `DUMP` stays cacheable.** It is correctly
+invalidated — the payload is a deterministic function of the value, and the key is tracked, so a write
+invalidates it like any other read. The case against was benefit rather than correctness: large payloads,
+rarely re-read. That is not what this list is for. Everything else here would be *wrong* to cache; `DUMP`
+would merely be *unrewarding*, and mixing the two makes the list harder to trust, because a reader could no
+longer assume an entry means "unsafe".
+
+Two things settled it. `CacheOptions.MaxPayloadBytes` now refuses oversized replies generically, so the
+size worry needs no per-command rule; and `NoClientCache` is exactly the control for a caller who knows
+their `DUMP` is one-shot, which a bulk migration does. The public `Keys.Dump` documentation says so, rather
+than leaving the caller to work it out.
+
+The one way `DUMP` could have been non-deterministic in the sense the rest of this list means: its payload
+encodes the value's *internal encoding* (listpack versus skiplist, and so on), so the same logical content
+can serialise differently. Every encoding change happens on a write, which invalidates — so the argument
+holds, but it is reasoning rather than evidence, and it is the thing to re-examine if `DUMP` ever appears
+to serve something stale.
 
 #### Opt-out, not opt-in
 

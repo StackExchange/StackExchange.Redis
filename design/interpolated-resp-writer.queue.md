@@ -67,12 +67,6 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-- [ ] **Two cacheability calls wanting a second opinion.** `DUMP` (a serialised payload - stable for a
-      given value, and invalidated like any other read, so arguably fine) and `HPEXPIRETIME`, which is
-      currently left *cacheable* on the grounds that an absolute instant does not drift, where `HPTTL`
-      counts down and is stale the moment it is stored. The rest of the exclusion list is done. `TOUCH` and
-      `PFCOUNT` are not on the new surface yet; when the `Keys` group lands, `TOUCH` needs `.NeverCached()`.
-
 ## Next
 
 - [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
@@ -232,6 +226,8 @@ Four consequences, none of them cosmetic:
 - [x] A bulk write invalidates its own arguments, not the whole cache — `bbb91af6`
 - [x] Arrays off the new API: 28 returns become `ReadOnlyLease<T>`, with internal `...Array` siblings — `9625bde1`
 - [x] Cacheability exclusions: `.NeverCached()` on the random readers and `HPTTL` — `28d7fa3d`
+- [x] The two second opinions, both confirmed: `[H]PEXPIRETIME` cacheable (an instant does not drift),
+      `DUMP` cacheable but documented as rarely worth it — this change
 - [x] The `Keys` command group, and awaiting the flush `CountKeys` depended on — this change
 - [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
 - [x] Byte and entry quotas, with sampled eviction — `87d5afa2`

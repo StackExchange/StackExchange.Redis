@@ -280,9 +280,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to serialise.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>
+        /// <para>
         /// A pooled lease rather than a <c>byte[]</c>, like every other payload on this surface: the caller
         /// almost always feeds it straight to <c>RESTORE</c> or to a stream, and an array would be a
         /// per-call allocation nothing can reclaim. It must be disposed.
+        /// </para>
+        /// <para>
+        /// <b>This is cached, and you may not want it to be.</b> It is <i>safe</i> - the payload is a
+        /// deterministic function of the value and the key is tracked, so a write invalidates it like any
+        /// other read. It is just rarely worth it: <c>DUMP</c> is a migration and backup primitive, so the
+        /// read is usually one-shot and the payload is the whole value. A bulk migration will therefore
+        /// spend the cache's budget on entries nothing will ever read again. Pass
+        /// <see cref="CommandFlags.NoClientCache"/> for that; genuinely large payloads are refused anyway,
+        /// by <see cref="CacheOptions.MaxPayloadBytes"/>.
+        /// </para>
         /// </remarks>
         public static ValueTask<ReadOnlyLease<byte>?> Dump(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<ReadOnlyLease<byte>?>(
