@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -29,7 +30,7 @@ namespace StackExchange.Redis.Interpolated
     /// arrive already framed, there is one shape.
     /// </para>
     /// </remarks>
-    internal sealed class RespMessageExecutor : IRespExecutor
+    internal sealed class RespMessageExecutor : IRespExecutor, IRespPreambleExecutor
     {
         private readonly RedisBase _target;
 
@@ -67,6 +68,58 @@ namespace StackExchange.Redis.Interpolated
             // is the model settled in design notes section 6.11 - the request completes by itself
             var message = new FrameMessage(Database, request);
             return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);
+        }
+
+        /// <summary>
+        /// Write a preamble and a request as one unit, so nothing interleaves and both reach one connection.
+        /// </summary>
+        /// <remarks>
+        /// An <see cref="IMultiMessage"/>, which is how the pipeline has always expressed "these go
+        /// together" - it is what <c>ScriptEvalMessage</c> uses for exactly this pairing today. Going
+        /// through it rather than around it means the pair inherits ordering, the backlog, retry and the
+        /// reconnect handshake, none of which a second write path could have shared.
+        /// </remarks>
+        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, CancellationToken cancellationToken = default)
+        {
+            var message = new FramePairMessage(Database, preamble, request);
+            return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);
+        }
+
+        /// <summary>A preamble and a request, expanded into two messages that are written together.</summary>
+        /// <remarks>
+        /// The preamble's reply is consumed and thrown away - it exists for its effect on the connection,
+        /// not for its value - so it carries a processor that demands nothing of it. The pair routes by the
+        /// <b>request</b>, because the preamble is typically keyless and would otherwise route anywhere.
+        /// </remarks>
+        private sealed class FramePairMessage : Message, IMultiMessage
+        {
+            private readonly int _database;
+            private readonly RespRequest _preamble;
+            private readonly RespRequest _request;
+
+            internal FramePairMessage(int database, in RespRequest preamble, in RespRequest request)
+                : base(database, request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
+            {
+                _database = database;
+                _preamble = preamble;
+                _request = request;
+            }
+
+            public override int ArgCount => _request.ArgCount - 1;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
+
+            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            {
+                var head = new FrameMessage(_database, _preamble);
+                head.SetInternalCall();
+                head.SetSource(ResultProcessor.DemandOK, null);
+                yield return head;
+                yield return new FrameMessage(_database, _request);
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+                => throw new NotSupportedException("A multi-message is written through its expansion.");
         }
 
         /// <summary>A message whose body is already framed: writing it is a blit.</summary>

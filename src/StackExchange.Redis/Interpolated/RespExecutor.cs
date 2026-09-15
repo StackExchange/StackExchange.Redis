@@ -46,6 +46,32 @@ namespace StackExchange.Redis.Interpolated
     }
 
     /// <summary>
+    /// An executor that can write a <b>preamble</b> immediately before a request, on the same connection
+    /// and with nothing interleaved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Optional, and detected the way <c>IRespPayloadHandler</c> is: an executor that does not implement it
+    /// still works, by sending the two in sequence and waiting for the first. That is a round trip worse
+    /// and semantically identical, which is the right trade for a fake in a test - nothing has to be
+    /// updated for a capability it does not need.
+    /// </para>
+    /// <para>
+    /// The motivating case is <c>SCRIPT LOAD</c> before <c>EVALSHA</c>. Note what is <b>not</b> being asked
+    /// for: the two are separate frames, each a pure function of its arguments, so the request keeps its
+    /// identity as a cache key and its routing. Only their adjacency is being requested.
+    /// </para>
+    /// </remarks>
+    internal interface IRespPreambleExecutor
+    {
+        /// <summary>Issue <paramref name="preamble"/> and <paramref name="request"/> as one unit.</summary>
+        /// <param name="preamble">Written first; its reply is consumed and discarded.</param>
+        /// <param name="request">The request whose reply the caller wants.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, CancellationToken cancellationToken = default);
+    }
+
+    /// <summary>
     /// EXPERIMENTAL SPIKE. Turns a reply into a result - the <c>ResultProcessor</c> half.
     /// </summary>
     /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
@@ -122,6 +148,85 @@ namespace StackExchange.Redis.Interpolated
         /// which says nothing about fire-and-forget to whoever has to read it.
         /// </para>
         /// </remarks>
+        /// <summary>
+        /// Send a request preceded by a preamble that must reach the same connection, immediately before it.
+        /// </summary>
+        /// <typeparam name="TResult">What parsing the request's reply produces.</typeparam>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="preamble">Written first; its reply is consumed and discarded.</param>
+        /// <param name="request">The request whose reply the caller wants.</param>
+        /// <param name="flags">The request's flags.</param>
+        /// <param name="handler">Turns the request's reply into a result.</param>
+        /// <remarks>
+        /// <para>
+        /// Bypasses the cache entirely: the only user so far is a script evaluation, and a preamble exists
+        /// precisely because the request cannot stand alone - so serving the request from cache would skip
+        /// the very thing the preamble was for. When a read-only script becomes cacheable this will need
+        /// revisiting, and the answer will be to cache the <i>request</i> frame alone, never the pair.
+        /// </para>
+        /// <para>
+        /// An executor that cannot write the two as a unit sends them in sequence instead - correct, one
+        /// round trip worse, and the reason test fakes need no changes.
+        /// </para>
+        /// </remarks>
+        internal static ValueTask<TResult> SendWithPreambleAsync<TResult>(
+            this RespContext context,
+            ref RespFrame preamble,
+            ref RespFrame request,
+            CommandFlags flags,
+            IRespHandler<TResult> handler)
+        {
+            if (handler is null) throw new ArgumentNullException(nameof(handler));
+            var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
+
+            // detach HERE, not in the async continuation. RespFrame is a struct, so a by-value parameter
+            // would hand the continuation a copy: Detach would empty the copy, the caller's frame would
+            // still hold the buffer, and disposing it would return an array that is still being written -
+            // which shows up as somebody else's reply arriving for your command. Taking them by ref means
+            // the caller's frames really are emptied, and their Dispose is the no-op it looks like.
+            var head = preamble.Detach(CommandFlags.CommandRetryAlways);
+            var body = request.Detach(flags);
+            return AwaitPair(executor, head, body, handler, context.CancellationToken);
+        }
+
+        private static async ValueTask<TResult> AwaitPair<TResult>(
+            IRespExecutor executor,
+            RespRequest head,
+            RespRequest body,
+            IRespHandler<TResult> handler,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                RespPayload? response;
+                if (executor is IRespPreambleExecutor together)
+                {
+                    response = await together.SendAsync(head, body, cancellationToken).ForAwait();
+                }
+                else
+                {
+                    // sequential fallback: wait for the preamble, then send. Ordering is what matters, and
+                    // awaiting gives it - at the cost of the round trip a unit would have saved.
+                    (await executor.SendAsync(head, cancellationToken).ForAwait())?.Release();
+                    response = await executor.SendAsync(body, cancellationToken).ForAwait();
+                }
+
+                try
+                {
+                    return Parse(handler, response);
+                }
+                finally
+                {
+                    response?.Release();
+                }
+            }
+            finally
+            {
+                head.Dispose();
+                body.Dispose();
+            }
+        }
+
         /// <summary>
         /// Whether this command changes keys, so far as its flags admit.
         /// </summary>

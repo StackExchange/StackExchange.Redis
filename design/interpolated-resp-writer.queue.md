@@ -118,7 +118,32 @@ Four consequences, none of them cosmetic:
         a MULTI/EXEC transaction)"* - which is both why `ScriptEvalMessage` is an `IMultiMessage` and
         independent confirmation of the transaction constraint below.
 
-        **Stage it stateless first:** always pair `SCRIPT LOAD` + `EVALSHA`. Correct, one round trip, no new
+        **Split the two facts `knownScripts` currently conflates**, because they have different scopes and
+        lifetimes:
+
+        ```
+        global, immutable      script body  ->  { sha, rendered SCRIPT LOAD frame }
+        per-endpoint, soft     endpoint     ->  which shas it is believed to hold
+        ```
+
+        The rendering is endpoint-independent - the bytes of `SCRIPT LOAD <body>` and the SHA are the same
+        everywhere - so today's per-endpoint table re-encodes and re-hashes the body once per endpoint. The
+        frame half **never invalidates**, being a pure function of the body; only the belief is soft, and it
+        already has `FlushScriptCache` and the `RunId` check.
+
+        **The registry bounds itself via the invariant above.** Retaining a rendered frame pins a pooled
+        buffer, so an application generating scripts per call would grow it without limit - but that is
+        exactly the population that is already declaring itself transient with `NoScriptCache`. Do not admit
+        those, and the flag becomes one signal meaning "transient" on both sides: the server puts it in the
+        evictable pool, we do not retain its frame. `NoScriptCache` therefore gets no re-encoding saving,
+        deliberately; a caller running such a script hot should stop using the flag.
+
+        It is a **request** cache, not a response cache - superficially like `RespClientCache` but with
+        opposite semantics (never invalidated, keyed by body rather than by frame). Keep it separate and
+        small rather than generalising one to serve both.
+
+        **Stage it stateless first:** always pair `SCRIPT LOAD` + `EVALSHA`, re-rendering each time. That
+        leaves the composition mechanism as the only unknown; the registry lands next, as 1b. Correct, one round trip, no new
         state, and it proves the composition mechanism. Belief-tracking is then a pure optimisation that
         drops the `SCRIPT LOAD`, layered on something already correct rather than being load-bearing.
 

@@ -217,6 +217,10 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespRequest.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespRequest.TryGetKeys(scoped System.Span<StackExchange.Redis.Interpolated.KeyRange> target) -> int
 [SER010]StackExchange.Redis.Interpolated.RespRequest.TryRetain(out StackExchange.Redis.Interpolated.RespRequest retained) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespScripts
+[SER010]StackExchange.Redis.Interpolated.RespScripts.Context.get -> StackExchange.Redis.Interpolated.RespContext
+[SER010]StackExchange.Redis.Interpolated.RespScripts.RespScripts() -> void
+[SER010]StackExchange.Redis.Interpolated.RespScripts.RespScripts(in StackExchange.Redis.Interpolated.RespContext context) -> void
 [SER010]StackExchange.Redis.Interpolated.RespSets
 [SER010]StackExchange.Redis.Interpolated.RespSets.Context.get -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespSets.RespSets() -> void
@@ -234,6 +238,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).Bitmaps.get -> StackExchange.Redis.Interpolated.RespBitmaps
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).Hashes.get -> StackExchange.Redis.Interpolated.RespHashes
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).Keys.get -> StackExchange.Redis.Interpolated.RespKeys
+[SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).Scripts.get -> StackExchange.Redis.Interpolated.RespScripts
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).Sets.get -> StackExchange.Redis.Interpolated.RespSets
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).SortedSets.get -> StackExchange.Redis.Interpolated.RespSortedSets
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(StackExchange.Redis.Interpolated.IRespTarget!).Strings.get -> StackExchange.Redis.Interpolated.RespStrings
@@ -241,6 +246,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Bitmaps.get -> StackExchange.Redis.Interpolated.RespBitmaps
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Hashes.get -> StackExchange.Redis.Interpolated.RespHashes
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Keys.get -> StackExchange.Redis.Interpolated.RespKeys
+[SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Scripts.get -> StackExchange.Redis.Interpolated.RespScripts
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Sets.get -> StackExchange.Redis.Interpolated.RespSets
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).SortedSets.get -> StackExchange.Redis.Interpolated.RespSortedSets
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Strings.get -> StackExchange.Redis.Interpolated.RespStrings
@@ -297,6 +303,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.Delete(this in StackExchange.Redis.Interpolated.RespStrings strings, StackExchange.Redis.RedisKey key, StackExchange.Redis.ValueCondition when = default(StackExchange.Redis.ValueCondition), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<bool>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.Digest(this in StackExchange.Redis.Interpolated.RespStrings strings, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ValueCondition?>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.Dump(this in StackExchange.Redis.Interpolated.RespKeys keys, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<byte>?>
+[SER010]static StackExchange.Redis.Interpolated.RespSurface.Evaluate(this in StackExchange.Redis.Interpolated.RespScripts scripts, string! script, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys = default(System.ReadOnlySpan<StackExchange.Redis.RedisKey>), System.ReadOnlySpan<StackExchange.Redis.RedisValue> args = default(System.ReadOnlySpan<StackExchange.Redis.RedisValue>), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.ExecuteAsync(this StackExchange.Redis.Interpolated.IRespTarget! target, string! command, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.Exists(this in StackExchange.Redis.Interpolated.RespHashes hashes, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue field, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<bool>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.Exists(this in StackExchange.Redis.Interpolated.RespKeys keys, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<bool>
@@ -402,6 +409,8 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Hashes(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespHashes
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Keys(StackExchange.Redis.Interpolated.IRespTarget! target) -> StackExchange.Redis.Interpolated.RespKeys
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Keys(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespKeys
+[SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Scripts(StackExchange.Redis.Interpolated.IRespTarget! target) -> StackExchange.Redis.Interpolated.RespScripts
+[SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Scripts(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespScripts
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Sets(StackExchange.Redis.Interpolated.IRespTarget! target) -> StackExchange.Redis.Interpolated.RespSets
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Sets(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespSets
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_SortedSets(StackExchange.Redis.Interpolated.IRespTarget! target) -> StackExchange.Redis.Interpolated.RespSortedSets

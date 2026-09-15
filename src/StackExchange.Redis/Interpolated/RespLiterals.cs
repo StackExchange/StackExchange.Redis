@@ -208,5 +208,9 @@
         /// <summary>The <c>REPLACE</c> operand of <c>COPY</c>.</summary>
         [Resp]
         internal static partial RespFragment Replace { get; }
+
+        /// <summary>The <c>LOAD</c> subcommand of <c>SCRIPT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Load { get; }
     }
 }
