@@ -268,25 +268,32 @@ namespace StackExchange.Redis.Interpolated
         /// If the write then fails, we invalidated for nothing. That is the right way to be wrong.
         /// </para>
         /// <para>
-        /// <b>A frame that cannot enumerate its keys invalidates everything.</b> <c>TryGetKeys</c> returning
-        /// -1 means "I have keys but cannot tell you which" - and a write whose keys we cannot name is
-        /// precisely the case where guessing is not allowed.
+        /// <b>A write whose key marks overflowed stamps every argument instead of flushing.</b> A frame can
+        /// only mark keys up to argument 62, so a large <c>MSET</c> or <c>DEL</c> reports "I have keys but
+        /// cannot tell you which". Guessing a subset is not allowed - that is the whole reason the frame
+        /// refuses to report one - but the arguments are a <i>superset</i> of the keys, and stamping a
+        /// superset is correct. It costs one needless miss for any value that happens to equal a cached
+        /// key, and it keeps the damage inside the command instead of taking out the entire cache, which is
+        /// what this used to do. Bulk writes are exactly the workload that would have suffered.
+        /// </para>
+        /// <para>
+        /// Only a frame that cannot be read at all falls back to <see cref="OnFlush"/>.
         /// </para>
         /// </remarks>
         internal int OnLocalWrite(in RespRequest frame)
         {
             var keyCount = frame.KeyCount;
             if (keyCount == 0) return 0;
-            if (keyCount < 0)
-            {
-                OnFlush();
-                return -1;
-            }
 
-            Span<KeyRange> ranges = keyCount <= 16 ? stackalloc KeyRange[16] : new KeyRange[keyCount];
-            var count = frame.TryGetKeys(ranges);
+            // negative means the marks overflowed; the arguments are a superset of the keys, and there are
+            // at most ArgCount of them
+            var wanted = keyCount < 0 ? frame.ArgCount : keyCount;
+            Span<KeyRange> ranges = wanted <= 16 ? stackalloc KeyRange[16] : new KeyRange[wanted];
+
+            var count = keyCount < 0 ? frame.TryGetAllArguments(ranges) : frame.TryGetKeys(ranges);
             if (count < 0)
             {
+                // unreadable rather than merely unmarked; nothing left but the blunt instrument
                 OnFlush();
                 return -1;
             }

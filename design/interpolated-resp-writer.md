@@ -2063,6 +2063,18 @@ currently has no caller in `src`, which makes wiring it a correctness item rathe
 own `+OK`, where every key invalidation comes after. So "accumulate and fan out after the reply" is right
 for writes and wrong for flushes.
 
+**A write whose key marks overflow stamps its arguments, not the whole cache.** A frame can only mark keys
+up to argument 62, so a large `MSET` or `DEL` reports "I have keys but cannot tell you which" - and the
+first version of the local-write hook answered that with `OnFlush`. That is correct and far too blunt: a
+bulk write would destroy an unrelated hot cache every time. Reporting a *subset* is forbidden - it is why
+the frame refuses to report one at all - but the arguments are a **superset** of the keys, and stamping a
+superset is sound. The cost is one needless miss for any value that happens to equal a cached key, on a
+command that already named enough keys to overflow the bitmap.
+
+Note this only ever applies to **writes**. A 100-key `MGET` is a read, so it never reaches this path; it is
+simply not cached, by the same keyless rule, because a frame that cannot name its keys cannot be
+invalidated either.
+
 **Expiry was not announced at all** - not passively after the TTL passed, and not even when a subsequent
 read forced the deletion. Whatever the documented behaviour, an entry whose only end is expiry may get no
 notification, which is the case `CachePolicy.TimeToLive` exists to bound. This is the evidence for that

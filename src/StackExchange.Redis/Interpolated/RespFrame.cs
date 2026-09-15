@@ -199,6 +199,58 @@ namespace StackExchange.Redis.Interpolated
             return count;
         }
 
+        /// <summary>
+        /// Every argument of the command, whether or not it was marked as a key.
+        /// </summary>
+        /// <returns>The number written, or <c>-1</c> if <paramref name="target"/> is too small.</returns>
+        /// <remarks>
+        /// <para>
+        /// For the one caller that needs a <b>superset</b> of the keys rather than the keys: invalidating
+        /// after a write whose key marks were truncated. The true key set is always a subset of the
+        /// arguments, so stamping all of them is correct, and it is bounded by the command instead of
+        /// taking out the whole cache.
+        /// </para>
+        /// <para>
+        /// The cost of the over-approximation is that a <i>value</i> which happens to equal some cached key
+        /// gets invalidated too - one needless miss, on a command that already named enough keys to
+        /// overflow the bitmap. That is a far better trade than flushing everything.
+        /// </para>
+        /// <para>
+        /// Argument 0 is skipped: it is the command name, never a key.
+        /// </para>
+        /// </remarks>
+        internal static int ResolveAllArguments(byte[] buffer, int start, int length, scoped Span<KeyRange> target)
+        {
+            var end = start + length;
+            var i = start;
+            while (buffer[i] != (byte)'\n') i++; // past the '*N\r\n' header
+            i++;
+
+            int arg = 0, count = 0;
+            while (i < end)
+            {
+                var j = i + 1; // past the '$'
+                var bulk = 0;
+                while (buffer[j] != (byte)'\r')
+                {
+                    bulk = (bulk * 10) + (buffer[j] - (byte)'0');
+                    j++;
+                }
+
+                var payload = j + 2;
+                if (arg != 0)
+                {
+                    if (count >= target.Length) return -1;
+                    target[count++] = new KeyRange(payload, bulk);
+                }
+
+                i = payload + bulk + 2;
+                arg++;
+            }
+
+            return count;
+        }
+
         /// <summary>Resolve a <see cref="KeyRange"/> against the underlying buffer.</summary>
         public readonly ReadOnlySpan<byte> GetKey(in KeyRange range) => new(_buffer, range.Offset, range.Length);
 

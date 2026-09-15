@@ -95,6 +95,10 @@ namespace StackExchange.Redis.Interpolated
         public int TryGetKeys(scoped Span<KeyRange> target)
             => _array is null ? -1 : RespFrame.ResolveKeys(_array, _offset, _length, _keyMarks, target);
 
+        /// <summary>Every argument, whether or not marked as a key; see <see cref="RespFrame.ResolveAllArguments"/>.</summary>
+        internal int TryGetAllArguments(scoped Span<KeyRange> target)
+            => _array is null ? -1 : RespFrame.ResolveAllArguments(_array, _offset, _length, target);
+
         /// <summary>Resolve a <see cref="KeyRange"/> against the underlying buffer.</summary>
         /// <param name="range">The range to resolve.</param>
         public ReadOnlySpan<byte> GetKey(in KeyRange range)

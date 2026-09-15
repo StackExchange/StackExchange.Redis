@@ -1492,14 +1492,22 @@ public class RespClientCacheTests
         Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), "an undeclared command should be assumed to write");
     }
 
-    /// <summary>A write we cannot enumerate the keys of invalidates everything.</summary>
+    /// <summary>
+    /// A write whose key marks overflowed invalidates its own keys - and <b>not</b> the rest of the cache.
+    /// </summary>
     /// <remarks>
-    /// <c>TryGetKeys</c> returning -1 means "there are keys, but I cannot tell you which". A write is
-    /// precisely where guessing is not allowed, so the whole cache goes - over-flushing costs round trips,
-    /// under-flushing costs correctness.
+    /// <para>
+    /// A frame can only mark keys up to argument 62, so a large <c>MSET</c> or <c>DEL</c> cannot say which
+    /// of its arguments were keys. Reporting a subset is forbidden, but the arguments are a <i>superset</i>
+    /// of the keys, so stamping all of them is correct and stays inside the command.
+    /// </para>
+    /// <para>
+    /// The first version of this flushed the whole cache, which would have made a bulk write destroy an
+    /// unrelated hot cache every time - the exact question that prompted looking again.
+    /// </para>
     /// </remarks>
     [Fact]
-    public async Task AWriteWithUnknowableKeysFlushesEverything()
+    public async Task AWriteWithUnknowableKeysInvalidatesOnlyItsOwn()
     {
         using var cache = new RespClientCache();
         var executor = new FakeExecutor("$2\r\nv1\r\n");
@@ -1521,11 +1529,43 @@ public class RespClientCacheTests
 
         await context.SendAsync(ref frame, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance);
 
+        // the unrelated entries survive: this write never mentioned them
         foreach (var key in new[] { "a", "b", "c" })
         {
             using var probe = Get(key);
-            Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), $"'{key}' should have gone with the flush");
+            Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var alive), $"'{key}' should not have been touched");
+            alive.Release();
         }
+    }
+
+    /// <summary>...and the keys such a write DID name are invalidated, marks or no marks.</summary>
+    /// <remarks>
+    /// The other half of the superset argument: stamping the arguments is only acceptable because it is a
+    /// superset. If it missed a key past the bitmap, the write would go unannounced locally and the entry
+    /// would be served until the server's echo caught up - which is the window this whole mechanism exists
+    /// to close.
+    /// </remarks>
+    [Fact]
+    public async Task AWriteWithUnknowableKeysStillInvalidatesTheKeysItNamed()
+    {
+        using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$2\r\nv1\r\n");
+        var context = Via(executor, cache);
+
+        // k70 sits well past the bitmap's last markable argument
+        var read = Get("k70");
+        await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance);
+        Assert.Equal(1, cache.Count);
+
+        var many = Ctx.Compose($"{RedisCommand.MSET}");
+        for (var i = 0; i < 80; i++) many.Append($"{(RedisKey)("k" + i)}{(RedisValue)"v"}");
+        var frame = Ctx.Render(ref many);
+        Assert.True(frame.KeyCount < 0);
+
+        await context.SendAsync(ref frame, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance);
+
+        using var probe = Get("k70");
+        Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), "a key past the bitmap must still be invalidated");
     }
 
 }
