@@ -67,6 +67,36 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Give `Inspect` a verdict, and move the `NOSCRIPT` retry into the pipeline.** The seam is named
+      (`ea26ce61`) but can still only *record*, not direct. The measure of the gap is `NOSCRIPT`: inspection
+      sets a sticky flag on the message, the task faults, and **six** `catch (RedisServerException) when
+      (msg.IsScriptUnavailable)` sites in `RedisDatabase` re-issue - a verdict delivered by unwinding,
+      because there is no way to say "reissue".
+
+      Shape: `Inspect` returns `Complete` (default) / `Reissue`, with `NotYet` arriving when `WATCH` needs
+      it. The six catch sites collapse into one place. **Behaviour-changing**, so it wants its own commit
+      and its own mutation pass - the retry currently only happens on paths that remembered to catch, and
+      moving it into the pipeline will change what happens on the paths that did not.
+
+- [ ] **Should a top-level error be a `RespResult` rather than a throw?** *Post-verdict decision*, recorded
+      now because it looks like a `RespResultProcessor` shape question and is not.
+
+      `RespResult` **can already carry it**: it stores the `Prefix` and the raw frame including the prefix
+      bytes, so `-ERR` is representable today - the processor simply routes errors to `base.SetResult`,
+      which faults the message. So this is a "chooses not to", not a "cannot".
+
+      The real question is errors-as-values vs errors-as-exceptions, which is user-visible and much bigger
+      than making one processor fit a seam. Three reasons not to take it yet: it is a **silent** break for
+      `ExecuteResp`/`ScriptEvaluateResp` callers who get exceptions today and would get a value they must
+      remember to check; it would break the `NOSCRIPT` retry, which depends on the exception unwinding, so
+      doing it first removes the mechanism before its replacement exists; and the library already draws a
+      defensible line - nested errors inside an `EXEC` array are already data in `RedisResult`, only the top
+      level throws.
+
+      After the verdict lands, "capture this error as a `RespResult`" is one of the verdicts rather than a
+      special case, `RespResultProcessor` collapses into the seam, and the question can be decided on its
+      own merits with a mechanism able to express either answer.
+
 ## Next
 
 - [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
