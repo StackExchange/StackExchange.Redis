@@ -188,6 +188,7 @@ public class TransitionalCoverageTests
     [InlineData("Key")]
     [InlineData("Script")]
     [InlineData("Stream")]
+    [InlineData("Array")]
     public void EveryMemberOfAMovedGroupIsImplemented(string prefix)
     {
         var generated = Generated(prefix, typeof(IDatabase)).Concat(Generated(prefix, typeof(IDatabaseAsync)))
@@ -232,6 +233,11 @@ public class TransitionalCoverageTests
             // and one composite on the INPUT side: StreamConfigure takes a StreamConfiguration, which is
             // the same "pick a shape" question as the reads, just pointing the other way
             .Where(x => !x.StartsWith("StreamConfigure", StringComparison.Ordinal))
+
+            // Array: ARGREP alone. ArrayGrepRequest is a mutable builder whose predicates render
+            // themselves through the OLD MessageWriter, so moving it is a decision about that type rather
+            // than a transcription of a command - the same shape of question as StreamConfigure.
+            .Where(x => !x.StartsWith("ArrayGrep", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("KeyMigrate", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("KeyRestore", StringComparison.Ordinal))
 
@@ -265,7 +271,7 @@ public class TransitionalCoverageTests
     [Fact]
     public void EveryImplementedMemberBelongsToATestedGroup()
     {
-        string[] tested = ["String", "Hash", "Set", "SortedSet", "List", "HyperLogLog", "Sort", "Geo", "VectorSet", "Key", "Script", "Stream"];
+        string[] tested = ["String", "Hash", "Set", "SortedSet", "List", "HyperLogLog", "Sort", "Geo", "VectorSet", "Key", "Script", "Stream", "Array"];
 
         // the members that belong to no command group: funnels, fallbacks, and the ad-hoc Execute family.
         // A second list, but a STABLE one - infrastructure does not come and go, whereas command groups

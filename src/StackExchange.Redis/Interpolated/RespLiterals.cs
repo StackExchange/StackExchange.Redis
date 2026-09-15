@@ -362,6 +362,22 @@
         [Resp("FILTER-EF")]
         internal static partial RespFragment FilterEf { get; }
 
+        /// <summary>The <c>FULL</c> operand of <c>ARINFO</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Full { get; }
+
+        /// <summary>The <c>SUM</c> operation of <c>AROP</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Sum { get; }
+
+        /// <summary>The <c>MATCH</c> operation of <c>AROP</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Match { get; }
+
+        /// <summary>The <c>USED</c> operation of <c>AROP</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Used { get; }
+
         /// <summary>The <c>MINID</c> trim strategy of <c>XTRIM</c>.</summary>
         [Resp]
         internal static partial RespFragment MinId { get; }

@@ -555,6 +555,11 @@ Four consequences, none of them cosmetic:
       staying) or deliberately not yet moved (stream reads). Pick it up when there is appetite for a shape
       decision rather than a transcription.
 
+- [ ] **`ARGREP`, the one array command left.** `ArrayGrepRequest` is a mutable builder whose `Predicate`
+      subclasses render themselves through the **old** `MessageWriter`, so moving it means deciding how a
+      caller-supplied builder writes into the new handler - the same question `StreamConfigure` asks from
+      the input side. Everything else in the family moved 2026-09-15.
+
 - [ ] **More command groups**, in `RespSurface.<Group>.cs` + `TransitionalDatabase.<Group>.cs` pairs.
       Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left (312).
       **Both halves, and the `[InlineData]`, or it does not count as done** - `Keys` and `Scripts` were

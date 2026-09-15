@@ -9,7 +9,7 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="start">The start index.</param>
 /// <param name="end">The end index.</param>
-public readonly struct RedisArrayRange(RedisArrayIndex start, RedisArrayIndex end) : IEquatable<RedisArrayRange>
+public readonly struct RedisArrayRange(RedisArrayIndex start, RedisArrayIndex end) : IEquatable<RedisArrayRange>, Interpolated.IRespArgument
 {
     private readonly RedisArrayIndex _start = start;
     private readonly RedisArrayIndex _end = end;
@@ -23,6 +23,18 @@ public readonly struct RedisArrayRange(RedisArrayIndex start, RedisArrayIndex en
     /// The end index.
     /// </summary>
     public RedisArrayIndex End => _end;
+
+    /// <summary>Writes this range as two arguments, start then end.</summary>
+    /// <remarks>
+    /// Explicit, as <see cref="HashEntry"/> does it: reached only through a command hole, which is the one
+    /// place it means anything. Two arguments, so a span of these renders as a run through the handler's
+    /// open span hole rather than needing an overload of its own.
+    /// </remarks>
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    {
+        handler.AppendFormatted(_start);
+        handler.AppendFormatted(_end);
+    }
 
     /// <summary>
     /// The "{start}..{end}" string representation.

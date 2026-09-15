@@ -565,6 +565,11 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<Lease<long?>>,
             IRespHandler<PersistResult[]>,
             IRespHandler<StreamTrimResult[]>,
+            IRespHandler<RedisArrayIndex>,
+            IRespHandler<RedisArrayIndex?>,
+            IRespHandler<ArrayInfo>,
+            IRespHandler<RedisArrayEntry[]>,
+            IRespHandler<ReadOnlyLease<RedisArrayEntry>>,
             IRespHandler<ReadOnlyLease<StreamTrimResult>>,
             IRespHandler<ReadOnlyLease<PersistResult>>,
             IRespHandler<ReadOnlyLease<byte>?>,
@@ -674,6 +679,35 @@ namespace StackExchange.Redis.Interpolated
 
             ReadOnlyLease<ExpireResult> IRespHandler<ReadOnlyLease<ExpireResult>>.Parse(ref RespReader reader)
                 => ReadScalarLease(ref reader, Elements.Expire);
+
+            // the array family: every one of these delegates to the parse the classic path already uses,
+            // rather than carrying a second copy of it
+            private static readonly ResultProcessor.RedisArrayEntryArrayProcessor ArrayEntryShape = new();
+
+            RedisArrayIndex IRespHandler<RedisArrayIndex>.Parse(ref RespReader reader)
+                => ResultProcessor.TryParseArrayIndex(ref reader, out var index)
+                    ? index
+                    : throw new RespException("Unexpected array-index reply.");
+
+            /// <remarks>ARNEXT replies nil when the array is full, which is an answer rather than a failure.</remarks>
+            RedisArrayIndex? IRespHandler<RedisArrayIndex?>.Parse(ref RespReader reader)
+            {
+                if (reader.IsScalar && reader.IsNull) return null;
+                return ResultProcessor.TryParseArrayIndex(ref reader, out var index)
+                    ? index
+                    : throw new RespException("Unexpected array-index reply.");
+            }
+
+            ArrayInfo IRespHandler<ArrayInfo>.Parse(ref RespReader reader)
+                => ResultProcessor.TryParseArrayInfo(ref reader, out var info)
+                    ? info
+                    : throw new RespException("Unexpected ARINFO reply.");
+
+            RedisArrayEntry[] IRespHandler<RedisArrayEntry[]>.Parse(ref RespReader reader)
+                => ReadPairArray(ref reader, ArrayEntryShape);
+
+            ReadOnlyLease<RedisArrayEntry> IRespHandler<ReadOnlyLease<RedisArrayEntry>>.Parse(ref RespReader reader)
+                => ReadPairLease(ref reader, ArrayEntryShape);
 
             ReadOnlyLease<StreamTrimResult> IRespHandler<ReadOnlyLease<StreamTrimResult>>.Parse(ref RespReader reader)
                 => ReadScalarLease(ref reader, Elements.TrimResult);

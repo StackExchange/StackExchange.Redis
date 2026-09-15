@@ -30,6 +30,12 @@ namespace StackExchange.Redis.Interpolated.Downlevel
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public static class RespGroups
     {
+        /// <inheritdoc cref="RespSurface.extension(IRespKeyspaceTarget).Arrays"/>
+        public static RespArrays Arrays(this IRespKeyspaceTarget target) => new RespArrays(target.Context);
+
+        /// <inheritdoc cref="RespSurface.extension(IRespKeyspaceTarget).Arrays"/>
+        public static RespArrays Arrays(this in RespContext context) => new RespArrays(context);
+
         /// <inheritdoc cref="RespSurface.extension(IRespKeyspaceTarget).Bitmaps"/>
         public static RespBitmaps Bitmaps(this IRespKeyspaceTarget target) => new RespBitmaps(target.Context);
 

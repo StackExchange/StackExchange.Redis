@@ -79,10 +79,11 @@ public class TransitionalDatabaseTests
         var db = Target(new FakeExecutor("+OK\r\n"));
 
         // the exemplar has to be a command that genuinely has not moved, so it changes as groups land -
-        // KeyDelete was this until the Key group arrived, ListLeftPush until the List group did, and
-        // StreamLength until the stream group's scalar half did. Going stale is the point: it fails here
-        // loudly rather than silently asserting nothing.
-        var ex = Assert.Throws<NotImplementedException>(() => db.ArrayLength("k"));
+        // KeyDelete was this until the Key group arrived, ListLeftPush until the List group did,
+        // StreamLength until the stream scalars did, and ArrayLength lasted about an hour. Going stale is
+        // the point: it fails here loudly rather than silently asserting nothing. LockQuery should last:
+        // the lock group waits on transactions, which wait on the Message refactor.
+        var ex = Assert.Throws<NotImplementedException>(() => db.LockQuery("k"));
         Assert.Contains("has not yet moved", ex.Message);
     }
 
