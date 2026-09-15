@@ -31,6 +31,17 @@
         /// </summary>
         public const string HandWrittenRespFragment = "SER011";
 
+        /// <summary>
+        /// Borrowed reply values: <c>RespValue</c> and the commands that hand back leases of them.
+        /// </summary>
+        /// <remarks>
+        /// Separate from <see cref="InterpolatedWriter"/> deliberately: that asks whether commands should
+        /// be WRITTEN this way, this asks whether replies should be BORROWED rather than owned, and the
+        /// two can be answered differently. Turning this one off says how much of a codebase depends on
+        /// the borrowing.
+        /// </remarks>
+        public const string BorrowedValues = "SER012";
+
         // ReSharper restore InconsistentNaming
 
         // this one is not a real experiment; it exists to help me

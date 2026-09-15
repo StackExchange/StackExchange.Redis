@@ -142,8 +142,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; negative to allow the same member more than once.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RandomMembers(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembers(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.VRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.VRANDMEMBER));
 
         /// <summary>VGETATTR: the JSON attributes attached to a member, or nil if it has none.</summary>
@@ -227,7 +227,7 @@ namespace StackExchange.Redis.Interpolated
         /// Deliberately not called a scan: the server has no <c>VSCAN</c>, and if one arrives it should be
         /// free to take the name.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Range(
+        public static ValueTask<ReadOnlyLease<RespValue>> Range(
             this in RespVectorSets sets,
             RedisKey key,
             RedisValue start = default,
@@ -241,9 +241,9 @@ namespace StackExchange.Redis.Interpolated
             var to = RedisDatabase.VectorSetBound(end, exclude, isStart: false);
 
             return count < 0
-                ? sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                ? sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                     $"{RedisCommand.VRANGE}{key}{from}{to}", flags.WithDefaultCategory(RedisCommand.VRANGE))
-                : sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                : sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                     $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags.WithDefaultCategory(RedisCommand.VRANGE));
         }
 

@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -76,11 +77,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last index to take; negative counts back from the end.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>A pooled lease, not an array, and it must be disposed; see <c>Strings.Get</c>.</remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Range(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> Range(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LRANGE}{key}{start}{stop}",
                 flags.WithDefaultCategory(RedisCommand.LRANGE),
-                RespHandlers.ValueLease);
+                RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>LPOS: where an element sits, or -1.</summary>
         /// <param name="lists">The list command group.</param>
@@ -196,11 +197,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> LeftPop(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> LeftPop(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LPOP}{key}{count}",
                 flags.WithDefaultCategory(RedisCommand.LPOP),
-                RespHandlers.ValueLease);
+                RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>RPOP.</summary>
         /// <param name="lists">The list command group.</param>
@@ -216,11 +217,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RightPop(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RightPop(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.RPOP}{key}{count}",
                 flags.WithDefaultCategory(RedisCommand.RPOP),
-                RespHandlers.ValueLease);
+                RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>LMPOP: take from the first of several keys that has anything.</summary>
         /// <param name="lists">The list command group.</param>
@@ -313,10 +314,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         /// <remarks>
         /// <see langword="null"/> - not empty - when nothing moved, which is the one array reply in this
-        /// library where those two are different answers; see <see cref="RespHandlers.NullableValueLease"/>.
+        /// library where those two are different answers; see <see cref="RespHandlers.ValueWindowHandler.NullableLease"/>.
         /// The lease must be disposed.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>?> Move(
+        public static ValueTask<ReadOnlyLease<RespValue>?> Move(
             this in RespLists lists,
             RedisKey sourceKey,
             RedisKey destinationKey,
@@ -329,7 +330,7 @@ namespace StackExchange.Redis.Interpolated
             => lists.Context.SendAsync(
                 $"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}",
                 flags.WithDefaultCategory(RedisCommand.LMOVEM),
-                RespHandlers.NullableValueLease);
+                RespHandlers.ValueWindowHandler.NullableLease);
 
         /// <summary>LINSERT ... BEFORE.</summary>
         /// <param name="lists">The list command group.</param>

@@ -236,7 +236,7 @@ public class RespSurfaceVectorSetsTests
         var (ctx, exec) = Target("*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
         using var some = await ctx.VectorSets.RandomMembers("k", 2);
-        Assert.Equal(new RedisValue[] { "a", "b" }, some.Span.ToArray());
+        Assert.Equal(new RedisValue[] { "a", "b" }, System.Array.ConvertAll(some.Span.ToArray(), v => v.AsRedisValue()));
 
         // negative counts are meaningful here - they allow the same member more than once - so the count
         // is written as given rather than clamped

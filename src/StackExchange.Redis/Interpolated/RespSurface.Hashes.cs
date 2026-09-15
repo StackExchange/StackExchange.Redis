@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -69,10 +70,10 @@ namespace StackExchange.Redis.Interpolated
         /// No fields means no command, as elsewhere: an arity-zero <c>HMGET</c> is a server error, and the
         /// values of no fields is an empty array without asking anyone.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Get(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> Get(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
-                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
-                : hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
                     $"{RedisCommand.HMGET}{key}{fields}", flags.WithDefaultCategory(RedisCommand.HMGET));
 
         /// <summary>Get, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -141,8 +142,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="hashes">The hash command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Keys(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
-            => hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+        public static ValueTask<ReadOnlyLease<RespValue>> Keys(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.HKEYS}{key}", flags.WithDefaultCategory(RedisCommand.HKEYS));
 
         /// <summary>Keys, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -165,8 +166,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="hashes">The hash command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Values(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
-            => hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+        public static ValueTask<ReadOnlyLease<RespValue>> Values(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.HVALS}{key}", flags.WithDefaultCategory(RedisCommand.HVALS));
 
         /// <summary>Values, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -224,8 +225,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RandomFields(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomFields(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.HRANDFIELD}{key}{count}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD).NeverCached());
 
         /// <summary>RandomFields, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -572,10 +573,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="fields">The fields to read and remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> GetDelete(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> GetDelete(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
-                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
-                : hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
                     $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
                     flags.WithDefaultCategory(RedisCommand.HGETDEL));
 
@@ -644,10 +645,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="fields">The fields to read.</param>
         /// <param name="expiry">The expiration to apply.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> GetSetExpiry(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> GetSetExpiry(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
-                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
-                : hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
                     $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{fields.Length}{fields}",
                     WithGetExCategory(expiry, flags));
 

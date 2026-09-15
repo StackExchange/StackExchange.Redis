@@ -132,7 +132,7 @@ namespace StackExchange.Redis.Interpolated
             => keys.IsEmpty
                 ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
                 : strings.Context.SendAsync(
-                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.ValueWindowHandler.Instance);
+                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>MGET, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <param name="strings">The string command group.</param>

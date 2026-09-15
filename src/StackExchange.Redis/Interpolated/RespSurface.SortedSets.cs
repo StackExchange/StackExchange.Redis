@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -281,8 +282,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RandomMembers(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => sortedSets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembers(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
 
         /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -337,7 +338,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last rank to take.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RangeByRank(
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeByRank(
             this in RespSortedSets sortedSets,
             RedisKey key,
             long start = 0,
@@ -346,7 +347,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
-            return sortedSets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+            return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{command}{key}{start}{stop}", flags.WithDefaultCategory(command));
         }
 
@@ -436,7 +437,7 @@ namespace StackExchange.Redis.Interpolated
         /// asked to walk. That is the old builder's rule, kept exactly, because a caller who passed
         /// <c>(10, 1)</c> descending has always meant the same thing.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RangeByScore(
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeByScore(
             this in RespSortedSets sortedSets,
             RedisKey key,
             double start = double.NegativeInfinity,
@@ -446,7 +447,7 @@ namespace StackExchange.Redis.Interpolated
             long skip = 0,
             long take = -1,
             CommandFlags flags = CommandFlags.None)
-            => RangeByScoreCore<ReadOnlyLease<RedisValue>>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
+            => RangeByScoreCore<ReadOnlyLease<RespValue>>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
 
         /// <summary>RangeByScore, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -533,7 +534,7 @@ namespace StackExchange.Redis.Interpolated
         /// the open bounds then flip too, which is why <c>-</c> and <c>+</c> are chosen by the order
         /// rather than by the position.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RangeByValue(
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeByValue(
             this in RespSortedSets sortedSets,
             RedisKey key,
             RedisValue min = default,
@@ -550,7 +551,7 @@ namespace StackExchange.Redis.Interpolated
             // which of them is "low", and GetLexRange's order-aware -/+ mapping is where that lives
             RedisDatabase.ReverseLimits(order, ref exclude, ref min, ref max);
 
-            return sortedSets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+            return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
                 flags.WithDefaultCategory(command));
         }
@@ -701,7 +702,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Combine(
+        public static ValueTask<ReadOnlyLease<RespValue>> Combine(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
@@ -710,7 +711,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
         {
             var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
-            return CombineCore<ReadOnlyLease<RedisValue>>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
+            return CombineCore<ReadOnlyLease<RespValue>>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
         }
 
         /// <summary>Combine, as an array, for the old <c>IDatabase</c> surface.</summary>

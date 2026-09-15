@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -33,7 +34,7 @@ namespace StackExchange.Redis.Interpolated
         /// substitution buys is a command the server itself classifies as a read.
         /// </para>
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Sort(
+        public static ValueTask<ReadOnlyLease<RespValue>> Sort(
             this in RespKeys keys,
             RedisKey key,
             long skip = 0,
@@ -43,7 +44,7 @@ namespace StackExchange.Redis.Interpolated
             RedisValue by = default,
             ReadOnlySpan<RedisValue> get = default,
             CommandFlags flags = CommandFlags.None)
-            => SortCore<ReadOnlyLease<RedisValue>>(in keys, default, key, skip, take, order, sortType, by, get, flags);
+            => SortCore<ReadOnlyLease<RespValue>>(in keys, default, key, skip, take, order, sortType, by, get, flags);
 
         /// <summary>SORT ... STORE: the same sort, written to a key as a list; the reply is its length.</summary>
         /// <param name="keys">The key command group.</param>

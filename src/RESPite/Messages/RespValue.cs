@@ -13,7 +13,7 @@ namespace RESPite.Messages;
 /// that has returned its buffer to the pool throws from here, where a memory would quietly hand back
 /// whatever landed there next. Implemented by <c>RefCountedBuffer</c> and by anything else that pools.
 /// </remarks>
-[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.BorrowedValues, UrlFormat = Experiments.UrlFormat)]
 public interface IRespBufferOwner
 {
     /// <summary>The bytes this owner holds.</summary>
@@ -57,7 +57,7 @@ public interface IRespBufferOwner
 /// streamed-scalar chunk walk.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+[Experimental(Experiments.BorrowedValues, UrlFormat = Experiments.UrlFormat)]
 public readonly struct RespValue : IEquatable<RespValue>
 {
     /// <summary>

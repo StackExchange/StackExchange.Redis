@@ -1,22 +1,22 @@
 ﻿#nullable enable
-[SER004]RESPite.Messages.IRespBufferOwner
-[SER004]RESPite.Messages.IRespBufferOwner.GetReadOnlySpan() -> System.ReadOnlySpan<byte>
-[SER004]RESPite.Messages.RespValue
-[SER004]RESPite.Messages.RespValue.AsBoolean() -> bool
-[SER004]RESPite.Messages.RespValue.AsDouble() -> double
-[SER004]RESPite.Messages.RespValue.AsInt32() -> int
-[SER004]RESPite.Messages.RespValue.AsInt64() -> long
-[SER004]RESPite.Messages.RespValue.CopyTo(scoped System.Span<byte> target) -> int
-[SER004]RESPite.Messages.RespValue.Equals(RESPite.Messages.RespValue other) -> bool
-[SER004]RESPite.Messages.RespValue.Frame.get -> System.ReadOnlySpan<byte>
-[SER004]RESPite.Messages.RespValue.HasValue.get -> bool
-[SER004]RESPite.Messages.RespValue.IsNull.get -> bool
-[SER004]RESPite.Messages.RespValue.Length.get -> int
-[SER004]RESPite.Messages.RespValue.RespValue() -> void
-[SER004]RESPite.Messages.RespValue.TryGetSpan(out System.ReadOnlySpan<byte> payload) -> bool
-[SER004]override RESPite.Messages.RespValue.Equals(object? obj) -> bool
-[SER004]override RESPite.Messages.RespValue.GetHashCode() -> int
-[SER004]override RESPite.Messages.RespValue.ToString() -> string!
-[SER004]static RESPite.Messages.RespValue.Null.get -> RESPite.Messages.RespValue
-[SER004]static RESPite.Messages.RespValue.TryCaptureNext(object? owner, scoped ref RESPite.Messages.RespReader reader, out RESPite.Messages.RespValue value) -> bool
-[SER004]static RESPite.Messages.RespValue.explicit operator string?(RESPite.Messages.RespValue value) -> string?
+[SER012]RESPite.Messages.IRespBufferOwner
+[SER012]RESPite.Messages.IRespBufferOwner.GetReadOnlySpan() -> System.ReadOnlySpan<byte>
+[SER012]RESPite.Messages.RespValue
+[SER012]RESPite.Messages.RespValue.AsBoolean() -> bool
+[SER012]RESPite.Messages.RespValue.AsDouble() -> double
+[SER012]RESPite.Messages.RespValue.AsInt32() -> int
+[SER012]RESPite.Messages.RespValue.AsInt64() -> long
+[SER012]RESPite.Messages.RespValue.CopyTo(scoped System.Span<byte> target) -> int
+[SER012]RESPite.Messages.RespValue.Equals(RESPite.Messages.RespValue other) -> bool
+[SER012]RESPite.Messages.RespValue.Frame.get -> System.ReadOnlySpan<byte>
+[SER012]RESPite.Messages.RespValue.HasValue.get -> bool
+[SER012]RESPite.Messages.RespValue.IsNull.get -> bool
+[SER012]RESPite.Messages.RespValue.Length.get -> int
+[SER012]RESPite.Messages.RespValue.RespValue() -> void
+[SER012]RESPite.Messages.RespValue.TryGetSpan(out System.ReadOnlySpan<byte> payload) -> bool
+[SER012]override RESPite.Messages.RespValue.Equals(object? obj) -> bool
+[SER012]override RESPite.Messages.RespValue.GetHashCode() -> int
+[SER012]override RESPite.Messages.RespValue.ToString() -> string!
+[SER012]static RESPite.Messages.RespValue.Null.get -> RESPite.Messages.RespValue
+[SER012]static RESPite.Messages.RespValue.TryCaptureNext(object? owner, scoped ref RESPite.Messages.RespReader reader, out RESPite.Messages.RespValue value) -> bool
+[SER012]static RESPite.Messages.RespValue.explicit operator string?(RESPite.Messages.RespValue value) -> string?

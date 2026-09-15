@@ -52,7 +52,7 @@ public class RespValueAllocationTests(ITestOutputHelper log)
         var asWindows = Measure(() =>
         {
             using var payload = RespPayload.Create(reply);
-            using var lease = ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)RespHandlers.ValueWindowHandler.Instance).Parse(payload);
+            using var lease = ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)RespHandlers.ValueWindowHandler.Lease).Parse(payload);
             Assert.Equal(Elements, lease.Length);
         });
 
@@ -74,7 +74,7 @@ public class RespValueAllocationTests(ITestOutputHelper log)
         var reply = Reply();
 
         using var payload = RespPayload.Create(reply);
-        using var windows = ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)RespHandlers.ValueWindowHandler.Instance).Parse(payload);
+        using var windows = ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)RespHandlers.ValueWindowHandler.Lease).Parse(payload);
         using var values = RespHandlers.ValueLease.Parse(reply);
 
         Assert.Equal(values.Length, windows.Length);
@@ -130,7 +130,7 @@ public class RespValueAllocationTests(ITestOutputHelper log)
         var reply = Reply();
         var payload = RespPayload.Create(reply);
 
-        var lease = ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)RespHandlers.ValueWindowHandler.Instance).Parse(payload);
+        var lease = ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)RespHandlers.ValueWindowHandler.Lease).Parse(payload);
 
         // the handler took a reference of its own, so the pipeline releasing its one leaves the values
         // readable - this is what "the lease owns the buffer" has to mean

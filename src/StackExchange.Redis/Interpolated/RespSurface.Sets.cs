@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -131,8 +132,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Members(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
-            => sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+        public static ValueTask<ReadOnlyLease<RespValue>> Members(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.SMEMBERS}{key}", flags.WithDefaultCategory(RedisCommand.SMEMBERS));
 
         /// <summary>Members, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -179,10 +180,10 @@ namespace StackExchange.Redis.Interpolated
         /// sends a bare <c>SPOP</c> and would remove <b>one</b>. That is a divergence, and a deliberate
         /// one: "pop none" quietly popping one is the kind of thing a caller discovers in production.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Pop(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> Pop(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => count == 0
-                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
-                : sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
+                : sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                     $"{RedisCommand.SPOP}{key}{count}", flags.WithDefaultCategory(RedisCommand.SPOP));
 
         /// <summary>Pop, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -216,8 +217,8 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisValue>> RandomMembers(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembers(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
 
         /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -246,12 +247,12 @@ namespace StackExchange.Redis.Interpolated
         /// building a variadic message used to be work, and with a run of keys as a hole it is the same
         /// expression either way.
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RedisValue>> Combine(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> Combine(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
             var command = operation.ToSetCommand();
-            return sets.Context.SendAsync<ReadOnlyLease<RedisValue>>($"{command}{keys}", flags.WithDefaultCategory(command));
+            return sets.Context.SendAsync<ReadOnlyLease<RespValue>>($"{command}{keys}", flags.WithDefaultCategory(command));
         }
 
         /// <summary>Combine, as an array, for the old <c>IDatabase</c> surface.</summary>

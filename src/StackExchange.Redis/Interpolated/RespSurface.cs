@@ -267,7 +267,42 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<ReadOnlyLease<RespValue>>,
             IRespPayloadHandler<ReadOnlyLease<RespValue>>
         {
-            internal static readonly ValueWindowHandler Instance = new();
+            private static readonly ValueWindowHandler Instance = new();
+
+            /// <summary>A nil aggregate reads as empty: every caller of an array reply wants to iterate it.</summary>
+            internal static IRespHandler<ReadOnlyLease<RespValue>> Lease => Instance;
+
+            /// <summary>
+            /// A nil aggregate reads as <see langword="null"/>, for the handful of commands where "nothing
+            /// happened" and "an empty result" are different answers - <c>LMPOP</c>, and the bulk move.
+            /// </summary>
+            /// <remarks>
+            /// A separate object rather than another interface on this one: the lease is a class, so the
+            /// two differ only in nullability annotation and name the same runtime type. That is why the
+            /// RedisValue pair are two instances too.
+            /// </remarks>
+            internal static IRespHandler<ReadOnlyLease<RespValue>?> NullableLease { get; }
+                = new NullableValueWindowHandler();
+
+            private sealed class NullableValueWindowHandler :
+                IRespHandler<ReadOnlyLease<RespValue>?>,
+                IRespPayloadHandler<ReadOnlyLease<RespValue>?>
+            {
+                ReadOnlyLease<RespValue>? IRespPayloadHandler<ReadOnlyLease<RespValue>?>.Parse(RespPayload payload)
+                    => IsNilAggregate(payload.Span)
+                        ? null
+                        : ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)Instance).Parse(payload);
+
+                ReadOnlyLease<RespValue>? IRespHandler<ReadOnlyLease<RespValue>?>.Parse(ReadOnlySpan<byte> response)
+                    => IsNilAggregate(response) ? null : Copy(response);
+
+                private static bool IsNilAggregate(ReadOnlySpan<byte> response)
+                {
+                    var reader = new RespReader(response);
+                    reader.MoveNext();
+                    return reader.IsNull;
+                }
+            }
 
             ReadOnlyLease<RespValue> IRespPayloadHandler<ReadOnlyLease<RespValue>>.Parse(RespPayload payload)
             {
@@ -400,6 +435,8 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// </remarks>
         private sealed class DefaultHandlers :
+            IRespHandler<ReadOnlyLease<RespValue>>,
+            IRespPayloadHandler<ReadOnlyLease<RespValue>>,
             IRespHandler<ExpireResult[]>,
             IRespHandler<ReadOnlyLease<ExpireResult>>,
             IRespHandler<HashEntry[]>,
@@ -564,6 +601,15 @@ namespace StackExchange.Redis.Interpolated
                 var pooled = HashEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
                 return pooled is null ? ReadOnlyLease<HashEntry>.Empty : ReadOnlyLease<HashEntry>.Adopt(pooled, count);
             }
+
+            // the window shape is registered HERE, not just on ValueWindowHandler, because Inbuilt<T> asks
+            // this object and nothing else: a handler that is not on the defaults is reachable only by
+            // being named explicitly, which the *Core forwarders cannot do
+            ReadOnlyLease<RespValue> IRespHandler<ReadOnlyLease<RespValue>>.Parse(ReadOnlySpan<byte> response)
+                => ValueWindowHandler.Lease.Parse(response);
+
+            ReadOnlyLease<RespValue> IRespPayloadHandler<ReadOnlyLease<RespValue>>.Parse(RespPayload payload)
+                => ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)ValueWindowHandler.Lease).Parse(payload);
 
             /// <inheritdoc cref="IRespHandler{T}.Parse" path="/remarks"/>
             ReadOnlyLease<SortedSetEntry> IRespHandler<ReadOnlyLease<SortedSetEntry>>.Parse(ReadOnlySpan<byte> response)
