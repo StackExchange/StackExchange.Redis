@@ -251,6 +251,44 @@ Four consequences, none of them cosmetic:
 
 ## Later / decide first
 
+- [ ] **Two-phase replies: inspect on the reader, parse at the consumer.** A future direction rather than
+      a task - logged now because it changes what a "handler" is, and several things below will otherwise
+      be built against the wrong shape.
+
+      The plan: gut `Message` onto an `IValueTaskSource` with a poolable core, defer parsing to whoever
+      awaits, and let the frame advertise only the task state (faulted versus completed). Scripts are the
+      sharpest case: the reply would not be looked at until the `await`, and for fire-and-forget never.
+
+      **That forces a privileged first look** - not a handler, an *inspection* that runs on the reader
+      thread and returns a verdict: `complete` (default handling), `reissue`, and at least one more. It is
+      not a new concept so much as an existing one made explicit: today's `SetResult` already does both
+      jobs, with `NoteIfScriptUnavailable` and the error probe being the inspection half.
+
+      Five things to pin before building it:
+
+      - **Parse is deferrable; inspection is not.** Fire-and-forget proves it: a F+F `EVALSHA` answered
+        with `NOSCRIPT` has no consumer to notice, so deferring the look would leave the endpoint's belief
+        uncleared and every later call failing. It works today only because the processor runs on the reader
+        thread whether or not anyone awaits.
+      - **Ordering is contract, not detail.** Redirects first: a `NOSCRIPT` on a command that also needs
+        `-MOVED` handling must redirect before anything else, because the script may exist on the right
+        node. A fixed chain, not a bag of handlers.
+      - **Every verdict must say who owns the payload afterwards.** `reissue` drops it; `complete` retains
+        it until the consumer parses. Reference counting already supports both, but the enum has to make
+        the obligation explicit or it will leak one way and double-free the other.
+      - **A third verdict is needed**: "consumed for its effect on the connection, caller gets the
+        default" - which is `HELLO`, `INFO`, `CONFIG`, `CLIENT TRACKING`. That is the convergence point for
+        the side-effect commands, and the reason this belongs in the same design as the write-time
+        injection seam rather than beside it.
+      - **Pooling plus IVTS is where the sharp edges are**, not the parsing: a reused message must carry no
+        residue past completion, and "inspect said reissue" followed by a late duplicate reply is the
+        classic double-complete. Version tokens matter more here than anywhere else.
+
+      **One interaction with the cache:** storing currently happens on the reply path. If parse defers, the
+      store belongs in *inspect* - otherwise a reply nobody awaits promptly, or at all, never populates the
+      cache, and a fire-and-forget read silently stops warming it.
+
+
 - [ ] **Per-context `CachePolicy` override** (`WithCachePolicy`). The other half of the options/policy
       split: policy settings are read-time, so they can vary per call, and the override rides in the
       context's service slot exactly as `MaxCacheAgeService` does. `WithMaxCacheAge` stays as the
