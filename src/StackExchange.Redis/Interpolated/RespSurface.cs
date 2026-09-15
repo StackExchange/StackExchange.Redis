@@ -196,6 +196,53 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static IRespHandler<bool> Success { get; } = new SuccessHandler();
 
+        /// <summary>
+        /// Read an aggregate of scalars straight into a pooled lease.
+        /// </summary>
+        /// <remarks>
+        /// The lease counterpart of <c>ReadPastArray(projection, scalar: true)</c>: same walk, same
+        /// projection, but filling storage the caller gives back instead of a fresh array. Six of the
+        /// element types here differ only in that projection, so they share this rather than repeating
+        /// the rent-and-guard dance eight times. It lives here rather than on the defaults object so
+        /// that handlers outside it - the geo group's, whose shape depends on the request - can share
+        /// it too.
+        /// </remarks>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="response">The reply to read.</param>
+        /// <param name="projection">How to read one element.</param>
+        internal static ReadOnlyLease<T> ReadScalarLease<T>(ReadOnlySpan<byte> response, RespReader.Projection<T> projection)
+        {
+            var reader = new RespReader(response);
+            reader.MoveNext();
+
+            // a nil aggregate reads as empty, as it does for the array handlers: every caller of an
+            // array reply wants to iterate it
+            if (reader.IsNull) return ReadOnlyLease<T>.Empty;
+
+            var count = reader.AggregateLength();
+            if (count <= 0) return ReadOnlyLease<T>.Empty;
+
+            var lease = ReadOnlyLease<T>.Rent(count, null, out var target);
+            try
+            {
+                var iter = reader.AggregateChildren();
+                for (var i = 0; i < count; i++)
+                {
+                    iter.DemandNext();
+                    var element = iter.Value;
+                    target[i] = projection(ref element);
+                }
+
+                return lease;
+            }
+            catch
+            {
+                // rented by now, and nobody else has a reference to hand back
+                lease.Dispose();
+                throw;
+            }
+        }
+
         /// <summary>The handler used when a call does not name one; resolved by result type.</summary>
         /// <typeparam name="T">The result type.</typeparam>
         /// <remarks>
@@ -371,48 +418,6 @@ namespace StackExchange.Redis.Interpolated
                 catch
                 {
                     // the lease is rented by now, and nobody else has a reference to give back
-                    lease.Dispose();
-                    throw;
-                }
-            }
-
-            /// <summary>
-            /// Read an aggregate of scalars straight into a pooled lease.
-            /// </summary>
-            /// <remarks>
-            /// The lease counterpart of <c>ReadPastArray(projection, scalar: true)</c>: same walk, same
-            /// projection, but filling storage the caller gives back instead of a fresh array. Six of the
-            /// element types here differ only in that projection, so they share this rather than repeating
-            /// the rent-and-guard dance eight times.
-            /// </remarks>
-            private static ReadOnlyLease<T> ReadScalarLease<T>(ReadOnlySpan<byte> response, RespReader.Projection<T> projection)
-            {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-
-                // a nil aggregate reads as empty, as it does for the array handlers: every caller of an
-                // array reply wants to iterate it
-                if (reader.IsNull) return ReadOnlyLease<T>.Empty;
-
-                var count = reader.AggregateLength();
-                if (count <= 0) return ReadOnlyLease<T>.Empty;
-
-                var lease = ReadOnlyLease<T>.Rent(count, null, out var target);
-                try
-                {
-                    var iter = reader.AggregateChildren();
-                    for (var i = 0; i < count; i++)
-                    {
-                        iter.DemandNext();
-                        var element = iter.Value;
-                        target[i] = projection(ref element);
-                    }
-
-                    return lease;
-                }
-                catch
-                {
-                    // rented by now, and nobody else has a reference to hand back
                     lease.Dispose();
                     throw;
                 }

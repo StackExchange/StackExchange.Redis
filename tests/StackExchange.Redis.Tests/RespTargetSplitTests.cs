@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using StackExchange.Redis.Interpolated;
 using Xunit;
 
@@ -66,7 +66,9 @@ public class RespTargetSplitTests
         var offenders = typeof(RespSurface)
             .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
             .Where(m => m.Name.StartsWith("get_"))
-            .Where(m => m.GetParameters() is [{ ParameterType: var t }] && t == typeof(IRespTarget))
+            // not a list pattern: System.Index does not exist on net481, which only the full multi-TFM
+            // build catches - a filtered 'dotnet test -f net10.0' compiles it happily
+            .Where(m => m.GetParameters() is { Length: 1 } ps && ps[0].ParameterType == typeof(IRespTarget))
             .Select(m => m.Name)
             .ToArray();
 
