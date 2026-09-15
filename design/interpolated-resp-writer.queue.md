@@ -71,24 +71,36 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       is not a method on the lease; it is a question about how the result is *built*, which is a question
       about the handler.
 
-      Preferred shape: **one command, two handlers.** Factor each multi-result command into an internal
-      core taking `IRespHandler<TResult>`, and let the public method pass the lease handler while the
-      transitional adapter passes the array one:
+      Shape: **a parallel internal extension method on the typed context**, sitting beside the public one,
+      sharing the message construction and differing only in the handler:
 
       ```csharp
-      internal static ValueTask<T> GetCore<T>(in RespStrings s, ReadOnlySpan<RedisKey> keys, CommandFlags flags, IRespHandler<T> handler)
-          => s.Context.SendAsync($"{RedisCommand.MGET}{keys}", flags, handler);
+      public static ValueTask<ReadOnlyLease<RedisValue>> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+          => strings.Context.SendAsync($"{RedisCommand.MGET}{keys}", flags, RespHandlers.ValueLease);
+
+      internal static ValueTask<RedisValue[]> GetArray(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+          => strings.Context.SendAsync($"{RedisCommand.MGET}{keys}", flags, RespHandlers.Values);
       ```
 
-      The command is still written once, the legacy path allocates exactly what it always did - no pooled
-      rent, no copy, no waste - and neither shape needs an escape hatch on a public type. `RespHandlers.Values`
-      (`IRespHandler<RedisValue[]>`) already exists and is one of the three non-return array sites: it is
-      not deleted, it is demoted to the legacy path.
+      Three things this buys over a generic `GetCore<T>(..., IRespHandler<T>)` helper. It stays in the
+      classic `this` extension form, so the legacy sibling retires the way everything else on this surface
+      does. Being **internal**, it never appears on the public API, so it adds no array site to fix later.
+      And `TransitionalDatabase` stays a genuine one-line pass-through - `context.Strings.GetArray(...)` -
+      which was the whole point of that class.
 
-      Fallback if the per-command internal core proves tiresome: an internal `Adopt(T[] exact)` construction
-      mode plus `TryDetachArray`, handing the array over once and neutering the lease. Strictly internal,
-      the same rule as `RespResult` buffer sharing. Recorded as second choice, not first, because it puts a
-      sharp edge on a type whose whole point is that ownership is unambiguous.
+      Sharing the construction is worth doing once `Execute` is renamed to `Render` (top of this list):
+      `Render($"...")` is exactly the primitive both siblings need, since each call wants its own frame and
+      what is shared is the *composition*, not the frame. Until then the interpolated line is duplicated,
+      which is one line and no knowledge.
+
+      `RespHandlers.Values` (`IRespHandler<RedisValue[]>`) already exists and is one of the three non-return
+      array sites: it is not deleted, it is demoted - off the public surface, onto the legacy sibling.
+
+      Rejected, and recorded so nobody builds it: an internal "hand me your buffer" hatch on
+      `ReadOnlyLease<T>`. `Rent` goes to `ArrayPool<T>.Shared`, which returns an *oversized* array, while
+      the old contract promises an exactly-sized one the caller owns - so the steal could essentially never
+      fire, and what is left is `ToArray()` wearing a disguise. It would also put an ownership ambiguity
+      into the one type whose entire point is that ownership is unambiguous.
 
       `ToArray()` stays public on the lease regardless - that is the escape hatch for *callers* who want an
       array, and it copies, honestly and visibly.
