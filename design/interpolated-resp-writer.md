@@ -2031,6 +2031,43 @@ hand it to whoever happened to be at the front of the queue. Its three unreadabl
 not an aggregate, a streaming aggregate, a key whose bytes we cannot see contiguously) all **over-flush**
 rather than guess: we already know something changed, and the same judgement is made on disconnect.
 
+#### When invalidations actually arrive, measured
+
+Against Redis 8.9.241, RESP3, `BCAST PREFIX`, reading raw bytes off one socket so the order on the wire
+*is* the answer:
+
+| What was sent | What came back, in order |
+| --- | --- |
+| `SET k v` (self-tracked) | `+OK`, **then** `>2 invalidate [k]` |
+| `MSET a b c` | `+OK`, then **one** push: `>2 invalidate [a, b, c]` |
+| `SET k1` + `SET k2`, pipelined | `+OK`, `+OK`, then **one** push: `>2 invalidate [k1, k2]` |
+| `SET k v` then `GET k`, pipelined | `+OK`, `$2 v`, **then** the invalidation |
+| `DEL k` | `:1`, then `>2 invalidate [k]` |
+| `FLUSHDB` | `>2 invalidate _` **then** `+OK` |
+| `SET k v PX 100`, then wait, then read it | **nothing** - no push at all, before or after the expiry |
+
+Four things follow, and none of them were obvious.
+
+**Invalidations trail their replies, and are accumulated across the write cycle rather than emitted per
+command.** Two pipelined `SET`s produced a single two-key push after *both* `+OK`s - so the batching unit
+is not the command, it is whatever the server flushes in one go.
+
+**Which means a self-invalidation can never protect read-your-own-writes.** The `SET`/`GET` row is the
+proof: the reply to a read issued *after* the write still precedes the notification about it. A cache
+holding a stale entry for `k` would answer that `GET` from cache, and the correction arrives afterwards.
+`RespClientCache.OnLocalWrite` is therefore not an optimisation or a latency shortcut - it is the *only*
+mechanism that can close that window, because the server's own message is late by construction. It
+currently has no caller in `src`, which makes wiring it a correctness item rather than a nicety.
+
+**`FLUSHDB` is the exception that a fake will get wrong.** Its `invalidate null` is emitted *before* its
+own `+OK`, where every key invalidation comes after. So "accumulate and fan out after the reply" is right
+for writes and wrong for flushes.
+
+**Expiry was not announced at all** - not passively after the TTL passed, and not even when a subsequent
+read forced the deletion. Whatever the documented behaviour, an entry whose only end is expiry may get no
+notification, which is the case `CachePolicy.TimeToLive` exists to bound. This is the evidence for that
+argument, which until now rested on reasoning.
+
 #### Where the cache lives
 
 A cache needs an owner before a push has anywhere to go, and until now there wasn't one: the cache was a

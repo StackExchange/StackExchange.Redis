@@ -25,6 +25,31 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Next
 
+- [ ] **Wire `OnLocalWrite`** — it has no caller in `src`, and the timing measurements (6.13) make that a
+      **correctness** gap rather than a missing optimisation. A self-invalidation always trails its own
+      reply, and trails the replies of anything pipelined behind it: `SET k v` then `GET k` returns the
+      read *before* the notification about the write. So the server's message can never close the
+      read-your-own-writes window, and the local hook is the only thing that can.
+
+- [ ] **Teach the in-proc server `CLIENT TRACKING`** (`toys/StackExchange.Redis.Server`), for test
+      isolation: the cache suite currently needs a shared 6379, where one test's `FLUSHDB` reaches every
+      other test's tracking connection. Most of the seams already exist - `RespServer.Touch(db, key)` is
+      already a virtual broadcast to every client on every non-readonly key access, `node.OnOutOfBand`
+      already delivers pushes for pub/sub, `TypedRedisValue.Rent(n, out span, PushKind)` builds the frame,
+      and the writer already handles `RespPrefix.Push when value.IsNullArray`, which is the flush shape.
+      New: parse `CLIENT TRACKING ON|OFF [BCAST] [PREFIX p ...]` into per-client state, and fan out.
+
+      **Timing is the part to get right, and it is measured rather than guessed (6.13).** Key
+      invalidations are *accumulated across the write cycle* and emitted **after** the replies - two
+      pipelined `SET`s produce one two-key push after both `+OK`s - so the fake needs an accumulator
+      flushed at the end of a batch, not a send inside `Touch`. `FLUSHDB` is the exception: its
+      `invalidate null` goes out **before** its own `+OK`.
+
+      Per-key (non-`BCAST`) mode is nearly as cheap - `OnKey` already runs per key with a `ReadOnly` flag -
+      and is worth having because it is the mode whose "server forgets the key once it has told you"
+      behaviour the `NOLOOP` argument rests on.
+
+
 - [ ] **Get the arrays off the new API.** There should be very close to zero. Counted at the start: 32 array
       occurrences on the `SER010`/`SER011` surface, of which **29 are `ValueTask<T[]>` returns** -
       `RedisValue[]`, `HashEntry[]`, `SortedSetEntry[]`, `double?[]`, `long[]`, `bool[]`,
