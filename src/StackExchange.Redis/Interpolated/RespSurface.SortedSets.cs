@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Interpolated
 
     public static partial class RespSurface
     {
-        extension(IRespTarget target)
+        extension(IRespKeyspaceTarget target)
         {
             /// <summary>The sorted-set commands.</summary>
             public RespSortedSets SortedSets => new(target.Context);

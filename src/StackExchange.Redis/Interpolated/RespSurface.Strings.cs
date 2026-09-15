@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Interpolated
 
     public static partial class RespSurface
     {
-        extension(IRespTarget target)
+        extension(IRespKeyspaceTarget target)
         {
             /// <summary>The string commands.</summary>
             public RespStrings Strings => new(target.Context);

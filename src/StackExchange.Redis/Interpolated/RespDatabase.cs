@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Interpolated
     /// </para>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public sealed class RespDatabase : IRespTarget
+    public sealed class RespDatabase : IRespKeyspaceTarget
     {
         /// <summary>Create a database over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>

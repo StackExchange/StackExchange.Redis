@@ -300,7 +300,23 @@ Four consequences, none of them cosmetic:
       timestamp *write* in the invalidation path, which sees every key the server mentions. So arming it
       belongs on `CacheOptions` and only the duration can vary per context.
 
-- [ ] **`IServer` / `ISubscriber` contexts** still throw from `IRespTarget.Context`.
+- [ ] **`IServer` / `ISubscriber` contexts** still throw from `IRespTarget.Context`. Narrower than it was:
+      the keyspace groups no longer resolve on them (they take `IRespServerTarget` / `IRespTarget`), so this
+      is now "wire the context" rather than "wire it and hope nobody calls `server.Strings`". `IServer`
+      needs no new executor - `RedisServer.ExecuteAsync` already injects its own endpoint, exactly as
+      `RedisBatch` already queues - so this is a `Context` property, not a routing problem.
+
+- [ ] **`IRespTarget` on `IDatabaseAsync`**, so `IBatch`/`ITransaction` offer the keyspace groups by name.
+      Unblocked by the target split, and the probe says the hard part is already done: a batch's and a
+      transaction's context both queue rather than send, because their executor's target is the batch and
+      `ExecuteAsync` is overridden to queue. Pinned in `RespEndToEndTests`.
+
+      **One blocker, and it is specific:** `Scripts.Evaluate` composes a pair, and a `SCRIPT LOAD` injected
+      inside `MULTI` puts its reply into the `EXEC` array and shifts every result position. Today that is
+      unreachable-by-accident, which is a poor defence but a real one; adding the interface is exactly what
+      makes it reachable. Either move the preamble decision outward to the composite first, or have
+      `FramePairMessage` refuse inside a transaction with a clear message - a loud refusal beats a silent
+      positional corruption, and beats "you cannot get there from here".
 
 - [ ] **The retry executor** (`WithRetry`). Prerequisites in place; no design written.
 
@@ -359,6 +375,16 @@ Four consequences, none of them cosmetic:
       to sit in while the spike is a spike. **Re-exposing the counters needs a designed home**, and that is
       the open question this leaves behind, not the visibility.
 
+- [x] Command groups bind to `IRespKeyspaceTarget`, not `IRespTarget` — `<pending>`.
+      `IRedis` carried `IRespTarget`, so `IDatabase`, `IServer` and `ISubscriber` all offered `Strings`,
+      `Hashes`, `Keys` and `Scripts`: `server.Strings.Get(key)` compiled. Discoverability aimed straight at
+      a cliff. `IRespTarget` moves down to the three interfaces individually, `IRespKeyspaceTarget` and
+      `IRespServerTarget` derive from it, and the eight groups bind to the former.
+
+      **The routing is not what needed splitting**, which was the surprise: a batch's context queues and a
+      server's pins to one endpoint already, because the executor's target is the batch/server and
+      `ExecuteAsync` is overridden on both. The split is about which commands are *offered*. Free to do now
+      only because `IRespTarget` is unshipped (SER010); after it ships, moving it is a break.
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
       invalidation pushes to it through `PhysicalConnection` — `4d608ddd`

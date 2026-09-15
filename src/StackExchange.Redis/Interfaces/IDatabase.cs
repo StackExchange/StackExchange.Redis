@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using RESPite;
+using StackExchange.Redis.Interpolated;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis
@@ -11,7 +12,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes functionality that is common to both standalone redis servers and redis clusters.
     /// </summary>
-    public partial interface IDatabase : IRedis, IDatabaseAsync
+    public partial interface IDatabase : IRedis, IDatabaseAsync, IRespKeyspaceTarget
     {
         /// <summary>
         /// The numeric identifier of this database.

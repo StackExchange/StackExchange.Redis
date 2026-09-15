@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Interpolated
 
     public static partial class RespSurface
     {
-        extension(IRespTarget target)
+        extension(IRespKeyspaceTarget target)
         {
             /// <summary>The set commands.</summary>
             public RespSets Sets => new(target.Context);

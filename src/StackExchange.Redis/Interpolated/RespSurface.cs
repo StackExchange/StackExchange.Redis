@@ -28,6 +28,49 @@ namespace StackExchange.Redis.Interpolated
         RespContext Context { get; }
     }
 
+    /// <summary>
+    /// EXPERIMENTAL SPIKE. A target whose commands are routed by <b>key</b>: a database, a batch, a
+    /// transaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The keyspace groups - <c>Strings</c>, <c>Hashes</c>, <c>Keys</c> and the rest - bind here rather
+    /// than to <see cref="IRespTarget"/>, so that resolving them is what decides whether they make sense.
+    /// They used to bind to <see cref="IRespTarget"/>, which <c>IServer</c> and <c>ISubscriber</c> also
+    /// carry, so <c>server.Strings.Get(key)</c> compiled - an offer of something an <c>IServer</c> has no
+    /// business doing, discovered by exactly the tab-completion that is meant to be the point.
+    /// </para>
+    /// <para>
+    /// Note what this does <i>not</i> do: it does not carry a different executor. Routing already differs
+    /// correctly by inheritance - a batch's context queues because its executor's target is the batch, and
+    /// a server's pins to one endpoint because <c>RedisServer.ExecuteAsync</c> injects it. The split is
+    /// about which commands are <b>offered</b>, which is a separate question from where they go.
+    /// </para>
+    /// </remarks>
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public interface IRespKeyspaceTarget : IRespTarget
+    {
+    }
+
+    /// <summary>
+    /// EXPERIMENTAL SPIKE. A target whose commands are pinned to <b>one endpoint</b>: a server.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart to <see cref="IRespKeyspaceTarget"/>, and the reason <c>IServer</c> keeps a context
+    /// at all now that the keyspace groups have moved off it: server-scoped groups will bind here, and a
+    /// third party's can too.
+    /// <para>
+    /// A few group <i>names</i> will end up on both, with different members - <c>Keys</c> is key-routed for
+    /// <c>DEL</c> and server-scoped for <c>KEYS</c>/<c>SCAN</c>, and <c>Scripts</c> divides the same way
+    /// between <c>EVALSHA</c> and <c>SCRIPT LOAD</c>. That is the line <c>IDatabase</c> and <c>IServer</c>
+    /// already draw, and it wants drawing deliberately rather than by whichever group is written first.
+    /// </para>
+    /// </remarks>
+    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+    public interface IRespServerTarget : IRespTarget
+    {
+    }
+
     /// <summary>EXPERIMENTAL SPIKE. Reply handlers for the prototype command surface.</summary>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public static class RespHandlers

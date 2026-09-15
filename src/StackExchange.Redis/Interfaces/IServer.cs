@@ -5,13 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis
 {
     /// <summary>
     /// Provides configuration controls of a redis server.
     /// </summary>
-    public partial interface IServer : IRedis
+    public partial interface IServer : IRedis, IRespServerTarget
     {
         /// <summary>
         /// Gets the cluster configuration associated with this server, if known.

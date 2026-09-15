@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Interpolated
 
     public static partial class RespSurface
     {
-        extension(IRespTarget target)
+        extension(IRespKeyspaceTarget target)
         {
             /// <summary>The bitmap commands.</summary>
             public RespBitmaps Bitmaps => new(target.Context);

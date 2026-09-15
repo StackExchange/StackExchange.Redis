@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Interpolated
 
     public static partial class RespSurface
     {
-        extension(IRespTarget target)
+        extension(IRespKeyspaceTarget target)
         {
             /// <summary>The hash commands.</summary>
             public RespHashes Hashes => new(target.Context);

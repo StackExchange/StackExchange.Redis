@@ -6,7 +6,7 @@ namespace StackExchange.Redis
 {
     internal abstract partial class RedisBase : IRedis
     {
-        /// <inheritdoc/>
+        /// <summary>The context commands are composed and sent through.</summary>
         /// <remarks>
         /// Not yet implemented for connection-backed types. The context surface is being brought up
         /// against a minimal implementation first (<c>RespDatabase</c>); wiring it to a live multiplexer
