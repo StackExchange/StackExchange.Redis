@@ -196,6 +196,58 @@ public class RespValueTests
         Assert.Equal("abc", (string?)value);
     }
 
+    /// <summary>Counts how many times it was released, and complains if that is more than once.</summary>
+    private sealed class ReleaseProbe : IDisposable
+    {
+        public int Releases { get; private set; }
+
+        public void Dispose() => Releases++;
+    }
+
+    [Fact]
+    public void ALeaseReleasesItsSecondaryExactlyOnce()
+    {
+        var probe = new ReleaseProbe();
+        var lease = ReadOnlyLease<byte>.Rent(8, null, out _, probe);
+
+        Assert.Equal(0, probe.Releases);
+
+        lease.Dispose();
+        Assert.Equal(1, probe.Releases);
+
+        // the same exchange-to-null that guards the buffer guards this: a second release would decrement
+        // somebody else's reference, which is a bug that surfaces nowhere near here
+        lease.Dispose();
+        lease.Dispose();
+        Assert.Equal(1, probe.Releases);
+    }
+
+    [Fact]
+    public void ALeaseWithoutASecondaryIsUnchanged()
+    {
+        var lease = ReadOnlyLease<byte>.Rent(4, null, out var target);
+        target[0] = 42;
+
+        Assert.Equal(4, lease.Length);
+        Assert.Equal(42, lease.Span[0]);
+
+        lease.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => lease.Span.Length);
+    }
+
+    [Fact]
+    public void AnEmptyLeaseStillGivesBackWhatItWasHanded()
+    {
+        // Rent(0) hands back the shared Empty singleton, which cannot carry anything - so the reference
+        // has to go back immediately rather than being dropped on the floor. Without this a zero-length
+        // reply would leak its buffer, and zero-length replies are not rare.
+        var probe = new ReleaseProbe();
+        var lease = ReadOnlyLease<byte>.Rent(0, null, out _, probe);
+
+        Assert.Same(ReadOnlyLease<byte>.Empty, lease);
+        Assert.Equal(1, probe.Releases);
+    }
+
     [Fact]
     public void AnAggregateIsNotAValue()
     {

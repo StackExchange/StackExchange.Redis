@@ -45,6 +45,12 @@ namespace StackExchange.Redis
         // therefore copied, however much we would rather share it.
         private object? _buffer;
 
+        // something else to give back when this lease is done with - the reply buffer that the elements
+        // are windows onto, say. Typed as the interface rather than object: both candidates (a payload, a
+        // ref-counted buffer) implement Dispose to mean "release one reference", and an object field would
+        // turn a caller passing the wrong thing into a silent leak rather than a compile error.
+        private IDisposable? _secondary;
+
         private readonly int _offset;
 
         /// <summary>Gets whether this lease is empty.</summary>
@@ -53,21 +59,26 @@ namespace StackExchange.Redis
         /// <summary>The length of the lease.</summary>
         public int Length { get; }
 
-        private ReadOnlyLease(object? buffer, int offset, int length)
+        private ReadOnlyLease(object? buffer, int offset, int length, IDisposable? secondary = null)
         {
             _buffer = buffer;
             _offset = offset;
             Length = length;
+            _secondary = secondary;
         }
 
         /// <summary>Create a lease over a rented array, for data that had to be copied.</summary>
         /// <param name="length">The size required.</param>
         /// <param name="pool">The pool to rent from; the shared array pool when null.</param>
         /// <param name="target">The memory to write the data into.</param>
-        internal static ReadOnlyLease<T> Rent(int length, MemoryPool<T>? pool, out Span<T> target)
+        /// <param name="secondary">Something else to release when this lease is disposed; see <see cref="Dispose"/>.</param>
+        internal static ReadOnlyLease<T> Rent(int length, MemoryPool<T>? pool, out Span<T> target, IDisposable? secondary = null)
         {
             if (length == 0)
             {
+                // Empty is a shared singleton and cannot carry anything, so give the reference back now
+                // rather than dropping it; see Dispose
+                secondary?.Dispose();
                 target = default;
                 return Empty;
             }
@@ -76,12 +87,12 @@ namespace StackExchange.Redis
             {
                 var owner = pool.Rent(length);
                 target = owner.Memory.Span.Slice(0, length);
-                return new ReadOnlyLease<T>(owner, 0, length);
+                return new ReadOnlyLease<T>(owner, 0, length, secondary);
             }
 
             var array = ArrayPool<T>.Shared.Rent(length);
             target = new Span<T>(array, 0, length);
-            return new ReadOnlyLease<T>(array, 0, length);
+            return new ReadOnlyLease<T>(array, 0, length, secondary);
         }
 
         /// <summary>
@@ -108,8 +119,17 @@ namespace StackExchange.Redis
         /// The caller takes the reference; disposing this lease gives it back. Sharing is why this type
         /// exists - see the remarks on the type.
         /// </remarks>
-        internal static ReadOnlyLease<T> Share(IMemoryOwner<T> owner, int offset, int length)
-            => length == 0 ? Empty : new ReadOnlyLease<T>(owner, offset, length);
+        /// <param name="secondary">Something else to release when this lease is disposed; see <see cref="Dispose"/>.</param>
+        internal static ReadOnlyLease<T> Share(IMemoryOwner<T> owner, int offset, int length, IDisposable? secondary = null)
+        {
+            if (length != 0) return new ReadOnlyLease<T>(owner, offset, length, secondary);
+
+            // nothing to point at, so nothing to hold: give back what the caller took rather than
+            // returning the shared Empty and dropping their references on the floor
+            owner.Dispose();
+            secondary?.Dispose();
+            return Empty;
+        }
 
         /// <summary>The data as a <see cref="ReadOnlyMemory{T}"/>.</summary>
         public ReadOnlyMemory<T> Memory => _buffer is IMemoryOwner<T> owner
@@ -154,11 +174,20 @@ namespace StackExchange.Redis
 
         /// <summary>Release the memory owned or referenced by this lease.</summary>
         /// <remarks>
+        /// <para>
         /// Exchange-to-null makes this once-only however many times it is called, which matters because the
         /// release underneath is not idempotent: a second one would decrement somebody else's reference.
+        /// </para>
+        /// <para>
+        /// The secondary goes back <b>before</b> the empty-lease early-out, and independently of the
+        /// buffer: the two own different things, neither depends on the other, and a zero-length lease
+        /// that still held a reference would leak it forever.
+        /// </para>
         /// </remarks>
         public void Dispose()
         {
+            Interlocked.Exchange(ref _secondary, null)?.Dispose();
+
             if (Length == 0) return;
 
             var buffer = Interlocked.Exchange(ref _buffer, null);
