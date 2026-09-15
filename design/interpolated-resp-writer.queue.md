@@ -496,10 +496,41 @@ Four consequences, none of them cosmetic:
 
       So any lease-shaped replacement has to work as a standalone value too, not only as an element of a
       pooled run - and `StreamEntry`'s *public constructor* takes the array, so the shape is in the shipped
-      surface rather than just the property. Options aired, none chosen: a `RespStreamEntry` over a
-      `ReadOnlyLease<NameValueEntry>`; entries as windows into the reply buffer with the whole read owning
-      one lease (the `RespValue` shape); or keep `StreamEntry` and accept the per-entry allocation as debt.
-      The third matches `ListPopResult` today but hurts most here, since bulk reads are the normal usage.
+      surface rather than just the property.
+
+      **Leading candidate, and it is the wire shape rather than an analogy** (Marc, 2026-09-15): *a window
+      over one shared buffer, each entry a sub-buffer - an aggregate frame and its children.* Checked
+      against a real server rather than assumed. `XRANGE` of two entries:
+
+      ```txt
+      *2                                  the run
+        *2                                one entry
+          $15 1789506073259-0             id
+          *4 $2 f1 $2 v1 $2 g1 $2 w1      interleaved name/value run
+        *2 ...
+      ```
+
+      An aggregate whose children are aggregates, each `[scalar id, aggregate of interleaved scalars]`,
+      every leaf a bulk string in one contiguous buffer. It generalises what exists rather than inventing:
+      `RespValue` is already *a scalar reply as a window*, and the missing piece is *an aggregate reply as a
+      window* that enumerates children as windows. The interleaved inner run is already handled -
+      `ValuePairInterleavedProcessorBase` decides interleaved-versus-jagged from content.
+
+      **And it dissolves the objection recorded above.** `StreamInfo.FirstEntry` being singular does *not*
+      rule the window model out: `XINFO STREAM` carries the entry inline in the same shape
+      (`first-entry` -> `*2 | $15 <id> | ...`), so a standalone entry is a window over the `XINFO` reply
+      exactly as an element is a window over the `XRANGE` reply. The real constraint is narrower - the
+      window must be able to **own or share** the lease - and `ReadOnlyLease<T>`'s secondary slot already
+      does that; it is what `MGET` needed when values became windows.
+
+      Alternatives, kept so they are not re-proposed: a `RespStreamEntry` over a
+      `ReadOnlyLease<NameValueEntry>` (one lease per entry, so the allocation moves rather than goes); or
+      keep `StreamEntry` and accept the per-entry allocation as debt - which matches `ListPopResult` today
+      but hurts most here, since bulk reads are the normal usage rather than the exception.
+
+      **Parked deliberately, 2026-09-15**, along with the other composites still holding arrays
+      (`ListPopResult`, `SortedSetPopResult`, `LCSMatchResult`): left as-is for now, to be reconsidered as
+      one decision rather than five, since they all turn on the same question.
 
       `StreamConfigure` is the same question pointing the other way - a composite on the **input** side
       (`StreamConfiguration`). `StreamAdd` and `StreamNegativeAcknowledge` wait on `NameValueEntry` and the
@@ -507,6 +538,22 @@ Four consequences, none of them cosmetic:
 
       `TransitionalCoverageTests` lists each of these by name rather than excluding `Stream*` wholesale, so
       adding a read without its shape decision fails the test instead of quietly widening the gap.
+
+- [ ] **Composite results that still hold arrays. PARKED 2026-09-15 - decide all of them at once.**
+      `ListPopResult`, `SortedSetPopResult`, `LCSMatchResult`, and on the stream side `StreamEntry`,
+      `RedisStream`, `StreamAutoClaimResult`, `StreamPendingInfo`. Every one is a composite whose *fields*
+      are arrays, so "no arrays on the new surface" is true of the signatures and not yet true underneath.
+
+      They are parked together on purpose: the answer is one shape question, not seven, and answering it
+      per-type is how a surface acquires five near-identical representations it cannot retire. The leading
+      candidate is recorded on the stream-reads entry above - an aggregate reply as a **window** over the
+      one reply buffer, children as sub-windows, which is a description of the bytes rather than a design
+      (checked against a real server). `RespValue` already does this for the scalar case, and
+      `ReadOnlyLease<T>`'s secondary slot already lets a window own or share the lease it points into.
+
+      Nothing is blocked on this: the affected commands are either already shipped with arrays (old surface,
+      staying) or deliberately not yet moved (stream reads). Pick it up when there is appetite for a shape
+      decision rather than a transcription.
 
 - [ ] **More command groups**, in `RespSurface.<Group>.cs` + `TransitionalDatabase.<Group>.cs` pairs.
       Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left (312).
