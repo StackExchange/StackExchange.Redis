@@ -6326,10 +6326,24 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(in MessageWriter writer)
             {
+                // three cases, not two: a hash we resolved, a hash the CALLER supplied, and a body. The
+                // middle one used to fall into the last, which is only unreachable while the expansion
+                // always runs - and inside a transaction it never does. See ScriptEvaluateMessage, which
+                // keeps the caller's hash in its own field and checks it first, for the same reason.
                 if (asciiHash != null)
                 {
                     writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, ArgCount);
                     writer.WriteBulkString(asciiHash);
+                }
+                else if (command is RedisCommand.EVALSHA or RedisCommand.EVALSHA_RO)
+                {
+                    // _script IS the hash: ScriptEvaluateResp decided that from IsSHA1 when it chose the
+                    // command. Writing EVAL here would send the hash TEXT as a script body, which the
+                    // server then tries to compile - a misleading error, and not the command that was asked
+                    // for. There is no body to fall back to, so EVALSHA and an honest NOSCRIPT is the
+                    // answer, exactly as the other script path gives.
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, ArgCount);
+                    writer.WriteBulkString(_script);
                 }
                 else
                 {

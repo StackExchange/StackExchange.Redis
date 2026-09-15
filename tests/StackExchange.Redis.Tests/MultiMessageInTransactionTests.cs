@@ -99,6 +99,57 @@ public class MultiMessageInTransactionTests(ITestOutputHelper output, SharedConn
     }
 
     /// <summary>
+    /// The <c>RespResult</c> script path is a <b>different message type</b>, and it degrades the same way.
+    /// </summary>
+    /// <remarks>
+    /// <c>ScriptEvaluateResp</c> builds <c>ScriptEvalMessage</c> where <c>ScriptEvaluate</c> builds
+    /// <c>ScriptEvaluateMessage</c>; the two carry separate copies of this logic, and only the second was
+    /// pinned here. Same omission <c>ScriptLoadPairingTests</c> had to fix for the pairing itself, so it is
+    /// worth not repeating: a map that covers four of five is a map that reads as covering five.
+    /// </remarks>
+    [Fact]
+    public async Task TheRespScriptPathDegradesTheSameWay()
+    {
+        await using var muxer = Create();
+        var tran = muxer.GetDatabase().CreateTransaction();
+
+        var pending = tran.ScriptEvaluateRespAsync($"return '{Me()}'", default, default);
+        Assert.True(await tran.ExecuteAsync());
+
+        using var result = await pending;
+        var reader = result.ReadScalar();
+        Assert.Equal(Me(), reader.ReadString());
+    }
+
+    /// <summary>
+    /// And a hash on that path fails inside EXEC, as on the other one - which it did <b>not</b> until this
+    /// test was written.
+    /// </summary>
+    /// <remarks>
+    /// <c>ScriptEvalMessage.WriteImpl</c> branched on two cases where there are three: a hash it resolved,
+    /// a hash the <i>caller</i> supplied, and a body. The middle case fell into the last, which is only
+    /// unreachable while the expansion always runs - and inside a transaction it never does.
+    /// <c>ScriptEvaluateMessage</c> does not have the bug because it keeps the caller's hash in its own
+    /// field and checks that first. Two copies of one rule, and only one of them right.
+    /// </remarks>
+    [Fact]
+    public async Task TheRespScriptPathWithAnUnknownHashFailsInsideExec()
+    {
+        await using var muxer = Create();
+        var tran = muxer.GetDatabase().CreateTransaction();
+
+        // 40 hex characters, so it is taken as a hash rather than a body - and one no server will know
+        var pending = tran.ScriptEvaluateRespAsync(new string('a', 40), default, default);
+        Assert.True(await tran.ExecuteAsync());
+
+        var ex = await Assert.ThrowsAsync<RedisServerException>(async () => { using var _ = await pending; });
+
+        // NOSCRIPT, not a compile error. Before the fix this wrote EVAL with the hash TEXT as the body, so
+        // the server tried to compile "aaaa..." as Lua - a misleading error, and not the command asked for.
+        Assert.Contains("NOSCRIPT", ex.Message);
+    }
+
+    /// <summary>
     /// <c>HashImport</c> is refused, and its message states the general rule.
     /// </summary>
     /// <remarks>

@@ -215,6 +215,26 @@ Four consequences, none of them cosmetic:
       same connection between our `WATCH` and our `MULTI` would silently clear our watch. The lock is what
       makes the watch mean anything.
 
+- [ ] **The `IMultiMessage` map is complete, and finishing it found a bug.** There are exactly five:
+      `TransactionMessage`, `ScriptEvalMessage`, `ScriptEvaluateMessage`, `StringGetWithExpiryMessage`,
+      `FramePairMessage` - plus `HashImport`, which is *not* one (its preamble is injected by the bridge).
+      All six are now pinned by `MultiMessageInTransactionTests`; the file previously covered five of them
+      and read as covering all, because the two script paths look like duplicates and only one was tested.
+
+      **The gap was load-bearing.** `ScriptEvalMessage.WriteImpl` branched on two cases where there are
+      three: a hash it resolved, a hash the **caller** supplied, and a body. The middle case fell into the
+      last, which is unreachable only while the expansion always runs - and inside a transaction it never
+      does, because `QueuedMessage` is not an `IMultiMessage` and never asks. So
+      `tran.ScriptEvaluateRespAsync(someSha1, ...)` sent `EVAL <the hash text>`, and the server tried to
+      compile it as Lua: *"ERR Error compiling script (new function)"* instead of `NOSCRIPT`. A misleading
+      error, and not the command the caller asked for. `ScriptEvaluateMessage` does not have the bug
+      because it keeps the caller's hash in its own `hexHash` field and checks that first.
+
+      Fixed, and the same fix covers the non-transaction triggers (`NoScriptCache`, or a `CommandMap` with
+      `SCRIPT` disabled), which reach the same branch. **The lesson is the one `ScriptLoadPairingTests`
+      already recorded**: these two classes carry separate copies of one rule, so a test that exercises
+      either one alone proves nothing about the other.
+
 - [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
       commands and are better understood as three *different seams*, which is why doing all three settles
       the question and doing one does not.
