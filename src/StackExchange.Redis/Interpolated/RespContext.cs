@@ -177,6 +177,39 @@ namespace StackExchange.Redis.Interpolated
         private readonly CommandMap? _commandMap;
 
         /// <summary>
+        /// Ask what the server that would receive <paramref name="command"/> can do; see
+        /// <see cref="IRespServerFeatures"/> for why this is a service and not something the context knows.
+        /// </summary>
+        /// <param name="command">The command whose routing decides which server answers.</param>
+        /// <param name="key">The key being addressed, or <c>default</c> when the command routes to none.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <param name="features">The best answer available; populated either way.</param>
+        /// <returns><see langword="false"/> when nothing is known - including when no such service is present.</returns>
+        internal bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
+        {
+            if (TryGetService<IRespServerFeatures>(out var probe))
+            {
+                // the key prefix is part of the CONTEXT here, not of the key, and it is applied at write
+                // time - so the key a caller hands us is not yet the key the server will see, and in a
+                // cluster those bytes are what pick the node. Compose first, exactly as AppendFormatted
+                // will, or we would sample the version of a node that never sees this command. A null key
+                // means "routes to no particular key" and stays null: prefixing it would invent one.
+                if (_keyPrefix is { Length: > 0 } && !key.IsNull)
+                {
+                    var prefixed = RedisKey.WithPrefix(_keyPrefix, key);
+                    return probe.TryGetFeatures(command, in prefixed, flags, out features);
+                }
+
+                return probe.TryGetFeatures(command, in key, flags, out features);
+            }
+
+            // no probe: a bare context, a test fake, a hand-wired executor. Nothing is known, and every
+            // caller of this treats that as "use the spelling that works everywhere".
+            features = default;
+            return false;
+        }
+
+        /// <summary>
         /// The command map. Note this copes with <c>default(RespContext)</c>: a struct always has an implicit
         /// parameterless constructor that zeroes every field, and <c>new RespContext()</c> binds to THAT rather
         /// than to the all-optional-arguments constructor below - so no field may be assumed non-null.
@@ -257,6 +290,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="services">The service, or an <see cref="IServiceProvider"/>, or <c>null</c>.</param>
         public RespContext WithServices(object? services)
             => new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, Executor, services);
+
+        /// <summary>
+        /// A copy of this context carrying <paramref name="service"/> <i>in addition to</i> whatever it
+        /// already has, rather than in place of it.
+        /// </summary>
+        /// <param name="service">The service to add.</param>
+        /// <remarks>
+        /// <see cref="WithServices"/> replaces the slot, which is right when the caller owns everything in
+        /// it - but a context built up in stages does not: <c>.WithCache(x).WithServices(y)</c> silently
+        /// loses the cache. Anything appending to a chain someone else started wants this instead.
+        /// </remarks>
+        internal RespContext WithAdditionalService(object service)
+            => WithServices(ServiceLink.Add(_services, service));
 
         /// <summary>A copy of this context that consults <paramref name="cache"/>.</summary>
         /// <param name="cache">The cache to consult, or <c>null</c> for none.</param>

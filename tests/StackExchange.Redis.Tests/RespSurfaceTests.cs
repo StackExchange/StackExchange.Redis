@@ -114,6 +114,25 @@ public class RespSurfaceTests
     }
 
     [Fact]
+    public void WithServicesReplacesAndWithAdditionalServiceDoesNot()
+    {
+        using var cache = new RespClientCache();
+        var probe = new Marker();
+
+        // WithServices REPLACES the slot - right when the caller owns everything in it, and a trap when the
+        // context was built up in stages: this is exactly how a .WithCache(...).WithServices(...) chain
+        // silently loses its cache, with nothing to see but cache misses much later
+        Assert.Null(new RespContext().WithCache(cache).WithServices(probe).Cache);
+
+        var kept = new RespContext().WithCache(cache).WithAdditionalService(probe);
+        Assert.Same(cache, kept.Cache);
+        Assert.True(kept.TryGetService<Marker>(out var found));
+        Assert.Same(probe, found);
+    }
+
+    private sealed class Marker;
+
+    [Fact]
     public void ChannelPrefixSurvivesUnrelatedClones()
     {
         var ctx = new RespContext().WithChannelPrefix(RedisChannel.Literal("app:")).WithDatabase(4).WithKeyPrefix("t7:");
