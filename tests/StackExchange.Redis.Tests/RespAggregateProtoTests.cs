@@ -49,6 +49,14 @@ public class RespAggregateProtoTests(ITestOutputHelper log)
             return new((int)reader.BytesConsumed is var after ? owner : owner, before, after - before, projection);
         }
 
+        /// <summary>
+        /// Enumeration is the only access, deliberately: there is no indexer and there will not be one.
+        /// </summary>
+        /// <remarks>
+        /// An indexer would be O(i) - RESP is forward-only with variable-length frames and no offset table -
+        /// so a plain <c>for</c> loop over one would be O(n^2) while looking exactly like a list. The shape
+        /// of the API is the promise, so the shape has to be one that can be kept.
+        /// </remarks>
         public Enumerator GetEnumerator() => new(Frame, projection);
 
         public ref struct Enumerator

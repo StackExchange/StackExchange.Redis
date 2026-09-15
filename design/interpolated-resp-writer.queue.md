@@ -637,9 +637,19 @@ Four consequences, none of them cosmetic:
       For flat, indexed, single-pass reads the lease is already the right answer and should stay.
 
       **Constraints found while exploring, all of which shape the API:**
-      - **Random access is O(n).** RESP is forward-only with variable-length elements, and a
-        `readonly struct` cannot memoise a cursor (and a copy would lose it). `for (i..) agg[i]` is quietly
-        O(n^2) on a type that looks like a list. Offer enumeration; make materialising an explicit step.
+      - **DECIDED: no indexer** (Marc, 2026-09-15) - *"it makes a promise we can't keep"*. RESP is
+        forward-only with variable-length elements and no offset table, so `agg[i]` is O(i), and a
+        `readonly struct` cannot memoise a cursor to soften it (a copy would lose it anyway). `for (i..)
+        agg[i]` would be quietly O(n^2) on a type that looks like a list - and looking like a list is
+        precisely the problem, because the shape of the API is what makes the promise. Enumeration is the
+        offered access; a caller who needs indexing materialises, explicitly, and pays for it visibly.
+
+      - **`Count` is allowed, with an asterisk worth knowing.** Unlike the indexer it is honest *most* of
+        the time: `AggregateLength()` reads the count straight out of the header, O(1) - but for a
+        **streamed** aggregate there is no count in the header and it falls back to a walk. So the same
+        "promise we can't keep" applies in miniature, and either `Count` is documented as O(1)-except-when-
+        streaming, or it is only offered where streaming has been ruled out. Not a reason to drop it; a
+        reason not to let it be silent about it.
       - **The root should not be generic.** Nesting proves it: one root, a `RespAggregate<StreamEntry>` over
         it, and inside each entry a `RespAggregate<NameValueEntry>` over the *same* root. Different `T`,
         same owner - so `RespRoot` (non-generic, `IDisposable`) plus `RespAggregate<T>`.
