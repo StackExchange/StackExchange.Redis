@@ -137,6 +137,35 @@ public class ScriptLoadPairingTests(ITestOutputHelper output) : TestBase(output)
             "a SCRIPT LOAD was paired inside the transaction - its reply would shift every EXEC result");
     }
 
+    /// <summary>
+    /// An unknown <b>hash</b> outside a transaction fails once - it must not retry for ever.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The case that makes the retry-once guard load-bearing, and the only one that does. Where a script
+    /// was given as a <i>body</i>, the retry succeeds: noticing NOSCRIPT flushes the belief, so the second
+    /// attempt resolves no hash and sends <c>EVAL</c> with the body. There is never a second NOSCRIPT, so
+    /// an unguarded retry would look perfectly healthy.
+    /// </para>
+    /// <para>
+    /// Given a hash there is nothing to fall back to: the retry sends the same <c>EVALSHA</c> and gets the
+    /// same answer. Without the guard that is an infinite loop on the connection's read path - so this test
+    /// fails by <b>hanging</b> rather than by asserting, which is worth knowing when it is the one that
+    /// breaks.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AnUnknownHashFailsRatherThanRetryingForEver()
+    {
+        await using var muxer = Create();
+        var db = muxer.GetDatabase();
+
+        var ex = await Assert.ThrowsAsync<RedisServerException>(
+            () => db.ScriptEvaluateAsync(new byte[20]));
+
+        Assert.Contains("NOSCRIPT", ex.Message);
+    }
+
     /// <summary>NoScriptCache opts out of the pairing entirely, and leaves no belief behind.</summary>
     [Fact]
     public async Task NoScriptCacheLearnsNothing()

@@ -291,14 +291,60 @@ namespace StackExchange.Redis
         /// the next step, and is why the seam is named rather than inlined.
         /// </para>
         /// </remarks>
-        protected virtual void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+        protected virtual ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            => ReplyVerdict.Complete;
+
+        /// <summary>What inspecting a reply concluded should happen to the message.</summary>
+        internal enum ReplyVerdict
         {
+            /// <summary>Carry on: parse the reply and complete the message.</summary>
+            Complete = 0,
+
+            /// <summary>
+            /// Send this same message again, to the same endpoint, and do not complete it.
+            /// </summary>
+            /// <remarks>
+            /// Only <c>NOSCRIPT</c> so far. The resend is the one <c>MOVED</c> has always used from this
+            /// same read path - <c>PrepareToResend</c> then <c>TryWriteSync</c>, returning <c>false</c> from
+            /// <c>SetResult</c> to mean "re-issued, do not complete" - rather than a second mechanism.
+            /// </remarks>
+            Reissue = 1,
+        }
+
+        /// <summary>Write the message again, to the endpoint that just answered.</summary>
+        /// <remarks>
+        /// Deliberately not <c>ServerSelectionStrategy.TryResend</c>, which is about <i>redirects</i>: it
+        /// refuses a message with no hash slot - which a keyless script has - and sets asking/no-redirect
+        /// on the way through. This is the same endpoint and the same message, with nothing to re-route.
+        /// </remarks>
+        private static bool TryReissue(PhysicalConnection connection, Message message)
+        {
+            var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+            if (server is null) return false;
+
+            try
+            {
+                message.PrepareToResend(server, isMoved: false);
+#pragma warning disable CS0618 // sync write is what the MOVED path uses from here too
+                return server.TryWriteSync(message) == WriteResult.Success;
+#pragma warning restore CS0618
+            }
+            catch
+            {
+                return false; // fall through to ordinary error handling, which still has the reply in hand
+            }
         }
 
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            Inspect(connection, message, in reader);
+            var verdict = Inspect(connection, message, in reader);
+            if (verdict == ReplyVerdict.Reissue && TryReissue(connection, message))
+            {
+                // re-issued: this reply is spent, and the message now belongs to its next attempt
+                return false;
+            }
+
             reader.MovePastBof();
             connection.OnDetailLog($"(core result for {message.Command}, '{reader.GetOverview()}')");
             var bridge = connection.BridgeCouldBeNull;
@@ -879,7 +925,7 @@ namespace StackExchange.Redis
             private ILogger? Log { get; }
             public AutoConfigureProcessor(ILogger? log = null) => Log = log;
 
-            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 var probe = reader;
                 probe.MovePastBof();
@@ -893,6 +939,8 @@ namespace StackExchange.Redis
                         server.IsReplica = true;
                     }
                 }
+
+                return ReplyVerdict.Complete;
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -1397,9 +1445,10 @@ namespace StackExchange.Redis
         {
             /// <remarks>Not about the reply at all: the arrival of one is when the rendered arguments stop
             /// being needed, whatever it says.</remarks>
-            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
+                return ReplyVerdict.Complete;
             }
 
             public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -2200,11 +2249,17 @@ namespace StackExchange.Redis
 
         private sealed class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
-            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 var probe = reader;
                 probe.MovePastBof();
-                NoteIfScriptUnavailable(connection, message, in probe);
+
+                // the flag is sticky, so reading it BEFORE noting is what makes this "retry once": a second
+                // NOSCRIPT for the same message finds it already set and falls through to the error
+                var alreadyTried = message.IsScriptUnavailable;
+                return NoteIfScriptUnavailable(connection, message, in probe) && !alreadyTried
+                    ? ReplyVerdict.Reissue
+                    : ReplyVerdict.Complete;
             }
 
             // note that top-level error messages still get handled by SetResult, but nested errors

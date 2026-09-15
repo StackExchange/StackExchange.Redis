@@ -265,11 +265,17 @@ namespace StackExchange.Redis.Interpolated
             /// belief survived the very reply that disproved it, so the next call skipped the load again
             /// and failed the same way: a permanent failure rather than a transient one.
             /// </remarks>
-            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 var probe = reader;
                 probe.MovePastBof();
-                if (probe.IsError) NoteIfScriptUnavailable(connection, message, in probe);
+                if (!probe.IsError) return ReplyVerdict.Complete;
+
+                // sticky flag read BEFORE noting, so this retries once and then reports
+                var alreadyTried = message.IsScriptUnavailable;
+                return NoteIfScriptUnavailable(connection, message, in probe) && !alreadyTried
+                    ? ReplyVerdict.Reissue
+                    : ReplyVerdict.Complete;
             }
 
             public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)

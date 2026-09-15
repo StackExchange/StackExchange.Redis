@@ -339,8 +339,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     /// <summary>
-    /// When the server forgets a script, the belief that let us skip <c>SCRIPT LOAD</c> is dropped, so the
-    /// next call recovers.
+    /// When the server forgets a script, the call that discovers it recovers by itself.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -352,8 +351,9 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     /// this whole design keeps refusing.
     /// </para>
     /// <para>
-    /// The failing call still fails - recovering <i>that</i> one needs the retry to move into the pipeline,
-    /// where <c>MOVED</c>'s resend already lives. What is asserted here is that it cannot happen twice.
+    /// The failing call now recovers by itself: inspection returns a <c>Reissue</c> verdict and the message
+    /// is written again from the read path, the same way <c>MOVED</c> has always resent. The caller sees a
+    /// successful reply, not an exception it was supposed to know to catch.
     /// </para>
     /// </remarks>
     [Fact]
@@ -373,16 +373,10 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await conn.GetServer(endpoint).ScriptFlushAsync();
         Assert.True(sep.IsScriptLoaded(script), "the client cannot know yet - that is the point");
 
-        await Assert.ThrowsAsync<RedisServerException>(
-            async () => (await surface.Context.Scripts.Evaluate(script)).Dispose());
-
-        Assert.False(
-            sep.IsScriptLoaded(script),
-            "the NOSCRIPT was not noticed, so the next call will skip SCRIPT LOAD and fail the same way");
-
-        // and the proof that it is now transient: the very next call composes the load again and works
+        // the call that meets the stale belief now recovers by itself: the NOSCRIPT is noticed, the belief
+        // dropped, and the message re-issued from the read path - so the caller never sees the failure
         using var recovered = await surface.Context.Scripts.Evaluate(script);
         Assert.Equal(Me(), recovered.ReadScalar().ReadString());
-        Assert.True(sep.IsScriptLoaded(script));
+        Assert.True(sep.IsScriptLoaded(script), "the retry should have re-loaded it");
     }
 }
