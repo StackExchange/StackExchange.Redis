@@ -1618,11 +1618,14 @@ size worry needs no per-command rule; and `NoClientCache` is exactly the control
 their `DUMP` is one-shot, which a bulk migration does. The public `Keys.Dump` documentation says so, rather
 than leaving the caller to work it out.
 
-The one way `DUMP` could have been non-deterministic in the sense the rest of this list means: its payload
-encodes the value's *internal encoding* (listpack versus skiplist, and so on), so the same logical content
-can serialise differently. Every encoding change happens on a write, which invalidates — so the argument
-holds, but it is reasoning rather than evidence, and it is the thing to re-examine if `DUMP` ever appears
-to serve something stale.
+A caveat was drafted here about `DUMP`'s payload encoding the value's *internal* representation (listpack
+versus skiplist, and so on), on the theory that identical logical content could serialise differently. It
+was wrong, and is recorded as wrong because it is the kind of worry that looks prudent: the payload is
+**opaque**, and its only guarantee is that `RESTORE` reconstructs a semantically equivalent value. The
+bytes are not stable across server versions either, so a caller comparing two payloads is already outside
+the contract. Whether the cached bytes match what the server would produce today is therefore not a
+question anyone is entitled to ask - only whether they still restore to the right *value*, which is the
+ordinary invalidation question and is answered the ordinary way.
 
 #### Opt-out, not opt-in
 
