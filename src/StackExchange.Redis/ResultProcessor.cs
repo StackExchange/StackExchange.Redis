@@ -52,6 +52,29 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>The <c>NOSCRIPT</c> decision, in one place: note it, and say whether to try again.</summary>
+        /// <remarks>
+        /// <para>
+        /// Three processors can be the target of an <c>EVALSHA</c> - the <c>RedisResult</c> one, the
+        /// <c>RespResult</c> one, and the frame path's - and this rule is subtle enough that a third copy
+        /// was where it would have gone wrong.
+        /// </para>
+        /// <para>
+        /// The stickiness is the mechanism: <see cref="Message.IsScriptUnavailable"/> is read <b>before</b>
+        /// noting, so a second <c>NOSCRIPT</c> for the same message finds the flag already set and reports
+        /// rather than retrying. That is only load-bearing when the caller supplied a <i>hash</i>: given a
+        /// body, the retry sends <c>EVAL</c> with it - because noting flushed the belief - and there is
+        /// never a second <c>NOSCRIPT</c> to guard against.
+        /// </para>
+        /// </remarks>
+        private protected static ReplyVerdict NoScriptVerdict(PhysicalConnection connection, Message message, in RespReader errorReader)
+        {
+            var alreadyTried = message.IsScriptUnavailable;
+            return NoteIfScriptUnavailable(connection, message, in errorReader) && !alreadyTried
+                ? ReplyVerdict.Reissue
+                : ReplyVerdict.Complete;
+        }
+
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
             DemandOK = new ExpectBasicStringProcessor(Literals.OK.Hash),
@@ -2253,13 +2276,7 @@ namespace StackExchange.Redis
             {
                 var probe = reader;
                 probe.MovePastBof();
-
-                // the flag is sticky, so reading it BEFORE noting is what makes this "retry once": a second
-                // NOSCRIPT for the same message finds it already set and falls through to the error
-                var alreadyTried = message.IsScriptUnavailable;
-                return NoteIfScriptUnavailable(connection, message, in probe) && !alreadyTried
-                    ? ReplyVerdict.Reissue
-                    : ReplyVerdict.Complete;
+                return probe.IsError ? NoScriptVerdict(connection, message, in probe) : ReplyVerdict.Complete;
             }
 
             // note that top-level error messages still get handled by SetResult, but nested errors

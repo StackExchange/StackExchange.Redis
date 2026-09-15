@@ -269,13 +269,7 @@ namespace StackExchange.Redis.Interpolated
             {
                 var probe = reader;
                 probe.MovePastBof();
-                if (!probe.IsError) return ReplyVerdict.Complete;
-
-                // sticky flag read BEFORE noting, so this retries once and then reports
-                var alreadyTried = message.IsScriptUnavailable;
-                return NoteIfScriptUnavailable(connection, message, in probe) && !alreadyTried
-                    ? ReplyVerdict.Reissue
-                    : ReplyVerdict.Complete;
+                return probe.IsError ? NoScriptVerdict(connection, message, in probe) : ReplyVerdict.Complete;
             }
 
             public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)

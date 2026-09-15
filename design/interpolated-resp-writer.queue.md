@@ -67,17 +67,6 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-- [ ] **Give `Inspect` a verdict, and move the `NOSCRIPT` retry into the pipeline.** The seam is named
-      (`ea26ce61`) but can still only *record*, not direct. The measure of the gap is `NOSCRIPT`: inspection
-      sets a sticky flag on the message, the task faults, and **six** `catch (RedisServerException) when
-      (msg.IsScriptUnavailable)` sites in `RedisDatabase` re-issue - a verdict delivered by unwinding,
-      because there is no way to say "reissue".
-
-      Shape: `Inspect` returns `Complete` (default) / `Reissue`, with `NotYet` arriving when `WATCH` needs
-      it. The six catch sites collapse into one place. **Behaviour-changing**, so it wants its own commit
-      and its own mutation pass - the retry currently only happens on paths that remembered to catch, and
-      moving it into the pipeline will change what happens on the paths that did not.
-
 - [ ] **Should a top-level error be a `RespResult` rather than a throw?** *Post-verdict decision*, recorded
       now because it looks like a `RespResultProcessor` shape question and is not.
 
@@ -426,6 +415,28 @@ Four consequences, none of them cosmetic:
       `RequiresDatabase`, which is how a server context surfaced it. Fixed by resolving the identity
       alongside the bytes. Invisible until now because a database context has `db >= 0`, where the check
       does not fire.
+- [x] **The inspect/parse split** — `ea26ce61`, `a86e563b`, `7d521699`, `<pending>`. `SetResult` always did
+      two jobs; `Inspect` is now the first, and it can direct as well as record - `Complete` or `Reissue`,
+      with `NotYet` reserved for `WATCH`. A `Reissue` re-writes the message and returns `false` from
+      `SetResult` ("re-issued, do not complete"), which is not new machinery: it is what `MOVED` has always
+      done from this same read path.
+
+      **The retry stopped being opt-in.** It was eight hand-written `catch (RedisServerException) when
+      (msg.IsScriptUnavailable)` sites, so a path that did not know to catch got nothing - which is exactly
+      why the frame path surfaced a raw `NOSCRIPT` and left the stale belief in place, failing identically
+      for ever. All eight are gone; every path retries because the pipeline does.
+
+      Three things worth keeping:
+      **(a)** not `ServerSelectionStrategy.TryResend`, despite that being `MOVED`'s vehicle - it is about
+      *redirects*, refuses a message with no hash slot (a keyless script has none), and sets
+      asking/no-redirect on the way through.
+      **(b)** the buffer must outlive a reissue - a message about to be written again still needs its
+      rendered arguments - and that release is keyed on the *verdict*, not on "was this a NOSCRIPT", because
+      a second NOSCRIPT is not retried and does need to release.
+      **(c)** the retry-once guard reads the sticky flag *before* noting. Only load-bearing when the caller
+      supplied a **hash**: given a body the retry sends `EVAL` with it, so there is never a second
+      `NOSCRIPT`. My first mutation of that guard survived for exactly that reason - the uncovered case was
+      the hash one, and with it covered the unguarded version loops for ever.
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
       invalidation pushes to it through `PhysicalConnection` — `4d608ddd`
