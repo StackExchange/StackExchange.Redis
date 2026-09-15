@@ -230,9 +230,14 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     }
 }
 
-// HIMPORT SET <key> <field-set> <value...>: the user-facing per-row import. Carries a reference to its field-set so
-// the write path can inject a PREPARE the first time this field-set is seen on a connection (see PhysicalBridge).
-internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedArgsOwner
+// HIMPORT SET <key> <field-set> <value...>: the user-facing per-row import, composed with the PREPARE that has to
+// precede it the first time this field-set is seen on a connection.
+//
+// This used to be a hard-coded type test inside the bridge's write lock. It is an IMultiMessage now, because that IS
+// the same seam: GetMessages is called from WriteMessageInsideLock with the PhysicalConnection in hand, which is
+// exactly "once the connection is known, inside the write lock". Same mechanism as the frame surface's composed
+// pair, so there is one way to say this rather than two.
+internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedArgsOwner, IMultiMessage
 {
     private readonly HashImport _fieldSet;
 
@@ -251,6 +256,37 @@ internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedAr
     void IRenderedArgsOwner.ReleaseRenderedArgs() => RenderedArgs.Recycle(ref _values);
 
     internal HashImport FieldSet => _fieldSet;
+
+    // the PREPARE defines the connection-local name this SET references; without it the server has never heard of
+    // the field-set. Refusing here is also what keeps it out of a MULTI, where an injected PREPARE would take a slot
+    // in the positional EXEC array - RedisDatabase.GetHashImportMessage refuses that earlier and with a better
+    // message, so this is the structural backstop rather than the first line of defence.
+    public bool CanWriteWithoutExpansion => false;
+
+    // Not an iterator: the claim below has to happen on every write attempt, including the usual one where the
+    // field-set is already prepared and we decline. An iterator would defer it to the first MoveNext, which never
+    // comes when the answer is null. (Same reason ScriptEvalMessage splits this in two.)
+    public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
+    {
+        // claimed at WRITE time, not when a reply confirms it. This runs inside the write lock, which is the only
+        // place where "has this connection prepared it?" and "write it" are one decision - and a burst of imports
+        // issued before the first PREPARE's reply landed would otherwise each inject their own. Measured on the
+        // frame-surface probe: confirm-on-reply injects one preamble per command, claim-on-write injects one.
+        // A claim that then fails to write dies with the connection, which starts empty.
+        if (!connection.TryAddPreparedFieldSet(_fieldSet.Id)) return null; // already prepared: write me alone
+
+        var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+        if (server is not null) _fieldSet.RegisterServer(server, Db);
+        return Expand();
+    }
+
+    // the tail is `this`, not a copy: the caller's result box is on this message, and only the messages yielded here
+    // are enqueued for a reply
+    private IEnumerable<Message> Expand()
+    {
+        yield return _fieldSet.CreatePrepareMessage(Db);
+        yield return this;
+    }
 
     protected override void WriteImpl(in MessageWriter writer)
     {
@@ -287,8 +323,19 @@ internal sealed class HashImportPrepareMessage : Message
 
 // HIMPORT DISCARD <field-set>: targeted cleanup of a single field-set, issued on disposal. Deliberately not
 // DISCARDALL, which would drop sibling field-sets sharing the connection.
-internal sealed class HashImportDiscardMessage : Message
+internal sealed class HashImportDiscardMessage : Message, IMultiMessage
 {
+    // nothing to compose - this is the one place that learns which connection a DISCARD lands on, and the
+    // connection's set of prepared ids has to drop this one so it stays bounded to live field-sets over the life of
+    // a long-lived connection. Declining the expansion (null) is "write me normally", which is all this wants.
+    public bool CanWriteWithoutExpansion => true;
+
+    public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
+    {
+        connection.RemovePreparedFieldSet(FieldSetId);
+        return null;
+    }
+
     private readonly HashImport _fieldSet;
 
     public HashImportDiscardMessage(int db, CommandFlags flags, HashImport fieldSet)

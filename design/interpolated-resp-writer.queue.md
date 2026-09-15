@@ -370,9 +370,28 @@ Four consequences, none of them cosmetic:
           way, because each reply landed while the next frame was still being rendered. That measured the
           loop, not the burst; a `Barrier` fixed it.
 
-        **Not yet done:** wiring the real `HashImport` field-set through this path, which would let the
-        bridge's hard-coded `if (cmd is RedisCommand.HIMPORT)` type test retire. The probe says the shape
-        fits; it does not say the migration is free.
+        **Done 2026-09-15: the bridge hook is gone.** `HashImportSetMessage` is an `IMultiMessage` whose
+        `GetMessages` claims the field-set on the connection and yields `[PREPARE, this]`, or returns `null`
+        when it is already prepared; `HashImportDiscardMessage` is one too, using the same hook purely to
+        learn which connection it landed on so it can drop the id. `PrepareFieldSetInsideWriteLock` and the
+        `if (cmd is RedisCommand.HIMPORT)` line in the write loop are deleted. One mechanism, not two.
+
+        **The migration was not free, and the reason is worth keeping.** Batches *support* `HashImport`
+        today ("an ordered pipeline with no EXEC aggregate"), so `CanWriteWithoutExpansion => false` would
+        have been a regression if a batch wrapped its inner operations the way a transaction does. It does
+        not: `RedisBatch` keeps a plain `List<Message>` and writes each through `WriteMessageTakingWriteLock`,
+        which expands. Only `RedisTransaction` wraps in `QueuedMessage`, and `GetHashImportMessage` already
+        refuses transactions with a better message. Checking that *before* changing the flag is what kept
+        this from being a silent break of a supported scenario.
+
+        **The dedup had no test, and is invisible without one.** Every existing `HashImport` test passes
+        whether the `PREPARE` goes once per connection or once per import, because `PREPARE` is idempotent -
+        the same "invisible without counting" property the probe measured. The server counts it for us:
+        `INFO commandstats` reports `himport|prepare` and `himport|set` separately. The assertion is
+        relational rather than an equality, because commandstats is server-wide and the class runs once per
+        protocol, so a concurrent sibling inflates both numbers together - but *injected per import the two
+        counts are equal*, which is exactly the regression. Verified by mutation: dropping the
+        `TryAddPreparedFieldSet` check reports "injected 5 time(s) for 5 SET(s)".
 
       With `EVALSHA` folded in, all three are the same mechanism at two seams - compose, or inject once the
       connection is known. If they work, the abstraction covers the space and `Fallback<T>()` can reach
