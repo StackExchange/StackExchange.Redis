@@ -43,6 +43,154 @@ public class RespSurfaceVectorSetsTests
     }
 
     [Fact]
+    public async Task AddWritesTheVectorBeforeTheElement()
+    {
+        var (ctx, exec) = Target();
+
+        var request = VectorSetAddRequest.Member("m", new[] { 1f, 2f }.AsMemory());
+        request.UseFp32 = false; // VALUES, so the bytes are readable here
+        await ctx.VectorSets.Add("k", request);
+
+        // the element comes AFTER its vector, which is the one part of this grammar that reads backwards
+        // from the way the method is called
+        Assert.Equal("*7|$4|VADD|$1|k|$6|VALUES|$1|2|$1|1|$1|2|$1|m|", Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task AddPacksTheVectorWhenItCan()
+    {
+        var (ctx, exec) = Target();
+
+        var request = VectorSetAddRequest.Member("m", new[] { 1f, 2f }.AsMemory());
+        request.UseFp32 = true;
+        await ctx.VectorSets.Add("k", request);
+
+        // FP32 is one bulk string of raw little-endian floats rather than a token each: four arguments
+        // for any length of vector, and exact rather than round-tripped through text
+        var sent = Assert.Single(exec.Sent);
+        Assert.StartsWith("*5|$4|VADD|$1|k|$4|FP32|$8|", sent);
+    }
+
+    [Fact]
+    public async Task AddWritesItsIndexOptionsInTheDocumentedOrder()
+    {
+        var (ctx, exec) = Target();
+
+        var request = VectorSetAddRequest.Member("m", new[] { 1f }.AsMemory(), "{}");
+        request.UseFp32 = false;
+        request.ReducedDimensions = 16;
+        request.UseCheckAndSet = true;
+        request.Quantization = VectorSetQuantization.Binary;
+        request.BuildExplorationFactor = 200;
+        request.MaxConnections = 8;
+
+        await ctx.VectorSets.Add("k", request);
+
+        // REDUCE before the vector; CAS, quantization and EF after the element; SETATTR then M last
+        Assert.Equal(
+            "*16|$4|VADD|$1|k|$6|REDUCE|$2|16|$6|VALUES|$1|1|$1|1|$1|m|$3|CAS|$3|BIN|$2|EF|$3|200|$7|SETATTR|$2|{}|$1|M|$1|8|",
+            Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task TheDefaultQuantizationSaysNothing()
+    {
+        var (ctx, exec) = Target();
+
+        var request = VectorSetAddRequest.Member("m", new[] { 1f }.AsMemory());
+        request.UseFp32 = false;
+        request.Quantization = VectorSetQuantization.Int8;
+
+        await ctx.VectorSets.Add("k", request);
+
+        // int8 is what the server does anyway, so naming it would be three bytes for nothing
+        Assert.DoesNotContain("NOQUANT", Assert.Single(exec.Sent));
+        Assert.DoesNotContain("BIN", exec.Sent[0]);
+    }
+
+    [Fact]
+    public async Task SimilaritySearchNamesItsOrigin()
+    {
+        var (ctx, exec) = Target("*0\r\n");
+
+        using (await ctx.VectorSets.SimilaritySearch("k", VectorSetSimilaritySearchRequest.ByMember("m"))) { }
+
+        var byVector = VectorSetSimilaritySearchRequest.ByVector(new[] { 1f, 2f }.AsMemory());
+        byVector.UseFp32 = false;
+        using (await ctx.VectorSets.SimilaritySearch("k", byVector)) { }
+
+        Assert.Equal(
+            new[]
+            {
+                "*4|$4|VSIM|$1|k|$3|ELE|$1|m|",
+                "*6|$4|VSIM|$1|k|$6|VALUES|$1|2|$1|1|$1|2|",
+            },
+            exec.Sent);
+    }
+
+    [Fact]
+    public async Task SimilaritySearchWritesEveryOptionItWasGiven()
+    {
+        var (ctx, exec) = Target("*0\r\n");
+
+        var query = VectorSetSimilaritySearchRequest.ByMember("m");
+        query.WithScores = true;
+        query.WithAttributes = true;
+        query.Count = 5;
+        query.Epsilon = 0.5;
+        query.SearchExplorationFactor = 100;
+        query.FilterExpression = ".size > 1";
+        query.MaxFilteringEffort = 20;
+        query.UseExactSearch = true;
+        query.DisableThreading = true;
+
+        using (await ctx.VectorSets.SimilaritySearch("k", query)) { }
+
+        Assert.Equal(
+            "*18|$4|VSIM|$1|k|$3|ELE|$1|m|$10|WITHSCORES|$11|WITHATTRIBS|$5|COUNT|$1|5|$7|EPSILON|$3|0.5|$2|EF|$3|100|$6|FILTER|$9|.size > 1|$9|FILTER-EF|$2|20|$5|TRUTH|$8|NOTHREAD|",
+            Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task ABlankFilterIsNoFilterAtAll()
+    {
+        var (ctx, exec) = Target("*0\r\n");
+
+        var query = VectorSetSimilaritySearchRequest.ByMember("m");
+        query.FilterExpression = "   ";
+
+        using (await ctx.VectorSets.SimilaritySearch("k", query)) { }
+
+        // the property keeps what it was given, but a blank filter is absent rather than a filter that
+        // matches everything - writing one is a syntax error at the server, which is how this was found
+        Assert.Equal("*4|$4|VSIM|$1|k|$3|ELE|$1|m|", Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task ScoresAndAttributesAreReadFromWhateverShapeArrives()
+    {
+        // RESP2: member, score and attributes as three successive elements
+        var (flat, _) = Target("*3\r\n$1\r\na\r\n$3\r\n0.5\r\n$2\r\n{}\r\n");
+
+        // RESP3: the same request answers with the pair nested per match
+        var (nested, _) = Target("*2\r\n$1\r\na\r\n*2\r\n$3\r\n0.5\r\n$2\r\n{}\r\n");
+
+        foreach (var ctx in new[] { flat, nested })
+        {
+            var query = VectorSetSimilaritySearchRequest.ByMember("m");
+            query.WithScores = true;
+            query.WithAttributes = true;
+
+            using var results = await ctx.VectorSets.SimilaritySearch("k", query);
+
+            var only = Assert.Single(results!.Span.ToArray());
+            Assert.Equal("a", only.Member);
+            Assert.Equal(0.5, only.Score);
+            Assert.Equal("{}", only.AttributesJson);
+        }
+    }
+
+    [Fact]
     public async Task TheSimpleReadsAreKeyAndMember()
     {
         var (ctx, exec) = Target(":3\r\n", ":8\r\n", ":1\r\n", "$2\r\n{}\r\n", "$1\r\nm\r\n");

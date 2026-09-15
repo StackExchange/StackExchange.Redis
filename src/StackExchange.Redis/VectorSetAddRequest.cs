@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 
 namespace StackExchange.Redis;
@@ -6,7 +6,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Represents the request for a vectorset add operation.
 /// </summary>
-public abstract class VectorSetAddRequest
+public abstract partial class VectorSetAddRequest
 {
     // polymorphism left open for future, but needs to be handled internally
     internal VectorSetAddRequest()
@@ -58,12 +58,18 @@ public abstract class VectorSetAddRequest
     // snapshot the values; I don't trust people not to mutate the object behind my back
     internal abstract VectorSetAddMessage ToMessage(RedisKey key, int db, CommandFlags flags);
 
-    internal sealed class VectorSetAddMemberRequest(
+    private sealed partial class VectorSetAddMemberRequest(
         RedisValue element,
         ReadOnlyMemory<float> values,
         string? attributesJson)
         : VectorSetAddRequest
     {
+        // named fields rather than captured parameters: the interpolated writer lives in the other half
+        // of this type and needs to see them; see VectorSetAddRequest.Resp.cs
+        private readonly RedisValue _element = element;
+        private readonly ReadOnlyMemory<float> _values = values;
+        private readonly string? _attributesJson = attributesJson;
+
         internal override VectorSetAddMessage ToMessage(RedisKey key, int db, CommandFlags flags)
             => new VectorSetAddMessage.VectorSetAddMemberMessage(
                 db,
@@ -74,9 +80,9 @@ public abstract class VectorSetAddRequest
                 BuildExplorationFactor,
                 MaxConnections,
                 UseCheckAndSet,
-                element,
-                values,
-                attributesJson,
+                _element,
+                _values,
+                _attributesJson,
                 UseFp32);
     }
 }

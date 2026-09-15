@@ -304,5 +304,70 @@
         /// <summary>The <c>STOREDIST</c> operand of <c>GEOSEARCHSTORE</c>.</summary>
         [Resp]
         internal static partial RespFragment StoreDist { get; }
+
+        /// <summary>The <c>REDUCE</c> operand of <c>VADD</c>; a dimension follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Reduce { get; }
+
+        /// <summary>The <c>FP32</c> vector encoding; one bulk string of raw floats follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Fp32 { get; }
+
+        /// <summary>The <c>VALUES</c> vector encoding; a count and that many components follow it.</summary>
+        [Resp]
+        internal static partial RespFragment Values { get; }
+
+        /// <summary>The <c>CAS</c> operand of <c>VADD</c>: check and set.</summary>
+        [Resp]
+        internal static partial RespFragment Cas { get; }
+
+        /// <summary>The <c>NOQUANT</c> operand of <c>VADD</c>: store the vectors as given.</summary>
+        [Resp]
+        internal static partial RespFragment NoQuant { get; }
+
+        /// <summary>The <c>BIN</c> operand of <c>VADD</c>: quantize to one bit per component.</summary>
+        [Resp]
+        internal static partial RespFragment Bin { get; }
+
+        /// <summary>The <c>EF</c> operand of the vector-set commands; an effort follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Ef { get; }
+
+        /// <summary>The <c>SETATTR</c> operand of <c>VADD</c>; a JSON document follows it.</summary>
+        [Resp]
+        internal static partial RespFragment SetAttr { get; }
+
+        /// <summary>The <c>M</c> operand of <c>VADD</c>; a link count follows it.</summary>
+        [Resp]
+        internal static partial RespFragment M { get; }
+
+        /// <summary>The <c>ELE</c> origin of <c>VSIM</c>; a member follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Ele { get; }
+
+        /// <summary>The <c>WITHATTRIBS</c> operand of <c>VSIM</c>.</summary>
+        [Resp]
+        internal static partial RespFragment WithAttribs { get; }
+
+        /// <summary>The <c>EPSILON</c> operand of <c>VSIM</c>; a distance follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Epsilon { get; }
+
+        /// <summary>The <c>FILTER</c> operand of <c>VSIM</c>; an expression follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Filter { get; }
+
+        /// <summary>The <c>FILTER-EF</c> operand of <c>VSIM</c>; an effort follows it.</summary>
+        /// <remarks>Spelled out, because the member name cannot carry the hyphen.</remarks>
+        [Resp("FILTER-EF")]
+        internal static partial RespFragment FilterEf { get; }
+
+        /// <summary>The <c>TRUTH</c> operand of <c>VSIM</c>: exact search rather than approximate.</summary>
+        [Resp]
+        internal static partial RespFragment Truth { get; }
+
+        /// <summary>The <c>NOTHREAD</c> operand of <c>VSIM</c>.</summary>
+        [Resp]
+        internal static partial RespFragment NoThread { get; }
     }
 }
