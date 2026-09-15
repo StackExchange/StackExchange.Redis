@@ -8,14 +8,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
 {
     internal sealed partial class KeyPrefixedDatabase : KeyPrefixed<IDatabase>, IDatabase
     {
-        /// <inheritdoc/>
-        /// <remarks>
-        /// The worked example from design notes section 8.4: the entire write half of key-prefixing is one
-        /// context clone. Everything this class does by forwarding ~2600 lines of overrides, the
-        /// context-based surface gets from this single line.
-        /// </remarks>
-        public Interpolated.RespContext Context => Inner.Context.AppendKeyPrefix(Prefix);
-
         public KeyPrefixedDatabase(IDatabase inner, byte[] prefix) : base(inner, prefix)
         {
         }

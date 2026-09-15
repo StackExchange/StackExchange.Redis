@@ -12,7 +12,18 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes functionality that is common to both standalone redis servers and redis clusters.
     /// </summary>
-    public partial interface IDatabaseAsync : IRedisAsync
+    /// <remarks>
+    /// <para>
+    /// <b>Carries <see cref="Interpolated.IRespKeyspaceTarget"/></b>, which is what lets a batch or a
+    /// transaction offer the command groups by name - <c>tran.Strings.SetAsync(...)</c> - rather than only
+    /// through a cast. That makes <c>Context</c> a required member for anyone implementing this interface,
+    /// including mocks and wrappers, and it is a deliberate break: adding to this family has historically
+    /// been the only way to add functionality here, which is precisely the problem the context surface
+    /// exists to end. Every addition after this one is an extension member on the context, so this is
+    /// meant to be the last time.
+    /// </para>
+    /// </remarks>
+    public partial interface IDatabaseAsync : IRedisAsync, Interpolated.IRespKeyspaceTarget
     {
         /// <inheritdoc cref="IDatabase.Database" />
         int Database { get; }

@@ -146,8 +146,9 @@ public class MultiMessageInTransactionTests(ITestOutputHelper output, SharedConn
     /// strongest possible argument for default-refuse.
     /// </para>
     /// <para>
-    /// Note the cast: the groups are not on <c>ITransaction</c> yet, so this is how the scenario is
-    /// reachable today. When they are, it becomes reachable the ordinary way, and this pins what happens.
+    /// Reached the ordinary way now that <c>IDatabaseAsync</c> carries <c>IRespKeyspaceTarget</c>: this
+    /// used to need a cast to the context, which is exactly the "unreachable by accident" defence the
+    /// refusal replaces.
     /// </para>
     /// </remarks>
     [Fact]
@@ -155,17 +156,16 @@ public class MultiMessageInTransactionTests(ITestOutputHelper output, SharedConn
     {
         await using var muxer = Create();
         var tran = muxer.GetDatabase().CreateTransaction();
-        var ctx = ((IRespTarget)tran).Context;
 
         var ex = await Assert.ThrowsAsync<NotSupportedException>(
-            async () => await ctx.Scripts.EvaluateAsync("return 1", [], []));
+            async () => await tran.Scripts.EvaluateAsync("return 1", [], []));
 
         Assert.Contains("not supported inside a transaction", ex.Message);
         Assert.Contains("positional EXEC result array", ex.Message);
 
         // and the ordinary single-frame command through the same context is unaffected - the refusal is
         // about composing, not about the surface
-        var pending = ctx.Strings.GetAsync(Me());
+        var pending = tran.Strings.GetAsync(Me());
         Assert.False(pending.IsCompleted, "DEFERRED-OK");
         Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
         _ = await pending;

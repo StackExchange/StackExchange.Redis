@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Text;
 using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -307,12 +309,64 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var db = conn.GetDatabase();
         await db.StringSetAsync(key, "batched");
 
+        // no cast: IDatabaseAsync carries IRespKeyspaceTarget, so a batch offers the groups by name
         var batch = db.CreateBatch();
-        var ctx = ((IRespTarget)batch).Context;
-        var pending = ctx.Strings.GetAsync(key);
+        var pending = batch.Strings.GetAsync(key);
         Assert.False(pending.IsCompleted, "DEFERRED-OK: batch did not send immediately");
         batch.Execute();
         Assert.Equal("batched", (string?)await pending);
+    }
+
+    /// <summary>
+    /// The groups are on the batch and transaction interfaces themselves, not just reachable by a cast.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>IDatabaseAsync</c> carries <c>IRespKeyspaceTarget</c>, so <c>IBatch</c> and <c>ITransaction</c>
+    /// inherit it. That is a required-member break for anyone implementing those interfaces, taken
+    /// deliberately: adding to this family has always been the only way to add functionality here, and
+    /// ending that is what the context surface is for. Every addition after this one is an extension
+    /// member, so this is meant to be the last time.
+    /// </para>
+    /// <para>
+    /// Note what this break is <i>not</i> visible in: nothing changed in <c>PublicAPI.Unshipped.txt</c>,
+    /// because <c>Context</c> is inherited rather than redeclared, and the analyzer tracks members rather
+    /// than base-interface lists. So the API tracker is not the thing that would catch this - a test is.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task BatchesAndTransactionsCarryTheKeyspaceTarget()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+
+        Assert.IsAssignableFrom<IRespKeyspaceTarget>(db.CreateBatch());
+        Assert.IsAssignableFrom<IRespKeyspaceTarget>(db.CreateTransaction());
+
+        // and a prefixed batch/transaction gets one too, which it did not before: the clone moved onto the
+        // shared KeyPrefixed<T> base rather than sitting on KeyPrefixedDatabase alone
+        var tenant = db.WithKeyPrefix("t9:");
+        Assert.Equal("t9:", (string?)((IRespKeyspaceTarget)tenant.CreateBatch()).Context.KeyPrefix);
+        Assert.Equal("t9:", (string?)((IRespKeyspaceTarget)tenant.CreateTransaction()).Context.KeyPrefix);
+    }
+
+    /// <summary>
+    /// Retry refuses rather than forwarding, because forwarding would drop the retry silently.
+    /// </summary>
+    /// <remarks>
+    /// The one implementer that must not just hand back its inner context: commands composed from it go
+    /// through the inner executor, so the group surface would lose the retry - and lose it invisibly,
+    /// since the command still succeeds whenever nothing fails.
+    /// </remarks>
+    [Fact]
+    public async Task RetryRefusesTheContextRatherThanDroppingTheRetry()
+    {
+        await using var conn = Create();
+        var retrying = conn.GetDatabase().WithRetry(
+            new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero });
+
+        var ex = Assert.Throws<NotImplementedException>(() => retrying.Context);
+        Assert.Contains("silently drop the retry", ex.Message);
     }
 
     /// <summary>And so does a transaction's, for an ordinary single-frame command.</summary>
@@ -331,8 +385,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await db.StringSetAsync(key, "tranned");
 
         var tran = db.CreateTransaction();
-        var ctx = ((IRespTarget)tran).Context;
-        var pending = ctx.Strings.GetAsync(key);
+        var pending = tran.Strings.GetAsync(key);
         Assert.False(pending.IsCompleted, "DEFERRED-OK: transaction did not send immediately");
         Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
         Assert.Equal("tranned", (string?)await pending);

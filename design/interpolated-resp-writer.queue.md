@@ -543,7 +543,9 @@ Four consequences, none of them cosmetic:
       this one wants its own executor question answered first - a subscriber connection is a different
       bridge, not just a different endpoint.
 
-- [ ] **`IRespTarget` on `IDatabaseAsync`**, so `IBatch`/`ITransaction` offer the keyspace groups by name.
+- [x] **`IRespTarget` on `IDatabaseAsync`**, so `IBatch`/`ITransaction` offer the keyspace groups by name.
+      **Done 2026-09-15.** `tran.Strings.SetAsync(...)` and `batch.Strings.GetAsync(...)` bind directly; the
+      cast the tests used is gone.
       Unblocked by the target split, and the probe says the hard part is already done: a batch's and a
       transaction's context both queue rather than send, because their executor's target is the batch and
       `ExecuteAsync` is overridden to queue. Pinned in `RespEndToEndTests`.
@@ -566,12 +568,26 @@ Four consequences, none of them cosmetic:
 
       So this item is **unblocked**; what remains is the public-surface decision below.
 
-      **The remaining question is compatibility, not design.** `IDatabaseAsync` is shipped, so adding
-      `IRespKeyspaceTarget` to it makes `Context` a required member for anyone implementing `IDatabaseAsync`,
-      `IBatch` or `ITransaction` - mocks and wrappers included. `IDatabase` already took that break on this
-      branch, so the precedent exists and anyone mocking `IDatabase` is already affected; extending it to
-      `IBatch`/`ITransaction` widens the blast radius to people who mock only those. Worth a human call
-      rather than an inference from precedent.
+      **The compatibility question was raised and answered: go ahead.** Adding `IRespKeyspaceTarget` to
+      `IDatabaseAsync` makes `Context` a required member for anyone implementing `IDatabaseAsync`, `IBatch`
+      or `ITransaction`, mocks and wrappers included. The answer, and the reasoning worth keeping: extending
+      this interface family has historically been *the only* way to add functionality here, so it is a
+      known and accepted problem - **and it is the problem this work exists to fix.** Every addition after
+      this one is an extension member on the context, so this is meant to be the last time.
+
+      **Three implementers needed the member, and one of them must not forward.**
+      - `KeyPrefixed<TInner>` clones with the prefix - the one-line write half of key-prefixing, moved from
+        `KeyPrefixedDatabase` onto the shared base, so a prefixed **batch** and **transaction** get a
+        context too rather than only a prefixed database. That is new behaviour, and pinned.
+      - `RetryDatabase` and `RetryTransaction` **throw**. Forwarding the inner context would compile, read
+        naturally and be wrong: commands composed from it go through the *inner* executor, so the group
+        surface would drop the retry - invisibly, since the command still succeeds whenever nothing fails.
+        Retry arrives on this surface as a retry *executor*, which is the open item below.
+
+      **Worth knowing for next time: `PublicAPI.Unshipped.txt` did not change.** `Context` is inherited
+      rather than redeclared, and the analyzer tracks members rather than base-interface lists - so a
+      required-member break on a shipped interface is invisible to the API tracker. A test catches it; the
+      file does not.
 
 - [ ] **The retry executor** (`WithRetry`). Prerequisites in place; no design written.
 

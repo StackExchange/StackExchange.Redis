@@ -20,6 +20,19 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     object? IInternalDatabaseAsync.AsyncState => null;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <b>Deliberately not forwarded.</b> Handing back the inner context would compile, read naturally and
+    /// be wrong: commands composed from it go through the <i>inner</i> executor, so every call through the
+    /// group surface would quietly lose the retry this wrapper exists to provide - and lose it invisibly,
+    /// because the command still succeeds whenever nothing fails. The context surface gets retry when it
+    /// gets a retry executor, which is a decorator on the executor rather than a wrapper on the database.
+    /// </remarks>
+    public Interpolated.RespContext Context
+        => throw new NotImplementedException(
+            "The context surface does not yet support retry; a retry executor is separate work, and "
+            + "forwarding the inner context here would silently drop the retry.");
+
+    /// <inheritdoc/>
     public override string ToString() => this.BuildString();
 
     private readonly IDatabaseAsync _inner;
