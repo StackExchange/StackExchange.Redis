@@ -337,4 +337,46 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
         Assert.Equal("tranned", (string?)await pending);
     }
+
+    /// <summary>
+    /// When the server forgets a script, the call that discovers it recovers by itself.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The write-time gate skips the preamble while the endpoint is believed to hold the script, and
+    /// <c>NOSCRIPT</c> is the only evidence that belief has gone stale - a <c>SCRIPT FLUSH</c>, a restart,
+    /// a failover to a node that never had it. This path did not look at replies for that, so the belief
+    /// survived the very reply that disproved it: the next call skipped the load again and failed
+    /// identically, for ever. A <b>permanent</b> failure from a transient cause, which is the failure class
+    /// this whole design keeps refusing.
+    /// </para>
+    /// <para>
+    /// The failing call now recovers by itself: inspection returns a <c>Reissue</c> verdict and the message
+    /// is written again from the read path, the same way <c>MOVED</c> has always resent. The caller sees a
+    /// successful reply, not an exception it was supposed to know to catch.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AServerSideScriptFlushIsNoticedSoTheNextCallRecovers()
+    {
+        await using var conn = Create(allowAdmin: true);
+        var endpoint = conn.GetEndPoints()[0];
+        var sep = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint);
+        var surface = NewSurface(conn, 0);
+        var script = $"return '{Me()}'";
+
+        sep.FlushScriptCache();
+        (await surface.Context.Scripts.Evaluate(script)).Dispose();
+        Assert.True(sep.IsScriptLoaded(script), "the first call should have loaded it");
+
+        // the server forgets, behind the client's back
+        await conn.GetServer(endpoint).ScriptFlushAsync();
+        Assert.True(sep.IsScriptLoaded(script), "the client cannot know yet - that is the point");
+
+        // the call that meets the stale belief now recovers by itself: the NOSCRIPT is noticed, the belief
+        // dropped, and the message re-issued from the read path - so the caller never sees the failure
+        using var recovered = await surface.Context.Scripts.Evaluate(script);
+        Assert.Equal(Me(), recovered.ReadScalar().ReadString());
+        Assert.True(sep.IsScriptLoaded(script), "the retry should have re-loaded it");
+    }
 }

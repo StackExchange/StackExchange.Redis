@@ -90,6 +90,43 @@ public class InterpolatedWriterDemo
         Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"{u}:a"), frame.Slot);
     }
 
+    /// <summary>
+    /// Past the bitmap's 62 arguments the frame stops being able to <i>report</i> its keys - but it never
+    /// stopped <i>routing</i> on them.
+    /// </summary>
+    /// <remarks>
+    /// Two different fields doing two different jobs, and only one of them has a limit. The slot is folded
+    /// over each key's bytes as they are written, with no cap; the 62 is the argument-index bitmap, which
+    /// exists so a <i>cache</i> can know what to invalidate. Losing the second is a refusal to cache -
+    /// asserted in <c>RespClientCacheTests</c> - and would be a routing bug if it were ever allowed to
+    /// become the first, which is what this pins.
+    /// </remarks>
+    [Fact]
+    public void KeysBeyondTheBitmapStillRoute()
+    {
+        const int Count = 70; // comfortably past MaxBitmapArg (62)
+
+        var shared = new RespCommandHandler(0, Count, Cluster, "MGET");
+        for (var i = 0; i < Count; i++) shared.AppendFormatted((RedisKey)("{u}:" + i));
+        using var sharedFrame = shared.Complete();
+
+        Assert.Equal(-1, sharedFrame.KeyCount); // cannot report them...
+        Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"{u}:0"), sharedFrame.Slot); // ...still routes
+
+        // the case that actually pins it: everything up to the bitmap's limit agrees, and ONLY a key
+        // beyond it disagrees. Keys that already differ within the first 62 would report MultipleSlots
+        // whether or not the tail was folded, so they prove nothing about the tail.
+        var tail = new RespCommandHandler(0, Count, Cluster, "MGET");
+        for (var i = 0; i < Count - 1; i++) tail.AppendFormatted((RedisKey)("{u}:" + i));
+        tail.AppendFormatted((RedisKey)"{elsewhere}:last");
+        using var tailFrame = tail.Complete();
+
+        Assert.Equal(-1, tailFrame.KeyCount);
+        Assert.Equal(
+            ServerSelectionStrategy.MultipleSlots,
+            tailFrame.Slot); // a key past the bitmap still moved the slot: it is routing, not reporting
+    }
+
     [Fact]
     public void CrossSlotIsDetected()
     {

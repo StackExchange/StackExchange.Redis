@@ -52,6 +52,29 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>The <c>NOSCRIPT</c> decision, in one place: note it, and say whether to try again.</summary>
+        /// <remarks>
+        /// <para>
+        /// Three processors can be the target of an <c>EVALSHA</c> - the <c>RedisResult</c> one, the
+        /// <c>RespResult</c> one, and the frame path's - and this rule is subtle enough that a third copy
+        /// was where it would have gone wrong.
+        /// </para>
+        /// <para>
+        /// The stickiness is the mechanism: <see cref="Message.IsScriptUnavailable"/> is read <b>before</b>
+        /// noting, so a second <c>NOSCRIPT</c> for the same message finds the flag already set and reports
+        /// rather than retrying. That is only load-bearing when the caller supplied a <i>hash</i>: given a
+        /// body, the retry sends <c>EVAL</c> with it - because noting flushed the belief - and there is
+        /// never a second <c>NOSCRIPT</c> to guard against.
+        /// </para>
+        /// </remarks>
+        private protected static ReplyVerdict NoScriptVerdict(PhysicalConnection connection, Message message, in RespReader errorReader)
+        {
+            var alreadyTried = message.IsScriptUnavailable;
+            return NoteIfScriptUnavailable(connection, message, in errorReader) && !alreadyTried
+                ? ReplyVerdict.Reissue
+                : ReplyVerdict.Complete;
+        }
+
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
             DemandOK = new ExpectBasicStringProcessor(Literals.OK.Hash),
@@ -265,9 +288,86 @@ namespace StackExchange.Redis
             var box = message?.ResultBox;
             box?.SetException(ex);
         }
+
+        /// <summary>
+        /// See the reply before anything consumes it, to decide something about the <i>connection</i> or
+        /// the <i>message</i> rather than to produce a result.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <c>SetResult</c> has always done two jobs - inspect, then parse - and the four processors that
+        /// needed the first had to override the whole of it to get it: take a copy of the reader, advance
+        /// the copy, look, then hand the <i>original</i> back to <c>base.SetResult</c>. Every one of them
+        /// hand-rolled that rewind, and getting it wrong means parsing from the wrong position, which
+        /// presents as somebody else's reply arriving for your command.
+        /// </para>
+        /// <para>
+        /// The reader is passed by <c>in</c> and at the <b>start</b> of the reply, so an implementation
+        /// copies it and advances the copy - the caller's position cannot be disturbed, which is the
+        /// property the rewind dance was manually preserving.
+        /// </para>
+        /// <para>
+        /// Inspection cannot yet <i>direct</i> what happens next; it can only record. The clearest cost of
+        /// that is <c>NOSCRIPT</c>: the inspection sets a flag on the message, the task faults, and six
+        /// <c>catch (RedisServerException) when (msg.IsScriptUnavailable)</c> sites re-issue - a verdict
+        /// delivered by unwinding, because there is no way to say "reissue". Giving this a return value is
+        /// the next step, and is why the seam is named rather than inlined.
+        /// </para>
+        /// </remarks>
+        protected virtual ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            => ReplyVerdict.Complete;
+
+        /// <summary>What inspecting a reply concluded should happen to the message.</summary>
+        internal enum ReplyVerdict
+        {
+            /// <summary>Carry on: parse the reply and complete the message.</summary>
+            Complete = 0,
+
+            /// <summary>
+            /// Send this same message again, to the same endpoint, and do not complete it.
+            /// </summary>
+            /// <remarks>
+            /// Only <c>NOSCRIPT</c> so far. The resend is the one <c>MOVED</c> has always used from this
+            /// same read path - <c>PrepareToResend</c> then <c>TryWriteSync</c>, returning <c>false</c> from
+            /// <c>SetResult</c> to mean "re-issued, do not complete" - rather than a second mechanism.
+            /// </remarks>
+            Reissue = 1,
+        }
+
+        /// <summary>Write the message again, to the endpoint that just answered.</summary>
+        /// <remarks>
+        /// Deliberately not <c>ServerSelectionStrategy.TryResend</c>, which is about <i>redirects</i>: it
+        /// refuses a message with no hash slot - which a keyless script has - and sets asking/no-redirect
+        /// on the way through. This is the same endpoint and the same message, with nothing to re-route.
+        /// </remarks>
+        private static bool TryReissue(PhysicalConnection connection, Message message)
+        {
+            var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+            if (server is null) return false;
+
+            try
+            {
+                message.PrepareToResend(server, isMoved: false);
+#pragma warning disable CS0618 // sync write is what the MOVED path uses from here too
+                return server.TryWriteSync(message) == WriteResult.Success;
+#pragma warning restore CS0618
+            }
+            catch
+            {
+                return false; // fall through to ordinary error handling, which still has the reply in hand
+            }
+        }
+
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
+            var verdict = Inspect(connection, message, in reader);
+            if (verdict == ReplyVerdict.Reissue && TryReissue(connection, message))
+            {
+                // re-issued: this reply is spent, and the message now belongs to its next attempt
+                return false;
+            }
+
             reader.MovePastBof();
             connection.OnDetailLog($"(core result for {message.Command}, '{reader.GetOverview()}')");
             var bridge = connection.BridgeCouldBeNull;
@@ -848,11 +948,11 @@ namespace StackExchange.Redis
             private ILogger? Log { get; }
             public AutoConfigureProcessor(ILogger? log = null) => Log = log;
 
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.ReadOnly)
+                var probe = reader;
+                probe.MovePastBof();
+                if (probe.IsError && RedisErrorKindMetadata.Classify(probe) == RedisErrorKind.ReadOnly)
                 {
                     var bridge = connection.BridgeCouldBeNull;
                     if (bridge != null)
@@ -863,7 +963,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                return base.SetResult(connection, message, ref copy);
+                return ReplyVerdict.Complete;
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -1366,9 +1466,17 @@ namespace StackExchange.Redis
         /// </remarks>
         private sealed class HashImportProcessor : ResultProcessor<bool>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            /// <remarks>Not about the reply at all: the arrival of one is when the rendered arguments stop
+            /// being needed, whatever it says.</remarks>
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
+                return ReplyVerdict.Complete;
+            }
+
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                Inspect(connection, message, in reader);
                 return DemandOK.SetResult(connection, message, ref reader);
             }
 
@@ -2164,13 +2272,11 @@ namespace StackExchange.Redis
 
         private sealed class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                NoteIfScriptUnavailable(connection, message, in reader);
-                // and apply usual processing for the rest
-                return base.SetResult(connection, message, ref copy);
+                var probe = reader;
+                probe.MovePastBof();
+                return probe.IsError ? NoScriptVerdict(connection, message, in probe) : ReplyVerdict.Complete;
             }
 
             // note that top-level error messages still get handled by SetResult, but nested errors

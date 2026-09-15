@@ -67,7 +67,29 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-## Next
+- [ ] **`WATCH`/`MULTI` is BLOCKED on the `Message` refactor — do not start it first.** The measurement is
+      taken (`0ac297fe`): a condition makes `ExecuteAsync` block the *calling* thread for two round trips
+      (sync 508ms vs 2ms without), because the expansion is enumerated inside a sync `WriteMessageInsideLock`
+      and waits there on `Monitor.Wait`. The target is "release the thread, keep the connection reserved",
+      and the reservation half is already expressible: `_singleWriter` is an `AwaitableMutex`, not
+      thread-affine, so it can be held across an `await`.
+
+      **What blocks it is the completion, and that is the refactor's to give.** The pulse goes away when
+      `Message` moves onto a poolable core with `IValueTaskSource` - which *is* an awaitable completion,
+      correctly armed, for free. Building an awaitable pulse-replacement now would entrench the very thing
+      being deleted, including its awkward "arm the monitor before sending so the pulse cannot be missed"
+      property, which would then have to be un-entrenched.
+
+      Left to do once the refactor lands: an async expansion for `TransactionMessage` (the other four
+      implementors never wait), an async `WriteMessageInsideLock` for the two async call sites of four - the
+      sync write and the backlog drain stay as they are, and a sync `Execute()` caller has a thread to block
+      by definition. Re-measure against the 508ms.
+
+      **Rejected, and worth not re-deriving:** doing the condition check *before* taking the write lock, so
+      nothing has to await inside it. `WATCH` and the conditions are sent before `MULTI` anyway, so it looks
+      free - but `EXEC`/`DISCARD`/`UNWATCH` are connection-global, so another transaction completing on the
+      same connection between our `WATCH` and our `MULTI` would silently clear our watch. The lock is what
+      makes the watch mean anything.
 
 - [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
       commands and are better understood as three *different seams*, which is why doing all three settles
@@ -419,6 +441,28 @@ Four consequences, none of them cosmetic:
       `RequiresDatabase`, which is how a server context surfaced it. Fixed by resolving the identity
       alongside the bytes. Invisible until now because a database context has `db >= 0`, where the check
       does not fire.
+- [x] **The inspect/parse split** — `ea26ce61`, `a86e563b`, `7d521699`, `d338591e`. `SetResult` always did
+      two jobs; `Inspect` is now the first, and it can direct as well as record - `Complete` or `Reissue`,
+      with `NotYet` reserved for `WATCH`. A `Reissue` re-writes the message and returns `false` from
+      `SetResult` ("re-issued, do not complete"), which is not new machinery: it is what `MOVED` has always
+      done from this same read path.
+
+      **The retry stopped being opt-in.** It was eight hand-written `catch (RedisServerException) when
+      (msg.IsScriptUnavailable)` sites, so a path that did not know to catch got nothing - which is exactly
+      why the frame path surfaced a raw `NOSCRIPT` and left the stale belief in place, failing identically
+      for ever. All eight are gone; every path retries because the pipeline does.
+
+      Three things worth keeping:
+      **(a)** not `ServerSelectionStrategy.TryResend`, despite that being `MOVED`'s vehicle - it is about
+      *redirects*, refuses a message with no hash slot (a keyless script has none), and sets
+      asking/no-redirect on the way through.
+      **(b)** the buffer must outlive a reissue - a message about to be written again still needs its
+      rendered arguments - and that release is keyed on the *verdict*, not on "was this a NOSCRIPT", because
+      a second NOSCRIPT is not retried and does need to release.
+      **(c)** the retry-once guard reads the sticky flag *before* noting. Only load-bearing when the caller
+      supplied a **hash**: given a body the retry sends `EVAL` with it, so there is never a second
+      `NOSCRIPT`. My first mutation of that guard survived for exactly that reason - the uncovered case was
+      the hash one, and with it covered the unguarded version loops for ever.
 - [x] Flush the cache when a connection is lost — `f2811156`
 - [x] Hosting the cache on the multiplexer (`ConfigurationOptions.ClientCache`), and routing real
       invalidation pushes to it through `PhysicalConnection` — `4d608ddd`
@@ -442,6 +486,29 @@ Four consequences, none of them cosmetic:
       `Sweep` reclaiming expired entries rather than only invalidated ones — `e2d2ea3c`
 
 ## Decided against
+
+- **Errors as values on the new surface.** Decided 2026-09-15: a top-level error throws, as everywhere else
+  in this library, unless somebody turns up with a concrete need. Errors-as-values makes every caller
+  responsible for remembering to check, and forgetting is **silent** - the same failure class this design
+  refuses for keyless cache entries, undeclared retry categories and stale script beliefs. A second error
+  model, opt-in for correctness, would be inconsistent in the expensive direction.
+
+  The line is already drawn where it belongs: nested errors inside an `EXEC` array *are* data in
+  `RedisResult`; only the top level throws. That is the difference between "this operation failed" and "one
+  element of this aggregate failed", not an oversight.
+
+  **This is `redis.call` vs `redis.pcall`**, and that is the precedent rather than an analogy: `call`
+  aborts and propagates, `pcall` hands the error back as a value with an `err` field - and Redis made
+  `call` the default and `pcall` the thing you deliberately ask for. Same answer, arrived at by the people
+  who had to live with both.
+
+  **A deferral, not a door closing**, and the analogy gives it its shape: `RespResult` already stores the
+  `Prefix` and the raw frame *including* the prefix bytes, so `-ERR` is representable today - the processor
+  simply routes errors to the failing path. So if the need arrives it is an additive, **per-call** opt-in,
+  chosen at the call site the way you choose `pcall` - never a global mode and never a changed return type
+  on `ExecuteResp`. That is the only version where "remember to check" is not a silent hazard: the person
+  who gets a value back is the person who asked for one.
+
 
 - **A "buffer is shared" flag on `RespReader`**, and a second read-only reservation interface. Unnecessary
   once the *type* carries the distinction: the mutable path simply never calls `TryReservePayload`. §6.16.
