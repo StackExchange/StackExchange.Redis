@@ -253,6 +253,9 @@ namespace StackExchange.Redis.Interpolated
             /// <summary>A per-key outcome from the <c>EXPIRE</c> family.</summary>
             internal static readonly RespReader.Projection<ExpireResult> Expire = static (ref r) => (ExpireResult)r.ReadInt64();
 
+            /// <summary>A per-id outcome from <c>XDELEX</c>/<c>XACKDEL</c>.</summary>
+            internal static readonly RespReader.Projection<StreamTrimResult> TrimResult = static (ref r) => (StreamTrimResult)r.ReadInt64();
+
             /// <summary>A per-key outcome from <c>PERSIST</c>.</summary>
             internal static readonly RespReader.Projection<PersistResult> Persist = static (ref r) => (PersistResult)r.ReadInt64();
 
@@ -561,6 +564,8 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<Lease<byte>?>,
             IRespHandler<Lease<long?>>,
             IRespHandler<PersistResult[]>,
+            IRespHandler<StreamTrimResult[]>,
+            IRespHandler<ReadOnlyLease<StreamTrimResult>>,
             IRespHandler<ReadOnlyLease<PersistResult>>,
             IRespHandler<ReadOnlyLease<byte>?>,
             IRespHandler<ReadOnlyLease<long?>>,
@@ -669,6 +674,9 @@ namespace StackExchange.Redis.Interpolated
 
             ReadOnlyLease<ExpireResult> IRespHandler<ReadOnlyLease<ExpireResult>>.Parse(ref RespReader reader)
                 => ReadScalarLease(ref reader, Elements.Expire);
+
+            ReadOnlyLease<StreamTrimResult> IRespHandler<ReadOnlyLease<StreamTrimResult>>.Parse(ref RespReader reader)
+                => ReadScalarLease(ref reader, Elements.TrimResult);
 
             ReadOnlyLease<PersistResult> IRespHandler<ReadOnlyLease<PersistResult>>.Parse(ref RespReader reader)
                 => ReadScalarLease(ref reader, Elements.Persist);
@@ -907,6 +915,9 @@ namespace StackExchange.Redis.Interpolated
             {
                 return reader.ReadPastArray(Elements.Boolean, scalar: true) ?? Array.Empty<bool>();
             }
+
+            StreamTrimResult[] IRespHandler<StreamTrimResult[]>.Parse(ref RespReader reader)
+                => reader.ReadPastArray(Elements.TrimResult, scalar: true) ?? Array.Empty<StreamTrimResult>();
 
             PersistResult[] IRespHandler<PersistResult[]>.Parse(ref RespReader reader)
             {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -227,9 +227,16 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
             Log($"{(claimOnWrite ? "claim-on-write" : "confirm-on-reply")}: {gate.Injections} preamble(s) for {Burst} commands");
         }
 
-        // claiming inside the write lock is what collapses the burst, because that lock is the only place
-        // where "has this connection prepared it?" and "write it" are one decision
+        // Claim-on-write is the deterministic half, and the one worth asserting: the claim happens inside
+        // the write lock, so however the eight tasks interleave, exactly one preamble goes out.
         Assert.Equal(1, counts[1]);
-        Assert.True(counts[0] > counts[1], $"confirm-on-reply injected {counts[0]}, expected more than {counts[1]}");
+
+        // Confirm-on-reply is NOT asserted, and that is a correction rather than an omission. An earlier
+        // version asserted it injected more, which held every time in isolation (8 for 8) and then failed
+        // under full-suite load, where the first PREPARE's reply landed before the other tasks reached
+        // IsNeeded - so the burst did not contend and one preamble covered all eight. The measurement is
+        // real and is recorded in the queue; what is not real is any guarantee about WHEN that race lands,
+        // so asserting on it made this test depend on machine load rather than on the library.
+        Log($"confirm-on-reply injected {counts[0]} preamble(s) for {Burst} commands; claim-on-write injected {counts[1]}");
     }
 }

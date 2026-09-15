@@ -318,6 +318,46 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     /// <summary>
+    /// The stream group's scalar half against a real server, with the old path as the oracle.
+    /// </summary>
+    /// <remarks>
+    /// Streams have more optional tokens than anything else moved so far, and the byte-level tests pin the
+    /// rendering against what we <i>believe</i> the grammar to be. This pins it against a server that will
+    /// reject a wrong one - and against <c>IDatabase</c>, which has been sending these for years.
+    /// </remarks>
+    [Fact]
+    public async Task TheStreamScalarsAgreeWithTheOldPath()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+        var ctx = ((IRespTarget)db).Context;
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        // XADD has not moved yet, so the old path seeds the stream
+        var first = await db.StreamAddAsync(key, "f", "v1");
+        var second = await db.StreamAddAsync(key, "f", "v2");
+        await db.StreamAddAsync(key, "f", "v3");
+
+        Assert.Equal(await db.StreamLengthAsync(key), await ctx.Streams.LengthAsync(key));
+
+        Assert.True(await ctx.Streams.CreateConsumerGroupAsync(key, "grp", "0-0", createStream: false));
+        Assert.Equal(0, await ctx.Streams.AcknowledgeAsync(key, "grp", first));
+        Assert.Equal(0, await ctx.Streams.DeleteConsumerAsync(key, "grp", "nobody"));
+        Assert.True(await ctx.Streams.SetConsumerGroupPositionAsync(key, "grp", "0-0"));
+        Assert.True(await ctx.Streams.DeleteConsumerGroupAsync(key, "grp"));
+
+        Assert.Equal(1, await ctx.Streams.DeleteAsync(key, [second]));
+        Assert.Equal(2, await ctx.Streams.LengthAsync(key));
+
+        // every trim option combination the byte tests cover, against a server that parses them
+        Assert.Equal(0, await ctx.Streams.TrimAsync(key, 100, approximate: true, limit: null));
+        Assert.Equal(0, await ctx.Streams.TrimByMinIdAsync(key, "0-0"));
+        Assert.Equal(1, await ctx.Streams.TrimAsync(key, 1));
+        Assert.Equal(1, await ctx.Streams.LengthAsync(key));
+    }
+
+    /// <summary>
     /// The OBJECT family against a real server, with the old path as the oracle.
     /// </summary>
     /// <remarks>

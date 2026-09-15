@@ -362,6 +362,50 @@
         [Resp("FILTER-EF")]
         internal static partial RespFragment FilterEf { get; }
 
+        /// <summary>The <c>MINID</c> trim strategy of <c>XTRIM</c>.</summary>
+        [Resp]
+        internal static partial RespFragment MinId { get; }
+
+        /// <summary>The <c>~</c> marker that makes a stream trim approximate.</summary>
+        [Resp("~")]
+        internal static partial RespFragment Approximate { get; }
+
+        /// <summary>The <c>CREATE</c> subcommand of <c>XGROUP</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Create { get; }
+
+        /// <summary>The <c>DESTROY</c> subcommand of <c>XGROUP</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Destroy { get; }
+
+        /// <summary>The <c>SETID</c> subcommand of <c>XGROUP</c>.</summary>
+        [Resp("SETID")]
+        internal static partial RespFragment SetId { get; }
+
+        /// <summary>The <c>DELCONSUMER</c> subcommand of <c>XGROUP</c>.</summary>
+        [Resp("DELCONSUMER")]
+        internal static partial RespFragment DeleteConsumer { get; }
+
+        /// <summary>The <c>MKSTREAM</c> operand of <c>XGROUP CREATE</c>.</summary>
+        [Resp("MKSTREAM")]
+        internal static partial RespFragment MkStream { get; }
+
+        /// <summary>The <c>IDS</c> operand of <c>XDELEX</c>/<c>XACKDEL</c>; a count follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Ids { get; }
+
+        /// <summary>The <c>KEEPREF</c> trim mode: entries are removed, references kept.</summary>
+        [Resp("KEEPREF")]
+        internal static partial RespFragment KeepRef { get; }
+
+        /// <summary>The <c>DELREF</c> trim mode.</summary>
+        [Resp("DELREF")]
+        internal static partial RespFragment DelRef { get; }
+
+        /// <summary>The <c>ACKED</c> trim mode.</summary>
+        [Resp]
+        internal static partial RespFragment Acked { get; }
+
         /// <summary>The <c>ENCODING</c> subcommand of <c>OBJECT</c>.</summary>
         [Resp]
         internal static partial RespFragment Encoding { get; }

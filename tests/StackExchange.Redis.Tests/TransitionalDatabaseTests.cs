@@ -79,10 +79,10 @@ public class TransitionalDatabaseTests
         var db = Target(new FakeExecutor("+OK\r\n"));
 
         // the exemplar has to be a command that genuinely has not moved, so it changes as groups land -
-        // KeyDelete was this until the Key group arrived, and ListLeftPush until the List group did.
-        // Stream is also what AnUnmovedGroupIsStillGenerated uses as its control, so the two now go stale
-        // together and loudly rather than one of them quietly.
-        var ex = Assert.Throws<NotImplementedException>(() => db.StreamLength("k"));
+        // KeyDelete was this until the Key group arrived, ListLeftPush until the List group did, and
+        // StreamLength until the stream group's scalar half did. Going stale is the point: it fails here
+        // loudly rather than silently asserting nothing.
+        var ex = Assert.Throws<NotImplementedException>(() => db.ArrayLength("k"));
         Assert.Contains("has not yet moved", ex.Message);
     }
 

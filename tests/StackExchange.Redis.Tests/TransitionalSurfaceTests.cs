@@ -187,6 +187,7 @@ public class TransitionalCoverageTests
     [InlineData("VectorSet")]
     [InlineData("Key")]
     [InlineData("Script")]
+    [InlineData("Stream")]
     public void EveryMemberOfAMovedGroupIsImplemented(string prefix)
     {
         var generated = Generated(prefix, typeof(IDatabase)).Concat(Generated(prefix, typeof(IDatabaseAsync)))
@@ -210,6 +211,27 @@ public class TransitionalCoverageTests
             // Key: MIGRATE and RESTORE are not on the new surface at all. The OBJECT family used to be
             // excluded here too, as "a different command shape, deferred as a unit" - it has since moved,
             // so the exclusions are gone and this test now holds it to the same standard as the rest
+
+            // Stream: the scalar half has moved. What is left returns composites that hold arrays -
+            // StreamEntry holds NameValueEntry[], RedisStream holds StreamEntry[] - and choosing a
+            // lease-shaped representation for those is a design decision, not a transcription. Listed
+            // individually rather than as one "Stream*" pass, so that adding a read without its shape
+            // decision fails here instead of quietly widening the gap.
+            .Where(x => !x.StartsWith("StreamRange", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamRead", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamClaim", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamAutoClaim", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamPending", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamInfo", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamGroupInfo", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamConsumerInfo", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamAdd", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamAcknowledgeAndDelete", StringComparison.Ordinal))
+            .Where(x => !x.StartsWith("StreamNegativeAcknowledge", StringComparison.Ordinal))
+
+            // and one composite on the INPUT side: StreamConfigure takes a StreamConfiguration, which is
+            // the same "pick a shape" question as the reads, just pointing the other way
+            .Where(x => !x.StartsWith("StreamConfigure", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("KeyMigrate", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("KeyRestore", StringComparison.Ordinal))
 
@@ -243,7 +265,7 @@ public class TransitionalCoverageTests
     [Fact]
     public void EveryImplementedMemberBelongsToATestedGroup()
     {
-        string[] tested = ["String", "Hash", "Set", "SortedSet", "List", "HyperLogLog", "Sort", "Geo", "VectorSet", "Key", "Script"];
+        string[] tested = ["String", "Hash", "Set", "SortedSet", "List", "HyperLogLog", "Sort", "Geo", "VectorSet", "Key", "Script", "Stream"];
 
         // the members that belong to no command group: funnels, fallbacks, and the ad-hoc Execute family.
         // A second list, but a STABLE one - infrastructure does not come and go, whereas command groups

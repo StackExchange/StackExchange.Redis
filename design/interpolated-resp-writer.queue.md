@@ -366,9 +366,13 @@ Four consequences, none of them cosmetic:
           the callback was never invoked by throwing from it - and passed. It is invoked; the throw was
           contained to the preamble message, which nobody awaits. Counting is the honest instrument, and
           the swallowing is worth a look on its own terms.
-        - *A burst has to be made to contend.* Issuing the 8 sends from one loop showed 1 preamble either
-          way, because each reply landed while the next frame was still being rendered. That measured the
-          loop, not the burst; a `Barrier` fixed it.
+        - *A burst has to be made to contend - and cannot be made to contend reliably.* Issuing the 8 sends
+          from one loop showed 1 preamble either way, because each reply landed while the next frame was
+          still being rendered; a `Barrier` fixed that and gave 8-versus-1, repeatably, in isolation. It
+          then failed under full-suite load, where the first reply again beat the other tasks to `IsNeeded`.
+          So the *measurement* stands and is recorded here, but the test asserts only the deterministic half
+          (claim-on-write injects exactly one) and logs the other. Asserting a race outcome makes a test
+          depend on machine load rather than on the library, which is worth one correction to avoid.
 
         **Done 2026-09-15: the bridge hook is gone.** `HashImportSetMessage` is an `IMultiMessage` whose
         `GetMessages` claims the field-set on the connection and yields `[PREPARE, this]`, or returns `null`
@@ -479,6 +483,30 @@ Four consequences, none of them cosmetic:
       honestly, because the legacy contract promises the caller owns the bytes. That conversion wants a
       pooled `ToLease()` on `ReadOnlyLease<T>` rather than `ToArray()`, which allocates outside the pool.
       Not added yet, deliberately: no caller, no API.
+
+- [ ] **The stream reads, and the shape question they all wait on.** The scalar half of the group has
+      moved (`XLEN`, `XACK`, `XDEL`, `XDELEX`, `XGROUP CREATE/DESTROY/SETID/DELCONSUMER`, `XTRIM` both
+      strategies); SER352 178 -> 154. What is left is blocked on one decision, not on effort.
+
+      **`StreamEntry` holds `NameValueEntry[]`, and it appears in three different contexts** - which is the
+      constraint, and is why the answer is not simply "make it a lease":
+      - a **direct array result**: `XRANGE`, `XREAD` single-stream, `XREADGROUP` (3 overloads), `XCLAIM`;
+      - **nested in a composite**: `RedisStream.Entries`, `StreamAutoClaimResult.ClaimedEntries`;
+      - a **singular field**: `StreamInfo.FirstEntry` / `LastEntry`, one entry each.
+
+      So any lease-shaped replacement has to work as a standalone value too, not only as an element of a
+      pooled run - and `StreamEntry`'s *public constructor* takes the array, so the shape is in the shipped
+      surface rather than just the property. Options aired, none chosen: a `RespStreamEntry` over a
+      `ReadOnlyLease<NameValueEntry>`; entries as windows into the reply buffer with the whole read owning
+      one lease (the `RespValue` shape); or keep `StreamEntry` and accept the per-entry allocation as debt.
+      The third matches `ListPopResult` today but hurts most here, since bulk reads are the normal usage.
+
+      `StreamConfigure` is the same question pointing the other way - a composite on the **input** side
+      (`StreamConfiguration`). `StreamAdd` and `StreamNegativeAcknowledge` wait on `NameValueEntry` and the
+      nack mode respectively.
+
+      `TransitionalCoverageTests` lists each of these by name rather than excluding `Stream*` wholesale, so
+      adding a read without its shape decision fails the test instead of quietly widening the gap.
 
 - [ ] **More command groups**, in `RespSurface.<Group>.cs` + `TransitionalDatabase.<Group>.cs` pairs.
       Mechanical now; `Strings` and `Bitmaps` are the worked examples. SER352 counts what is left (312).
