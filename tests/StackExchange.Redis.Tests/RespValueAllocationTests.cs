@@ -45,7 +45,9 @@ public class RespValueAllocationTests(ITestOutputHelper log)
 
         var asValues = Measure(() =>
         {
-            using var lease = RespHandlers.ValueLease.Parse(reply);
+            var reader = new RespReader(reply);
+            reader.MoveNext();
+            using var lease = RespHandlers.ValueLease.Parse(ref reader);
             Assert.Equal(Elements, lease.Length);
         });
 
@@ -75,7 +77,9 @@ public class RespValueAllocationTests(ITestOutputHelper log)
 
         using var payload = RespPayload.Create(reply);
         using var windows = ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)RespHandlers.ValueWindowHandler.Lease).Parse(payload);
-        using var values = RespHandlers.ValueLease.Parse(reply);
+        var reader = new RespReader(reply);
+        reader.MoveNext();
+        using var values = RespHandlers.ValueLease.Parse(ref reader);
 
         Assert.Equal(values.Length, windows.Length);
         for (var i = 0; i < values.Length; i++)

@@ -286,19 +286,18 @@ namespace StackExchange.Redis.Interpolated
                 IRespPayloadHandler<ReadOnlyLease<RespValue>?>
             {
                 ReadOnlyLease<RespValue>? IRespPayloadHandler<ReadOnlyLease<RespValue>?>.Parse(RespPayload payload)
-                    => IsNilAggregate(payload.Span)
+                {
+                    var reader = payload.GetReader();
+                    reader.MoveNext();
+                    return reader.IsNull
                         ? null
                         : ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)Instance).Parse(payload);
-
-                ReadOnlyLease<RespValue>? IRespHandler<ReadOnlyLease<RespValue>?>.Parse(ReadOnlySpan<byte> response)
-                    => IsNilAggregate(response) ? null : Copy(response);
-
-                private static bool IsNilAggregate(ReadOnlySpan<byte> response)
-                {
-                    var reader = new RespReader(response);
-                    reader.MoveNext();
-                    return reader.IsNull;
                 }
+
+                /// <summary>Never reached, as on the non-null form: a window needs an owner.</summary>
+                ReadOnlyLease<RespValue>? IRespHandler<ReadOnlyLease<RespValue>?>.Parse(ref RespReader reader)
+                    => throw new NotSupportedException(
+                        $"{nameof(RespValue)} points into the reply buffer, so it is parsed from the payload rather than a positioned reader.");
             }
 
             ReadOnlyLease<RespValue> IRespPayloadHandler<ReadOnlyLease<RespValue>>.Parse(RespPayload payload)
@@ -316,8 +315,16 @@ namespace StackExchange.Redis.Interpolated
                 }
             }
 
-            ReadOnlyLease<RespValue> IRespHandler<ReadOnlyLease<RespValue>>.Parse(ReadOnlySpan<byte> response)
-                => Copy(response);
+            /// <summary>Never reached: a window needs an owner, so callers take the payload form.</summary>
+            /// <remarks>
+            /// The same shape as <see cref="RespResult"/>'s: a reader carries a position, not the identity
+            /// of the buffer it is reading, and a <see cref="RespValue"/> is defined by pointing into one.
+            /// Callers route through <see cref="IRespPayloadHandler{TResult}"/> first, which is why this is
+            /// unreachable rather than merely unimplemented.
+            /// </remarks>
+            ReadOnlyLease<RespValue> IRespHandler<ReadOnlyLease<RespValue>>.Parse(ref RespReader reader)
+                => throw new NotSupportedException(
+                    $"{nameof(RespValue)} points into the reply buffer, so it is parsed from the payload rather than a positioned reader.");
 
             /// <summary>No payload to hold, so take a copy of the bytes and own that instead.</summary>
             private static ReadOnlyLease<RespValue> Copy(ReadOnlySpan<byte> response)
@@ -583,8 +590,10 @@ namespace StackExchange.Redis.Interpolated
             // the window shape is registered HERE, not just on ValueWindowHandler, because Inbuilt<T> asks
             // this object and nothing else: a handler that is not on the defaults is reachable only by
             // being named explicitly, which the *Core forwarders cannot do
-            ReadOnlyLease<RespValue> IRespHandler<ReadOnlyLease<RespValue>>.Parse(ReadOnlySpan<byte> response)
-                => ValueWindowHandler.Lease.Parse(response);
+
+            /// <summary>Unreachable in the same way, and for the same reason: see ValueWindowHandler.</summary>
+            ReadOnlyLease<RespValue> IRespHandler<ReadOnlyLease<RespValue>>.Parse(ref RespReader reader)
+                => ValueWindowHandler.Lease.Parse(ref reader);
 
             ReadOnlyLease<RespValue> IRespPayloadHandler<ReadOnlyLease<RespValue>>.Parse(RespPayload payload)
                 => ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)ValueWindowHandler.Lease).Parse(payload);

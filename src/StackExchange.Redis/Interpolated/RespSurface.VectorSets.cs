@@ -390,16 +390,14 @@ namespace StackExchange.Redis.Interpolated
                 return Instances[index] ??= new SimilarityHandler(query.WithScores, query.WithAttributes);
             }
 
-            ReadOnlyLease<VectorSetSimilaritySearchResult>? IRespHandler<ReadOnlyLease<VectorSetSimilaritySearchResult>?>.Parse(ReadOnlySpan<byte> response)
-                => Read(response);
+            ReadOnlyLease<VectorSetSimilaritySearchResult>? IRespHandler<ReadOnlyLease<VectorSetSimilaritySearchResult>?>.Parse(ref RespReader reader)
+                => Read(ref reader);
 
-            Lease<VectorSetSimilaritySearchResult>? IRespHandler<Lease<VectorSetSimilaritySearchResult>?>.Parse(ReadOnlySpan<byte> response)
-                => CopyOut(Read(response));
+            Lease<VectorSetSimilaritySearchResult>? IRespHandler<Lease<VectorSetSimilaritySearchResult>?>.Parse(ref RespReader reader)
+                => CopyOut(Read(ref reader));
 
-            private ReadOnlyLease<VectorSetSimilaritySearchResult>? Read(ReadOnlySpan<byte> response)
+            private ReadOnlyLease<VectorSetSimilaritySearchResult>? Read(scoped ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (!reader.IsAggregate || reader.IsNull) return null;
 
                 var total = reader.AggregateLength();
@@ -473,14 +471,8 @@ namespace StackExchange.Redis.Interpolated
 
             internal static IRespHandler<Lease<RedisValue>?> Writable => Instance;
 
-            public Lease<RedisValue>? Parse(ReadOnlySpan<byte> response)
-            {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-                if (reader.IsNull) return null;
-
-                return CopyOut<RedisValue>(RespHandlers.ValueLease.Parse(response));
-            }
+            public Lease<RedisValue>? Parse(ref RespReader reader)
+                => reader.IsNull ? null : CopyOut<RedisValue>(RespHandlers.ValueLease.Parse(ref reader));
         }
 
         /// <summary>VDIM replies with a count that is an <see cref="int"/> on the old surface.</summary>
@@ -488,12 +480,7 @@ namespace StackExchange.Redis.Interpolated
         {
             internal static readonly Int32Handler Instance = new();
 
-            public int Parse(ReadOnlySpan<byte> response)
-            {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-                return checked((int)reader.ReadInt64());
-            }
+            public int Parse(ref RespReader reader) => checked((int)reader.ReadInt64());
         }
 
         /// <summary>VEMB: a flat array of components, which the server sends as text.</summary>
@@ -505,15 +492,11 @@ namespace StackExchange.Redis.Interpolated
 
             internal static IRespHandler<Lease<float>?> Writable => Instance;
 
-            ReadOnlyLease<float>? IRespHandler<ReadOnlyLease<float>?>.Parse(ReadOnlySpan<byte> response)
-            {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-                return reader.IsNull ? null : RespHandlers.ReadScalarLease<float>(response, static (ref r) => (float)r.ReadDouble());
-            }
+            ReadOnlyLease<float>? IRespHandler<ReadOnlyLease<float>?>.Parse(ref RespReader reader)
+                => reader.IsNull ? null : RespHandlers.ReadScalarLease<float>(ref reader, static (ref r) => (float)r.ReadDouble());
 
-            Lease<float>? IRespHandler<Lease<float>?>.Parse(ReadOnlySpan<byte> response)
-                => CopyOut(((IRespHandler<ReadOnlyLease<float>?>)Instance).Parse(response));
+            Lease<float>? IRespHandler<Lease<float>?>.Parse(ref RespReader reader)
+                => CopyOut(((IRespHandler<ReadOnlyLease<float>?>)Instance).Parse(ref reader));
         }
 
         /// <summary>
@@ -540,17 +523,17 @@ namespace StackExchange.Redis.Interpolated
 
             internal static IRespHandler<Lease<VectorSetLink>?> ScoredWritable => Instance;
 
-            ReadOnlyLease<RedisValue>? IRespHandler<ReadOnlyLease<RedisValue>?>.Parse(ReadOnlySpan<byte> response)
-                => ReadFlattened(response, 1, static (ref RespReader r) => r.ReadRedisValue());
+            ReadOnlyLease<RedisValue>? IRespHandler<ReadOnlyLease<RedisValue>?>.Parse(ref RespReader reader)
+                => ReadFlattened(ref reader, 1, static (ref RespReader r) => r.ReadRedisValue());
 
-            Lease<RedisValue>? IRespHandler<Lease<RedisValue>?>.Parse(ReadOnlySpan<byte> response)
-                => CopyOut(ReadFlattened(response, 1, static (ref RespReader r) => r.ReadRedisValue()));
+            Lease<RedisValue>? IRespHandler<Lease<RedisValue>?>.Parse(ref RespReader reader)
+                => CopyOut(ReadFlattened(ref reader, 1, static (ref RespReader r) => r.ReadRedisValue()));
 
-            ReadOnlyLease<VectorSetLink>? IRespHandler<ReadOnlyLease<VectorSetLink>?>.Parse(ReadOnlySpan<byte> response)
-                => ReadFlattened(response, 2, static (ref RespReader r) => VectorSetLink.Read(ref r));
+            ReadOnlyLease<VectorSetLink>? IRespHandler<ReadOnlyLease<VectorSetLink>?>.Parse(ref RespReader reader)
+                => ReadFlattened(ref reader, 2, static (ref RespReader r) => VectorSetLink.Read(ref r));
 
-            Lease<VectorSetLink>? IRespHandler<Lease<VectorSetLink>?>.Parse(ReadOnlySpan<byte> response)
-                => CopyOut(ReadFlattened(response, 2, static (ref RespReader r) => VectorSetLink.Read(ref r)));
+            Lease<VectorSetLink>? IRespHandler<Lease<VectorSetLink>?>.Parse(ref RespReader reader)
+                => CopyOut(ReadFlattened(ref reader, 2, static (ref RespReader r) => VectorSetLink.Read(ref r)));
         }
 
         /// <summary>VINFO: an attribute map, read through the type that carries the field names.</summary>
@@ -558,22 +541,16 @@ namespace StackExchange.Redis.Interpolated
         {
             internal static readonly InfoHandler Instance = new();
 
-            public VectorSetInfo? Parse(ReadOnlySpan<byte> response)
-            {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-                return VectorSetInfo.TryRead(ref reader, out var info) ? info : null;
-            }
+            public VectorSetInfo? Parse(ref RespReader reader)
+                => VectorSetInfo.TryRead(ref reader, out var info) ? info : null;
         }
 
         /// <summary>
         /// Read a reply of the form <c>[[a],[b,c]]</c> as one run of <paramref name="tokensPerElement"/>
         /// tokens each.
         /// </summary>
-        private static ReadOnlyLease<T>? ReadFlattened<T>(ReadOnlySpan<byte> response, int tokensPerElement, RespReader.Projection<T> projection)
+        private static ReadOnlyLease<T>? ReadFlattened<T>(scoped ref RespReader reader, int tokensPerElement, RespReader.Projection<T> projection)
         {
-            var reader = new RespReader(response);
-            reader.MoveNext();
             if (!reader.IsAggregate || reader.IsNull) return null;
 
             // two passes, as the old processor does: the total is not known until every layer has been
