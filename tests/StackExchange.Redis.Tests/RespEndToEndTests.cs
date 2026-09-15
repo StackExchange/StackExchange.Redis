@@ -337,4 +337,52 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
         Assert.Equal("tranned", (string?)await pending);
     }
+
+    /// <summary>
+    /// When the server forgets a script, the belief that let us skip <c>SCRIPT LOAD</c> is dropped, so the
+    /// next call recovers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The write-time gate skips the preamble while the endpoint is believed to hold the script, and
+    /// <c>NOSCRIPT</c> is the only evidence that belief has gone stale - a <c>SCRIPT FLUSH</c>, a restart,
+    /// a failover to a node that never had it. This path did not look at replies for that, so the belief
+    /// survived the very reply that disproved it: the next call skipped the load again and failed
+    /// identically, for ever. A <b>permanent</b> failure from a transient cause, which is the failure class
+    /// this whole design keeps refusing.
+    /// </para>
+    /// <para>
+    /// The failing call still fails - recovering <i>that</i> one needs the retry to move into the pipeline,
+    /// where <c>MOVED</c>'s resend already lives. What is asserted here is that it cannot happen twice.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AServerSideScriptFlushIsNoticedSoTheNextCallRecovers()
+    {
+        await using var conn = Create(allowAdmin: true);
+        var endpoint = conn.GetEndPoints()[0];
+        var sep = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint);
+        var surface = NewSurface(conn, 0);
+        var script = $"return '{Me()}'";
+
+        sep.FlushScriptCache();
+        (await surface.Context.Scripts.Evaluate(script)).Dispose();
+        Assert.True(sep.IsScriptLoaded(script), "the first call should have loaded it");
+
+        // the server forgets, behind the client's back
+        await conn.GetServer(endpoint).ScriptFlushAsync();
+        Assert.True(sep.IsScriptLoaded(script), "the client cannot know yet - that is the point");
+
+        await Assert.ThrowsAsync<RedisServerException>(
+            async () => (await surface.Context.Scripts.Evaluate(script)).Dispose());
+
+        Assert.False(
+            sep.IsScriptLoaded(script),
+            "the NOSCRIPT was not noticed, so the next call will skip SCRIPT LOAD and fail the same way");
+
+        // and the proof that it is now transient: the very next call composes the load again and works
+        using var recovered = await surface.Context.Scripts.Evaluate(script);
+        Assert.Equal(Me(), recovered.ReadScalar().ReadString());
+        Assert.True(sep.IsScriptLoaded(script));
+    }
 }

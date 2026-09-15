@@ -255,6 +255,23 @@ namespace StackExchange.Redis.Interpolated
         {
             internal static readonly PayloadProcessor Instance = new();
 
+            /// <summary>
+            /// Notice a <c>NOSCRIPT</c>, which this path could previously only fail on - for ever.
+            /// </summary>
+            /// <remarks>
+            /// The belief that an endpoint holds a script is what lets the write-time gate skip
+            /// <c>SCRIPT LOAD</c>, and <c>NOSCRIPT</c> is the only evidence that belief has gone stale -
+            /// a <c>SCRIPT FLUSH</c>, a restart, a failover to a node that never had it. Without this the
+            /// belief survived the very reply that disproved it, so the next call skipped the load again
+            /// and failed the same way: a permanent failure rather than a transient one.
+            /// </remarks>
+            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            {
+                var probe = reader;
+                probe.MovePastBof();
+                if (probe.IsError) NoteIfScriptUnavailable(connection, message, in probe);
+            }
+
             public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 var totalBytes = checked((int)reader.ProtocolBytesRemaining);
