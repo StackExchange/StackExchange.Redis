@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis.Interpolated;
@@ -23,8 +23,8 @@ public class InterpolatedLiteralCommandTests
     public void ALeadingLiteralIsTheCommand()
     {
         var ctx = new RespContext();
-        using var literal = ctx.Execute($"SET {(RedisKey)"mykey"} {(RedisValue)"marc"}");
-        using var holes = ctx.Execute($"{RedisCommand.SET}{(RedisKey)"mykey"}{(RedisValue)"marc"}");
+        using var literal = ctx.Render($"SET {(RedisKey)"mykey"} {(RedisValue)"marc"}");
+        using var holes = ctx.Render($"{RedisCommand.SET}{(RedisKey)"mykey"}{(RedisValue)"marc"}");
 
         // the whole point: the readable spelling must produce the identical frame, or it is not an
         // alternative spelling, it is a second implementation
@@ -36,7 +36,7 @@ public class InterpolatedLiteralCommandTests
     public void TheLeadingCommandStillGoesThroughTheCommandMap()
     {
         var renamed = CommandMap.Create(new Dictionary<string, string?> { ["SET"] = "STORE" });
-        using var frame = new RespContext(renamed).Execute($"SET {(RedisKey)"k"} {(RedisValue)"v"}");
+        using var frame = new RespContext(renamed).Render($"SET {(RedisKey)"k"} {(RedisValue)"v"}");
         Assert.Equal("*3|$5|STORE|$1|k|$1|v|", Text(frame));
     }
 
@@ -47,7 +47,7 @@ public class InterpolatedLiteralCommandTests
         var ctx = new RespContext(disabled);
         Assert.Throws<RedisCommandException>(() =>
         {
-            using var frame = ctx.Execute($"SET {(RedisKey)"k"} {(RedisValue)"v"}");
+            using var frame = ctx.Render($"SET {(RedisKey)"k"} {(RedisValue)"v"}");
         });
     }
 
@@ -56,7 +56,7 @@ public class InterpolatedLiteralCommandTests
     {
         // CONFIG is the command and IS mapped; GET is an ordinary argument and is NOT - which is exactly
         // how CommandMap works, since it maps container verbs only
-        using var frame = new RespContext().Execute($"CONFIG GET {(RedisValue)"maxmemory"}");
+        using var frame = new RespContext().Render($"CONFIG GET {(RedisValue)"maxmemory"}");
         Assert.Equal("*3|$6|CONFIG|$3|GET|$9|maxmemory|", Text(frame));
         Assert.Equal(3, frame.ArgCount);
     }
@@ -64,7 +64,7 @@ public class InterpolatedLiteralCommandTests
     [Fact]
     public void LiteralsAfterTheCommandAreOrdinaryArguments()
     {
-        using var frame = new RespContext().Execute(
+        using var frame = new RespContext().Render(
             $"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"} EX {(RedisValue)300}");
         Assert.Equal("*5|$3|SET|$1|k|$1|v|$2|EX|$3|300|", Text(frame));
     }
@@ -73,8 +73,8 @@ public class InterpolatedLiteralCommandTests
     public void WhitespaceOnlyLiteralsStillContributeNothing()
     {
         var ctx = new RespContext();
-        using var spaced = ctx.Execute($"{RedisCommand.GET} {(RedisKey)"k"}");
-        using var tight = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}");
+        using var spaced = ctx.Render($"{RedisCommand.GET} {(RedisKey)"k"}");
+        using var tight = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
         Assert.Equal(Text(tight), Text(spaced));
         Assert.Equal(2, spaced.ArgCount);
     }
@@ -82,14 +82,14 @@ public class InterpolatedLiteralCommandTests
     [Fact]
     public void RunsOfWhitespaceCollapse()
     {
-        using var frame = new RespContext().Execute($"CONFIG   GET    {(RedisValue)"maxmemory"}");
+        using var frame = new RespContext().Render($"CONFIG   GET    {(RedisValue)"maxmemory"}");
         Assert.Equal("*3|$6|CONFIG|$3|GET|$9|maxmemory|", Text(frame));
     }
 
     [Fact]
     public void AnUnknownLeadingCommandIsFramedVerbatim()
     {
-        using var frame = new RespContext().Execute($"FT.SEARCH {(RedisValue)"idx"}");
+        using var frame = new RespContext().Render($"FT.SEARCH {(RedisValue)"idx"}");
         Assert.Equal("*2|$9|FT.SEARCH|$3|idx|", Text(frame));
     }
 
@@ -98,7 +98,7 @@ public class InterpolatedLiteralCommandTests
     {
         // the motivating example: a command name as an argument, alongside a literal subcommand
         var renamed = CommandMap.Create(new Dictionary<string, string?> { ["HGET"] = "HASHGET" });
-        using var frame = new RespContext(renamed).Execute($"COMMAND INFO {"HGET".Command()}");
+        using var frame = new RespContext(renamed).Render($"COMMAND INFO {"HGET".Command()}");
 
         // the argument must be the MAPPED name - the server knows a renamed command only by that
         Assert.Equal("*3|$7|COMMAND|$4|INFO|$7|HASHGET|", Text(frame));
@@ -107,14 +107,14 @@ public class InterpolatedLiteralCommandTests
     [Fact]
     public void NonAsciiLiteralsEncodeCorrectly()
     {
-        using var frame = new RespContext().Execute($"ECHO héllo{(RedisValue)"!"}");
+        using var frame = new RespContext().Render($"ECHO héllo{(RedisValue)"!"}");
         Assert.Equal("*3|$4|ECHO|$6|héllo|$1|!|", Text(frame));
     }
 
     [Fact]
     public void KeysAreStillOnlyMarkedFromKeyHoles()
     {
-        using var frame = new RespContext().Execute($"SET {(RedisKey)"k"} {(RedisValue)"v"}");
+        using var frame = new RespContext().Render($"SET {(RedisKey)"k"} {(RedisValue)"v"}");
 
         // a literal token is never a key: it cannot be, since key-ness is what the hole type says
         Assert.Equal(1, frame.KeyCount);

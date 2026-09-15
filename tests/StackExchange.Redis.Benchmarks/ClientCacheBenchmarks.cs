@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
@@ -26,7 +26,7 @@ public class ClientCacheBenchmarks
         var ctx = new RespContext();
         for (var i = 0; i < CachedKeys; i++)
         {
-            var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)("key:" + i)}");
+            var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)("key:" + i)}");
             if (_cache.TryBeginFill(ref frame, 0, out var fill))
             {
                 var payload = RespPayload.Create(Encoding.UTF8.GetBytes("$5\r\nhello\r\n"));

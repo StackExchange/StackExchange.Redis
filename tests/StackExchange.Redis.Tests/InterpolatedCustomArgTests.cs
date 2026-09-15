@@ -68,7 +68,7 @@ public class InterpolatedCustomArgTests
     [Fact]
     public void AFormatSpecifierReachesTheImplementerVerbatim()
     {
-        using var frame = Ctx.Execute($"{RedisCommand.GEOSEARCH}{(RedisKey)"k"}{new Radius(5):km}");
+        using var frame = Ctx.Render($"{RedisCommand.GEOSEARCH}{(RedisKey)"k"}{new Radius(5):km}");
         Assert.Equal("*4|$9|GEOSEARCH|$1|k|$1|5|$2|km|", Text(frame));
     }
 
@@ -77,10 +77,10 @@ public class InterpolatedCustomArgTests
     {
         // a type implementing both is unambiguous: the overloads differ in arity, so the presence or
         // absence of the `:` in the hole decides, not overload betterness
-        using var plain = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}{new Either()}");
+        using var plain = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{new Either()}");
         Assert.Equal("*3|$3|GET|$1|k|$5|PLAIN|", Text(plain));
 
-        using var formatted = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}{new Either():xyz}");
+        using var formatted = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{new Either():xyz}");
         Assert.Equal("*3|$3|GET|$1|k|$10|FORMAT:xyz|", Text(formatted));
     }
 
@@ -103,7 +103,7 @@ public class InterpolatedCustomArgTests
     [Fact]
     public void ACustomTypeCanAppearInAHole()
     {
-        using var frame = Ctx.Execute($"{RedisCommand.ZRANGE}{(RedisKey)"k"}{new Window(0, 9)}");
+        using var frame = Ctx.Render($"{RedisCommand.ZRANGE}{(RedisKey)"k"}{new Window(0, 9)}");
         Assert.Equal("*4|$6|ZRANGE|$1|k|$1|0|$1|9|", Text(frame));
         Assert.Equal(4, frame.ArgCount);
     }
@@ -111,7 +111,7 @@ public class InterpolatedCustomArgTests
     [Fact]
     public void WritingNothingContributesNoArgument()
     {
-        using var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}{new Absent()}");
+        using var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{new Absent()}");
         Assert.Equal("*2|$3|GET|$1|k|", Text(frame));
         Assert.Equal(2, frame.ArgCount);
     }
@@ -126,7 +126,7 @@ public class InterpolatedCustomArgTests
             var before = GC.GetAllocatedBytesForCurrentThread();
             for (var i = 0; i < 64; i++)
             {
-                using var frame = Ctx.Execute($"{RedisCommand.ZRANGE}{(RedisKey)"k"}{new Window(0, 9)}");
+                using var frame = Ctx.Render($"{RedisCommand.ZRANGE}{(RedisKey)"k"}{new Window(0, 9)}");
             }
             return GC.GetAllocatedBytesForCurrentThread() - before;
         }
@@ -142,7 +142,7 @@ public class InterpolatedCustomArgTests
         // generic is an exact match by inference and wins. That is the WANTED answer here - implementing
         // the interface is a deliberate statement about how the type should be written - but it is the
         // same mechanism the design notes warn about for an unconstrained generic, so it is pinned.
-        using var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}{new Ambiguous()}");
+        using var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{new Ambiguous()}");
         Assert.Equal("*3|$3|GET|$1|k|$9|INTERFACE|", Text(frame));
     }
 
@@ -151,7 +151,7 @@ public class InterpolatedCustomArgTests
     {
         // the implementer writes through the handler's own counters, so it cannot misreport how many
         // arguments it wrote - which is what would otherwise shift every key mark after it
-        using var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{new Window(0, 9)}{(RedisKey)"b"}");
+        using var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{new Window(0, 9)}{(RedisKey)"b"}");
 
         Assert.Equal(5, frame.ArgCount);
         Assert.Equal(2, frame.KeyCount);

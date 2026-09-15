@@ -9,7 +9,7 @@ there is no public API commitment yet.
 The idea: let command construction read as
 
 ```csharp
-Execute($"{cmd}{key}{value}", handler);
+Render($"{cmd}{key}{value}", handler);
 ```
 
 where `$"..."` binds to a custom interpolated string handler that writes RESP directly, rather than
@@ -138,8 +138,8 @@ Every part of the command must be a hole, with one exception: a **single space**
 
 ```csharp
 ctx.Execute(RedisCommand.SET, $"{key} {value}")   // ok - the space is discarded
-ctx.Execute($"SET {key} {value}")                 // rejected - "SET " is not a separator
-ctx.Execute($"{cmd}  {key}")                      // rejected - two spaces
+ctx.Render($"SET {key} {value}")                 // rejected - "SET " is not a separator
+ctx.Render($"{cmd}  {key}")                      // rejected - two spaces
 ```
 
 The space earns its place on readability: `$"{RedisCommand.SET} {key} {value}"` mirrors how the command
@@ -604,7 +604,7 @@ That is a problem, because `CommandMap` is not reachable from there — it is no
 assembly but **breaks every `IDatabase` mock**, and breaks it during command *construction*, in the
 caller's frame, before the mock's `Execute` is reached.
 
-**Resolution: a dedicated context type as the receiver** — `ctx.Execute($"...")` — carrying:
+**Resolution: a dedicated context type as the receiver** — `ctx.Render($"...")` — carrying:
 
 | Shared per multiplexer | Varies per instance |
 | --- | --- |
@@ -747,13 +747,13 @@ constant.
 **Gotcha:** `using var` cannot be passed by `ref` (CS1657). Mark resolution members `readonly` so `in`
 works, or callers are forced into `try`/`finally`.
 
-### 4.1 `Compose` / `Execute(ref cmd)` — the shape for optional arguments
+### 4.1 `Compose` / `Render(ref cmd)` — the shape for optional arguments
 
 > **`cmd.Append($"…")`.** A conditional fragment is now written the same way as the command itself:
 > ```csharp
 > var cmd = ctx.Compose($"{RedisCommand.SET}{key}{value}");
 > if (withTtl) cmd.Append($"{RespLiterals.EX}{ttl}");
-> using var frame = ctx.Execute(ref cmd);
+> using var frame = ctx.Render(ref cmd);
 > ```
 > rather than a sequence of `AppendFormatted` calls whose order is the caller's to keep straight.
 >
@@ -831,7 +831,7 @@ Implemented in the spike (§9):
 ```csharp
 var cmd = ctx.Compose($"{RedisCommand.SET}{key}{value}");
 if (withTtl) { cmd.AppendFormatted(ex); cmd.AppendFormatted(ttl); }
-using var frame = ctx.Execute(ref cmd);
+using var frame = ctx.Render(ref cmd);
 ```
 
 `Compose` carries `[InterpolatedStringHandlerArgument("")]` and simply returns the handler.
@@ -850,11 +850,11 @@ to interpolate:
 ```csharp
 var cmd = ctx.Compose(RedisCommand.DEL, keys.Length);
 foreach (var key in keys) cmd.AppendFormatted(key);
-using var frame = ctx.Execute(ref cmd);
+using var frame = ctx.Render(ref cmd);
 ```
 
 `argHint` only sizes the initial rent; it is not a promise, and appending more simply grows the buffer.
-**`Execute(ref cmd)` needs no new overload** — and could not have one, since the attribute does not change
+**`Render(ref cmd)` needs no new overload** — and could not have one, since the attribute does not change
 the signature: it binds to the same `Execute`, because the interpolated-string-handler conversion applies
 only when the argument *is* an interpolated string. Passing a real variable by `ref` is an ordinary
 argument and the attribute is ignored. Verified.
@@ -1455,7 +1455,7 @@ category without it. Pinned by tests, since the failure is silent.
 None of the three is visible at the call site, which reduces to:
 
 ```csharp
-var req = ctx.Execute($"{RedisCommand.GET}{key}");
+var req = ctx.Render($"{RedisCommand.GET}{key}");
 return executor.Send(ref req, handler, cache);   // no using, nothing to release, nothing to order
 ```
 

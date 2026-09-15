@@ -49,7 +49,7 @@ public partial class InterpolatedAppendTests
         var cmd = Ctx.Compose($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
         if (withTtl) cmd.Append($"{RespLiterals.EX}{(RedisValue)300}");
 
-        using var frame = Ctx.Execute(ref cmd);
+        using var frame = Ctx.Render(ref cmd);
         Assert.Equal(expected, Text(frame));
     }
 
@@ -63,7 +63,7 @@ public partial class InterpolatedAppendTests
         var cmd = Ctx.Compose($"{RedisCommand.SET}{(RedisKey)"k"}");
         cmd.Append($"{(RedisValue)big}{(RedisValue)big}");
 
-        using var frame = Ctx.Execute(ref cmd);
+        using var frame = Ctx.Render(ref cmd);
         var text = Text(frame);
         Assert.StartsWith("*4|$3|SET|$1|k|$4096|", text);
         Assert.Equal(4, frame.ArgCount);
@@ -90,7 +90,7 @@ public partial class InterpolatedAppendTests
         // ...and the other end: the handler has been emptied in turn
         Assert.True(CompleteThrows(ref handler), "the moved-from handler should be empty");
 
-        using var frame = Ctx.Execute(ref cmd);
+        using var frame = Ctx.Render(ref cmd);
         Assert.Equal("*3|$3|SET|$1|k|$1|v|", Text(frame));
     }
 
@@ -115,7 +115,7 @@ public partial class InterpolatedAppendTests
         cmd.Append($"{RespLiterals.EX}{(RedisValue)300}");
         cmd.Append($"{(RedisValue)"XX"}");
 
-        using var frame = Ctx.Execute(ref cmd);
+        using var frame = Ctx.Render(ref cmd);
         Assert.Equal("*6|$3|SET|$1|k|$1|v|$2|EX|$3|300|$2|XX|", Text(frame));
     }
 
@@ -125,7 +125,7 @@ public partial class InterpolatedAppendTests
         var cmd = Ctx.Compose($"{RedisCommand.MGET}{(RedisKey)"a"}");
         cmd.Append($"{(RedisKey)"b"}");
 
-        using var frame = Ctx.Execute(ref cmd);
+        using var frame = Ctx.Render(ref cmd);
         Assert.Equal(2, frame.KeyCount);
         var ranges = new KeyRange[2];
         Assert.Equal(2, frame.TryGetKeys(ranges));

@@ -179,7 +179,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         const CommandFlags Flags = CommandFlags.CommandRetryWriteLastWins | CommandFlags.FireAndForget;
         var context = ((IRespTarget)db).Context;
-        var frame = context.Execute($"{RedisCommand.SET}{(RedisKey)key}{(RedisValue)"marc"}");
+        var frame = context.Render($"{RedisCommand.SET}{(RedisKey)key}{(RedisValue)"marc"}");
         Assert.False(context.Send(ref frame, Flags, RespHandlers.Boolean));
 
         // and it really was sent, rather than quietly swallowed

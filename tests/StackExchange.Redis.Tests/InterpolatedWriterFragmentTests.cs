@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis.Interpolated;
@@ -51,7 +51,7 @@ public partial class InterpolatedWriterFragmentTests
     public void SingleTokenFragment()
     {
         var ctx = new RespContext();
-        using var frame = ctx.Execute(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespLiterals.EX} {(RedisValue)300}");
+        using var frame = ctx.Render(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespLiterals.EX} {(RedisValue)300}");
 
         Assert.Equal("*5|$3|SET|$1|k|$1|v|$2|EX|$3|300|", Frame(frame));
         Assert.Equal(5, frame.ArgCount);
@@ -62,7 +62,7 @@ public partial class InterpolatedWriterFragmentTests
     {
         // CLIENT SETINFO LIB-NAME StackExchange.Redis
         var ctx = new RespContext();
-        using var frame = ctx.Execute(RedisCommand.CLIENT, $"{RespLiterals.SetInfoLibName} {(RedisValue)"StackExchange.Redis"}");
+        using var frame = ctx.Render(RedisCommand.CLIENT, $"{RespLiterals.SetInfoLibName} {(RedisValue)"StackExchange.Redis"}");
 
         Assert.Equal("*4|$6|CLIENT|$7|SETINFO|$8|lib-name|$19|StackExchange.Redis|", Frame(frame));
 
@@ -79,7 +79,7 @@ public partial class InterpolatedWriterFragmentTests
         cmd.AppendFormatted(RespLiterals.MaxLenApprox);
         cmd.AppendFormatted((RedisValue)1000);
         cmd.AppendFormatted((RedisValue)"*");
-        using var frame = ctx.Execute(ref cmd);
+        using var frame = ctx.Render(ref cmd);
 
         Assert.Equal("*6|$4|XADD|$8|stream:1|$6|MAXLEN|$1|~|$4|1000|$1|*|", Frame(frame));
         Assert.Equal(6, frame.ArgCount);
@@ -96,7 +96,7 @@ public partial class InterpolatedWriterFragmentTests
     {
         // LMOVE source destination LEFT RIGHT - a real command ending in a fixed two-token pair
         var ctx = new RespContext();
-        using var frame = ctx.Execute(RedisCommand.LMOVE, $"{(RedisKey)"src"} {(RedisKey)"dst"} {RespLiterals.LeftRight}");
+        using var frame = ctx.Render(RedisCommand.LMOVE, $"{(RedisKey)"src"} {(RedisKey)"dst"} {RespLiterals.LeftRight}");
 
         Assert.Equal("*5|$5|LMOVE|$3|src|$3|dst|$4|LEFT|$5|RIGHT|", Frame(frame));
         Assert.Equal(5, frame.ArgCount);
@@ -116,7 +116,7 @@ public partial class InterpolatedWriterFragmentTests
         var cmd = ctx.Compose(RedisCommand.SMOVE, $"{(RedisKey)"src"}");
         cmd.AppendFormatted(RespLiterals.MaxLenApprox);
         cmd.AppendFormatted((RedisKey)"dst");
-        using var frame = ctx.Execute(ref cmd);
+        using var frame = ctx.Render(ref cmd);
 
         Assert.Equal(5, frame.ArgCount);
         Span<KeyRange> ranges = stackalloc KeyRange[2];
@@ -129,7 +129,7 @@ public partial class InterpolatedWriterFragmentTests
     public void ConfigGetReadsAsTheCommandDoes()
     {
         var ctx = new RespContext();
-        using var frame = ctx.Execute(RedisCommand.CONFIG, $"{RespLiterals.ConfigGet} {(RedisValue)"maxmemory"}");
+        using var frame = ctx.Render(RedisCommand.CONFIG, $"{RespLiterals.ConfigGet} {(RedisValue)"maxmemory"}");
 
         Assert.Equal("*3|$6|CONFIG|$3|GET|$9|maxmemory|", Frame(frame));
     }
@@ -142,7 +142,7 @@ public partial class InterpolatedWriterFragmentTests
         // a recognised name goes through the command map, so renames still apply
         var map = CommandMap.Create(new Dictionary<string, string?> { ["get"] = "xget" });
         var ctx = new RespContext(map);
-        using var frame = ctx.Execute("get", $"{(RedisKey)"k"}");
+        using var frame = ctx.Render("get", $"{(RedisKey)"k"}");
 
         Assert.Equal("*2|$4|XGET|$1|k|", Frame(frame));
     }
@@ -151,8 +151,8 @@ public partial class InterpolatedWriterFragmentTests
     public void StringCommandIsCaseInsensitive()
     {
         var ctx = new RespContext();
-        using var upper = ctx.Execute("GET", $"{(RedisKey)"k"}");
-        using var lower = ctx.Execute("get", $"{(RedisKey)"k"}");
+        using var upper = ctx.Render("GET", $"{(RedisKey)"k"}");
+        using var lower = ctx.Render("get", $"{(RedisKey)"k"}");
 
         Assert.Equal("*2|$3|GET|$1|k|", Frame(upper));
         Assert.True(upper.Span.SequenceEqual(lower.Span));
@@ -164,7 +164,7 @@ public partial class InterpolatedWriterFragmentTests
         var map = CommandMap.Create(new Dictionary<string, string?> { ["get"] = null });
         var ctx = new RespContext(map);
 
-        Assert.Throws<RedisCommandException>(() => ctx.Execute("get", $"{(RedisKey)"k"}").Dispose());
+        Assert.Throws<RedisCommandException>(() => ctx.Render("get", $"{(RedisKey)"k"}").Dispose());
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public partial class InterpolatedWriterFragmentTests
         // not a known command: no aliasing to apply, so the name goes out as written - matching
         // IDatabase.Execute(string, ...) behaviour for ad-hoc commands
         var ctx = new RespContext();
-        using var frame = ctx.Execute("FT.SEARCH", $"{(RedisValue)"idx"}{(RedisValue)"*"}");
+        using var frame = ctx.Render("FT.SEARCH", $"{(RedisValue)"idx"}{(RedisValue)"*"}");
 
         Assert.Equal("*3|$9|FT.SEARCH|$3|idx|$1|*|", Frame(frame));
     }
@@ -211,8 +211,8 @@ public partial class InterpolatedWriterFragmentTests
     public void ValidatedFragmentsWriteLikeGeneratedOnes()
     {
         var ctx = new RespContext();
-        using var generated = ctx.Execute(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespLiterals.EX}");
-        using var validated = ctx.Execute(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespFragment.CreateValidated("$2\r\nEX\r\n"u8)}");
+        using var generated = ctx.Render(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespLiterals.EX}");
+        using var validated = ctx.Render(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {RespFragment.CreateValidated("$2\r\nEX\r\n"u8)}");
 
         Assert.True(generated.Span.SequenceEqual(validated.Span));
     }

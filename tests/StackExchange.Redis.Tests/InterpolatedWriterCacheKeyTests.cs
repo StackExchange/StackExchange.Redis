@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Text;
 using System.Threading;
@@ -17,7 +17,7 @@ public class InterpolatedWriterCacheKeyTests
     private static RespRequest Key(string key)
     {
         var ctx = new RespContext();
-        var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)key}");
+        var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
         return frame.Detach();   // ownership moves to the key; the frame must not be disposed after this
     }
 
@@ -100,7 +100,7 @@ public class InterpolatedWriterCacheKeyTests
         {
             // the HIT path borrows rather than detaching: Detach allocates a RefCountedBuffer per call
             var ctx = new RespContext();
-            using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}");
+            using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"abc"}");
             if (cache.TryGetValue(frame.AsLookupKey(), out var found) && found.TryRetain())
             {
                 try
@@ -119,7 +119,7 @@ public class InterpolatedWriterCacheKeyTests
     public void ABorrowedKeyCannotBeRetainedAndSoCannotBeStored()
     {
         var ctx = new RespContext();
-        using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}");
+        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"abc"}");
 
         var borrowed = frame.AsLookupKey();
         Assert.False(borrowed.IsOwned);
@@ -128,7 +128,7 @@ public class InterpolatedWriterCacheKeyTests
         // key refuses to retain - so a pooled array cannot reach a cache by following the idiom
         Assert.False(borrowed.TryRetain(out _));
 
-        using var owned = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}").Detach();
+        using var owned = ctx.Render($"{RedisCommand.GET}{(RedisKey)"abc"}").Detach();
         Assert.True(owned.IsOwned);
         Assert.Equal(borrowed, owned);   // same bytes either way
     }
@@ -141,14 +141,14 @@ public class InterpolatedWriterCacheKeyTests
         var borrowed = AllocationAssert.Measure(
             () =>
             {
-                using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}");
+                using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"abc"}");
                 frame.AsLookupKey();
             },
             iterations: 100,
             warmup: 200);
 
         var detached = AllocationAssert.Measure(
-            () => ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}").Detach().Dispose(),
+            () => ctx.Render($"{RedisCommand.GET}{(RedisKey)"abc"}").Detach().Dispose(),
             iterations: 100,
             warmup: 200);
 

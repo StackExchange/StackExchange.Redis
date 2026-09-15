@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using BenchmarkDotNet.Attributes;
@@ -61,7 +61,7 @@ public class InterpolatedWriterBenchmarks
     [BenchmarkCategory("KeyValue"), Benchmark]
     public int KeyValue_Interpolated()
     {
-        using var frame = _ctx.Execute(RedisCommand.SET, $"{_key} {_value}");
+        using var frame = _ctx.Render(RedisCommand.SET, $"{_key} {_value}");
         _target.Reset();
         _target.Write(frame.Span);
         return _target.Written;
@@ -81,7 +81,7 @@ public class InterpolatedWriterBenchmarks
     [BenchmarkCategory("Expiry"), Benchmark]
     public int Expiry_Interpolated()
     {
-        using var frame = _ctx.Execute(RedisCommand.SET, $"{_key} {_value} {(RedisValue)"EX"} {(RedisValue)300}");
+        using var frame = _ctx.Render(RedisCommand.SET, $"{_key} {_value} {(RedisValue)"EX"} {(RedisValue)300}");
         _target.Reset();
         _target.Write(frame.Span);
         return _target.Written;
@@ -94,14 +94,14 @@ public class InterpolatedWriterBenchmarks
     [BenchmarkCategory("Separators"), Benchmark(Baseline = true)]
     public int Separators_None()
     {
-        using var frame = _ctx.Execute(RedisCommand.SET, $"{_key}{_value}{(RedisValue)"EX"}{(RedisValue)300}");
+        using var frame = _ctx.Render(RedisCommand.SET, $"{_key}{_value}{(RedisValue)"EX"}{(RedisValue)300}");
         return frame.ArgCount;
     }
 
     [BenchmarkCategory("Separators"), Benchmark]
     public int Separators_Spaced()
     {
-        using var frame = _ctx.Execute(RedisCommand.SET, $"{_key} {_value} {(RedisValue)"EX"} {(RedisValue)300}");
+        using var frame = _ctx.Render(RedisCommand.SET, $"{_key} {_value} {(RedisValue)"EX"} {(RedisValue)300}");
         return frame.ArgCount;
     }
 

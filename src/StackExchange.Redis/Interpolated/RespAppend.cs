@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Interpolated
     /// <code>
     /// var cmd = ctx.Compose($"{RedisCommand.SET}{key}{value}");
     /// if (withTtl) cmd.Append($"{RespLiterals.EX}{ttl}");
-    /// using var frame = ctx.Execute(ref cmd);
+    /// using var frame = ctx.Render(ref cmd);
     /// </code>
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]

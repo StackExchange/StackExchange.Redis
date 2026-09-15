@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -33,7 +33,7 @@ public class InterpolatedWriterDemo
     [Fact]
     public void FixedArity()
     {
-        using var frame = Cluster.Execute(RedisCommand.GET, $"{(RedisKey)"user:1"}");
+        using var frame = Cluster.Render(RedisCommand.GET, $"{(RedisKey)"user:1"}");
 
         Assert.Equal("*2|$3|GET|$6|user:1|", Frame(frame));
         Assert.Equal("user:1", Keys(frame));
@@ -43,7 +43,7 @@ public class InterpolatedWriterDemo
     [Fact]
     public void KeyAndValue()
     {
-        using var frame = Cluster.Execute(RedisCommand.SET, $"{(RedisKey)"user:1"} {(RedisValue)"marc"}");
+        using var frame = Cluster.Render(RedisCommand.SET, $"{(RedisKey)"user:1"} {(RedisValue)"marc"}");
 
         Assert.Equal("*3|$3|SET|$6|user:1|$4|marc|", Frame(frame));
         Assert.Equal("user:1", Keys(frame)); // the value is not a key, and is not marked as one
@@ -53,13 +53,13 @@ public class InterpolatedWriterDemo
     public void KeyspaceIsolation()
     {
         var tenant = Cluster.WithKeyPrefix("t7:");
-        using var frame = tenant.Execute(RedisCommand.GET, $"{(RedisKey)"user:1"}");
+        using var frame = tenant.Render(RedisCommand.GET, $"{(RedisKey)"user:1"}");
 
         Assert.Equal("*2|$3|GET|$9|t7:user:1|", Frame(frame));
         Assert.Equal("t7:user:1", Keys(frame));
 
         // the slot follows the PREFIXED key, so tenants do not collide on a slot either
-        using var plain = Cluster.Execute(RedisCommand.GET, $"{(RedisKey)"user:1"}");
+        using var plain = Cluster.Render(RedisCommand.GET, $"{(RedisKey)"user:1"}");
         Assert.NotEqual(plain.Slot, frame.Slot);
     }
 
@@ -69,7 +69,7 @@ public class InterpolatedWriterDemo
         var cmd = Cluster.Compose(RedisCommand.SET, $"{(RedisKey)"user:1"} {(RedisValue)"marc"}");
         cmd.AppendFormatted((RedisValue)"EX");
         cmd.AppendFormatted((RedisValue)300);
-        using var frame = Cluster.Execute(ref cmd);
+        using var frame = Cluster.Render(ref cmd);
 
         Assert.Equal("*5|$3|SET|$6|user:1|$4|marc|$2|EX|$3|300|", Frame(frame));
         Assert.Equal("user:1", Keys(frame));
@@ -81,7 +81,7 @@ public class InterpolatedWriterDemo
         var keys = new RedisKey[] { "{u}:a", "{u}:b", "{u}:c" };
         var cmd = Cluster.Compose(RedisCommand.DEL, keys.Length);
         foreach (var key in keys) cmd.AppendFormatted(key);
-        using var frame = Cluster.Execute(ref cmd);
+        using var frame = Cluster.Render(ref cmd);
 
         Assert.Equal("*4|$3|DEL|$5|{u}:a|$5|{u}:b|$5|{u}:c|", Frame(frame));
         // beyond two keys the inline offsets give out, but the argument-index bitmap still resolves them
@@ -96,7 +96,7 @@ public class InterpolatedWriterDemo
         var cmd = Cluster.Compose(RedisCommand.DEL, 2);
         cmd.AppendFormatted((RedisKey)"alpha");
         cmd.AppendFormatted((RedisKey)"beta");
-        using var frame = Cluster.Execute(ref cmd);
+        using var frame = Cluster.Render(ref cmd);
 
         Assert.Equal("*3|$3|DEL|$5|alpha|$4|beta|", Frame(frame));
         Assert.Equal(ServerSelectionStrategy.MultipleSlots, frame.Slot);
@@ -107,7 +107,7 @@ public class InterpolatedWriterDemo
     {
         var pub = Cluster.WithChannelPrefix(new RedisChannel("app:", RedisChannel.PatternMode.Literal));
         var channel = new RedisChannel("news", RedisChannel.PatternMode.Literal);
-        using var frame = pub.Execute(RedisCommand.PUBLISH, $"{channel} {(RedisValue)"hi"}");
+        using var frame = pub.Render(RedisCommand.PUBLISH, $"{channel} {(RedisValue)"hi"}");
 
         Assert.Equal("*3|$7|PUBLISH|$8|app:news|$2|hi|", Frame(frame));
         Assert.Equal("", Keys(frame)); // a channel is not a key

@@ -11,13 +11,6 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ## Now
 
-- [ ] **Free up the name `Execute`.** `RespContext.Execute(...)` currently returns a rendered `RespFrame` —
-      it does not execute anything — while `IDatabase.Execute` in this same library *sends and returns a
-      result*. Two opposite meanings for one verb, in one codebase. Rename the frame-returning one
-      (`Render` reads right) and let `Execute` mean what everybody expects. ~73 call sites, entirely
-      mechanical, but it will collide with any in-flight worktree, so do it immediately after a merge.
-      Until then `ExecuteAsync` carries the ad-hoc API, because async has no clash.
-
 - [ ] **Cacheability metadata for the seven exclusions** (§6.9). `SRANDMEMBER`, `HRANDFIELD`,
       `ZRANDMEMBER`, the `*SCAN` family, `TTL`/`PTTL`, `TOUCH`, `PFCOUNT` all sit in
       `CommandRetryReadOnly` alongside `GET` and would be cached wrongly today. A correctness hole, and
@@ -88,10 +81,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       And `TransitionalDatabase` stays a genuine one-line pass-through - `context.Strings.GetArray(...)` -
       which was the whole point of that class.
 
-      Sharing the construction is worth doing once `Execute` is renamed to `Render` (top of this list):
-      `Render($"...")` is exactly the primitive both siblings need, since each call wants its own frame and
-      what is shared is the *composition*, not the frame. Until then the interpolated line is duplicated,
-      which is one line and no knowledge.
+      Sharing the construction is available now that `Render` exists: it is exactly the primitive both
+      siblings need, since each call wants its own frame and what is shared is the *composition*, not the
+      frame. Duplicating the interpolated line instead is one line and no knowledge, so either is fine.
 
       `RespHandlers.Values` (`IRespHandler<RedisValue[]>`) already exists and is one of the three non-return
       array sites: it is not deleted, it is demoted - off the public surface, onto the legacy sibling.
@@ -186,8 +178,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Refuse to cache keys outside the tracked prefixes: no announcement, no invalidation path — `e42c8d22`
 - [x] Fire-and-forget is neither cached nor served; sync F+F no longer throws `"No reply."` — `abd87708`
 - [x] Split `CacheOptions` (settled once: prefixes, budget) from `CachePolicy` (read-time, per-call) — `286a461a`
+- [x] `Execute` -> `Render` on the context: rendering is not executing — this change
 - [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
-- [x] Byte and entry quotas, with sampled eviction — this change
+- [x] Byte and entry quotas, with sampled eviction — `87d5afa2`
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and
       `Sweep` reclaiming expired entries rather than only invalidated ones — `e2d2ea3c`
 

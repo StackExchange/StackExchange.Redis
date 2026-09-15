@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis.Interpolated;
@@ -22,7 +22,7 @@ public class RespCommandTests
         Assert.False(get.IsPreformed); // the map holds the bytes, and only the map can
 
         var renamed = CommandMap.Create(new Dictionary<string, string?> { ["GET"] = "FETCH" });
-        using var frame = new RespContext(renamed).Execute($"{get}{(RedisKey)"k"}");
+        using var frame = new RespContext(renamed).Render($"{get}{(RedisKey)"k"}");
         Assert.Equal("*2|$5|FETCH|$1|k|", Text(frame));
     }
 
@@ -36,7 +36,7 @@ public class RespCommandTests
         var ctx = new RespContext(disabled);
         Assert.Throws<RedisCommandException>(() =>
         {
-            using var frame = ctx.Execute($"{"GET".Command(preform: true)}{(RedisKey)"k"}");
+            using var frame = ctx.Render($"{"GET".Command(preform: true)}{(RedisKey)"k"}");
         });
     }
 
@@ -49,7 +49,7 @@ public class RespCommandTests
         Assert.False(search.IsKnown);
         Assert.Equal(preform, search.IsPreformed);
 
-        using var frame = new RespContext().Execute($"{search}{(RedisValue)"idx"}");
+        using var frame = new RespContext().Render($"{search}{(RedisValue)"idx"}");
         Assert.Equal("*2|$9|FT.SEARCH|$3|idx|", Text(frame));
     }
 
@@ -59,7 +59,7 @@ public class RespCommandTests
         // CommandMap is built by walking the RedisCommand enum, so an override on a name it cannot parse is
         // silently ignored - which is why preforming a module command is safe
         var renamed = CommandMap.Create(new Dictionary<string, string?> { ["FT.SEARCH"] = "FT.SRCH" });
-        using var frame = new RespContext(renamed).Execute($"{"FT.SEARCH".Command()}{(RedisValue)"idx"}");
+        using var frame = new RespContext(renamed).Render($"{"FT.SEARCH".Command()}{(RedisValue)"idx"}");
         Assert.Equal("*2|$9|FT.SEARCH|$3|idx|", Text(frame));
     }
 
@@ -71,7 +71,7 @@ public class RespCommandTests
         var renamed = CommandMap.Create(new Dictionary<string, string?> { ["HGET"] = "HASHGET" });
         var ctx = new RespContext(renamed);
 
-        using var frame = ctx.Execute($"{"COMMAND".Command()}{RespLiterals.Info}{"HGET".Command()}");
+        using var frame = ctx.Render($"{"COMMAND".Command()}{RespLiterals.Info}{"HGET".Command()}");
         Assert.Equal("*3|$7|COMMAND|$4|INFO|$7|HASHGET|", Text(frame));
     }
 
@@ -95,8 +95,8 @@ public class RespCommandTests
         var fromBytes = "FT.SEARCH"u8.Command();
 
         Assert.False(fromBytes.IsKnown);
-        using var a = new RespContext().Execute($"{fromString}{(RedisValue)"idx"}");
-        using var b = new RespContext().Execute($"{fromBytes}{(RedisValue)"idx"}");
+        using var a = new RespContext().Render($"{fromString}{(RedisValue)"idx"}");
+        using var b = new RespContext().Render($"{fromBytes}{(RedisValue)"idx"}");
         Assert.Equal(Text(a), Text(b));
     }
 
@@ -107,7 +107,7 @@ public class RespCommandTests
         Assert.True("GET"u8.Command().IsKnown);
 
         var renamed = CommandMap.Create(new Dictionary<string, string?> { ["GET"] = "FETCH" });
-        using var frame = new RespContext(renamed).Execute($"{"GET"u8.Command()}{(RedisKey)"k"}");
+        using var frame = new RespContext(renamed).Render($"{"GET"u8.Command()}{(RedisKey)"k"}");
         Assert.Equal("*2|$5|FETCH|$1|k|", Text(frame));
     }
 

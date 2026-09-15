@@ -22,6 +22,10 @@ namespace StackExchange.Redis.Tests;
 /// then this is the shape a caller would have to use, and it exercises exactly the same routing.
 /// </para>
 /// </remarks>
+// CLIENT TRACKING here is not scoped to this class: a FLUSHDB sends an UNFILTERABLE flush push to every
+// tracking client on the server, including the ones RespTrackingTests is counting invalidations on. That is
+// the design working as documented (6.13) and a test interfering with another test, so these do not overlap.
+[Collection(NonParallelCollection.Name)]
 public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(output)
 {
     private static async Task<bool> WaitFor(Func<Task<bool>> condition, int millis = 3000)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,6 +16,7 @@ namespace StackExchange.Redis.Tests;
 /// the cache is tested against fakes, which can prove the logic but not that a server's invalidation reaches
 /// us, nor that the key bytes it names match the ones we recorded when we wrote the command.
 /// </remarks>
+[Collection(NonParallelCollection.Name)] // see RespCacheInvalidationTests: flush pushes cross connections
 public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     /// <summary>

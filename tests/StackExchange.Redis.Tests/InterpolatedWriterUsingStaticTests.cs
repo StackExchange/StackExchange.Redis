@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -34,7 +34,7 @@ public class InterpolatedWriterUsingStaticTests
     {
         // $"{key} {Nx} {value}" against the inline form it replaces, $"{key} nx {value}"
         var ctx = new RespContext();
-        using var frame = ctx.Execute(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {Nx} {Ex} {(RedisValue)300}");
+        using var frame = ctx.Render(RedisCommand.SET, $"{(RedisKey)"k"} {(RedisValue)"v"} {Nx} {Ex} {(RedisValue)300}");
 
         Assert.Equal("*6|$3|SET|$1|k|$1|v|$2|NX|$2|EX|$3|300|", Frame(frame));
         Assert.Equal(6, frame.ArgCount);
@@ -44,8 +44,8 @@ public class InterpolatedWriterUsingStaticTests
     public void ImportedAndQualifiedAreTheSame()
     {
         var ctx = new RespContext();
-        using var imported = ctx.Execute(RedisCommand.CONFIG, $"{Get} {(RedisValue)"maxmemory"}");
-        using var qualified = ctx.Execute(RedisCommand.CONFIG, $"{RespLiterals.Get} {(RedisValue)"maxmemory"}");
+        using var imported = ctx.Render(RedisCommand.CONFIG, $"{Get} {(RedisValue)"maxmemory"}");
+        using var qualified = ctx.Render(RedisCommand.CONFIG, $"{RespLiterals.Get} {(RedisValue)"maxmemory"}");
 
         Assert.True(imported.Span.SequenceEqual(qualified.Span));
         Assert.Equal("*3|$6|CONFIG|$3|GET|$9|maxmemory|", Frame(imported));

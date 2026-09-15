@@ -348,7 +348,7 @@ namespace StackExchange.Redis.Interpolated
         /// <code>
         /// var cmd = ctx.Compose($"{RedisCommand.SET} {key} {value}");
         /// if (withTtl) { cmd.AppendFormatted(RespLiterals.EX); cmd.AppendFormatted(ttl); }
-        /// using var frame = ctx.Execute(ref cmd);
+        /// using var frame = ctx.Render(ref cmd);
         /// </code>
         /// </summary>
         /// <remarks>
@@ -388,7 +388,7 @@ namespace StackExchange.Redis.Interpolated
         /// <code>
         /// var cmd = ctx.Compose(RedisCommand.DEL, keys.Length);
         /// foreach (var key in keys) cmd.AppendFormatted(key);
-        /// using var frame = ctx.Execute(ref cmd);
+        /// using var frame = ctx.Render(ref cmd);
         /// </code>
         /// </summary>
         /// <param name="command">The command to issue.</param>
@@ -411,18 +411,18 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>As the <c>RedisCommand</c> overload, taking a command <b>name</b>.</summary>
         /// <param name="command">The command name to issue.</param>
         /// <param name="handler">The interpolated arguments.</param>
-        public RespFrame Execute(
+        public RespFrame Render(
             string command,
             [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
-            => Execute(ref handler);
+            => Render(ref handler);
 
         /// <summary>
-        /// As <see cref="Execute(ref RespCommandHandler)"/>, with the command as a real argument.
+        /// As <see cref="Render(ref RespCommandHandler)"/>, with the command as a real argument.
         /// </summary>
-        internal RespFrame Execute(
+        internal RespFrame Render(
             RedisCommand command,
             [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
-            => Execute(ref handler);
+            => Render(ref handler);
 
         /// <summary>
         /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into
@@ -430,12 +430,14 @@ namespace StackExchange.Redis.Interpolated
         /// server type.
         /// </summary>
         /// <remarks>
-        /// A real Execute would go on to dispatch the frame; this spike stops at "the right bytes were
-        /// rendered, and we know which arguments were keys".
+        /// <b>Renders; it does not send.</b> The name matters because <c>IDatabase.Execute</c> in this same
+        /// library sends a command and returns its result - two opposite meanings for one verb would be a
+        /// trap for every reader after the first. Dispatch is <c>Send</c>/<c>SendAsync</c>; this stops at
+        /// "the right bytes were rendered, and we know which arguments were keys".
         /// </remarks>
         /// <param name="handler">The interpolated command and arguments.</param>
         /// <returns>The rendered frame, with routing and key metadata.</returns>
-        public RespFrame Execute([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
+        public RespFrame Render([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
         {
             if (CancellationToken.IsCancellationRequested)
             {

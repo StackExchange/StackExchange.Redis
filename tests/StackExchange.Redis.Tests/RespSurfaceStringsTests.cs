@@ -502,7 +502,7 @@ public class RespSurfaceStringsTests
 
         // not decoration: the pipeline decides primary-vs-replica routing from Message.Command, and a
         // profiler reports it. A frame that only knew its bytes reported every command as UNKNOWN.
-        using var frame = ctx.Execute($"{RedisCommand.GETRANGE}{(RedisKey)"k"}{(RedisValue)0}{(RedisValue)(-1)}");
+        using var frame = ctx.Render($"{RedisCommand.GETRANGE}{(RedisKey)"k"}{(RedisValue)0}{(RedisValue)(-1)}");
         Assert.Equal(RedisCommand.GETRANGE, frame.Command);
 
         await Task.CompletedTask;

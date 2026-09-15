@@ -20,7 +20,7 @@ public class RespClientCacheTests
     private static RespContext Via(IRespExecutor executor, RespClientCache? cache = null)
         => new RespContext().WithExecutor(executor).WithCache(cache);
 
-    private static RespFrame Get(string key) => Ctx.Execute($"{RedisCommand.GET}{(RedisKey)key}");
+    private static RespFrame Get(string key) => Ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
 
     private static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
 
@@ -222,7 +222,7 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache();
 
-        var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+        var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
         Assert.True(frame.KeysNeedScan);  // beyond the two inline offsets: resolved from the bitmap
         Assert.Equal(3, frame.KeyCount);
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -234,7 +234,7 @@ public class RespClientCacheTests
 
         static bool ThreeKeyHit(RespClientCache cache)
         {
-            using var probe = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+            using var probe = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
             if (!cache.TryGet(probe.AsLookupKey(), 0, out var payload)) return false;
             payload.Release();
             return true;
@@ -246,11 +246,11 @@ public class RespClientCacheTests
     {
         // the two encodings must agree where they overlap, or a frame's keys would depend on how many
         // other keys happened to be present
-        using var two = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"alpha"}{(RedisKey)"beta"}");
+        using var two = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"alpha"}{(RedisKey)"beta"}");
         Assert.False(two.KeysNeedScan);
         Assert.Equal(new[] { "alpha", "beta" }, KeyStrings(two));
 
-        using var three = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"alpha"}{(RedisKey)"beta"}{(RedisKey)"gamma"}");
+        using var three = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"alpha"}{(RedisKey)"beta"}{(RedisKey)"gamma"}");
         Assert.True(three.KeysNeedScan);
         Assert.Equal(new[] { "alpha", "beta", "gamma" }, KeyStrings(three));
     }
@@ -259,7 +259,7 @@ public class RespClientCacheTests
     public void KeysAreFoundAmongNonKeyArguments()
     {
         // the bitmap indexes ARGUMENTS, so values interleaved with keys must not shift the walk
-        using var frame = Ctx.Execute(
+        using var frame = Ctx.Render(
             $"{RedisCommand.MSET}{(RedisKey)"k1"}{(RedisValue)"v1"}{(RedisKey)"k2"}{(RedisValue)"v2"}{(RedisKey)"k3"}{(RedisValue)"v3"}");
         Assert.Equal(3, frame.KeyCount);
         Assert.Equal(new[] { "k1", "k2", "k3" }, KeyStrings(frame));
@@ -287,7 +287,7 @@ public class RespClientCacheTests
     [Fact]
     public void TooSmallATargetIsRejectedRatherThanTruncated()
     {
-        using var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+        using var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
         Span<KeyRange> small = stackalloc KeyRange[2];
         Assert.Equal(-1, frame.TryGetKeys(small));
 
@@ -499,7 +499,7 @@ public class RespClientCacheTests
         // a keyless command can NEVER be invalidated: server-assisted invalidation only ever reports keys,
         // so an entry with no dependencies is vacuously valid forever. Not even a FLUSHALL clears it,
         // because OnFlush stamps key nodes and this entry has none. Permanent staleness - refuse it.
-        var frame = Ctx.Execute($"{RedisCommand.TIME}");
+        var frame = Ctx.Render($"{RedisCommand.TIME}");
         Assert.Equal(0, frame.KeyCount);
         Assert.False(cache.TryBeginFill(ref frame, 0, out _));
         frame.Dispose();
@@ -595,7 +595,7 @@ public class RespClientCacheTests
         cache.TryBeginFill(ref undeclared, 0, CommandFlags.None, out _);
         undeclared.Dispose();
 
-        var keyless = Ctx.Execute($"{RedisCommand.TIME}");
+        var keyless = Ctx.Render($"{RedisCommand.TIME}");
         cache.TryBeginFill(ref keyless, 0, CommandFlags.CommandRetryReadOnly, out _);
         keyless.Dispose();
 
@@ -736,7 +736,7 @@ public class RespClientCacheTests
     {
         // the point of the widening: an executor decorator sees a RespRequest and nothing else, so the
         // request has to carry what routing, retry and caching each need to ask
-        using var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+        using var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
         using var request = frame.Detach(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache);
 
         Assert.Equal(4, request.ArgCount);
@@ -754,7 +754,7 @@ public class RespClientCacheTests
     public void RoutingNeedsOnlyTheSlotAndTheRequestCarriesIt()
     {
         var cluster = new RespContext(serverType: ServerType.Cluster);
-        using var frame = cluster.Execute($"{RedisCommand.GET}{(RedisKey)"{tag}:x"}");
+        using var frame = cluster.Render($"{RedisCommand.GET}{(RedisKey)"{tag}:x"}");
         var slot = frame.Slot;
         Assert.NotEqual(ServerSelectionStrategy.NoSlot, slot);
 
@@ -789,11 +789,11 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache();
 
-        var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}");
+        var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
         Assert.True(Complete(cache, fill, "*2\r\n$1\r\n1\r\n$1\r\n2\r\n"));
 
-        using (var probe = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}"))
+        using (var probe = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}"))
         {
             Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var payload));
             payload.Release();
@@ -801,7 +801,7 @@ public class RespClientCacheTests
 
         cache.OnInvalidate(Utf8("b")); // the SECOND key
 
-        using (var probe = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}"))
+        using (var probe = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}"))
         {
             Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _));
         }
@@ -869,7 +869,7 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache(new CacheOptions { Prefixes = ["app:", "session:"] });
 
-        var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)key}");
+        var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
         var admitted = cache.TryBeginFill(ref frame, 0, out var fill);
         Assert.Equal(cacheable, admitted);
         if (admitted)
@@ -898,13 +898,13 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache(new CacheOptions { Prefixes = ["app:"] });
 
-        var frame = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"other"}");
+        var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"other"}");
         Assert.False(cache.TryBeginFill(ref frame, 0, out _));
         frame.Dispose();
         Assert.Equal(1, cache.RefusedNotTracked);
 
         // ...and the same command with every key inside the set is fine
-        var ok = Ctx.Execute($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"app:c"}");
+        var ok = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"app:c"}");
         Assert.True(cache.TryBeginFill(ref ok, 0, out var fill));
         Assert.True(Complete(cache, fill, "*3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n"));
     }
@@ -915,7 +915,7 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy() }); // the default: BCAST with no prefix
 
-        var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"anything at all"}");
+        var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"anything at all"}");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
         Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
         Assert.Equal(0, cache.RefusedNotTracked);
@@ -965,11 +965,11 @@ public class RespClientCacheTests
         using var cache = new RespClientCache(new CacheOptions { Prefixes = ["é:"] }); // 0xC3 0xA9
 
         // a key starting with the first byte of the prefix but not the second must not match
-        var frame = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"è:x"}"); // 0xC3 0xA8
+        var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"è:x"}"); // 0xC3 0xA8
         Assert.False(cache.TryBeginFill(ref frame, 0, out _));
         frame.Dispose();
 
-        var ok = Ctx.Execute($"{RedisCommand.GET}{(RedisKey)"é:x"}");
+        var ok = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"é:x"}");
         Assert.True(cache.TryBeginFill(ref ok, 0, out var fill));
         Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
     }

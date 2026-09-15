@@ -82,8 +82,8 @@ StackExchange.Redis.CommandFlagsExtensions
 [SER010]StackExchange.Redis.Interpolated.RespContext.Compose(ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespCommandHandler
 [SER010]StackExchange.Redis.Interpolated.RespContext.Compose(string! command, ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespCommandHandler
 [SER010]StackExchange.Redis.Interpolated.RespContext.Database.get -> int
-[SER010]StackExchange.Redis.Interpolated.RespContext.Execute(ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespFrame
-[SER010]StackExchange.Redis.Interpolated.RespContext.Execute(string! command, ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespFrame
+[SER010]StackExchange.Redis.Interpolated.RespContext.Render(ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespFrame
+[SER010]StackExchange.Redis.Interpolated.RespContext.Render(string! command, ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespFrame
 [SER010]StackExchange.Redis.Interpolated.RespContext.KeyPrefix.get -> StackExchange.Redis.RedisKey
 [SER010]StackExchange.Redis.Interpolated.RespContext.RespContext() -> void
 [SER010]StackExchange.Redis.Interpolated.RespContext.ServerType.get -> StackExchange.Redis.ServerType

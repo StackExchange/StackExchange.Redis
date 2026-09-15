@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -51,7 +51,7 @@ public class InterpolatedWriterUnitTests
     public void RendersCommandKeyAndValue()
     {
         var ctx = new RespContext();
-        using var frame = ctx.Execute($"{RedisCommand.SET}{(RedisKey)"mykey"}{(RedisValue)"myvalue"}");
+        using var frame = ctx.Render($"{RedisCommand.SET}{(RedisKey)"mykey"}{(RedisValue)"myvalue"}");
 
         Assert.Equal(3, frame.ArgCount);
         Assert.Equal(new[] { "SET", "mykey", "myvalue" }, Parse(frame.Span));
@@ -61,7 +61,7 @@ public class InterpolatedWriterUnitTests
     public void RendersExactBytes()
     {
         var ctx = new RespContext();
-        using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"abc"}");
+        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"abc"}");
 
         Assert.Equal("*2\r\n$3\r\nGET\r\n$3\r\nabc\r\n", Encoding.UTF8.GetString(frame.Span.ToArray()));
     }
@@ -93,7 +93,7 @@ public class InterpolatedWriterUnitTests
     {
         var map = CommandMap.Create(new Dictionary<string, string?> { ["set"] = "xset" });
         var ctx = new RespContext(map);
-        using var frame = ctx.Execute($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
+        using var frame = ctx.Render($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
 
         Assert.Equal(new[] { "XSET", "k", "v" }, Parse(frame.Span));
     }
@@ -104,21 +104,21 @@ public class InterpolatedWriterUnitTests
         var map = CommandMap.Create(new Dictionary<string, string?> { ["set"] = null });
         var ctx = new RespContext(map);
 
-        Assert.Throws<RedisCommandException>(() => ctx.Execute($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}").Dispose());
+        Assert.Throws<RedisCommandException>(() => ctx.Render($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}").Dispose());
     }
 
     [Fact]
     public void CommandMustComeFirst()
     {
         var ctx = new RespContext();
-        Assert.Throws<InvalidOperationException>(() => ctx.Execute($"{(RedisKey)"k"}{RedisCommand.GET}").Dispose());
+        Assert.Throws<InvalidOperationException>(() => ctx.Render($"{(RedisKey)"k"}{RedisCommand.GET}").Dispose());
     }
 
     [Fact]
     public void KeyPrefixIsAppliedToTheWire()
     {
         var ctx = new RespContext().WithKeyPrefix("tenant7:");
-        using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"user:1"}");
+        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}");
 
         Assert.Equal(new[] { "GET", "tenant7:user:1" }, Parse(frame.Span));
         Assert.Equal(new[] { "tenant7:user:1" }, Keys(frame));
@@ -130,7 +130,7 @@ public class InterpolatedWriterUnitTests
         // a key that already carries a prefix, as the KeyPrefixed* decorators produce today
         var prefixed = RedisKey.WithPrefix(Encoding.UTF8.GetBytes("inner:"), "user:1");
         var ctx = new RespContext().WithKeyPrefix("outer:");
-        using var frame = ctx.Execute($"{RedisCommand.GET}{prefixed}");
+        using var frame = ctx.Render($"{RedisCommand.GET}{prefixed}");
 
         Assert.Equal(new[] { "GET", "outer:inner:user:1" }, Parse(frame.Span));
     }
@@ -142,8 +142,8 @@ public class InterpolatedWriterUnitTests
         // on different databases. Cache identity therefore needs (frame, database) - the frame alone is not
         // enough, which is easy to miss because everything else that matters (prefix, renamed command,
         // arguments) IS in the bytes.
-        using var a = new RespContext(database: 0).Execute($"{RedisCommand.GET}{(RedisKey)"k"}");
-        using var b = new RespContext(database: 3).Execute($"{RedisCommand.GET}{(RedisKey)"k"}");
+        using var a = new RespContext(database: 0).Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        using var b = new RespContext(database: 3).Render($"{RedisCommand.GET}{(RedisKey)"k"}");
 
         Assert.True(a.Span.SequenceEqual(b.Span));
         Assert.Equal(0, new RespContext(database: 0).Database);
@@ -157,8 +157,8 @@ public class InterpolatedWriterUnitTests
         // They are different RedisKey VALUES - RedisKey.Equals compares the carried prefix - but they must
         // be indistinguishable on the wire, which is what lets the rendered frame serve as a cache key.
         var viaDecorator = RedisKey.WithPrefix(Encoding.UTF8.GetBytes("tenant7:"), "user:1");
-        using var a = new RespContext().Execute($"{RedisCommand.GET}{viaDecorator}");
-        using var b = new RespContext(keyPrefix: "tenant7:").Execute($"{RedisCommand.GET}{(RedisKey)"user:1"}");
+        using var a = new RespContext().Render($"{RedisCommand.GET}{viaDecorator}");
+        using var b = new RespContext(keyPrefix: "tenant7:").Render($"{RedisCommand.GET}{(RedisKey)"user:1"}");
 
         Assert.True(a.Span.SequenceEqual(b.Span));
         Assert.Equal(new[] { "GET", "tenant7:user:1" }, Parse(a.Span));
@@ -174,10 +174,10 @@ public class InterpolatedWriterUnitTests
         var decorated = RedisKey.WithPrefix(Encoding.UTF8.GetBytes("inner:"), "user:1");
         var ctx = new RespContext(keyPrefix: "outer:");
 
-        for (int i = 0; i < 64; i++) ctx.Execute($"{RedisCommand.GET}{decorated}").Dispose(); // warm the pool
+        for (int i = 0; i < 64; i++) ctx.Render($"{RedisCommand.GET}{decorated}").Dispose(); // warm the pool
 
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 128; i++) ctx.Execute($"{RedisCommand.GET}{decorated}").Dispose();
+        for (int i = 0; i < 128; i++) ctx.Render($"{RedisCommand.GET}{decorated}").Dispose();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.True(allocated == 0, $"allocated {allocated} bytes over 128 renders");
@@ -188,7 +188,7 @@ public class InterpolatedWriterUnitTests
     public void NestedWithKeyPrefixComposes()
     {
         var ctx = new RespContext().WithKeyPrefix("a:").WithKeyPrefix("b:");
-        using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}");
+        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
 
         Assert.Equal(new[] { "GET", "a:b:k" }, Parse(frame.Span));
     }
@@ -197,7 +197,7 @@ public class InterpolatedWriterUnitTests
     public void ChannelPrefixIsApplied()
     {
         var ctx = new RespContext(channelPrefix: new RedisChannel("app:", RedisChannel.PatternMode.Literal));
-        using var frame = ctx.Execute($"{RedisCommand.PUBLISH}{new RedisChannel("news", RedisChannel.PatternMode.Literal)}{(RedisValue)"hi"}");
+        using var frame = ctx.Render($"{RedisCommand.PUBLISH}{new RedisChannel("news", RedisChannel.PatternMode.Literal)}{(RedisValue)"hi"}");
 
         Assert.Equal(new[] { "PUBLISH", "app:news", "hi" }, Parse(frame.Span));
     }
@@ -208,7 +208,7 @@ public class InterpolatedWriterUnitTests
         // keyspace notification channels are server-generated names, and opt out of the channel prefix
         var channel = new RedisChannel("__keyevent@0__:set", RedisChannel.RedisChannelOptions.IgnoreChannelPrefix);
         var ctx = new RespContext(channelPrefix: new RedisChannel("app:", RedisChannel.PatternMode.Literal));
-        using var frame = ctx.Execute($"{RedisCommand.SUBSCRIBE}{channel}");
+        using var frame = ctx.Render($"{RedisCommand.SUBSCRIBE}{channel}");
 
         Assert.Equal(new[] { "SUBSCRIBE", "__keyevent@0__:set" }, Parse(frame.Span));
     }
@@ -217,7 +217,7 @@ public class InterpolatedWriterUnitTests
     public void NoKeysMeansNoSlotAndNoMarks()
     {
         var ctx = new RespContext(serverType: ServerType.Cluster);
-        using var frame = ctx.Execute($"{RedisCommand.ECHO}{(RedisValue)"hello"}");
+        using var frame = ctx.Render($"{RedisCommand.ECHO}{(RedisValue)"hello"}");
 
         Assert.True(frame.HasNoKeys);
         Assert.Empty(Keys(frame));
@@ -229,13 +229,13 @@ public class InterpolatedWriterUnitTests
     {
         var ctx = new RespContext();
 
-        using (var one = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k1"}"))
+        using (var one = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k1"}"))
         {
             Assert.False(one.KeysNeedScan);
             Assert.Equal(new[] { "k1" }, Keys(one));
         }
 
-        using var two = ctx.Execute($"{RedisCommand.SMOVE}{(RedisKey)"src"}{(RedisKey)"dst"}{(RedisValue)"m"}");
+        using var two = ctx.Render($"{RedisCommand.SMOVE}{(RedisKey)"src"}{(RedisKey)"dst"}{(RedisValue)"m"}");
         Assert.False(two.KeysNeedScan);
         Assert.Equal(new[] { "src", "dst" }, Keys(two));
     }
@@ -244,7 +244,7 @@ public class InterpolatedWriterUnitTests
     public void ThreeKeysResolveViaTheBitmap()
     {
         var ctx = new RespContext();
-        using var frame = ctx.Execute($"{RedisCommand.DEL}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
+        using var frame = ctx.Render($"{RedisCommand.DEL}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
 
         // past the two inline offsets, so resolving needs a walk - but the keys ARE recoverable; the
         // writer records every key's argument index as well as the first two offsets
@@ -258,7 +258,7 @@ public class InterpolatedWriterUnitTests
     public void StandaloneSkipsSlotComputation()
     {
         var ctx = new RespContext(serverType: ServerType.Standalone);
-        using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"foo"}");
+        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"foo"}");
 
         Assert.Equal(ServerSelectionStrategy.NoSlot, frame.Slot);
     }
@@ -267,7 +267,7 @@ public class InterpolatedWriterUnitTests
     public void ClusterFoldsTheSlotFromTheWrittenBytes()
     {
         var ctx = new RespContext(serverType: ServerType.Cluster);
-        using var frame = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"foo"}");
+        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"foo"}");
 
         // published CLUSTER KEYSLOT value
         Assert.Equal(12182, frame.Slot);
@@ -278,7 +278,7 @@ public class InterpolatedWriterUnitTests
     public void SharedHashTagGivesOneSlot()
     {
         var ctx = new RespContext(serverType: ServerType.Cluster);
-        using var frame = ctx.Execute($"{RedisCommand.SMOVE}{(RedisKey)"{u1}:a"}{(RedisKey)"{u1}:b"}{(RedisValue)"m"}");
+        using var frame = ctx.Render($"{RedisCommand.SMOVE}{(RedisKey)"{u1}:a"}{(RedisKey)"{u1}:b"}{(RedisValue)"m"}");
 
         Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"{u1}:a"), frame.Slot);
         Assert.NotEqual(ServerSelectionStrategy.MultipleSlots, frame.Slot);
@@ -288,7 +288,7 @@ public class InterpolatedWriterUnitTests
     public void CrossSlotKeysAreDetected()
     {
         var ctx = new RespContext(serverType: ServerType.Cluster);
-        using var frame = ctx.Execute($"{RedisCommand.SMOVE}{(RedisKey)"alpha"}{(RedisKey)"beta"}{(RedisValue)"m"}");
+        using var frame = ctx.Render($"{RedisCommand.SMOVE}{(RedisKey)"alpha"}{(RedisKey)"beta"}{(RedisValue)"m"}");
 
         Assert.Equal(ServerSelectionStrategy.MultipleSlots, frame.Slot);
     }
@@ -299,8 +299,8 @@ public class InterpolatedWriterUnitTests
         var plain = new RespContext(serverType: ServerType.Cluster);
         var prefixed = plain.WithKeyPrefix("tenant7:");
 
-        using var a = plain.Execute($"{RedisCommand.GET}{(RedisKey)"user:1"}");
-        using var b = prefixed.Execute($"{RedisCommand.GET}{(RedisKey)"user:1"}");
+        using var a = plain.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}");
+        using var b = prefixed.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}");
 
         Assert.NotEqual(a.Slot, b.Slot);
         Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"tenant7:user:1"), b.Slot);
@@ -313,7 +313,7 @@ public class InterpolatedWriterUnitTests
         cts.Cancel();
         var ctx = new RespContext().WithCancellationToken(cts.Token);
 
-        Assert.Throws<OperationCanceledException>(() => ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}").Dispose());
+        Assert.Throws<OperationCanceledException>(() => ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}").Dispose());
     }
 
     [Fact]
@@ -331,7 +331,7 @@ public class InterpolatedWriterUnitTests
     public void MultiByteAndEmptyPayloadsRoundTrip()
     {
         var ctx = new RespContext();
-        using var frame = ctx.Execute($"{RedisCommand.SET}{(RedisKey)"naïve☃"}{(RedisValue)""}");
+        using var frame = ctx.Render($"{RedisCommand.SET}{(RedisKey)"naïve☃"}{(RedisValue)""}");
 
         Assert.Equal(new[] { "SET", "naïve☃", "" }, Parse(frame.Span));
     }
@@ -341,7 +341,7 @@ public class InterpolatedWriterUnitTests
     {
         var big = new string('x', 5000);
         var ctx = new RespContext();
-        using var frame = ctx.Execute($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)big}");
+        using var frame = ctx.Render($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)big}");
 
         var args = Parse(frame.Span);
         Assert.Equal(big, args[2]);
@@ -371,7 +371,7 @@ public class InterpolatedWriterUnitTests
 
             if (withNx) cmd.AppendFormatted((RedisValue)"NX");
 
-            using var frame = ctx.Execute(ref cmd);
+            using var frame = ctx.Render(ref cmd);
             Assert.Equal(expected, string.Join("|", Parse(frame.Span)));
             Assert.Equal(expected.Split('|').Length, frame.ArgCount);
         }
@@ -389,7 +389,7 @@ public class InterpolatedWriterUnitTests
         var cmd = ctx.Compose($"{RedisCommand.SMOVE}{(RedisKey)"{u}:src"}");
         cmd.AppendFormatted((RedisKey)"{u}:dst");   // second key arrives AFTER the interpolation
         cmd.AppendFormatted((RedisValue)"m");
-        using var frame = ctx.Execute(ref cmd);
+        using var frame = ctx.Render(ref cmd);
 
         Assert.Equal(new[] { "SMOVE", "{u}:src", "{u}:dst", "m" }, Parse(frame.Span));
         Assert.Equal(new[] { "{u}:src", "{u}:dst" }, Keys(frame));
@@ -403,7 +403,7 @@ public class InterpolatedWriterUnitTests
         var ctx = new RespContext();
         var cmd = ctx.Compose($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
         for (int i = 0; i < 9; i++) cmd.AppendFormatted((RedisValue)i);
-        using var frame = ctx.Execute(ref cmd);
+        using var frame = ctx.Render(ref cmd);
 
         Assert.Equal(12, frame.ArgCount);
         Assert.StartsWith("*12\r\n", Encoding.UTF8.GetString(frame.Span.ToArray()));
@@ -417,7 +417,7 @@ public class InterpolatedWriterUnitTests
     {
         var ctx = new RespContext();
         var cmd = ctx.Compose(RedisCommand.SET, $"{(RedisKey)"k"}{(RedisValue)"v"}");
-        using var frame = ctx.Execute(ref cmd);
+        using var frame = ctx.Render(ref cmd);
 
         Assert.Equal(new[] { "SET", "k", "v" }, Parse(frame.Span));
         Assert.Equal(new[] { "k" }, Keys(frame));
@@ -427,7 +427,7 @@ public class InterpolatedWriterUnitTests
     public void ExecuteWithCommandArgument()
     {
         var ctx = new RespContext(serverType: ServerType.Cluster);
-        using var frame = ctx.Execute(RedisCommand.GET, $"{(RedisKey)"foo"}");
+        using var frame = ctx.Render(RedisCommand.GET, $"{(RedisKey)"foo"}");
 
         Assert.Equal(new[] { "GET", "foo" }, Parse(frame.Span));
         Assert.Equal(12182, frame.Slot);
@@ -441,7 +441,7 @@ public class InterpolatedWriterUnitTests
         var ctx = new RespContext();
         var cmd = ctx.Compose(RedisCommand.DEL, keys.Length);
         foreach (var key in keys) cmd.AppendFormatted(key);
-        using var frame = ctx.Execute(ref cmd);
+        using var frame = ctx.Render(ref cmd);
 
         Assert.Equal(new[] { "DEL", "a", "b", "c" }, Parse(frame.Span));
         Assert.Equal(4, frame.ArgCount);
@@ -459,7 +459,7 @@ public class InterpolatedWriterUnitTests
         var ctx = new RespContext(map);
 
         Assert.Throws<RedisCommandException>(() => ctx.Compose(RedisCommand.GET, 0).Dispose());
-        Assert.Throws<RedisCommandException>(() => ctx.Execute($"{RedisCommand.GET}{(RedisKey)"k"}").Dispose());
+        Assert.Throws<RedisCommandException>(() => ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}").Dispose());
     }
 
     // ---- the single-space relaxation ---------------------------------------------------------------
@@ -468,8 +468,8 @@ public class InterpolatedWriterUnitTests
     public void SingleSpacesAreAllowedAndDiscarded()
     {
         var ctx = new RespContext();
-        using var spaced = ctx.Execute($"{RedisCommand.SET} {(RedisKey)"k"} {(RedisValue)"v"}");
-        using var tight = ctx.Execute($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
+        using var spaced = ctx.Render($"{RedisCommand.SET} {(RedisKey)"k"} {(RedisValue)"v"}");
+        using var tight = ctx.Render($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
 
         // identical bytes: the space is a literal segment, not an argument
         Assert.True(spaced.Span.SequenceEqual(tight.Span));
@@ -486,8 +486,8 @@ public class InterpolatedWriterUnitTests
         // the readable spelling works and the analyzer only warns that it resolves per call
         var ctx = new RespContext();
 
-        using var twoSpaces = ctx.Execute($"{RedisCommand.GET}  {(RedisKey)"k"}");
-        using var hyphen = ctx.Execute($"{RedisCommand.GET}-{(RedisKey)"k"}");
+        using var twoSpaces = ctx.Render($"{RedisCommand.GET}  {(RedisKey)"k"}");
+        using var hyphen = ctx.Render($"{RedisCommand.GET}-{(RedisKey)"k"}");
 
         // whitespace-only is still nothing; anything else is now an argument
         Assert.Equal(new[] { "GET", "k" }, Parse(twoSpaces.Span));
@@ -503,7 +503,7 @@ public class InterpolatedWriterUnitTests
         // this used to throw: "SET " was discarded, so nothing supplied a command and the key could not be
         // framed. The leading token is now the command, so it renders exactly like the hole form.
         var ctx = new RespContext();
-        using var frame = ctx.Execute($"SET {(RedisKey)"k"}");
+        using var frame = ctx.Render($"SET {(RedisKey)"k"}");
         Assert.Equal(new[] { "SET", "k" }, Parse(frame.Span));
     }
 #pragma warning restore SER309

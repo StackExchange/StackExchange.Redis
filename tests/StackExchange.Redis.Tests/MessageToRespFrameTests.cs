@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis.Interpolated;
@@ -40,7 +40,7 @@ public class MessageToRespFrameTests
         using var viaMessage = Render(Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"mykey"));
 
         var ctx = new RespContext();
-        using var viaInterpolation = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"mykey"}");
+        using var viaInterpolation = ctx.Render($"{RedisCommand.GET}{(RedisKey)"mykey"}");
 
         // byte-identical rendering is not a nicety here: the frame IS the cache key, so two routes that
         // disagree would cache the same logical command twice
@@ -129,7 +129,7 @@ public class MessageToRespFrameTests
 
         // and a render from the OTHER route finds it - the two are interchangeable as cache keys
         var ctx = new RespContext();
-        using var probe = ctx.Execute($"{RedisCommand.GET}{(RedisKey)"mykey"}");
+        using var probe = ctx.Render($"{RedisCommand.GET}{(RedisKey)"mykey"}");
         Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var hit));
         Assert.Equal("$5|hello|", Text(hit.Span));
         hit.Release();
