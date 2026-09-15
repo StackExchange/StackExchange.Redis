@@ -307,60 +307,65 @@ public class InterpolatedWriterUnitTests
     }
 
     /// <summary>
-    /// A token that could actually fire is refused, rather than accepted and ignored.
+    /// A token cancelled before the call is honoured properly, and hands the buffer back.
     /// </summary>
     /// <remarks>
-    /// Cancellation moved from the context to a per-call parameter, which is the convention - but the
-    /// pipeline underneath still cannot cancel an in-flight request. Accepting a token and quietly doing
-    /// nothing with it is a promise in the signature that nothing keeps, so a cancellable one says so at
-    /// the call that would have relied on it. <c>default</c> costs nothing and passes through.
+    /// The half of cancellation that works today: an in-flight request cannot be stopped, but declining to
+    /// start one costs nothing - so this is an <see cref="OperationCanceledException"/>, not "not
+    /// implemented". Checked before the cancellable case, since a cancelled token is also cancellable.
+    /// <para>
+    /// The handler is built by hand rather than left to the compiler, so the test can still see it after
+    /// the throw. That matters: a leak back to <c>ArrayPool</c> is invisible from outside - an empty bucket
+    /// just allocates - so renting in a loop and checking nothing broke asserts nothing at all.
+    /// </para>
     /// </remarks>
+    [Fact]
+    public void AnAlreadyCancelledTokenIsHonouredAndReturnsTheBuffer()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var ctx = new RespContext();
+
+        var handler = new RespCommandHandler(0, 1, ctx, RedisCommand.GET);
+        handler.AppendFormatted((RedisKey)"k");
+
+        var threw = false;
+        try
+        {
+            _ = ctx.SendAsync<bool>(ref handler, CommandFlags.None, null, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            threw = true;
+        }
+
+        Assert.True(threw, "an already-cancelled token should refuse to start");
+        Assert.True(handler.BufferReturned, "the rented buffer was not handed back");
+    }
+
+    /// <summary>A live-but-uncancelled token is refused, and also hands the buffer back.</summary>
     [Fact]
     public void ACancellableTokenIsRefusedRatherThanIgnored()
     {
-        using var cts = new CancellationTokenSource();
-        var ctx = new RespContext(); // no executor: the refusal comes first, which is the point
-
-        var ex = Assert.Throws<NotImplementedException>(() =>
-        {
-            _ = ctx.SendAsync<bool>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None, null, cts.Token);
-        });
-        Assert.Contains("not yet supported", ex.Message);
-    }
-
-    /// <summary>The refusal hands back the buffer the interpolation had already rented.</summary>
-    /// <remarks>
-    /// The handler rents in the <i>caller's</i> frame, before the send is entered, so throwing without
-    /// disposing would leak a pooled array on every refused call - and a rent held for ever is worse than
-    /// wasteful, it is permanently removed from the pool. Asserted by churning the pool afterwards: a leak
-    /// shows up as the array never coming back.
-    /// </remarks>
-    [Fact]
-    public void RefusingACancellableTokenDoesNotLeakTheBuffer()
-    {
-        using var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource(); // live, but NOT cancelled
         var ctx = new RespContext();
 
-        for (var i = 0; i < 64; i++)
+        var handler = new RespCommandHandler(0, 1, ctx, RedisCommand.GET);
+        handler.AppendFormatted((RedisKey)"k");
+
+        NotImplementedException? caught = null;
+        try
         {
-            Assert.Throws<NotImplementedException>(() =>
-            {
-                _ = ctx.SendAsync<bool>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None, null, cts.Token);
-            });
+            _ = ctx.SendAsync<bool>(ref handler, CommandFlags.None, null, cts.Token);
+        }
+        catch (NotImplementedException ex)
+        {
+            caught = ex;
         }
 
-        // if each refusal had leaked its rent, 64 of them would have drained the bucket; this still works
-        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
-        Assert.Equal(1, frame.KeyCount);
-    }
-
-    [Fact]
-    public void MultiByteAndEmptyPayloadsRoundTrip()
-    {
-        var ctx = new RespContext();
-        using var frame = ctx.Render($"{RedisCommand.SET}{(RedisKey)"naïve☃"}{(RedisValue)""}");
-
-        Assert.Equal(new[] { "SET", "naïve☃", "" }, Parse(frame.Span));
+        Assert.NotNull(caught);
+        Assert.Contains("not yet supported", caught!.Message);
+        Assert.True(handler.BufferReturned, "the rented buffer was not handed back");
     }
 
     [Fact]

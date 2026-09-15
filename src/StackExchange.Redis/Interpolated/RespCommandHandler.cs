@@ -632,6 +632,13 @@ namespace StackExchange.Redis.Interpolated
             return frame;
         }
 
+        /// <summary>Whether the rented buffer has been handed back; for tests that assert no leak.</summary>
+        /// <remarks>
+        /// A leak from <see cref="ArrayPool{T}"/> is invisible from outside - an empty bucket simply
+        /// allocates - so "rent a lot and see if it breaks" proves nothing. This is the observable.
+        /// </remarks>
+        internal readonly bool BufferReturned => _buffer is null;
+
         /// <summary>Return the buffer to the pool, if it has not already been handed to a frame.</summary>
         public void Dispose()
         {

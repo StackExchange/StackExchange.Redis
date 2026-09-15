@@ -337,10 +337,18 @@ namespace StackExchange.Redis.Interpolated
         /// Refuse a token we cannot honour, rather than accepting one and ignoring it.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Cancellation <b>will</b> be supported; it is not yet. The pipeline beneath this has no notion of
         /// it, so a token that could actually fire would be silently inert - a promise in the signature that
         /// nothing keeps. <c>default</c> and <see cref="CancellationToken.None"/> cost nothing and pass
         /// through; anything cancellable says so here, at the call that would have relied on it.
+        /// </para>
+        /// <para>
+        /// <b>Except the half that already works.</b> A token cancelled <i>before</i> the call is honoured
+        /// properly - we cannot stop an in-flight request, but we can decline to start one - so that gets an
+        /// <see cref="OperationCanceledException"/>, not "not implemented". It is checked first, since a
+        /// cancelled token is also a cancellable one.
+        /// </para>
         /// </remarks>
         /// <summary>
         /// As above, for the interpolated forms: the handler has already rented a buffer by the time we are
@@ -352,6 +360,15 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         private static void DemandNoCancellation(ref RespCommandHandler request, CancellationToken cancellationToken)
         {
+            // already cancelled is the half we CAN honour - refusing to start costs nothing - so it gets the
+            // right exception rather than "not implemented". Checked first, because a cancelled token is
+            // also a cancellable one.
+            if (cancellationToken.IsCancellationRequested)
+            {
+                request.Dispose();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             if (cancellationToken.CanBeCanceled)
             {
                 request.Dispose();
@@ -361,6 +378,9 @@ namespace StackExchange.Redis.Interpolated
 
         private static void DemandNoCancellation(CancellationToken cancellationToken)
         {
+            // as above: cancelled-before-we-started is honoured properly, because it can be
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (cancellationToken.CanBeCanceled)
             {
                 throw new NotImplementedException(
