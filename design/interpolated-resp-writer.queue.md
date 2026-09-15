@@ -92,6 +92,32 @@ Four consequences, none of them cosmetic:
         idempotent. It can never be damagingly wrong, so it needs no careful invalidation - and none exists
         today, since the client currently tracks no loaded-script state at all.
 
+        **Two corrections from reading the existing code.** This is not a new design: `ScriptEvalMessage`
+        is *already* an `IMultiMessage` that yields a `ScriptLoadMessage` and then itself, choosing
+        `EVALSHA` or `EVAL` in `WriteImpl` from whether the hash is known. And the client *does* track
+        loaded scripts - `ServerEndPoint.knownScripts`, so per **endpoint** rather than per connection,
+        which is the right scope because the server's script cache is server-wide. So the frame surface is
+        not inventing the pattern, it is joining one; what is missing is only a frame-shaped participant.
+
+        **A cold-start saving was proposed here and withdrawn.** `EVAL` does populate the server's script
+        cache by itself - measured on 8.9.241, and documented: *"every script you execute with EVAL is
+        stored in a dedicated cache that the server keeps"*. So first use could in principle be a bare
+        `EVAL`, one command instead of two, with `EVALSHA` thereafter.
+
+        Against it: from Redis 7.4 the server *"evicts scripts loaded with `EVAL` or `EVAL_RO` from the
+        script cache when the cache reaches a certain size"*, least-recently-used first - and that sentence
+        does not extend to `SCRIPT LOAD`. So the saving would trade a durable load for an evictable one and
+        make `NOSCRIPT` more likely under pressure. Still correct, because recovery handles it, but worse
+        exactly when the cache is busiest.
+
+        Note the same page's older "Script cache semantics" section still says scripts *"are meant to stay
+        indefinitely in the cache"*, which 7.4 contradicts; the command page is the newer text.
+
+        The docs also endorse the existing shape directly: `SCRIPT LOAD` is *"useful in all the contexts
+        where we want to ensure that EVALSHA doesn't fail (for instance, in a pipeline or when called from
+        a MULTI/EXEC transaction)"* - which is both why `ScriptEvalMessage` is an `IMultiMessage` and
+        independent confirmation of the transaction constraint below.
+
         **Stage it stateless first:** always pair `SCRIPT LOAD` + `EVALSHA`. Correct, one round trip, no new
         state, and it proves the composition mechanism. Belief-tracking is then a pure optimisation that
         drops the `SCRIPT LOAD`, layered on something already correct rather than being load-bearing.
