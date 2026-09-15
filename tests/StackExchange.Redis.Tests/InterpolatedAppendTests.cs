@@ -133,23 +133,22 @@ public partial class InterpolatedAppendTests
         Assert.Equal("b", Encoding.UTF8.GetString(frame.GetKey(ranges[1]).ToArray()));
     }
     /// <summary>
-    /// A frame past the protocol's argument limit is refused when it is closed, not when it is sent.
+    /// The argument limit is enforced <b>as arguments are written</b>, at the one that breaks it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>Complete</c> is where the count is final and where the <c>*N</c> header is about to be written, so
-    /// a frame past the limit is invalid by construction from that point on. Waiting for dispatch would also
-    /// miss the frames that are never dispatched at all - a cache lookup key, an ad-hoc composition, or
-    /// anything built through the public <c>Render</c>.
+    /// Waiting for close would mean writing megabytes that were never going to be sent, and reporting the
+    /// failure a long way from its cause. The counters move through one place, so the check rides along with
+    /// an increment that was happening anyway.
     /// </para>
     /// <para>
-    /// The limit is counted the way the writer counts it - arguments <i>without</i> the command - so a frame
-    /// and the equivalent classic message are accepted and refused at exactly the same point. Spelled with
-    /// try/catch rather than <c>Assert.Throws</c> because a ref struct cannot be captured by a lambda.
+    /// Counted the writer's way - arguments <i>without</i> the command - so a frame and the equivalent
+    /// classic message are accepted and refused at exactly the same point. Spelled with try/catch because a
+    /// ref struct cannot be captured by a lambda.
     /// </para>
     /// </remarks>
     [Fact]
-    public void AFramePastTheArgumentLimitIsRefusedWhenClosed()
+    public void TheArgumentLimitIsEnforcedWhileWriting()
     {
         const int Max = 1024 * 1024; // MessageWriter.REDIS_MAX_ARGS
 
@@ -161,25 +160,33 @@ public partial class InterpolatedAppendTests
             Assert.Equal(Max, ok.ArgCount); // the frame's own count includes the command
         }
 
-        // one more, and it is refused - without leaking the several megabytes it had rented
+        // one more, and it is refused at that argument - not at close
         var over = Ctx.Compose($"{RedisCommand.RPUSH}{(RedisKey)"k"}");
-        for (var i = 2; i <= Max; i++) over.Append($"{(RedisValue)1}");
-        Assert.True(RenderThrows(ref over), "a frame past the limit should be refused when closed");
-        over.Dispose(); // no-op if the refusal returned the buffer; a double-return otherwise
+        var written = AppendUntilRefused(ref over, Max);
+
+        Assert.Equal(Max, written); // it got exactly as far as the limit allows, then stopped
+        over.Dispose();             // no-op if the refusal returned the buffer; a double-return otherwise
     }
 
-    /// <summary>Whether closing this command is refused for being over the argument limit.</summary>
-    private static bool RenderThrows(ref RespCommandHandler handler)
+    /// <summary>
+    /// Append single-argument fragments until one is refused; returns the frame's argument count at that
+    /// point, or -1 if it was never refused.
+    /// </summary>
+    private static int AppendUntilRefused(ref RespCommandHandler handler, int max)
     {
-        try
+        for (var i = 2; i <= max + 1; i++)
         {
-            handler.Complete().Dispose();
-            return false;
+            try
+            {
+                handler.Append($"{(RedisValue)1}");
+            }
+            catch (RedisCommandException)
+            {
+                return i - 1 + 1; // the command, plus the arguments that landed before this one
+            }
         }
-        catch (RedisCommandException)
-        {
-            return true;
-        }
+
+        return -1;
     }
 
     /// <summary>A refused close hands its buffer back rather than leaking it.</summary>

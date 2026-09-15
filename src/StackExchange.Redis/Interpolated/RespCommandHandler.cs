@@ -210,8 +210,7 @@ namespace StackExchange.Redis.Interpolated
                     resp.CopyTo(_buffer.AsSpan(_offset));
                     _offset += resp.Length;
                     _hasCommand = true;
-                    _args++;
-                    _argIndex++;
+                    CountArguments();
                     return;
                 }
 
@@ -219,8 +218,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             WriteUtf8Bulk(value, start, length);
-            _args++;
-            _argIndex++;
+            CountArguments();
         }
 
         /// <summary>Write part of a string as a bulk string, encoding straight into the frame buffer.</summary>
@@ -256,8 +254,7 @@ namespace StackExchange.Redis.Interpolated
             resp.CopyTo(_buffer.AsSpan(_offset));
             _offset += resp.Length;
             _hasCommand = true;
-            _args++;
-            _argIndex++;
+            CountArguments();
         }
 
         /// <summary>Append a resolved command name.</summary>
@@ -301,8 +298,7 @@ namespace StackExchange.Redis.Interpolated
 
             if (!_hasCommand) _command = value.Command; // only the FIRST one is the command
             _hasCommand = true; // whether it was the command or merely the first thing written
-            _args++;
-            _argIndex++;
+            CountArguments();
         }
 
         /// <summary>
@@ -365,8 +361,7 @@ namespace StackExchange.Redis.Interpolated
             Debug.Assert(written == keyLength, "key length disagreed with itself");
             CommitBulk(payloadOffset, length);
             FoldSlot(payload);
-            _args++;
-            _argIndex++;
+            CountArguments();
         }
 
         /// <summary>Append a channel, applying the channel prefix unless the channel opts out.</summary>
@@ -386,8 +381,7 @@ namespace StackExchange.Redis.Interpolated
             body.CopyTo(payload.Slice(prefix.Length));
             CommitBulk(payloadOffset, length);
             FoldSlot(payload);
-            _args++;
-            _argIndex++;
+            CountArguments();
         }
 
         /// <summary>
@@ -468,8 +462,7 @@ namespace StackExchange.Redis.Interpolated
             var target = WriteBulk(payload.Length, out var payloadOffset);
             payload.CopyTo(target);
             CommitBulk(payloadOffset, payload.Length);
-            _args++;
-            _argIndex++;
+            CountArguments();
         }
 
         /// <summary>
@@ -485,8 +478,7 @@ namespace StackExchange.Redis.Interpolated
             Ensure(bytes.Length);
             bytes.CopyTo(_buffer.AsSpan(_offset));
             _offset += bytes.Length;
-            _args += value.ArgCount;
-            _argIndex += value.ArgCount;
+            CountArguments(value.ArgCount);
         }
 
         /// <summary>
@@ -594,8 +586,7 @@ namespace StackExchange.Redis.Interpolated
             var written = value.CopyTo(payload);
             Debug.Assert(written == length, "value length disagreed with itself");
             CommitBulk(payloadOffset, length);
-            _args++;
-            _argIndex++;
+            CountArguments();
         }
 
         /// <summary>
@@ -677,6 +668,50 @@ namespace StackExchange.Redis.Interpolated
         {
             if (_context.ServerType != ServerType.Cluster) return;
             _slot = ServerSelectionStrategy.CombineSlot(_slot, ServerSelectionStrategy.GetClusterSlot(payload));
+        }
+
+        /// <summary>
+        /// Record that arguments have been written, and refuse to go past the protocol's limit.
+        /// </summary>
+        /// <param name="count">How many arguments were written; more than one for a multi-token fragment.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The single place the counters move.</b> They were bumped in pairs at nine sites, which is two
+        /// invariants maintained by hand: that the count and the index stay in step - the index drives key
+        /// marking, so a drift there mismarks keys - and that neither runs past the limit. Both are now
+        /// structural, and a tenth site cannot forget either.
+        /// </para>
+        /// <para>
+        /// Checking here rather than only at <see cref="Complete"/> costs a compare against a value already
+        /// in a register, on a path that is about to write a bulk string - free in practice - and it fails
+        /// <i>at the offending argument</i> instead of after writing megabytes that were never going to be
+        /// sent.
+        /// </para>
+        /// <para>
+        /// Counted the writer's way: <c>_args</c> includes the command, and the limit is on the arguments
+        /// without it, so the frame becomes illegal one past the limit rather than at it.
+        /// </para>
+        /// </remarks>
+        private void CountArguments(int count = 1)
+        {
+            _args += count;
+            _argIndex += count;
+            if (_args > MessageWriter.REDIS_MAX_ARGS) ThrowTooManyArguments();
+        }
+
+        /// <remarks>
+        /// Out of line so the counting path stays small enough to inline, and it hands the buffer back
+        /// first: a throw from the middle of an append is not otherwise given one - the handler lives in the
+        /// caller's frame, and no <c>finally</c> is generated around an interpolated string.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        [DoesNotReturn]
+        private void ThrowTooManyArguments()
+        {
+            var command = _command;
+            var count = _args - 1;
+            Dispose();
+            throw ExceptionFactory.TooManyArgs(command.ToString(), count);
         }
 
         /// <summary>
