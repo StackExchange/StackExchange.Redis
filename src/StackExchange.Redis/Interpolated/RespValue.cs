@@ -131,6 +131,11 @@ namespace StackExchange.Redis.Interpolated
         public double AsDouble() => Reader().ReadDouble();
 
         /// <summary>Read this value as a boolean.</summary>
+        /// <remarks>
+        /// The reader's rule, which is stricter than <see cref="RedisValue"/>'s: <c>:0</c>/<c>:1</c>,
+        /// <c>#f</c>/<c>#t</c> and <c>+OK</c> are booleans; a <i>bulk</i> <c>"1"</c> is not, because no
+        /// server answers a boolean that way. Casting a <see cref="RedisValue"/> would have coerced it.
+        /// </remarks>
         public bool AsBoolean() => Reader().ReadBoolean();
 
         /// <summary>Read this value as text, or <see langword="null"/> if it is nil.</summary>

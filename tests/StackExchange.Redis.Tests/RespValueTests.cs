@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Text;
 using RESPite.Messages;
 using StackExchange.Redis.Interpolated;
@@ -116,20 +117,83 @@ public class RespValueTests
         Assert.Equal("abc", Encoding.UTF8.GetString(target.ToArray()));
     }
 
-    [Fact]
-    public void ReadingThroughADisposedLeaseThrows()
+    /// <summary>Capture one value out of a lease-owned buffer.</summary>
+    private static (ReadOnlyLease<byte> Lease, RespValue Value) InLease(string resp, MemoryPool<byte>? pool = null)
     {
-        var lease = ReadOnlyLease<byte>.Rent(16, null, out var target);
-        Frame("$3|abc|").CopyTo(target);
+        var bytes = Frame(resp);
+        var lease = ReadOnlyLease<byte>.Rent(bytes.Length, pool, out var target);
+        bytes.CopyTo(target);
 
-        var reader = new RespReader(lease.Span.Slice(0, 9));
+        var reader = new RespReader(lease.Span.Slice(0, bytes.Length));
         Assert.True(RespValue.TryCaptureNext(lease, ref reader, out var value));
-        Assert.Equal("abc", value.AsString());
+        return (lease, value);
+    }
+
+    /// <summary>
+    /// Every way of getting at the bytes, each with a frame it can actually read.
+    /// </summary>
+    /// <remarks>
+    /// The frames differ because the reader's coercions are stricter than <see cref="RedisValue"/>'s: a
+    /// bulk <c>"1"</c> is not a boolean to it, because a server never answers a boolean that way.
+    /// </remarks>
+    public static TheoryData<string, string, Action<RespValue>> Accessors => new()
+    {
+        { "Frame", "$1|1|", v => _ = v.Frame.Length },
+        { "AsString", "$1|1|", v => v.AsString() },
+        { "AsInt64", "$1|1|", v => v.AsInt64() },
+        { "AsInt32", "$1|1|", v => v.AsInt32() },
+        { "AsDouble", "$1|1|", v => v.AsDouble() },
+        { "AsBoolean", ":1|", v => v.AsBoolean() },
+        { "ToRedisValue", "$1|1|", v => v.ToRedisValue() },
+        { "Length", "$1|1|", v => _ = v.Length },
+        { "TryGetSpan", "$1|1|", v => v.TryGetSpan(out _) },
+        { "CopyTo", "$1|1|", v => { Span<byte> target = stackalloc byte[8]; v.CopyTo(target); } },
+        { "Equals", "$1|1|", v => v.Equals(v) },
+        { "GetHashCode", "$1|1|", v => v.GetHashCode() },
+        { "ToString", "$1|1|", v => v.ToString() },
+    };
+
+    [Theory]
+    [MemberData(nameof(Accessors))]
+    public void EveryAccessorDiesWithTheLease(string name, string resp, Action<RespValue> accessor)
+    {
+        var (lease, value) = InLease(resp);
+        accessor(value); // works while the lease is alive
 
         // the reason the value holds the OWNER rather than a ReadOnlyMemory: the lease nulls its buffer on
-        // the way back to the pool, so a stale read says so instead of returning whatever landed there next
+        // the way back to the pool, so a stale read says so instead of returning whatever landed there
+        // next. One accessor proving that is not the claim - every route to the bytes has to be shut.
+        lease.Dispose();
+
+        var ex = Record.Exception(() => accessor(value));
+        Assert.True(ex is ObjectDisposedException, $"{name} gave {ex?.GetType().Name ?? "no error"} after disposal");
+    }
+
+    [Fact]
+    public void APooledLeaseDiesTheSameWay()
+    {
+        // the other branch of the lease: an IMemoryOwner rather than a pooled array. Dispose nulls the
+        // same field, so both land on the same guard - but only one of them was being exercised.
+        var (lease, value) = InLease("$3|abc|", MemoryPool<byte>.Shared);
+        Assert.Equal("abc", value.AsString());
+
         lease.Dispose();
         Assert.Throws<ObjectDisposedException>(() => value.AsString());
+    }
+
+    [Fact]
+    public void AValueOverABareArrayHasNothingToDieWith()
+    {
+        // the boundary of the guarantee, stated rather than assumed: hardening comes from the OWNER, so a
+        // value over a plain array keeps that array alive and stays readable forever. That is correct -
+        // nothing recycles it - but it means "it dies with the lease" is a claim about leases, and a
+        // handler that hands out a bare array gets no protection from it.
+        var frame = Frame("$3|abc|");
+        var reader = new RespReader(frame);
+        Assert.True(RespValue.TryCaptureNext(frame, ref reader, out var value));
+
+        GC.Collect();
+        Assert.Equal("abc", value.AsString());
     }
 
     [Fact]
