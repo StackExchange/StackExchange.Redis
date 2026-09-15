@@ -67,6 +67,42 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **`*Async` suffixes on the new surface.** MSFT review, 2026-09-15. Checked whether the suffix would
+      be redundant: the surface is async-only (22 `ValueTask` returns in Strings alone, zero sync twins), so
+      the *compiler* never needs it - but the justification is the reader, not the compiler, and
+      `db.Strings.Get(key)` sitting beside `db.StringGetAsync(key)` makes you check a return type to know
+      what you are holding. Mechanical across 11 groups, free while SER010 is experimental, expensive after.
+      Agreed; do it in the same pass as the cancellation change below, since both touch every signature.
+
+- [ ] **Move `CancellationToken` off the context and onto the far right of each method.** MSFT review.
+      Conventional, per-call, and it shrinks the context (see the sizing item). **But it is two decisions,
+      not one:** the token currently *cancels nothing*. `RespMessageExecutor.SendAsync` says so - "the
+      existing pipeline has no cancellation; the token is observed by the caller's await". On a context that
+      reads as configuration; on every method signature it reads as a promise. So either wire it into the
+      pipeline or document plainly that it is observed at the await - do not ship per-call tokens that do
+      not cancel.
+
+- [ ] **Degraded state: may the cache prefer stale to offline?** MSFT review. Today it does the opposite,
+      and deliberately: `OnConnectionFailed` calls `ClientCache.OnFlush()` *first*, synchronously, because
+      "server-assisted invalidation only works while we are listening, so anything that changed during the
+      gap is never announced and an entry that survives it is stale with nothing left in the system that
+      will ever say so".
+
+      That reasoning is about an **unannounced** gap. A planned maintenance is different in kind, and the
+      library already has the signal: `AzureNotificationType` gives `NodeMaintenanceScheduled` ->
+      `NodeMaintenanceStarting` (~20s) -> `NodeMaintenanceStart` (<5s) -> ended. The window is announced on
+      both sides and therefore **bounded**, which is the property an unplanned drop lacks.
+
+      **Suggested framing: the flush is not skipped, it is deferred to the end of the announced window.**
+      During a signalled window, serve stale knowingly rather than going offline; when the window closes,
+      flush and rebuild. That keeps the invariant - nothing survives an un-listened gap indefinitely - while
+      buying the availability the review is asking for. Requirements: opt-in, a bounded maximum stale age
+      distinct from TTL, and no path by which an entry outlives the window. Stale-while-revalidate and grace
+      periods already exist to build on.
+
+      Open: whether an unsignalled drop *during* a signalled window reverts to flush-immediately (probably
+      yes - the signal said what would happen, and this is not it).
+
 - [ ] **Down-level consumers: a `Downlevel` namespace of method-shims. Investigated 2026-09-15; the
       strategy below is proposed, not yet built.**
 
