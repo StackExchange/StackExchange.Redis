@@ -9,6 +9,7 @@ StackExchange.Redis.ReadOnlyLease<T>.Length.get -> int
 StackExchange.Redis.ReadOnlyLease<T>.Memory.get -> System.ReadOnlyMemory<T>
 StackExchange.Redis.ReadOnlyLease<T>.Span.get -> System.ReadOnlySpan<T>
 StackExchange.Redis.ReadOnlyLease<T>.ToArray() -> T[]!
+StackExchange.Redis.RedisFeatures.ListMove.get -> bool
 StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.ConfigurationOptions.ClientCache.get -> StackExchange.Redis.Interpolated.CacheOptions?
 [SER010]StackExchange.Redis.ConfigurationOptions.ClientCache.set -> void

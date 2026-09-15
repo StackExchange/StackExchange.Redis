@@ -188,6 +188,56 @@ public class RespSurfaceListsTests
         Assert.Equal("*9|$4|LPOS|$1|k|$1|v|$4|RANK|$1|1|$6|MAXLEN|$1|0|$5|COUNT|$1|0|", Assert.Single(exec.Sent));
     }
 
+    private sealed class FakeFeatures(RedisFeatures features) : IRespServerFeatures
+    {
+        public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures result)
+        {
+            result = features;
+            return true;
+        }
+    }
+
+    [Fact]
+    public async Task RightPopLeftPushUsesLMoveWhereTheServerHasIt()
+    {
+        var (bare, exec) = Target("$1\r\na\r\n");
+        var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))));
+
+        Assert.Equal("a", await ctx.Lists.RightPopLeftPush("src", "dst"));
+
+        // RPOPLPUSH is exactly this, and deprecated in its favour since 6.2
+        Assert.Equal("*5|$5|LMOVE|$3|src|$3|dst|$5|RIGHT|$4|LEFT|", Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task RightPopLeftPushStaysDeprecatedWhereTheServerIsTooOldOrUnknown()
+    {
+        var (old, oldExec) = Target("$1\r\na\r\n");
+        var (bare, bareExec) = Target("$1\r\na\r\n");
+
+        await old.WithServices(new FakeFeatures(new RedisFeatures(new Version(6, 0)))).Lists.RightPopLeftPush("src", "dst");
+
+        // no probe: "not sure" means the command that exists everywhere, because LMOVE on a 6.0 server is
+        // an unknown-command error rather than a slower path
+        await bare.Lists.RightPopLeftPush("src", "dst");
+
+        Assert.Equal("*3|$9|RPOPLPUSH|$3|src|$3|dst|", Assert.Single(oldExec.Sent));
+        Assert.Equal("*3|$9|RPOPLPUSH|$3|src|$3|dst|", Assert.Single(bareExec.Sent));
+    }
+
+    [Fact]
+    public async Task RightPopLeftPushIsAWriteEitherWay()
+    {
+        var (bare, exec) = Target("$1\r\na\r\n", "$1\r\na\r\n");
+
+        await bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0)))).Lists.RightPopLeftPush("src", "dst");
+        await bare.Lists.RightPopLeftPush("src", "dst");
+
+        // the substitution must not change the retry category: both spellings pop and push, so a retry
+        // after an unknown outcome could move a second element
+        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, f & Message.MaskRetryCategory));
+    }
+
     [Fact]
     public async Task MoveNamesBothSides()
     {

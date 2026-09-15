@@ -509,6 +509,49 @@ public class RespSurfaceStringsTests
     }
 
     [Fact]
+    public async Task GetSetUsesTheModernSpellingWhereTheServerHasIt()
+    {
+        var (bare, exec) = Target("$3\r\nold\r\n");
+        var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))));
+
+        Assert.Equal("old", await ctx.Strings.GetSet("k", "new"));
+
+        // GETSET has been deprecated since 6.2 in favour of SET ... GET; same request, same reply
+        Assert.Equal("*4|$3|SET|$1|k|$3|new|$3|GET|", Assert.Single(exec.Sent));
+    }
+
+    [Fact]
+    public async Task GetSetStaysDeprecatedWhereTheServerIsTooOldOrUnknown()
+    {
+        var (old, oldExec) = Target("$3\r\nold\r\n");
+        var (bare, bareExec) = Target("$3\r\nold\r\n");
+
+        await old.WithServices(new FakeFeatures(new RedisFeatures(new Version(6, 0)))).Strings.GetSet("k", "new");
+
+        // and with no probe at all - a bare context, a cold multiplexer - "not sure" has to mean the old
+        // spelling: SET ... GET is a syntax error before 6.2, where GETSET works everywhere
+        await bare.Strings.GetSet("k", "new");
+
+        Assert.Equal("*3|$6|GETSET|$1|k|$3|new|", Assert.Single(oldExec.Sent));
+        Assert.Equal("*3|$6|GETSET|$1|k|$3|new|", Assert.Single(bareExec.Sent));
+    }
+
+    [Fact]
+    public void GetSetRejectsANullValueRatherThanDeletingTheKey()
+    {
+        var (bare, exec) = Target("$3\r\nold\r\n");
+        var ctx = bare.WithServices(new FakeFeatures(new RedisFeatures(new Version(7, 0))));
+
+        // SetAndGet reads a null value as a delete, matching Set - but the old StringGetSet builds a
+        // key/value message and those assert, so it has always thrown here. Inheriting the improvement
+        // would turn a loud failure into a silent KeyDelete, which is why both spellings refuse it.
+        Assert.Throws<ArgumentException>(() => ctx.Strings.GetSet("k", RedisValue.Null));
+        Assert.Throws<ArgumentException>(() => bare.Strings.GetSet("k", RedisValue.Null));
+
+        Assert.Empty(exec.Sent);
+    }
+
+    [Fact]
     public async Task TheFeatureProbeIsAskedAboutTheKeyTheServerWillSee()
     {
         var (bare, exec) = Target("*1\r\n:7\r\n");

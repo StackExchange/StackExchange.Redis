@@ -266,6 +266,41 @@ namespace StackExchange.Redis.Interpolated
                 $"{RedisCommand.LMOVE}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}",
                 flags.WithDefaultCategory(RedisCommand.LMOVE));
 
+        /// <summary>
+        /// <c>LMOVE src dst RIGHT LEFT</c> where the server has it, <c>RPOPLPUSH</c> where it does not:
+        /// the old <c>ListRightPopLeftPush</c> shape, and nothing more.
+        /// </summary>
+        /// <param name="lists">The list command group.</param>
+        /// <param name="sourceKey">The key to take from.</param>
+        /// <param name="destinationKey">The key to add to.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// Internal, and deliberately not part of the group's own surface: naming both sides is all
+        /// <c>RPOPLPUSH</c> is, so <see cref="Move(in RespLists, RedisKey, RedisKey, ListSide, ListSide, CommandFlags)"/>
+        /// is the method callers want. This exists so that a caller of the <b>old</b> method keeps working
+        /// against a server older than 6.2, where <c>LMOVE</c> does not exist.
+        /// </remarks>
+        internal static ValueTask<RedisValue> RightPopLeftPush(
+            this in RespLists lists,
+            RedisKey sourceKey,
+            RedisKey destinationKey,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var context = lists.Context;
+            if (context.CommandMap.IsAvailable(RedisCommand.LMOVE)
+                && context.TryGetFeatures(RedisCommand.LMOVE, in sourceKey, flags, out var features)
+                && features.ListMove)
+            {
+                return Move(in lists, sourceKey, destinationKey, ListSide.Right, ListSide.Left, flags);
+            }
+
+            // the version is asked about the SOURCE key, which is the one the command routes on; in a
+            // cluster both keys are in the same slot anyway, or the server rejects the call
+            return context.SendAsync<RedisValue>(
+                $"{RedisCommand.RPOPLPUSH}{sourceKey}{destinationKey}",
+                flags.WithDefaultCategory(RedisCommand.RPOPLPUSH));
+        }
+
         /// <summary>LMOVEM: the bulk form, moving several elements at once.</summary>
         /// <param name="lists">The list command group.</param>
         /// <param name="sourceKey">The key to take from.</param>

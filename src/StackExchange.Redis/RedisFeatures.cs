@@ -130,6 +130,11 @@ namespace StackExchange.Redis
         public bool ListInsert => Version.IsAtLeast(v2_1_1);
 
         /// <summary>
+        /// Is <see href="https://redis.io/commands/lmove/">LMOVE</see> available?
+        /// </summary>
+        public bool ListMove => Version.IsAtLeast(v6_2_0);
+
+        /// <summary>
         /// Is <see href="https://redis.io/commands/memory/">MEMORY</see> available?
         /// </summary>
         public bool Memory => Version.IsAtLeast(v4_0_0);

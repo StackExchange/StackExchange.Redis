@@ -402,6 +402,23 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
+    public async Task GetSetRejectsANullValue()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "one", flags: CommandFlags.FireAndForget);
+
+        // StringSet and StringSetAndGet read a null value as a delete; StringGetSet has always thrown
+        // instead, and quietly adopting the other rule while respelling the command would turn this into
+        // a KeyDelete. The key is still here afterwards.
+        Assert.Throws<ArgumentException>(() => db.StringGetSet(key, RedisValue.Null));
+        Assert.Equal("one", await db.StringGetAsync(key));
+    }
+
+    [Fact]
     public async Task GetSetClearsAnyExistingExpiry()
     {
         await using var conn = Create();

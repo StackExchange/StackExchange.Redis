@@ -105,16 +105,16 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <c>GETSET</c> has been deprecated since 6.2; the group emits <c>SET ... GET</c>, which is the
-        /// same request with the same reply. Callers of the old name keep working and get the modern
-        /// spelling on the wire.
+        /// <c>GETSET</c> has been deprecated since 6.2 in favour of <c>SET ... GET</c>, which is the same
+        /// request with the same reply - so callers of the old name get the modern spelling wherever the
+        /// server has it, and the old one wherever it might not. See <c>IRespServerFeatures</c>.
         /// </remarks>
         public RedisValue StringGetSet(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Strings.SetAndGet(key, value, flags: flags));
+            => Wait(Context.Strings.GetSet(key, value, flags));
 
         /// <inheritdoc cref="StringGetSet"/>
         public Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Context.Strings.SetAndGet(key, value, flags: flags).AsTask();
+            => Context.Strings.GetSet(key, value, flags).AsTask();
 
         /// <inheritdoc/>
         /// <remarks>

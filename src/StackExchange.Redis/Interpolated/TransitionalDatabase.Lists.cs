@@ -183,14 +183,16 @@ namespace StackExchange.Redis.Interpolated
         /// <inheritdoc/>
         /// <remarks>
         /// <c>RPOPLPUSH</c> is <c>LMOVE src dst RIGHT LEFT</c>, deprecated in its favour since 6.2; naming
-        /// the two sides is the whole of the translation.
+        /// the two sides is the whole of the translation, so callers of the old name get <c>LMOVE</c>
+        /// wherever the server has it and <c>RPOPLPUSH</c> wherever it might not. See
+        /// <c>IRespServerFeatures</c>.
         /// </remarks>
         public RedisValue ListRightPopLeftPush(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Lists.Move(source, destination, ListSide.Right, ListSide.Left, flags));
+            => Wait(Context.Lists.RightPopLeftPush(source, destination, flags));
 
         /// <inheritdoc cref="ListRightPopLeftPush"/>
         public Task<RedisValue> ListRightPopLeftPushAsync(RedisKey source, RedisKey destination, CommandFlags flags = CommandFlags.None)
-            => Context.Lists.Move(source, destination, ListSide.Right, ListSide.Left, flags).AsTask();
+            => Context.Lists.RightPopLeftPush(source, destination, flags).AsTask();
 
         /// <inheritdoc/>
         public long ListInsertBefore(RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
