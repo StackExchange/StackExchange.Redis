@@ -644,12 +644,15 @@ Four consequences, none of them cosmetic:
         precisely the problem, because the shape of the API is what makes the promise. Enumeration is the
         offered access; a caller who needs indexing materialises, explicitly, and pays for it visibly.
 
-      - **`Count` is allowed, with an asterisk worth knowing.** Unlike the indexer it is honest *most* of
-        the time: `AggregateLength()` reads the count straight out of the header, O(1) - but for a
-        **streamed** aggregate there is no count in the header and it falls back to a walk. So the same
-        "promise we can't keep" applies in miniature, and either `Count` is documented as O(1)-except-when-
-        streaming, or it is only offered where streaming has been ruled out. Not a reason to drop it; a
-        reason not to let it be silent about it.
+      - **`Count` is fine** (Marc, 2026-09-15): *"streaming basically doesn't exist"*. `AggregateLength()`
+        reads the count out of the header, O(1); only a **streamed** aggregate (`*?` ... `.`) has no count
+        there and falls back to a walk, and no server in practice sends one. The fallback stays because it
+        is correct, not because it is expected.
+
+        Worth being clear why this is not the indexer decision inverted, since the two look similar. The
+        indexer is O(n) on **every reply that exists**; `Count` is O(1) on every reply that exists and O(n)
+        only on a shape nobody emits. One is a promise broken in the normal case, the other in a case that
+        does not arise - so `Count` is offered plainly, without hedging in the signature.
       - **The root should not be generic.** Nesting proves it: one root, a `RespAggregate<StreamEntry>` over
         it, and inside each entry a `RespAggregate<NameValueEntry>` over the *same* root. Different `T`,
         same owner - so `RespRoot` (non-generic, `IDisposable`) plus `RespAggregate<T>`.
