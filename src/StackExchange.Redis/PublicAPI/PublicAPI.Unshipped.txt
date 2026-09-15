@@ -276,11 +276,9 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Boolean.get -> StackExchange.Redis.Interpolated.IRespHandler<bool>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Double.get -> StackExchange.Redis.Interpolated.IRespHandler<double>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Int64.get -> StackExchange.Redis.Interpolated.IRespHandler<long>!
-[SER010]static StackExchange.Redis.Interpolated.RespHandlers.Lease.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.Lease<byte>?>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.NullableInt64.get -> StackExchange.Redis.Interpolated.IRespHandler<long?>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.ReadOnlyLease.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.ReadOnlyLease<byte>?>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Result.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.RespResult!>!
-[SER010]static StackExchange.Redis.Interpolated.RespHandlers.SingletonLease.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.Lease<byte>?>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.SingletonReadOnlyLease.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.ReadOnlyLease<byte>?>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.SingletonValue.get -> StackExchange.Redis.Interpolated.IRespHandler<StackExchange.Redis.RedisValue>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.String.get -> StackExchange.Redis.Interpolated.IRespHandler<string?>!

@@ -82,7 +82,14 @@ namespace StackExchange.Redis.Interpolated
         /// into the reply's buffer: a handler is handed a span whose lifetime ends when it returns, so
         /// there is nothing to share. See <see cref="RespReaderExtensions.ReadLease"/>.
         /// </remarks>
-        public static IRespHandler<Lease<byte>?> Lease { get; } = DefaultHandlers.Instance;
+        /// <remarks>
+        /// <b>Internal: the writable lease is the old spelling, and it stays.</b> The public surface hands
+        /// out <see cref="ReadOnlyLease"/>, which can share the reply's memory because nothing can write
+        /// through it; this serves the internal <c>...WritableLease</c> siblings behind the
+        /// <c>IDatabase</c> signatures that say <see cref="Lease{T}"/>. Internal rather than retired, so
+        /// new code cannot pick the shape that forces a copy.
+        /// </remarks>
+        internal static IRespHandler<Lease<byte>?> Lease { get; } = DefaultHandlers.Instance;
 
         /// <summary>The reply as a read-only buffer; shares the underlying memory where it can.</summary>
         public static IRespHandler<ReadOnlyLease<byte>?> ReadOnlyLease { get; } = DefaultHandlers.Instance;
@@ -100,7 +107,8 @@ namespace StackExchange.Redis.Interpolated
         public static IRespHandler<RedisValue> SingletonValue { get; } = new SingletonValueHandler();
 
         /// <inheritdoc cref="SingletonValue"/>
-        public static IRespHandler<Lease<byte>?> SingletonLease { get; } = new SingletonLeaseHandler();
+        /// <remarks><inheritdoc cref="Lease" path="/remarks"/></remarks>
+        internal static IRespHandler<Lease<byte>?> SingletonLease { get; } = new SingletonLeaseHandler();
 
         /// <inheritdoc cref="SingletonLease"/>
         /// <remarks>
