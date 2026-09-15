@@ -649,16 +649,34 @@ and every other data-type group never touch.
 
 So the fix is to **shrink the thing being copied**, not to dodge one copy of it. **Done:** `ChannelPrefix`
 moved into the services slot that already existed for optional capabilities (§6.7), taking the context
-from **64 bytes to 48** - a quarter off *every* copy, including the ones inside `Send` on the hot path,
+from **64 bytes to 48** - and later to **40**, when cancellation moved from context state to a per-call
+argument and took its `CancellationToken` field with it - a quarter off *every* copy, including the ones inside `Send` on the hot path,
 rather than only the rare external `.Context` read. Resolving it now costs a type test, paid only by code
 that actually writes a channel.
 
 **The slot became a chain to make this work.** One service was enough while the cache was the only one;
 two are not. A `ServiceLink` holds a service plus whatever was already there, and adding **prepends** - so
 the most recent of a type wins by lookup order. That removes two pieces of code rather than adding them:
-"replace" needs none, because a later add shadows an earlier one; and "remove" needs none, because setting
-a prefix back to `default` shadows it with an empty one that reads as absent. An array would have to be
-copied on every add; a link is one allocation, immutable, and shared by every context clone.
+"replace" needs none, because a later add shadows an earlier one; and "remove" needs none, because a veto
+entry shadows a lookup without emptying the chain. An array would have to be copied on every add; a link is
+one allocation, immutable, and shared by every context clone.
+
+> **Correction.** This paragraph originally read "*and 'remove' needs none, because setting a prefix back to
+> `default` shadows it with an empty one that reads as absent*" - treating free replacement and free removal
+> as a virtue of the mechanism, and wiring `WithChannelPrefix` straight onto it. For a *capability* like the
+> cache that is right, and `WithoutCache()` is exactly that shape. For a **prefix** it is a bug, and it
+> shipped as one: `WithChannelPrefix(a).WithChannelPrefix(b)` gave `b`, and `WithChannelPrefix(default)`
+> escaped the prefix entirely. Both halves of keyspace isolation have to behave the same way, and the other
+> half already composed - `WithKeyPrefix` folds via `WithPrefix` (§8.2), matching `DatabaseExtensions.WithKeyPrefix`,
+> which detects an already-prefixed database and re-wraps the *inner* one with the two prefixes joined.
+> The reason is the same one that made the slot compose rather than assign in the first place: a context is
+> handed down through code that does not know what its caller applied, so a library reaching for its own
+> channel namespace would silently cancel the tenant isolation above it, with a well-formed frame going to
+> the wrong channel and nothing to see afterwards. **Rule: capabilities may be vetoed; prefixes only ever
+> compose, and there is no escape** - you cannot un-prefix a `RedisKey` or unwrap a decorator either.
+> (The null-prefix early-out that remains is an allocation saving, not the mechanism: composing nothing onto
+> the existing bytes already yields the existing bytes. Confirmed by mutation, since a guard that looks
+> load-bearing and is not is exactly what a later edit gets wrong.)
 
 It is allocated per context *configuration* and never per command - and only from the second service
 onwards, since a context with exactly one keeps the bare object and never sees the chain at all.
@@ -1742,7 +1760,10 @@ gigabyte of network and a thousand pooled buffers to produce one entry.
 
 #### Cancellation makes this a now-decision, not a later one
 
-v3 adds cancellation — `RespContext` carries a token and `SendAsync` takes one — which changes the shape.
+v4 adds cancellation — `Send`/`SendAsync` take a `CancellationToken` per call — which changes the shape.
+(It was originally going to be context state, `WithCancellation(token)`; that is wrong because a token's
+lifetime is the *operation's*, not the connection's, and a context is a value built once and reused, so a
+stashed one would carry a token belonging to a long-finished request.)
 The naive implementation is then *actively wrong*: passing the first caller's token to the shared send
 means one caller's cancellation aborts everyone who joined. The shared send must use a **cache-owned**
 token, with each waiter observing its own independently. So if cancellation is arriving anyway, this
