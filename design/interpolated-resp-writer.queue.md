@@ -26,11 +26,20 @@ Four consequences, none of them cosmetic:
    permanent residue and become **release blockers**. Deferring them is a temporary state with a mandatory
    exit, not an end state.
 
-3. **Therefore the raw executor is mandatory, not optional.** The `Message` shim cannot be the permanent
-   execution path, because the commands it cannot express are commands V4 has to ship. Its full cost -
-   MOVED/ASK redirection, backlog, timeouts, retry, profiling, high-integrity checksums - has to be paid by
-   something. Sizing that is now a **release-planning** question, and finding out late is how a version
-   fails to ship.
+3. **The `Message` layer is load-bearing, and a second write path is not merely unattractive - it is
+   incoherent.** The backlog is one `ConcurrentQueue<Message>` per bridge, and `FrameMessage : Message`, so
+   frames *already* participate in ordering, backlog replay, retry accounting and the reconnect handshake.
+   Two owners of one socket's write path cannot share any of those. So "build a raw executor beside the
+   shim" is not an option at all, and the shim is not a hack to escape - it is what lets frames have those
+   properties for free.
+
+   **Which means the vexing commands need composition, not a new path.** Both mechanisms already exist in
+   that layer: `IMultiMessage` (one logical message expanding into several, written as a unit - this is how
+   `TransactionMessage` does MULTI/EXEC today) and write-lock injection (a connection-local preamble decided
+   once the connection is known - this is how `HashImport` does PREPARE). What the frame surface lacks is a
+   frame-shaped participant in each. That is a far smaller and strictly additive piece of work than a raw
+   executor, and none of MOVED/ASK, backlog, timeouts, retry, profiling or high-integrity has to be
+   reimplemented, because we never leave the path that already has them.
 
 4. **`[Experimental]` is a staging label, not a hedge.** "We can change it later because it is
    experimental" stops being true. Public shapes - lease returns, group names, `Keys` over `Keyspace` -
