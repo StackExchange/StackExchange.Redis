@@ -38,13 +38,41 @@ namespace StackExchange.Redis
         {
             if (errorReader.IsError && RedisErrorKindMetadata.Classify(errorReader) == RedisErrorKind.NoScript)
             {
-                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
+                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH").
+                // Still true for the scripts we track, though the reasoning is subtler than when it was written:
+                // since 7.4 the server DOES evict individually, but only scripts that arrived via EVAL/EVAL_RO -
+                // and those are exactly the ones we never record as loaded and never address by hash, because
+                // that path is NoScriptCache. So anything we track got there by SCRIPT LOAD, and its absence
+                // still implies a wholesale event rather than eviction. See CommandFlags.NoScriptCache.
                 connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                 message.SetScriptUnavailable();
                 return true;
             }
 
             return false;
+        }
+
+        /// <summary>The <c>NOSCRIPT</c> decision, in one place: note it, and say whether to try again.</summary>
+        /// <remarks>
+        /// <para>
+        /// Three processors can be the target of an <c>EVALSHA</c> - the <c>RedisResult</c> one, the
+        /// <c>RespResult</c> one, and the frame path's - and this rule is subtle enough that a third copy
+        /// was where it would have gone wrong.
+        /// </para>
+        /// <para>
+        /// The stickiness is the mechanism: <see cref="Message.IsScriptUnavailable"/> is read <b>before</b>
+        /// noting, so a second <c>NOSCRIPT</c> for the same message finds the flag already set and reports
+        /// rather than retrying. That is only load-bearing when the caller supplied a <i>hash</i>: given a
+        /// body, the retry sends <c>EVAL</c> with it - because noting flushed the belief - and there is
+        /// never a second <c>NOSCRIPT</c> to guard against.
+        /// </para>
+        /// </remarks>
+        private protected static ReplyVerdict NoScriptVerdict(PhysicalConnection connection, Message message, in RespReader errorReader)
+        {
+            var alreadyTried = message.IsScriptUnavailable;
+            return NoteIfScriptUnavailable(connection, message, in errorReader) && !alreadyTried
+                ? ReplyVerdict.Reissue
+                : ReplyVerdict.Complete;
         }
 
         public static readonly ResultProcessor<bool>
@@ -260,9 +288,86 @@ namespace StackExchange.Redis
             var box = message?.ResultBox;
             box?.SetException(ex);
         }
+
+        /// <summary>
+        /// See the reply before anything consumes it, to decide something about the <i>connection</i> or
+        /// the <i>message</i> rather than to produce a result.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <c>SetResult</c> has always done two jobs - inspect, then parse - and the four processors that
+        /// needed the first had to override the whole of it to get it: take a copy of the reader, advance
+        /// the copy, look, then hand the <i>original</i> back to <c>base.SetResult</c>. Every one of them
+        /// hand-rolled that rewind, and getting it wrong means parsing from the wrong position, which
+        /// presents as somebody else's reply arriving for your command.
+        /// </para>
+        /// <para>
+        /// The reader is passed by <c>in</c> and at the <b>start</b> of the reply, so an implementation
+        /// copies it and advances the copy - the caller's position cannot be disturbed, which is the
+        /// property the rewind dance was manually preserving.
+        /// </para>
+        /// <para>
+        /// Inspection cannot yet <i>direct</i> what happens next; it can only record. The clearest cost of
+        /// that is <c>NOSCRIPT</c>: the inspection sets a flag on the message, the task faults, and six
+        /// <c>catch (RedisServerException) when (msg.IsScriptUnavailable)</c> sites re-issue - a verdict
+        /// delivered by unwinding, because there is no way to say "reissue". Giving this a return value is
+        /// the next step, and is why the seam is named rather than inlined.
+        /// </para>
+        /// </remarks>
+        protected virtual ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            => ReplyVerdict.Complete;
+
+        /// <summary>What inspecting a reply concluded should happen to the message.</summary>
+        internal enum ReplyVerdict
+        {
+            /// <summary>Carry on: parse the reply and complete the message.</summary>
+            Complete = 0,
+
+            /// <summary>
+            /// Send this same message again, to the same endpoint, and do not complete it.
+            /// </summary>
+            /// <remarks>
+            /// Only <c>NOSCRIPT</c> so far. The resend is the one <c>MOVED</c> has always used from this
+            /// same read path - <c>PrepareToResend</c> then <c>TryWriteSync</c>, returning <c>false</c> from
+            /// <c>SetResult</c> to mean "re-issued, do not complete" - rather than a second mechanism.
+            /// </remarks>
+            Reissue = 1,
+        }
+
+        /// <summary>Write the message again, to the endpoint that just answered.</summary>
+        /// <remarks>
+        /// Deliberately not <c>ServerSelectionStrategy.TryResend</c>, which is about <i>redirects</i>: it
+        /// refuses a message with no hash slot - which a keyless script has - and sets asking/no-redirect
+        /// on the way through. This is the same endpoint and the same message, with nothing to re-route.
+        /// </remarks>
+        private static bool TryReissue(PhysicalConnection connection, Message message)
+        {
+            var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+            if (server is null) return false;
+
+            try
+            {
+                message.PrepareToResend(server, isMoved: false);
+#pragma warning disable CS0618 // sync write is what the MOVED path uses from here too
+                return server.TryWriteSync(message) == WriteResult.Success;
+#pragma warning restore CS0618
+            }
+            catch
+            {
+                return false; // fall through to ordinary error handling, which still has the reply in hand
+            }
+        }
+
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
+            var verdict = Inspect(connection, message, in reader);
+            if (verdict == ReplyVerdict.Reissue && TryReissue(connection, message))
+            {
+                // re-issued: this reply is spent, and the message now belongs to its next attempt
+                return false;
+            }
+
             reader.MovePastBof();
             connection.OnDetailLog($"(core result for {message.Command}, '{reader.GetOverview()}')");
             var bridge = connection.BridgeCouldBeNull;
@@ -690,27 +795,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array with at least 2 elements: [element, score, ...], or null/empty array
-                if (reader.IsAggregate)
-                {
-                    SortedSetEntry? result = null;
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see SortedSetEntry.Resp.cs
+                if (!Redis.SortedSetEntry.TryRead(ref reader, out var result)) return false;
 
-                    // Note: null arrays report false for TryMoveNext, so no explicit null check needed
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var element = reader.ReadRedisValue();
-                        if (reader.TryMoveNext() && reader.IsScalar)
-                        {
-                            var score = reader.TryReadDouble(out var val) ? val : double.NaN;
-                            result = new SortedSetEntry(element, score);
-                        }
-                    }
-
-                    SetResult(message, result);
-                    return true;
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 
@@ -724,47 +814,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array of 2: [key, array of SortedSetEntry] or null aggregate
-                if (reader.IsAggregate)
-                {
-                    // Handle null (RESP3 pure null or RESP2 null array)
-                    if (reader.IsNull)
-                    {
-                        SetResult(message, Redis.SortedSetPopResult.Null);
-                        return true;
-                    }
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see SortedSetPopResult.Resp.cs
+                if (!Redis.SortedSetPopResult.TryRead(ref reader, out var result)) return false;
 
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var key = reader.ReadRedisKey();
-
-                        // Read the second element (array of SortedSetEntry)
-                        if (reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var entries = reader.ReadPastArray(
-                                static (ref r) =>
-                                {
-                                    // Each entry is an array of 2: [element, score]
-                                    if (r.IsAggregate && r.TryMoveNext() && r.IsScalar)
-                                    {
-                                        var element = r.ReadRedisValue();
-                                        if (r.TryMoveNext() && r.IsScalar)
-                                        {
-                                            var score = r.TryReadDouble(out var val) ? val : double.NaN;
-                                            return new SortedSetEntry(element, score);
-                                        }
-                                    }
-                                    return default;
-                                },
-                                scalar: false);
-
-                            SetResult(message, new SortedSetPopResult(key, entries!));
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 
@@ -772,31 +827,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array of 2: [key, array of values] or null aggregate
-                if (reader.IsAggregate)
-                {
-                    // Handle null (RESP3 pure null or RESP2 null array)
-                    if (reader.IsNull)
-                    {
-                        SetResult(message, Redis.ListPopResult.Null);
-                        return true;
-                    }
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see ListPopResult.Resp.cs
+                if (!Redis.ListPopResult.TryRead(ref reader, out var result)) return false;
 
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var key = reader.ReadRedisKey();
-
-                        // Read the second element (array of RedisValue)
-                        if (reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var values = reader.ReadPastRedisValues();
-                            SetResult(message, new ListPopResult(key, values!));
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 
@@ -912,11 +948,11 @@ namespace StackExchange.Redis
             private ILogger? Log { get; }
             public AutoConfigureProcessor(ILogger? log = null) => Log = log;
 
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.ReadOnly)
+                var probe = reader;
+                probe.MovePastBof();
+                if (probe.IsError && RedisErrorKindMetadata.Classify(probe) == RedisErrorKind.ReadOnly)
                 {
                     var bridge = connection.BridgeCouldBeNull;
                     if (bridge != null)
@@ -927,7 +963,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                return base.SetResult(connection, message, ref copy);
+                return ReplyVerdict.Complete;
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -1430,9 +1466,17 @@ namespace StackExchange.Redis
         /// </remarks>
         private sealed class HashImportProcessor : ResultProcessor<bool>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            /// <remarks>Not about the reply at all: the arrival of one is when the rendered arguments stop
+            /// being needed, whatever it says.</remarks>
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
+                return ReplyVerdict.Complete;
+            }
+
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                Inspect(connection, message, in reader);
                 return DemandOK.SetResult(connection, message, ref reader);
             }
 
@@ -1967,17 +2011,8 @@ namespace StackExchange.Redis
             }
         }
 
-        private static GeoPosition? ParseGeoPosition(ref RespReader reader)
-        {
-            if (reader.IsAggregate && reader.AggregateLengthIs(2)
-                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var longitude)
-                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var latitude)
-                && !reader.TryMoveNext())
-            {
-                return new GeoPosition(longitude, latitude);
-            }
-            return null;
-        }
+        // as GeoRadiusResult: the shape lives on the type, and both readers go through it
+        private static GeoPosition? ParseGeoPosition(ref RespReader reader) => GeoPosition.TryRead(ref reader);
 
         private sealed class GeoRadiusResultArrayProcessor : ResultProcessor<GeoRadiusResult[]>
         {
@@ -2007,54 +2042,10 @@ namespace StackExchange.Redis
                 return false;
             }
 
+            // the shape lives on the type it produces, so the interpolated surface's handler reads the
+            // identical reply the identical way; see GeoRadiusResult.Resp.cs
             private static GeoRadiusResult Parse(ref RespReader reader, GeoRadiusOptions options)
-            {
-                if (options == GeoRadiusOptions.None)
-                {
-                    // Without any WITH option specified, the command just returns a linear array like ["New York","Milan","Paris"].
-                    return new GeoRadiusResult(reader.ReadRedisValue(), null, null, null);
-                }
-
-                // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                if (!reader.IsAggregate)
-                {
-                    return default;
-                }
-
-                reader.MoveNext(); // Move to first element in the sub-array
-
-                // the first item in the sub-array is always the name of the returned item.
-                var member = reader.ReadRedisValue();
-
-                /*  The other information is returned in the following order as successive elements of the sub-array.
-The distance from the center as a floating point number, in the same unit specified in the radius.
-The geohash integer.
-The coordinates as an array of two items x,y (longitude,latitude).
-                 */
-                double? distance = null;
-                GeoPosition? position = null;
-                long? hash = null;
-
-                if ((options & GeoRadiusOptions.WithDistance) != 0)
-                {
-                    reader.MoveNextScalar();
-                    distance = reader.ReadDouble();
-                }
-
-                if ((options & GeoRadiusOptions.WithGeoHash) != 0)
-                {
-                    reader.MoveNextScalar();
-                    hash = reader.TryReadInt64(out var h) ? h : null;
-                }
-
-                if ((options & GeoRadiusOptions.WithCoordinates) != 0)
-                {
-                    reader.MoveNextAggregate();
-                    position = ParseGeoPosition(ref reader);
-                }
-
-                return new GeoRadiusResult(member, distance, hash, position);
-            }
+                => GeoRadiusResult.Read(ref reader, options);
         }
 
         /// <summary>
@@ -2076,86 +2067,11 @@ The coordinates as an array of two items x,y (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.IsAggregate)
-                {
-                    // Top-level array: ["matches", matches_array, "len", length_value]
-                    // Use nominal access instead of positional
-                    LCSMatchResult.LCSMatch[]? matchesArray = null;
-                    long longestMatchLength = 0;
+                // the shape lives on the type it produces, so the interpolated surface's handler reads
+                // the identical reply the identical way; see LCSMatchResult.Read.cs
+                if (!StackExchange.Redis.LCSMatchResult.TryRead(ref reader, out var result)) return false;
 
-                    var iter = reader.AggregateChildren();
-                    while (iter.MoveNext() && iter.Value.IsScalar)
-                    {
-                        LCSField field;
-                        unsafe
-                        {
-                            if (!iter.Value.TryParseScalar(&LCSFieldMetadata.TryParse, out field))
-                            {
-                                field = LCSField.Unknown;
-                            }
-                        }
-
-                        if (!iter.MoveNext()) break; // out of data
-
-                        switch (field)
-                        {
-                            case LCSField.Matches:
-                                // Read the matches array
-                                if (iter.Value.IsAggregate)
-                                {
-                                    bool failed = false;
-                                    matchesArray = iter.Value.ReadPastArray(ref failed, static (ref failed, ref reader) =>
-                                    {
-                                        // Don't even bother if we've already failed
-                                        if (!failed && reader.IsAggregate)
-                                        {
-                                            var matchChildren = reader.AggregateChildren();
-                                            if (matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var firstPos)
-                                                && matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var secondPos)
-                                                && matchChildren.MoveNext() && matchChildren.Value.IsScalar && matchChildren.Value.TryReadInt64(out var length))
-                                            {
-                                                return new LCSMatchResult.LCSMatch(firstPos, secondPos, length);
-                                            }
-                                        }
-                                        failed = true;
-                                        return default;
-                                    });
-
-                                    // Check if anything went wrong
-                                    if (failed) matchesArray = null;
-                                }
-                                break;
-
-                            case LCSField.Len:
-                                // Read the length value
-                                if (iter.Value.IsScalar)
-                                {
-                                    longestMatchLength = iter.Value.TryReadInt64(out var totalLen) ? totalLen : 0;
-                                }
-                                break;
-                        }
-                    }
-
-                    if (matchesArray is not null)
-                    {
-                        SetResult(message, new LCSMatchResult(matchesArray, longestMatchLength));
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            private static bool TryReadPosition(ref RespReader reader, out LCSMatchResult.LCSPosition position)
-            {
-                // Expecting a 2-element array: [start, end]
-                position = default;
-                if (!reader.IsAggregate) return false;
-
-                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var start))) return false;
-
-                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var end))) return false;
-
-                position = new LCSMatchResult.LCSPosition(start, end);
+                SetResult(message, result);
                 return true;
             }
         }
@@ -2356,13 +2272,11 @@ The coordinates as an array of two items x,y (longitude,latitude).
 
         private sealed class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                NoteIfScriptUnavailable(connection, message, in reader);
-                // and apply usual processing for the rest
-                return base.SetResult(connection, message, ref copy);
+                var probe = reader;
+                probe.MovePastBof();
+                return probe.IsError ? NoScriptVerdict(connection, message, in probe) : ReplyVerdict.Complete;
             }
 
             // note that top-level error messages still get handled by SetResult, but nested errors

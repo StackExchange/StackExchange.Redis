@@ -14,6 +14,31 @@ namespace StackExchange.Redis;
 public static class RespReaderExtensions
 {
     /// <summary>
+    /// A captured scalar as a <see cref="RedisValue"/>, which owns its own bytes and outlives the buffer.
+    /// </summary>
+    /// <param name="value">The value to convert.</param>
+    /// <remarks>
+    /// <para>
+    /// The bridge from the borrowed world to the owned one, and an extension rather than a member because
+    /// <see cref="RespValue"/> lives in RESPite, which knows nothing of <see cref="RedisValue"/>. Same
+    /// arrangement as <see cref="ReadRedisValue"/>, one layer up.
+    /// </para>
+    /// <para>
+    /// <c>As</c> rather than <c>To</c>, because it is usually free: nil, booleans, integers, anything of
+    /// eight bytes or fewer, and any canonically-numeric payload all pack into the struct itself. Only a
+    /// long non-numeric value copies. It is never a borrow, whichever path it takes.
+    /// </para>
+    /// </remarks>
+    public static RedisValue AsRedisValue(this in RespValue value)
+    {
+        if (value.IsNull) return RedisValue.Null;
+
+        var reader = new RespReader(value.Frame);
+        reader.MoveNext();
+        return reader.ReadRedisValue();
+    }
+
+    /// <summary>
     /// Read a scalar value as a <see cref="RedisValue"/>.
     /// </summary>
     public static RedisValue ReadRedisValue(this in RespReader reader)
@@ -79,7 +104,12 @@ public static class RespReaderExtensions
     /// than retained as a lease.
     /// </para>
     /// </remarks>
-    public static Lease<byte>? ReadLease(this in RespReader reader)
+    [Obsolete(
+        "Use the ReadLease returning ReadOnlyLease<byte> (RespReaderLeaseExtensions); this one now always " +
+        "copies, because a mutable lease must not share memory anybody else can read. It is no longer an " +
+        "extension method, so 'reader.ReadLease()' resolves to the read-only form.",
+        error: false)]
+    public static Lease<byte>? ReadLease(in RespReader reader)
     {
         reader.DemandScalar();
         if (reader.IsNull) return null;
@@ -87,18 +117,11 @@ public static class RespReaderExtensions
         var length = reader.ScalarLength();
         if (length == 0) return Lease<byte>.Empty;
 
-        // if the payload is a single contiguous run inside a buffer that supports counted reservations,
-        // point at it rather than copying; the lease then keeps that buffer alive until it is disposed,
-        // which means a small payload can pin the whole reply - deliberate, and cheaper than the copy
-        if (reader.TryReservePayload(out var reservation))
-        {
-            Debug.Assert(reservation.Length == length, "reserved length mismatch");
-            return Lease<byte>.Create(reservation.Owner, reservation.Offset, reservation.Length);
-        }
-
-        // otherwise copy - renting from the same pool the data came from, which the reader knows about
-        // via its services; there is deliberately no pool argument, because on the sharing path above
-        // any such argument would be silently ignored
+        // ALWAYS copies, and deliberately no longer reserves against the reader's buffer. A Lease<byte> is
+        // mutable - Span, Memory and ArraySegment are all writable, and ArraySegment hands out the array
+        // itself - so pointing it at memory that anything else can read lets one holder rewrite what
+        // another is about to. That was safe while every reply was single-owner; a cache entry is not.
+        // See design notes 6.16: share what cannot be written, copy what can.
         reader.TryGetService<IBufferPoolProvider>(out var pools);
         var lease = Lease<byte>.Create(length, pools?.BufferPool, clear: false);
         if (reader.TryGetSpan(out var span))

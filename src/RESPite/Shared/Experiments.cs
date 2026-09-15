@@ -22,6 +22,26 @@
         public const string Server_8_10 = "SER008";
         public const string Transport = "SER009";
 
+        /// <summary>The interpolated-string RESP writer: RespContext, the command handler, and friends.</summary>
+        public const string InterpolatedWriter = "SER010";
+
+        /// <summary>
+        /// Constructing a <c>RespFragment</c> by hand. Deliberately NOT in the global NoWarn: the whole point
+        /// is that it should be seen. Generated code suppresses it at the emit site.
+        /// </summary>
+        public const string HandWrittenRespFragment = "SER011";
+
+        /// <summary>
+        /// Borrowed reply values: <c>RespValue</c> and the commands that hand back leases of them.
+        /// </summary>
+        /// <remarks>
+        /// Separate from <see cref="InterpolatedWriter"/> deliberately: that asks whether commands should
+        /// be WRITTEN this way, this asks whether replies should be BORROWED rather than owned, and the
+        /// two can be answered differently. Turning this one off says how much of a codebase depends on
+        /// the borrowing.
+        /// </remarks>
+        public const string BorrowedValues = "SER012";
+
         // ReSharper restore InconsistentNaming
 
         // this one is not a real experiment; it exists to help me

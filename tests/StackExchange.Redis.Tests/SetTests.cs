@@ -14,7 +14,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key);
         for (int i = 1; i < 1001; i++)
         {
@@ -46,7 +46,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         await db.KeyDeleteAsync(key);
         for (int i = 1; i < 1001; i++)
         {
@@ -77,7 +77,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
@@ -103,7 +103,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
@@ -129,7 +129,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
@@ -160,7 +160,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
@@ -188,7 +188,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
@@ -210,7 +210,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var server = GetAnyPrimary(conn);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         int totalUnfiltered = 0, totalFiltered = 0;
         for (int i = 1; i < 1001; i++)
         {
@@ -233,7 +233,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         RedisValue[]? values = null;
@@ -250,7 +250,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -276,7 +276,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -302,7 +302,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -328,7 +328,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -354,7 +354,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -376,7 +376,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -392,7 +392,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -410,7 +410,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -424,7 +424,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.KeyDeleteAsync(key);
 
@@ -445,7 +445,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.KeyDeleteAsync(key);
 

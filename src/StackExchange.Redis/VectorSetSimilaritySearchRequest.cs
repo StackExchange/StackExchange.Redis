@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using VsimFlags = StackExchange.Redis.VectorSetSimilaritySearchMessage.VsimFlags;
 
@@ -7,21 +7,25 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Represents the request for a vector similarity search operation.
 /// </summary>
-public abstract class VectorSetSimilaritySearchRequest
+public abstract partial class VectorSetSimilaritySearchRequest
 {
     internal VectorSetSimilaritySearchRequest()
     {
     } // polymorphism left open for future, but needs to be handled internally
 
-    private sealed class VectorSetSimilarityByMemberSearchRequest(RedisValue member) : VectorSetSimilaritySearchRequest
+    private sealed partial class VectorSetSimilarityByMemberSearchRequest(RedisValue member) : VectorSetSimilaritySearchRequest
     {
+        // a named field rather than a captured parameter: the interpolated writer lives in the other half
+        // of this type and needs to see it; see VectorSetSimilaritySearchRequest.Resp.cs
+        private readonly RedisValue _member = member;
+
         internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
             => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchByMemberMessage(
                 db,
                 flags,
                 _vsimFlags,
                 key,
-                member,
+                _member,
                 _count,
                 _epsilon,
                 _searchExplorationFactor,
@@ -30,16 +34,19 @@ public abstract class VectorSetSimilaritySearchRequest
                 UseFp32);
     }
 
-    private sealed class VectorSetSimilarityVectorSingleSearchRequest(ReadOnlyMemory<float> vector)
+    private sealed partial class VectorSetSimilarityVectorSingleSearchRequest(ReadOnlyMemory<float> vector)
         : VectorSetSimilaritySearchRequest
     {
+        /// <inheritdoc cref="VectorSetSimilarityByMemberSearchRequest._member"/>
+        private readonly ReadOnlyMemory<float> _vector = vector;
+
         internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
             => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchBySingleVectorMessage(
                 db,
                 flags,
                 _vsimFlags,
                 key,
-                vector,
+                _vector,
                 _count,
                 _epsilon,
                 _searchExplorationFactor,

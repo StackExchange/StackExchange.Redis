@@ -573,6 +573,20 @@ namespace StackExchange.Redis
 
         internal void Activate(ConnectionType type, ILogger? log) => GetBridge(type, true, log);
 
+        /// <summary>Whether this endpoint is believed to already hold <paramref name="script"/>.</summary>
+        /// <remarks>
+        /// The belief is <b>soft</b>, and safely so in both directions: believing wrongly that it is held
+        /// costs a <c>NOSCRIPT</c> and a retry, and believing wrongly that it is not costs a redundant
+        /// <c>SCRIPT LOAD</c>, which is idempotent. So it needs no careful invalidation beyond the
+        /// <c>RunId</c> check and <see cref="FlushScriptCache"/> that already exist.
+        /// <para>
+        /// Unlike <see cref="GetScriptHash"/> this has no side effect: that one adopts a hash it was handed
+        /// as an <c>EVALSHA</c> argument, which is a write, and is the wrong question to ask when all you
+        /// want to know is whether a preamble can be skipped.
+        /// </para>
+        /// </remarks>
+        internal bool IsScriptLoaded(string script) => knownScripts[script] is not null;
+
         internal void AddScript(string script, byte[] hash)
         {
             lock (knownScripts)
@@ -633,7 +647,7 @@ namespace StackExchange.Redis
             if (commandMap.IsAvailable(RedisCommand.SENTINEL))
             {
                 // SENTINEL MASTERS only reads the sentinel's view, despite SENTINEL defaulting to server-admin
-                msg = Message.Create(-1, flags.WithCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+                msg = Message.Create(-1, flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
@@ -727,6 +741,67 @@ namespace StackExchange.Redis
             {
                 return Task.FromException(ex);
             }
+        }
+
+        /// <summary>
+        /// Ask the server to announce changes to the keys this connection cares about, if a cache wants them.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Interactive only, and RESP3 only.</b> Invalidations arrive as out-of-band pushes on the
+        /// connection that asked for them, so they must land where the reads are - and in RESP2 a push has
+        /// nowhere to go without <c>REDIRECT</c> to a subscriber connection, which this does not model.
+        /// </para>
+        /// <para>
+        /// <b>It refuses loudly rather than degrading.</b> A cache that is filled but never invalidated is
+        /// worse than no cache: it is silently, durably wrong, bounded only by the entry lifetime. So if
+        /// tracking cannot be established the connection fails rather than quietly serving stale data - the
+        /// one case where taking the connection down is the kinder outcome.
+        /// </para>
+        /// </remarks>
+        private async Task EnableClientTrackingAsync(PhysicalConnection connection, ILogger? log, bool negotiateResp3)
+        {
+            var cache = Multiplexer.ClientCache;
+            if (cache is null) return; // no cache, nothing to keep honest
+
+            if (connection.BridgeCouldBeNull?.ConnectionType != ConnectionType.Interactive) return;
+
+            // note we test the *intent*, not connection.Protocol: HELLO is written no-flush/fire-and-forget,
+            // so its reply has not been seen yet and the protocol is still unknown here. If the server then
+            // declines RESP3 anyway, it also declines CLIENT TRACKING, and DemandOK fails the connection -
+            // which is the same loud outcome by a different route.
+            if (!negotiateResp3)
+            {
+                const string Message =
+                    "Client-side caching requires RESP3: invalidation arrives as an out-of-band push, which"
+                    + " RESP2 cannot deliver on this connection. Set Protocol = RedisProtocol.Resp3, or clear"
+                    + " ConfigurationOptions.ClientCache.";
+                throw new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.CommandRetryNever, Message);
+            }
+
+            var options = cache.Options;
+            var broadcast = options.TrackingMode == Interpolated.CacheTrackingMode.Broadcast;
+            var prefixes = options.Prefixes;
+
+            // CLIENT TRACKING ON [BCAST] [PREFIX p]...
+            var args = new RedisValue[2 + (broadcast ? 1 : 0) + (prefixes.Count * 2)];
+            var index = 0;
+            args[index++] = RedisLiterals.TRACKING;
+            args[index++] = RedisLiterals.ON;
+            if (broadcast) args[index++] = RedisLiterals.BCAST;
+            foreach (var prefix in prefixes)
+            {
+                args[index++] = RedisLiterals.PREFIX;
+
+                // a write, so the string really is the payload: AsRedisValue per docs/exp/StringToRedisValue.
+                // The implicit conversion is [Experimental] in DEBUG only, so Release never sees this - which
+                // is exactly how it was missed.
+                args[index++] = prefix.AsRedisValue();
+            }
+
+            var tracking = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, args);
+            tracking.SetInternalCall();
+            await WriteDirectOrQueueFireAndForgetAsync(connection, tracking, ResultProcessor.DemandOK).ForAwait();
         }
 
         internal void FlushScriptCache()
@@ -1332,6 +1407,8 @@ namespace StackExchange.Redis
                 msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.ID);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+
+                await EnableClientTrackingAsync(connection, log, negotiateResp3).ForAwait();
             }
 
             var bridge = connection.BridgeCouldBeNull;

@@ -10,7 +10,7 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="index">The array index.</param>
 /// <param name="value">The value at this index.</param>
-public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) : IEquatable<RedisArrayEntry>
+public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) : IEquatable<RedisArrayEntry>, Interpolated.IRespArgument
 {
     private readonly RedisArrayIndex _index = index;
     private readonly RedisValue _value = value;
@@ -29,6 +29,18 @@ public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) 
     /// The value at this index.
     /// </summary>
     public RedisValue Value => _value;
+
+    /// <summary>Writes this entry as two arguments, index then value.</summary>
+    /// <remarks>
+    /// Explicit, as <see cref="HashEntry"/> does it: reached only through a command hole, which is the one
+    /// place it means anything. Two arguments, so a span of these renders as a run through the handler's
+    /// open span hole rather than needing an overload of its own.
+    /// </remarks>
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    {
+        handler.AppendFormatted(_index);
+        handler.AppendFormatted(_value);
+    }
 
     /// <summary>
     /// Converts to a key/value pair.

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -28,6 +28,41 @@ namespace StackExchange.Redis;
 /// hygiene for long-lived connections.
 /// </para>
 /// <para>A single <see cref="HashImport"/> is safe to use concurrently and against multiple databases/multiplexers.</para>
+/// <para>
+/// <b>Why this cannot currently move to the interpolated command surface.</b> Every other command moved so far
+/// is a pure function from arguments to bytes; <c>HIMPORT SET</c> is not, because it references state that must
+/// already exist on the socket it lands on. The nearest sibling is <c>EVALSHA</c>, which has the same shape -
+/// an optimistic short reference to a named, cached payload, where the client's belief that the payload is
+/// present can be wrong - and the comparison is instructive precisely because of where it breaks:
+/// </para>
+/// <list type="bullet">
+/// <item><description>
+/// <b>Scope.</b> The script cache is server-wide, so an <c>EVALSHA</c> recovery can be routed like any other
+/// command. A field-set is connection-local, so a recovery must reach one specific socket.
+/// </description></item>
+/// <item><description>
+/// <b>Fallback form.</b> <c>EVAL &lt;script&gt;</c> is a single self-contained command carrying everything the
+/// hash referenced, so a <c>NOSCRIPT</c> is recovered by re-rendering one message (see
+/// <c>ResultProcessor.RespResult</c>, which keeps the request buffer alive for exactly that). <c>HIMPORT SET</c>
+/// has <b>no</b> such form. <c>HSET</c> is not it: this command <i>replaces</i> the hash at the key, where
+/// <c>HSET</c> merges into it, so the inline expansion would be <c>DEL</c> plus <c>HSET</c> - two commands,
+/// not atomic, and a different failure profile. Recovery is therefore inherently two ordered commands that
+/// must share a connection.
+/// </description></item>
+/// </list>
+/// <para>
+/// Which is why the <c>PREPARE</c> is injected inside the bridge's write lock rather than anywhere earlier:
+/// that is the only point at which the connection is known and nothing has been written yet, and it is exactly
+/// the window a two-command, connection-local recovery needs. Acting there is what lets this type avoid pinning
+/// a connection at all. A frame-based surface has no such point - it hands an opaque payload to an executor and
+/// the connection is chosen afterwards - so expressing this outside the bridge would need <i>connection</i>
+/// affinity across a retry, and <c>CommandServerSpecific</c> pins an endpoint, not a connection.
+/// </para>
+/// <para>
+/// Note the comparison with <c>SELECT</c> injection is a red herring, tempting though the shared mechanism is:
+/// a database index is a register the client mirrors and is the sole author of, so it can never miss. This and
+/// <c>EVALSHA</c> are lookups by name that can.
+/// </para>
 /// </remarks>
 [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
 public sealed class HashImport : IDisposable, IAsyncDisposable
@@ -195,9 +230,14 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     }
 }
 
-// HIMPORT SET <key> <field-set> <value...>: the user-facing per-row import. Carries a reference to its field-set so
-// the write path can inject a PREPARE the first time this field-set is seen on a connection (see PhysicalBridge).
-internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedArgsOwner
+// HIMPORT SET <key> <field-set> <value...>: the user-facing per-row import, composed with the PREPARE that has to
+// precede it the first time this field-set is seen on a connection.
+//
+// This used to be a hard-coded type test inside the bridge's write lock. It is an IMultiMessage now, because that IS
+// the same seam: GetMessages is called from WriteMessageInsideLock with the PhysicalConnection in hand, which is
+// exactly "once the connection is known, inside the write lock". Same mechanism as the frame surface's composed
+// pair, so there is one way to say this rather than two.
+internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedArgsOwner, IMultiMessage
 {
     private readonly HashImport _fieldSet;
 
@@ -216,6 +256,37 @@ internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedAr
     void IRenderedArgsOwner.ReleaseRenderedArgs() => RenderedArgs.Recycle(ref _values);
 
     internal HashImport FieldSet => _fieldSet;
+
+    // the PREPARE defines the connection-local name this SET references; without it the server has never heard of
+    // the field-set. Refusing here is also what keeps it out of a MULTI, where an injected PREPARE would take a slot
+    // in the positional EXEC array - RedisDatabase.GetHashImportMessage refuses that earlier and with a better
+    // message, so this is the structural backstop rather than the first line of defence.
+    public bool CanWriteWithoutExpansion => false;
+
+    // Not an iterator: the claim below has to happen on every write attempt, including the usual one where the
+    // field-set is already prepared and we decline. An iterator would defer it to the first MoveNext, which never
+    // comes when the answer is null. (Same reason ScriptEvalMessage splits this in two.)
+    public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
+    {
+        // claimed at WRITE time, not when a reply confirms it. This runs inside the write lock, which is the only
+        // place where "has this connection prepared it?" and "write it" are one decision - and a burst of imports
+        // issued before the first PREPARE's reply landed would otherwise each inject their own. Measured on the
+        // frame-surface probe: confirm-on-reply injects one preamble per command, claim-on-write injects one.
+        // A claim that then fails to write dies with the connection, which starts empty.
+        if (!connection.TryAddPreparedFieldSet(_fieldSet.Id)) return null; // already prepared: write me alone
+
+        var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+        if (server is not null) _fieldSet.RegisterServer(server, Db);
+        return Expand();
+    }
+
+    // the tail is `this`, not a copy: the caller's result box is on this message, and only the messages yielded here
+    // are enqueued for a reply
+    private IEnumerable<Message> Expand()
+    {
+        yield return _fieldSet.CreatePrepareMessage(Db);
+        yield return this;
+    }
 
     protected override void WriteImpl(in MessageWriter writer)
     {
@@ -252,8 +323,19 @@ internal sealed class HashImportPrepareMessage : Message
 
 // HIMPORT DISCARD <field-set>: targeted cleanup of a single field-set, issued on disposal. Deliberately not
 // DISCARDALL, which would drop sibling field-sets sharing the connection.
-internal sealed class HashImportDiscardMessage : Message
+internal sealed class HashImportDiscardMessage : Message, IMultiMessage
 {
+    // nothing to compose - this is the one place that learns which connection a DISCARD lands on, and the
+    // connection's set of prepared ids has to drop this one so it stays bounded to live field-sets over the life of
+    // a long-lived connection. Declining the expansion (null) is "write me normally", which is all this wants.
+    public bool CanWriteWithoutExpansion => true;
+
+    public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
+    {
+        connection.RemovePreparedFieldSet(FieldSetId);
+        return null;
+    }
+
     private readonly HashImport _fieldSet;
 
     public HashImportDiscardMessage(int db, CommandFlags flags, HashImport fieldSet)

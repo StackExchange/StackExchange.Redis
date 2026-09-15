@@ -1,0 +1,152 @@
+﻿using System;
+using System.Text;
+using StackExchange.Redis.Interpolated;
+using Xunit;
+
+namespace StackExchange.Redis.Tests;
+
+/// <summary>
+/// A worked example of the experimental interpolated RESP writer, covering the shapes a caller would
+/// actually use. Doubles as documentation: each case shows the call, the exact frame it renders, and the
+/// routing/key metadata folded while writing. See design/interpolated-resp-writer.md.
+/// </summary>
+public class InterpolatedWriterDemo
+{
+    /// <summary>Render the frame with CRLF shown as '|', so expectations stay readable.</summary>
+    private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
+
+    // sized from KeyCount, NOT a fixed two: a fixed buffer makes TryGetKeys report -1 for "target too
+    // small", which is indistinguishable here from "this frame cannot report its keys"
+    private static string Keys(in RespFrame frame)
+    {
+        var count = frame.KeyCount;
+        if (count < 0) return "<unavailable>";
+        var ranges = new KeyRange[count];
+        Assert.Equal(count, frame.TryGetKeys(ranges));
+        var parts = new string[count];
+        for (int i = 0; i < count; i++) parts[i] = Encoding.UTF8.GetString(frame.GetKey(ranges[i]).ToArray());
+        return string.Join(",", parts);
+    }
+
+    private static readonly RespContext Cluster = new(serverType: ServerType.Cluster);
+
+    [Fact]
+    public void FixedArity()
+    {
+        using var frame = Cluster.Render(RedisCommand.GET, $"{(RedisKey)"user:1"}");
+
+        Assert.Equal("*2|$3|GET|$6|user:1|", Frame(frame));
+        Assert.Equal("user:1", Keys(frame));
+        Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"user:1"), frame.Slot);
+    }
+
+    [Fact]
+    public void KeyAndValue()
+    {
+        using var frame = Cluster.Render(RedisCommand.SET, $"{(RedisKey)"user:1"} {(RedisValue)"marc"}");
+
+        Assert.Equal("*3|$3|SET|$6|user:1|$4|marc|", Frame(frame));
+        Assert.Equal("user:1", Keys(frame)); // the value is not a key, and is not marked as one
+    }
+
+    [Fact]
+    public void KeyspaceIsolation()
+    {
+        var tenant = Cluster.AppendKeyPrefix("t7:");
+        using var frame = tenant.Render(RedisCommand.GET, $"{(RedisKey)"user:1"}");
+
+        Assert.Equal("*2|$3|GET|$9|t7:user:1|", Frame(frame));
+        Assert.Equal("t7:user:1", Keys(frame));
+
+        // the slot follows the PREFIXED key, so tenants do not collide on a slot either
+        using var plain = Cluster.Render(RedisCommand.GET, $"{(RedisKey)"user:1"}");
+        Assert.NotEqual(plain.Slot, frame.Slot);
+    }
+
+    [Fact]
+    public void OptionalArguments()
+    {
+        var cmd = Cluster.Compose(RedisCommand.SET, $"{(RedisKey)"user:1"} {(RedisValue)"marc"}");
+        cmd.AppendFormatted((RedisValue)"EX");
+        cmd.AppendFormatted((RedisValue)300);
+        using var frame = Cluster.Render(ref cmd);
+
+        Assert.Equal("*5|$3|SET|$6|user:1|$4|marc|$2|EX|$3|300|", Frame(frame));
+        Assert.Equal("user:1", Keys(frame));
+    }
+
+    [Fact]
+    public void VariadicWithSharedHashTag()
+    {
+        var keys = new RedisKey[] { "{u}:a", "{u}:b", "{u}:c" };
+        var cmd = Cluster.Compose(RedisCommand.DEL, keys.Length);
+        foreach (var key in keys) cmd.AppendFormatted(key);
+        using var frame = Cluster.Render(ref cmd);
+
+        Assert.Equal("*4|$3|DEL|$5|{u}:a|$5|{u}:b|$5|{u}:c|", Frame(frame));
+        // beyond two keys the inline offsets give out, but the argument-index bitmap still resolves them
+        Assert.True(frame.KeysNeedScan);
+        Assert.Equal("{u}:a,{u}:b,{u}:c", Keys(frame));
+        Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"{u}:a"), frame.Slot);
+    }
+
+    /// <summary>
+    /// Past the bitmap's 62 arguments the frame stops being able to <i>report</i> its keys - but it never
+    /// stopped <i>routing</i> on them.
+    /// </summary>
+    /// <remarks>
+    /// Two different fields doing two different jobs, and only one of them has a limit. The slot is folded
+    /// over each key's bytes as they are written, with no cap; the 62 is the argument-index bitmap, which
+    /// exists so a <i>cache</i> can know what to invalidate. Losing the second is a refusal to cache -
+    /// asserted in <c>RespClientCacheTests</c> - and would be a routing bug if it were ever allowed to
+    /// become the first, which is what this pins.
+    /// </remarks>
+    [Fact]
+    public void KeysBeyondTheBitmapStillRoute()
+    {
+        const int Count = 70; // comfortably past MaxBitmapArg (62)
+
+        var shared = new RespCommandHandler(0, Count, Cluster, "MGET");
+        for (var i = 0; i < Count; i++) shared.AppendFormatted((RedisKey)("{u}:" + i));
+        using var sharedFrame = shared.Complete();
+
+        Assert.Equal(-1, sharedFrame.KeyCount); // cannot report them...
+        Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"{u}:0"), sharedFrame.Slot); // ...still routes
+
+        // the case that actually pins it: everything up to the bitmap's limit agrees, and ONLY a key
+        // beyond it disagrees. Keys that already differ within the first 62 would report MultipleSlots
+        // whether or not the tail was folded, so they prove nothing about the tail.
+        var tail = new RespCommandHandler(0, Count, Cluster, "MGET");
+        for (var i = 0; i < Count - 1; i++) tail.AppendFormatted((RedisKey)("{u}:" + i));
+        tail.AppendFormatted((RedisKey)"{elsewhere}:last");
+        using var tailFrame = tail.Complete();
+
+        Assert.Equal(-1, tailFrame.KeyCount);
+        Assert.Equal(
+            ServerSelectionStrategy.MultipleSlots,
+            tailFrame.Slot); // a key past the bitmap still moved the slot: it is routing, not reporting
+    }
+
+    [Fact]
+    public void CrossSlotIsDetected()
+    {
+        var cmd = Cluster.Compose(RedisCommand.DEL, 2);
+        cmd.AppendFormatted((RedisKey)"alpha");
+        cmd.AppendFormatted((RedisKey)"beta");
+        using var frame = Cluster.Render(ref cmd);
+
+        Assert.Equal("*3|$3|DEL|$5|alpha|$4|beta|", Frame(frame));
+        Assert.Equal(ServerSelectionStrategy.MultipleSlots, frame.Slot);
+    }
+
+    [Fact]
+    public void ChannelPrefix()
+    {
+        var pub = Cluster.AppendChannelPrefix(new RedisChannel("app:", RedisChannel.PatternMode.Literal));
+        var channel = new RedisChannel("news", RedisChannel.PatternMode.Literal);
+        using var frame = pub.Render(RedisCommand.PUBLISH, $"{channel} {(RedisValue)"hi"}");
+
+        Assert.Equal("*3|$7|PUBLISH|$8|app:news|$2|hi|", Frame(frame));
+        Assert.Equal("", Keys(frame)); // a channel is not a key
+    }
+}

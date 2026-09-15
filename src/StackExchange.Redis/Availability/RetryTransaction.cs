@@ -33,6 +33,12 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     private readonly IDatabaseAsync _source;
     private readonly RetryController _controller;
 
+    /// <inheritdoc cref="RetryDatabase.Context"/>
+    public Interpolated.RespContext Context
+        => throw new NotImplementedException(
+            "The context surface does not yet support retry; a retry executor is separate work, and "
+            + "forwarding the inner context here would silently drop the retry.");
+
     // not readonly, and null until something is recorded: ExecuteAsync takes it and clears it, so the
     // replay loop below runs over a list nothing else can still be adding to. A caller doing something
     // strange - recording from another thread while executing - then gets an empty transaction rather than

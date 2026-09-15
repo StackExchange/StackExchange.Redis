@@ -1,0 +1,293 @@
+﻿using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using RESPite.Messages;
+
+namespace StackExchange.Redis.Interpolated
+{
+    /// <summary>
+    /// EXPERIMENTAL SPIKE. Sends a pre-rendered frame through the existing message pipeline.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The transition bridge, in the direction that matters for actually talking to a server: the frame is
+    /// already framed, so the <c>Message</c> wrapping it only has to blit bytes, and the
+    /// <c>ResultProcessor</c> only has to hand the raw reply back. Everything between - connection
+    /// selection, the backlog, multiplexing, failover - is the existing pipeline, untouched.
+    /// </para>
+    /// <para>
+    /// This exists so the new surface can be validated end to end against a real server before anything is
+    /// rewritten. It is <b>scaffolding, not a destination</b>: long term the <c>Message</c> machinery goes
+    /// away entirely, replaced by state representing an execution life-cycle, and a rendered frame reaches
+    /// the connection with nothing in between.
+    /// </para>
+    /// <para>
+    /// Worth noting what the wrapping costs, because it is almost nothing: <b>one</b> message type covers
+    /// every pre-formatted command. The library currently has 75 <c>WriteImpl</c> overrides across 20
+    /// files, and they exist only because each command shape writes itself differently. Once the bytes
+    /// arrive already framed, there is one shape.
+    /// </para>
+    /// </remarks>
+    internal sealed class RespMessageExecutor : IRespExecutor, IRespPreambleExecutor
+    {
+        private readonly RedisBase _target;
+
+        internal RespMessageExecutor(RedisBase target, int database)
+        {
+            _target = target;
+            Database = database;
+        }
+
+        public int Database { get; }
+
+        /// <summary>Issue the request and return the reply; null if the caller declined one.</summary>
+        /// <param name="request">The rendered request.</param>
+        /// <remarks>
+        /// <b>No reply is an error, except when it was asked for.</b> Fire-and-forget returns the default
+        /// from the pipeline - which is null here - and that is the answer, not a fault; the asynchronous
+        /// twin below has always passed it straight back. Without the distinction this threw
+        /// <c>"No reply."</c> at every synchronous fire-and-forget command on this surface.
+        /// </remarks>
+        public RespPayload Send(in RespRequest request)
+        {
+            var message = new FrameMessage(Database, request);
+            var reply = _target.ExecuteSync(message, PayloadProcessor.Instance);
+            if (reply is null && (request.Flags & CommandFlags.FireAndForget) == 0)
+            {
+                throw new RedisException("No reply.");
+            }
+
+            return reply!; // null only for fire-and-forget, which every consumer already tests for
+        }
+
+        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        {
+            // the existing pipeline has no cancellation; the token is observed by the caller's await, which
+            // is the model settled in design notes section 6.11 - the request completes by itself
+            var message = new FrameMessage(Database, request);
+            return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);
+        }
+
+        /// <summary>
+        /// Write a preamble and a request as one unit, so nothing interleaves and both reach one connection.
+        /// </summary>
+        /// <remarks>
+        /// An <see cref="IMultiMessage"/>, which is how the pipeline has always expressed "these go
+        /// together" - it is what <c>ScriptEvalMessage</c> uses for exactly this pairing today. Going
+        /// through it rather than around it means the pair inherits ordering, the backlog, retry and the
+        /// reconnect handshake, none of which a second write path could have shared.
+        /// </remarks>
+        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+        {
+            var message = new FramePairMessage(Database, preamble, request, gate);
+            return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);
+        }
+
+        /// <summary>A preamble and a request, expanded into two messages that are written together.</summary>
+        /// <remarks>
+        /// The preamble's reply is consumed and thrown away - it exists for its effect on the connection,
+        /// not for its value - so it carries a processor that demands nothing of it. The pair routes by the
+        /// <b>request</b>, because the preamble is typically keyless and would otherwise route anywhere.
+        /// </remarks>
+        private sealed class FramePairMessage : Message, IMultiMessage
+        {
+            /// <remarks>
+            /// No: the request half alone would be an <c>EVALSHA</c> with no <c>SCRIPT LOAD</c> behind it.
+            /// Unlike the classic script messages there is no body-carrying spelling to fall back to, so a
+            /// dropped expansion is a <c>NOSCRIPT</c> waiting inside someone's <c>EXEC</c> array.
+            /// </remarks>
+            public bool CanWriteWithoutExpansion => false;
+
+            private readonly int _database;
+            private readonly RespRequest _preamble;
+            private readonly RespRequest _request;
+            private readonly IRespPreambleGate? _gate;
+
+            internal FramePairMessage(int database, in RespRequest preamble, in RespRequest request, IRespPreambleGate? gate = null)
+                : base(database, request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
+            {
+                _database = database;
+                _preamble = preamble;
+                _request = request;
+                _gate = gate;
+            }
+
+            public override int ArgCount => _request.ArgCount - 1;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
+
+            /// <remarks>
+            /// <b>The tail is <c>this</c>, not a second message.</b> The caller's result box is on this
+            /// message - it is what <c>ExecuteAsync</c> was handed - and only the messages yielded here are
+            /// enqueued for a reply. Yielding a fresh <c>FrameMessage</c> for the request instead left this
+            /// one holding the caller's task, never enqueued, and therefore never completed. Same shape as
+            /// <c>ScriptEvalMessage</c>, which yields itself for the same reason.
+            /// </remarks>
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
+                // the write-time half: the connection - and so the endpoint whose script cache is in
+                // question - is not known until here, which is why this cannot be decided when rendering
+                => _gate is { } gate && !gate.IsNeeded(connection) ? null : Expand();
+
+            private IEnumerable<Message> Expand()
+            {
+                var head = new FrameMessage(_database, _preamble, _gate);
+                head.SetInternalCall();
+                head.SetSource(PreambleProcessor.Instance, null);
+                yield return head;
+                yield return this;
+            }
+
+            /// <remarks>
+            /// Writing the pair means writing its <i>request</i>: the preamble is a separate message, and
+            /// this one must still be writable on its own for the path where the expansion is declined.
+            /// </remarks>
+            protected override void WriteImpl(in MessageWriter writer) => writer.WriteRaw(_request.Span);
+        }
+
+        /// <summary>A message whose body is already framed: writing it is a blit.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Ownership, and the one case where a blit is not enough.</b> The pipeline writes a message
+        /// some time after the caller regains control, and the caller's <c>RespRequest</c> owns a pooled,
+        /// reference-counted buffer that it disposes when its own call is done. For an ordinary command
+        /// those two orderings cannot cross: "the call is done" means the reply arrived, which is strictly
+        /// after the write.
+        /// </para>
+        /// <para>
+        /// <b>Fire-and-forget breaks that.</b> The caller has declined the reply, so its call completes the
+        /// instant the message is queued - and its dispose then hands the buffer back to the pool while it
+        /// is still sitting in the write queue. The symptom is not subtle but it is far away: an
+        /// <see cref="ObjectDisposedException"/> from inside <c>WriteMessageToServerInsideWriteLock</c>,
+        /// which kills the connection and fails every other command in flight on it. Found by running the
+        /// existing test suite against this path, which is exactly what that exercise is for.
+        /// </para>
+        /// <para>
+        /// So a fire-and-forget message takes a plain copy of the bytes. Not a pooled one: a rented array
+        /// would need returning, and "when is it safe to return this?" is the question that just went
+        /// wrong. Fire-and-forget is the path that has already chosen throughput over bookkeeping, and one
+        /// short-lived array is a cheaper answer than a lifetime protocol.
+        /// </para>
+        /// </remarks>
+        private sealed class FrameMessage : Message
+        {
+            private readonly RespRequest _request;
+            private readonly byte[]? _copy;
+
+            /// <summary>Set only on a preamble, and only when it establishes something skippable.</summary>
+            internal IRespPreambleGate? Gate { get; }
+
+            internal FrameMessage(int database, in RespRequest request, IRespPreambleGate? gate = null)
+                // the command's identity, not just its bytes: without it the pipeline cannot tell a write
+                // from a read, so IsPrimaryOnly lets a write be routed to a replica, and a profiler
+                // reports every command in the library as UNKNOWN
+                : base(DatabaseFor(database, request.Command), request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
+            {
+                _request = request;
+                Gate = gate;
+                if ((request.Flags & CommandFlags.FireAndForget) != 0)
+                {
+                    _copy = request.Span.ToArray();
+                }
+            }
+
+            // an over-estimate is allowed, and the frame knows exactly
+
+            /// <remarks>
+            /// <b>Minus the command.</b> Every other <see cref="Message"/> reports the count the writer
+            /// then adds one to for the <c>*N</c> header, whereas a frame's own count already includes the
+            /// command - it counted while writing. Reporting the frame's number directly would make
+            /// <c>CheckMessage</c> reject a frame one argument earlier than the identical classic message.
+            /// </remarks>
+            public override int ArgCount => _request.ArgCount - 1;
+
+            // the slot was folded during the write, so routing needs no second look at the keys
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
+
+            /// <summary>Drop a database the command does not take, rather than asserting on it.</summary>
+            /// <remarks>
+            /// A context carries a database because most commands need one, but a global command -
+            /// <c>SCRIPT</c>, <c>CLIENT</c>, <c>INFO</c> - rejects it outright: "A target database is not
+            /// required for SCRIPT", thrown at write time, which fails the connection rather than the call.
+            /// The same normalisation the ad-hoc <c>Execute</c> path already does, and for the same reason -
+            /// the caller did not ask for a database, the context simply had one.
+            /// </remarks>
+            private static int DatabaseFor(int database, RedisCommand command)
+                => database >= 0 && !RequiresDatabase(command) ? -1 : database;
+
+            protected override void WriteImpl(in MessageWriter writer)
+                => writer.WriteRaw(_copy ?? _request.Span);
+        }
+
+        /// <summary>Consumes a preamble's reply without judging it.</summary>
+        /// <remarks>
+        /// A preamble is sent for its effect on the connection, not its value, and different preambles
+        /// answer differently - <c>SCRIPT LOAD</c> replies with a 40-byte hash, not <c>+OK</c>. This used to
+        /// be <c>DemandOK</c>, which rejects that hash as an unexpected response and takes the connection
+        /// down with it; nothing noticed because every test of this path replied "+OK" from a fake.
+        /// Errors still fault the message - the base handles those before this is reached - so accepting
+        /// anything here means accepting any <i>successful</i> reply.
+        /// </remarks>
+        private sealed class PreambleProcessor : ResultProcessor<bool>
+        {
+            internal static readonly PreambleProcessor Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                // reached only on success - the base handles errors before this - so this is the point at
+                // which the effect is known to hold, matching where ResultProcessor.ScriptLoad records the
+                // classic path's belief. Recording on send would claim an effect the server never confirmed.
+                if (message is FrameMessage { Gate: { } gate }) gate.OnEstablished(connection);
+
+                SetResult(message, true);
+                return true;
+            }
+        }
+
+        /// <summary>Captures the raw reply, undecoded, for the handler (or the cache) to read.</summary>
+        /// <remarks>
+        /// Same shape as <c>ResultProcessor.RespResult</c>, and for the same reason: <c>SetResult</c> is
+        /// overridden rather than <c>SetResultCore</c>, so this runs <b>before</b> the base implementation's
+        /// <c>MovePastBof()</c> consumes the prefix and length bytes that the capture needs.
+        /// </remarks>
+        private sealed class PayloadProcessor : ResultProcessor<RespPayload>
+        {
+            internal static readonly PayloadProcessor Instance = new();
+
+            /// <summary>
+            /// Notice a <c>NOSCRIPT</c>, which this path could previously only fail on - for ever.
+            /// </summary>
+            /// <remarks>
+            /// The belief that an endpoint holds a script is what lets the write-time gate skip
+            /// <c>SCRIPT LOAD</c>, and <c>NOSCRIPT</c> is the only evidence that belief has gone stale -
+            /// a <c>SCRIPT FLUSH</c>, a restart, a failover to a node that never had it. Without this the
+            /// belief survived the very reply that disproved it, so the next call skipped the load again
+            /// and failed the same way: a permanent failure rather than a transient one.
+            /// </remarks>
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            {
+                var probe = reader;
+                probe.MovePastBof();
+                return probe.IsError ? NoScriptVerdict(connection, message, in probe) : ReplyVerdict.Complete;
+            }
+
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                var totalBytes = checked((int)reader.ProtocolBytesRemaining);
+
+                var probe = reader;
+                probe.MovePastBof();
+                if (probe.IsError) return base.SetResult(connection, message, ref reader);
+
+                var buffer = ArrayPool<byte>.Shared.Rent(Math.Max(1, totalBytes));
+                reader.CopyRawTo(buffer.AsSpan(0, totalBytes));
+                SetResult(message, new RespPayload(RESPite.Buffers.RefCountedBuffer.Adopt(buffer, buffer.Length), 0, totalBytes));
+                return true;
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader) =>
+                throw new NotSupportedException(); // SetResult is fully overridden above
+        }
+    }
+}

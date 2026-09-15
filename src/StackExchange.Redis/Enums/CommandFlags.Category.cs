@@ -1,8 +1,21 @@
 ﻿namespace StackExchange.Redis;
 
-internal static class CommandFlagsExtensions
+/// <summary>
+/// Helpers for composing <see cref="CommandFlags"/>.
+/// </summary>
+public static class CommandFlagsExtensions
 {
-    public static CommandFlags WithCategory(this CommandFlags flags, CommandFlags category)
+    /// <summary>
+    /// Apply a retry category, unless the caller already chose one.
+    /// </summary>
+    /// <param name="flags">The caller's flags.</param>
+    /// <param name="category">The category this command would use by default.</param>
+    /// <remarks>
+    /// Public because a command surface outside this library needs it: flags are <b>cumulative</b>, so a
+    /// caller passing <see cref="CommandFlags.FireAndForget"/> must not thereby lose the command's retry
+    /// category. Put the category here rather than in a parameter default, or the two cannot coexist.
+    /// </remarks>
+    public static CommandFlags WithRetryCategory(this CommandFlags flags, CommandFlags category)
     {
         // CommandServerSpecific is an orthogonal flag rather than part of the severity ladder, so it
         // is always additive - the caller choosing a retry category doesn't make a cursor-bearing
@@ -17,7 +30,7 @@ internal static class CommandFlagsExtensions
     /// The retry category implied by an existence condition applied to an otherwise unconditional write;
     /// <see cref="CommandFlags.None"/> means "no opinion", leaving the per-command default in place.
     /// </summary>
-    public static CommandFlags AsRetryCategory(this When when) => when switch
+    internal static CommandFlags AsRetryCategory(this When when) => when switch
     {
         // NX/XX make the write conditional: a replay either no-ops or fails, and either way the
         // end-state matches the first attempt.
@@ -30,20 +43,45 @@ internal static class CommandFlagsExtensions
     /// something on the node that issued it (and, for the per-key variants, against that node's encoding of the
     /// object), so it is node-affine; a fresh iteration from the origin cursor can start anywhere.
     /// </summary>
-    public static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
-        => flags.WithCategory(cursor == RedisBase.CursorUtils.Origin
+    internal static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
+        => flags.WithRetryCategory(cursor == RedisBase.CursorUtils.Origin
             ? CommandFlags.CommandRetryReadOnly
             : CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific);
 
     /// <inheritdoc cref="AsRetryCategory(When)"/>
-    public static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
+    internal static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
     {
         // NX/XX/GT/LT; GT/LT are monotone, so re-applying converges on the same deadline
         ExpireWhen.Always => CommandFlags.None,
         _ => CommandFlags.CommandRetryWriteChecked,
     };
 
-    public static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
+    /// <summary>
+    /// Mark a command as one whose reply must never be cached, whatever its retry category says.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Client-side caching is opt-<i>out</i>: a command that declares a read-only retry category and names
+    /// a key is cacheable by default, which is right for the overwhelming majority and wrong for a handful.
+    /// This is how those few say so, at the one place that knows - the command definition - rather than in
+    /// a table the cache has to consult and keep in step.
+    /// </para>
+    /// <para>
+    /// Two reasons a command lands here. <b>Non-determinism</b>: <c>SRANDMEMBER</c>, <c>HRANDFIELD</c> and
+    /// <c>ZRANDMEMBER</c> are asked precisely because the answer should differ each time, so a cache would
+    /// defeat the command rather than accelerate it - and nothing would ever invalidate it, because nothing
+    /// changed. <b>Time-variance</b>: a reply that counts down, such as <c>HPTTL</c>, is already wrong by
+    /// the time it is stored, and no invalidation is coming because the server announces expiry to nobody
+    /// (design notes 6.13).
+    /// </para>
+    /// <para>
+    /// It uses the same bit as the caller-facing <see cref="CommandFlags.NoClientCache"/> deliberately: the
+    /// effect is identical, and a caller cannot unset what the command surface has already or-ed in.
+    /// </para>
+    /// </remarks>
+    internal static CommandFlags NeverCached(this CommandFlags flags) => flags | CommandFlags.NoClientCache;
+
+    internal static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {
         if ((flags & Message.MaskRetryCategory) is 0)
         {

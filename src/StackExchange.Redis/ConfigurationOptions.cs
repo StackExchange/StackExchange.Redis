@@ -19,6 +19,7 @@ using RESPite.Buffers;
 using RESPite.Streams;
 using StackExchange.Redis.Availability;
 using StackExchange.Redis.Configuration;
+using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis
 {
@@ -1002,6 +1003,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Tunnel = Tunnel,
+            ClientCache = ClientCache,
             LibraryName = LibraryName,
             _protocol = _protocol,
             heartbeatInterval = heartbeatInterval,
@@ -1211,6 +1213,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = null;
 #endif
             Tunnel = null;
+            ClientCache = null;
             _protocol = default;
             WriteMode = default;
             CircuitBreaker = null;
@@ -1410,6 +1413,23 @@ namespace StackExchange.Redis
         /// Allows custom transport implementations, such as http-tunneling via a proxy.
         /// </summary>
         public Tunnel? Tunnel { get; set; }
+
+        /// <summary>
+        /// EXPERIMENTAL SPIKE. Enables a client-side cache on this connection, and says how it is built.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see langword="null"/> - the default - means no cache at all, which is the only safe default: a
+        /// cache changes what a read can return, and nobody should acquire that by upgrading.
+        /// </para>
+        /// <para>
+        /// Not part of the connection string. These are durations, prefixes and correctness choices rather
+        /// than a name, and round-tripping them through text would invite configuration by someone who had
+        /// not read what <see cref="CachePolicy.InvalidationGracePeriod"/> actually permits.
+        /// </para>
+        /// </remarks>
+        [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
+        public CacheOptions? ClientCache { get; set; }
 
         /// <summary>
         /// Specify the redis protocol type.

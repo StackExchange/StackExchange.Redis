@@ -4,7 +4,7 @@
 /// Represents a link/connection between members in a vectorset with similarity score.
 /// Used by VLINKS command with WITHSCORES option.
 /// </summary>
-public readonly struct VectorSetLink(RedisValue member, double score)
+public readonly partial struct VectorSetLink(RedisValue member, double score)
 {
     /// <summary>
     /// The linked member name/identifier.

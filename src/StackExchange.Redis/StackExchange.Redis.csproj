@@ -15,7 +15,14 @@
 
     <!-- for debugging low-level parsing problems; absolutely do not us in production -->
     <!--<DefineConstants Condition="'$(Configuration)' == 'Debug'">$(DefineConstants);PARSE_DETAIL</DefineConstants>-->
-  </PropertyGroup>
+  
+    <!-- SER352 reports how much of TransitionalDatabase is still generated throwing stubs. It is meant to
+         be seen on every Release build, but the repo builds with TreatWarningsAsErrors, which would make it
+         fatal and block the very work it is tracking. So: loud, not fatal, for as long as the transition
+         runs. Delete this line to make shipping an incomplete TransitionalDatabase impossible; the warning
+         disappears by itself when the count reaches zero. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);SER352</WarningsNotAsErrors>
+</PropertyGroup>
 
   <ItemGroup>
     <!-- needed everywhere -->
@@ -42,6 +49,8 @@
 
     <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
+    <Compile Update="Interpolated\RespSurface.*.cs" DependentUpon="RespSurface.cs" />
+    <Compile Update="Interpolated\TransitionalDatabase.*.cs" DependentUpon="TransitionalDatabase.cs" />
   </ItemGroup>
 
   <ItemGroup>

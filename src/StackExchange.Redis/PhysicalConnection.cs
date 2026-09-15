@@ -1326,6 +1326,7 @@ namespace StackExchange.Redis
             ResetArena,
             ProcessBufferComplete,
             PubSubUnsubscribe,
+            Invalidate, // client-side caching
             NA = -1,
         }
 
