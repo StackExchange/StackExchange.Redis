@@ -238,6 +238,21 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).SortedSets.get -> StackExchange.Redis.Interpolated.RespSortedSets
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).Strings.get -> StackExchange.Redis.Interpolated.RespStrings
 [SER010]StackExchange.Redis.Interpolated.RespSurface.extension(in StackExchange.Redis.Interpolated.RespContext).VectorSets.get -> StackExchange.Redis.Interpolated.RespVectorSets
+[SER010]StackExchange.Redis.Interpolated.RespValue
+[SER010]StackExchange.Redis.Interpolated.RespValue.AsBoolean() -> bool
+[SER010]StackExchange.Redis.Interpolated.RespValue.AsDouble() -> double
+[SER010]StackExchange.Redis.Interpolated.RespValue.AsInt32() -> int
+[SER010]StackExchange.Redis.Interpolated.RespValue.AsInt64() -> long
+[SER010]StackExchange.Redis.Interpolated.RespValue.AsString() -> string?
+[SER010]StackExchange.Redis.Interpolated.RespValue.CopyTo(scoped System.Span<byte> target) -> int
+[SER010]StackExchange.Redis.Interpolated.RespValue.Equals(StackExchange.Redis.Interpolated.RespValue other) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespValue.Frame.get -> System.ReadOnlySpan<byte>
+[SER010]StackExchange.Redis.Interpolated.RespValue.HasValue.get -> bool
+[SER010]StackExchange.Redis.Interpolated.RespValue.IsNull.get -> bool
+[SER010]StackExchange.Redis.Interpolated.RespValue.Length.get -> int
+[SER010]StackExchange.Redis.Interpolated.RespValue.RespValue() -> void
+[SER010]StackExchange.Redis.Interpolated.RespValue.ToRedisValue() -> StackExchange.Redis.RedisValue
+[SER010]StackExchange.Redis.Interpolated.RespValue.TryGetSpan(out System.ReadOnlySpan<byte> payload) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.Context.get -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.RespVectorSets() -> void
@@ -246,6 +261,9 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.Equals(object? obj) -> bool
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.GetHashCode() -> int
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.ToString() -> string!
+[SER010]override StackExchange.Redis.Interpolated.RespValue.Equals(object? obj) -> bool
+[SER010]override StackExchange.Redis.Interpolated.RespValue.GetHashCode() -> int
+[SER010]override StackExchange.Redis.Interpolated.RespValue.ToString() -> string!
 [SER010]static StackExchange.Redis.Interpolated.CacheOptions.Default.get -> StackExchange.Redis.Interpolated.CacheOptions!
 [SER010]static StackExchange.Redis.Interpolated.CachePolicy.Default.get -> StackExchange.Redis.Interpolated.CachePolicy!
 [SER010]static StackExchange.Redis.Interpolated.RespAppend.Append(this ref StackExchange.Redis.Interpolated.RespCommandHandler command, ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> void
@@ -474,6 +492,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Strings(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespStrings
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_VectorSets(StackExchange.Redis.Interpolated.IRespKeyspaceTarget! target) -> StackExchange.Redis.Interpolated.RespVectorSets
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_VectorSets(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespVectorSets
+[SER010]static StackExchange.Redis.Interpolated.RespValue.Null.get -> StackExchange.Redis.Interpolated.RespValue
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
 static StackExchange.Redis.ExtensionMethods.AsStream(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, bool ownsLease = true) -> System.IO.Stream?
