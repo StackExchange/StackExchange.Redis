@@ -145,6 +145,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespContext.Render(ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespFrame
 [SER010]StackExchange.Redis.Interpolated.RespContext.Render(string! command, ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> StackExchange.Redis.Interpolated.RespFrame
 [SER010]StackExchange.Redis.Interpolated.RespContext.RespContext() -> void
+[SER010]StackExchange.Redis.Interpolated.RespContext.ScriptCache.get -> StackExchange.Redis.Interpolated.RespScriptCache?
 [SER010]StackExchange.Redis.Interpolated.RespContext.ServerType.get -> StackExchange.Redis.ServerType
 [SER010]StackExchange.Redis.Interpolated.RespContext.TryGetService<T>(out T? service) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithCache(StackExchange.Redis.Interpolated.RespClientCache? cache) -> StackExchange.Redis.Interpolated.RespContext
@@ -153,6 +154,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithDatabase(int database) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithKeyPrefix(StackExchange.Redis.RedisKey keyPrefix) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.Interpolated.RespContext
+[SER010]StackExchange.Redis.Interpolated.RespContext.WithScriptCache(StackExchange.Redis.Interpolated.RespScriptCache? scripts) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithServerType(StackExchange.Redis.ServerType serverType) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespContext.WithServices(object? services) -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespDatabase
@@ -217,6 +219,11 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespRequest.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespRequest.TryGetKeys(scoped System.Span<StackExchange.Redis.Interpolated.KeyRange> target) -> int
 [SER010]StackExchange.Redis.Interpolated.RespRequest.TryRetain(out StackExchange.Redis.Interpolated.RespRequest retained) -> bool
+[SER010]StackExchange.Redis.Interpolated.RespScriptCache
+[SER010]StackExchange.Redis.Interpolated.RespScriptCache.Bytes.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespScriptCache.Count.get -> int
+[SER010]StackExchange.Redis.Interpolated.RespScriptCache.Rendered.get -> long
+[SER010]StackExchange.Redis.Interpolated.RespScriptCache.RespScriptCache() -> void
 [SER010]StackExchange.Redis.Interpolated.RespScripts
 [SER010]StackExchange.Redis.Interpolated.RespScripts.Context.get -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespScripts.RespScripts() -> void

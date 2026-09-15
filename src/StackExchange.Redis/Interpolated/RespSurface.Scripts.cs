@@ -84,28 +84,81 @@ namespace StackExchange.Redis.Interpolated
             if (script is null) throw new ArgumentNullException(nameof(script));
 
             var context = scripts.Context;
-            var hash = Sha1Hex(script);
 
-            var preamble = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
-            try
+            // NoScriptCache means exactly what it says about the protocol: send the body, every time, and
+            // take no hash. The script still lands in the server's cache - nothing a client sends can stop
+            // that - but in the pool it evicts from, which is the point. It is also why such a script is not
+            // admitted to the registry below: the caller has told us it is not worth keeping.
+            if ((flags & CommandFlags.NoScriptCache) != 0)
             {
-                var request = context.Render(
-                    $"{RedisCommand.EVALSHA}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
+                return context.SendAsync<RespResult>(
+                    $"{RedisCommand.EVAL}{(RedisValue)script}{(RedisValue)keys.Length}{keys}{args}",
+                    flags.WithDefaultCategory(RedisCommand.EVAL));
+            }
+
+            var registry = context.ScriptCache;
+            if (registry is null)
+            {
+                // no registry: render the preamble afresh, which is correct and wasteful
+                var hash = Sha1Hex(script);
+                var fresh = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
                 try
                 {
-                    // by ref: the send takes ownership of both buffers, emptying these frames, so the
-                    // disposals below are no-ops on success and a real cleanup only if something threw
-                    return context.SendWithPreambleAsync(
-                        ref preamble, ref request, flags.WithDefaultCategory(RedisCommand.EVALSHA), RespHandlers.Result);
+                    return SendPair(in context, ref fresh, hash, keys, args, flags);
                 }
                 finally
                 {
-                    request.Dispose();
+                    fresh.Dispose();
                 }
+            }
+
+            var preamble = registry.GetPreamble(in context, script, out var known);
+            return SendPair(in context, preamble, known, keys, args, flags);
+        }
+
+        /// <summary>Render the EVALSHA and send it behind the preamble.</summary>
+        private static ValueTask<RespResult> SendPair(
+            in RespContext context,
+            ref RespFrame preamble,
+            string hash,
+            ReadOnlySpan<RedisKey> keys,
+            ReadOnlySpan<RedisValue> args,
+            CommandFlags flags)
+        {
+            var request = context.Render($"{RedisCommand.EVALSHA}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
+            try
+            {
+                return context.SendWithPreambleAsync(
+                    ref preamble, ref request, flags.WithDefaultCategory(RedisCommand.EVALSHA), RespHandlers.Result);
             }
             finally
             {
-                preamble.Dispose();
+                request.Dispose();
+            }
+        }
+
+        /// <inheritdoc cref="SendPair(in RespContext, ref RespFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags)"/>
+        /// <remarks>
+        /// The registry's preamble owns nothing poolable - it is a fixed array that is never returned - so
+        /// it needs no disposal and can be handed over directly.
+        /// </remarks>
+        private static ValueTask<RespResult> SendPair(
+            in RespContext context,
+            RespRequest preamble,
+            string hash,
+            ReadOnlySpan<RedisKey> keys,
+            ReadOnlySpan<RedisValue> args,
+            CommandFlags flags)
+        {
+            var request = context.Render($"{RedisCommand.EVALSHA}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
+            try
+            {
+                return context.SendWithPreambleAsync(
+                    preamble, ref request, flags.WithDefaultCategory(RedisCommand.EVALSHA), RespHandlers.Result);
+            }
+            finally
+            {
+                request.Dispose();
             }
         }
 
@@ -114,7 +167,7 @@ namespace StackExchange.Redis.Interpolated
         /// Computed rather than learned so that <c>EVALSHA</c> can be written before <c>SCRIPT LOAD</c> has
         /// answered - the whole reason the body travels once instead of twice.
         /// </remarks>
-        private static string Sha1Hex(string script)
+        internal static string Sha1Hex(string script)
         {
             var bytes = Encoding.UTF8.GetBytes(script);
 #if NET

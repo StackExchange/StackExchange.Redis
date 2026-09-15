@@ -198,4 +198,103 @@ public class RespSurfaceScriptsTests
             executor.Parked[i].Dispose();
         }
     }
+    /// <summary>
+    /// The script body is encoded once, however often it is evaluated.
+    /// </summary>
+    /// <remarks>
+    /// The whole point of the registry: rendering <c>SCRIPT LOAD &lt;body&gt;</c> is a pure function of the
+    /// body, so doing it per call is work that can only produce the same answer.
+    /// </remarks>
+    [Fact]
+    public async Task TheBodyIsRenderedOnce()
+    {
+        var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
+        var registry = new RespScriptCache();
+        var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
+
+        for (var i = 0; i < 5; i++)
+        {
+            (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"])).Dispose();
+        }
+
+        Assert.Equal(1, registry.Rendered);
+        Assert.Equal(1, registry.Count);
+        Assert.Equal(5, executor.Pairs);
+
+        // and every call really did send the same preamble bytes
+        for (var i = 0; i < executor.Sent.Count; i += 2)
+        {
+            Assert.Equal(executor.Sent[0], executor.Sent[i]);
+        }
+    }
+
+    /// <summary>
+    /// The cached rendering is a right-sized array, not the pooled rent it was made from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A rent kept indefinitely is worse than wasteful: it is permanently removed from the pool, degrading
+    /// it for everything else. The entry should therefore be an exact copy, with the rent handed straight
+    /// back.
+    /// </para>
+    /// <para>
+    /// <b>Asserted on the size, because that is the only thing that distinguishes the two.</b> Surviving
+    /// pool churn does not - a correctly retained rent survives churn as well - so an earlier version of
+    /// this test proved nothing it claimed. A rent is bucket-sized; a copy is exactly the bytes that went
+    /// on the wire.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheCachedRenderingIsExactlySized()
+    {
+        var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
+        var registry = new RespScriptCache();
+        var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
+
+        (await ctx.Scripts.Evaluate(Script)).Dispose();
+
+        // the fake records the frame with CRLF collapsed to '|'; restore it to recover the true length
+        var onTheWire = executor.Sent[0].Replace("|", "\r\n").Length;
+
+        Assert.Equal(1, registry.Count);
+        Assert.Equal(onTheWire, registry.Bytes);
+    }
+
+    /// <summary>
+    /// <c>NoScriptCache</c> sends EVAL with the body and is not admitted to the registry.
+    /// </summary>
+    /// <remarks>
+    /// The flag says the caller considers this script not worth keeping, and the server agrees - since 7.4
+    /// it evicts EVAL-loaded scripts first. Retaining its rendering would be the one way an application
+    /// generating scripts per call could grow this without limit, which is the documented anti-pattern.
+    /// </remarks>
+    [Fact]
+    public async Task NoScriptCacheSendsEvalAndIsNotRetained()
+    {
+        var executor = new PairingExecutor("$3\r\nabc\r\n");
+        var registry = new RespScriptCache();
+        var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
+
+        (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"], flags: CommandFlags.NoScriptCache)).Dispose();
+
+        Assert.Equal(0, executor.Pairs);       // one command, no preamble
+        Assert.Single(executor.Sent);
+        Assert.StartsWith("*4|$4|EVAL|", executor.Sent[0]);
+        Assert.Contains("KEYS[1]", executor.Sent[0]);
+        Assert.Equal(0, registry.Count);       // nothing retained
+    }
+
+    /// <summary>Without a registry the command still works; it just renders each time.</summary>
+    [Fact]
+    public async Task NoRegistryStillWorks()
+    {
+        var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
+        var ctx = new RespContext().WithExecutor(executor);
+
+        (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"])).Dispose();
+        (await ctx.Scripts.Evaluate(Script, [(RedisKey)"k"])).Dispose();
+
+        Assert.Equal(2, executor.Pairs);
+        Assert.Equal(executor.Sent[0], executor.Sent[2]);
+    }
 }

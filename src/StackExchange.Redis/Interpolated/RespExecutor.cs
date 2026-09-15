@@ -189,6 +189,34 @@ namespace StackExchange.Redis.Interpolated
             return AwaitPair(executor, head, body, handler, context.CancellationToken);
         }
 
+        /// <summary>
+        /// As above, for a preamble that is <b>already detached</b> and owns nothing poolable.
+        /// </summary>
+        /// <typeparam name="TResult">What parsing the request's reply produces.</typeparam>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="preamble">A request over a fixed buffer - a cached rendering, typically.</param>
+        /// <param name="request">The request whose reply the caller wants.</param>
+        /// <param name="flags">The request's flags.</param>
+        /// <param name="handler">Turns the request's reply into a result.</param>
+        /// <remarks>
+        /// No <c>ref</c> on the preamble, and no ownership question either: it is a fixed buffer that is
+        /// never returned to a pool, so the release at the end of the send is a no-op rather than a
+        /// hand-back. That is the whole reason a cached rendering can be shared by concurrent calls.
+        /// </remarks>
+        internal static ValueTask<TResult> SendWithPreambleAsync<TResult>(
+            this RespContext context,
+            RespRequest preamble,
+            ref RespFrame request,
+            CommandFlags flags,
+            IRespHandler<TResult> handler)
+        {
+            if (handler is null) throw new ArgumentNullException(nameof(handler));
+            var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
+
+            var body = request.Detach(flags);
+            return AwaitPair(executor, preamble, body, handler, context.CancellationToken);
+        }
+
         private static async ValueTask<TResult> AwaitPair<TResult>(
             IRespExecutor executor,
             RespRequest head,

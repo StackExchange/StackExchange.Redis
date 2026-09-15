@@ -142,8 +142,18 @@ Four consequences, none of them cosmetic:
         opposite semantics (never invalidated, keyed by body rather than by frame). Keep it separate and
         small rather than generalising one to serve both.
 
-        **Stage it stateless first:** always pair `SCRIPT LOAD` + `EVALSHA`, re-rendering each time. That
-        leaves the composition mechanism as the only unknown; the registry lands next, as 1b. Correct, one round trip, no new
+        **Stage 1 and 1b are done** (`10f7b7c1`, and this change): the pair is composed and sent as a unit,
+        and `RespScriptCache` renders each script once, keeping an exactly-sized array rather than the
+        pooled rent it was made from - a rent held indefinitely is not merely wasteful, it is permanently
+        removed from the pool. `NoScriptCache` now behaves as documented on this surface too: a bare `EVAL`
+        with the body, and nothing retained.
+
+        **Stage 1c is the write-time belief check** that skips the preamble when the endpoint is already
+        believed to hold the script. It should consult `ServerEndPoint.knownScripts` rather than starting a
+        second registry, and it belongs at write time for the reasons above - a resend after `NOSCRIPT`, a
+        reconnect or a `MOVED` must re-decide, and that is what makes the retry terminate. Note this is also
+        an *inspection*-time concern under the two-phase split logged below, so the two want designing
+        together rather than in sequence. Correct, one round trip, no new
         state, and it proves the composition mechanism. Belief-tracking is then a pure optimisation that
         drops the `SCRIPT LOAD`, layered on something already correct rather than being load-bearing.
 

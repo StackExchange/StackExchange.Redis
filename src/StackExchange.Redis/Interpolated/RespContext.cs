@@ -166,6 +166,14 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>Convenience over <see cref="TryGetService{T}"/>; the cache is not a field.</remarks>
         public RespClientCache? Cache => TryGetService<RespClientCache>(out var cache) ? cache : null;
 
+        /// <summary>The rendered-script registry attached to this context, or <c>null</c> for none.</summary>
+        /// <remarks>
+        /// Separate from <see cref="Cache"/> on purpose: this holds <i>requests</i> and never invalidates,
+        /// where that holds <i>responses</i> and is invalidated constantly. Sharing a type would mean one
+        /// of the two lying about its lifetime.
+        /// </remarks>
+        public RespScriptCache? ScriptCache => TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
+
         private readonly CommandMap? _commandMap;
 
         /// <summary>
@@ -255,6 +263,12 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>Sugar over <see cref="WithServices"/>; "a context with a cache" is just a context whose
         /// services include one.</remarks>
         public RespContext WithCache(RespClientCache? cache) => WithServices(cache);
+
+        /// <summary>A copy of this context that renders each script only once.</summary>
+        /// <param name="scripts">The registry to use, or <c>null</c> for none.</param>
+        /// <remarks>Without one, a script's <c>SCRIPT LOAD</c> is rendered afresh on every call - correct,
+        /// and wasteful for anything used more than once.</remarks>
+        public RespContext WithScriptCache(RespScriptCache? scripts) => WithServices(scripts);
 
         /// <summary>
         /// Run an arbitrary command and return the raw reply - the escape hatch, for commands this library
