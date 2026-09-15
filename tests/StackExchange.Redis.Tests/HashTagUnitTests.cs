@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
@@ -25,5 +25,17 @@ public class HashTagUnitTests
             Assert.Equal(i, slot);
         }
         Assert.Equal(ServerSelectionStrategy.TotalSlots, uniques.Count);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(8191)]
+    [InlineData(16383)]
+    public void TestCreateKeyForSlotTargetsSlot(int slot)
+    {
+        var key = ServerSelectionStrategy.CreateKeyForSlot(slot, "probe-id");
+
+        Assert.Equal(slot, ServerSelectionStrategy.GetHashSlot(key));
     }
 }
