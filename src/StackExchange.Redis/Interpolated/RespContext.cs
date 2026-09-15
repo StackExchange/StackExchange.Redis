@@ -303,12 +303,38 @@ namespace StackExchange.Redis.Interpolated
                 Executor,
                 _services);
 
-        /// <summary>A copy of this context with a different channel prefix.</summary>
-        /// <param name="channelPrefix">The prefix to apply to channels.</param>
+        /// <summary>
+        /// Returns a context whose channels are prefixed. Nested calls <b>compose</b>, exactly as
+        /// <see cref="WithKeyPrefix"/> does, and as nesting the <c>KeyPrefixed*</c> decorators does.
+        /// </summary>
+        /// <param name="channelPrefix">The prefix to apply to channels, appended to any already in force.</param>
+        /// <remarks>
+        /// Composing rather than replacing, for the reason given on <see cref="WithServices"/>: a context is
+        /// handed down through code that does not know what its caller already applied. If this assigned,
+        /// a library reaching for its own channel namespace would silently cancel the tenant isolation its
+        /// caller established - and there is nothing to see afterwards, because the frame is well-formed and
+        /// goes to the wrong channel. For the same reason a null prefix is a no-op rather than a reset:
+        /// <b>there is deliberately no way to escape a prefix already in force</b>, which matches the key
+        /// prefix (you cannot un-prefix a <see cref="RedisKey"/>) and the decorators (you cannot unwrap one).
+        /// </remarks>
         public RespContext WithChannelPrefix(RedisChannel channelPrefix)
-            // a null prefix shadows any earlier one with an empty service rather than removing it: the
-            // chain stays append-only, and ChannelPrefix reads default from it either way
-            => WithServices(new ChannelPrefixService(channelPrefix));
+        {
+            // nothing to add. Note this is an allocation saving, NOT what makes null a no-op: composing
+            // nothing onto the existing bytes already yields the existing bytes (verified by mutation)
+            if (channelPrefix.IsNull) return this;
+
+            var existing = ChannelPrefix;
+            if (!existing.IsNull)
+            {
+                // note the mode follows the incoming prefix; only the bytes reach the wire, since the writer
+                // prepends them to a channel that carries its own mode
+                channelPrefix = new RedisChannel(
+                    RedisKey.ConcatenateBytes((byte[]?)existing, null, (byte[]?)channelPrefix),
+                    channelPrefix.IsPattern ? RedisChannel.PatternMode.Pattern : RedisChannel.PatternMode.Literal);
+            }
+
+            return WithServices(new ChannelPrefixService(channelPrefix));
+        }
 
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>

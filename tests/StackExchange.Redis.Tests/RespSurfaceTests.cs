@@ -106,13 +106,30 @@ public class RespSurfaceTests
         Assert.Same(cache, ctx.Cache);
         Assert.Equal("app:", (string?)ctx.ChannelPrefix);
 
-        // and the newest of a given type wins, by lookup order, with no replace logic
+        // the newest of a given type wins by lookup order, with no replace logic - which is how the
+        // composed prefix below gets to be the one that is read back
         var rebound = ctx.WithChannelPrefix(RedisChannel.Literal("other:"));
-        Assert.Equal("other:", (string?)rebound.ChannelPrefix);
         Assert.Same(cache, rebound.Cache);
+    }
 
-        // setting it back to nothing shadows rather than removes, and still reads as absent
-        Assert.True(rebound.WithChannelPrefix(default).ChannelPrefix.IsNull);
+    [Fact]
+    public void ChannelPrefixesComposeAndCannotBeEscaped()
+    {
+        var tenant = new RespContext().WithChannelPrefix(RedisChannel.Literal("app:"));
+
+        // the point of the test: a second prefix appends to the first, it does not take its place. Anything
+        // else lets code that was handed a tenant-scoped context quietly publish outside that tenant.
+        var nested = tenant.WithChannelPrefix(RedisChannel.Literal("v2:"));
+        Assert.Equal("app:v2:", (string?)nested.ChannelPrefix);
+
+        // and there is no reset: null adds nothing rather than clearing what is already in force
+        Assert.Equal("app:", (string?)tenant.WithChannelPrefix(default).ChannelPrefix);
+        Assert.Equal("app:v2:", (string?)nested.WithChannelPrefix(default).ChannelPrefix);
+
+        // which is exactly what the key prefix does, and what nesting the KeyPrefixed* decorators does;
+        // the two halves of keyspace isolation must not disagree about this
+        var keys = new RespContext().WithKeyPrefix("app:").WithKeyPrefix("v2:");
+        Assert.Equal("app:v2:", (string?)keys.KeyPrefix);
     }
 
     [Fact]
