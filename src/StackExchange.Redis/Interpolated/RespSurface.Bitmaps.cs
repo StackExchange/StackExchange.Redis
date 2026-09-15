@@ -198,16 +198,43 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// <para>
         /// The lease must be disposed. A nil element means that operation was skipped by
-        /// <c>OVERFLOW FAIL</c>.
+        /// <c>OVERFLOW FAIL</c>, which is why the element type is nullable.
         /// </para>
         /// </remarks>
-        public static ValueTask<Lease<long?>> Field(
+        public static ValueTask<ReadOnlyLease<long?>> Field(
             this in RespBitmaps bitmaps,
             RedisKey key,
             ReadOnlySpan<BitFieldOperation> operations,
             CommandFlags flags = CommandFlags.None)
+            => FieldCore<ReadOnlyLease<long?>>(in bitmaps, key, operations, ReadOnlyLease<long?>.Empty, flags);
+
+        /// <inheritdoc cref="Field(in RespBitmaps, RedisKey, ReadOnlySpan{BitFieldOperation}, CommandFlags)"/>
+        /// <param name="bitmaps">The bitmap command group.</param>
+        /// <param name="key">The key to operate on.</param>
+        /// <param name="operations">The sub-operations, in order.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// The writable-lease sibling, for <c>IDatabase.StringBitField</c>; see
+        /// <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags)"/>.
+        /// </remarks>
+        internal static ValueTask<Lease<long?>> FieldWritableLease(
+            this in RespBitmaps bitmaps,
+            RedisKey key,
+            ReadOnlySpan<BitFieldOperation> operations,
+            CommandFlags flags = CommandFlags.None)
+            => FieldCore<Lease<long?>>(in bitmaps, key, operations, Lease<long?>.Empty, flags);
+
+        /// <summary>
+        /// The command both BITFIELD shapes send; they differ only in which lease the reply becomes.
+        /// </summary>
+        private static ValueTask<TResult> FieldCore<TResult>(
+            in RespBitmaps bitmaps,
+            RedisKey key,
+            ReadOnlySpan<BitFieldOperation> operations,
+            TResult empty,
+            CommandFlags flags)
         {
-            if (operations.IsEmpty) return new ValueTask<Lease<long?>>(Lease<long?>.Empty);
+            if (operations.IsEmpty) return new ValueTask<TResult>(empty);
 
             // counted up front, so a default operation throws at the caller rather than mid-write
             var argCount = BitFieldOperation.CountArgs(operations, nameof(operations));
@@ -230,7 +257,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return bitmaps.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<Lease<long?>>.Require());
+            return bitmaps.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require());
         }
 
         /// <summary>BITFIELD with a single sub-operation, whose reply is one value rather than a run.</summary>

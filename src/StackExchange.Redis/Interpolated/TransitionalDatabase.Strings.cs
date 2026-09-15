@@ -130,11 +130,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Strings.GetLease(key, flags));
+            => Wait(Context.Strings.GetWritableLease(key, flags));
 
         /// <inheritdoc/>
         public Task<Lease<byte>?> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Strings.GetLease(key, flags).AsTask();
+            => Context.Strings.GetWritableLease(key, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue StringGetRange(RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)

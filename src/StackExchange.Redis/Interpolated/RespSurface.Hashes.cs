@@ -99,7 +99,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="field">The field to read.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<Lease<byte>?> GetLease(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<byte>?> GetLease(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<byte>?>(
+                $"{RedisCommand.HGET}{key}{field}", flags.WithDefaultCategory(RedisCommand.HGET));
+
+        /// <inheritdoc cref="GetLease(in RespHashes, RedisKey, RedisValue, CommandFlags)"/>
+        /// <param name="hashes">The hash command group.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="field">The field to read.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>The writable-lease sibling; see <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags)"/>.</remarks>
+        internal static ValueTask<Lease<byte>?> GetWritableLease(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<Lease<byte>?>(
                 $"{RedisCommand.HGET}{key}{field}", flags.WithDefaultCategory(RedisCommand.HGET));
 
@@ -594,7 +604,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="field">The field to read and remove.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<Lease<byte>?> GetLeaseDelete(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<byte>?> GetLeaseDelete(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync(
+                $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{1}{field}",
+                flags.WithDefaultCategory(RedisCommand.HGETDEL),
+                RespHandlers.SingletonReadOnlyLease);
+
+        /// <inheritdoc cref="GetLeaseDelete(in RespHashes, RedisKey, RedisValue, CommandFlags)"/>
+        /// <param name="hashes">The hash command group.</param>
+        /// <param name="key">The key to write.</param>
+        /// <param name="field">The field to read and remove.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>The writable-lease sibling; see <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags)"/>.</remarks>
+        internal static ValueTask<Lease<byte>?> GetWritableLeaseDelete(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync(
                 $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{1}{field}",
                 flags.WithDefaultCategory(RedisCommand.HGETDEL),
@@ -655,7 +677,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="expiry">The expiration to apply.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<Lease<byte>?> GetLeaseSetExpiry(this in RespHashes hashes, RedisKey key, RedisValue field, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<byte>?> GetLeaseSetExpiry(this in RespHashes hashes, RedisKey key, RedisValue field, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync(
+                $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}",
+                WithGetExCategory(expiry, flags),
+                RespHandlers.SingletonReadOnlyLease);
+
+        /// <inheritdoc cref="GetLeaseSetExpiry(in RespHashes, RedisKey, RedisValue, Expiration, CommandFlags)"/>
+        /// <param name="hashes">The hash command group.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="field">The field to read.</param>
+        /// <param name="expiry">The expiration to apply.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>The writable-lease sibling; see <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags)"/>.</remarks>
+        internal static ValueTask<Lease<byte>?> GetWritableLeaseSetExpiry(this in RespHashes hashes, RedisKey key, RedisValue field, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync(
                 $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}",
                 WithGetExCategory(expiry, flags),

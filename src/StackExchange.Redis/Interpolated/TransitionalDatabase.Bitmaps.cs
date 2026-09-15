@@ -95,11 +95,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Bitmaps.Field(key, operations.Span, flags));
+            => Wait(Context.Bitmaps.FieldWritableLease(key, operations.Span, flags));
 
         /// <inheritdoc/>
         public Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
-            => Context.Bitmaps.Field(key, operations.Span, flags).AsTask();
+            => Context.Bitmaps.FieldWritableLease(key, operations.Span, flags).AsTask();
 
         /// <summary>
         /// The old <c>(first, second)</c> shape as a run of source keys: a default <c>second</c>, or a NOT,

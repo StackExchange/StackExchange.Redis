@@ -102,6 +102,13 @@ namespace StackExchange.Redis.Interpolated
         /// <inheritdoc cref="SingletonValue"/>
         public static IRespHandler<Lease<byte>?> SingletonLease { get; } = new SingletonLeaseHandler();
 
+        /// <inheritdoc cref="SingletonLease"/>
+        /// <remarks>
+        /// The sharing flavour, which is what the command surface hands out; <see cref="SingletonLease"/>
+        /// is kept for the <c>IDatabase</c> signatures that say <see cref="Lease{T}"/>.
+        /// </remarks>
+        public static IRespHandler<ReadOnlyLease<byte>?> SingletonReadOnlyLease { get; } = new SingletonReadOnlyLeaseHandler();
+
         /// <summary>Checks the reply for a server error, and reads nothing else.</summary>
         /// <remarks>
         /// What a command with no result still has to do. Without it a failed command would complete
@@ -177,6 +184,7 @@ namespace StackExchange.Redis.Interpolated
             IRespHandler<PersistResult[]>,
             IRespHandler<ReadOnlyLease<PersistResult>>,
             IRespHandler<ReadOnlyLease<byte>?>,
+            IRespHandler<ReadOnlyLease<long?>>,
             IRespHandler<RedisValue>,
             IRespHandler<RedisKey>,
             IRespHandler<RedisType>,
@@ -345,6 +353,10 @@ namespace StackExchange.Redis.Interpolated
             /// <remarks>ZMSCORE replies nil for a member that is not there, so the element type is nullable.</remarks>
             ReadOnlyLease<double?> IRespHandler<ReadOnlyLease<double?>>.Parse(ReadOnlySpan<byte> response)
                 => ReadScalarLease(response, static (ref r) => r.IsNull ? (double?)null : r.ReadDouble());
+
+            /// <remarks>BITFIELD replies nil for an operation skipped by OVERFLOW FAIL, hence nullable.</remarks>
+            ReadOnlyLease<long?> IRespHandler<ReadOnlyLease<long?>>.Parse(ReadOnlySpan<byte> response)
+                => ReadScalarLease(response, static (ref r) => r.IsNull ? (long?)null : r.ReadInt64());
 
             /// <remarks>
             /// <b>No copy.</b> <c>ParseArray(allowOversized: true)</c> already rents from
@@ -691,6 +703,19 @@ namespace StackExchange.Redis.Interpolated
 #pragma warning disable CS0618 // the copying form is what this contract needs; see the remarks
                 return RespReaderExtensions.ReadLease(in reader);
 #pragma warning restore CS0618
+            }
+        }
+
+        /// <inheritdoc cref="SingletonLeaseHandler"/>
+        private sealed class SingletonReadOnlyLeaseHandler : IRespHandler<ReadOnlyLease<byte>?>
+        {
+            public ReadOnlyLease<byte>? Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                if (reader.IsNull) return null; // the whole reply, not an element of it
+                reader.MoveNext();
+                return reader.ReadLease();
             }
         }
     }

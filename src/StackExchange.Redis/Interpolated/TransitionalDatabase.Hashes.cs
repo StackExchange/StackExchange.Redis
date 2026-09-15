@@ -40,11 +40,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public Lease<byte>? HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.GetLease(key, hashField, flags));
+            => Wait(Context.Hashes.GetWritableLease(key, hashField, flags));
 
         /// <inheritdoc/>
         public Task<Lease<byte>?> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.GetLease(key, hashField, flags).AsTask();
+            => Context.Hashes.GetWritableLease(key, hashField, flags).AsTask();
 
         /// <inheritdoc/>
         public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -249,11 +249,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public Lease<byte>? HashFieldGetLeaseAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.GetLeaseDelete(key, hashField, flags));
+            => Wait(Context.Hashes.GetWritableLeaseDelete(key, hashField, flags));
 
         /// <inheritdoc/>
         public Task<Lease<byte>?> HashFieldGetLeaseAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.GetLeaseDelete(key, hashField, flags).AsTask();
+            => Context.Hashes.GetWritableLeaseDelete(key, hashField, flags).AsTask();
 
         // HGETEX: a null TimeSpan means "clear the TTL", which is NOT Expiration.Default's "leave it
         // alone" - the same mapping RedisDatabase uses, and the same one StringGetSetExpiry needs
@@ -292,19 +292,19 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.GetLeaseSetExpiry(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags));
+            => Wait(Context.Hashes.GetWritableLeaseSetExpiry(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags));
 
         /// <inheritdoc/>
         public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.GetLeaseSetExpiry(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags).AsTask();
+            => Context.Hashes.GetWritableLeaseSetExpiry(key, hashField, Expiration.CreateOrPersist(expiry, persist), flags).AsTask();
 
         /// <inheritdoc/>
         public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Hashes.GetLeaseSetExpiry(key, hashField, new Expiration(expiry), flags));
+            => Wait(Context.Hashes.GetWritableLeaseSetExpiry(key, hashField, new Expiration(expiry), flags));
 
         /// <inheritdoc/>
         public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-            => Context.Hashes.GetLeaseSetExpiry(key, hashField, new Expiration(expiry), flags).AsTask();
+            => Context.Hashes.GetWritableLeaseSetExpiry(key, hashField, new Expiration(expiry), flags).AsTask();
 
         // HSETEX replies with whether the write happened; the old signature says RedisValue, so the
         // conversion happens here rather than the group pretending not to know what it read

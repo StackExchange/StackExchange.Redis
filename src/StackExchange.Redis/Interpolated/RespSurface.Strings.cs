@@ -153,16 +153,38 @@ namespace StackExchange.Redis.Interpolated
                 : strings.Context.SendAsync(
                     $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.Values);
 
-        /// <summary>GET, retaining the payload as a <see cref="Lease{T}"/> rather than a value.</summary>
+        /// <summary>GET, retaining the payload as a <see cref="ReadOnlyLease{T}"/> rather than a value.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks>
+        /// <para>
         /// Same command, different result shape - which is why it is a separate method rather than an
         /// overload: the two differ only in return type, and C# does not overload on that. The lease must
         /// be disposed.
+        /// </para>
+        /// <para>
+        /// <b>Read-only, so it can share.</b> This is the whole point of the lease over a value: where the
+        /// reply is retained contiguously, the lease points at it rather than copying. A writable lease
+        /// could not - a buffer the caller may scribble on must not alias memory anything else can read -
+        /// so the mutable <see cref="Lease{T}"/> always copies. The old surface's signatures say
+        /// <see cref="Lease{T}"/> and cannot change, which is what <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags)"/> is for.
+        /// </para>
         /// </remarks>
-        public static ValueTask<Lease<byte>?> GetLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<byte>?> GetLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => strings.Context.SendAsync<ReadOnlyLease<byte>?>(
+                $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
+
+        /// <inheritdoc cref="GetLease(in RespStrings, RedisKey, CommandFlags)"/>
+        /// <param name="strings">The string command group.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// The writable-lease sibling, for <c>IDatabase.StringGetLease</c>. Internal for the reason
+        /// <see cref="GetArray(in RespStrings, ReadOnlySpan{RedisKey}, CommandFlags)"/> is: the mutable lease is the <i>old</i> spelling, it copies where the
+        /// read-only one need not, and nothing outside this assembly should be able to choose it.
+        /// </remarks>
+        internal static ValueTask<Lease<byte>?> GetWritableLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<Lease<byte>?>(
                 $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
 
