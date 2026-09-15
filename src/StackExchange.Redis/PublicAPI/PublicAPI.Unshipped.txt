@@ -243,7 +243,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespValue.AsDouble() -> double
 [SER010]StackExchange.Redis.Interpolated.RespValue.AsInt32() -> int
 [SER010]StackExchange.Redis.Interpolated.RespValue.AsInt64() -> long
-[SER010]StackExchange.Redis.Interpolated.RespValue.AsString() -> string?
+[SER010]StackExchange.Redis.Interpolated.RespValue.AsRedisValue() -> StackExchange.Redis.RedisValue
 [SER010]StackExchange.Redis.Interpolated.RespValue.CopyTo(scoped System.Span<byte> target) -> int
 [SER010]StackExchange.Redis.Interpolated.RespValue.Equals(StackExchange.Redis.Interpolated.RespValue other) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespValue.Frame.get -> System.ReadOnlySpan<byte>
@@ -251,7 +251,6 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespValue.IsNull.get -> bool
 [SER010]StackExchange.Redis.Interpolated.RespValue.Length.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespValue.RespValue() -> void
-[SER010]StackExchange.Redis.Interpolated.RespValue.ToRedisValue() -> StackExchange.Redis.RedisValue
 [SER010]StackExchange.Redis.Interpolated.RespValue.TryGetSpan(out System.ReadOnlySpan<byte> payload) -> bool
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.Context.get -> StackExchange.Redis.Interpolated.RespContext
@@ -493,6 +492,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_VectorSets(StackExchange.Redis.Interpolated.IRespKeyspaceTarget! target) -> StackExchange.Redis.Interpolated.RespVectorSets
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_VectorSets(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespVectorSets
 [SER010]static StackExchange.Redis.Interpolated.RespValue.Null.get -> StackExchange.Redis.Interpolated.RespValue
+[SER010]static StackExchange.Redis.Interpolated.RespValue.explicit operator string?(StackExchange.Redis.Interpolated.RespValue value) -> string?
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
 static StackExchange.Redis.ExtensionMethods.AsStream(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, bool ownsLease = true) -> System.IO.Stream?

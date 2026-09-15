@@ -138,17 +138,21 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public bool AsBoolean() => Reader().ReadBoolean();
 
-        /// <summary>Read this value as text, or <see langword="null"/> if it is nil.</summary>
-        public string? AsString() => Reader().ReadString();
-
         /// <summary>
-        /// Copy this value out into something that owns its own bytes and can outlive the buffer.
+        /// This value as a <see cref="RedisValue"/>, which owns its own bytes and outlives the buffer.
         /// </summary>
         /// <remarks>
-        /// The deliberate exit from borrowing, and the bridge to the old surface: <see cref="IDatabase"/>
-        /// hands out <see cref="RedisValue"/> and always will, so the adapters pay one copy here.
+        /// <para>
+        /// The exit from borrowing, and the bridge to the old surface: <see cref="IDatabase"/> hands out
+        /// <see cref="RedisValue"/> and always will, so the adapters come through here.
+        /// </para>
+        /// <para>
+        /// <c>As</c> rather than <c>To</c>, because it is usually free: nil, booleans, integers, anything
+        /// of eight bytes or fewer, and any canonically-numeric payload all pack into the struct itself.
+        /// Only a long non-numeric value copies. It is never a borrow, whichever path it takes.
+        /// </para>
         /// </remarks>
-        public RedisValue ToRedisValue() => Reader().ReadRedisValue();
+        public RedisValue AsRedisValue() => Reader().ReadRedisValue();
 
         /// <summary>
         /// The value's payload as one contiguous run, when it is one.
@@ -192,16 +196,26 @@ namespace StackExchange.Redis.Interpolated
         /// what <see cref="RedisValue"/> promises and what anyone using these as dictionary keys assumes.
         /// Comparing frame bytes would say otherwise, quietly.
         /// </remarks>
-        public bool Equals(RespValue other) => ToRedisValue().Equals(other.ToRedisValue());
+        public bool Equals(RespValue other) => AsRedisValue().Equals(other.AsRedisValue());
 
         /// <inheritdoc/>
         public override bool Equals(object? obj) => obj is RespValue other && Equals(other);
 
         /// <inheritdoc/>
-        public override int GetHashCode() => ToRedisValue().GetHashCode();
+        public override int GetHashCode() => AsRedisValue().GetHashCode();
+
+        /// <summary>This value as text, or <see langword="null"/> if it is nil.</summary>
+        /// <param name="value">The value to convert.</param>
+        /// <remarks>
+        /// A conversion rather than an <c>AsString()</c> method, for the reason <see cref="RedisValue"/>
+        /// spells it the same way: it is the one member here that allocates every single time, so it is
+        /// not an <c>As*</c>, and <see cref="ToString"/> cannot be it because that may not return null.
+        /// </remarks>
+        public static explicit operator string?(RespValue value) => value.Reader().ReadString();
 
         /// <inheritdoc/>
-        public override string ToString() => AsString() ?? "(nil)";
+        /// <remarks>For humans and debuggers; nil reads as <c>(nil)</c> rather than null.</remarks>
+        public override string ToString() => (string?)this ?? "(nil)";
 
         private RespReader Reader()
         {

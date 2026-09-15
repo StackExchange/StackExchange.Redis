@@ -65,7 +65,7 @@ public class RespValueTests
     {
         var values = CaptureAll(Frame("*4|$3|abc|:123|$5|12.25|#t|"));
 
-        Assert.Equal("abc", values[0].AsString());
+        Assert.Equal("abc", (string?)values[0]);
         Assert.Equal(123, values[1].AsInt32());
         Assert.Equal(123L, values[1].AsInt64());
         Assert.Equal(12.25, values[2].AsDouble());
@@ -83,14 +83,14 @@ public class RespValueTests
 
         Assert.True(values[0].IsNull);
         Assert.False(values[0].TryGetSpan(out _));
-        Assert.Null(values[0].AsString());
+        Assert.Null((string?)values[0]);
 
         // and the empty string is present-and-empty, which is a different answer. The reader says "true,
         // empty span" for BOTH, so the nil check has to happen here or the two collapse into one.
         Assert.False(values[1].IsNull);
         Assert.True(values[1].TryGetSpan(out var empty));
         Assert.True(empty.IsEmpty);
-        Assert.Equal("", values[1].AsString());
+        Assert.Equal("", (string?)values[1]);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class RespValueTests
     {
         var values = CaptureAll(Frame("*1|$3|abc|"));
 
-        Assert.Equal("abc", (string?)values[0].ToRedisValue());
+        Assert.Equal("abc", (string?)values[0].AsRedisValue());
 
         Span<byte> target = stackalloc byte[values[0].Length];
         Assert.Equal(3, values[0].CopyTo(target));
@@ -139,12 +139,12 @@ public class RespValueTests
     public static TheoryData<string, string, Action<RespValue>> Accessors => new()
     {
         { "Frame", "$1|1|", v => _ = v.Frame.Length },
-        { "AsString", "$1|1|", v => v.AsString() },
+        { "(string?)", "$1|1|", v => _ = (string?)v },
         { "AsInt64", "$1|1|", v => v.AsInt64() },
         { "AsInt32", "$1|1|", v => v.AsInt32() },
         { "AsDouble", "$1|1|", v => v.AsDouble() },
         { "AsBoolean", ":1|", v => v.AsBoolean() },
-        { "ToRedisValue", "$1|1|", v => v.ToRedisValue() },
+        { "AsRedisValue", "$1|1|", v => v.AsRedisValue() },
         { "Length", "$1|1|", v => _ = v.Length },
         { "TryGetSpan", "$1|1|", v => v.TryGetSpan(out _) },
         { "CopyTo", "$1|1|", v => { Span<byte> target = stackalloc byte[8]; v.CopyTo(target); } },
@@ -175,10 +175,10 @@ public class RespValueTests
         // the other branch of the lease: an IMemoryOwner rather than a pooled array. Dispose nulls the
         // same field, so both land on the same guard - but only one of them was being exercised.
         var (lease, value) = InLease("$3|abc|", MemoryPool<byte>.Shared);
-        Assert.Equal("abc", value.AsString());
+        Assert.Equal("abc", (string?)value);
 
         lease.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => value.AsString());
+        Assert.Throws<ObjectDisposedException>(() => (string?)value);
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public class RespValueTests
         Assert.True(RespValue.TryCaptureNext(frame, ref reader, out var value));
 
         GC.Collect();
-        Assert.Equal("abc", value.AsString());
+        Assert.Equal("abc", (string?)value);
     }
 
     [Fact]
