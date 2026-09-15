@@ -67,6 +67,56 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Down-level consumers: a `Downlevel` namespace of method-shims. Investigated 2026-09-15; the
+      strategy below is proposed, not yet built.**
+
+      The commands are already classic `this in` extension methods, so they bind everywhere. Only the
+      **group accessors** (`db.Strings`) are extension-block properties, and those need **C# 14**. The
+      proposal: keep the properties in the main namespace always, and put method-shims (`db.Strings()`) in
+      an opt-in `StackExchange.Redis.Downlevel`.
+
+      **Measured across four real toolchains** - not by pinning `LangVersion`, which is not the same thing
+      (see the warning below). Each built a consumer with the shim *and* the property both in scope:
+
+      | toolchain | langver | result |
+      | --- | --- | --- |
+      | Mono msbuild 16.10, net472 | 7.3 | succeeded |
+      | .NET SDK 6.0.428, netstandard2.0 | 10 | succeeded |
+      | .NET SDK 8.0.425, net8.0 | 12 | succeeded |
+      | .NET SDK 11 preview, net10.0 | 14 | **CS9339**, ambiguous |
+
+      So: **extension-block metadata is inert to a down-level compiler** - not merely unusable, invisible.
+      Having the properties always in scope costs those consumers nothing.
+
+      The three failure modes are all compile-time, all actionable, and none can misbehave at run time -
+      both spellings construct the same value over the same context:
+
+      - up-level importing `Downlevel` -> `CS9339`, naming both members. Up-level implies a modern SDK, so
+        an analyzer can always catch this one.
+      - down-level *without* `Downlevel` -> `CS1061`, which already ends "are you missing a using directive
+        or an assembly reference?". **The native message is the fix**, so the analyzer is a nicety here
+        rather than load-bearing - which is the answer to "does our analyzer even load on an old SDK".
+      - down-level *with* `Downlevel`, writing `db.Strings` -> `CS0119` "is a method", i.e. add the parens.
+
+      **`[OverloadResolutionPriority]` does not help** - tested. `CS9339` is extension *member lookup*
+      between a property and a method group, which never reaches overload resolution.
+
+      **Consequence for namespace shape:** the accessors and the shims must be in different namespaces from
+      each other, with the shared types (`RespStrings` and friends) in the namespace everyone imports. That
+      is a public reshuffle, and it gets more expensive per command group added.
+
+      **Do not validate this by pinning `LangVersion`.** A modern compiler at `/langversion:12` reports
+      `CS9202`+`CS9339` where a *real* C# 12 compiler succeeds: it still sees the metadata and then refuses
+      the feature, where an old compiler never sees it. The emulation is stricter than reality, so anyone
+      reproducing it that way will find failures no real consumer has. (Noted because the first round of
+      evidence here was exactly that mistake - and worse, a `Microsoft.Net.Compilers.Toolset` pin meant to
+      give a genuine old compiler silently never engaged, so the results were the modern compiler all
+      along. Docker images of the real SDKs are the honest instrument.)
+
+      Probe artefact worth knowing: the net472 consumer needs `Microsoft.Bcl.AsyncInterfaces` and
+      `System.Memory` at the library's pinned versions to bind `ValueTask`; real consumers get those
+      transitively, but a netfx consumer pinning older ones hits `CS1705` before any of this matters.
+
 - [ ] **`WATCH`/`MULTI` is BLOCKED on the `Message` refactor — do not start it first.** The measurement is
       taken (`0ac297fe`): a condition makes `ExecuteAsync` block the *calling* thread for two round trips
       (sync 508ms vs 2ms without), because the expansion is enumerated inside a sync `WriteMessageInsideLock`
