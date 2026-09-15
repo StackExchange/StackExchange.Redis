@@ -91,27 +91,6 @@ Four consequences, none of them cosmetic:
       same connection between our `WATCH` and our `MULTI` would silently clear our watch. The lock is what
       makes the watch mean anything.
 
-- [ ] **Should a top-level error be a `RespResult` rather than a throw?** *Post-verdict decision*, recorded
-      now because it looks like a `RespResultProcessor` shape question and is not.
-
-      `RespResult` **can already carry it**: it stores the `Prefix` and the raw frame including the prefix
-      bytes, so `-ERR` is representable today - the processor simply routes errors to `base.SetResult`,
-      which faults the message. So this is a "chooses not to", not a "cannot".
-
-      The real question is errors-as-values vs errors-as-exceptions, which is user-visible and much bigger
-      than making one processor fit a seam. Three reasons not to take it yet: it is a **silent** break for
-      `ExecuteResp`/`ScriptEvaluateResp` callers who get exceptions today and would get a value they must
-      remember to check; it would break the `NOSCRIPT` retry, which depends on the exception unwinding, so
-      doing it first removes the mechanism before its replacement exists; and the library already draws a
-      defensible line - nested errors inside an `EXEC` array are already data in `RedisResult`, only the top
-      level throws.
-
-      After the verdict lands, "capture this error as a `RespResult`" is one of the verdicts rather than a
-      special case, `RespResultProcessor` collapses into the seam, and the question can be decided on its
-      own merits with a mechanism able to express either answer.
-
-## Next
-
 - [ ] **Three probes, one per layer: `EVALSHA`, `MULTI`, `HIMPORT`.** These look like three awkward
       commands and are better understood as three *different seams*, which is why doing all three settles
       the question and doing one does not.
@@ -484,6 +463,21 @@ Four consequences, none of them cosmetic:
       `Sweep` reclaiming expired entries rather than only invalidated ones — `e2d2ea3c`
 
 ## Decided against
+
+- **Errors as values on the new surface.** Decided 2026-09-15: a top-level error throws, as everywhere else
+  in this library, unless somebody turns up with a concrete need. Errors-as-values makes every caller
+  responsible for remembering to check, and forgetting is **silent** - the same failure class this design
+  refuses for keyless cache entries, undeclared retry categories and stale script beliefs. A second error
+  model, opt-in for correctness, would be inconsistent in the expensive direction.
+
+  The line is already drawn where it belongs: nested errors inside an `EXEC` array *are* data in
+  `RedisResult`; only the top level throws. That is the difference between "this operation failed" and "one
+  element of this aggregate failed", not an oversight.
+
+  **A deferral, not a door closing:** `RespResult` already stores the `Prefix` and the raw frame *including*
+  the prefix bytes, so `-ERR` is representable today - the processor simply routes errors to the failing
+  path. If the need ever arrives it is an additive API on a type that can already carry it.
+
 
 - **A "buffer is shared" flag on `RespReader`**, and a second read-only reservation interface. Unnecessary
   once the *type* carries the distinction: the mutable path simply never calls `TryReservePayload`. §6.16.
