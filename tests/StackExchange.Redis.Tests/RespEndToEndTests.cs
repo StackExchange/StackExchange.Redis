@@ -318,6 +318,44 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     /// <summary>
+    /// The OBJECT family against a real server, with the old path as the oracle.
+    /// </summary>
+    /// <remarks>
+    /// Unit bugs are the risk here, not framing: <c>IDLETIME</c> is seconds where every other
+    /// <see cref="TimeSpan"/> on this surface is milliseconds, and a factor of a thousand looks entirely
+    /// reasonable in isolation. Comparing against <c>IDatabase</c>, which has answered this correctly for
+    /// years, is the cheapest oracle available. <c>FREQ</c> is left out: it needs an LFU maxmemory-policy
+    /// and errors otherwise, so it would be testing the server's configuration rather than our bytes.
+    /// </remarks>
+    [Fact]
+    public async Task TheObjectFamilyAgreesWithTheOldPath()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+        var ctx = ((IRespTarget)db).Context;
+        var key = Me();
+
+        await db.KeyDeleteAsync(key);
+        await db.ListRightPushAsync(key, ["a", "b"]);
+
+        Assert.Equal(await db.KeyEncodingAsync(key), await ctx.Keys.EncodingAsync(key));
+        Assert.Equal(await db.KeyRefCountAsync(key), await ctx.Keys.RefCountAsync(key));
+
+        // seconds, so a freshly-touched key reads as a small number rather than a huge one
+        var idle = await ctx.Keys.IdleTimeAsync(key);
+        Assert.NotNull(idle);
+        Assert.True(idle.Value < TimeSpan.FromMinutes(1), $"idle time {idle} is implausible for a key just written");
+        Assert.Equal(await db.KeyIdleTimeAsync(key), idle);
+
+        // and a missing key is null on both, rather than zero on one of them
+        var absent = key + ":absent";
+        await db.KeyDeleteAsync(absent);
+        Assert.Null(await ctx.Keys.EncodingAsync(absent));
+        Assert.Null(await ctx.Keys.RefCountAsync(absent));
+        Assert.Null(await ctx.Keys.IdleTimeAsync(absent));
+    }
+
+    /// <summary>
     /// The groups are on the batch and transaction interfaces themselves, not just reachable by a cast.
     /// </summary>
     /// <remarks>

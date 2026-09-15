@@ -319,6 +319,69 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
+        /// <summary>OBJECT ENCODING; how the server is storing the value, or <c>null</c> if the key is gone.</summary>
+        /// <param name="keys">The key command group.</param>
+        /// <param name="key">The key to inspect.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <b>The one of the four that is cacheable.</b> The encoding only changes when the value does - a
+        /// listpack becoming a quicklist, an intset becoming a hashtable - and a write to the key is exactly
+        /// what invalidation reports. The other three answer questions that change <i>without</i> the key
+        /// being written, so nothing would ever tell the cache it was stale; see their remarks.
+        /// </remarks>
+        public static ValueTask<string?> EncodingAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => keys.Context.SendAsync<string?>(
+                $"{RedisCommand.OBJECT}{RespLiterals.Encoding}{key}", flags.WithDefaultCategory(RedisCommand.OBJECT));
+
+        /// <summary>OBJECT REFCOUNT; the reference count, or <c>null</c> if the key is gone.</summary>
+        /// <param name="keys">The key command group.</param>
+        /// <param name="key">The key to inspect.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <b>Never cached.</b> Shared integers have a process-wide reference count that moves when
+        /// <i>other</i> keys are written, so this answer can go stale with no write to this key at all -
+        /// and a write to this key is the only thing invalidation reports.
+        /// </remarks>
+        public static ValueTask<long?> RefCountAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => keys.Context.SendAsync<long?>(
+                $"{RedisCommand.OBJECT}{RespLiterals.RefCount}{key}",
+                flags.WithDefaultCategory(RedisCommand.OBJECT).NeverCached());
+
+        /// <summary>OBJECT FREQ; the LFU access counter, or <c>null</c> if the key is gone.</summary>
+        /// <param name="keys">The key command group.</param>
+        /// <param name="key">The key to inspect.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <b>Never cached</b>, for the sharpest version of the reason: the counter moves on every
+        /// <i>read</i>, so caching it would freeze the very number that reading it is meant to observe.
+        /// Requires an LFU <c>maxmemory-policy</c>; the server errors otherwise.
+        /// </remarks>
+        public static ValueTask<long?> FrequencyAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => keys.Context.SendAsync<long?>(
+                $"{RedisCommand.OBJECT}{RespLiterals.Freq}{key}",
+                flags.WithDefaultCategory(RedisCommand.OBJECT).NeverCached());
+
+        /// <summary>OBJECT IDLETIME; how long since the key was accessed, or <c>null</c> if it is gone.</summary>
+        /// <param name="keys">The key command group.</param>
+        /// <param name="key">The key to inspect.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Never cached</b>, for the same reason as <c>PTTL</c>: it changes with the clock, so a cached
+        /// answer is wrong the moment after it is stored and nothing will ever say so.
+        /// </para>
+        /// <para>
+        /// <b>Seconds, not milliseconds</b>, which is why this names its handler instead of taking the
+        /// default for <see cref="TimeSpan"/>. The default reads milliseconds because <c>PTTL</c> does, and
+        /// the two are indistinguishable at the call site - a plausible answer, wrong by a thousand.
+        /// </para>
+        /// </remarks>
+        public static ValueTask<TimeSpan?> IdleTimeAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => keys.Context.SendAsync(
+                $"{RedisCommand.OBJECT}{RespLiterals.IdleTime}{key}",
+                flags.WithDefaultCategory(RedisCommand.OBJECT).NeverCached(),
+                RespHandlers.TimeSpanFromSeconds);
+
         /// <remarks>
         /// As the hash group's selector, over the un-prefixed commands. The same rejection applies:
         /// <c>KEEPTTL</c> and <c>PERSIST</c> are not deadlines, and <c>PERSIST</c> is its own command.

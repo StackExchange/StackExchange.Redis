@@ -362,6 +362,22 @@
         [Resp("FILTER-EF")]
         internal static partial RespFragment FilterEf { get; }
 
+        /// <summary>The <c>ENCODING</c> subcommand of <c>OBJECT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Encoding { get; }
+
+        /// <summary>The <c>FREQ</c> subcommand of <c>OBJECT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Freq { get; }
+
+        /// <summary>The <c>IDLETIME</c> subcommand of <c>OBJECT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment IdleTime { get; }
+
+        /// <summary>The <c>REFCOUNT</c> subcommand of <c>OBJECT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment RefCount { get; }
+
         /// <summary>The <c>TRUTH</c> operand of <c>VSIM</c>: exact search rather than approximate.</summary>
         [Resp]
         internal static partial RespFragment Truth { get; }

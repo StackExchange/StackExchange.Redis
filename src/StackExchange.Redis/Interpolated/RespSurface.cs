@@ -188,6 +188,31 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static IRespHandler<ReadOnlyLease<byte>?> SingletonReadOnlyLease { get; } = new SingletonReadOnlyLeaseHandler();
 
+        /// <summary>An integer reply counted in <b>seconds</b>, as <c>OBJECT IDLETIME</c> reports.</summary>
+        /// <remarks>
+        /// Named rather than built in, because the default <see cref="TimeSpan"/> handler reads
+        /// <b>milliseconds</b> - it serves <c>PTTL</c>, which is the common case. Two units for one type is
+        /// exactly the shape that produces an answer wrong by a factor of a thousand and right-looking, so
+        /// the odd one out is spelt out at the call site rather than inferred.
+        /// </remarks>
+        public static IRespHandler<TimeSpan?> TimeSpanFromSeconds { get; } = new TimeSpanFromSecondsHandler();
+
+        private sealed class TimeSpanFromSecondsHandler : IRespHandler<TimeSpan?>
+        {
+            public TimeSpan? Parse(ref RespReader reader)
+            {
+                // nil, not just negative: OBJECT IDLETIME answers a missing key with a nil bulk string,
+                // where PTTL - which the millisecond handler serves - answers -2 and never nils. So the
+                // two handlers differ in more than the unit, and reading this one as an integer throws
+                // "Invalid format parsing BulkString as Int64" the first time it is asked about a key that
+                // is not there. Found by comparing against IDatabase rather than by reasoning.
+                if (reader.IsNull) return null;
+
+                var seconds = reader.ReadInt64();
+                return seconds < 0 ? null : TimeSpan.FromSeconds(seconds);
+            }
+        }
+
         /// <summary>Checks the reply for a server error, and reads nothing else.</summary>
         /// <remarks>
         /// What a command with no result still has to do. Without it a failed command would complete

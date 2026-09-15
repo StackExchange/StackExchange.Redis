@@ -487,10 +487,28 @@ Four consequences, none of them cosmetic:
       `EveryMemberOfAMovedGroupIsImplemented` is honest about the prefixes it is handed and silent about
       the ones it is not. `EveryImplementedMemberBelongsToATestedGroup` now closes that.
 
-- [ ] **The `OBJECT` family and `DBSIZE`.** Deferred out of the `Keys` group: `OBJECT ENCODING/REFCOUNT/
-      FREQ/IDLETIME` are a different command shape, better done together, and `IDLETIME` will want
-      `.NeverCached()` for the same reason `PTTL` does. `DBSIZE` is an `IServer` command and belongs to
-      that context, not to `Keys`.
+- [x] **The `OBJECT` family.** Done 2026-09-15, on the `Keys` group, and the coverage test's four
+      exclusions are deleted so it is now held to the same standard as the rest. SER352: 186 -> 178.
+
+      **Cacheability splits three-one, on a sharper rule than "it is a read".** The question is *can this
+      answer change without the key being written?*, because a write to the key is the only thing
+      invalidation reports. `REFCOUNT` moves when *other* keys share an integer; `FREQ` moves on every
+      read - caching it would freeze the very number reading it is meant to observe; `IDLETIME` moves with
+      the clock. All three `.NeverCached()`. `ENCODING` only changes when the value does, which *is* a
+      write, so it is cacheable and serves as the control in the test, exactly as `PEXPIRETIME` does for
+      `PTTL`.
+
+      **Two unit traps, one of which bit.** `IDLETIME` is **seconds** where every other `TimeSpan` on this
+      surface is milliseconds, so it names `RespHandlers.TimeSpanFromSeconds` rather than taking the default
+      for `TimeSpan?` - wrong by a factor of a thousand and entirely plausible-looking otherwise. And the
+      two handlers differ in more than the unit: `IDLETIME` answers a **nil** bulk string for a missing key,
+      where `PTTL` answers `-2` and never nils, so reading it as an integer throws *"Invalid format parsing
+      BulkString as Int64"* the first time anyone asks about a key that is not there. That was found by the
+      end-to-end test comparing against `IDatabase` - which has answered this correctly for years and is the
+      cheapest oracle available - rather than by reasoning about the reply shape.
+
+- [ ] **`DBSIZE`.** Split out of the entry above: it is an `IServer` command and belongs to that context,
+      not to `Keys`.
 
 ## Later / decide first
 

@@ -207,12 +207,9 @@ public class TransitionalCoverageTests
             .Where(x => !x.StartsWith("SetScan", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("SortedSetScan", StringComparison.Ordinal))
 
-            // Key: the OBJECT family is a different command shape, deferred as a unit; MIGRATE and RESTORE
-            // are not on the new surface at all
-            .Where(x => !x.StartsWith("KeyEncoding", StringComparison.Ordinal))
-            .Where(x => !x.StartsWith("KeyFrequency", StringComparison.Ordinal))
-            .Where(x => !x.StartsWith("KeyIdleTime", StringComparison.Ordinal))
-            .Where(x => !x.StartsWith("KeyRefCount", StringComparison.Ordinal))
+            // Key: MIGRATE and RESTORE are not on the new surface at all. The OBJECT family used to be
+            // excluded here too, as "a different command shape, deferred as a unit" - it has since moved,
+            // so the exclusions are gone and this test now holds it to the same standard as the rest
             .Where(x => !x.StartsWith("KeyMigrate", StringComparison.Ordinal))
             .Where(x => !x.StartsWith("KeyRestore", StringComparison.Ordinal))
 

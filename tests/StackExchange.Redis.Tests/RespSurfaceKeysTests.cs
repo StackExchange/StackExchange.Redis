@@ -63,6 +63,45 @@ public class RespSurfaceKeysTests
             exec.Sent);
     }
 
+    /// <summary>The OBJECT family renders as one command with a fixed subcommand token.</summary>
+    [Fact]
+    public async Task TheObjectFamilyRendersItsSubcommand()
+    {
+        var (ctx, exec) = Target(":3\r\n", ":3\r\n", ":3\r\n", "$8\r\nlistpack\r\n");
+
+        await ctx.Keys.RefCountAsync("k");
+        await ctx.Keys.FrequencyAsync("k");
+        await ctx.Keys.IdleTimeAsync("k");
+        await ctx.Keys.EncodingAsync("k");
+
+        Assert.Equal(
+            new[]
+            {
+                "*3|$6|OBJECT|$8|REFCOUNT|$1|k|",
+                "*3|$6|OBJECT|$4|FREQ|$1|k|",
+                "*3|$6|OBJECT|$8|IDLETIME|$1|k|",
+                "*3|$6|OBJECT|$8|ENCODING|$1|k|",
+            },
+            exec.Sent);
+    }
+
+    /// <summary>
+    /// <c>IDLETIME</c> is <b>seconds</b>, where every other <see cref="TimeSpan"/> on this surface is
+    /// milliseconds.
+    /// </summary>
+    /// <remarks>
+    /// The default handler for <c>TimeSpan?</c> reads milliseconds, because <c>PTTL</c> is the common case
+    /// - so taking it here would be wrong by a factor of a thousand and entirely plausible-looking. This is
+    /// the assertion that says which unit was meant.
+    /// </remarks>
+    [Fact]
+    public async Task IdleTimeIsSecondsNotMilliseconds()
+    {
+        var (ctx, _) = Target(":3\r\n");
+
+        Assert.Equal(TimeSpan.FromSeconds(3), await ctx.Keys.IdleTimeAsync("k"));
+    }
+
     /// <summary>An empty run is not a command: an arity-zero DEL is a server error, and the answer is zero.</summary>
     [Fact]
     public async Task NoKeysMeansNoCommand()
@@ -197,5 +236,22 @@ public class RespSurfaceKeysTests
         // ...and the control: an instant does not drift, so this one is cacheable
         var (when, _) = await Run(":1700000000000\r\n", static async c => await c.Keys.ExpireTimeAsync("k"));
         Assert.True(when, "PEXPIRETIME should be cacheable");
+
+        // the OBJECT family splits the same way, on the same question: can this answer change without the
+        // key being WRITTEN? A write is the only thing invalidation reports, so anything else goes stale
+        // with nothing to say so. REFCOUNT moves when other keys share an integer; FREQ moves on every
+        // read; IDLETIME moves with the clock. ENCODING only changes when the value does - a write - so it
+        // is the control here, exactly as PEXPIRETIME is above.
+        var (refCount, _) = await Run(":1\r\n", static async c => await c.Keys.RefCountAsync("k"));
+        Assert.False(refCount, "OBJECT REFCOUNT was served from cache");
+
+        var (freq, _) = await Run(":1\r\n", static async c => await c.Keys.FrequencyAsync("k"));
+        Assert.False(freq, "OBJECT FREQ was served from cache");
+
+        var (idle, _) = await Run(":1\r\n", static async c => await c.Keys.IdleTimeAsync("k"));
+        Assert.False(idle, "OBJECT IDLETIME was served from cache");
+
+        var (encoding, _) = await Run("$8\r\nlistpack\r\n", static async c => await c.Keys.EncodingAsync("k"));
+        Assert.True(encoding, "OBJECT ENCODING should be cacheable");
     }
 }

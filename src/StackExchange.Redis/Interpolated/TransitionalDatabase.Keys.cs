@@ -192,5 +192,37 @@ namespace StackExchange.Redis.Interpolated
         /// <inheritdoc cref="ExpireCore(RedisKey, TimeSpan?, ExpireWhen, CommandFlags)"/>
         private ValueTask<bool> ExpireCore(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags)
             => expiry is null ? Context.Keys.PersistAsync(key, flags) : Context.Keys.ExpireAsync(key, expiry.Value, when, flags);
-    }
+
+        /// <inheritdoc/>
+        public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(Context.Keys.EncodingAsync(key, flags));
+
+        /// <inheritdoc/>
+        public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Context.Keys.EncodingAsync(key, flags).AsTask();
+
+        /// <inheritdoc/>
+        public long? KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(Context.Keys.RefCountAsync(key, flags));
+
+        /// <inheritdoc/>
+        public Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Context.Keys.RefCountAsync(key, flags).AsTask();
+
+        /// <inheritdoc/>
+        public long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(Context.Keys.FrequencyAsync(key, flags));
+
+        /// <inheritdoc/>
+        public Task<long?> KeyFrequencyAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Context.Keys.FrequencyAsync(key, flags).AsTask();
+
+        /// <inheritdoc/>
+        public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(Context.Keys.IdleTimeAsync(key, flags));
+
+        /// <inheritdoc/>
+        public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Context.Keys.IdleTimeAsync(key, flags).AsTask();
+}
 }
