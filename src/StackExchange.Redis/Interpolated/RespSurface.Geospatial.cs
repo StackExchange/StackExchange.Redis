@@ -520,10 +520,8 @@ namespace StackExchange.Redis.Interpolated
         {
             internal static readonly SingletonPositionHandler Instance = new();
 
-            public GeoPosition? Parse(ReadOnlySpan<byte> response)
+            public GeoPosition? Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (!reader.IsAggregate || !reader.AggregateLengthIs(1)) return null;
 
                 reader.MoveNext();
@@ -536,10 +534,8 @@ namespace StackExchange.Redis.Interpolated
         {
             internal static readonly SingletonStringHandler Instance = new();
 
-            public string? Parse(ReadOnlySpan<byte> response)
+            public string? Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (!reader.IsAggregate || !reader.AggregateLengthIs(1)) return null;
 
                 reader.MoveNext();
@@ -557,13 +553,11 @@ namespace StackExchange.Redis.Interpolated
 
             internal static IRespHandler<GeoPosition?[]> Array => Instance;
 
-            ReadOnlyLease<GeoPosition?> IRespHandler<ReadOnlyLease<GeoPosition?>>.Parse(ReadOnlySpan<byte> response)
-                => RespHandlers.ReadScalarLease<GeoPosition?>(response, static (ref r) => GeoPosition.TryRead(ref r));
+            ReadOnlyLease<GeoPosition?> IRespHandler<ReadOnlyLease<GeoPosition?>>.Parse(ref RespReader reader)
+                => RespHandlers.ReadScalarLease<GeoPosition?>(ref reader, static (ref r) => GeoPosition.TryRead(ref r));
 
-            GeoPosition?[] IRespHandler<GeoPosition?[]>.Parse(ReadOnlySpan<byte> response)
+            GeoPosition?[] IRespHandler<GeoPosition?[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.IsNull ? [] : reader.ReadPastArray(static (ref r) => GeoPosition.TryRead(ref r)) ?? [];
             }
         }
@@ -578,13 +572,11 @@ namespace StackExchange.Redis.Interpolated
             /// <inheritdoc cref="PositionLeaseHandler.Array"/>
             internal static IRespHandler<string?[]> Array => Instance;
 
-            ReadOnlyLease<string?> IRespHandler<ReadOnlyLease<string?>>.Parse(ReadOnlySpan<byte> response)
-                => RespHandlers.ReadScalarLease<string?>(response, static (ref r) => r.IsNull ? null : r.ReadString());
+            ReadOnlyLease<string?> IRespHandler<ReadOnlyLease<string?>>.Parse(ref RespReader reader)
+                => RespHandlers.ReadScalarLease<string?>(ref reader, static (ref r) => r.IsNull ? null : r.ReadString());
 
-            string?[] IRespHandler<string?[]>.Parse(ReadOnlySpan<byte> response)
+            string?[] IRespHandler<string?[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.IsNull ? [] : reader.ReadPastArray(static (ref r) => r.IsNull ? null : r.ReadString()) ?? [];
             }
         }
@@ -618,13 +610,11 @@ namespace StackExchange.Redis.Interpolated
             private static GeoResultHandler Get(GeoRadiusOptions options)
                 => Instances[(int)options & 7] ??= new GeoResultHandler(options);
 
-            ReadOnlyLease<GeoRadiusResult> IRespHandler<ReadOnlyLease<GeoRadiusResult>>.Parse(ReadOnlySpan<byte> response)
-                => RespHandlers.ReadScalarLease(response, _projection);
+            ReadOnlyLease<GeoRadiusResult> IRespHandler<ReadOnlyLease<GeoRadiusResult>>.Parse(ref RespReader reader)
+                => RespHandlers.ReadScalarLease(ref reader, _projection);
 
-            GeoRadiusResult[] IRespHandler<GeoRadiusResult[]>.Parse(ReadOnlySpan<byte> response)
+            GeoRadiusResult[] IRespHandler<GeoRadiusResult[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (reader.IsNull) return [];
 
                 var opts = _options;

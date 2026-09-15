@@ -208,13 +208,10 @@ namespace StackExchange.Redis.Interpolated
         /// it too.
         /// </remarks>
         /// <typeparam name="T">The element type.</typeparam>
-        /// <param name="response">The reply to read.</param>
+        /// <param name="reader">The reply, already positioned on its first element.</param>
         /// <param name="projection">How to read one element.</param>
-        internal static ReadOnlyLease<T> ReadScalarLease<T>(ReadOnlySpan<byte> response, RespReader.Projection<T> projection)
+        internal static ReadOnlyLease<T> ReadScalarLease<T>(ref RespReader reader, RespReader.Projection<T> projection)
         {
-            var reader = new RespReader(response);
-            reader.MoveNext();
-
             // a nil aggregate reads as empty, as it does for the array handlers: every caller of an
             // array reply wants to iterate it
             if (reader.IsNull) return ReadOnlyLease<T>.Empty;
@@ -479,35 +476,25 @@ namespace StackExchange.Redis.Interpolated
         {
             internal static readonly DefaultHandlers Instance = new();
 
-            RedisValue IRespHandler<RedisValue>.Parse(ReadOnlySpan<byte> response)
+            RedisValue IRespHandler<RedisValue>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.IsNull ? RedisValue.Null : reader.ReadRedisValue();
             }
 
-            bool IRespHandler<bool>.Parse(ReadOnlySpan<byte> response)
+            bool IRespHandler<bool>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-
                 // nil is not a failure here, and this is the one place that has to say so: a SET under
                 // NX/XX that did not write, a GETEX on a missing key - the command worked, the answer is no
                 return !reader.IsNull && reader.ReadBoolean();
             }
 
-            long IRespHandler<long>.Parse(ReadOnlySpan<byte> response)
+            long IRespHandler<long>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadInt64();
             }
 
-            long? IRespHandler<long?>.Parse(ReadOnlySpan<byte> response)
+            long? IRespHandler<long?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-
                 // a single-operation BITFIELD still replies with an array; unwrap a unit one, as the
                 // MessageWriter path's NullableInt64Processor does, so the caller sees one value
                 if (reader.IsAggregate) reader.MoveNext();
@@ -515,10 +502,8 @@ namespace StackExchange.Redis.Interpolated
                 return reader.IsNull ? null : reader.ReadInt64();
             }
 
-            double IRespHandler<double>.Parse(ReadOnlySpan<byte> response)
+            double IRespHandler<double>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadDouble();
             }
 
@@ -528,11 +513,8 @@ namespace StackExchange.Redis.Interpolated
             /// would otherwise reach gen 2. The elements themselves still allocate - <c>RedisValue</c> has
             /// no lifetime and cannot be handed one - so this saves the array, not its contents.
             /// </remarks>
-            ReadOnlyLease<RedisValue> IRespHandler<ReadOnlyLease<RedisValue>>.Parse(ReadOnlySpan<byte> response)
+            ReadOnlyLease<RedisValue> IRespHandler<ReadOnlyLease<RedisValue>>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-
                 // as the array handler: a nil aggregate reads as empty, because every caller of an array
                 // reply wants to iterate it
                 if (reader.IsNull) return ReadOnlyLease<RedisValue>.Empty;
@@ -560,30 +542,28 @@ namespace StackExchange.Redis.Interpolated
                 }
             }
 
-            ReadOnlyLease<long> IRespHandler<ReadOnlyLease<long>>.Parse(ReadOnlySpan<byte> response)
-                => ReadScalarLease(response, static (ref r) => r.ReadInt64());
+            ReadOnlyLease<long> IRespHandler<ReadOnlyLease<long>>.Parse(ref RespReader reader)
+                => ReadScalarLease(ref reader, static (ref r) => r.ReadInt64());
 
-            ReadOnlyLease<bool> IRespHandler<ReadOnlyLease<bool>>.Parse(ReadOnlySpan<byte> response)
-                => ReadScalarLease(response, static (ref r) => r.ReadBoolean());
+            ReadOnlyLease<bool> IRespHandler<ReadOnlyLease<bool>>.Parse(ref RespReader reader)
+                => ReadScalarLease(ref reader, static (ref r) => r.ReadBoolean());
 
-            ReadOnlyLease<ExpireResult> IRespHandler<ReadOnlyLease<ExpireResult>>.Parse(ReadOnlySpan<byte> response)
-                => ReadScalarLease(response, static (ref r) => (ExpireResult)r.ReadInt64());
+            ReadOnlyLease<ExpireResult> IRespHandler<ReadOnlyLease<ExpireResult>>.Parse(ref RespReader reader)
+                => ReadScalarLease(ref reader, static (ref r) => (ExpireResult)r.ReadInt64());
 
-            ReadOnlyLease<PersistResult> IRespHandler<ReadOnlyLease<PersistResult>>.Parse(ReadOnlySpan<byte> response)
-                => ReadScalarLease(response, static (ref r) => (PersistResult)r.ReadInt64());
+            ReadOnlyLease<PersistResult> IRespHandler<ReadOnlyLease<PersistResult>>.Parse(ref RespReader reader)
+                => ReadScalarLease(ref reader, static (ref r) => (PersistResult)r.ReadInt64());
 
             /// <remarks>ZMSCORE replies nil for a member that is not there, so the element type is nullable.</remarks>
-            ReadOnlyLease<double?> IRespHandler<ReadOnlyLease<double?>>.Parse(ReadOnlySpan<byte> response)
-                => ReadScalarLease(response, static (ref r) => r.IsNull ? (double?)null : r.ReadDouble());
+            ReadOnlyLease<double?> IRespHandler<ReadOnlyLease<double?>>.Parse(ref RespReader reader)
+                => ReadScalarLease(ref reader, static (ref r) => r.IsNull ? (double?)null : r.ReadDouble());
 
             /// <remarks>BITFIELD replies nil for an operation skipped by OVERFLOW FAIL, hence nullable.</remarks>
-            ReadOnlyLease<long?> IRespHandler<ReadOnlyLease<long?>>.Parse(ReadOnlySpan<byte> response)
-                => ReadScalarLease(response, static (ref r) => r.IsNull ? (long?)null : r.ReadInt64());
+            ReadOnlyLease<long?> IRespHandler<ReadOnlyLease<long?>>.Parse(ref RespReader reader)
+                => ReadScalarLease(ref reader, static (ref r) => r.IsNull ? (long?)null : r.ReadInt64());
 
-            ListPopResult IRespHandler<ListPopResult>.Parse(ReadOnlySpan<byte> response)
+            ListPopResult IRespHandler<ListPopResult>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return ListPopResult.TryRead(ref reader, out var result)
                     ? result
                     : throw new RespException("Unexpected LMPOP reply.");
@@ -594,10 +574,8 @@ namespace StackExchange.Redis.Interpolated
             /// <c>ArrayPool</c> and reports the live length separately, which is exactly a lease
             /// wearing different clothes - so this adopts the rental rather than copying out of it.
             /// </remarks>
-            ReadOnlyLease<HashEntry> IRespHandler<ReadOnlyLease<HashEntry>>.Parse(ReadOnlySpan<byte> response)
+            ReadOnlyLease<HashEntry> IRespHandler<ReadOnlyLease<HashEntry>>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 var pooled = HashEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
                 return pooled is null ? ReadOnlyLease<HashEntry>.Empty : ReadOnlyLease<HashEntry>.Adopt(pooled, count);
             }
@@ -612,18 +590,14 @@ namespace StackExchange.Redis.Interpolated
                 => ((IRespPayloadHandler<ReadOnlyLease<RespValue>>)ValueWindowHandler.Lease).Parse(payload);
 
             /// <inheritdoc cref="IRespHandler{T}.Parse" path="/remarks"/>
-            ReadOnlyLease<SortedSetEntry> IRespHandler<ReadOnlyLease<SortedSetEntry>>.Parse(ReadOnlySpan<byte> response)
+            ReadOnlyLease<SortedSetEntry> IRespHandler<ReadOnlyLease<SortedSetEntry>>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 var pooled = SortedSetEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
                 return pooled is null ? ReadOnlyLease<SortedSetEntry>.Empty : ReadOnlyLease<SortedSetEntry>.Adopt(pooled, count);
             }
 
-            RedisKey IRespHandler<RedisKey>.Parse(ReadOnlySpan<byte> response)
+            RedisKey IRespHandler<RedisKey>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.IsNull ? default : (RedisKey)reader.ReadString()!;
             }
 
@@ -631,10 +605,8 @@ namespace StackExchange.Redis.Interpolated
             /// Parsed through the generated token table rather than <c>Enum.TryParse</c>, because the wire
             /// spellings are not the member names: a sorted set is <c>zset</c>.
             /// </remarks>
-            RedisType IRespHandler<RedisType>.Parse(ReadOnlySpan<byte> response)
+            RedisType IRespHandler<RedisType>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 RedisType result;
                 unsafe
                 {
@@ -649,37 +621,28 @@ namespace StackExchange.Redis.Interpolated
             /// surface collapses both to null - the caller asked how long is left, and in both cases the
             /// answer is "no deadline". Distinguishing them is what <c>EXISTS</c> is for.
             /// </remarks>
-            TimeSpan? IRespHandler<TimeSpan?>.Parse(ReadOnlySpan<byte> response)
+            TimeSpan? IRespHandler<TimeSpan?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 var ms = reader.ReadInt64();
                 return ms < 0 ? null : TimeSpan.FromMilliseconds(ms);
             }
 
             /// <remarks>As the <see cref="TimeSpan"/> handler: negative means there is no deadline to report.</remarks>
-            DateTime? IRespHandler<DateTime?>.Parse(ReadOnlySpan<byte> response)
+            DateTime? IRespHandler<DateTime?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 var ms = reader.ReadInt64();
                 return ms < 0 ? null : DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
             }
 
-            RedisValue[] IRespHandler<RedisValue[]>.Parse(ReadOnlySpan<byte> response)
+            RedisValue[] IRespHandler<RedisValue[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
-
                 // a nil array - which MGET does not send, but a RESP3 server may for an empty aggregate -
                 // reads as empty rather than null, because every caller of an array reply wants to iterate it
                 return reader.ReadPastRedisValues() ?? Array.Empty<RedisValue>();
             }
 
-            string? IRespHandler<string?>.Parse(ReadOnlySpan<byte> response)
+            string? IRespHandler<string?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.IsNull ? null : reader.ReadString();
             }
 
@@ -695,53 +658,52 @@ namespace StackExchange.Redis.Interpolated
             RespResult IRespPayloadHandler<RespResult>.Parse(RespPayload payload)
                 => payload.ShareAsResult() ?? RespResult.Capture(payload.Span);
 
-            /// <summary>The copying path, for a caller who only has the bytes.</summary>
-            RespResult IRespHandler<RespResult>.Parse(ReadOnlySpan<byte> response) => RespResult.Capture(response);
+            /// <summary>Never reached: this handler needs the whole frame, so callers take the payload form.</summary>
+            /// <remarks>
+            /// A positioned reader is past the prefix and length bytes, and a <see cref="RespResult"/> is
+            /// defined by carrying them - so this is the one shape the reader form cannot express. Callers
+            /// route through <see cref="IRespPayloadHandler{TResult}"/> first, which is why this is
+            /// unreachable rather than merely unimplemented; same pattern as the result processors that
+            /// fully override <c>SetResult</c> and leave <c>SetResultCore</c> throwing.
+            /// </remarks>
+            RespResult IRespHandler<RespResult>.Parse(ref RespReader reader)
+                => throw new NotSupportedException(
+                    $"{nameof(RespResult)} retains the reply frame, so it is parsed from the payload rather than a positioned reader.");
 
             /// <summary>The reply as a buffer the caller owns outright, and may write to.</summary>
             /// <remarks>
             /// Copies, necessarily: a mutable lease must not point at memory anything else can read. The
             /// <see cref="ReadOnlyLease{T}"/> sibling is the one that can share. See design notes 6.16.
             /// </remarks>
-            Lease<byte>? IRespHandler<Lease<byte>?>.Parse(ReadOnlySpan<byte> response)
+            Lease<byte>? IRespHandler<Lease<byte>?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
 #pragma warning disable CS0618 // Type or member is obsolete - the copying form is what this contract needs
                 return RespReaderExtensions.ReadLease(in reader);
 #pragma warning restore CS0618
             }
 
-            ReadOnlyLease<byte>? IRespHandler<ReadOnlyLease<byte>?>.Parse(ReadOnlySpan<byte> response)
+            ReadOnlyLease<byte>? IRespHandler<ReadOnlyLease<byte>?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadLease();
             }
 
-            ValueCondition? IRespHandler<ValueCondition?>.Parse(ReadOnlySpan<byte> response)
+            ValueCondition? IRespHandler<ValueCondition?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return ValueCondition.TryReadDigest(in reader, out var digest)
                     ? digest
                     : throw new RespException("Unexpected DIGEST reply.");
             }
 
-            LCSMatchResult IRespHandler<LCSMatchResult>.Parse(ReadOnlySpan<byte> response)
+            LCSMatchResult IRespHandler<LCSMatchResult>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return LCSMatchResult.TryRead(ref reader, out var result)
                     ? result
                     : throw new RespException("Unexpected LCS IDX reply.");
             }
 
-            StringIncrementResult<long> IRespHandler<StringIncrementResult<long>>.Parse(ReadOnlySpan<byte> response)
+            StringIncrementResult<long> IRespHandler<StringIncrementResult<long>>.Parse(ref RespReader reader)
             {
                 // [value, applied-increment]; under a bound the second is not the one that was asked for
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (reader.IsAggregate
                     && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var value)
                     && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var applied))
@@ -752,12 +714,10 @@ namespace StackExchange.Redis.Interpolated
                 throw new RespException("Unexpected INCREX reply.");
             }
 
-            Lease<long?> IRespHandler<Lease<long?>>.Parse(ReadOnlySpan<byte> response)
+            Lease<long?> IRespHandler<Lease<long?>>.Parse(ref RespReader reader)
             {
                 // BITFIELD's reply: a flat array with one element per sub-operation, nil where
                 // OVERFLOW FAIL skipped one
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 reader.DemandAggregate();
                 if (reader.IsNull) return Lease<long?>.Empty;
 
@@ -789,41 +749,31 @@ namespace StackExchange.Redis.Interpolated
             // passed to enable that detection, not to assert anything about the connection.
             private static readonly ResultProcessor.HashEntryArrayProcessor HashEntryShape = new();
 
-            HashEntry[] IRespHandler<HashEntry[]>.Parse(ReadOnlySpan<byte> response)
+            HashEntry[] IRespHandler<HashEntry[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return HashEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
                        ?? Array.Empty<HashEntry>();
             }
 
-            long[] IRespHandler<long[]>.Parse(ReadOnlySpan<byte> response)
+            long[] IRespHandler<long[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadPastArray(static (ref r) => r.ReadInt64(), scalar: true) ?? Array.Empty<long>();
             }
 
-            ExpireResult[] IRespHandler<ExpireResult[]>.Parse(ReadOnlySpan<byte> response)
+            ExpireResult[] IRespHandler<ExpireResult[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadPastArray(static (ref r) => (ExpireResult)r.ReadInt64(), scalar: true)
                        ?? Array.Empty<ExpireResult>();
             }
 
-            double? IRespHandler<double?>.Parse(ReadOnlySpan<byte> response)
+            double? IRespHandler<double?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.IsNull ? null : reader.ReadDouble();
             }
 
-            double?[] IRespHandler<double?[]>.Parse(ReadOnlySpan<byte> response)
+            double?[] IRespHandler<double?[]>.Parse(ref RespReader reader)
             {
                 // ZMSCORE replies nil for a member that is not there, so the element type has to be nullable
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadPastArray(static (ref r) => r.IsNull ? (double?)null : r.ReadDouble(), scalar: true)
                        ?? Array.Empty<double?>();
             }
@@ -831,51 +781,39 @@ namespace StackExchange.Redis.Interpolated
             // as HashEntryHandler: interleaved in RESP2, possibly jagged in RESP3, decided from the content
             private static readonly ResultProcessor.SortedSetEntryArrayProcessor SortedSetEntryShape = new();
 
-            SortedSetEntry[] IRespHandler<SortedSetEntry[]>.Parse(ReadOnlySpan<byte> response)
+            SortedSetEntry[] IRespHandler<SortedSetEntry[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return SortedSetEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
                        ?? Array.Empty<SortedSetEntry>();
             }
 
-            SortedSetEntry? IRespHandler<SortedSetEntry?>.Parse(ReadOnlySpan<byte> response)
+            SortedSetEntry? IRespHandler<SortedSetEntry?>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return SortedSetEntry.TryRead(ref reader, out var result)
                     ? result
                     : throw new RespException("Unexpected sorted-set pop reply.");
             }
 
-            SortedSetPopResult IRespHandler<SortedSetPopResult>.Parse(ReadOnlySpan<byte> response)
+            SortedSetPopResult IRespHandler<SortedSetPopResult>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return SortedSetPopResult.TryRead(ref reader, out var result)
                     ? result
                     : throw new RespException("Unexpected ZMPOP reply.");
             }
 
-            bool[] IRespHandler<bool[]>.Parse(ReadOnlySpan<byte> response)
+            bool[] IRespHandler<bool[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadPastArray(static (ref r) => r.ReadBoolean(), scalar: true) ?? Array.Empty<bool>();
             }
 
-            PersistResult[] IRespHandler<PersistResult[]>.Parse(ReadOnlySpan<byte> response)
+            PersistResult[] IRespHandler<PersistResult[]>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.ReadPastArray(static (ref r) => (PersistResult)r.ReadInt64(), scalar: true)
                        ?? Array.Empty<PersistResult>();
             }
 
-            StringIncrementResult<double> IRespHandler<StringIncrementResult<double>>.Parse(ReadOnlySpan<byte> response)
+            StringIncrementResult<double> IRespHandler<StringIncrementResult<double>>.Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (reader.IsAggregate
                     && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var value)
                     && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var applied))
@@ -889,12 +827,11 @@ namespace StackExchange.Redis.Interpolated
 
         private sealed class SuccessHandler : IRespHandler<bool>
         {
-            public bool Parse(ReadOnlySpan<byte> response)
-            {
-                var reader = new RespReader(response);
-                reader.MoveNext(); // skips attributes, and throws RespException on an error element
-                return true;
-            }
+            /// <remarks>
+            /// Nothing to read: the caller's <c>MoveNext</c> already skipped attributes and threw on an
+            /// error element, which is the whole of "did it work?".
+            /// </remarks>
+            public bool Parse(ref RespReader reader) => true;
         }
 
         // ---- one-command shapes; reachable through Inbuilt<T>, deliberately not named above ----
@@ -916,10 +853,8 @@ namespace StackExchange.Redis.Interpolated
 
         private sealed class SingletonValueHandler : IRespHandler<RedisValue>
         {
-            public RedisValue Parse(ReadOnlySpan<byte> response)
+            public RedisValue Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (reader.IsNull) return RedisValue.Null; // the whole reply, not an element of it
                 reader.MoveNext();
                 return reader.IsNull ? RedisValue.Null : reader.ReadRedisValue();
@@ -934,10 +869,8 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         private sealed class SingletonLeaseHandler : IRespHandler<Lease<byte>?>
         {
-            public Lease<byte>? Parse(ReadOnlySpan<byte> response)
+            public Lease<byte>? Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (reader.IsNull) return null;
                 reader.MoveNext();
 #pragma warning disable CS0618 // the copying form is what this contract needs; see the remarks
@@ -949,10 +882,8 @@ namespace StackExchange.Redis.Interpolated
         /// <inheritdoc cref="Int64OrMinusOne"/>
         private sealed class Int64OrMinusOneHandler : IRespHandler<long>
         {
-            public long Parse(ReadOnlySpan<byte> response)
+            public long Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 return reader.IsNull ? -1 : reader.ReadInt64();
             }
         }
@@ -960,34 +891,22 @@ namespace StackExchange.Redis.Interpolated
         /// <inheritdoc cref="NullableValues"/>
         private sealed class NullableValuesHandler : IRespHandler<RedisValue[]?>
         {
-            public RedisValue[]? Parse(ReadOnlySpan<byte> response)
-            {
-                var probe = new RespReader(response);
-                probe.MoveNext();
-                return probe.IsNull ? null : RespHandlers.Values.Parse(response);
-            }
+            public RedisValue[]? Parse(ref RespReader reader)
+                => reader.IsNull ? null : RespHandlers.Values.Parse(ref reader);
         }
 
         /// <inheritdoc cref="NullableValueLease"/>
         private sealed class NullableValueLeaseHandler : IRespHandler<ReadOnlyLease<RedisValue>?>
         {
-            public ReadOnlyLease<RedisValue>? Parse(ReadOnlySpan<byte> response)
-            {
-                var probe = new RespReader(response);
-                probe.MoveNext();
-                if (probe.IsNull) return null;
-
-                return RespHandlers.ValueLease.Parse(response);
-            }
+            public ReadOnlyLease<RedisValue>? Parse(ref RespReader reader)
+                => reader.IsNull ? null : RespHandlers.ValueLease.Parse(ref reader);
         }
 
         /// <inheritdoc cref="SingletonLeaseHandler"/>
         private sealed class SingletonReadOnlyLeaseHandler : IRespHandler<ReadOnlyLease<byte>?>
         {
-            public ReadOnlyLease<byte>? Parse(ReadOnlySpan<byte> response)
+            public ReadOnlyLease<byte>? Parse(ref RespReader reader)
             {
-                var reader = new RespReader(response);
-                reader.MoveNext();
                 if (reader.IsNull) return null; // the whole reply, not an element of it
                 reader.MoveNext();
                 return reader.ReadLease();

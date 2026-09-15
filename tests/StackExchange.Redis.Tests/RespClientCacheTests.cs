@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interpolated;
 using Xunit;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Tests;
 
@@ -325,11 +326,20 @@ public class RespClientCacheTests
     }
 
     /// <summary>The ResultProcessor half: reply bytes in, result out.</summary>
-    private sealed class TextHandler : IRespHandler<string>
+    /// <remarks>
+    /// Takes the <b>payload</b> rather than a positioned reader, deliberately: these tests assert that a
+    /// cache hit hands back the identical frame - prefix, length and all - so the handler has to see what a
+    /// reader has already moved past. Decoding the value instead would still pass, and would stop proving
+    /// the thing the file exists to prove.
+    /// </remarks>
+    private sealed class TextHandler : IRespPayloadHandler<string>
     {
         public static readonly TextHandler Instance = new();
 
-        public string Parse(ReadOnlySpan<byte> response) => Text(response);
+        public string Parse(RespPayload payload) => Text(payload.Span);
+
+        string IRespHandler<string>.Parse(ref RespReader reader)
+            => throw new NotSupportedException("this handler wants the raw frame; callers take the payload form");
     }
 
     [Fact]

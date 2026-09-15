@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Interpolated
 {
@@ -80,13 +81,26 @@ namespace StackExchange.Redis.Interpolated
     public interface IRespHandler<TResult>
     {
         /// <summary>Read a reply - cached or fresh - into a result.</summary>
-        /// <param name="response">The reply bytes; valid only for the duration of this call.</param>
+        /// <param name="reader">
+        /// The reply, already positioned on its first element; valid only for the duration of this call.
+        /// </param>
         /// <remarks>
-        /// A span is right here, unlike on <see cref="IRespExecutor"/>: parsing is synchronous and happens
-        /// inside the window where the payload is retained. Do not let it escape - the bytes belong to a
-        /// pooled buffer that may be released as soon as this returns.
+        /// <para>
+        /// A reader rather than a span, and <b>positioned by the caller</b>: every implementation used to
+        /// open with the same two lines - make a reader, <c>MoveNext</c> - so that preamble now happens once
+        /// where the reply arrives, instead of once per handler.
+        /// </para>
+        /// <para>
+        /// The point is not the saved lines. A handler that parses <i>from a reader</i> is the same thing as
+        /// a row parser, so an aggregate can be built from its element handler rather than re-implemented
+        /// beside it - and a reply can be parsed where it is, without first being flattened into a span.
+        /// </para>
+        /// <para>
+        /// Do not let the reader escape: the bytes belong to a pooled buffer that may be released as soon as
+        /// this returns.
+        /// </para>
         /// </remarks>
-        TResult Parse(ReadOnlySpan<byte> response);
+        TResult Parse(ref RespReader reader);
     }
 
     /// <summary>
@@ -301,6 +315,20 @@ namespace StackExchange.Redis.Interpolated
             if (cache is not null && Mutates(flags)) cache.OnLocalWrite(request.AsLookupKey());
         }
 
+        /// <summary>Position a reader on the reply's first element and hand it to the handler.</summary>
+        /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
+        /// <param name="handler">Turns the reply into a result.</param>
+        /// <param name="response">The reply bytes.</param>
+        /// <remarks>
+        /// The two lines every handler used to open with, in the one place every reply funnels through.
+        /// </remarks>
+        internal static TResult ParseFromSpan<TResult>(IRespHandler<TResult> handler, ReadOnlySpan<byte> response)
+        {
+            var reader = new RespReader(response);
+            reader.MoveNext();
+            return handler.Parse(ref reader);
+        }
+
         private static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
             => response switch
             {
@@ -310,7 +338,7 @@ namespace StackExchange.Redis.Interpolated
                 // in the one place every reply already funnels through
                 _ when handler is IRespPayloadHandler<TResult> retaining => retaining.Parse(response),
 
-                _ => handler.Parse(response.Span),
+                _ => ParseFromSpan(handler, response.Span),
             };
 
         /// <summary>
