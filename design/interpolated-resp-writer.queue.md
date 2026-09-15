@@ -383,7 +383,7 @@ Four consequences, none of them cosmetic:
       server's pins to one endpoint already, because the executor's target is the batch/server and
       `ExecuteAsync` is overridden on both. The split is about which commands are *offered*. Free to do now
       only because `IRespTarget` is unshipped (SER010); after it ships, moving it is a break.
-- [x] `IServer`'s context is wired — `<pending>`. Handover for the first server group: bind it to
+- [x] `IServer`'s context is wired — `4bfc05f4`. Handover for the first server group: bind it to
       `IRespServerTarget`, and take the database number explicitly the way `IServer`'s own members do -
       the context carries `-1`, so a database-scoped command fails at construction rather than silently
       running against database 0. No cache is attached, deliberately: invalidation is reported by key and
