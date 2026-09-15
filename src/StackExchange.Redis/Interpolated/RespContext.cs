@@ -36,7 +36,6 @@ namespace StackExchange.Redis.Interpolated
             RedisChannel channelPrefix = default,
             int database = 0,
             ServerType serverType = ServerType.Standalone,
-            CancellationToken cancellationToken = default,
             IRespExecutor? executor = null,
             object? services = null)
         {
@@ -44,7 +43,6 @@ namespace StackExchange.Redis.Interpolated
             _keyPrefix = keyPrefix; // normalise to bytes ONCE; the conversion can allocate for a string-backed key
             Database = database;
             ServerType = serverType;
-            CancellationToken = cancellationToken;
             Executor = executor;
             _services = channelPrefix.IsNull
                 ? services
@@ -280,23 +278,15 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>The server type; cluster slots are only computed when this is a cluster.</summary>
         public ServerType ServerType { get; }
 
-        /// <summary>Cancellation for operations issued through this context.</summary>
-        public CancellationToken CancellationToken { get; }
-
-        /// <summary>A copy of this context with a different cancellation token.</summary>
-        /// <param name="cancellationToken">The token to use.</param>
-        public RespContext WithCancellationToken(CancellationToken cancellationToken)
-            => new(CommandMap, KeyPrefix, ChannelPrefix, Database, ServerType, cancellationToken);
-
         /// <summary>A copy of this context targeting a different database.</summary>
         /// <param name="database">The database index.</param>
         public RespContext WithDatabase(int database)
-            => new(CommandMap, KeyPrefix, default, database, ServerType, CancellationToken, Executor, _services);
+            => new(CommandMap, KeyPrefix, default, database, ServerType, Executor, _services);
 
         /// <summary>A copy of this context with a different server type.</summary>
         /// <param name="serverType">The server type.</param>
         public RespContext WithServerType(ServerType serverType)
-            => new(CommandMap, KeyPrefix, default, Database, serverType, CancellationToken, Executor, _services);
+            => new(CommandMap, KeyPrefix, default, Database, serverType, Executor, _services);
 
         /// <summary>
         /// Returns a context whose keys are prefixed. This is what replaces wrapping the database in a
@@ -310,7 +300,6 @@ namespace StackExchange.Redis.Interpolated
                 default,
                 Database,
                 ServerType,
-                CancellationToken,
                 Executor,
                 _services);
 
@@ -324,7 +313,7 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>
         internal RespContext WithExecutor(IRespExecutor? executor)
-            => new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, executor, _services);
+            => new(CommandMap, _keyPrefix, default, Database, ServerType, executor, _services);
 
         /// <summary>
         /// A copy of this context carrying <paramref name="services"/> <i>in addition to</i> whatever it
@@ -346,7 +335,7 @@ namespace StackExchange.Redis.Interpolated
         public RespContext WithServices(object? services)
             => services is null
                 ? this
-                : new(CommandMap, _keyPrefix, default, Database, ServerType, CancellationToken, Executor, ServiceLink.Add(_services, services));
+                : new(CommandMap, _keyPrefix, default, Database, ServerType, Executor, ServiceLink.Add(_services, services));
 
         /// <summary>A copy of this context where <paramref name="serviceType"/> reads as absent.</summary>
         private RespContext WithoutService(Type serviceType)
@@ -407,7 +396,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
         {
             var frame = Render(command, args.Span);
-            return this.SendAsync(ref frame, flags, RespHandlers.Result);
+            return this.SendAsync(ref frame, flags, RespHandlers.Result, default);
         }
 
         /// <summary>Render an ad-hoc command, marking each argument as a key or a value.</summary>
@@ -564,14 +553,6 @@ namespace StackExchange.Redis.Interpolated
         /// <returns>The rendered frame, with routing and key metadata.</returns>
         public RespFrame Render([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
         {
-            if (CancellationToken.IsCancellationRequested)
-            {
-                // the handler has already rented a buffer by the time we get here - it is built in the
-                // CALLER's frame, before this method is entered - so cancelling has to hand it back
-                handler.Dispose();
-                CancellationToken.ThrowIfCancellationRequested();
-            }
-
             return handler.Complete();
         }
     }

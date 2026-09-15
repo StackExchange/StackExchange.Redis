@@ -74,7 +74,23 @@ Four consequences, none of them cosmetic:
       what you are holding. Mechanical across 11 groups, free while SER010 is experimental, expensive after.
       Agreed; do it in the same pass as the cancellation change below, since both touch every signature.
 
-- [ ] **Move `CancellationToken` off the context and onto the far right of each method.** MSFT review.
+- [x] **`CancellationToken` moved off the context onto the call** - see the Done entry. Recorded here
+      because one idea was raised and rejected with evidence: having the **interpolated string handler**
+      take the token via `[InterpolatedStringHandlerArgument]`, so `ThrowIfCancellationRequested` runs
+      before anything is formatted.
+
+      It works mechanically, but forces the token **before** the interpolated string at every call site -
+      `CS8950`, "Reorder the arguments to move 'cancellationToken' before 'handler'" - which is the opposite
+      of the convention being asked for. Note the declaration compiles fine and only the *call* fails
+      (`CS8947` warns at the declaration), so "it compiled" is not evidence here.
+
+      Rejected because the surface does not need it: `db.Strings.GetAsync(key, flags, token)` has no
+      interpolated parameter at the call site - the interpolation is inside the method body, where a
+      pre-format check is free and needs no voodoo. The tension only ever applied to the ad-hoc
+      `SendAsync($"...", flags, handler, token)` escape hatch, and there it would trade the convention for
+      one rent-and-dispose on a call that is about to throw anyway.
+
+- [ ] **(superseded) Move `CancellationToken` off the context.** MSFT review.
       Conventional, per-call, and it shrinks the context (see the sizing item). **But it is two decisions,
       not one:** the token currently *cancels nothing*. `RespMessageExecutor.SendAsync` says so - "the
       existing pipeline has no cancellation; the token is observed by the caller's await". On a context that

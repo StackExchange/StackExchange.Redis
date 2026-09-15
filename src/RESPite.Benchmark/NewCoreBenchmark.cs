@@ -22,8 +22,9 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
 
     protected override Task DeleteAsync(RespContext client, string key) => client.DelAsync(key).AsTask();
 
+    // cancellation is now per-call rather than per-context, and is not yet honoured by the pipeline
     protected override RespContext WithCancellation(RespContext client, CancellationToken cancellationToken)
-        => client.WithCancellationToken(cancellationToken);
+        => client;
 
     protected override Task InitAsync(RespContext client) => client.PingAsync().AsTask();
 

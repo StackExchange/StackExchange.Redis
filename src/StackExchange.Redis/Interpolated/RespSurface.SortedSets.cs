@@ -989,7 +989,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return sortedSets.Context.SendAsync(ref frame, flags.WithDefaultCategory(command), RespHandlers.Inbuilt<TResult>.Require());
+            return sortedSets.Context.SendAsync(ref frame, flags.WithDefaultCategory(command), RespHandlers.Inbuilt<TResult>.Require(), default);
         }
 
         /// <summary>A lexical bound, shared with the MessageWriter path; see RedisDatabase.GetLexRange.</summary>

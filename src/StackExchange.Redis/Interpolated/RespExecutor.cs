@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="preamble">Written first; its reply is consumed and discarded.</param>
         /// <param name="request">The request whose reply the caller wants.</param>
         /// <param name="gate">If set, decides at write time whether the preamble is still needed.</param>
-        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default);
     }
 
@@ -173,6 +173,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">The request's flags.</param>
         /// <param name="handler">Turns the request's reply into a result.</param>
         /// <param name="gate">If set, decides at write time whether the preamble is still needed.</param>
+        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         /// <remarks>
         /// <para>
         /// Bypasses the cache entirely: the only user so far is a script evaluation, and a preamble exists
@@ -191,7 +192,8 @@ namespace StackExchange.Redis.Interpolated
             ref RespFrame request,
             CommandFlags flags,
             IRespHandler<TResult> handler,
-            IRespPreambleGate? gate = null)
+            IRespPreambleGate? gate = null,
+            CancellationToken cancellationToken = default)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
@@ -203,7 +205,7 @@ namespace StackExchange.Redis.Interpolated
             // the caller's frames really are emptied, and their Dispose is the no-op it looks like.
             var head = preamble.Detach(CommandFlags.CommandRetryAlways);
             var body = request.Detach(flags);
-            return AwaitPair(executor, head, body, gate, handler, context.CancellationToken);
+            return AwaitPair(executor, head, body, gate, handler, cancellationToken);
         }
 
         /// <summary>
@@ -216,6 +218,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">The request's flags.</param>
         /// <param name="handler">Turns the request's reply into a result.</param>
         /// <param name="gate">If set, decides at write time whether the preamble is still needed.</param>
+        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         /// <remarks>
         /// No <c>ref</c> on the preamble, and no ownership question either: it is a fixed buffer that is
         /// never returned to a pool, so the release at the end of the send is a no-op rather than a
@@ -227,13 +230,14 @@ namespace StackExchange.Redis.Interpolated
             ref RespFrame request,
             CommandFlags flags,
             IRespHandler<TResult> handler,
-            IRespPreambleGate? gate = null)
+            IRespPreambleGate? gate = null,
+            CancellationToken cancellationToken = default)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
 
             var body = request.Detach(flags);
-            return AwaitPair(executor, preamble, body, gate, handler, context.CancellationToken);
+            return AwaitPair(executor, preamble, body, gate, handler, cancellationToken);
         }
 
         private static async ValueTask<TResult> AwaitPair<TResult>(
@@ -329,6 +333,42 @@ namespace StackExchange.Redis.Interpolated
             return handler.Parse(ref reader);
         }
 
+        /// <summary>
+        /// Refuse a token we cannot honour, rather than accepting one and ignoring it.
+        /// </summary>
+        /// <remarks>
+        /// Cancellation <b>will</b> be supported; it is not yet. The pipeline beneath this has no notion of
+        /// it, so a token that could actually fire would be silently inert - a promise in the signature that
+        /// nothing keeps. <c>default</c> and <see cref="CancellationToken.None"/> cost nothing and pass
+        /// through; anything cancellable says so here, at the call that would have relied on it.
+        /// </remarks>
+        /// <summary>
+        /// As above, for the interpolated forms: the handler has already rented a buffer by the time we are
+        /// called, so refusing has to hand it back.
+        /// </summary>
+        /// <remarks>
+        /// The buffer is rented in the CALLER's frame, before this method is entered - the same reason the
+        /// context's old cancellation check disposed the handler rather than simply throwing.
+        /// </remarks>
+        private static void DemandNoCancellation(ref RespCommandHandler request, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.CanBeCanceled)
+            {
+                request.Dispose();
+                DemandNoCancellation(cancellationToken);
+            }
+        }
+
+        private static void DemandNoCancellation(CancellationToken cancellationToken)
+        {
+            if (cancellationToken.CanBeCanceled)
+            {
+                throw new NotImplementedException(
+                    "Cancellation is not yet supported on this surface: the underlying pipeline cannot cancel an "
+                    + "in-flight request, so honouring the token is not possible yet. Pass 'default' until it is.");
+            }
+        }
+
         private static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
             => response switch
             {
@@ -365,13 +405,16 @@ namespace StackExchange.Redis.Interpolated
         /// <b>before</b> the send; the payload is retained across <see cref="IRespHandler{TResult}.Parse"/>
         /// and released in a <c>finally</c>; and the request is consumed on every path.
         /// </remarks>
+        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static TResult Send<TResult>(
             this RespContext context,
             ref RespFrame request,
             CommandFlags flags,
-            IRespHandler<TResult> handler)
+            IRespHandler<TResult> handler,
+            CancellationToken cancellationToken)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
+            DemandNoCancellation(cancellationToken);
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
             NoteLocalWrite(cache, in request, flags);
@@ -445,7 +488,7 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="Send{TResult}(RespContext, ref RespFrame, CommandFlags, IRespHandler{TResult})"/>
+        /// <inheritdoc cref="Send{TResult}(RespContext, ref RespFrame, CommandFlags, IRespHandler{TResult}, CancellationToken)"/>
         /// <param name="context">The context to send through; supplies the executor, cache and cancellation.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
         /// <param name="handler">Turns the reply into a result.</param>
@@ -457,16 +500,18 @@ namespace StackExchange.Redis.Interpolated
         /// <c>async</c> method. A cache hit therefore completes synchronously and allocates nothing - no
         /// state machine, no <c>Task</c>.
         /// </remarks>
+        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static ValueTask<TResult> SendAsync<TResult>(
             this RespContext context,
             ref RespFrame request,
             CommandFlags flags,
-            IRespHandler<TResult> handler)
+            IRespHandler<TResult> handler,
+            CancellationToken cancellationToken)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
+            DemandNoCancellation(cancellationToken);
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
-            var cancellationToken = context.CancellationToken;
             NoteLocalWrite(cache, in request, flags);
 
             if (cache is not null && cache.PermitsCaching(flags))
@@ -514,14 +559,17 @@ namespace StackExchange.Redis.Interpolated
         /// why this reads <c>SendAsync&lt;RedisValue&gt;</c> rather than inferring it.
         /// </para>
         /// </remarks>
+        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static ValueTask<TResult> SendAsync<TResult>(
             this RespContext context,
             [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
             CommandFlags flags,
-            IRespHandler<TResult>? handler = null)
+            IRespHandler<TResult>? handler = null,
+            CancellationToken cancellationToken = default)
         {
+            DemandNoCancellation(ref request, cancellationToken);
             var frame = request.Complete();
-            return SendAsync(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require());
+            return SendAsync(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require(), cancellationToken);
         }
 
         /// <summary>
@@ -559,25 +607,28 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
         {
             var frame = request.Complete();
-            var pending = SendAsync(context, ref frame, flags, RespHandlers.Success);
+            var pending = SendAsync(context, ref frame, flags, RespHandlers.Success, default);
             return pending.IsCompletedSuccessfully ? default : Awaited(pending);
 
             static async ValueTask Awaited(ValueTask<bool> pending) => await pending.ConfigureAwait(false);
         }
 
-        /// <inheritdoc cref="SendAsync{TResult}(RespContext, ref RespCommandHandler, CommandFlags, IRespHandler{TResult})"/>
+        /// <inheritdoc cref="SendAsync{TResult}(RespContext, ref RespCommandHandler, CommandFlags, IRespHandler{TResult}, CancellationToken)"/>
         /// <param name="context">The context to send through.</param>
         /// <param name="request">The command, written as an interpolated string.</param>
         /// <param name="flags">The command's flags.</param>
         /// <param name="handler">Turns the reply into a result; omit for the built-in one.</param>
+        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static TResult Send<TResult>(
             this RespContext context,
             [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
             CommandFlags flags,
-            IRespHandler<TResult>? handler = null)
+            IRespHandler<TResult>? handler = null,
+            CancellationToken cancellationToken = default)
         {
+            DemandNoCancellation(ref request, cancellationToken);
             var frame = request.Complete();
-            return Send(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require());
+            return Send(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require(), cancellationToken);
         }
 
         [DoesNotReturn]

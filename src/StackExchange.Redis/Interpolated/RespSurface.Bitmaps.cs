@@ -257,7 +257,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return bitmaps.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require());
+            return bitmaps.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require(), default);
         }
 
         /// <summary>BITFIELD with a single sub-operation, whose reply is one value rather than a run.</summary>
@@ -296,7 +296,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return bitmaps.Context.SendAsync<long?>(ref frame, flags, RespHandlers.NullableInt64);
+            return bitmaps.Context.SendAsync<long?>(ref frame, flags, RespHandlers.NullableInt64, default);
         }
 
         /// <summary>

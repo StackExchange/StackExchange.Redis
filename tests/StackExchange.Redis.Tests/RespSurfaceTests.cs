@@ -87,9 +87,11 @@ public class RespSurfaceTests
             System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>(),
             System.Runtime.CompilerServices.Unsafe.SizeOf<RespStrings>());
 
-        // 48 bytes once ChannelPrefix moved into the service slot - it was 64, of which RedisChannel was
-        // 16, carried on every copy for pub/sub's benefit alone. See design notes 3.3.
-        Assert.Equal(48, System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>());
+        // 40 bytes. It was 64 before ChannelPrefix moved into the service slot (RedisChannel was 16 of
+        // that, carried on every copy for pub/sub's benefit alone - design notes 3.3), then 48 until the
+        // CancellationToken moved off the context and onto the call: a token is 8 bytes that every clone
+        // carried so that one in a thousand calls could use it.
+        Assert.Equal(40, System.Runtime.CompilerServices.Unsafe.SizeOf<RespContext>());
     }
 
     [Fact]

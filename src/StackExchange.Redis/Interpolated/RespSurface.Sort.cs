@@ -179,7 +179,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require());
+            return context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require(), default);
         }
 
         /// <summary>SORT or SORT_RO, and what that means for retries and routing.</summary>

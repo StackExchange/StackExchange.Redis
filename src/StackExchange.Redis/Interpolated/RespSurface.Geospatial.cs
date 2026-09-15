@@ -85,7 +85,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return geo.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.GEOADD), RespHandlers.Int64);
+            return geo.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.GEOADD), RespHandlers.Int64, default);
         }
 
         /// <summary>ZREM: a geo set is a sorted set, and removal is the sorted-set command.</summary>
@@ -420,7 +420,8 @@ namespace StackExchange.Redis.Interpolated
             return context.SendAsync(
                 ref frame,
                 flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly).WithDefaultCategory(command),
-                GeoResultHandler.Array(options));
+                GeoResultHandler.Array(options),
+                default);
         }
 
         /// <summary>The one renderer for GEOSEARCH and GEOSEARCHSTORE.</summary>
@@ -492,7 +493,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return context.SendAsync(ref frame, flags.WithDefaultCategory(command), handler);
+            return context.SendAsync(ref frame, flags.WithDefaultCategory(command), handler, default);
         }
 
         private static int OptionCount(GeoRadiusOptions options)

@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.VADD), RespHandlers.Boolean);
+            return context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.VADD), RespHandlers.Boolean, default);
         }
 
         /// <summary>VSIM: the members nearest to a vector or to another member.</summary>
@@ -351,7 +351,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.VSIM), handler);
+            return context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.VSIM), handler, default);
         }
 
         /// <summary>

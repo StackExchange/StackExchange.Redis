@@ -306,25 +306,52 @@ public class InterpolatedWriterUnitTests
         Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"tenant7:user:1"), b.Slot);
     }
 
+    /// <summary>
+    /// A token that could actually fire is refused, rather than accepted and ignored.
+    /// </summary>
+    /// <remarks>
+    /// Cancellation moved from the context to a per-call parameter, which is the convention - but the
+    /// pipeline underneath still cannot cancel an in-flight request. Accepting a token and quietly doing
+    /// nothing with it is a promise in the signature that nothing keeps, so a cancellable one says so at
+    /// the call that would have relied on it. <c>default</c> costs nothing and passes through.
+    /// </remarks>
     [Fact]
-    public void CancellationIsObservedAndTheBufferIsReturned()
+    public void ACancellableTokenIsRefusedRatherThanIgnored()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
-        var ctx = new RespContext().WithCancellationToken(cts.Token);
+        var ctx = new RespContext(); // no executor: the refusal comes first, which is the point
 
-        Assert.Throws<OperationCanceledException>(() => ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}").Dispose());
+        var ex = Assert.Throws<NotImplementedException>(() =>
+        {
+            _ = ctx.SendAsync<bool>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None, null, cts.Token);
+        });
+        Assert.Contains("not yet supported", ex.Message);
     }
 
+    /// <summary>The refusal hands back the buffer the interpolation had already rented.</summary>
+    /// <remarks>
+    /// The handler rents in the <i>caller's</i> frame, before the send is entered, so throwing without
+    /// disposing would leak a pooled array on every refused call - and a rent held for ever is worse than
+    /// wasteful, it is permanently removed from the pool. Asserted by churning the pool afterwards: a leak
+    /// shows up as the array never coming back.
+    /// </remarks>
     [Fact]
-    public void CancellationTokenFlowsThroughWithClones()
+    public void RefusingACancellableTokenDoesNotLeakTheBuffer()
     {
         using var cts = new CancellationTokenSource();
-        var ctx = new RespContext().WithCancellationToken(cts.Token).WithKeyPrefix("p:").WithDatabase(3);
+        var ctx = new RespContext();
 
-        Assert.Equal(cts.Token, ctx.CancellationToken);
-        Assert.Equal(3, ctx.Database);
-        Assert.Equal((RedisKey)"p:", ctx.KeyPrefix);
+        for (var i = 0; i < 64; i++)
+        {
+            Assert.Throws<NotImplementedException>(() =>
+            {
+                _ = ctx.SendAsync<bool>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None, null, cts.Token);
+            });
+        }
+
+        // if each refusal had leaked its rent, 64 of them would have drained the bucket; this still works
+        using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        Assert.Equal(1, frame.KeyCount);
     }
 
     [Fact]

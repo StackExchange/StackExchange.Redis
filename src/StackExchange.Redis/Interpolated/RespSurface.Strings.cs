@@ -627,7 +627,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<long>>.Require());
+            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<long>>.Require(), default);
         }
 
         /// <inheritdoc cref="IncrementAsync(in RespStrings, RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags)"/>
@@ -666,7 +666,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<double>>.Require());
+            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<double>>.Require(), default);
         }
 
         /// <summary>LCS: the longest common subsequence of two keys' values.</summary>
