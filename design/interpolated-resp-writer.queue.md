@@ -73,10 +73,37 @@ Four consequences, none of them cosmetic:
       commands and are better understood as three *different seams*, which is why doing all three settles
       the question and doing one does not.
 
-      - **`EVALSHA` is frame-level.** It needs a frame that can carry an **alternate rendering**, so a
-        `NOSCRIPT` is recovered by re-sending the same logical request spelled as `EVAL <script>`. Nothing
-        about connections. The other agent's note claims this is portable; it is the only claim of the
-        three, so it is the one worth falsifying first.
+      - **`EVALSHA` is composition too, not frame-level** - revised, and it is the better answer. The
+        original plan was a frame carrying an **alternate rendering**, recovering a `NOSCRIPT` by
+        re-spelling itself as `EVAL <script>`. Instead: when the script is not known to be loaded, send
+        `SCRIPT LOAD` **and** `EVALSHA` as a unit, and always issue `EVALSHA`.
+
+        The virtue is not the saved round trip. An alternate rendering would be the first exception to *a
+        frame is a pure function of its arguments*, and that property is what makes frames cacheable,
+        routable, replayable and blit-writable. This keeps it: both halves are ordinary frames, and the
+        cleverness moves to composition, where the other two already live. **So there is no frame-level
+        probe at all, and the frame abstraction is untouched by the whole vexing family.**
+
+        It does not remove the `NOSCRIPT` path - belief goes stale on `SCRIPT FLUSH`, restart, failover, or
+        a new cluster node - but recovery becomes *recompose*, not *re-render*, so that is composition too.
+
+        **The belief is soft**, which is what makes it safe: wrongly believing it is loaded costs a
+        `NOSCRIPT` and a recompose; wrongly believing it is not costs a redundant `SCRIPT LOAD`, which is
+        idempotent. It can never be damagingly wrong, so it needs no careful invalidation - and none exists
+        today, since the client currently tracks no loaded-script state at all.
+
+        **Stage it stateless first:** always pair `SCRIPT LOAD` + `EVALSHA`. Correct, one round trip, no new
+        state, and it proves the composition mechanism. Belief-tracking is then a pure optimisation that
+        drops the `SCRIPT LOAD`, layered on something already correct rather than being load-bearing.
+
+        **Cluster:** `SCRIPT LOAD` names no key, so the pair must route by the `EVALSHA`'s slot - which
+        composing them as one unit gives for free, and is a reason to compose rather than inject.
+
+        **Inside a transaction it has to move outward.** Injecting `SCRIPT LOAD` *within* `MULTI` puts its
+        reply into the `EXEC` array and shifts every result position, so it belongs before the `MULTI` -
+        meaning the decision is the composite's, not the inner `EVALSHA`'s write. Nothing exposes that seam
+        today; HIMPORT's write-lock injection is per-message. A constraint on the composite design, not a
+        blocker.
       - **`MULTI` is context-level**, and needs no new caller-facing concept: a transaction is *a context
         whose executor accumulates instead of sending*. `WithExecutor` is already internal for exactly this
         - the caller picks a scope (`CreateTransaction`), the scope picks the executor. On `ExecuteAsync`
@@ -87,8 +114,9 @@ Four consequences, none of them cosmetic:
         pinning a connection at all. The frame surface just has no frame-shaped participant in it.
         `CLIENT TRACKING` negotiation wants the same mechanism.
 
-      If all three work, the abstraction covers the space and `Fallback<T>()` can reach zero. If one does
-      not, we learn which layer is short, rather than learning that "some commands are awkward".
+      With `EVALSHA` folded in, all three are the same mechanism at two seams - compose, or inject once the
+      connection is known. If they work, the abstraction covers the space and `Fallback<T>()` can reach
+      zero. If one does not, we learn which seam is short, rather than that "some commands are awkward".
 
 
 - [ ] **Teach the in-proc server `CLIENT TRACKING`** (`toys/StackExchange.Redis.Server`), for test
