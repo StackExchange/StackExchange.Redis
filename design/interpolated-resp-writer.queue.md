@@ -9,6 +9,37 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 
 ---
 
+## Framing: this is V4, and the two implementations never run in parallel
+
+Decided 2026-09-15, and it changes how several items below should be read. The spike is not a parallel
+alternative that might ship - it is the next major version's core, and the old implementation goes.
+
+Four consequences, none of them cosmetic:
+
+1. **The old `IDatabase` surface still exists; the old *implementation* does not.** Binary compatibility is
+   paramount here, so the signatures stay and are served by the new core. That makes the internal
+   `...Array` siblings **permanent**, not transitional - their doc comments currently say "goes when the
+   old one does", which is now only true if the old *API* ever goes, which it may not.
+
+2. **`Fallback<T>()` must reach zero.** `TransitionalDatabase` currently delegates transactions to
+   `RedisDatabase`. With nothing to delegate to, `MULTI`/`WATCH`/`HIMPORT`/`EVALSHA` stop being acceptable
+   permanent residue and become **release blockers**. Deferring them is a temporary state with a mandatory
+   exit, not an end state.
+
+3. **Therefore the raw executor is mandatory, not optional.** The `Message` shim cannot be the permanent
+   execution path, because the commands it cannot express are commands V4 has to ship. Its full cost -
+   MOVED/ASK redirection, backlog, timeouts, retry, profiling, high-integrity checksums - has to be paid by
+   something. Sizing that is now a **release-planning** question, and finding out late is how a version
+   fails to ship.
+
+4. **`[Experimental]` is a staging label, not a hedge.** "We can change it later because it is
+   experimental" stops being true. Public shapes - lease returns, group names, `Keys` over `Keyspace` -
+   are effectively permanent from here, which raises the value of settling them now and lowers the value of
+   leaving options open. SER352's 354 members stop being a progress bar and become a release gate, which
+   is what the Release-build warning was asked for in the first place.
+
+---
+
 ## Now
 
 - [ ] **Two cacheability calls wanting a second opinion.** `DUMP` (a serialised payload - stable for a
