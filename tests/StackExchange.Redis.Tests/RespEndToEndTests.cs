@@ -284,4 +284,57 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         Assert.Equal("in-three", result.ReadScalar().ReadString());
     }
+
+    /// <summary>A batch's context queues rather than sends, without anything being taught to do so.</summary>
+    /// <remarks>
+    /// <para>
+    /// Worth pinning because it is load-bearing for a question that looked harder than it is. The context
+    /// comes from <c>RedisDatabase</c>, which <c>RedisBatch</c> derives from, and its executor's target is
+    /// <c>this</c> - the batch - so a frame goes through the batch's own <c>ExecuteAsync</c> and is queued
+    /// like any other message. Batching is inherited, not implemented.
+    /// </para>
+    /// <para>
+    /// Reached by cast here: <c>IBatch</c> derives from <c>IDatabaseAsync</c>, which does not carry
+    /// <c>IRespTarget</c>, so the surface does not resolve on it by name. That is the discoverability gap,
+    /// and this test is the evidence that closing it would expose something that already works.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ABatchContextQueuesInsteadOfSending()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var db = conn.GetDatabase();
+        await db.StringSetAsync(key, "batched");
+
+        var batch = db.CreateBatch();
+        var ctx = ((IRespTarget)batch).Context;
+        var pending = ctx.Strings.Get(key);
+        Assert.False(pending.IsCompleted, "DEFERRED-OK: batch did not send immediately");
+        batch.Execute();
+        Assert.Equal("batched", (string?)await pending);
+    }
+
+    /// <summary>And so does a transaction's, for an ordinary single-frame command.</summary>
+    /// <remarks>
+    /// The same inheritance, with the same result - which narrows what the MULTI work actually has left to
+    /// do. <b>Single-frame commands only:</b> a composed pair is the known exception, since a SCRIPT LOAD
+    /// injected inside MULTI puts its reply into the EXEC array and shifts every result position. That is
+    /// why this uses a plain GET and not Scripts.Evaluate.
+    /// </remarks>
+    [Fact]
+    public async Task ATransactionContextQueuesInsteadOfSending()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var db = conn.GetDatabase();
+        await db.StringSetAsync(key, "tranned");
+
+        var tran = db.CreateTransaction();
+        var ctx = ((IRespTarget)tran).Context;
+        var pending = ctx.Strings.Get(key);
+        Assert.False(pending.IsCompleted, "DEFERRED-OK: transaction did not send immediately");
+        Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
+        Assert.Equal("tranned", (string?)await pending);
+    }
 }
