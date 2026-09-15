@@ -50,7 +50,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.IRespFormattableArgument
 [SER010]StackExchange.Redis.Interpolated.IRespFormattableArgument.WriteTo(scoped ref StackExchange.Redis.Interpolated.RespCommandHandler handler, string? format) -> void
 [SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>
-[SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>.Parse(System.ReadOnlySpan<byte> response) -> TResult
+[SER010]StackExchange.Redis.Interpolated.IRespHandler<TResult>.Parse(ref RESPite.Messages.RespReader reader) -> TResult
 [SER010]StackExchange.Redis.Interpolated.IRespTarget
 [SER010]StackExchange.Redis.Interpolated.IRespTarget.Context.get -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.KeyRange
