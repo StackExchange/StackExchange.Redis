@@ -265,9 +265,40 @@ namespace StackExchange.Redis
             var box = message?.ResultBox;
             box?.SetException(ex);
         }
+
+        /// <summary>
+        /// See the reply before anything consumes it, to decide something about the <i>connection</i> or
+        /// the <i>message</i> rather than to produce a result.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <c>SetResult</c> has always done two jobs - inspect, then parse - and the four processors that
+        /// needed the first had to override the whole of it to get it: take a copy of the reader, advance
+        /// the copy, look, then hand the <i>original</i> back to <c>base.SetResult</c>. Every one of them
+        /// hand-rolled that rewind, and getting it wrong means parsing from the wrong position, which
+        /// presents as somebody else's reply arriving for your command.
+        /// </para>
+        /// <para>
+        /// The reader is passed by <c>in</c> and at the <b>start</b> of the reply, so an implementation
+        /// copies it and advances the copy - the caller's position cannot be disturbed, which is the
+        /// property the rewind dance was manually preserving.
+        /// </para>
+        /// <para>
+        /// Inspection cannot yet <i>direct</i> what happens next; it can only record. The clearest cost of
+        /// that is <c>NOSCRIPT</c>: the inspection sets a flag on the message, the task faults, and six
+        /// <c>catch (RedisServerException) when (msg.IsScriptUnavailable)</c> sites re-issue - a verdict
+        /// delivered by unwinding, because there is no way to say "reissue". Giving this a return value is
+        /// the next step, and is why the seam is named rather than inlined.
+        /// </para>
+        /// </remarks>
+        protected virtual void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+        {
+        }
+
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
+            Inspect(connection, message, in reader);
             reader.MovePastBof();
             connection.OnDetailLog($"(core result for {message.Command}, '{reader.GetOverview()}')");
             var bridge = connection.BridgeCouldBeNull;
@@ -848,11 +879,11 @@ namespace StackExchange.Redis
             private ILogger? Log { get; }
             public AutoConfigureProcessor(ILogger? log = null) => Log = log;
 
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.ReadOnly)
+                var probe = reader;
+                probe.MovePastBof();
+                if (probe.IsError && RedisErrorKindMetadata.Classify(probe) == RedisErrorKind.ReadOnly)
                 {
                     var bridge = connection.BridgeCouldBeNull;
                     if (bridge != null)
@@ -862,8 +893,6 @@ namespace StackExchange.Redis
                         server.IsReplica = true;
                     }
                 }
-
-                return base.SetResult(connection, message, ref copy);
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -1366,9 +1395,16 @@ namespace StackExchange.Redis
         /// </remarks>
         private sealed class HashImportProcessor : ResultProcessor<bool>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            /// <remarks>Not about the reply at all: the arrival of one is when the rendered arguments stop
+            /// being needed, whatever it says.</remarks>
+            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
+            }
+
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                Inspect(connection, message, in reader);
                 return DemandOK.SetResult(connection, message, ref reader);
             }
 
@@ -2164,13 +2200,11 @@ namespace StackExchange.Redis
 
         private sealed class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override void Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                NoteIfScriptUnavailable(connection, message, in reader);
-                // and apply usual processing for the rest
-                return base.SetResult(connection, message, ref copy);
+                var probe = reader;
+                probe.MovePastBof();
+                NoteIfScriptUnavailable(connection, message, in probe);
             }
 
             // note that top-level error messages still get handled by SetResult, but nested errors
