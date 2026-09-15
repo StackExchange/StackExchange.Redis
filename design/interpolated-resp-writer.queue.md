@@ -557,6 +557,27 @@ Four consequences, none of them cosmetic:
 
       ### The proposal, and what prototyping it actually showed
 
+      **Where this comes from** (Marc, 2026-09-15): the Cap'n Proto position - *the fastest deserialize is
+      the one you do not do; you just provide an on-demand view.* That is the thought behind the shape, and
+      it is worth writing down because it also says where the analogy stops.
+
+      What carries over: one contiguous buffer, views rather than copies, nothing materialised up front,
+      and the reader pays only for the fields actually touched. All four are true here, and the capture
+      measurement (free) is exactly that premise holding.
+
+      What does **not** carry over: Cap'n Proto earns O(1) field access by designing the *wire format* for
+      it - fixed-width slots, pointer offsets, an arena laid out for random access. RESP has none of that.
+      It is a forward-only stream of variable-length frames with no offset table, so reaching element N
+      means walking elements 0..N-1. So what this design can deliver is **lazy** parse - deferred, paid once
+      per read - and not **zero** parse. For a single forward pass those are the same thing; for repeated or
+      random access, lazy is strictly worse than materialising once, which is the real reason the indexer is
+      a trap and enumeration is the honest API.
+
+      **And it points at the half that has not been measured.** Cap'n Proto's claim is primarily about
+      *time*, and everything measured above is *bytes*. The allocation case turned out to be 40B per 1000
+      elements; the time case - how a deferred walk compares against parse-then-index, for one pass and for
+      several - is untested, and is the experiment that would actually settle this.
+
       **Shape** (Marc, 2026-09-15): a disposable root owning the leased contiguous buffer, and a
       `readonly struct RespAggregate<T>` holding a *slice* of it plus a projection - "think `RespValue` but
       with an enumerator", with custom leaf types decomposing by walking. The gnarly shapes become deferred
