@@ -73,8 +73,11 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
     /// that traffic.
     /// <para>
     /// The <b>same</b> prefix goes on the policy and on the wire, which is the point of
-    /// <see cref="CachePolicy.Prefixes"/>: the set the cache will admit and the set the server agreed to
-    /// announce have to be one set, or entries fall in the gap and stay there.
+    /// <see cref="CacheOptions.Prefixes"/>: the set the cache will admit and the set the server agreed to
+    /// announce have to be one set, or entries fall in the gap and stay there. Nothing here sends
+    /// <c>CLIENT TRACKING</c> - the handshake does, from these same options, which is why configuring them
+    /// is all this needs to do. It used to issue the command by hand; once the library started doing it too,
+    /// the server rejected the duplicate as an overlapping prefix, which is a fair complaint.
     /// </para>
     /// </remarks>
     private async Task<(ConnectionMultiplexer Muxer, RespClientCache Cache)> TrackedAsync(
@@ -104,10 +107,6 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
 
         var cache = muxer.ClientCache;
         Assert.NotNull(cache);
-
-        var db = muxer.GetDatabase();
-        var reply = await db.ExecuteAsync("CLIENT", "TRACKING", "ON", "BCAST", "PREFIX", prefix);
-        Assert.Equal("OK", reply.ToString());
 
         return (muxer, cache);
     }
