@@ -55,11 +55,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Contains(key, Required(values, nameof(values)), flags));
+            => Wait(Context.Sets.ContainsArray(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Contains(key, Required(values, nameof(values)), flags).AsTask();
+            => Context.Sets.ContainsArray(key, Required(values, nameof(values)), flags).AsTask();
 
         /// <inheritdoc/>
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -71,11 +71,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue[] SetMembers(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Members(key, flags));
+            => Wait(Context.Sets.MembersArray(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Members(key, flags).AsTask();
+            => Context.Sets.MembersArray(key, flags).AsTask();
 
         /// <inheritdoc/>
         public bool SetMove(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -95,11 +95,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Pop(key, count, flags));
+            => Wait(Context.Sets.PopArray(key, count, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Pop(key, count, flags).AsTask();
+            => Context.Sets.PopArray(key, count, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -111,30 +111,30 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisValue[] SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.RandomMembers(key, count, flags));
+            => Wait(Context.Sets.RandomMembersArray(key, count, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.RandomMembers(key, count, flags).AsTask();
+            => Context.Sets.RandomMembersArray(key, count, flags).AsTask();
 
         // the (first, second) overloads are the old spelling of a two-key run; unpacking them here is the
         // whole of the difference, and a null `second` is how that surface says "just the one"
 
         /// <inheritdoc/>
         public RedisValue[] SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Combine(operation, Pair(first, second), flags));
+            => Wait(Context.Sets.CombineArray(operation, Pair(first, second), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Combine(operation, Pair(first, second), flags).AsTask();
+            => Context.Sets.CombineArray(operation, Pair(first, second), flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue[] SetCombine(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.Combine(operation, Required(keys, nameof(keys)), flags));
+            => Wait(Context.Sets.CombineArray(operation, Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.Combine(operation, Required(keys, nameof(keys)), flags).AsTask();
+            => Context.Sets.CombineArray(operation, Required(keys, nameof(keys)), flags).AsTask();
 
         /// <inheritdoc/>
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)

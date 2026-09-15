@@ -95,7 +95,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="values">The members to look for.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool[]> Contains(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<bool>> Contains(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => values.IsEmpty
+                ? new ValueTask<ReadOnlyLease<bool>>(ReadOnlyLease<bool>.Empty)
+                : sets.Context.SendAsync<ReadOnlyLease<bool>>(
+                    $"{RedisCommand.SMISMEMBER}{key}{values}", flags.WithDefaultCategory(RedisCommand.SMISMEMBER));
+
+        /// <summary>Contains, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Contains</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<bool[]> ContainsArray(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
             => values.IsEmpty
                 ? new ValueTask<bool[]>(Array.Empty<bool>())
                 : sets.Context.SendAsync<bool[]>(
@@ -113,7 +125,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sets">The set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> Members(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> Members(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{RedisCommand.SMEMBERS}{key}", flags.WithDefaultCategory(RedisCommand.SMEMBERS));
+
+        /// <summary>Members, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Members</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> MembersArray(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.SMEMBERS}{key}", flags.WithDefaultCategory(RedisCommand.SMEMBERS));
 
@@ -145,7 +167,19 @@ namespace StackExchange.Redis.Interpolated
         /// sends a bare <c>SPOP</c> and would remove <b>one</b>. That is a divergence, and a deliberate
         /// one: "pop none" quietly popping one is the kind of thing a caller discovers in production.
         /// </remarks>
-        public static ValueTask<RedisValue[]> Pop(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> Pop(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => count == 0
+                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
+                : sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                    $"{RedisCommand.SPOP}{key}{count}", flags.WithDefaultCategory(RedisCommand.SPOP));
+
+        /// <summary>Pop, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Pop</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> PopArray(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => count == 0
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : sets.Context.SendAsync<RedisValue[]>(
@@ -164,7 +198,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> RandomMembers(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> RandomMembers(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => sets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER));
+
+        /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RandomMembers</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER));
 
@@ -178,7 +222,21 @@ namespace StackExchange.Redis.Interpolated
         /// building a variadic message used to be work, and with a run of keys as a hole it is the same
         /// expression either way.
         /// </remarks>
-        public static ValueTask<RedisValue[]> Combine(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> Combine(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
+
+            var command = operation.ToSetCommand();
+            return sets.Context.SendAsync<ReadOnlyLease<RedisValue>>($"{command}{keys}", flags.WithDefaultCategory(command));
+        }
+
+        /// <summary>Combine, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Combine</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> CombineArray(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 

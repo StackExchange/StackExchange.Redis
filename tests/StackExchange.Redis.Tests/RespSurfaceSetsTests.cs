@@ -74,7 +74,7 @@ public class RespSurfaceSetsTests
 
         Assert.Equal(0, await ctx.Sets.Add("k", ReadOnlySpan<RedisValue>.Empty));
         Assert.Equal(0, await ctx.Sets.Remove("k", ReadOnlySpan<RedisValue>.Empty));
-        Assert.Empty(await ctx.Sets.Contains("k", ReadOnlySpan<RedisValue>.Empty));
+        Assert.Empty((await ctx.Sets.Contains("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
 
         Assert.Empty(exec.Sent);
     }
@@ -86,7 +86,7 @@ public class RespSurfaceSetsTests
 
         // the old surface sends a bare SPOP for a count of zero, which removes ONE. Diverging here is
         // deliberate: "pop none" quietly popping one is discovered in production, not in review.
-        Assert.Empty(await ctx.Sets.Pop("k", 0L));
+        Assert.Empty((await ctx.Sets.Pop("k", 0L)).Span.ToArray());
         Assert.Empty(exec.Sent);
 
         await ctx.Sets.Pop("k", 2);
@@ -99,7 +99,7 @@ public class RespSurfaceSetsTests
         var (ctx, exec) = Target(":1\r\n", "*2\r\n:1\r\n:0\r\n");
 
         Assert.True(await ctx.Sets.Contains("k", "a"));
-        Assert.Equal(new[] { true, false }, await ctx.Sets.Contains("k", ["a", "b"]));
+        Assert.Equal(new[] { true, false }, (await ctx.Sets.Contains("k", ["a", "b"])).Span.ToArray());
 
         Assert.Equal(
             new[] { "*3|$9|SISMEMBER|$1|k|$1|a|", "*4|$10|SMISMEMBER|$1|k|$1|a|$1|b|" },

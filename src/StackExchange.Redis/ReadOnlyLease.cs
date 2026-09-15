@@ -85,6 +85,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Take ownership of an array that has <b>already been rented</b> from
+        /// <see cref="ArrayPool{T}"/>, of which only the first <paramref name="length"/> elements are live.
+        /// </summary>
+        /// <param name="pooled">The rented array; this lease returns it on disposal.</param>
+        /// <param name="length">How many elements are actually populated.</param>
+        /// <remarks>
+        /// For a parser that already rents - <c>ParseArray(allowOversized: true)</c> is the case this exists
+        /// for - so its result becomes a lease without a copy. The caller must not keep using the array
+        /// afterwards: this lease is now the owner, and will hand it back.
+        /// </remarks>
+        internal static ReadOnlyLease<T> Adopt(T[] pooled, int length)
+            => length == 0 ? Empty : new ReadOnlyLease<T>(pooled, 0, length);
+
+        /// <summary>
         /// Create a lease that <b>shares</b> an existing buffer rather than copying out of it.
         /// </summary>
         /// <param name="owner">The buffer to point into; a reference must already have been taken.</param>

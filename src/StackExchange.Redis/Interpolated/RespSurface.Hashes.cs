@@ -69,7 +69,19 @@ namespace StackExchange.Redis.Interpolated
         /// No fields means no command, as elsewhere: an arity-zero <c>HMGET</c> is a server error, and the
         /// values of no fields is an empty array without asking anyone.
         /// </remarks>
-        public static ValueTask<RedisValue[]> Get(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> Get(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+            => fields.IsEmpty
+                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                    $"{RedisCommand.HMGET}{key}{fields}", flags.WithDefaultCategory(RedisCommand.HMGET));
+
+        /// <summary>Get, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Get</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> GetArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : hashes.Context.SendAsync<RedisValue[]>(
@@ -89,7 +101,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="hashes">The hash command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<HashEntry[]> GetAll(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<HashEntry>> GetAll(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<HashEntry>>(
+                $"{RedisCommand.HGETALL}{key}", flags.WithDefaultCategory(RedisCommand.HGETALL));
+
+        /// <summary>GetAll, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>GetAll</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<HashEntry[]> GetAllArray(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<HashEntry[]>(
                 $"{RedisCommand.HGETALL}{key}", flags.WithDefaultCategory(RedisCommand.HGETALL));
 
@@ -97,7 +119,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="hashes">The hash command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> Keys(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> Keys(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{RedisCommand.HKEYS}{key}", flags.WithDefaultCategory(RedisCommand.HKEYS));
+
+        /// <summary>Keys, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Keys</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> KeysArray(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.HKEYS}{key}", flags.WithDefaultCategory(RedisCommand.HKEYS));
 
@@ -105,7 +137,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="hashes">The hash command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> Values(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> Values(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{RedisCommand.HVALS}{key}", flags.WithDefaultCategory(RedisCommand.HVALS));
+
+        /// <summary>Values, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Values</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> ValuesArray(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.HVALS}{key}", flags.WithDefaultCategory(RedisCommand.HVALS));
 
@@ -148,7 +190,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> RandomFields(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> RandomFields(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{RedisCommand.HRANDFIELD}{key}{count}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
+
+        /// <summary>RandomFields, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RandomFields</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> RandomFieldsArray(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.HRANDFIELD}{key}{count}", flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
 
@@ -157,7 +209,18 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<HashEntry[]> RandomFieldsWithValues(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<HashEntry>> RandomFieldsWithValues(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => hashes.Context.SendAsync<ReadOnlyLease<HashEntry>>(
+                $"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}",
+                flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
+
+        /// <summary>RandomFieldsWithValues, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RandomFieldsWithValues</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<HashEntry[]> RandomFieldsWithValuesArray(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<HashEntry[]>(
                 $"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}",
                 flags.WithDefaultCategory(RedisCommand.HRANDFIELD));
@@ -289,7 +352,29 @@ namespace StackExchange.Redis.Interpolated
         /// with a different reply. An absent expiry is likewise not a request.
         /// </para>
         /// </remarks>
-        public static ValueTask<ExpireResult[]> Expire(
+        public static ValueTask<ReadOnlyLease<ExpireResult>> Expire(
+            this in RespHashes hashes,
+            RedisKey key,
+            ReadOnlySpan<RedisValue> fields,
+            Expiration expiry,
+            ExpireWhen when = ExpireWhen.Always,
+            CommandFlags flags = CommandFlags.None)
+        {
+            if (fields.IsEmpty) return new ValueTask<ReadOnlyLease<ExpireResult>>(ReadOnlyLease<ExpireResult>.Empty);
+
+            var command = SelectExpireCommand(expiry);
+            return hashes.Context.SendAsync<ReadOnlyLease<ExpireResult>>(
+                $"{command}{key}{expiry.Value}{AsFragment(when)}{RespLiterals.Fields}{fields.Length}{fields}",
+                flags.WithRetryCategory(when.AsRetryCategory()).WithDefaultCategory(command));
+        }
+
+        /// <summary>Expire, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Expire</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<ExpireResult[]> ExpireArray(
             this in RespHashes hashes,
             RedisKey key,
             ReadOnlySpan<RedisValue> fields,
@@ -310,7 +395,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="fields">The fields to persist.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<PersistResult[]> Persist(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<PersistResult>> Persist(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+            => fields.IsEmpty
+                ? new ValueTask<ReadOnlyLease<PersistResult>>(ReadOnlyLease<PersistResult>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<PersistResult>>(
+                    $"{RedisCommand.HPERSIST}{key}{RespLiterals.Fields}{fields.Length}{fields}",
+                    flags.WithDefaultCategory(RedisCommand.HPERSIST));
+
+        /// <summary>Persist, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Persist</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<PersistResult[]> PersistArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
                 ? new ValueTask<PersistResult[]>(Array.Empty<PersistResult>())
                 : hashes.Context.SendAsync<PersistResult[]>(
@@ -326,7 +424,20 @@ namespace StackExchange.Redis.Interpolated
         /// Always the millisecond command, as on the old surface: a caller who wanted seconds can divide,
         /// and a caller who needed milliseconds could not recover them.
         /// </remarks>
-        public static ValueTask<long[]> GetTimeToLive(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<long>> GetTimeToLive(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+            => fields.IsEmpty
+                ? new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<long>>(
+                    $"{RedisCommand.HPTTL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
+                    flags.WithDefaultCategory(RedisCommand.HPTTL));
+
+        /// <summary>GetTimeToLive, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>GetTimeToLive</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<long[]> GetTimeToLiveArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
                 ? new ValueTask<long[]>(Array.Empty<long>())
                 : hashes.Context.SendAsync<long[]>(
@@ -339,7 +450,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="fields">The fields to ask about.</param>
         /// <param name="flags">Command flags.</param>
         /// <remarks><inheritdoc cref="GetTimeToLive" path="/remarks"/></remarks>
-        public static ValueTask<long[]> GetExpireDateTime(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<long>> GetExpireDateTime(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+            => fields.IsEmpty
+                ? new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<long>>(
+                    $"{RedisCommand.HPEXPIRETIME}{key}{RespLiterals.Fields}{fields.Length}{fields}",
+                    flags.WithDefaultCategory(RedisCommand.HPEXPIRETIME));
+
+        /// <summary>GetExpireDateTime, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>GetExpireDateTime</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<long[]> GetExpireDateTimeArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
                 ? new ValueTask<long[]>(Array.Empty<long>())
                 : hashes.Context.SendAsync<long[]>(
@@ -364,7 +488,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="fields">The fields to read and remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> GetDelete(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> GetDelete(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
+            => fields.IsEmpty
+                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                    $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
+                    flags.WithDefaultCategory(RedisCommand.HGETDEL));
+
+        /// <summary>GetDelete, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>GetDelete</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> GetDeleteArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : hashes.Context.SendAsync<RedisValue[]>(
@@ -405,7 +542,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="fields">The fields to read.</param>
         /// <param name="expiry">The expiration to apply.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> GetSetExpiry(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> GetSetExpiry(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
+            => fields.IsEmpty
+                ? new ValueTask<ReadOnlyLease<RedisValue>>(ReadOnlyLease<RedisValue>.Empty)
+                : hashes.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                    $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{fields.Length}{fields}",
+                    WithGetExCategory(expiry, flags));
+
+        /// <summary>GetSetExpiry, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>GetSetExpiry</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> GetSetExpiryArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : hashes.Context.SendAsync<RedisValue[]>(

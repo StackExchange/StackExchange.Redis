@@ -47,90 +47,30 @@ a line saying why, because "we decided not to" is worth as much as "we did".
       behaviour the `NOLOOP` argument rests on.
 
 
-- [ ] **Get the arrays off the new API.** There should be very close to zero. Counted at the start: 32 array
-      occurrences on the `SER010`/`SER011` surface, of which **29 are `ValueTask<T[]>` returns** -
-      `RedisValue[]`, `HashEntry[]`, `SortedSetEntry[]`, `double?[]`, `long[]`, `bool[]`,
-      `ExpireResult[]`, `PersistResult[]`. Inherited wholesale from the old surface, where there was no
-      alternative; here there is.
-      The *inputs* were already done right - `ReadOnlySpan<T>` throughout - so this is one-sided, and it is
-      the side that allocates per call with nothing able to reclaim it.
+- [ ] **`Parse(ref RespReader)`, and the row-parser collapse** (§2.2, §6.16). Now with evidence rather
+      than a hunch: converting the arrays produced **16 handlers that are all "aggregate of X"** - eight
+      array, eight lease - of which six differ only by a one-line projection, which is why they were
+      factored onto a shared `ReadScalarLease`. With `Parse(ref RespReader)` the row parser *is* the scalar
+      handler: `IRespHandler<long>` for `INCR` does `ReadInt64()`, and so does the row parser for
+      `ReadOnlyLease<long>`. `double?` is character-for-character identical. So registration becomes
+      **implement the element handler, get the aggregate/lease/array for free** - the natural extension of
+      "registration is implementing the interface", and the story for module types.
 
-      **Why now and not later.** An array return is a binary-compat trap of its own: `T[]` can never
-      become anything else without a break, so the experimental window is the only chance. And the cost
-      grows with every command group added - each new group written in the old shape is more to undo, and
-      groups are being added right now.
+      **Jagged vs interleaved belongs in the walker, not the row parser.** `HashEntry`/`SortedSetEntry`
+      look like exceptions because a row is two interleaved elements in RESP2 and one nested array in
+      RESP3 - but the old parser already hides that from its implementers entirely: `ParseArray` decides
+      `isJagged` once per reply and runs one of two loops that both call the same `Parse(ref first, ref
+      second, state)`. So the generic walker normalises, the row parser declares an **arity** (1 for
+      scalars, 2 for pairs), and all eight collapse rather than six. Carry the escape hatch across too:
+      `AllowJaggedPairs` is `protected virtual`, and `RedisStreamInterleavedProcessor` overrides it to
+      false because it works on an already-flattened map.
 
-      **The shape.** A return cannot be a span, because these are all `async`; it has to be something that
-      carries a count and can be given back. `ReadOnlyLease<T>` already exists for exactly this reason and
-      already solved the hard part (see 6.16 - `Release()` is a bare decrement, which is why it is a class
-      and not a struct). The value-type element arrays are the sweetest: `double?[]`, `long[]`, `bool[]`,
-      `ExpireResult[]`, `PersistResult[]` pool with *no* element allocation at all. For `RedisValue[]` the
-      lease saves the array and not the elements - `RedisValue` has no lifetime, which is settled and not
-      to be relitigated - but on a large `MGET` the array is the part that lands in gen-2.
+      The shape is endemic - `HGETALL`, `ZRANGE WITHSCORES`, `XRANGE`, `CONFIG GET` - so hoisting it once
+      pays on every group added, and leaving it per-handler means re-deriving the jagged check each time.
 
-      **The honest cost:** a lease must be disposed and an array need not be, so this trades forgiveness
-      for reclaim. That trade is already made elsewhere in this design (`RespResult`, `ReadOnlyLease<byte>`),
-      so the inconsistency today is that these were left behind, not that changing them is novel.
-
-      **The one real exception:** `RespAttribute` - `params string[]` and `Tokens`. Attribute arguments
-      must be arrays; the CLR gives no choice. Worth stating so it is not "fixed" by someone later.
-
-      **Worked example landed:** `Strings.Get(keys)` (MGET) now returns `ReadOnlyLease<RedisValue>`, with
-      an internal `GetArray` sibling for `TransitionalDatabase`, and `RespHandlers.ValueLease` beside
-      `RespHandlers.Values`. 28 array returns left, all the same transformation. Prerequisite found and
-      fixed on the way: `ReadOnlyLease<T>` was returning pooled arrays unwiped, which is right for `byte`
-      and retention for any `T` holding a reference.
-
-      It does not need `Parse(ref RespReader)` after all - a handler can fill a rented span from a span
-      reply perfectly well - but the two still compose, and doing the remaining groups after that lands
-      would avoid touching each handler twice.
-
-      **Satisfying the old API, which still says `T[]`.** `TransitionalDatabase` has to keep returning
-      arrays, so something has to bridge. The obvious move - give `ReadOnlyLease<T>` an internal "hand me
-      your buffer" escape hatch - **does not work**, and it is worth saying why before someone tries it:
-      `Rent` goes to `ArrayPool<T>.Shared`, which returns an *oversized* array, while the old contract
-      promises an exactly-sized one the caller owns. The steal could essentially never fire. So the variant
-      is not a method on the lease; it is a question about how the result is *built*, which is a question
-      about the handler.
-
-      Shape: **a parallel internal extension method on the typed context**, sitting beside the public one,
-      sharing the message construction and differing only in the handler:
-
-      ```csharp
-      public static ValueTask<ReadOnlyLease<RedisValue>> Get(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
-          => strings.Context.SendAsync($"{RedisCommand.MGET}{keys}", flags, RespHandlers.ValueLease);
-
-      internal static ValueTask<RedisValue[]> GetArray(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
-          => strings.Context.SendAsync($"{RedisCommand.MGET}{keys}", flags, RespHandlers.Values);
-      ```
-
-      Three things this buys over a generic `GetCore<T>(..., IRespHandler<T>)` helper. It stays in the
-      classic `this` extension form, so the legacy sibling retires the way everything else on this surface
-      does. Being **internal**, it never appears on the public API, so it adds no array site to fix later.
-      And `TransitionalDatabase` stays a genuine one-line pass-through - `context.Strings.GetArray(...)` -
-      which was the whole point of that class.
-
-      Sharing the construction is available now that `Render` exists: it is exactly the primitive both
-      siblings need, since each call wants its own frame and what is shared is the *composition*, not the
-      frame. Duplicating the interpolated line instead is one line and no knowledge, so either is fine.
-
-      `RespHandlers.Values` (`IRespHandler<RedisValue[]>`) already exists and is one of the three non-return
-      array sites: it is not deleted, it is demoted - off the public surface, onto the legacy sibling.
-
-      Rejected, and recorded so nobody builds it: an internal "hand me your buffer" hatch on
-      `ReadOnlyLease<T>`. `Rent` goes to `ArrayPool<T>.Shared`, which returns an *oversized* array, while
-      the old contract promises an exactly-sized one the caller owns - so the steal could essentially never
-      fire, and what is left is `ToArray()` wearing a disguise. It would also put an ownership ambiguity
-      into the one type whose entire point is that ownership is unambiguous.
-
-      `ToArray()` stays public on the lease regardless - that is the escape hatch for *callers* who want an
-      array, and it copies, honestly and visibly.
-
-
-- [ ] **`Parse(ref RespReader)`** (§2.2, §6.16). Smaller prize than it looked once the outgoing-copy rule
-      landed — the sharing argument moved to `ReadOnlyLease` — so it is back to being about
-      **composability**: `IRespHandler<T[]>` built from `IRespHandler<T>`. Cheapest while handlers live in
-      one file. Mechanical: delete two lines per handler, take the parameter.
+      A refactor that **deletes** code. Deliberately sequenced after the signature change: the public
+      shapes were binary-breaking and time-limited, the handler internals are internal and can be
+      collapsed whenever without touching a caller.
 
 - [ ] **`CLIENT TRACKING` negotiation in the real client.** RESP3-only; the mode and prefixes now come
       from `CacheOptions.TrackingMode` / `CacheOptions.Prefixes`, which are already validated against each
@@ -211,7 +151,9 @@ a line saying why, because "we decided not to" is worth as much as "we did".
 - [x] Wipe pooled arrays whose elements can hold references — `2c905046`
 - [x] MGET returns a pooled lease; the array shape moves to an internal sibling — `ae3abb1e`
 - [x] Measured invalidation timing against a real server (6.13) — `eddb3b5f`
-- [x] Wire `OnLocalWrite`: a write tells the cache before it is sent — this change
+- [x] Wire `OnLocalWrite`: a write tells the cache before it is sent — `b21ad97a`
+- [x] A bulk write invalidates its own arguments, not the whole cache — `bbb91af6`
+- [x] Arrays off the new API: 28 returns become `ReadOnlyLease<T>`, with internal `...Array` siblings — this change
 - [x] `CacheTrackingMode`: broadcast vs per-key, with prefixes validated against it — `728e9102`
 - [x] Byte and entry quotas, with sampled eviction — `87d5afa2`
 - [x] `MaxPayloadBytes`, and a sweep that actually runs: `SweepInterval` + the multiplexer heartbeat, and

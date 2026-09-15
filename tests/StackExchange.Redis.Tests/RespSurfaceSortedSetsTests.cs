@@ -299,7 +299,7 @@ public class RespSurfaceSortedSetsTests
 
         // `count: 0` rather than a bare 0, because Order is an enum and so a literal zero is ambiguous
         // between the two overloads - a wart this surface inherits from the pair it replaces
-        Assert.Empty(await ctx.SortedSets.Pop("k", count: 0));
+        Assert.Empty((await ctx.SortedSets.Pop("k", count: 0)).Span.ToArray());
         Assert.Empty(exec.Sent);
     }
 
@@ -329,7 +329,7 @@ public class RespSurfaceSortedSetsTests
         var (ctx, exec) = Target("*3\r\n$1\r\n1\r\n$-1\r\n$1\r\n3\r\n");
 
         RedisValue[] members = ["a", "b", "c"];
-        Assert.Equal(new double?[] { 1, null, 3 }, await ctx.SortedSets.Scores("k", members));
+        Assert.Equal(new double?[] { 1, null, 3 }, (await ctx.SortedSets.Scores("k", members)).Span.ToArray());
 
         Assert.Equal("*5|$7|ZMSCORE|$1|k|$1|a|$1|b|$1|c|", Assert.Single(exec.Sent));
     }

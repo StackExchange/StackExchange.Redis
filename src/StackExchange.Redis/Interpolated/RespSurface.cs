@@ -56,7 +56,7 @@ namespace StackExchange.Redis.Interpolated
         public static IRespHandler<double> Double { get; } = DefaultHandlers.Instance;
 
         /// <summary>Reads an array reply as <see cref="RedisValue"/>s; a nil array reads as empty.</summary>
-        public static IRespHandler<RedisValue[]> Values { get; } = DefaultHandlers.Instance;
+        internal static IRespHandler<RedisValue[]> Values { get; } = DefaultHandlers.Instance;
 
         /// <summary>Reads an array reply into a pooled <see cref="ReadOnlyLease{T}"/> the caller gives back.</summary>
         /// <remarks>
@@ -161,29 +161,36 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         private sealed class DefaultHandlers :
             IRespHandler<ExpireResult[]>,
+            IRespHandler<ReadOnlyLease<ExpireResult>>,
             IRespHandler<HashEntry[]>,
+            IRespHandler<ReadOnlyLease<HashEntry>>,
             IRespHandler<LCSMatchResult>,
             IRespHandler<Lease<byte>?>,
             IRespHandler<Lease<long?>>,
             IRespHandler<PersistResult[]>,
+            IRespHandler<ReadOnlyLease<PersistResult>>,
             IRespHandler<ReadOnlyLease<byte>?>,
             IRespHandler<RedisValue>,
             IRespHandler<RedisValue[]>,
             IRespHandler<ReadOnlyLease<RedisValue>>,
             IRespHandler<SortedSetEntry?>,
             IRespHandler<SortedSetEntry[]>,
+            IRespHandler<ReadOnlyLease<SortedSetEntry>>,
             IRespHandler<SortedSetPopResult>,
             IRespHandler<StringIncrementResult<double>>,
             IRespHandler<StringIncrementResult<long>>,
             IRespHandler<ValueCondition?>,
             IRespHandler<bool>,
             IRespHandler<bool[]>,
+            IRespHandler<ReadOnlyLease<bool>>,
             IRespHandler<double>,
             IRespHandler<double?>,
             IRespHandler<double?[]>,
+            IRespHandler<ReadOnlyLease<double?>>,
             IRespHandler<long>,
             IRespHandler<long?>,
             IRespHandler<long[]>,
+            IRespHandler<ReadOnlyLease<long>>,
             IRespHandler<string?>,
             IRespPayloadHandler<RespResult>
         {
@@ -268,6 +275,86 @@ namespace StackExchange.Redis.Interpolated
                     lease.Dispose();
                     throw;
                 }
+            }
+
+            /// <summary>
+            /// Read an aggregate of scalars straight into a pooled lease.
+            /// </summary>
+            /// <remarks>
+            /// The lease counterpart of <c>ReadPastArray(projection, scalar: true)</c>: same walk, same
+            /// projection, but filling storage the caller gives back instead of a fresh array. Six of the
+            /// element types here differ only in that projection, so they share this rather than repeating
+            /// the rent-and-guard dance eight times.
+            /// </remarks>
+            private static ReadOnlyLease<T> ReadScalarLease<T>(ReadOnlySpan<byte> response, RespReader.Projection<T> projection)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+
+                // a nil aggregate reads as empty, as it does for the array handlers: every caller of an
+                // array reply wants to iterate it
+                if (reader.IsNull) return ReadOnlyLease<T>.Empty;
+
+                var count = reader.AggregateLength();
+                if (count <= 0) return ReadOnlyLease<T>.Empty;
+
+                var lease = ReadOnlyLease<T>.Rent(count, null, out var target);
+                try
+                {
+                    var iter = reader.AggregateChildren();
+                    for (var i = 0; i < count; i++)
+                    {
+                        iter.DemandNext();
+                        var element = iter.Value;
+                        target[i] = projection(ref element);
+                    }
+
+                    return lease;
+                }
+                catch
+                {
+                    // rented by now, and nobody else has a reference to hand back
+                    lease.Dispose();
+                    throw;
+                }
+            }
+
+            ReadOnlyLease<long> IRespHandler<ReadOnlyLease<long>>.Parse(ReadOnlySpan<byte> response)
+                => ReadScalarLease(response, static (ref r) => r.ReadInt64());
+
+            ReadOnlyLease<bool> IRespHandler<ReadOnlyLease<bool>>.Parse(ReadOnlySpan<byte> response)
+                => ReadScalarLease(response, static (ref r) => r.ReadBoolean());
+
+            ReadOnlyLease<ExpireResult> IRespHandler<ReadOnlyLease<ExpireResult>>.Parse(ReadOnlySpan<byte> response)
+                => ReadScalarLease(response, static (ref r) => (ExpireResult)r.ReadInt64());
+
+            ReadOnlyLease<PersistResult> IRespHandler<ReadOnlyLease<PersistResult>>.Parse(ReadOnlySpan<byte> response)
+                => ReadScalarLease(response, static (ref r) => (PersistResult)r.ReadInt64());
+
+            /// <remarks>ZMSCORE replies nil for a member that is not there, so the element type is nullable.</remarks>
+            ReadOnlyLease<double?> IRespHandler<ReadOnlyLease<double?>>.Parse(ReadOnlySpan<byte> response)
+                => ReadScalarLease(response, static (ref r) => r.IsNull ? (double?)null : r.ReadDouble());
+
+            /// <remarks>
+            /// <b>No copy.</b> <c>ParseArray(allowOversized: true)</c> already rents from
+            /// <c>ArrayPool</c> and reports the live length separately, which is exactly a lease
+            /// wearing different clothes - so this adopts the rental rather than copying out of it.
+            /// </remarks>
+            ReadOnlyLease<HashEntry> IRespHandler<ReadOnlyLease<HashEntry>>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                var pooled = HashEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
+                return pooled is null ? ReadOnlyLease<HashEntry>.Empty : ReadOnlyLease<HashEntry>.Adopt(pooled, count);
+            }
+
+            /// <inheritdoc cref="IRespHandler{T}.Parse" path="/remarks"/>
+            ReadOnlyLease<SortedSetEntry> IRespHandler<ReadOnlyLease<SortedSetEntry>>.Parse(ReadOnlySpan<byte> response)
+            {
+                var reader = new RespReader(response);
+                reader.MoveNext();
+                var pooled = SortedSetEntryShape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
+                return pooled is null ? ReadOnlyLease<SortedSetEntry>.Empty : ReadOnlyLease<SortedSetEntry>.Adopt(pooled, count);
             }
 
             RedisValue[] IRespHandler<RedisValue[]>.Parse(ReadOnlySpan<byte> response)

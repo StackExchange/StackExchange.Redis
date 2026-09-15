@@ -179,7 +179,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="members">The members to look up.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<double?[]> Scores(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<double?>> Scores(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
+            => members.IsEmpty
+                ? new ValueTask<ReadOnlyLease<double?>>(ReadOnlyLease<double?>.Empty)
+                : sortedSets.Context.SendAsync<ReadOnlyLease<double?>>(
+                    $"{RedisCommand.ZMSCORE}{key}{members}", flags.WithDefaultCategory(RedisCommand.ZMSCORE));
+
+        /// <summary>Scores, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Scores</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<double?[]> ScoresArray(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
             => members.IsEmpty
                 ? new ValueTask<double?[]>(Array.Empty<double?>())
                 : sortedSets.Context.SendAsync<double?[]>(
@@ -263,7 +275,17 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> RandomMembers(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisValue>> RandomMembers(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => sortedSets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
+
+        /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RandomMembers</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
 
@@ -272,7 +294,18 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetEntry[]> RandomMembersWithScores(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScores(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+            => sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
+                flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
+
+        /// <summary>RandomMembersWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RandomMembersWithScores</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<SortedSetEntry[]> RandomMembersWithScoresArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<SortedSetEntry[]>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
                 flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER));
@@ -286,7 +319,26 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last rank to take.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> RangeByRank(
+        public static ValueTask<ReadOnlyLease<RedisValue>> RangeByRank(
+            this in RespSortedSets sortedSets,
+            RedisKey key,
+            long start = 0,
+            long stop = -1,
+            Order order = Order.Ascending,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
+            return sortedSets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{command}{key}{start}{stop}", flags.WithDefaultCategory(command));
+        }
+
+        /// <summary>RangeByRank, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RangeByRank</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> RangeByRankArray(
             this in RespSortedSets sortedSets,
             RedisKey key,
             long start = 0,
@@ -306,7 +358,26 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last rank to take.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetEntry[]> RangeByRankWithScores(
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByRankWithScores(
+            this in RespSortedSets sortedSets,
+            RedisKey key,
+            long start = 0,
+            long stop = -1,
+            Order order = Order.Ascending,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
+            return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
+                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags.WithDefaultCategory(command));
+        }
+
+        /// <summary>RangeByRankWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RangeByRankWithScores</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<SortedSetEntry[]> RangeByRankWithScoresArray(
             this in RespSortedSets sortedSets,
             RedisKey key,
             long start = 0,
@@ -335,7 +406,25 @@ namespace StackExchange.Redis.Interpolated
         /// asked to walk. That is the old builder's rule, kept exactly, because a caller who passed
         /// <c>(10, 1)</c> descending has always meant the same thing.
         /// </remarks>
-        public static ValueTask<RedisValue[]> RangeByScore(
+        public static ValueTask<ReadOnlyLease<RedisValue>> RangeByScore(
+            this in RespSortedSets sortedSets,
+            RedisKey key,
+            double start = double.NegativeInfinity,
+            double stop = double.PositiveInfinity,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long take = -1,
+            CommandFlags flags = CommandFlags.None)
+            => RangeByScoreCore<ReadOnlyLease<RedisValue>>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
+
+        /// <summary>RangeByScore, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RangeByScore</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> RangeByScoreArray(
             this in RespSortedSets sortedSets,
             RedisKey key,
             double start = double.NegativeInfinity,
@@ -357,7 +446,25 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="skip">How many to discard from the front.</param>
         /// <param name="take">How many to return; -1 for all.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetEntry[]> RangeByScoreWithScores(
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByScoreWithScores(
+            this in RespSortedSets sortedSets,
+            RedisKey key,
+            double start = double.NegativeInfinity,
+            double stop = double.PositiveInfinity,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long take = -1,
+            CommandFlags flags = CommandFlags.None)
+            => RangeByScoreCore<ReadOnlyLease<SortedSetEntry>>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: true, flags);
+
+        /// <summary>RangeByScoreWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RangeByScoreWithScores</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<SortedSetEntry[]> RangeByScoreWithScoresArray(
             this in RespSortedSets sortedSets,
             RedisKey key,
             double start = double.NegativeInfinity,
@@ -384,7 +491,35 @@ namespace StackExchange.Redis.Interpolated
         /// the open bounds then flip too, which is why <c>-</c> and <c>+</c> are chosen by the order
         /// rather than by the position.
         /// </remarks>
-        public static ValueTask<RedisValue[]> RangeByValue(
+        public static ValueTask<ReadOnlyLease<RedisValue>> RangeByValue(
+            this in RespSortedSets sortedSets,
+            RedisKey key,
+            RedisValue min = default,
+            RedisValue max = default,
+            Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
+            long skip = 0,
+            long take = -1,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var command = order == Order.Descending ? RedisCommand.ZREVRANGEBYLEX : RedisCommand.ZRANGEBYLEX;
+
+            // the bounds stay in start-then-stop order even for the reversed command; what reverses is
+            // which of them is "low", and GetLexRange's order-aware -/+ mapping is where that lives
+            RedisDatabase.ReverseLimits(order, ref exclude, ref min, ref max);
+
+            return sortedSets.Context.SendAsync<ReadOnlyLease<RedisValue>>(
+                $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
+                flags.WithDefaultCategory(command));
+        }
+
+        /// <summary>RangeByValue, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>RangeByValue</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> RangeByValueArray(
             this in RespSortedSets sortedSets,
             RedisKey key,
             RedisValue min = default,
@@ -518,7 +653,25 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue[]> Combine(
+        public static ValueTask<ReadOnlyLease<RedisValue>> Combine(
+            this in RespSortedSets sortedSets,
+            SetOperation operation,
+            ReadOnlySpan<RedisKey> keys,
+            ReadOnlySpan<double> weights = default,
+            Aggregate aggregate = Aggregate.Sum,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
+            return CombineCore<ReadOnlyLease<RedisValue>>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
+        }
+
+        /// <summary>Combine, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Combine</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<RedisValue[]> CombineArray(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
@@ -537,7 +690,25 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetEntry[]> CombineWithScores(
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> CombineWithScores(
+            this in RespSortedSets sortedSets,
+            SetOperation operation,
+            ReadOnlySpan<RedisKey> keys,
+            ReadOnlySpan<double> weights = default,
+            Aggregate aggregate = Aggregate.Sum,
+            CommandFlags flags = CommandFlags.None)
+        {
+            var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
+            return CombineCore<ReadOnlyLease<SortedSetEntry>>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: true, flags);
+        }
+
+        /// <summary>CombineWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>CombineWithScores</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<SortedSetEntry[]> CombineWithScoresArray(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
@@ -603,7 +774,23 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take.</param>
         /// <param name="order">Which end to take from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetEntry[]> Pop(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> Pop(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            // unlike SPOP, a count of zero here is well defined on the wire - but sending it is a round
+            // trip to be told nothing, which the old surface also declines to make
+            if (count == 0) return new ValueTask<ReadOnlyLease<SortedSetEntry>>(ReadOnlyLease<SortedSetEntry>.Empty);
+
+            var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
+            return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>($"{command}{key}{count}", flags.WithDefaultCategory(command));
+        }
+
+        /// <summary>Pop, as an array, for the old <c>IDatabase</c> surface.</summary>
+        /// <remarks>
+        /// Internal sibling of <c>Pop</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
+        /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
+        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// </remarks>
+        internal static ValueTask<SortedSetEntry[]> PopArray(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             // unlike SPOP, a count of zero here is well defined on the wire - but sending it is a round
             // trip to be told nothing, which the old surface also declines to make

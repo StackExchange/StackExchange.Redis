@@ -72,9 +72,9 @@ public class RespSurfaceHashesTests
     {
         var (ctx, exec) = Target();
 
-        Assert.Empty(await ctx.Hashes.Get("k", ReadOnlySpan<RedisValue>.Empty));
+        Assert.Empty((await ctx.Hashes.Get("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
         Assert.Equal(0, await ctx.Hashes.Delete("k", ReadOnlySpan<RedisValue>.Empty));
-        Assert.Empty(await ctx.Hashes.Persist("k", ReadOnlySpan<RedisValue>.Empty));
+        Assert.Empty((await ctx.Hashes.Persist("k", ReadOnlySpan<RedisValue>.Empty)).Span.ToArray());
         await ctx.Hashes.Set("k", ReadOnlySpan<HashEntry>.Empty);
 
         Assert.Empty(exec.Sent);
@@ -139,8 +139,8 @@ public class RespSurfaceHashesTests
         var (jagged, _) = Target("*2\r\n*2\r\n$2\r\nf1\r\n$2\r\nv1\r\n*2\r\n$2\r\nf2\r\n$2\r\nv2\r\n");
 
         HashEntry[] expected = [new("f1", "v1"), new("f2", "v2")];
-        Assert.Equal(expected, await interleaved.Hashes.GetAll("k"));
-        Assert.Equal(expected, await jagged.Hashes.GetAll("k"));
+        Assert.Equal(expected, (await interleaved.Hashes.GetAll("k")).Span.ToArray());
+        Assert.Equal(expected, (await jagged.Hashes.GetAll("k")).Span.ToArray());
     }
 
     [Fact]
@@ -310,10 +310,10 @@ public class RespSurfaceHashesTests
         var (ctx, _) = Target("*3\r\n:1\r\n:0\r\n:-2\r\n");
 
         RedisValue[] fields = ["a", "b", "c"];
-        var results = await ctx.Hashes.Expire("k", fields, TimeSpan.FromSeconds(60));
+        using var results = await ctx.Hashes.Expire("k", fields, TimeSpan.FromSeconds(60));
 
         Assert.Equal(
             new[] { ExpireResult.Success, ExpireResult.ConditionNotMet, ExpireResult.NoSuchField },
-            results);
+            results.Span.ToArray());
     }
 }
