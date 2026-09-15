@@ -79,7 +79,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Get</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> GetArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
@@ -109,7 +115,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>GetAll</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<HashEntry[]> GetAllArray(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<HashEntry[]>(
@@ -127,7 +139,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Keys</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> KeysArray(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue[]>(
@@ -145,7 +163,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Values</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> ValuesArray(this in RespHashes hashes, RedisKey key, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue[]>(
@@ -198,7 +222,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>RandomFields</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> RandomFieldsArray(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<RedisValue[]>(
@@ -218,7 +248,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>RandomFieldsWithValues</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<HashEntry[]> RandomFieldsWithValuesArray(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => hashes.Context.SendAsync<HashEntry[]>(
@@ -372,7 +408,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Expire</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<ExpireResult[]> ExpireArray(
             this in RespHashes hashes,
@@ -406,7 +448,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Persist</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<PersistResult[]> PersistArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
@@ -435,7 +483,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>GetTimeToLive</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<long[]> GetTimeToLiveArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
@@ -475,7 +529,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>GetExpireDateTime</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<long[]> GetExpireDateTimeArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
@@ -513,7 +573,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>GetDelete</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> GetDeleteArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty
@@ -567,7 +633,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>GetSetExpiry</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> GetSetExpiryArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
             => fields.IsEmpty

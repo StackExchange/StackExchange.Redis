@@ -17,9 +17,19 @@ alternative that might ship - it is the next major version's core, and the old i
 Four consequences, none of them cosmetic:
 
 1. **The old `IDatabase` surface still exists; the old *implementation* does not.** Binary compatibility is
-   paramount here, so the signatures stay and are served by the new core. That makes the internal
-   `...Array` siblings **permanent**, not transitional - their doc comments currently say "goes when the
-   old one does", which is now only true if the old *API* ever goes, which it may not.
+   paramount here, so the signatures stay and are served by the new core, and people are *led* to the new
+   surface rather than pushed. That makes the internal `...Array` siblings **permanent fixtures**, not
+   scaffolding, and their doc comments now say so.
+
+   **`Message` stays too**, and for a better reason than inertia: it is abstract over exactly two members,
+   `ArgCount` and `WriteImpl`. Everything else it carries - db, flags, command, slot, status, timeouts,
+   result pairing, high-integrity, profiling - is concrete shared bookkeeping. So the core is already
+   pluggable at precisely the rendering step, which is the only step the frame path wanted to replace, and
+   a new `IMessage` would only re-spell a seam that is already two members wide. What V4 changes is not the
+   abstraction but the population: 36 `Message` subclasses exist mainly to implement `WriteImpl` for one
+   command each, and every command that moves to the writer makes one of them redundant. The end state is a
+   **deletion**, not a reconciliation. The innards may evolve once sync is no longer a requirement; that is
+   deferred, and it is a smaller cut than it first looked.
 
 2. **`Fallback<T>()` must reach zero.** `TransitionalDatabase` currently delegates transactions to
    `RedisDatabase`. With nothing to delegate to, `MULTI`/`WATCH`/`HIMPORT`/`EVALSHA` stop being acceptable

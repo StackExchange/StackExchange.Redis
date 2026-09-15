@@ -56,6 +56,13 @@ namespace StackExchange.Redis.Interpolated
         public static IRespHandler<double> Double { get; } = DefaultHandlers.Instance;
 
         /// <summary>Reads an array reply as <see cref="RedisValue"/>s; a nil array reads as empty.</summary>
+        /// <remarks>
+        /// <b>Internal: the array is the old spelling, and it stays.</b> The public surface returns
+        /// <see cref="ValueLease"/>, so a caller can give the storage back; this serves the internal
+        /// <c>...Array</c> siblings behind the <c>IDatabase</c> signatures, which are not going anywhere -
+        /// compatibility outranks tidiness. Internal rather than retired, so that new code cannot pick the
+        /// shape it has no way to reclaim.
+        /// </remarks>
         internal static IRespHandler<RedisValue[]> Values { get; } = DefaultHandlers.Instance;
 
         /// <summary>Reads an array reply into a pooled <see cref="ReadOnlyLease{T}"/> the caller gives back.</summary>

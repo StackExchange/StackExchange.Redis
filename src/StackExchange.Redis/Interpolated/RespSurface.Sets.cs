@@ -105,7 +105,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Contains</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<bool[]> ContainsArray(this in RespSets sets, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
             => values.IsEmpty
@@ -133,7 +139,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Members</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> MembersArray(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
@@ -177,7 +189,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Pop</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> PopArray(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => count == 0
@@ -206,7 +224,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>RandomMembers</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
@@ -234,7 +258,13 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Internal sibling of <c>Combine</c>. A sibling rather than a conversion: <c>IDatabase</c> promises
         /// an array the caller owns, so going via the lease would rent a pooled buffer only to copy out of
-        /// it. Internal, so it never reaches the public surface and goes when the old one does.
+        /// it.
+        /// <para>
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how that signature is served from the new core, for as long
+        /// as the signature exists. Internal because the array is the <i>old</i> spelling: new code should
+        /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
+        /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> CombineArray(this in RespSets sets, SetOperation operation, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
         {

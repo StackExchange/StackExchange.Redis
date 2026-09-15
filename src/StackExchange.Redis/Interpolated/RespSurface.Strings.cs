@@ -140,9 +140,11 @@ namespace StackExchange.Redis.Interpolated
         /// line and no knowledge; the command is still written once anywhere it matters.
         /// </para>
         /// <para>
-        /// Internal because it must never reach the public surface: it exists to serve a shape that is on
-        /// its way out, and when the old surface goes, so does this - with no binary consequence, because
-        /// nothing outside this assembly could ever have bound to it.
+        /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> is not going anywhere - compatibility
+        /// outranks tidiness here - so this is how <c>StringGet(RedisKey[])</c> is served from the new
+        /// core, for as long as that signature exists. Internal because the array is the <i>old</i>
+        /// spelling: new code should reach for the lease, and nothing outside this assembly should be able
+        /// to choose otherwise.
         /// </para>
         /// </remarks>
         internal static ValueTask<RedisValue[]> GetArray(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
