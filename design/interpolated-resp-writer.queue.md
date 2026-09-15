@@ -573,10 +573,10 @@ Four consequences, none of them cosmetic:
       random access, lazy is strictly worse than materialising once, which is the real reason the indexer is
       a trap and enumeration is the honest API.
 
-      **And it points at the half that has not been measured.** Cap'n Proto's claim is primarily about
-      *time*, and everything measured above is *bytes*. The allocation case turned out to be 40B per 1000
-      elements; the time case - how a deferred walk compares against parse-then-index, for one pass and for
-      several - is untested, and is the experiment that would actually settle this.
+      **The time half, since that is what Cap'n Proto's claim is really about:** measured, on the nested
+      shape, forward-only - roughly **2x** faster and **zero** allocation against 55KB (table below). The
+      allocation half is the decisive one; the 2x is at the limit of the method used and is recorded as
+      directional rather than asserted.
 
       **Shape** (Marc, 2026-09-15): a disposable root owning the leased contiguous buffer, and a
       `readonly struct RespAggregate<T>` holding a *slice* of it plus a projection - "think `RespValue` but
@@ -608,16 +608,31 @@ Four consequences, none of them cosmetic:
 
       So **capturing is free**, and the deferred walk beats the lease by *40 bytes per 1000 elements* - not
       the several hundred that "MGET without even a lease or a write-to-array" implies. The reason is that
-      the array is **pooled**, so it was already nearly free; the 40B is the lease object. The ~600B both
-      arms share is the **walk**, which the lease path pays too while filling its array, so it is not a
-      difference between the designs. (What that ~600B *is* remains unattributed - a trivial projection
-      measures the same as a real one, so it is the child enumeration itself. Worth its own look; the reader
-      is meant to be allocation-free.)
+      the array is **pooled**, so it was already nearly free; the 40B is the lease object.
 
-      **So the case for this is not flat MGET.** It is:
-      - **nested shapes**, where materialising costs N+1 arrays (`StreamEntry[]` each holding
-        `NameValueEntry[]`) and a deferred walk costs none;
-      - **one field out of a big reply**, where materialising the whole thing to read one entry is waste.
+      > **Correction.** This entry first attributed the ~600B both arms share to "the walk". That was wrong:
+      > a bare child walk over the same 1000-element reply allocates **0 bytes** (measured). The reader is
+      > allocation-free, as it is meant to be; the ~600B was the prototype's own scaffolding - the
+      > `RespPayload` wrapper and the `Projection<T>` delegate path - not the enumeration.
+
+      **The nested case is where it pays, and by much more.** `RespAggregateTimingTests`, an `XRANGE` reply
+      of 200 entries x 5 fields, read forward once with `foreach` - which is what callers do, and the only
+      pattern where a deferred walk can win at all:
+
+      | arm | time | allocation |
+      | --- | --- | --- |
+      | materialise into `StreamEntry[]`, then read | ~146-166us | **55,224 B** |
+      | deferred walk | ~73-75us | **0 B** |
+
+      The allocation result is unambiguous and not sensitive to how it was measured: **55KB against nothing**,
+      because materialising a nested reply is N+1 arrays plus a `RedisValue` per field, and a walk is none of
+      that. The time result - a shade over **2x** - is directionally stable across runs but sits right at the
+      edge of what a stopwatch loop should be allowed to claim; asserting it would want BenchmarkDotNet. The
+      test therefore asserts the allocation and logs the time.
+
+      **So the case for this is not flat MGET** (40B), it is:
+      - **nested shapes**, where the measurement above is the whole argument;
+      - **one field out of a big reply**, where materialising everything to read one entry is waste.
 
       For flat, indexed, single-pass reads the lease is already the right answer and should stay.
 
