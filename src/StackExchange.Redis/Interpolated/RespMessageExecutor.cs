@@ -109,17 +109,29 @@ namespace StackExchange.Redis.Interpolated
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
 
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            /// <remarks>
+            /// <b>The tail is <c>this</c>, not a second message.</b> The caller's result box is on this
+            /// message - it is what <c>ExecuteAsync</c> was handed - and only the messages yielded here are
+            /// enqueued for a reply. Yielding a fresh <c>FrameMessage</c> for the request instead left this
+            /// one holding the caller's task, never enqueued, and therefore never completed. Same shape as
+            /// <c>ScriptEvalMessage</c>, which yields itself for the same reason.
+            /// </remarks>
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection) => Expand();
+
+            private IEnumerable<Message> Expand()
             {
                 var head = new FrameMessage(_database, _preamble);
                 head.SetInternalCall();
-                head.SetSource(ResultProcessor.DemandOK, null);
+                head.SetSource(PreambleProcessor.Instance, null);
                 yield return head;
-                yield return new FrameMessage(_database, _request);
+                yield return this;
             }
 
-            protected override void WriteImpl(in MessageWriter writer)
-                => throw new NotSupportedException("A multi-message is written through its expansion.");
+            /// <remarks>
+            /// Writing the pair means writing its <i>request</i>: the preamble is a separate message, and
+            /// this one must still be writable on its own for the path where the expansion is declined.
+            /// </remarks>
+            protected override void WriteImpl(in MessageWriter writer) => writer.WriteRaw(_request.Span);
         }
 
         /// <summary>A message whose body is already framed: writing it is a blit.</summary>
@@ -155,7 +167,7 @@ namespace StackExchange.Redis.Interpolated
                 // the command's identity, not just its bytes: without it the pipeline cannot tell a write
                 // from a read, so IsPrimaryOnly lets a write be routed to a replica, and a profiler
                 // reports every command in the library as UNKNOWN
-                : base(database, request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
+                : base(DatabaseFor(database, request.Command), request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
             {
                 _request = request;
                 if ((request.Flags & CommandFlags.FireAndForget) != 0)
@@ -177,8 +189,39 @@ namespace StackExchange.Redis.Interpolated
             // the slot was folded during the write, so routing needs no second look at the keys
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
 
+            /// <summary>Drop a database the command does not take, rather than asserting on it.</summary>
+            /// <remarks>
+            /// A context carries a database because most commands need one, but a global command -
+            /// <c>SCRIPT</c>, <c>CLIENT</c>, <c>INFO</c> - rejects it outright: "A target database is not
+            /// required for SCRIPT", thrown at write time, which fails the connection rather than the call.
+            /// The same normalisation the ad-hoc <c>Execute</c> path already does, and for the same reason -
+            /// the caller did not ask for a database, the context simply had one.
+            /// </remarks>
+            private static int DatabaseFor(int database, RedisCommand command)
+                => database >= 0 && !RequiresDatabase(command) ? -1 : database;
+
             protected override void WriteImpl(in MessageWriter writer)
                 => writer.WriteRaw(_copy ?? _request.Span);
+        }
+
+        /// <summary>Consumes a preamble's reply without judging it.</summary>
+        /// <remarks>
+        /// A preamble is sent for its effect on the connection, not its value, and different preambles
+        /// answer differently - <c>SCRIPT LOAD</c> replies with a 40-byte hash, not <c>+OK</c>. This used to
+        /// be <c>DemandOK</c>, which rejects that hash as an unexpected response and takes the connection
+        /// down with it; nothing noticed because every test of this path replied "+OK" from a fake.
+        /// Errors still fault the message - the base handles those before this is reached - so accepting
+        /// anything here means accepting any <i>successful</i> reply.
+        /// </remarks>
+        private sealed class PreambleProcessor : ResultProcessor<bool>
+        {
+            internal static readonly PreambleProcessor Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                SetResult(message, true);
+                return true;
+            }
         }
 
         /// <summary>Captures the raw reply, undecoded, for the handler (or the cache) to read.</summary>

@@ -198,4 +198,52 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         return await condition();
     }
 
+
+    /// <summary>
+    /// SCRIPT LOAD + EVALSHA, composed and written as a unit, against a real server.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The pair had been validated only against fakes, which replied <c>+OK</c> to the preamble and kept
+    /// three separate faults invisible: the context's database went onto a <c>SCRIPT</c> that rejects one,
+    /// the preamble demanded <c>OK</c> from a reply that is a 40-byte hash, and the expansion yielded a
+    /// fresh message for the request while the caller's result box stayed on the un-enqueued pair, so the
+    /// call could never complete. Each is fatal on the first real round trip.
+    /// </para>
+    /// <para>
+    /// Hence the deliberately trivial script: the assertion is not about Lua, it is that a composed pair
+    /// reaches a server and the caller's own task is the one that finishes.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AScriptPairRoundTripsAgainstARealServer()
+    {
+        await using var conn = Create();
+        var surface = NewSurface(conn, 0);
+
+        using var result = await surface.Context.Scripts.Evaluate("return 41 + 1");
+        Assert.Equal(42, result.ReadScalar().ReadInt32());
+    }
+
+    /// <summary>A database-scoped script still routes to the database it was asked for.</summary>
+    /// <remarks>
+    /// The guard on the fix above: stripping the database belongs to the <i>preamble</i>, whose command
+    /// takes none. Stripping it from the EVALSHA too would silently run every script against database 0.
+    /// </remarks>
+    [Fact]
+    public async Task AScriptRunsInTheDatabaseTheContextNames()
+    {
+        await using var conn = Create();
+        var key = Me();
+        const int Db = 3;
+
+        await conn.GetDatabase(Db).StringSetAsync(key, "in-three");
+        await conn.GetDatabase(0).KeyDeleteAsync(key);
+
+        var surface = NewSurface(conn, Db);
+        using var result = await surface.Context.Scripts.Evaluate(
+            "return redis.call('GET', KEYS[1])", [(RedisKey)key]);
+
+        Assert.Equal("in-three", result.ReadScalar().ReadString());
+    }
 }
