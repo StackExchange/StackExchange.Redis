@@ -851,7 +851,20 @@ namespace StackExchange.Redis
             // on a per-processor basis if needed
             protected virtual bool AllowJaggedPairs(RedisProtocol protocol) => protocol >= RedisProtocol.Resp3;
 
+            /// <summary>Read the pairs, deciding the wire shape from the protocol's policy.</summary>
             public T[]? ParseArray(ref RespReader reader, RedisProtocol protocol, bool allowOversized, out int count, object? state)
+                => ParseArray(ref reader, AllowJaggedPairs(protocol), allowOversized, out count, state);
+
+            /// <summary>
+            /// Read the pairs, being told outright whether jagged is permitted.
+            /// </summary>
+            /// <remarks>
+            /// The protocol is never anything but a way of asking <see cref="AllowJaggedPairs"/> this
+            /// question, so a caller that already knows the answer - or that has no connection to ask
+            /// about, as the deferred reply shapes do not - says so directly rather than naming a
+            /// protocol version it is not really claiming.
+            /// </remarks>
+            public T[]? ParseArray(ref RespReader reader, bool allowJagged, bool allowOversized, out int count, object? state)
             {
                 if (reader.IsNull)
                 {
@@ -866,11 +879,10 @@ namespace StackExchange.Redis
                     return [];
                 }
 
-                // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style). The detection
-                // itself is RespReader.IsAllJaggedPairs - shared with the deferred pair window
-                // (RespPairAggregate<T>), so the two paths cannot drift about what the bytes are; only the
-                // policy of whether jagged is permitted stays here.
-                bool isJagged = AllowJaggedPairs(protocol) && reader.IsAllJaggedPairs();
+                // Whether the bytes ARE jagged is RespReader.IsAllJaggedPairs - shared with the deferred
+                // pair window (RespPairAggregate<T>), so the two paths cannot drift about what arrived.
+                // Whether jagged is PERMITTED is the caller's policy, and arrives as allowJagged.
+                bool isJagged = allowJagged && reader.IsAllJaggedPairs();
 
                 if (isJagged)
                 {
@@ -3041,6 +3053,13 @@ namespace StackExchange.Redis
 
             protected override NameValueEntry Parse(ref RespReader first, ref RespReader second, object? state)
                 => new NameValueEntry(first.ReadRedisValue(), second.ReadRedisValue());
+
+            /// <summary>Whether a stream's field pairs may arrive jagged on this protocol.</summary>
+            /// <remarks>
+            /// Exposed so the stream parses can convert protocol to policy <b>once</b>, rather than each
+            /// restating <c>protocol &gt;= Resp3</c> and drifting from the virtual that actually decides.
+            /// </remarks>
+            internal bool AllowsJaggedPairs(RedisProtocol protocol) => AllowJaggedPairs(protocol);
         }
 
         /// <summary>
@@ -3055,6 +3074,12 @@ namespace StackExchange.Redis
         /// over the same buffer and calling exactly this, so the array shape never acquires a second parse.
         /// </remarks>
         internal static StreamEntry ParseRedisStreamEntry(ref RespReader reader, RedisProtocol protocol)
+            => ParseRedisStreamEntry(ref reader, AllowJaggedStreamFields(protocol));
+
+        /// <inheritdoc cref="ParseRedisStreamEntry(ref RespReader, RedisProtocol)"/>
+        /// <param name="reader">The reader, positioned on the entry.</param>
+        /// <param name="allowJaggedFields">Whether the entry's fields may arrive as nested pairs.</param>
+        internal static StreamEntry ParseRedisStreamEntry(ref RespReader reader, bool allowJaggedFields)
         {
             if (!reader.IsAggregate || reader.IsNull)
             {
@@ -3073,7 +3098,7 @@ namespace StackExchange.Redis
             var id = iter.Value.ReadRedisValue();
 
             iter.DemandNext();
-            var values = ParseStreamEntryValues(ref iter.Value, protocol);
+            var values = ParseStreamEntryValues(ref iter.Value, allowJaggedFields);
 
             // check for optional fields (XREADGROUP with CLAIM)
             if (length >= 4)
@@ -3098,6 +3123,12 @@ namespace StackExchange.Redis
                 values: values);
         }
         internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
+            => ParseRedisStreamEntries(ref reader, AllowJaggedStreamFields(protocol));
+
+        /// <inheritdoc cref="ParseRedisStreamEntries(ref RespReader, RedisProtocol)"/>
+        /// <param name="reader">The reader, positioned on the run of entries.</param>
+        /// <param name="allowJaggedFields">Whether an entry's fields may arrive as nested pairs.</param>
+        internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, bool allowJaggedFields)
         {
             if (!reader.IsAggregate || reader.IsNull)
             {
@@ -3105,19 +3136,38 @@ namespace StackExchange.Redis
             }
 
             return reader.ReadPastArray(
-                ref protocol,
-                static (ref protocol, ref r) => ParseRedisStreamEntry(ref r, protocol),
+                ref allowJaggedFields,
+                static (ref allowJaggedFields, ref r) => ParseRedisStreamEntry(ref r, allowJaggedFields),
                 scalar: false) ?? [];
         }
 
+        /// <inheritdoc cref="ParseStreamEntryValues(ref RespReader, bool)"/>
         internal static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, RedisProtocol protocol)
+            => ParseStreamEntryValues(ref reader, AllowJaggedStreamFields(protocol));
+
+        /// <summary>Read a stream entry's name/value fields.</summary>
+        /// <param name="reader">The reader, positioned on the field list.</param>
+        /// <param name="allowJaggedFields">Whether the fields may arrive as nested pairs.</param>
+        internal static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, bool allowJaggedFields)
         {
             if (!reader.IsAggregate || reader.IsNull)
             {
                 return [];
             }
-            return StreamNameValueEntryProcessor.Instance.ParseArray(ref reader, protocol, false, out _, null)!;
+            return StreamNameValueEntryProcessor.Instance.ParseArray(ref reader, allowJaggedFields, false, out _, null)!;
         }
+
+        /// <summary>
+        /// Turn a connection's protocol into the one policy these parses actually read it for.
+        /// </summary>
+        /// <remarks>
+        /// <b>The protocol is threaded through the stream parses for exactly this, and nothing else looks
+        /// at it.</b> Converting once, here, is what lets a caller that has no connection to ask - the
+        /// deferred reply shapes hold a buffer, not a connection - state the policy directly instead of
+        /// naming a protocol version it is not really claiming.
+        /// </remarks>
+        internal static bool AllowJaggedStreamFields(RedisProtocol protocol)
+            => StreamNameValueEntryProcessor.Instance.AllowsJaggedPairs(protocol);
 
         private sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, string>>
         {

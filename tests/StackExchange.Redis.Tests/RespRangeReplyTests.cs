@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -246,6 +246,66 @@ public class RespRangeReplyTests
         {
             Assert.False(entry.Fields.IsJagged);
         }
+    }
+
+    /// <summary>
+    /// The jagged policy on the stream path, which nothing pinned before.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Found by mutation while threading policy rather than protocol through these parses: making
+    /// <c>AllowJaggedStreamFields</c> return <see langword="false"/> unconditionally broke <b>no</b> test,
+    /// because no stream test has ever fed a jagged field list. The policy was real code with no evidence
+    /// behind it.
+    /// </para>
+    /// <para>
+    /// What it decides: permitted, <c>[[f,v],[g,w]]</c> is two fields; refused, the parse asks the reader
+    /// for a scalar, is handed an array, and <b>throws</b>. So the flag is not a tidying preference -
+    /// refusing it is the difference between reading the reply and failing on it. Which also settles the
+    /// deferred path's unconditional <c>true</c>: permitting jagged can never turn a working parse into a
+    /// differently-valued one, because the alternative was not a different value but an exception.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheJaggedPolicyDecidesWhetherAFieldListCanBeReadAtAll()
+    {
+        static NameValueEntry[] Parse(RedisProtocol protocol)
+        {
+            var frame = Encoding.UTF8.GetBytes(Wire("*2|*2|$1|f|$1|v|*2|$1|g|$1|w|"));
+            var reader = new RespReader(frame);
+            reader.MoveNext();
+            return ResultProcessor.ParseStreamEntryValues(ref reader, ResultProcessor.AllowJaggedStreamFields(protocol));
+        }
+
+        var permitted = Parse(RedisProtocol.Resp3);
+        Assert.Equal(2, permitted.Length);
+        Assert.Equal("f", permitted[0].Name);
+        Assert.Equal("w", permitted[1].Value);
+
+        Assert.Throws<InvalidOperationException>(() => Parse(RedisProtocol.Resp2));
+    }
+
+    /// <summary>
+    /// A scalar field list - what a real server actually sends - reads the same either way.
+    /// </summary>
+    /// <remarks>
+    /// This is what makes the deferred path's unconditional <c>allowJaggedFields: true</c> safe despite
+    /// the eager path gating on protocol: the policy can only bite on a shape <c>XADD</c> cannot produce.
+    /// </remarks>
+    [Theory]
+    [InlineData(RedisProtocol.Resp3)]
+    [InlineData(RedisProtocol.Resp2)]
+    public void TheJaggedPolicyCannotAffectARealFieldList(RedisProtocol protocol)
+    {
+        var frame = Encoding.UTF8.GetBytes(Wire("*4|$1|f|$1|v|$1|g|$1|w|"));
+        var reader = new RespReader(frame);
+        reader.MoveNext();
+
+        var fields = ResultProcessor.ParseStreamEntryValues(ref reader, ResultProcessor.AllowJaggedStreamFields(protocol));
+
+        Assert.Equal(2, fields.Length);
+        Assert.Equal("f", fields[0].Name);
+        Assert.Equal("w", fields[1].Value);
     }
 
     /// <summary>Every route into the reply dies with it - the whole of the lifetime contract.</summary>

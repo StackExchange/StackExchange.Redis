@@ -763,6 +763,30 @@ Four consequences, none of them cosmetic:
       `RespRangeReplyTests.ScalarFieldsAreNotJagged` - and because the existing comment already concedes
       jaggedness is not really a RESP3 thing.
 
+      ### Policy, not protocol, through the stream parses - FIXED 2026-09-16
+
+      Marc, reading `ToArray()`: *"why Resp3?"* - and the honest answer was that it was the only way to
+      spell "permit jagged field pairs" in a signature that takes a `RedisProtocol`.
+
+      **The protocol was never doing anything else.** Threaded through `ParseRedisStreamEntries` ->
+      `ParseRedisStreamEntry` -> `ParseStreamEntryValues`, it reaches exactly one reader:
+      `ValuePairInterleavedProcessorBase.AllowJaggedPairs(protocol)`. Nothing in those parses looks at it
+      otherwise. So a reply object - which holds a *buffer*, not a connection, and has no protocol
+      anywhere reachable from `RespContext`, `RespPayload` or `IRespExecutor` - had to name a protocol
+      version it was not really claiming, with the reasoning living only in a test.
+
+      Now the three parses (and `ParseArray`) take `bool allowJaggedFields`, with protocol-taking wrappers
+      that convert **once**, via `AllowJaggedStreamFields` -> the processor's own virtual, so the policy
+      keeps a single home instead of being restated at eight call sites.
+
+      **And the mutation run found the policy had no test at all.** Making `AllowJaggedStreamFields`
+      return `false` unconditionally broke nothing: no stream test had ever fed a jagged field list. That
+      is now pinned - and pinning it corrected a wrong assumption of mine in the process. Refusing jagged
+      does **not** read `[[f,v],[g,w]]` as one oddly-shaped field; it asks the reader for a scalar, gets
+      an array, and throws. Which settles the deferred path's unconditional `true` more firmly than the
+      original argument did: permitting jagged cannot turn a working parse into a differently-valued one,
+      because the alternative was never a different value - it was an exception.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

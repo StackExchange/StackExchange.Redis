@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using RESPite.Messages;
@@ -99,7 +99,13 @@ public static class Streams
         {
             var reader = GetReader();
             reader.MoveNext();
-            return ResultProcessor.ParseRedisStreamEntries(ref reader, RedisProtocol.Resp3);
+
+            // allowJaggedFields, and not a protocol version: this reply is a buffer, not a connection, so
+            // there is no protocol here to claim. Permitting jagged is what the deferred walk does, which
+            // is what makes this and Entries agree - and it cannot change what a real reply reads as,
+            // because a stream entry's fields are scalars and so can never look jagged. See
+            // RespRangeReplyTests.ScalarFieldsAreNotJagged.
+            return ResultProcessor.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
         }
 
         /// <inheritdoc/>
