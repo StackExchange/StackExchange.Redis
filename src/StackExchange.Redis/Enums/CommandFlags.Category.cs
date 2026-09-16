@@ -92,7 +92,7 @@ public static class CommandFlagsExtensions
             // Note also that some commands may have *conditionally* included their category based on
             // rules specific to the parameters, for example SCAN 0 is not server specific,
             // but SCAN 12341234 *is*.
-            var category = TryGetDefaultCategory(command);
+            var category = GetDefaultCategory(command);
 
             // A command the table does not know about is a GAP, not a dangerous command - and the symptom
             // is silent and one-directional: it stops being retried and stops being cached, so a read
@@ -103,7 +103,7 @@ public static class CommandFlagsExtensions
             // entirely. The guard that actually runs is the exhaustive sweep,
             // CommandCategoryTests.EveryCommandDeclaresARetryCategory, which found four missing commands
             // the first time it was written.
-            Debug.Assert(category.HasValue, $"No retry category for {command}; add it to {nameof(TryGetDefaultCategory)}.");
+            Debug.Assert(category.HasValue, $"No retry category for {command}; add it to {nameof(GetDefaultCategory)}.");
 
             flags |= category ?? CommandFlags.CommandRetryNever;
         }
@@ -116,12 +116,19 @@ public static class CommandFlagsExtensions
     /// no opinion - which means the table is incomplete, not that the command is unsafe.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Separated from <see cref="WithDefaultCategory"/> so that "no entry" is expressible at all: folded
     /// together, a missing command and one deliberately categorised
     /// <see cref="CommandFlags.CommandRetryNever"/> are the same value, and nothing can tell a decision
     /// from an omission.
+    /// </para>
+    /// <para>
+    /// <b>Not <c>TryGet</c>.</b> That prefix means <c>bool TryGetX(out T)</c> here as it does in the BCL,
+    /// and this returns a nullable instead - the <c>?</c> already says "may have no answer", and borrowing
+    /// a prefix that promises a different shape would cost more than it explains.
+    /// </para>
     /// </remarks>
-    internal static CommandFlags? TryGetDefaultCategory(RedisCommand command)
+    internal static CommandFlags? GetDefaultCategory(RedisCommand command)
     {
         {
             // This is *not* using switch expressions very deliberately, because there are a *lot* of

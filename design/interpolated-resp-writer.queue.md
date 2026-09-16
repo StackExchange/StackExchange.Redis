@@ -1137,10 +1137,29 @@ Four consequences, none of them cosmetic:
       union-cardinality was silently neither retried nor cached while intersection-cardinality was both.
       Also missing: `LMOVEM` (now with `LMOVE`, write-accumulating) and `HIMPORT`.
 
-      **`HIMPORT` is spelled out at its current value rather than guessed upward**, and wants a decision:
-      unlike `HSET`, its safety is not decided by the keyspace alone, because it sets fields from a field
-      set *prepared on the connection* - a replay after a reconnect only works if the preamble goes with
-      it.
+      **`HIMPORT` is spelled out at its current value rather than guessed upward.** Unlike `HSET`, its
+      safety is not decided by the keyspace alone: it sets fields from a field set *prepared on the
+      connection*, so a replay after a reconnect only works if the preamble goes with it.
+
+      **Marc: that is a TODO, not a property.** *"It is our job to make it replayable, but that's
+      deferred."* So `CommandRetryNever` here is a placeholder for work not yet done, and should be raised
+      once the preamble travels with the retry. Queued below.
+
+      ### Make the retry path prove itself: break the connection mid-group - QUEUED 2026-09-16
+
+      Two things the suite does not currently force, and neither will be believable by inspection:
+
+      1. **A retry group whose connection dies part-way.** This is what would catch `HIMPORT` replaying
+         without its prepared field set - and, more generally, any command whose correctness depends on
+         connection-local state that a resend does not carry. The preamble machinery (`IRespPreambleGate`,
+         claim-on-write vs confirm-on-reply) was built for exactly this and has never been made to
+         survive a reconnect under test.
+      2. **A transaction across the same break.** There may already be coverage on the old surface; the
+         core changes completely in the new format, so whatever exists will need rewriting rather than
+         porting.
+
+      **Timing: when `RedisDatabase` is swapped out** (Marc), not before - writing these against the old
+      core would mean writing them twice, and the second one is the one that matters.
 
       **The table can now say "I don't know".** `TryGetDefaultCategory` returns `CommandFlags?`, because
       folded together a missing command and one deliberately categorised `CommandRetryNever` are the same

@@ -31,7 +31,7 @@ public class CommandCategoryTests
     public void EveryCommandDeclaresARetryCategory()
     {
         var missing = AllCommands()
-            .Where(command => CommandFlagsExtensions.TryGetDefaultCategory(command) is null)
+            .Where(command => CommandFlagsExtensions.GetDefaultCategory(command) is null)
             .Select(command => command.ToString())
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
@@ -64,7 +64,7 @@ public class CommandCategoryTests
         var offenders = new List<string>();
         foreach (var command in AllCommands())
         {
-            if (CommandFlagsExtensions.TryGetDefaultCategory(command) is not { } category) continue;
+            if (CommandFlagsExtensions.GetDefaultCategory(command) is not { } category) continue;
 
             // the orthogonal flags ride alongside the ladder and are not part of it
             var rung = category & Message.MaskRetryCategory;
