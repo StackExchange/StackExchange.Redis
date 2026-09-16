@@ -1479,6 +1479,10 @@ Four consequences, none of them cosmetic:
       but only the ~44 command factories ever hold a frame. Every ordinary call site uses the interpolated
       overload and never sees one.
 
+      **Name the local `cmd`, not `req`.** `RespRequest` is a different type in this codebase - it is what
+      `Detach()` produces and what reaches the executor - so a local called `req` holding a `RespFrame`
+      would be a false cousin of it. `cmd` also matches what the factories are called.
+
       **The rule that goes with it:** compute the flags **before** rendering, so nothing in the argument
       list can throw between renting the buffer and handing it to the send. That window is the one real
       cost of the hoist, and it closes by ordering rather than by types. It holds everywhere today - the

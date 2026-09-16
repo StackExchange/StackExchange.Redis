@@ -55,8 +55,8 @@ public static partial class Streams
         Order messageOrder = Order.Ascending,
         CommandFlags flags = CommandFlags.None)
     {
-        var frame = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
-        return streams.Context.SendAsync(ref frame, flags, RangeReplyHandler, default);
+        var cmd = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
+        return streams.Context.SendAsync(ref cmd, flags, RangeReplyHandler, default);
     }
 
     /// <inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)"/>
@@ -84,8 +84,8 @@ public static partial class Streams
         Order messageOrder = Order.Ascending,
         CommandFlags flags = CommandFlags.None)
     {
-        var frame = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
-        return streams.Context.SendAsync(ref frame, flags, StreamEntriesHandler.Instance, default);
+        var cmd = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
+        return streams.Context.SendAsync(ref cmd, flags, StreamEntriesHandler.Instance, default);
     }
 
     /// <summary>
@@ -218,10 +218,8 @@ public static partial class Streams
         StreamTrimMode mode,
         CommandFlags flags = CommandFlags.None)
     {
-        DemandAtLeastOneId(messageIds);
-        return streams.Context.SendAsync<ReadOnlyLease<StreamTrimResult>>(
-            $"{RedisCommand.XDELEX}{key}{TrimModeToken(mode)}{RespLiterals.Ids}{messageIds.Length}{messageIds}",
-            flags);
+        var cmd = DeleteExCommand(streams.Context, key, messageIds, mode);
+        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<ReadOnlyLease<StreamTrimResult>>.Require(), default);
     }
 
     /// <inheritdoc cref="DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags)"/>
@@ -238,10 +236,20 @@ public static partial class Streams
         StreamTrimMode mode,
         CommandFlags flags = CommandFlags.None)
     {
+        var cmd = DeleteExCommand(streams.Context, key, messageIds, mode);
+        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<StreamTrimResult[]>.Require(), default);
+    }
+
+    /// <summary>Render <c>XDELEX</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    private static RespFrame DeleteExCommand(
+        in RespContext context,
+        RedisKey key,
+        ReadOnlySpan<RedisValue> messageIds,
+        StreamTrimMode mode)
+    {
         DemandAtLeastOneId(messageIds);
-        return streams.Context.SendAsync<StreamTrimResult[]>(
-            $"{RedisCommand.XDELEX}{key}{TrimModeToken(mode)}{RespLiterals.Ids}{messageIds.Length}{messageIds}",
-            flags);
+        return context.Render($"{RedisCommand.XDELEX}{key}{TrimModeToken(mode)}{RespLiterals.Ids}{messageIds.Length}{messageIds}");
     }
 
     /// <summary>XGROUP CREATE.</summary>
