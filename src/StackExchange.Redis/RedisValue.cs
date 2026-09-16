@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.IO.Hashing;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -655,7 +656,7 @@ namespace StackExchange.Redis
                 case StorageType.Int64 or StorageType.UInt64:
                     return x._valueInt64.GetHashCode();
                 case StorageType.String:
-                    return x.RawString().GetHashCode();
+                    return HashChars(x.RawString().AsSpan());
             }
 
             // Everything else - byte/memory/sequence buffers - compares to each other (and to strings) "as
@@ -663,21 +664,50 @@ namespace StackExchange.Redis
             // numeric was already reduced to Int64/Double by Simplify() above, so the equality-consistent
             // hash for what remains is the hash of the string form. (We must NOT hash raw bytes: that would
             // give byte buffers a different hash from the equal string.)
-#if NET
-            // hash the decoded UTF8 chars directly, which avoids allocating a transient string; this matches
-            // string.GetHashCode() for the equivalent text
+            // hash the decoded UTF8 chars directly, which avoids allocating a transient string
             const int StackLimit = 256;
             var maxChars = x.GetMaxCharCount();
             char[]? leased = null;
             Span<char> chars = maxChars <= StackLimit ? stackalloc char[StackLimit] : (leased = ArrayPool<char>.Shared.Rent(maxChars));
             var written = x.CopyTo(chars);
-            var hashCode = string.GetHashCode(chars.Slice(0, written));
+            var hashCode = HashChars(chars.Slice(0, written));
             if (leased is not null) ArrayPool<char>.Shared.Return(leased);
             return hashCode;
-#else
-            // no string.GetHashCode(ReadOnlySpan<char>) on these targets, so fall back to the string form
-            return ((string)x!).GetHashCode();
-#endif
+        }
+
+        /// <summary>
+        /// Per-process entropy, so that hash codes are not predictable between runs.
+        /// </summary>
+        /// <remarks>
+        /// This is what <see cref="string.GetHashCode()"/> gets from Marvin, and the reason hash codes must
+        /// never be persisted or sent between processes - which was already true.
+        /// </remarks>
+        private static readonly long HashSeed = BitConverter.ToInt64(Guid.NewGuid().ToByteArray(), 0);
+
+        /// <summary>
+        /// Hashes text, over its whole content.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Equality here is defined by the decoded characters (see <c>operator ==</c>), so the hash has to be
+        /// taken over those same characters: every representation of a value - string, byte[], sequence -
+        /// then lands in the same bucket.
+        /// </para>
+        /// <para>
+        /// <see cref="XxHash3"/> rather than the framework's Marvin, because hashing was measured at roughly
+        /// 2 GB/s and dominated the cost of hashing any large value - the UTF8 decode alongside it accounted
+        /// for under 4%. The seed supplies per-process entropy, but note what it does not do: Marvin is a
+        /// *keyed* hash, built so that collisions cannot be constructed without the key, whereas xxHash's
+        /// seed offers no such guarantee. That is a deliberate trade of hash-flooding resistance for speed,
+        /// on the basis that a <see cref="RedisValue"/> is rarely a dictionary key and practically never an
+        /// attacker-chosen one.
+        /// </para>
+        /// </remarks>
+        private static int HashChars(scoped ReadOnlySpan<char> chars)
+        {
+            if (chars.IsEmpty) return 0;
+            var hash = XxHash3.HashToUInt64(MemoryMarshal.AsBytes(chars), HashSeed);
+            return unchecked((int)hash ^ (int)(hash >> 32));
         }
 
         /// <summary>
