@@ -474,7 +474,6 @@ public partial class ConnectionMultiplexer
             EndPoint[]? replicaEndPoints = GetReplicasForService(serviceName)
                                         ?? GetReplicasForService(serviceName);
 
-            connection.servers.Clear();
             connection.EndPoints.Clear();
             connection.EndPoints.TryAdd(newPrimaryEndPoint);
             if (replicaEndPoints is not null)
@@ -483,6 +482,13 @@ public partial class ConnectionMultiplexer
                 {
                     connection.EndPoints.TryAdd(replicaEndPoint);
                 }
+            }
+
+            // Only once sentinel gave us the whole picture: a null replica list is a failed query, not a
+            // deployment with no replicas, and retiring on one would drop healthy nodes over a hiccup.
+            if (replicaEndPoints is not null)
+            {
+                RetireServersAbsentFromEndPoints(connection, logger);
             }
 
             TriggerReconfigure(reconfigureAll: false);
@@ -497,6 +503,41 @@ public partial class ConnectionMultiplexer
             // node. Force a full reconfigure so every connected node's role is refreshed before
             // the primary is re-elected.
             TriggerReconfigure(reconfigureAll: true);
+        }
+    }
+
+    /// <summary>
+    /// Retires every server the rebuilt endpoint set no longer names.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Retired, not merely forgotten. Emptying the server dictionary leaves the <see cref="ServerEndPoint"/>
+    /// in the multiplexer's snapshot, and the snapshot - not the dictionary - is what
+    /// <see cref="ServerSelectionStrategy"/> chooses from and what <see cref="GetEndPoints"/> reports: the
+    /// dropped server stays connected and selectable, so commands can still be routed to a node sentinel no
+    /// longer names. A later lookup then builds a *second* server for the same address, because the
+    /// dictionary missed while the snapshot still held the first.
+    /// </para>
+    /// <para>
+    /// <see cref="RetireServerAsync"/> is the one spelling of retirement, so the drain is honoured here as
+    /// well: a dropped node finishes what it owes rather than having its in-flight commands abandoned.
+    /// </para>
+    /// </remarks>
+    private static void RetireServersAbsentFromEndPoints(ConnectionMultiplexer connection, ILogger? log)
+    {
+        List<ServerEndPoint>? drop = null;
+        foreach (var server in connection.GetServerSnapshot())
+        {
+            if (server.IsDisposed || connection.EndPoints.Contains(server.EndPoint)) continue;
+            (drop ??= new List<ServerEndPoint>()).Add(server);
+        }
+
+        if (drop is null) return;
+        foreach (var server in drop)
+        {
+            // short drain: this runs on the +switch-master handler and the reconnect timer, and the
+            // reconfigure that follows is the part that matters for getting traffic moving again
+            connection.RetireServerAsync(server, "no longer named by sentinel", TimeSpan.FromSeconds(1), log).Wait();
         }
     }
 

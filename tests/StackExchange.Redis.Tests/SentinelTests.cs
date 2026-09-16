@@ -493,4 +493,35 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         var s = db.StringGet(Me());
         Assert.True(s.IsNullOrEmpty);
     }
+
+    [Fact]
+    public async Task SwitchPrimaryRebuildRetiresEndpointsSentinelNoLongerNames()
+    {
+        SkipOnWindowsRelease();
+
+        // A managed connection pointed somewhere sentinel does not name: the primary it reports is an
+        // endpoint this connection has never seen, which is what drives SwitchPrimary's rebuild branch
+        // (the real-world trigger is a node that came back on a brand-new address).
+        await using var managed = await ConnectionMultiplexer.ConnectAsync(
+            $"{TestConfig.Current.PrimaryServer}:{TestConfig.Current.PrimaryPort},allowAdmin=true",
+            Writer);
+        managed.RawConfig.ServiceName = ServiceName;
+
+        var strayEndPoint = managed.GetEndPoints().Single();
+        Assert.Contains(strayEndPoint, managed.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
+
+        Conn.SwitchPrimary(null, managed, Writer);
+        await UntilConditionAsync(
+            TimeSpan.FromSeconds(10),
+            () => !managed.GetServerSnapshot().ToArray().Any(x => Equals(x.EndPoint, strayEndPoint)));
+
+        // Retired, not merely dropped from the endpoint list: the snapshot is what server selection reads
+        // and what GetEndPoints reports, so a server left there stays connected and selectable.
+        Assert.DoesNotContain(strayEndPoint, managed.GetEndPoints());
+        Assert.DoesNotContain(strayEndPoint, managed.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
+
+        // ...and the rebuild still did its actual job
+        Assert.NotEmpty(managed.GetEndPoints());
+        await managed.GetDatabase().PingAsync();
+    }
 }
