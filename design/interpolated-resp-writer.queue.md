@@ -1445,6 +1445,46 @@ Four consequences, none of them cosmetic:
 
       **Next:** the same two moves on the other 43 duplicated command texts.
 
+      ### Two kinds of `ref`, and why the frame keeps its - DECIDED 2026-09-16
+
+      Marc: *"do we need that? I assume we mostly do it to claim ownership by nuking the old value... but
+      it doesn't actually protect us"* - `var y = x; SendAsync(ref x);` and the alias survives. True, and
+      the question separates into two cases that happen to share a keyword.
+
+      **`ref RespCommandHandler` - structural, nothing to decide.** The compiler builds the handler from
+      the interpolated string and passes it by reference; that is how `$"..."` binds to
+      `RespCommandHandler` at all. It is also a `ref struct` whose `Complete()` moves ownership out, which
+      `RespAppend.Append` depends on - its remarks already record the `CS8350`/`CS8352` reason it cannot
+      be an instance method. Invisible at the call site, and not droppable.
+
+      **`ref RespFrame` - deliberate, and kept.** `Detach()` sets `_buffer = null`, and with `ref` that
+      reaches the caller's variable, so a spent frame *stays* spent. Without it the caller's copy still
+      points at a buffer now owned by a lease, and the second use **double-returns a pooled buffer** - the
+      invisible-corruption class, where the symptom surfaces somewhere unrelated.
+
+      **It detects rather than enforces, and the distinction is the point.** An alias is a deliberate
+      copy; what `ref` catches is the accidental shape - the same variable used twice:
+
+      ```csharp
+      var frame = RangeCommand(...);
+      for (var attempt = 0; attempt < 3; attempt++)
+          await ctx.SendAsync(ref frame, flags, handler, default);   // 2nd iteration throws, correctly
+      ```
+
+      A retry loop is exactly what someone writes without thinking, and by value it double-frees silently.
+      `RespFrame`'s own `Dispose`/`Detach` remarks already state the struct-copy limit, so the boundary is
+      documented; documentation *instead of* `ref` would be strictly weaker, because it catches nothing.
+
+      **The cost is smaller than it looks.** `ref` needs an lvalue, so the factory pattern must hoist -
+      but only the ~44 command factories ever hold a frame. Every ordinary call site uses the interpolated
+      overload and never sees one.
+
+      **The rule that goes with it:** compute the flags **before** rendering, so nothing in the argument
+      list can throw between renting the buffer and handing it to the send. That window is the one real
+      cost of the hoist, and it closes by ordering rather than by types. It holds everywhere today - the
+      255 inline category calls that used to sit in the argument list are gone, and the four remaining
+      flag computations happen before the render.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it
