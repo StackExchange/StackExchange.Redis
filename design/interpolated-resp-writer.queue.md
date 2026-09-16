@@ -1605,6 +1605,49 @@ Four consequences, none of them cosmetic:
       tests. Whether a public synchronous dispatch path is something v4 wants is a real question; it is
       just not the open-and-shut one I presented.
 
+      ### Where a bespoke parse lives: one handler per group - DECIDED 2026-09-16
+
+      Prompted by *"can the handler be a lambda?"*, which turned into a better question once the numbers
+      were on the table. **Three tiers, and the top one is the overwhelming majority:**
+
+      | tier | when | sites |
+      |---|---|---|
+      | **registry** - `SendAsync<T>($"...", flags)` | the result type already has a handler | **224** |
+      | **named handler** | a bespoke parse | **33** |
+      | lambda | bespoke and unshared | does not exist |
+
+      **Lambdas: declined.** `IRespHandler<T>` is an interface, so a lambda needs a new delegate-taking
+      overload, and something must present it to the pipeline as a handler: a class adapter allocates per
+      call - the exact cost this design removes - and a struct adapter meets a `handler is
+      IRespPayloadHandler<T>` test whose boxing behaviour would want measuring. A delegate overload could
+      legitimately skip that test, since a handler holding only a `ref RespReader` cannot retain the
+      buffer - but that is a parallel `Parse` path, which is more machinery than the ~100 lines it saves.
+      Of the 19 handler types, four implement *two* `IRespHandler<T>` interfaces on one instance and one
+      is `RespReplyHandler<TReply>`; none of those five could be a lambda anyway.
+
+      **Merging `StreamEntriesHandler` with `RangeReplyHandler`: declined.** Mechanically fine - the type
+      test resolves correctly for each `TResult`, and dual-interface handlers are precedented four times.
+      But **the two do not share a parse**: one calls `ParseRedisStreamEntries`, the other does not parse
+      at all - it retains the payload and hands back a deferred view. The four precedents are the nullable
+      and non-nullable spellings of *one* parse, which is the case that justifies sharing an instance.
+      Merging would also mean either duplicating the `TryRetain`/lost-the-race-so-copy logic that
+      `RespReplyHandler<TReply>` exists to hold, or hiding that type inside the merged one - and it is the
+      **public door** an outside adopter uses for their own reply shapes, so bypassing it would stop the
+      library eating its own dog food.
+
+      **Registering `StreamEntry[]` in `RespHandlers`: declined** (Marc): *"I'd rather not put exotic
+      (meaning: group-specific) handlers into RespHandlers."* Right - the shared registry is for types any
+      command might answer with, and filling it with shapes only one group can produce makes it a dumping
+      ground.
+
+      **Done instead: one handler class per group.** `StreamEntriesHandler` becomes
+      `StreamTypesHandler`, which will grow the rest of the stream exotics - `XCLAIM`, `XREAD` and
+      `XREADGROUP` all answer `StreamEntry[]`, and the `XINFO` shapes are still to come. Explicit
+      interface implementations **from the first one**, because every `IRespHandler<T>.Parse` has the same
+      parameter list and differs only in return type, which C# cannot overload on - so writing the first
+      implicitly would force churning it when the second arrives. Named static accessors so call sites
+      need no cast, matching how `Float32Handler` and friends already read.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

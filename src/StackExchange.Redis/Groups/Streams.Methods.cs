@@ -89,7 +89,7 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
-        return streams.Context.SendAsync(ref cmd, flags, StreamEntriesHandler.Instance, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.Entries, cancellationToken);
     }
 
     /// <summary>
@@ -135,20 +135,38 @@ public static partial class Streams
         return context.Render($"{command}{key}{first}{second}{RespLiterals.Count.When(count)}{count}");
     }
 
-    /// <summary>Parses an <c>XRANGE</c>-shaped reply straight to the array shape.</summary>
+    /// <summary>
+    /// The stream group's own reply shapes - one handler for the types only this group produces.
+    /// </summary>
     /// <remarks>
-    /// The same <c>ParseRedisStreamEntries</c> the reply object's <c>ToArray</c> calls, so the deferred
-    /// and materialising shapes remain two call sites of one function rather than two parsers.
+    /// <para>
+    /// <b>Group-specific parses stay out of <c>RespHandlers</c></b>, which is for types any command might
+    /// answer with - <see cref="long"/>, <see cref="bool"/>, <see cref="RedisValue"/>, the leases. One
+    /// handler per <i>group</i> rather than per type keeps the stream parses together and stops the shared
+    /// registry filling up with shapes only one group can produce. The other groups' exotics belong in
+    /// their own equivalents.
+    /// </para>
+    /// <para>
+    /// <b>The implementations are explicit, and must be:</b> every <c>IRespHandler&lt;T&gt;.Parse</c> has
+    /// the same parameter list and differs only in return type, which C# cannot overload on. Written that
+    /// way from the first one so that adding the second - <c>XCLAIM</c>, <c>XREAD</c> and
+    /// <c>XREADGROUP</c> all answer <see cref="StreamEntry"/><c>[]</c>, and the <c>XINFO</c> shapes are
+    /// still to come - does not churn it. The named accessors are so call sites need no cast, which is
+    /// how the existing multi-interface handlers read.
+    /// </para>
     /// </remarks>
-    private sealed class StreamEntriesHandler : IRespHandler<StreamEntry[]>
+    private sealed class StreamTypesHandler : IRespHandler<StreamEntry[]>
     {
-        public static readonly StreamEntriesHandler Instance = new();
+        private static readonly StreamTypesHandler Instance = new();
 
-        private StreamEntriesHandler()
-        {
-        }
+        /// <summary>An <c>XRANGE</c>-shaped reply as the array shape the older surface promises.</summary>
+        /// <remarks>
+        /// The same <c>ParseRedisStreamEntries</c> the reply object's <c>ToArray</c> calls, so the
+        /// deferred and materialising shapes remain two call sites of one function.
+        /// </remarks>
+        internal static IRespHandler<StreamEntry[]> Entries => Instance;
 
-        public StreamEntry[] Parse(ref RespReader reader)
+        StreamEntry[] IRespHandler<StreamEntry[]>.Parse(ref RespReader reader)
             => ResultProcessor.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
     }
 
