@@ -153,6 +153,33 @@ public class StreamRangeMachineryBenchmarks
     }
 
     /// <summary>
+    /// The deferred shape as a <b>consumer</b> actually uses it: every field converted, nothing stored.
+    /// </summary>
+    /// <remarks>
+    /// <b><see cref="DeferredWalk"/> is a floor, not a caller.</b> It increments a counter per field and
+    /// never looks at a name or a value, so it measures the traversal skeleton and understates what
+    /// reading the data costs. This converts both halves of every field exactly as
+    /// <c>ToNameValueEntry</c> does, which makes it the apples-to-apples partner for
+    /// <see cref="TransitionalArray"/>: the same per-field work, differing only in whether the results
+    /// are put in arrays.
+    /// </remarks>
+    [Benchmark]
+    public async Task<int> DeferredRead()
+    {
+        using var reply = await _context.Streams.RangeAsync("s").ConfigureAwait(false);
+        var seen = 0;
+        foreach (var entry in reply.Entries)
+        {
+            foreach (var field in entry.Fields)
+            {
+                if (!field.Name.AsRedisValue().IsNull) seen++;
+                if (!field.Value.AsRedisValue().IsNull) seen++;
+            }
+        }
+        return seen;
+    }
+
+    /// <summary>
     /// The transitional shim: the same reply projected to the array shape <c>IDatabase</c> promises.
     /// </summary>
     [Benchmark]

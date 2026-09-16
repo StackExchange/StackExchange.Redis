@@ -1314,6 +1314,57 @@ Four consequences, none of them cosmetic:
       the in-process managed server, and therefore its own table, since the regimes are not comparable.
       And the cache-on/cache-off split for rows 2 and 3.
 
+      ### Runtime async, measured properly - CONCLUSION 2026-09-16
+
+      Fixed harness (inline-resuming awaiter), full jobs, all three configs, plus a `DeferredRead` row
+      that converts every field exactly as `ToNameValueEntry` does - so it is the apples-to-apples partner
+      for `TransitionalArray` rather than the traversal-only floor `DeferredWalk` measures.
+
+      **Runtime async on vs off, both net11, empty reply - consistent across all four shapes:**
+
+      | | inline | suspending |
+      |---|---|---|
+      | off | 122.4 / 156.6 / 159.7 / 131.8 ns, 272B | |
+      | on | 112.2 / 144.4 / 146.0 / 120.8 ns, 496B | |
+      | verdict | **~8% faster** | **~22% slower, +224B** |
+
+      Errors under 2ns throughout, and all four shapes agree - so both halves are real, not noise.
+
+      **1. It helps the inline path and hurts the suspending one.** ~8% off inline completion; ~22% and
+      +224 bytes onto every suspension. For this library that is the wrong way round: a real Redis call
+      *waits on a socket*, so suspending is the common case, and the inline win applies only to cache hits
+      and already-buffered pipelined replies.
+
+      **Conclusion: not worth adopting on RC1 evidence.** Re-test at GA. The wiring stays because it costs
+      nothing switched off and makes re-testing a one-line build flag.
+
+      **2. .NET 11 itself is neutral** - net10 and net11-off agree to ~1% on every row. Which finally
+      disposes of the "3.7x suspension regression" reported earlier: that was entirely the `Task.Yield()`
+      harness, and the control column now proves it from both directions.
+
+      **3. At scale none of it matters** - every 1000-entry row moves less than 2%, because protocol work
+      dominates the machinery by three orders of magnitude.
+
+      ### CORRECTION: the deferred view is not faster, it is smaller - 2026-09-16
+
+      The earlier "18% faster and 2,100x less memory" compared `DeferredWalk` against
+      `TransitionalArray`, which is not a fair pairing: the walk only traverses, while the array path
+      converts every value. `DeferredRead` does the same conversions and does not store them:
+
+      | net11 on, 1000x10, inline | time | allocated |
+      |---|---|---|
+      | DeferredRead | 1,441,171 ns | **186 B** |
+      | TransitionalArray | 1,376,975 ns | 392,208 B |
+
+      **So the deferred shape is ~5% SLOWER** (9.6% on net10), **for ~2,100x less memory.** That is still
+      a good trade and it is the trade the design was making - one forward pass is what the eager shape
+      wants, which the design notes already said - but "faster and smaller" was wrong and the corrected
+      claim is narrower: *you stop paying for materialisation you did not need, and the walk itself costs
+      a few percent more than the pass it replaced.*
+
+      `DeferredWalk` remains useful as the floor: a consumer that only needs structure, not values, pays
+      1,022us against 1,377us and allocates nothing.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it
