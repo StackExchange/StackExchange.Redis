@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
@@ -65,9 +66,36 @@ public class StreamRangeMachineryBenchmarks
 
         private async ValueTask<RespPayload> Suspended()
         {
-            await Task.Yield();
+            await default(SuspendInline);
             if (!payload.TryRetain()) throw new ObjectDisposedException(nameof(RespPayload));
             return payload;
+        }
+    }
+
+    /// <summary>
+    /// Suspends once, then resumes <b>inline</b> - so the state-machine box is forced to exist without a
+    /// thread hop.
+    /// </summary>
+    /// <remarks>
+    /// <b>The first version of this used <c>Task.Yield()</c>, and the numbers were wrong in a way that
+    /// looked like noise and was not.</b> Yielding moves the continuation to a thread-pool thread, so
+    /// everything after the await ran in a different threading and GC context - which made the suspending
+    /// walk measure <i>faster</i> than the inline one, by 8%, reproducibly, at about twenty standard
+    /// errors on a full job. That is not "the same work plus a suspension"; it is different work. An
+    /// awaiter that resumes inline measures the box and nothing else.
+    /// </remarks>
+    private readonly struct SuspendInline : ICriticalNotifyCompletion
+    {
+        public SuspendInline GetAwaiter() => this;
+
+        public bool IsCompleted => false;
+
+        public void OnCompleted(Action continuation) => continuation();
+
+        public void UnsafeOnCompleted(Action continuation) => continuation();
+
+        public void GetResult()
+        {
         }
     }
 

@@ -1268,7 +1268,45 @@ Four consequences, none of them cosmetic:
       matches, and explains, the "suspend measured worse" result from the earlier scratch harness, which
       had no control.
 
-      **That regression is NOT a finding yet** - 3.7x on `Task.Yield()`-based suspension with identical
+      ### CORRECTION: the suspend rows above were measuring the harness - 2026-09-16
+
+      Marc, on the table: *"3rd vs 4th row, net10 column is suspicious - is this table all just noise?"*
+      It was not noise. It was worse: **systematic**. The suspending walk measured ~8% *faster* than the
+      inline one, and that inversion survived a full job at roughly **twenty standard errors** - 1,152,157
+      +-3,916 against 1,061,410 +-4,468. Suspension cannot make work faster, so the harness was wrong.
+
+      **Cause:** the fake executor suspended with `Task.Yield()`, which moves the continuation to a
+      thread-pool thread - so everything after the await ran in a different threading and GC context. It
+      was not "the same work plus a suspension", it was different work somewhere else.
+
+      **Fixed** with an awaiter that suspends and resumes inline, forcing the state-machine box to exist
+      without a thread hop. Re-measured on net10, full job, now monotone everywhere:
+
+      | shape | entries | inline | suspend | delta |
+      |---|---|---|---|---|
+      | Deferred | 0 | 121.5ns | 168.3ns | +46.8 |
+      | DeferredWalk | 0 | 153.7ns | 203.3ns | +49.6 |
+      | TransitionalArray | 0 | 131.3ns | 176.0ns | +44.7 |
+      | DeferredWalk | 1000 | 1,146,700ns | 1,152,187ns | +5,487 |
+      | TransitionalArray | 1000 | 1,400,119ns | 1,399,993ns | -126 |
+
+      **Suspension costs a flat ~47ns and one box**, agreeing to within 5ns across three differently
+      shaped benchmarks - agreement the old numbers never showed. The old figure was 819-940ns, so about
+      **80% of it was thread-pool scheduling**, not the state machine.
+
+      **Everything net11 above is therefore void** - on, off, and the "3.7x regression" all sat on the
+      broken suspend path and must be re-run against the fixed harness.
+
+      **What survives untouched:** the deferred-view result, which was never in the suspend dimension -
+      1,147us and *zero* Gen0 against 1,400us and 23.4 Gen0 at 1000x10. And the allocation column
+      generally, which is counted rather than timed.
+
+      **The lesson worth keeping** (Marc): *"it's almost like accurately measuring asynchronous code with
+      context/thread-switching might somehow be nuanced and brittle."* The tell was an ordering that could
+      not be true, not a number that looked odd - which is why the inline/suspend pair is worth keeping in
+      every future row: it is a self-check, not just a data point.
+
+      **The earlier note that regression is NOT a finding** - 3.7x on `Task.Yield()`-based suspension with identical
       allocations is too large to believe from a short in-process job on an RC runtime. It needs
       reproducing outside BenchmarkDotNet before it is worth anyone's attention upstream.
 
