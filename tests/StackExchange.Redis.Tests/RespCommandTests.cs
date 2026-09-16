@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class RespCommandTests
 {
-    private static string Text(in RespFrame frame) =>
+    private static string Text(in RespRequestFrame frame) =>
         Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     [Fact]

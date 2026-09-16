@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Interpolated
     /// past the call.
     /// </para>
     /// <para>
-    /// <b>Lifetime.</b> Whoever retains, releases. <see cref="RespFrame.Detach"/> hands back a key holding
+    /// <b>Lifetime.</b> Whoever retains, releases. <see cref="RespRequestFrame.Detach"/> hands back a key holding
     /// one reference; <see cref="TryRetain"/> takes another. Dispose each one exactly once. The rule for the
     /// dictionary is that the STORED key holds its own reference for as long as it is in the dictionary -
     /// see the remarks on <see cref="TryRetain"/> - which is what section 6.4 of the design doc means by "the
@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>The number of RESP arguments, including the command itself.</summary>
         public int ArgCount { get; }
 
-        /// <inheritdoc cref="RespFrame.Command"/>
+        /// <inheritdoc cref="RespRequestFrame.Command"/>
         internal RedisCommand Command { get; }
 
         /// <summary>
@@ -87,17 +87,17 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>
         /// How many arguments were keys, or <c>-1</c> when the request cannot report them.
         /// </summary>
-        /// <inheritdoc cref="RespFrame.KeyCount" path="/remarks"/>
-        public int KeyCount => RespFrame.KeyCountOf(_keyMarks);
+        /// <inheritdoc cref="RespRequestFrame.KeyCount" path="/remarks"/>
+        public int KeyCount => RespRequestFrame.KeyCountOf(_keyMarks);
 
-        /// <summary>Recover the key payloads; see <see cref="RespFrame.TryGetKeys"/>.</summary>
+        /// <summary>Recover the key payloads; see <see cref="RespRequestFrame.TryGetKeys"/>.</summary>
         /// <param name="target">Receives the ranges; size it from <see cref="KeyCount"/>.</param>
         public int TryGetKeys(scoped Span<KeyRange> target)
-            => _array is null ? -1 : RespFrame.ResolveKeys(_array, _offset, _length, _keyMarks, target);
+            => _array is null ? -1 : RespRequestFrame.ResolveKeys(_array, _offset, _length, _keyMarks, target);
 
-        /// <summary>Every argument, whether or not marked as a key; see <see cref="RespFrame.ResolveAllArguments"/>.</summary>
+        /// <summary>Every argument, whether or not marked as a key; see <see cref="RespRequestFrame.ResolveAllArguments"/>.</summary>
         internal int TryGetAllArguments(scoped Span<KeyRange> target)
-            => _array is null ? -1 : RespFrame.ResolveAllArguments(_array, _offset, _length, target);
+            => _array is null ? -1 : RespRequestFrame.ResolveAllArguments(_array, _offset, _length, target);
 
         /// <summary>Resolve a <see cref="KeyRange"/> against the underlying buffer.</summary>
         /// <param name="range">The range to resolve.</param>
@@ -111,7 +111,7 @@ namespace StackExchange.Redis.Interpolated
         /// Whether this key owns a reference to its buffer, and so may be stored.
         /// </summary>
         /// <remarks>
-        /// False for a key from <see cref="RespFrame.AsLookupKey"/>, which borrows the frame's buffer and is
+        /// False for a key from <see cref="RespRequestFrame.AsLookupKey"/>, which borrows the frame's buffer and is
         /// valid only until the frame is disposed. Storing a borrowed key would put a pooled array into a
         /// cache and then hand it back to the pool - design doc section 6.4, whose failure mode is wrong data
         /// served from cache rather than a crash. <see cref="TryRetain"/> refuses, so the documented

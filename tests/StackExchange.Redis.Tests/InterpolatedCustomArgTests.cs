@@ -19,7 +19,7 @@ public class InterpolatedCustomArgTests
 {
     private static readonly RespContext Ctx = new();
 
-    private static string Text(in RespFrame frame) =>
+    private static string Text(in RespRequestFrame frame) =>
         Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     /// <summary>A struct, so the constrained call has something to box if it is going to.</summary>

@@ -1489,6 +1489,37 @@ Four consequences, none of them cosmetic:
       255 inline category calls that used to sit in the argument list are gone, and the four remaining
       flag computations happen before the render.
 
+      ### `RespFrame` -> `RespRequestFrame` - RENAMED 2026-09-16
+
+      Marc, on the local being `cmd`: *"'command' and 'request' have more semantic meaning than
+      'frame'"* - and then the sharper point: **the wrong two types looked like siblings.**
+
+      | | names the | |
+      |---|---|---|
+      | `RespCommand` | the verb | *"XRANGE"* |
+      | `RespRequestFrame` | the verb plus its arguments, composed and owned | *"XRANGE 1 4 COUNT 10"* |
+      | `RespRequest` | the same, ref-counted and ready to dispatch | |
+
+      **`RespCommand` stays, and the distinction is Marc's:** *"XRANGE is a command; XRANGE 1 4 NOLOOP
+      AUTO is a request."* `FLUSHALL` is arguably both, but that is a degenerate instance rather than a
+      counterexample - the types still differ, one being a name and the other a rendered payload with an
+      argument count and key marks.
+
+      **`RespRequest` stays too, on stability rather than aesthetics:** 65 of its references are in tests,
+      mostly the 21 fake executors implementing `IRespExecutor` - which is also the interface an outside
+      adopter implements. The cheap name to move was the one nobody outside implements.
+
+      **Rejected: `RespOwnedRequest`.** It was the obvious pairing until the code said otherwise -
+      `RespRequest` holds `RefCountedBuffer? _lease` where **null means borrowed**, so a `RespRequest` can
+      itself own. Ownership is not the axis that separates them; dispatch-readiness is.
+
+      **A bonus the rename found:** `RespFrameWriter` and `RespFrameScanner` use "frame" in its correct
+      wire-structure sense, so the interpolated `RespFrame` was the odd use of the word among its own
+      neighbours. 97 references across 22 files, none in the fakes.
+
+      **And the local is `cmd`, not `req`**, because `RespRequest` is a real and different type here, so a
+      `req` holding a request *frame* would be a false cousin of it.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

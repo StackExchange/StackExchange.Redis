@@ -36,7 +36,7 @@ public class InterpolatedWriterUnitTests
     // sized from KeyCount, NOT a fixed two: a fixed buffer makes TryGetKeys return -1 for "target too
     // small", which is indistinguishable here from "frame cannot report its keys" and would let a test
     // claiming the latter pass for the former reason
-    private static string[] Keys(in RespFrame frame)
+    private static string[] Keys(in RespRequestFrame frame)
     {
         var count = frame.KeyCount;
         if (count < 0) return null!; // the frame genuinely cannot report them

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -19,18 +19,18 @@ public class InterpolatedOptionalArgTests
 {
     private static readonly RespContext Ctx = new();
 
-    private static string Text(in RespFrame frame) =>
+    private static string Text(in RespRequestFrame frame) =>
         Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     /// <summary>The interpolated writer's rendering of a full SET.</summary>
-    private static RespFrame ViaHandler(RedisKey key, RedisValue value, ValueCondition when, Expiration expiry)
+    private static RespRequestFrame ViaHandler(RedisKey key, RedisValue value, ValueCondition when, Expiration expiry)
     {
         var cmd = Ctx.Compose($"{RedisCommand.SET}{key}{value}{when}{expiry}");
         return cmd.Complete();
     }
 
     /// <summary>The same command through the legacy MessageWriter, using the types' own WriteTo.</summary>
-    private static RespFrame ViaMessageWriter(RedisKey key, RedisValue value, ValueCondition when, Expiration expiry)
+    private static RespRequestFrame ViaMessageWriter(RedisKey key, RedisValue value, ValueCondition when, Expiration expiry)
     {
         var sink = new RespFrameWriter();
         var writer = new MessageWriter(null, CommandMap.Default, sink);

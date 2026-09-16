@@ -45,7 +45,7 @@ public partial class InterpolatedWriterFragmentTests
 
     // half 2 - the bodies - is emitted by RespFragmentGenerator from the declarations above.
 
-    private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
+    private static string Frame(in RespRequestFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     [Fact]
     public void SingleTokenFragment()

@@ -27,7 +27,7 @@ internal static partial class RespLiterals
 /// </summary>
 public class InterpolatedWriterUsingStaticTests
 {
-    private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
+    private static string Frame(in RespRequestFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     [Fact]
     public void ImportedFragmentsReadAlmostLikeInlineTokens()

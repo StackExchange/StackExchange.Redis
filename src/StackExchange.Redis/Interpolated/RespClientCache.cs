@@ -473,7 +473,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="database">The database it runs against.</param>
         /// <param name="fill">The fill to complete once the reply arrives.</param>
         /// <remarks>
-        /// The ordinary <see cref="TryBeginFill(ref RespFrame, int, CommandFlags, out RespFill)"/> takes a
+        /// The ordinary <see cref="TryBeginFill(ref RespRequestFrame, int, CommandFlags, out RespFill)"/> takes a
         /// freshly rendered frame and <i>detaches</i> it. A refresh has no frame to render - the whole point
         /// is that the cache key already <i>is</i> the request - so this retains rather than detaches, and
         /// ownership of the caller's copy is unaffected.
@@ -557,10 +557,10 @@ namespace StackExchange.Redis.Interpolated
         /// is the safe answer: an entry whose keys cannot be named could never be invalidated.
         /// </para>
         /// </remarks>
-        public bool TryBeginFill(ref RespFrame frame, int database, out RespFill fill)
+        public bool TryBeginFill(ref RespRequestFrame frame, int database, out RespFill fill)
             => TryBeginFill(ref frame, database, CommandFlags.CommandRetryReadOnly, out fill);
 
-        /// <inheritdoc cref="TryBeginFill(ref RespFrame, int, out RespFill)"/>
+        /// <inheritdoc cref="TryBeginFill(ref RespRequestFrame, int, out RespFill)"/>
         /// <param name="frame">The rendered request.</param>
         /// <param name="database">The database the request runs against.</param>
         /// <param name="flags">
@@ -586,7 +586,7 @@ namespace StackExchange.Redis.Interpolated
         /// rest need an explicit opt-in that this spike does not yet model.
         /// </para>
         /// </remarks>
-        public bool TryBeginFill(ref RespFrame frame, int database, CommandFlags flags, out RespFill fill)
+        public bool TryBeginFill(ref RespRequestFrame frame, int database, CommandFlags flags, out RespFill fill)
         {
             if (!IsCacheable(flags))
             {
@@ -706,7 +706,7 @@ namespace StackExchange.Redis.Interpolated
         /// is told to look again.
         /// <para>
         /// Idempotent, and a no-op for a fill that lost the race to register (which leads anyway - see
-        /// <see cref="TryBeginFill(ref RespFrame, int, CommandFlags, out RespFill)"/>).
+        /// <see cref="TryBeginFill(ref RespRequestFrame, int, CommandFlags, out RespFill)"/>).
         /// </para>
         /// </remarks>
         internal void Unregister(in RespFill fill)
@@ -1109,7 +1109,7 @@ namespace StackExchange.Redis.Interpolated
         /// </summary>
         /// <remarks>
         /// The orchestration skips the cache entirely for a command whose flags forbid it - it does not
-        /// probe and then decline - so <see cref="TryBeginFill(ref RespFrame, int, CommandFlags, out RespFill)"/>
+        /// probe and then decline - so <see cref="TryBeginFill(ref RespRequestFrame, int, CommandFlags, out RespFill)"/>
         /// is never reached and could never count those. That made <see cref="RefusedByFlags"/> unreachable
         /// in real use, which is worse than not having it: a diagnostic that reads zero because it is never
         /// asked looks like evidence. Routing the decision through the cache fixes that without making the

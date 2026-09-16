@@ -188,8 +188,8 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<TResult> SendWithPreambleAsync<TResult>(
             this RespContext context,
-            ref RespFrame preamble,
-            ref RespFrame request,
+            ref RespRequestFrame preamble,
+            ref RespRequestFrame request,
             CommandFlags flags,
             IRespHandler<TResult> handler,
             IRespPreambleGate? gate = null,
@@ -199,7 +199,7 @@ namespace StackExchange.Redis.Interpolated
             flags = flags.WithDefaultCategory(request.Command); // see the note in SendAsync
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
 
-            // detach HERE, not in the async continuation. RespFrame is a struct, so a by-value parameter
+            // detach HERE, not in the async continuation. RespRequestFrame is a struct, so a by-value parameter
             // would hand the continuation a copy: Detach would empty the copy, the caller's frame would
             // still hold the buffer, and disposing it would return an array that is still being written -
             // which shows up as somebody else's reply arriving for your command. Taking them by ref means
@@ -228,7 +228,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<TResult> SendWithPreambleAsync<TResult>(
             this RespContext context,
             RespRequest preamble,
-            ref RespFrame request,
+            ref RespRequestFrame request,
             CommandFlags flags,
             IRespHandler<TResult> handler,
             IRespPreambleGate? gate = null,
@@ -316,7 +316,7 @@ namespace StackExchange.Redis.Interpolated
         /// is why nothing called <c>OnLocalWrite</c> until now.
         /// </para>
         /// </remarks>
-        private static void NoteLocalWrite(RespClientCache? cache, in RespFrame request, CommandFlags flags)
+        private static void NoteLocalWrite(RespClientCache? cache, in RespRequestFrame request, CommandFlags flags)
         {
             if (cache is not null && Mutates(flags)) cache.OnLocalWrite(request.AsLookupKey());
         }
@@ -412,7 +412,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">
         /// The command's flags. Caching additionally requires a declared retry category no more severe than
         /// <see cref="CommandFlags.CommandRetryReadOnly"/>; see
-        /// <see cref="RespClientCache.TryBeginFill(ref RespFrame, int, CommandFlags, out RespClientCache.RespFill)"/>.
+        /// <see cref="RespClientCache.TryBeginFill(ref RespRequestFrame, int, CommandFlags, out RespClientCache.RespFill)"/>.
         /// </param>
         /// <param name="handler">Turns the reply into a result.</param>
         /// <remarks>
@@ -430,7 +430,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static TResult Send<TResult>(
             this RespContext context,
-            ref RespFrame request,
+            ref RespRequestFrame request,
             CommandFlags flags,
             IRespHandler<TResult> handler,
             CancellationToken cancellationToken)
@@ -523,7 +523,7 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="Send{TResult}(RespContext, ref RespFrame, CommandFlags, IRespHandler{TResult}, CancellationToken)"/>
+        /// <inheritdoc cref="Send{TResult}(RespContext, ref RespRequestFrame, CommandFlags, IRespHandler{TResult}, CancellationToken)"/>
         /// <param name="context">The context to send through; supplies the executor, cache and cancellation.</param>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>
         /// <param name="handler">Turns the reply into a result.</param>
@@ -538,7 +538,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static ValueTask<TResult> SendAsync<TResult>(
             this RespContext context,
-            ref RespFrame request,
+            ref RespRequestFrame request,
             CommandFlags flags,
             IRespHandler<TResult> handler,
             CancellationToken cancellationToken)
@@ -680,7 +680,7 @@ namespace StackExchange.Redis.Interpolated
         }
 
         [DoesNotReturn]
-        private static IRespExecutor ThrowNoExecutor(ref RespFrame request)
+        private static IRespExecutor ThrowNoExecutor(ref RespRequestFrame request)
         {
             request.Dispose();
             throw new InvalidOperationException("No executor is configured on this context.");
@@ -690,7 +690,7 @@ namespace StackExchange.Redis.Interpolated
         // never reaches the executor, so it never needs an owned lease
         private static bool TryServeFromCache<TResult>(
             IRespExecutor executor,
-            ref RespFrame request,
+            ref RespRequestFrame request,
             IRespHandler<TResult> handler,
             RespClientCache cache,
             long maxAgeTicks,

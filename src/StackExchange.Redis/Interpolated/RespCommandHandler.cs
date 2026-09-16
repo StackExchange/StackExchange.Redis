@@ -633,7 +633,7 @@ namespace StackExchange.Redis.Interpolated
         /// Back-fill the <c>*N</c> header into the reserved prologue, right-aligned, and take ownership of
         /// the buffer away from the handler.
         /// </summary>
-        public RespFrame Complete()
+        public RespRequestFrame Complete()
         {
             if (!_hasCommand)
             {
@@ -660,7 +660,7 @@ namespace StackExchange.Redis.Interpolated
             var start = HeaderMax - headerLength;
             header.Slice(0, headerLength).CopyTo(_buffer.AsSpan(start));
 
-            var frame = new RespFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks(), _command);
+            var frame = new RespRequestFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks(), _command);
             _buffer = null!; // ownership transferred to the frame
             return frame;
         }
@@ -775,7 +775,7 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// <para>
         /// Zero is the "no key here" sentinel for the offset form, in both slots and in
-        /// <c>RespFrame.HasNoKeys</c>. That is only sound because a key can never START at offset 0: the
+        /// <c>RespRequestFrame.HasNoKeys</c>. That is only sound because a key can never START at offset 0: the
         /// first <see cref="HeaderMax"/> bytes are the reserved prologue, and <see cref="DemandCommand"/>
         /// puts the command ahead of any key. Both halves are load-bearing - do not let
         /// <see cref="HeaderMax"/> become 0, and do not allow a key before the command, without giving the
@@ -788,26 +788,26 @@ namespace StackExchange.Redis.Interpolated
             if (_keyCount == 1) _keyOffsetA = offset;
             else if (_keyCount == 2) _keyOffsetB = offset;
 
-            if (_argIndex <= RespFrame.MaxBitmapArg) _keyBitmap |= 1UL << _argIndex;
-            else _keyBitmap |= RespFrame.TruncatedFlag; // no bit for it; say so rather than report a subset
+            if (_argIndex <= RespRequestFrame.MaxBitmapArg) _keyBitmap |= 1UL << _argIndex;
+            else _keyBitmap |= RespRequestFrame.TruncatedFlag; // no bit for it; say so rather than report a subset
         }
 
         /// <summary>Pack the key marks into the frame's single 64-bit field.</summary>
         /// <remarks>
         /// Two keys or fewer keep the byte offsets, which resolve with no scan and do not care how far out
         /// the arguments were. Beyond that the bitmap is the only form that fits, and resolving it costs a
-        /// walk - see <see cref="RespFrame.TryGetKeys"/>.
+        /// walk - see <see cref="RespRequestFrame.TryGetKeys"/>.
         /// </remarks>
         private readonly ulong PackKeyMarks()
         {
             if (_keyCount == 0) return 0;
             if (_keyCount <= 2)
             {
-                return ((ulong)_keyOffsetA & RespFrame.SlotMask)
-                     | (((ulong)_keyOffsetB & RespFrame.SlotMask) << RespFrame.SlotBits);
+                return ((ulong)_keyOffsetA & RespRequestFrame.SlotMask)
+                     | (((ulong)_keyOffsetB & RespRequestFrame.SlotMask) << RespRequestFrame.SlotBits);
             }
 
-            return RespFrame.OverflowFlag | _keyBitmap;
+            return RespRequestFrame.OverflowFlag | _keyBitmap;
         }
 
         /// <summary>

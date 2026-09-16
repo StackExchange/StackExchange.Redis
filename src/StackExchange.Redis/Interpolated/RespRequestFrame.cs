@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Interpolated
     /// folded while it was being written.
     /// </summary>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public struct RespFrame : IDisposable
+    public struct RespRequestFrame : IDisposable
     {
         // Key marks, two alternative encodings in one 64-bit field:
         //
@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Interpolated
         private readonly int _length;
         private readonly ulong _keyMarks;
 
-        internal RespFrame(byte[] buffer, int start, int length, int argCount, int slot, ulong keyMarks, RedisCommand command)
+        internal RespRequestFrame(byte[] buffer, int start, int length, int argCount, int slot, ulong keyMarks, RedisCommand command)
         {
             _buffer = buffer;
             _start = start;
@@ -291,7 +291,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public RespRequest Detach(CommandFlags flags = CommandFlags.None)
         {
-            var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
+            var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespRequestFrame));
             _buffer = null; // ownership moves to the lease
             return new RespRequest(
                 buffer,
@@ -324,7 +324,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public RespRequest AsLookupKey(CommandFlags flags = CommandFlags.None)
         {
-            var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespFrame));
+            var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespRequestFrame));
             return new RespRequest(
                 buffer,
                 lease: null,
@@ -347,7 +347,7 @@ namespace StackExchange.Redis.Interpolated
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Offset and length of a payload within a <see cref="RespFrame"/>'s buffer.
+    /// EXPERIMENTAL SPIKE. Offset and length of a payload within a <see cref="RespRequestFrame"/>'s buffer.
     /// </summary>
     /// <remarks>
     /// Deliberately not <c>System.Range</c>: down-level that has to be a source polyfill, and the polyfill

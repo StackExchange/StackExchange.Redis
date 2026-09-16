@@ -16,7 +16,7 @@ public class InterpolatedLiteralCommandTests
     // nowhere wider - the same discipline the generator uses for SER011
 #pragma warning disable SER309
 
-    private static string Text(in RespFrame frame) =>
+    private static string Text(in RespRequestFrame frame) =>
         Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     [Fact]

@@ -14,7 +14,7 @@ public partial class InterpolatedAppendTests
 {
     private static readonly RespContext Ctx = new();
 
-    private static string Text(in RespFrame frame) =>
+    private static string Text(in RespRequestFrame frame) =>
         Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     internal static partial class RespLiterals

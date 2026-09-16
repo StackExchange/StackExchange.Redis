@@ -163,7 +163,7 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Render the EVALSHA and send it behind the preamble.</summary>
         private static ValueTask<RespResult> SendPair(
             in RespContext context,
-            ref RespFrame preamble,
+            ref RespRequestFrame preamble,
             string hash,
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<RedisValue> args,
@@ -184,7 +184,7 @@ namespace StackExchange.Redis.Interpolated
             }
         }
 
-        /// <inheritdoc cref="SendPair(in RespContext, ref RespFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags, bool, IRespPreambleGate)"/>
+        /// <inheritdoc cref="SendPair(in RespContext, ref RespRequestFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags, bool, IRespPreambleGate)"/>
         /// <remarks>
         /// The registry's preamble owns nothing poolable - it is a fixed array that is never returned - so
         /// it needs no disposal and can be handed over directly.

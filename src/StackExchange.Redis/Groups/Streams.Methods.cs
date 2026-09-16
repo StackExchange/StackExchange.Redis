@@ -104,7 +104,7 @@ public static partial class Streams
     /// send it. Validation happens <i>before</i> the render, so a rejected call never rents at all.
     /// </para>
     /// </remarks>
-    private static RespFrame RangeCommand(
+    private static RespRequestFrame RangeCommand(
         in RespContext context,
         RedisKey key,
         RedisValue? minId,
@@ -242,7 +242,7 @@ public static partial class Streams
 
     /// <summary>Render <c>XDELEX</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
-    private static RespFrame DeleteExCommand(
+    private static RespRequestFrame DeleteExCommand(
         in RespContext context,
         RedisKey key,
         ReadOnlySpan<RedisValue> messageIds,

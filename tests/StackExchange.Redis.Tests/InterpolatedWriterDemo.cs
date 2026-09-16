@@ -13,11 +13,11 @@ namespace StackExchange.Redis.Tests;
 public class InterpolatedWriterDemo
 {
     /// <summary>Render the frame with CRLF shown as '|', so expectations stay readable.</summary>
-    private static string Frame(in RespFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
+    private static string Frame(in RespRequestFrame frame) => Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
     // sized from KeyCount, NOT a fixed two: a fixed buffer makes TryGetKeys report -1 for "target too
     // small", which is indistinguishable here from "this frame cannot report its keys"
-    private static string Keys(in RespFrame frame)
+    private static string Keys(in RespRequestFrame frame)
     {
         var count = frame.KeyCount;
         if (count < 0) return "<unavailable>";

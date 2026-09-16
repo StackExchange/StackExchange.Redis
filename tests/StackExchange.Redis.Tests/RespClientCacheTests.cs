@@ -21,7 +21,7 @@ public class RespClientCacheTests
     private static RespContext Via(IRespExecutor executor, RespClientCache? cache = null)
         => new RespContext().WithExecutor(executor).WithCache(cache);
 
-    private static RespFrame Get(string key) => Ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
+    private static RespRequestFrame Get(string key) => Ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
 
     private static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
 
@@ -784,7 +784,7 @@ public class RespClientCacheTests
         Assert.Equal(plain.GetHashCode(), different.GetHashCode());
     }
 
-    private static string[] KeyStrings(in RespFrame frame)
+    private static string[] KeyStrings(in RespRequestFrame frame)
     {
         var count = frame.KeyCount;
         var ranges = new KeyRange[count];

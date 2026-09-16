@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Interpolated
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. An <see cref="IBufferWriter{T}"/> that turns what <c>MessageWriter</c> already
-    /// writes into a <see cref="RespFrame"/> - so the existing <c>Message</c> surface can feed the new
+    /// writes into a <see cref="RespRequestFrame"/> - so the existing <c>Message</c> surface can feed the new
     /// pipeline without rewriting any of it.
     /// </summary>
     /// <remarks>
@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Interpolated
         public ReadOnlySpan<byte> Span => _buffer.AsSpan(0, _offset);
 
         /// <summary>
-        /// Take the rendered bytes as a <see cref="RespFrame"/>, transferring the buffer; the writer rents a
+        /// Take the rendered bytes as a <see cref="RespRequestFrame"/>, transferring the buffer; the writer rents a
         /// fresh one for its next message.
         /// </summary>
         /// <param name="slot">
@@ -89,11 +89,11 @@ namespace StackExchange.Redis.Interpolated
         /// anything from a copy of it. The interpolated writer is the one that has to record it, because
         /// there the frame IS the whole message.
         /// </remarks>
-        public RespFrame Complete(int slot = ServerSelectionStrategy.NoSlot)
+        public RespRequestFrame Complete(int slot = ServerSelectionStrategy.NoSlot)
         {
             var buffer = _buffer;
             var length = _offset;
-            var frame = new RespFrame(buffer, 0, length, ReadArgCount(buffer, length), slot, PackKeyMarks(buffer, length), RedisCommand.UNKNOWN);
+            var frame = new RespRequestFrame(buffer, 0, length, ReadArgCount(buffer, length), slot, PackKeyMarks(buffer, length), RedisCommand.UNKNOWN);
 
             _buffer = ArrayPool<byte>.Shared.Rent(Math.Max(16, length));
             Reset();
@@ -117,15 +117,15 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks>
         /// Two keys or fewer keep their byte offsets and need no scan. Beyond that the frame's encoding is a
         /// bitmap of ARGUMENT indices, which offsets are not - so derive them by walking the frame once,
-        /// here, off any hot path. That is the same walk <see cref="RespFrame.TryGetKeys"/> does in reverse.
+        /// here, off any hot path. That is the same walk <see cref="RespRequestFrame.TryGetKeys"/> does in reverse.
         /// </remarks>
         private ulong PackKeyMarks(byte[] buffer, int length)
         {
             if (_keyCount == 0) return 0;
             if (_keyCount <= 2)
             {
-                var a = (ulong)_keyOffsets[0] & RespFrame.SlotMask;
-                var b = _keyCount == 2 ? ((ulong)_keyOffsets[1] & RespFrame.SlotMask) << RespFrame.SlotBits : 0;
+                var a = (ulong)_keyOffsets[0] & RespRequestFrame.SlotMask;
+                var b = _keyCount == 2 ? ((ulong)_keyOffsets[1] & RespRequestFrame.SlotMask) << RespRequestFrame.SlotBits : 0;
                 return a | b;
             }
 
@@ -139,8 +139,8 @@ namespace StackExchange.Redis.Interpolated
             {
                 if (Array.IndexOf(_keyOffsets, i, 0, _keyCount) >= 0)
                 {
-                    if (arg <= RespFrame.MaxBitmapArg) bitmap |= 1UL << arg;
-                    else bitmap |= RespFrame.TruncatedFlag;
+                    if (arg <= RespRequestFrame.MaxBitmapArg) bitmap |= 1UL << arg;
+                    else bitmap |= RespRequestFrame.TruncatedFlag;
                 }
 
                 var j = i + 1;
@@ -155,7 +155,7 @@ namespace StackExchange.Redis.Interpolated
                 arg++;
             }
 
-            return RespFrame.OverflowFlag | bitmap;
+            return RespRequestFrame.OverflowFlag | bitmap;
         }
 
         private void Ensure(int sizeHint)

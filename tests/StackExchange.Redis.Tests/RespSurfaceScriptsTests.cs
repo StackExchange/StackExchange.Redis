@@ -162,7 +162,7 @@ public class RespSurfaceScriptsTests
     /// <remarks>
     /// <para>
     /// <b>This is a regression test for a real bug, and for how badly it presented.</b> The send helper
-    /// originally took the two frames <i>by value</i>. <c>RespFrame</c> is a struct and <c>Detach</c> moves
+    /// originally took the two frames <i>by value</i>. <c>RespRequestFrame</c> is a struct and <c>Detach</c> moves
     /// ownership by nulling its own field - so it emptied the copy, the caller's frame still pointed at the
     /// same pooled array, and the caller's <c>finally</c> returned it mid-flight. The array was then
     /// re-rented and overwritten by unrelated work, and the corruption surfaced as

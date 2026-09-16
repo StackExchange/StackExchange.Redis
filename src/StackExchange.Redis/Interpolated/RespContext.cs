@@ -460,7 +460,7 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>Render an ad-hoc command, marking each argument as a key or a value.</summary>
-        private RespFrame Render(string command, ReadOnlySpan<RedisKeyOrValue> args)
+        private RespRequestFrame Render(string command, ReadOnlySpan<RedisKeyOrValue> args)
         {
             var handler = new RespCommandHandler(0, args.Length, this, command);
             try
@@ -585,7 +585,7 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>As the <c>RedisCommand</c> overload, taking a command <b>name</b>.</summary>
         /// <param name="command">The command name to issue.</param>
         /// <param name="handler">The interpolated arguments.</param>
-        public RespFrame Render(
+        public RespRequestFrame Render(
             string command,
             [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
             => Render(ref handler);
@@ -593,7 +593,7 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>
         /// As <see cref="Render(ref RespCommandHandler)"/>, with the command as a real argument.
         /// </summary>
-        internal RespFrame Render(
+        internal RespRequestFrame Render(
             RedisCommand command,
             [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
             => Render(ref handler);
@@ -611,7 +611,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         /// <param name="handler">The interpolated command and arguments.</param>
         /// <returns>The rendered frame, with routing and key metadata.</returns>
-        public RespFrame Render([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
+        public RespRequestFrame Render([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
         {
             return handler.Complete();
         }

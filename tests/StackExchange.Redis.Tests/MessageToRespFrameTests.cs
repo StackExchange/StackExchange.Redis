@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class MessageToRespFrameTests
 {
-    private static RespFrame Render(Message message, int slot = ServerSelectionStrategy.NoSlot)
+    private static RespRequestFrame Render(Message message, int slot = ServerSelectionStrategy.NoSlot)
     {
         var writer = new RespFrameWriter();
         message.WriteTo(new MessageWriter(null, CommandMap.Default, writer));
@@ -23,7 +23,7 @@ public class MessageToRespFrameTests
     private static string Text(ReadOnlySpan<byte> value) =>
         Encoding.UTF8.GetString(value.ToArray()).Replace("\r\n", "|");
 
-    private static string[] Keys(in RespFrame frame)
+    private static string[] Keys(in RespRequestFrame frame)
     {
         var count = frame.KeyCount;
         Assert.True(count >= 0);
