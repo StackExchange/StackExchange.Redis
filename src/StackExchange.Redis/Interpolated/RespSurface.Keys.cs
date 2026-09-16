@@ -259,11 +259,11 @@ namespace StackExchange.Redis.Interpolated
             this in RespKeys keys,
             RedisKey source,
             RedisKey destination,
-            int destinationDatabase = -1,
+            int? destinationDatabase = null,
             bool replace = false,
             CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<bool>(
-                $"{RedisCommand.COPY}{source}{destination}{new DatabaseOperand(destinationDatabase)}{(replace ? RespLiterals.Replace : default)}",
+                $"{RedisCommand.COPY}{source}{destination}{RespLiterals.Db.When(destinationDatabase)}{destinationDatabase}{RespLiterals.Replace.When(replace)}",
                 flags.WithDefaultCategory(RedisCommand.COPY));
 
         /// <summary>MOVE.</summary>
@@ -298,26 +298,6 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<byte>?> DumpAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None)
             => keys.Context.SendAsync<ReadOnlyLease<byte>?>(
                 $"{RedisCommand.DUMP}{key}", flags.WithDefaultCategory(RedisCommand.DUMP));
-
-        /// <summary>
-        /// The <c>DB n</c> operand of <c>COPY</c> - two arguments, or none at all.
-        /// </summary>
-        /// <remarks>
-        /// A <see cref="IRespArgument"/> rather than a fragment because it is <i>conditional and
-        /// multi-token</i>: a fragment carries a fixed blob and an argument count the writer takes on
-        /// trust, whereas this writes through the handler's own <c>AppendFormatted</c>, so the count cannot
-        /// disagree with what was written. Writing nothing is a legal implementation and is how the absent
-        /// case is spelled - which is what keeps <c>Copy</c> one interpolated string rather than four.
-        /// </remarks>
-        private readonly struct DatabaseOperand(int database) : IRespArgument
-        {
-            public void WriteTo(scoped ref RespCommandHandler handler)
-            {
-                if (database < 0) return; // absent: no tokens, no count
-                handler.AppendFormatted(RespLiterals.Db);
-                handler.AppendFormatted((RedisValue)database);
-            }
-        }
 
         /// <summary>OBJECT ENCODING; how the server is storing the value, or <c>null</c> if the key is gone.</summary>
         /// <param name="keys">The key command group.</param>

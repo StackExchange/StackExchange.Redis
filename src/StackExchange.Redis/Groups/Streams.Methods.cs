@@ -75,29 +75,13 @@ public static partial class Streams
         }
 
         return streams.Context.SendAsync(
-            $"{command}{key}{first}{second}{new CountOperand(count)}",
+            $"{command}{key}{first}{second}{RespLiterals.Count.When(count)}{count}",
             flags.WithDefaultCategory(command),
             RangeReplyHandler);
     }
 
     private static readonly RespReplyHandler<RespRangeReply> RangeReplyHandler
         = new(static payload => new RespRangeReply(payload));
-
-    /// <summary>A <c>COUNT n</c> operand that writes nothing at all when there is no count.</summary>
-    /// <remarks>
-    /// A conditional <see cref="RedisValue"/> hole cannot express this: it always writes and always
-    /// counts, so an absent count would become an empty argument and the server would read a different
-    /// command. The argument count in the header is what makes the difference visible.
-    /// </remarks>
-    private readonly struct CountOperand(int? count) : IRespArgument
-    {
-        public void WriteTo(scoped ref RespCommandHandler handler)
-        {
-            if (count is not int value) return; // absent: no tokens, no count
-            handler.AppendFormatted(StreamConstants.Count);
-            handler.AppendFormatted((RedisValue)value);
-        }
-    }
 
     /// <summary>XLEN; the number of entries in the stream.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -207,7 +191,7 @@ public static partial class Streams
         bool createStream = true,
         CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<bool>(
-            $"{RedisCommand.XGROUP}{RespLiterals.Create}{key}{group}{ResolveGroupPosition(position)}{(createStream ? RespLiterals.MkStream : default)}",
+            $"{RedisCommand.XGROUP}{RespLiterals.Create}{key}{group}{ResolveGroupPosition(position)}{RespLiterals.MkStream.When(createStream)}",
             flags.WithDefaultCategory(RedisCommand.XGROUP));
 
     /// <summary>XGROUP DESTROY.</summary>

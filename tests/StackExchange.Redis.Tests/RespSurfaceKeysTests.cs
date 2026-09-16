@@ -152,16 +152,43 @@ public class RespSurfaceKeysTests
     }
 
     /// <summary>The optional COPY operands are holes: one command shape covers all four combinations.</summary>
+    /// <remarks>
+    /// <b>Absent is <see langword="null"/>, not a sentinel.</b> This used to spell "no database" as
+    /// <c>-1</c>, which meant the surface could never express a real <c>DB -1</c> and that every optional
+    /// number had to pick a value to sacrifice - five of them picked differently. The token now appears
+    /// exactly when the value does, because both read the same nullable.
+    /// </remarks>
     [Theory]
-    [InlineData(-1, false, "*3|$4|COPY|$1|a|$1|b|")]
-    [InlineData(-1, true, "*4|$4|COPY|$1|a|$1|b|$7|REPLACE|")]
+    [InlineData(null, false, "*3|$4|COPY|$1|a|$1|b|")]
+    [InlineData(null, true, "*4|$4|COPY|$1|a|$1|b|$7|REPLACE|")]
     [InlineData(3, false, "*5|$4|COPY|$1|a|$1|b|$2|DB|$1|3|")]
     [InlineData(3, true, "*6|$4|COPY|$1|a|$1|b|$2|DB|$1|3|$7|REPLACE|")]
-    public async Task CopyOperandsAreHolesNotBranches(int db, bool replace, string expected)
+    [InlineData(0, false, "*5|$4|COPY|$1|a|$1|b|$2|DB|$1|0|")] // zero is a database, not an absence
+    public async Task CopyOperandsAreHolesNotBranches(int? db, bool replace, string expected)
     {
         var (ctx, exec) = Target();
         await ctx.Keys.CopyAsync("a", "b", db, replace);
         Assert.Equal(expected, Assert.Single(exec.Sent));
+    }
+
+    /// <summary>
+    /// An <c>int?</c> hole binds to the nullable overload, not to <see cref="RedisValue"/>.
+    /// </summary>
+    /// <remarks>
+    /// Worth pinning because it is silent either way: the lifted conversion to <c>long?</c> is a standard
+    /// conversion and beats the user-defined one to <see cref="RedisValue"/>, so an <c>int?</c> writes
+    /// nothing when null. Were it to bind the other way it would write an <i>empty</i> argument, the frame
+    /// would stay well-formed, and the server would read a different command.
+    /// </remarks>
+    [Fact]
+    public async Task ANullableHoleWritesNothingRatherThanAnEmptyArgument()
+    {
+        var (ctx, exec) = Target();
+        await ctx.Keys.CopyAsync("a", "b", destinationDatabase: null);
+
+        var sent = Assert.Single(exec.Sent);
+        Assert.Equal("*3|$4|COPY|$1|a|$1|b|", sent);
+        Assert.DoesNotContain("$0|", sent); // no empty argument
     }
 
     /// <summary>TYPE reads through the token table, so the wire spellings survive.</summary>

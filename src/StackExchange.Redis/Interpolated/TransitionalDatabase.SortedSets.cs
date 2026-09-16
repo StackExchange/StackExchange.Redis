@@ -319,11 +319,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit, flags));
+            => Wait(Context.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit > 0 ? limit : null, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Context.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit, flags).AsTask();
+            => Context.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit > 0 ? limit : null, flags).AsTask();
 
         // ---- pops --------------------------------------------------------------------------------------
 

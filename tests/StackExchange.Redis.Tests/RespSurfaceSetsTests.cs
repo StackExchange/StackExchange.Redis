@@ -167,17 +167,28 @@ public class RespSurfaceSetsTests
             exec.Sent);
     }
 
+    /// <summary>An absent limit writes neither token nor value; a zero limit is a real one.</summary>
+    /// <remarks>
+    /// The old spelling made <c>0</c> mean "no limit", so <c>LIMIT 0</c> was unreachable. Absent is now
+    /// <see langword="null"/> and the token follows the value, so both are expressible and neither can be
+    /// written without the other.
+    /// </remarks>
     [Fact]
-    public async Task ALimitOfZeroIsNoLimitAndSoNoOperand()
+    public async Task AnAbsentLimitWritesNoOperandAndZeroIsALimit()
     {
         var (ctx, exec) = Target();
 
         RedisKey[] keys = ["s1"];
+        await ctx.Sets.CombineLengthAsync(SetOperation.Intersect, keys, limit: null);
         await ctx.Sets.CombineLengthAsync(SetOperation.Intersect, keys, limit: 0);
 
-        // RespLimit writes two arguments or none; this is the "none", and it is why a fragment could not
-        // have spelled it - the keyword is constant but the count is not
-        Assert.Equal("*3|$10|SINTERCARD|$1|1|$2|s1|", Assert.Single(exec.Sent));
+        Assert.Equal(
+            new[]
+            {
+                "*3|$10|SINTERCARD|$1|1|$2|s1|",
+                "*5|$10|SINTERCARD|$1|1|$2|s1|$5|LIMIT|$1|0|",
+            },
+            exec.Sent);
     }
 
     [Fact]

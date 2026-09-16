@@ -154,11 +154,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit, approximate: false, flags));
+            => Wait(Context.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate: false, flags));
 
         /// <inheritdoc/>
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Context.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit, approximate: false, flags).AsTask();
+            => Context.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate: false, flags).AsTask();
 
         /// <inheritdoc/>
         public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)

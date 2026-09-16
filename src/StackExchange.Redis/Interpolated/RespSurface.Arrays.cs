@@ -180,9 +180,9 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="end">The last slot.</param>
         /// <param name="limit">The most entries to return; zero for no limit.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RedisArrayEntry>> ScanAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RedisArrayEntry>> ScanAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<ReadOnlyLease<RedisArrayEntry>>(
-                $"{RedisCommand.ARSCAN}{key}{start}{end}{new LimitOperand(limit)}",
+                $"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}",
                 flags.WithDefaultCategory(RedisCommand.ARSCAN));
 
         /// <summary>AROP; an aggregate over a range of slots.</summary>
@@ -275,7 +275,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RedisValue>> LastItemsAsync(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(
-                $"{RedisCommand.ARLASTITEMS}{key}{count}{(reverse ? RespLiterals.Rev : default)}",
+                $"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}",
                 flags.WithDefaultCategory(RedisCommand.ARLASTITEMS));
 
         /// <summary>ARINFO; the array's shape.</summary>
@@ -285,42 +285,30 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ArrayInfo> InfoAsync(this in RespArrays arrays, RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<ArrayInfo>(
-                $"{RedisCommand.ARINFO}{key}{(full ? RespLiterals.Full : default)}",
+                $"{RedisCommand.ARINFO}{key}{RespLiterals.Full.When(full)}",
                 flags.WithDefaultCategory(RedisCommand.ARINFO));
 
-        /// <summary>
-        /// <c>LIMIT n</c>, or nothing at all.
-        /// </summary>
-        /// <remarks>
-        /// An operand rather than two conditional holes, because a <see cref="RedisValue"/> hole is not a
-        /// way to write nothing: <c>AppendFormatted(RedisValue)</c> always writes an argument and counts
-        /// it, so a null one sends an <i>empty</i> argument. That is the trap this shape exists to avoid -
-        /// the frame stays well-formed, so the mistake shows up as the server misreading the command rather
-        /// than as anything failing here.
-        /// </remarks>
-        private readonly struct LimitOperand(int limit) : IRespArgument
-        {
-            public void WriteTo(scoped ref RespCommandHandler handler)
-            {
-                if (limit <= 0) return; // absent: no tokens, no count
-                handler.AppendFormatted(RespLiterals.Limit);
-                handler.AppendFormatted((RedisValue)limit);
-            }
-        }
-
         /// <summary>A value that is written only when it is there.</summary>
-        /// <remarks><inheritdoc cref="LimitOperand" path="/remarks"/></remarks>
+        /// <remarks>
+        /// An operand rather than a conditional hole, because a <see cref="RedisValue"/> hole is not a way
+        /// to write nothing: <c>AppendFormatted(RedisValue)</c> always writes an argument and counts it, so
+        /// a null one sends an <i>empty</i> argument. That is the trap this shape exists to avoid - the
+        /// frame stays well-formed, so the mistake shows up as the server misreading the command rather
+        /// than as anything failing here. The <c>TOKEN n</c> form of the same idea is
+        /// <c>RespLiterals.X.When(value)</c> followed by the value itself; this one carries no token.
+        /// </remarks>
         private readonly struct OptionalValue(RedisValue value) : IRespArgument
         {
             public void WriteTo(scoped ref RespCommandHandler handler)
             {
-                if (value.IsNull) return; // absent: no tokens, no count
+                // absent: writes no arguments, and so contributes nothing to the frame's argument count
+                if (value.IsNull) return;
                 handler.AppendFormatted(value);
             }
         }
 
         /// <inheritdoc cref="GetAsync(in RespArrays, RedisKey, ReadOnlySpan{RedisArrayIndex}, CommandFlags)"/>
-        /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int, CommandFlags)" path="/remarks"/></remarks>
+        /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags)" path="/remarks"/></remarks>
         internal static ValueTask<RedisValue[]> GetArray(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayIndex> indices, CommandFlags flags = CommandFlags.None)
             => indices.IsEmpty
                 ? new(Array.Empty<RedisValue>())
@@ -328,28 +316,28 @@ namespace StackExchange.Redis.Interpolated
                     $"{RedisCommand.ARMGET}{key}{indices}", flags.WithDefaultCategory(RedisCommand.ARMGET));
 
         /// <inheritdoc cref="GetRangeAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, CommandFlags)"/>
-        /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int, CommandFlags)" path="/remarks"/></remarks>
+        /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags)" path="/remarks"/></remarks>
         internal static ValueTask<RedisValue[]> GetRangeArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.ARGETRANGE}{key}{start}{end}", flags.WithDefaultCategory(RedisCommand.ARGETRANGE));
 
-        /// <inheritdoc cref="ScanAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int, CommandFlags)"/>
+        /// <inheritdoc cref="ScanAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags)"/>
         /// <remarks>
         /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> promises an array and is not going anywhere,
         /// so this is how that signature is served from the new core. Internal because the array is the
         /// <i>old</i> spelling: new code reaches for the lease, and nothing outside this assembly should be
         /// able to choose otherwise.
         /// </remarks>
-        internal static ValueTask<RedisArrayEntry[]> ScanArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
+        internal static ValueTask<RedisArrayEntry[]> ScanArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayEntry[]>(
-                $"{RedisCommand.ARSCAN}{key}{start}{end}{new LimitOperand(limit)}",
+                $"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}",
                 flags.WithDefaultCategory(RedisCommand.ARSCAN));
 
         /// <inheritdoc cref="LastItemsAsync(in RespArrays, RedisKey, int, bool, CommandFlags)"/>
-        /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int, CommandFlags)" path="/remarks"/></remarks>
+        /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags)" path="/remarks"/></remarks>
         internal static ValueTask<RedisValue[]> LastItemsArray(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.ARLASTITEMS}{key}{count}{(reverse ? RespLiterals.Rev : default)}",
+                $"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}",
                 flags.WithDefaultCategory(RedisCommand.ARLASTITEMS));
 
         /// <summary>The token for an <c>AROP</c> aggregate.</summary>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Interpolated
@@ -111,11 +111,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public RedisArrayEntry[] ArrayScan(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Arrays.ScanArray(key, start, end, limit, flags));
+            => Wait(Context.Arrays.ScanArray(key, start, end, limit > 0 ? limit : null, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayEntry[]> ArrayScanAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
-            => Context.Arrays.ScanArray(key, start, end, limit, flags).AsTask();
+            => Context.Arrays.ScanArray(key, start, end, limit > 0 ? limit : null, flags).AsTask();
 
         /// <inheritdoc/>
         public RedisValue ArrayOperation(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, ArrayOperation operation, RedisValue operand = default, CommandFlags flags = CommandFlags.None)

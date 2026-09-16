@@ -621,7 +621,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
         {
             var category = flags.WithDefaultCategory(RedisCommand.ZRANGESTORE);
-            var rev = order == Order.Descending ? RespLiterals.Rev : default; // a zero-argument fragment
+            var rev = RespLiterals.Rev.When(order == Order.Descending); // a zero-argument fragment
 
             if (sortedSetOrder == SortedSetOrder.ByRank)
             {
@@ -805,14 +805,14 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>ZINTERCARD: the size of an intersection, without building it.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="keys">The keys to intersect.</param>
-        /// <param name="limit">Stop counting at this many; zero for no limit.</param>
+        /// <param name="limit">Stop counting at this many; <c>null</c> for no limit.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> CombineLengthAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long limit = 0, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> CombineLengthAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long? limit = null, CommandFlags flags = CommandFlags.None)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
             return sortedSets.Context.SendAsync<long>(
-                $"{RedisCommand.ZINTERCARD}{keys.Length}{keys}{new RespLimit(limit)}",
+                $"{RedisCommand.ZINTERCARD}{keys.Length}{keys}{RespLiterals.Limit.When(limit)}{limit}",
                 flags.WithDefaultCategory(RedisCommand.ZINTERCARD));
         }
 
@@ -915,7 +915,7 @@ namespace StackExchange.Redis.Interpolated
 
             var from = RedisDatabase.GetRange(start, exclude, isStart: true);
             var to = RedisDatabase.GetRange(stop, exclude, isStart: false);
-            var scores = withScores ? RespLiterals.WithScores : default;
+            var scores = RespLiterals.WithScores.When(withScores);
 
             return sortedSets.Context.SendAsync<TResult>(
                 $"{command}{key}{from}{to}{scores}{new RespLimitRange(skip, take)}",

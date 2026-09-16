@@ -44,6 +44,38 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
+        /// This fragment when <paramref name="condition"/> holds, and nothing at all otherwise.
+        /// </summary>
+        /// <param name="condition">Whether the fragment should be written.</param>
+        /// <remarks>
+        /// <b>The spelling for an optional token.</b> A <c>default</c> fragment carries no bytes and no
+        /// arguments, so an absent operand writes nothing and counts nothing - which is what an optional
+        /// token has to do, since a <see cref="RedisValue"/> hole cannot express it (a null one writes an
+        /// <i>empty</i> argument, and the server then reads a different command). This is the idiom that
+        /// was already spelled <c>cond ? RespLiterals.X : default</c> in eight places, named.
+        /// </remarks>
+        public RespFragment When(bool condition) => condition ? this : default;
+
+        /// <summary>
+        /// This fragment when <paramref name="value"/> has one, and nothing at all otherwise.
+        /// </summary>
+        /// <typeparam name="T">The underlying value type.</typeparam>
+        /// <param name="value">The value the token introduces.</param>
+        /// <remarks>
+        /// <b>For the <c>TOKEN n</c> shape</b>, where the token is present exactly when the value is:
+        /// <code>
+        /// $"{command}{key}{RespLiterals.Count.When(count)}{count}"
+        /// </code>
+        /// Taking the value itself rather than a <see cref="bool"/> is what keeps the two halves from
+        /// disagreeing - both read the same <c>count</c>, so a present token with an absent value (which
+        /// would be a malformed command, not merely a different one) takes two different variables to
+        /// write, and is visible when it happens.
+        /// </remarks>
+        public RespFragment When<T>(T? value)
+            where T : struct
+            => value.HasValue ? this : default;
+
+        /// <summary>
         /// Create a fragment from bytes, <b>checking</b> that they are well-formed RESP and that they contain
         /// exactly <paramref name="argCount"/> bulk strings.
         /// </summary>

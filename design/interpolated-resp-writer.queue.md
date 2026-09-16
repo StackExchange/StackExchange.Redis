@@ -1037,6 +1037,61 @@ Four consequences, none of them cosmetic:
       binds - so one type covers `COUNT`, `LIMIT`, `DB`, `RANK`, `MAXLEN` and both INCREX bounds, instead
       of an Int32 and an Int64 twin. `RespFragment` is what `RespLiterals.*` already are.
 
+      ### RESOLVED: `RespFragment.When` - DONE 2026-09-16
+
+      Marc landed a better answer than the operand: **put the condition on the token, and let the value
+      speak for itself.**
+
+      ```csharp
+      $"{command}{key}{first}{second}{RespLiterals.Count.When(count)}{count}"
+      ```
+
+      *"super clear to read - I know what that is outputting, when"* (Marc), and it keeps the token as the
+      **preformatted `RespFragment`**, which the operand could not: a fragment is ref-like and cannot be a
+      field, so an operand had to carry the token as a `RedisValue` and re-frame it at write time.
+
+      Two pieces:
+
+      - `RespFragment.When(bool)` - `condition ? this : default`. A `default` fragment writes no bytes and
+        counts no arguments, so this simply names the idiom already spelled `cond ? RespLiterals.X :
+        default` in **eight** places. Optional modifier tokens are common, so this earns its keep on the
+        boolean sites alone.
+      - `RespFragment.When<T>(T? value) where T : struct` plus `RespCommandHandler.AppendFormatted(long?)`
+        and `(double?)`, which write **nothing** when null. Taking the *value* rather than a bool is what
+        stops the two halves disagreeing: both read the same `count`, so a token without its value - a
+        malformed command, not merely a different one - takes two different variables to write.
+
+      **No `int?` overload is needed**, and that is worth knowing rather than assuming: the lifted
+      conversion `int?` -> `long?` is a *standard* conversion and beats the user-defined one to
+      `RedisValue`, so an `int?` hole binds to the nullable overload and writes nothing when null. Pinned
+      by `RespSurfaceKeysTests.ANullableHoleWritesNothingRatherThanAnEmptyArgument`, because the wrong
+      binding would write an *empty* argument, leave the frame well-formed, and have the server read a
+      different command.
+
+      **A deliberate asymmetry, recorded so it is not "fixed" by accident:** a null `RedisValue` writes an
+      empty argument; a null `long?` writes nothing. `RedisValue.Null` is a *value* - the protocol's nil -
+      whereas a null of a value type is the absence of one, and an absent argument is written by not
+      writing it.
+
+      **What the normalisation actually bought**, beyond one idiom: every sentinel is gone from the new
+      surface, so `LIMIT 0` and `DB 0` are expressible where they previously were not - the old spellings
+      had to sacrifice a number to mean "absent", and five sites sacrificed different ones.
+
+      **Not converted:** Geospatial's two `COUNT` sites, which build through `Compose` rather than an
+      interpolated string. They are already single-sourced (the token and value are written together
+      inside one `if`), so only their sentinels differ - and that `>= 0` / `> 0` split is inherited from
+      the old surface, which has it too. Left alone rather than churned; the divergence is recorded above.
+
+      **Rejected on the way, and why** - `{count:withprefix}` with the handler *backtracking* over the
+      token it had already written. Implementable, and cheaper than it sounds if undo is only legal
+      immediately after a fragment (so "no prefix to undo" throws rather than silently eating a key). But
+      it costs a magic format string with no compile-time check, and a new invisible mechanism, to save
+      writing `count` twice - where `When` writes it twice *visibly*, which is the property that makes the
+      line readable.
+
+      **Superseded:** the `RespPrefixedInt64` operand sketched below. It was built and then removed; it
+      lost the preformatted token, which was the whole point.
+
       **The type is trivial; the work and the decision are the normalisation.** Four of those eight sites
       express "absent" with a sentinel because their *public parameter* says `int limit = 0` or
       `int count = -1`. Converting them to one convention means changing those signatures to `int?` -

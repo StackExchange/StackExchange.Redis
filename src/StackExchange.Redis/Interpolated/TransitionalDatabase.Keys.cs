@@ -127,11 +127,11 @@ namespace StackExchange.Redis.Interpolated
 
         /// <inheritdoc/>
         public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase, replace, flags));
+            => Wait(Context.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase >= 0 ? destinationDatabase : null, replace, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
-            => Context.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase, replace, flags).AsTask();
+            => Context.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase >= 0 ? destinationDatabase : null, replace, flags).AsTask();
 
         /// <inheritdoc/>
         /// <remarks>

@@ -305,7 +305,7 @@ namespace StackExchange.Redis.Interpolated
             this in RespSets sets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
-            long limit = 0,
+            long? limit = null,
             bool approximate = false,
             CommandFlags flags = CommandFlags.None)
         {
@@ -315,29 +315,8 @@ namespace StackExchange.Redis.Interpolated
             // are why the server needs to be told where the key list stops
             var command = operation.ToSetCardinalityCommand();
             return sets.Context.SendAsync<long>(
-                $"{command}{keys.Length}{keys}{(approximate ? RespLiterals.Approx : default)}{new RespLimit(limit)}",
+                $"{command}{keys.Length}{keys}{RespLiterals.Approx.When(approximate)}{RespLiterals.Limit.When(limit)}{limit}",
                 flags.WithDefaultCategory(command));
-        }
-    }
-
-    /// <summary>
-    /// EXPERIMENTAL SPIKE. The <c>LIMIT n</c> operand, which writes two arguments or none.
-    /// </summary>
-    /// <remarks>
-    /// A fragment cannot spell this: the keyword is a constant but the count is not, and a hole writes one
-    /// thing. <see cref="IRespArgument"/> is the mechanism for exactly that - it writes as many arguments
-    /// as it likes, including none, which is how an absent optional operand is spelled throughout this
-    /// surface. Zero means "no limit", and no limit means the operand is simply not there.
-    /// </remarks>
-    internal readonly struct RespLimit(long limit) : IRespArgument
-    {
-        /// <inheritdoc/>
-        public void WriteTo(scoped ref RespCommandHandler handler)
-        {
-            if (limit <= 0) return;
-
-            handler.AppendFormatted(RespLiterals.Limit);
-            handler.AppendFormatted((RedisValue)limit);
         }
     }
 }

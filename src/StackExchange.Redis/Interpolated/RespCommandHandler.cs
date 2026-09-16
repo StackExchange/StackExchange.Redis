@@ -597,6 +597,39 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>
+        /// Append an optional number: the value when it has one, and <b>nothing at all</b> when it does
+        /// not - no argument, and nothing added to the argument count.
+        /// </summary>
+        /// <param name="value">The value, or <see langword="null"/> to write nothing.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Deliberately not the same as a null <see cref="RedisValue"/></b>, which writes an
+        /// <i>empty</i> argument. The difference is that <c>RedisValue.Null</c> is a value - the protocol's
+        /// nil - whereas a <c>null</c> of a value type is the absence of one, and the absence of an
+        /// argument is written by not writing it.
+        /// </para>
+        /// <para>
+        /// This is the other half of <c>RespFragment.When</c>: the token disappears when the value does,
+        /// so <c>$"{cmd}{key}{RespLiterals.Count.When(count)}{count}"</c> writes both arguments or neither.
+        /// </para>
+        /// <para>
+        /// <see cref="long"/> rather than one overload per width, because the lifted implicit conversion
+        /// carries <c>int?</c> here - and beats the user-defined conversion to <see cref="RedisValue"/>,
+        /// so a nullable hole binds to this without the caller asking.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted(long? value)
+        {
+            if (value is long actual) AppendFormatted((RedisValue)actual);
+        }
+
+        /// <inheritdoc cref="AppendFormatted(long?)"/>
+        public void AppendFormatted(double? value)
+        {
+            if (value is double actual) AppendFormatted((RedisValue)actual);
+        }
+
+        /// <summary>
         /// Back-fill the <c>*N</c> header into the reserved prologue, right-aligned, and take ownership of
         /// the buffer away from the handler.
         /// </summary>
