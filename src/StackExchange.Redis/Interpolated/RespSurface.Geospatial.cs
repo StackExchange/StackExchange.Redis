@@ -56,7 +56,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<bool> AddAsync(this in RespGeospatial geo, RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync<bool>(
                 $"{RedisCommand.GEOADD}{key}{(RedisValue)value.Longitude}{(RedisValue)value.Latitude}{value.Member}",
-                flags.WithDefaultCategory(RedisCommand.GEOADD));
+                flags);
 
         /// <summary>GEOADD with several members; the reply is how many were new.</summary>
         /// <param name="geo">The geospatial command group.</param>
@@ -85,7 +85,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return geo.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.GEOADD), RespHandlers.Int64, default);
+            return geo.Context.SendAsync(ref frame, flags, RespHandlers.Int64, default);
         }
 
         /// <summary>ZREM: a geo set is a sorted set, and removal is the sorted-set command.</summary>
@@ -95,7 +95,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> RemoveAsync(this in RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync<bool>(
-                $"{RedisCommand.ZREM}{key}{member}", flags.WithDefaultCategory(RedisCommand.ZREM));
+                $"{RedisCommand.ZREM}{key}{member}", flags);
 
         /// <summary>GEODIST: how far apart two members are, or nil if either is missing.</summary>
         /// <param name="geo">The geospatial command group.</param>
@@ -113,7 +113,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync<double?>(
                 $"{RedisCommand.GEODIST}{key}{member1}{member2}{unit.ToLiteral()}",
-                flags.WithDefaultCategory(RedisCommand.GEODIST));
+                flags);
 
         /// <summary>GEOHASH: the standard geohash string of one member, or nil if it is missing.</summary>
         /// <param name="geo">The geospatial command group.</param>
@@ -123,7 +123,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<string?> HashAsync(this in RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync(
                 $"{RedisCommand.GEOHASH}{key}{member}",
-                flags.WithDefaultCategory(RedisCommand.GEOHASH),
+                flags,
                 SingletonStringHandler.Instance);
 
         /// <summary>GEOHASH for several members at once; a missing member reads as a null element.</summary>
@@ -134,7 +134,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<string?>> HashAsync(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync(
                 $"{RedisCommand.GEOHASH}{key}{members}",
-                flags.WithDefaultCategory(RedisCommand.GEOHASH),
+                flags,
                 StringLeaseHandler.Lease);
 
         /// <summary>GEOPOS: where one member is, or nil if it is missing.</summary>
@@ -145,7 +145,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<GeoPosition?> PositionAsync(this in RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync(
                 $"{RedisCommand.GEOPOS}{key}{member}",
-                flags.WithDefaultCategory(RedisCommand.GEOPOS),
+                flags,
                 SingletonPositionHandler.Instance);
 
         /// <summary>GEOPOS for several members at once; a missing member reads as a null element.</summary>
@@ -156,7 +156,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<GeoPosition?>> PositionAsync(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync(
                 $"{RedisCommand.GEOPOS}{key}{members}",
-                flags.WithDefaultCategory(RedisCommand.GEOPOS),
+                flags,
                 PositionLeaseHandler.Lease);
 
         /// <summary>GEOSEARCH from a member of the set.</summary>
@@ -266,7 +266,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<string?[]> HashArray(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync(
                 $"{RedisCommand.GEOHASH}{key}{members}",
-                flags.WithDefaultCategory(RedisCommand.GEOHASH),
+                flags,
                 StringLeaseHandler.Array);
 
         /// <summary>
@@ -280,7 +280,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<GeoPosition?[]> PositionArray(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
             => geo.Context.SendAsync(
                 $"{RedisCommand.GEOPOS}{key}{members}",
-                flags.WithDefaultCategory(RedisCommand.GEOPOS),
+                flags,
                 PositionLeaseHandler.Array);
 
         /// <summary>
@@ -419,7 +419,7 @@ namespace StackExchange.Redis.Interpolated
             var frame = cmd.Complete();
             return context.SendAsync(
                 ref frame,
-                flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly).WithDefaultCategory(command),
+                flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly),
                 GeoResultHandler.Array(options),
                 default);
         }
@@ -493,7 +493,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return context.SendAsync(ref frame, flags.WithDefaultCategory(command), handler, default);
+            return context.SendAsync(ref frame, flags, handler, default);
         }
 
         private static int OptionCount(GeoRadiusOptions options)

@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.VADD), RespHandlers.Boolean, default);
+            return context.SendAsync(ref frame, flags, RespHandlers.Boolean, default);
         }
 
         /// <summary>VSIM: the members nearest to a vector or to another member.</summary>
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> LengthAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<long>(
-                $"{RedisCommand.VCARD}{key}", flags.WithDefaultCategory(RedisCommand.VCARD));
+                $"{RedisCommand.VCARD}{key}", flags);
 
         /// <summary>VDIM: how many components each vector has.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -109,7 +109,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<int> DimensionAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
-                $"{RedisCommand.VDIM}{key}", flags.WithDefaultCategory(RedisCommand.VDIM), Int32Handler.Instance);
+                $"{RedisCommand.VDIM}{key}", flags, Int32Handler.Instance);
 
         /// <summary>VISMEMBER: whether the set holds this member.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -118,7 +118,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> ContainsAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
-                $"{RedisCommand.VISMEMBER}{key}{member}", flags.WithDefaultCategory(RedisCommand.VISMEMBER));
+                $"{RedisCommand.VISMEMBER}{key}{member}", flags);
 
         /// <summary>VREM: drop a member.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -127,7 +127,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> RemoveAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
-                $"{RedisCommand.VREM}{key}{member}", flags.WithDefaultCategory(RedisCommand.VREM));
+                $"{RedisCommand.VREM}{key}{member}", flags);
 
         /// <summary>VRANDMEMBER: one member at random, or nil if the set is empty.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -135,7 +135,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> RandomMemberAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.VRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.VRANDMEMBER));
+                $"{RedisCommand.VRANDMEMBER}{key}", flags);
 
         /// <summary>VRANDMEMBER with a count; negative allows repeats.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -144,7 +144,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{RedisCommand.VRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.VRANDMEMBER));
+                $"{RedisCommand.VRANDMEMBER}{key}{count}", flags);
 
         /// <summary>VGETATTR: the JSON attributes attached to a member, or nil if it has none.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -153,7 +153,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<string?> GetAttributesJsonAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<string?>(
-                $"{RedisCommand.VGETATTR}{key}{member}", flags.WithDefaultCategory(RedisCommand.VGETATTR));
+                $"{RedisCommand.VGETATTR}{key}{member}", flags);
 
         /// <summary>VSETATTR: attach JSON attributes to a member.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -172,7 +172,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
                 $"{RedisCommand.VSETATTR}{key}{member}{attributesJson.AsRedisValue()}",
-                flags.WithDefaultCategory(RedisCommand.VSETATTR));
+                flags);
 
         /// <summary>VEMB: the stored vector for a member, as the server approximates it.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -185,7 +185,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static ValueTask<ReadOnlyLease<float>?> GetApproximateVectorAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
-                $"{RedisCommand.VEMB}{key}{member}", flags.WithDefaultCategory(RedisCommand.VEMB), Float32Handler.Lease);
+                $"{RedisCommand.VEMB}{key}{member}", flags, Float32Handler.Lease);
 
         /// <summary>VLINKS: the neighbours of a member, flattened across the index's layers.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -194,7 +194,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RedisValue>?> GetLinksAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
-                $"{RedisCommand.VLINKS}{key}{member}", flags.WithDefaultCategory(RedisCommand.VLINKS), LinkHandler.MembersLease);
+                $"{RedisCommand.VLINKS}{key}{member}", flags, LinkHandler.MembersLease);
 
         /// <summary>VLINKS WITHSCORES: the same neighbours, with their distances.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -204,7 +204,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<VectorSetLink>?> GetLinksWithScoresAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
                 $"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}",
-                flags.WithDefaultCategory(RedisCommand.VLINKS),
+                flags,
                 LinkHandler.ScoredLease);
 
         /// <summary>VINFO: what the index says about itself.</summary>
@@ -213,7 +213,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<VectorSetInfo?> InfoAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
-                $"{RedisCommand.VINFO}{key}", flags.WithDefaultCategory(RedisCommand.VINFO), InfoHandler.Instance);
+                $"{RedisCommand.VINFO}{key}", flags, InfoHandler.Instance);
 
         /// <summary>VRANGE: members in lexicographic order, between two bounds.</summary>
         /// <param name="sets">The vector-set command group.</param>
@@ -242,9 +242,9 @@ namespace StackExchange.Redis.Interpolated
 
             return count < 0
                 ? sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                    $"{RedisCommand.VRANGE}{key}{from}{to}", flags.WithDefaultCategory(RedisCommand.VRANGE))
+                    $"{RedisCommand.VRANGE}{key}{from}{to}", flags)
                 : sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                    $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags.WithDefaultCategory(RedisCommand.VRANGE));
+                    $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags);
         }
 
         // ---- the writable-lease shapes IDatabase still needs -------------------------------------------
@@ -258,7 +258,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         internal static ValueTask<Lease<float>?> GetApproximateVectorWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
-                $"{RedisCommand.VEMB}{key}{member}", flags.WithDefaultCategory(RedisCommand.VEMB), Float32Handler.Writable);
+                $"{RedisCommand.VEMB}{key}{member}", flags, Float32Handler.Writable);
 
         /// <inheritdoc cref="GetLinksAsync"/>
         /// <param name="sets">The vector-set command group.</param>
@@ -267,7 +267,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         internal static ValueTask<Lease<RedisValue>?> GetLinksWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
-                $"{RedisCommand.VLINKS}{key}{member}", flags.WithDefaultCategory(RedisCommand.VLINKS), LinkHandler.MembersWritable);
+                $"{RedisCommand.VLINKS}{key}{member}", flags, LinkHandler.MembersWritable);
 
         /// <inheritdoc cref="GetLinksWithScoresAsync"/>
         /// <param name="sets">The vector-set command group.</param>
@@ -277,7 +277,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<Lease<VectorSetLink>?> GetLinksWithScoresWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync(
                 $"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}",
-                flags.WithDefaultCategory(RedisCommand.VLINKS),
+                flags,
                 LinkHandler.ScoredWritable);
 
         /// <inheritdoc cref="SimilaritySearchAsync"/>
@@ -314,9 +314,9 @@ namespace StackExchange.Redis.Interpolated
 
             return count < 0
                 ? sets.Context.SendAsync(
-                    $"{RedisCommand.VRANGE}{key}{from}{to}", flags.WithDefaultCategory(RedisCommand.VRANGE), ValueLeaseHandler.Writable)
+                    $"{RedisCommand.VRANGE}{key}{from}{to}", flags, ValueLeaseHandler.Writable)
                 : sets.Context.SendAsync(
-                    $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags.WithDefaultCategory(RedisCommand.VRANGE), ValueLeaseHandler.Writable);
+                    $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags, ValueLeaseHandler.Writable);
         }
 
         /// <inheritdoc cref="RandomMembersAsync(in RespVectorSets, RedisKey, long, CommandFlags)"/>
@@ -326,7 +326,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.VRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.VRANDMEMBER));
+                $"{RedisCommand.VRANDMEMBER}{key}{count}", flags);
 
         /// <summary>The one renderer for VSIM; the handler is what differs between the two shapes.</summary>
         private static ValueTask<TResult> SimilaritySearchCore<TResult>(
@@ -351,7 +351,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.VSIM), handler, default);
+            return context.SendAsync(ref frame, flags, handler, default);
         }
 
         /// <summary>

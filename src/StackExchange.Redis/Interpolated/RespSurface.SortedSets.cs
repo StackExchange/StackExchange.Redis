@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Interpolated
             var options = new RespSortedSetOptions(when, change, increment: false);
             return sortedSets.Context.SendAsync<bool>(
                 $"{RedisCommand.ZADD}{key}{options}{score}{member}",
-                flags.WithRetryCategory(options.RetryCategory).WithDefaultCategory(RedisCommand.ZADD));
+                flags.WithRetryCategory(options.RetryCategory));
         }
 
         /// <summary>ZADD with several members; the reply is how many were added (or changed, under CH).</summary>
@@ -102,7 +102,7 @@ namespace StackExchange.Redis.Interpolated
             var options = new RespSortedSetOptions(when, change, increment: false);
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZADD}{key}{options}{entries}",
-                flags.WithRetryCategory(options.RetryCategory).WithDefaultCategory(RedisCommand.ZADD));
+                flags.WithRetryCategory(options.RetryCategory));
         }
 
         /// <summary>ZADD ... INCR, or ZINCRBY when there is no condition to carry.</summary>
@@ -135,13 +135,13 @@ namespace StackExchange.Redis.Interpolated
             if (when == SortedSetWhen.Always)
             {
                 return sortedSets.Context.SendAsync<double?>(
-                    $"{RedisCommand.ZINCRBY}{key}{value}{member}", flags.WithDefaultCategory(RedisCommand.ZINCRBY));
+                    $"{RedisCommand.ZINCRBY}{key}{value}{member}", flags);
             }
 
             var options = new RespSortedSetOptions(when, change: false, increment: true);
             return sortedSets.Context.SendAsync<double?>(
                 $"{RedisCommand.ZADD}{key}{options}{value}{member}",
-                flags.WithRetryCategory(options.RetryCategory).WithDefaultCategory(RedisCommand.ZADD));
+                flags.WithRetryCategory(options.RetryCategory));
         }
 
         /// <summary>ZREM.</summary>
@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> RemoveAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<bool>(
-                $"{RedisCommand.ZREM}{key}{member}", flags.WithDefaultCategory(RedisCommand.ZREM));
+                $"{RedisCommand.ZREM}{key}{member}", flags);
 
         /// <summary>ZREM with several members; the reply is how many were removed.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -162,7 +162,7 @@ namespace StackExchange.Redis.Interpolated
             => members.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sortedSets.Context.SendAsync<long>(
-                    $"{RedisCommand.ZREM}{key}{members}", flags.WithDefaultCategory(RedisCommand.ZREM));
+                    $"{RedisCommand.ZREM}{key}{members}", flags);
 
         // ---- simple reads ------------------------------------------------------------------------------
 
@@ -173,7 +173,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<double?> ScoreAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<double?>(
-                $"{RedisCommand.ZSCORE}{key}{member}", flags.WithDefaultCategory(RedisCommand.ZSCORE));
+                $"{RedisCommand.ZSCORE}{key}{member}", flags);
 
         /// <summary>ZMSCORE: one score per member, in order; nil for a member that is not there.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -184,7 +184,7 @@ namespace StackExchange.Redis.Interpolated
             => members.IsEmpty
                 ? new ValueTask<ReadOnlyLease<double?>>(ReadOnlyLease<double?>.Empty)
                 : sortedSets.Context.SendAsync<ReadOnlyLease<double?>>(
-                    $"{RedisCommand.ZMSCORE}{key}{members}", flags.WithDefaultCategory(RedisCommand.ZMSCORE));
+                    $"{RedisCommand.ZMSCORE}{key}{members}", flags);
 
         /// <summary>Scores, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -202,7 +202,7 @@ namespace StackExchange.Redis.Interpolated
             => members.IsEmpty
                 ? new ValueTask<double?[]>(Array.Empty<double?>())
                 : sortedSets.Context.SendAsync<double?[]>(
-                    $"{RedisCommand.ZMSCORE}{key}{members}", flags.WithDefaultCategory(RedisCommand.ZMSCORE));
+                    $"{RedisCommand.ZMSCORE}{key}{members}", flags);
 
         /// <summary>ZCARD, or ZCOUNT when a score range is given.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -227,12 +227,12 @@ namespace StackExchange.Redis.Interpolated
             if (double.IsNegativeInfinity(min) && double.IsPositiveInfinity(max))
             {
                 return sortedSets.Context.SendAsync<long>(
-                    $"{RedisCommand.ZCARD}{key}", flags.WithDefaultCategory(RedisCommand.ZCARD));
+                    $"{RedisCommand.ZCARD}{key}", flags);
             }
 
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZCOUNT}{key}{RedisDatabase.GetRange(min, exclude, isStart: true)}{RedisDatabase.GetRange(max, exclude, isStart: false)}",
-                flags.WithDefaultCategory(RedisCommand.ZCOUNT));
+                flags);
         }
 
         /// <summary>ZLEXCOUNT: how many members fall in a lexical range.</summary>
@@ -253,7 +253,7 @@ namespace StackExchange.Redis.Interpolated
             RedisDatabase.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZLEXCOUNT}{key}{Lex(min, exclude, isStart: true)}{Lex(max, exclude, isStart: false)}",
-                flags.WithDefaultCategory(RedisCommand.ZLEXCOUNT));
+                flags);
         }
 
         /// <summary>ZRANK/ZREVRANK; <see langword="null"/> when the member is not there.</summary>
@@ -266,7 +266,7 @@ namespace StackExchange.Redis.Interpolated
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANK : RedisCommand.ZRANK;
             return sortedSets.Context.SendAsync<long?>(
-                $"{command}{key}{member}", flags.WithDefaultCategory(command));
+                $"{command}{key}{member}", flags);
         }
 
         /// <summary>ZRANDMEMBER.</summary>
@@ -275,7 +275,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> RandomMemberAsync(this in RespSortedSets sortedSets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.ZRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
+                $"{RedisCommand.ZRANDMEMBER}{key}", flags.NeverCached());
 
         /// <summary>ZRANDMEMBER with a count.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -284,7 +284,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.NeverCached());
 
         /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -300,7 +300,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.NeverCached());
 
         /// <summary>ZRANDMEMBER ... WITHSCORES.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -310,7 +310,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScoresAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-                flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
+                flags.NeverCached());
 
         /// <summary>RandomMembersWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -327,7 +327,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<SortedSetEntry[]> RandomMembersWithScoresArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<SortedSetEntry[]>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-                flags.WithDefaultCategory(RedisCommand.ZRANDMEMBER).NeverCached());
+                flags.NeverCached());
 
         // ---- ranges ------------------------------------------------------------------------------------
 
@@ -348,7 +348,7 @@ namespace StackExchange.Redis.Interpolated
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{command}{key}{start}{stop}", flags.WithDefaultCategory(command));
+                $"{command}{key}{start}{stop}", flags);
         }
 
         /// <summary>RangeByRank, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -373,7 +373,7 @@ namespace StackExchange.Redis.Interpolated
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<RedisValue[]>(
-                $"{command}{key}{start}{stop}", flags.WithDefaultCategory(command));
+                $"{command}{key}{start}{stop}", flags);
         }
 
         /// <inheritdoc cref="RangeByRankAsync"/>
@@ -393,7 +393,7 @@ namespace StackExchange.Redis.Interpolated
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
-                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags.WithDefaultCategory(command));
+                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags);
         }
 
         /// <summary>RangeByRankWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -418,7 +418,7 @@ namespace StackExchange.Redis.Interpolated
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<SortedSetEntry[]>(
-                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags.WithDefaultCategory(command));
+                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags);
         }
 
         /// <summary>ZRANGEBYSCORE/ZREVRANGEBYSCORE.</summary>
@@ -553,7 +553,7 @@ namespace StackExchange.Redis.Interpolated
 
             return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
-                flags.WithDefaultCategory(command));
+                flags);
         }
 
         /// <summary>RangeByValue, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -587,7 +587,7 @@ namespace StackExchange.Redis.Interpolated
 
             return sortedSets.Context.SendAsync<RedisValue[]>(
                 $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
-                flags.WithDefaultCategory(command));
+                flags);
         }
 
         /// <summary>ZRANGESTORE; the reply is the destination's size.</summary>
@@ -664,7 +664,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> RemoveRangeByRankAsync(this in RespSortedSets sortedSets, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<long>(
-                $"{RedisCommand.ZREMRANGEBYRANK}{key}{start}{stop}", flags.WithDefaultCategory(RedisCommand.ZREMRANGEBYRANK));
+                $"{RedisCommand.ZREMRANGEBYRANK}{key}{start}{stop}", flags);
 
         /// <summary>ZREMRANGEBYSCORE.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -676,7 +676,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<long> RemoveRangeByScoreAsync(this in RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
             => sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZREMRANGEBYSCORE}{key}{RedisDatabase.GetRange(start, exclude, isStart: true)}{RedisDatabase.GetRange(stop, exclude, isStart: false)}",
-                flags.WithDefaultCategory(RedisCommand.ZREMRANGEBYSCORE));
+                flags);
 
         /// <summary>ZREMRANGEBYLEX.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -690,7 +690,7 @@ namespace StackExchange.Redis.Interpolated
             RedisDatabase.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZREMRANGEBYLEX}{key}{Lex(min, exclude, isStart: true)}{Lex(max, exclude, isStart: false)}",
-                flags.WithDefaultCategory(RedisCommand.ZREMRANGEBYLEX));
+                flags);
         }
 
         // ---- combinations ------------------------------------------------------------------------------
@@ -813,7 +813,7 @@ namespace StackExchange.Redis.Interpolated
 
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZINTERCARD}{keys.Length}{keys}{RespLiterals.Limit.When(limit)}{limit}",
-                flags.WithDefaultCategory(RedisCommand.ZINTERCARD));
+                flags);
         }
 
         // ---- pops --------------------------------------------------------------------------------------
@@ -826,7 +826,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<SortedSetEntry?> PopAsync(this in RespSortedSets sortedSets, RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
-            return sortedSets.Context.SendAsync<SortedSetEntry?>($"{command}{key}", flags.WithDefaultCategory(command));
+            return sortedSets.Context.SendAsync<SortedSetEntry?>($"{command}{key}", flags);
         }
 
         /// <summary>ZPOPMIN/ZPOPMAX with a count.</summary>
@@ -842,7 +842,7 @@ namespace StackExchange.Redis.Interpolated
             if (count == 0) return new ValueTask<ReadOnlyLease<SortedSetEntry>>(ReadOnlyLease<SortedSetEntry>.Empty);
 
             var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
-            return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>($"{command}{key}{count}", flags.WithDefaultCategory(command));
+            return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>($"{command}{key}{count}", flags);
         }
 
         /// <summary>Pop, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -864,7 +864,7 @@ namespace StackExchange.Redis.Interpolated
             if (count == 0) return new ValueTask<SortedSetEntry[]>(Array.Empty<SortedSetEntry>());
 
             var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
-            return sortedSets.Context.SendAsync<SortedSetEntry[]>($"{command}{key}{count}", flags.WithDefaultCategory(command));
+            return sortedSets.Context.SendAsync<SortedSetEntry[]>($"{command}{key}{count}", flags);
         }
 
         /// <summary>ZMPOP: take from the first of several keys that has anything.</summary>
@@ -880,7 +880,7 @@ namespace StackExchange.Redis.Interpolated
             var end = order == Order.Descending ? RespLiterals.Max : RespLiterals.Min;
             return sortedSets.Context.SendAsync<SortedSetPopResult>(
                 $"{RedisCommand.ZMPOP}{keys.Length}{keys}{end}{RespLiterals.Count}{count}",
-                flags.WithDefaultCategory(RedisCommand.ZMPOP));
+                flags);
         }
 
         // ---- shared -------------------------------------------------------------------------------------
@@ -919,7 +919,7 @@ namespace StackExchange.Redis.Interpolated
 
             return sortedSets.Context.SendAsync<TResult>(
                 $"{command}{key}{from}{to}{scores}{new RespLimitRange(skip, take)}",
-                flags.WithDefaultCategory(command));
+                flags);
         }
 
         /// <summary>The checks the combination commands share, and the command they resolve to.</summary>
@@ -989,7 +989,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return sortedSets.Context.SendAsync(ref frame, flags.WithDefaultCategory(command), RespHandlers.Inbuilt<TResult>.Require(), default);
+            return sortedSets.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require(), default);
         }
 
         /// <summary>A lexical bound, shared with the MessageWriter path; see RedisDatabase.GetLexRange.</summary>

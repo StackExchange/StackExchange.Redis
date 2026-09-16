@@ -90,7 +90,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> GetAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
+                $"{RedisCommand.GET}{key}", flags);
 
         /// <summary>MGET.</summary>
         /// <param name="strings">The string command group.</param>
@@ -125,7 +125,7 @@ namespace StackExchange.Redis.Interpolated
             => keys.IsEmpty
                 ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
                 : strings.Context.SendAsync(
-                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.ValueWindowHandler.Lease);
+                    $"{RedisCommand.MGET}{keys}", flags, RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>MGET, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <param name="strings">The string command group.</param>
@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Interpolated
             => keys.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : strings.Context.SendAsync(
-                    $"{RedisCommand.MGET}{keys}", flags.WithDefaultCategory(RedisCommand.MGET), RespHandlers.Values);
+                    $"{RedisCommand.MGET}{keys}", flags, RespHandlers.Values);
 
         /// <summary>GET, retaining the payload as a <see cref="ReadOnlyLease{T}"/> rather than a value.</summary>
         /// <param name="strings">The string command group.</param>
@@ -173,7 +173,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static ValueTask<ReadOnlyLease<byte>?> GetLeaseAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<ReadOnlyLease<byte>?>(
-                $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
+                $"{RedisCommand.GET}{key}", flags);
 
         /// <inheritdoc cref="GetLeaseAsync(in RespStrings, RedisKey, CommandFlags)"/>
         /// <param name="strings">The string command group.</param>
@@ -186,7 +186,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<Lease<byte>?> GetWritableLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<Lease<byte>?>(
-                $"{RedisCommand.GET}{key}", flags.WithDefaultCategory(RedisCommand.GET));
+                $"{RedisCommand.GET}{key}", flags);
 
         /// <summary>GETRANGE.</summary>
         /// <param name="strings">The string command group.</param>
@@ -196,7 +196,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> GetRangeAsync(this in RespStrings strings, RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GETRANGE}{key}{start}{end}", flags.WithDefaultCategory(RedisCommand.GETRANGE));
+                $"{RedisCommand.GETRANGE}{key}{start}{end}", flags);
 
         /// <summary>GETDEL.</summary>
         /// <param name="strings">The string command group.</param>
@@ -204,7 +204,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> GetDeleteAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GETDEL}{key}", flags.WithDefaultCategory(RedisCommand.GETDEL));
+                $"{RedisCommand.GETDEL}{key}", flags);
 
         /// <summary>GETEX: read the value, and set, keep or clear the expiration in the same call.</summary>
         /// <param name="strings">The string command group.</param>
@@ -234,7 +234,7 @@ namespace StackExchange.Redis.Interpolated
             if (mutatesTtl) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
             return strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GETEX}{key}{expiry}", flags.WithDefaultCategory(RedisCommand.GETEX));
+                $"{RedisCommand.GETEX}{key}{expiry}", flags);
         }
 
         /// <summary>STRLEN.</summary>
@@ -243,7 +243,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> LengthAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.STRLEN}{key}", flags.WithDefaultCategory(RedisCommand.STRLEN));
+                $"{RedisCommand.STRLEN}{key}", flags);
 
         /// <summary>APPEND; the reply is the new length.</summary>
         /// <param name="strings">The string command group.</param>
@@ -252,7 +252,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> AppendAsync(this in RespStrings strings, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.APPEND}{key}{value}", flags.WithDefaultCategory(RedisCommand.APPEND));
+                $"{RedisCommand.APPEND}{key}{value}", flags);
 
         /// <summary>SETRANGE; the reply is the new length.</summary>
         /// <param name="strings">The string command group.</param>
@@ -268,7 +268,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static ValueTask<long> SetRangeAsync(this in RespStrings strings, RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.SETRANGE}{key}{offset}{value}", flags.WithDefaultCategory(RedisCommand.SETRANGE));
+                $"{RedisCommand.SETRANGE}{key}{offset}{value}", flags);
 
         /// <summary>DIGEST: the server's hash of the value, as a condition a later write can be gated on.</summary>
         /// <param name="strings">The string command group.</param>
@@ -281,7 +281,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static ValueTask<ValueCondition?> DigestAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<ValueCondition?>(
-                $"{RedisCommand.DIGEST}{key}", flags.WithDefaultCategory(RedisCommand.DIGEST));
+                $"{RedisCommand.DIGEST}{key}", flags);
 
         /// <summary>SET, in full: expiration and value condition included.</summary>
         /// <param name="strings">The string command group.</param>
@@ -351,8 +351,7 @@ namespace StackExchange.Redis.Interpolated
                 ? DeleteAsync(in strings, key, when: default, flags)
                 : strings.Context.SendAsync<bool>(
                     $"{RedisCommand.SET}{key}{value}{when}{expiry}",
-                    flags.WithRetryCategory(when.RetryCategory)
-                         .WithDefaultCategory(RedisCommand.SET));
+                    flags.WithRetryCategory(when.RetryCategory));
 
         /// <summary>MSET/MSETNX/MSETEX: set several keys in one command.</summary>
         /// <param name="strings">The string command group.</param>
@@ -401,7 +400,7 @@ namespace StackExchange.Redis.Interpolated
                 _ => ThrowUnsupportedCondition<RedisCommand>(when, nameof(SetAsync)),
             };
 
-            flags = flags.WithRetryCategory(when.RetryCategory).WithDefaultCategory(command);
+            flags = flags.WithRetryCategory(when.RetryCategory);
 
             // MSET/MSETNX take the pairs and nothing else; MSETEX prefixes a count and accepts the tail
             return command == RedisCommand.MSETEX
@@ -446,8 +445,7 @@ namespace StackExchange.Redis.Interpolated
                 ? GetDeleteAsync(in strings, key, flags) // as Set: a null value removes the key, and GETDEL is the read-it-back form
                 : strings.Context.SendAsync<RedisValue>(
                     $"{RedisCommand.SET}{key}{value}{when}{RespLiterals.Get}{expiry}",
-                    flags.WithRetryCategory(when.RetryCategory)
-                         .WithDefaultCategory(RedisCommand.SET));
+                    flags.WithRetryCategory(when.RetryCategory));
 
         /// <summary>
         /// <c>SET ... GET</c> where the server has it, <c>GETSET</c> where it does not: the old
@@ -487,14 +485,14 @@ namespace StackExchange.Redis.Interpolated
             {
                 return context.SendAsync<RedisValue>(
                     $"{RedisCommand.SET}{key}{value}{RespLiterals.Get}",
-                    flags.WithDefaultCategory(RedisCommand.SET));
+                    flags);
             }
 
             // not known to be 6.2+, so the deprecated spelling, which every server understands. "Not sure"
             // has to mean the old one: the new one fails outright where it is missing.
             return context.SendAsync<RedisValue>(
                 $"{RedisCommand.GETSET}{key}{value}",
-                flags.WithDefaultCategory(RedisCommand.GETSET));
+                flags);
         }
 
         /// <summary>DEL/DELEX: remove a key, optionally only if it still holds what you think it does.</summary>
@@ -525,7 +523,7 @@ namespace StackExchange.Redis.Interpolated
                 case ValueCondition.ConditionKind.Always:
                 case ValueCondition.ConditionKind.Exists:
                     return strings.Context.SendAsync<bool>(
-                        $"{RedisCommand.DEL}{key}", flags.WithDefaultCategory(RedisCommand.DEL));
+                        $"{RedisCommand.DEL}{key}", flags);
 
                 case ValueCondition.ConditionKind.ValueEquals:
                 case ValueCondition.ConditionKind.ValueNotEquals:
@@ -533,7 +531,7 @@ namespace StackExchange.Redis.Interpolated
                 case ValueCondition.ConditionKind.DigestNotEquals:
                     return strings.Context.SendAsync<bool>(
                         $"{RedisCommand.DELEX}{key}{when}",
-                        flags.WithRetryCategory(when.RetryCategory).WithDefaultCategory(RedisCommand.DELEX));
+                        flags.WithRetryCategory(when.RetryCategory));
 
                 default:
                     return ThrowUnsupportedCondition<ValueTask<bool>>(when, nameof(DeleteAsync));
@@ -560,7 +558,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static ValueTask<long> IncrementAsync(this in RespStrings strings, RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.INCRBY}{key}{value}", flags.WithDefaultCategory(RedisCommand.INCRBY));
+                $"{RedisCommand.INCRBY}{key}{value}", flags);
 
         /// <inheritdoc cref="IncrementAsync(in RespStrings, RedisKey, long, CommandFlags)"/>
         /// <param name="strings">The string command group.</param>
@@ -569,7 +567,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<double> IncrementAsync(this in RespStrings strings, RedisKey key, double value, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<double>(
-                $"{RedisCommand.INCRBYFLOAT}{key}{value}", flags.WithDefaultCategory(RedisCommand.INCRBYFLOAT));
+                $"{RedisCommand.INCRBYFLOAT}{key}{value}", flags);
 
         /// <summary>INCREX: increment with an expiration, and optionally with bounds.</summary>
         /// <param name="strings">The string command group.</param>
@@ -620,7 +618,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<long>>.Require(), default);
+            return strings.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<StringIncrementResult<long>>.Require(), default);
         }
 
         /// <inheritdoc cref="IncrementAsync(in RespStrings, RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags)"/>
@@ -659,7 +657,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return strings.Context.SendAsync(ref frame, flags.WithDefaultCategory(RedisCommand.INCREX), RespHandlers.Inbuilt<StringIncrementResult<double>>.Require(), default);
+            return strings.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<StringIncrementResult<double>>.Require(), default);
         }
 
         /// <summary>LCS: the longest common subsequence of two keys' values.</summary>
@@ -669,7 +667,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<string?> LongestCommonSubsequenceAsync(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<string?>(
-                $"{RedisCommand.LCS}{first}{second}", flags.WithDefaultCategory(RedisCommand.LCS));
+                $"{RedisCommand.LCS}{first}{second}", flags);
 
         /// <summary>LCS ... LEN: the length of the longest common subsequence, without transferring it.</summary>
         /// <param name="strings">The string command group.</param>
@@ -678,7 +676,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> LongestCommonSubsequenceLengthAsync(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.LCS}{first}{second}{RespLiterals.Len}", flags.WithDefaultCategory(RedisCommand.LCS));
+                $"{RedisCommand.LCS}{first}{second}{RespLiterals.Len}", flags);
 
         /// <summary>LCS ... IDX: where the matches are, rather than what they contain.</summary>
         /// <param name="strings">The string command group.</param>
@@ -694,7 +692,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => strings.Context.SendAsync(
                 $"{RedisCommand.LCS}{first}{second}{RespLiterals.Idx}{RespLiterals.MinMatchLen}{minLength}{RespLiterals.WithMatchLen}",
-                flags.WithDefaultCategory(RedisCommand.LCS),
+                flags,
                 RespHandlers.Inbuilt<LCSMatchResult>.Require());
 
         /// <summary>

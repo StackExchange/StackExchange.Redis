@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> GetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None)
             => bitmaps.Context.SendAsync<bool>(
-                $"{RedisCommand.GETBIT}{key}{offset}", flags.WithDefaultCategory(RedisCommand.GETBIT));
+                $"{RedisCommand.GETBIT}{key}{offset}", flags);
 
         /// <summary>SETBIT; the reply is the bit that was there before.</summary>
         /// <param name="bitmaps">The bitmap command group.</param>
@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> SetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
             => bitmaps.Context.SendAsync<bool>(
-                $"{RedisCommand.SETBIT}{key}{offset}{bit}", flags.WithDefaultCategory(RedisCommand.SETBIT));
+                $"{RedisCommand.SETBIT}{key}{offset}{bit}", flags);
 
         /// <summary>BITCOUNT: how many bits are set, over a range.</summary>
         /// <param name="bitmaps">The bitmap command group.</param>
@@ -91,7 +91,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => bitmaps.Context.SendAsync<long>(
                 $"{RedisCommand.BITCOUNT}{key}{start}{end}{AsFragment(indexType)}",
-                flags.WithDefaultCategory(RedisCommand.BITCOUNT));
+                flags);
 
         /// <summary>BITPOS: the offset of the first bit with the given value.</summary>
         /// <param name="bitmaps">The bitmap command group.</param>
@@ -130,12 +130,12 @@ namespace StackExchange.Redis.Interpolated
                 }
 
                 return bitmaps.Context.SendAsync<long>(
-                    $"{RedisCommand.BITPOS}{key}{bit}{start}", flags.WithDefaultCategory(RedisCommand.BITPOS));
+                    $"{RedisCommand.BITPOS}{key}{bit}{start}", flags);
             }
 
             return bitmaps.Context.SendAsync<long>(
                 $"{RedisCommand.BITPOS}{key}{bit}{start}{end}{AsFragment(indexType)}",
-                flags.WithDefaultCategory(RedisCommand.BITPOS));
+                flags);
         }
 
         /// <summary>BITOP: combine bitmaps into a destination key; the reply is the destination's length.</summary>
@@ -172,7 +172,7 @@ namespace StackExchange.Redis.Interpolated
 
             return bitmaps.Context.SendAsync<long>(
                 $"{RedisCommand.BITOP}{AsFragment(operation)}{destination}{keys}",
-                flags.WithDefaultCategory(RedisCommand.BITOP));
+                flags);
         }
 
         /// <summary>BITFIELD: several sub-operations against one key, in one command.</summary>

@@ -49,7 +49,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> AddAsync(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
-                $"{RedisCommand.SADD}{key}{value}", flags.WithDefaultCategory(RedisCommand.SADD));
+                $"{RedisCommand.SADD}{key}{value}", flags);
 
         /// <summary>SADD with several members; the reply is how many were new.</summary>
         /// <param name="sets">The set command group.</param>
@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Interpolated
             => values.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sets.Context.SendAsync<long>(
-                    $"{RedisCommand.SADD}{key}{values}", flags.WithDefaultCategory(RedisCommand.SADD));
+                    $"{RedisCommand.SADD}{key}{values}", flags);
 
         /// <summary>SREM.</summary>
         /// <param name="sets">The set command group.</param>
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> RemoveAsync(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
-                $"{RedisCommand.SREM}{key}{value}", flags.WithDefaultCategory(RedisCommand.SREM));
+                $"{RedisCommand.SREM}{key}{value}", flags);
 
         /// <summary>SREM with several members; the reply is how many were removed.</summary>
         /// <param name="sets">The set command group.</param>
@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Interpolated
             => values.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sets.Context.SendAsync<long>(
-                    $"{RedisCommand.SREM}{key}{values}", flags.WithDefaultCategory(RedisCommand.SREM));
+                    $"{RedisCommand.SREM}{key}{values}", flags);
 
         /// <summary>SISMEMBER.</summary>
         /// <param name="sets">The set command group.</param>
@@ -89,7 +89,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> ContainsAsync(this in RespSets sets, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
-                $"{RedisCommand.SISMEMBER}{key}{value}", flags.WithDefaultCategory(RedisCommand.SISMEMBER));
+                $"{RedisCommand.SISMEMBER}{key}{value}", flags);
 
         /// <summary>SMISMEMBER: one answer per member, in order.</summary>
         /// <param name="sets">The set command group.</param>
@@ -100,7 +100,7 @@ namespace StackExchange.Redis.Interpolated
             => values.IsEmpty
                 ? new ValueTask<ReadOnlyLease<bool>>(ReadOnlyLease<bool>.Empty)
                 : sets.Context.SendAsync<ReadOnlyLease<bool>>(
-                    $"{RedisCommand.SMISMEMBER}{key}{values}", flags.WithDefaultCategory(RedisCommand.SMISMEMBER));
+                    $"{RedisCommand.SMISMEMBER}{key}{values}", flags);
 
         /// <summary>Contains, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -118,7 +118,7 @@ namespace StackExchange.Redis.Interpolated
             => values.IsEmpty
                 ? new ValueTask<bool[]>(Array.Empty<bool>())
                 : sets.Context.SendAsync<bool[]>(
-                    $"{RedisCommand.SMISMEMBER}{key}{values}", flags.WithDefaultCategory(RedisCommand.SMISMEMBER));
+                    $"{RedisCommand.SMISMEMBER}{key}{values}", flags);
 
         /// <summary>SCARD.</summary>
         /// <param name="sets">The set command group.</param>
@@ -126,7 +126,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> LengthAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<long>(
-                $"{RedisCommand.SCARD}{key}", flags.WithDefaultCategory(RedisCommand.SCARD));
+                $"{RedisCommand.SCARD}{key}", flags);
 
         /// <summary>SMEMBERS.</summary>
         /// <param name="sets">The set command group.</param>
@@ -134,7 +134,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RespValue>> MembersAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{RedisCommand.SMEMBERS}{key}", flags.WithDefaultCategory(RedisCommand.SMEMBERS));
+                $"{RedisCommand.SMEMBERS}{key}", flags);
 
         /// <summary>Members, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -150,7 +150,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<RedisValue[]> MembersArray(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.SMEMBERS}{key}", flags.WithDefaultCategory(RedisCommand.SMEMBERS));
+                $"{RedisCommand.SMEMBERS}{key}", flags);
 
         /// <summary>SMOVE.</summary>
         /// <param name="sets">The set command group.</param>
@@ -160,7 +160,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> MoveAsync(this in RespSets sets, RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<bool>(
-                $"{RedisCommand.SMOVE}{source}{destination}{value}", flags.WithDefaultCategory(RedisCommand.SMOVE));
+                $"{RedisCommand.SMOVE}{source}{destination}{value}", flags);
 
         /// <summary>SPOP: remove and return one member, at random.</summary>
         /// <param name="sets">The set command group.</param>
@@ -168,7 +168,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> PopAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.SPOP}{key}", flags.WithDefaultCategory(RedisCommand.SPOP));
+                $"{RedisCommand.SPOP}{key}", flags);
 
         /// <summary>SPOP with a count.</summary>
         /// <param name="sets">The set command group.</param>
@@ -184,7 +184,7 @@ namespace StackExchange.Redis.Interpolated
             => count == 0
                 ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
                 : sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                    $"{RedisCommand.SPOP}{key}{count}", flags.WithDefaultCategory(RedisCommand.SPOP));
+                    $"{RedisCommand.SPOP}{key}{count}", flags);
 
         /// <summary>Pop, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -202,7 +202,7 @@ namespace StackExchange.Redis.Interpolated
             => count == 0
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : sets.Context.SendAsync<RedisValue[]>(
-                    $"{RedisCommand.SPOP}{key}{count}", flags.WithDefaultCategory(RedisCommand.SPOP));
+                    $"{RedisCommand.SPOP}{key}{count}", flags);
 
         /// <summary>SRANDMEMBER: one member, at random, left in place.</summary>
         /// <param name="sets">The set command group.</param>
@@ -210,7 +210,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> RandomMemberAsync(this in RespSets sets, RedisKey key, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.SRANDMEMBER}{key}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
+                $"{RedisCommand.SRANDMEMBER}{key}", flags.NeverCached());
 
         /// <summary>SRANDMEMBER with a count.</summary>
         /// <param name="sets">The set command group.</param>
@@ -219,7 +219,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
+                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.NeverCached());
 
         /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -235,7 +235,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => sets.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.WithDefaultCategory(RedisCommand.SRANDMEMBER).NeverCached());
+                $"{RedisCommand.SRANDMEMBER}{key}{count}", flags.NeverCached());
 
         /// <summary>SUNION/SINTER/SDIFF.</summary>
         /// <param name="sets">The set command group.</param>
@@ -252,7 +252,7 @@ namespace StackExchange.Redis.Interpolated
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
             var command = operation.ToSetCommand();
-            return sets.Context.SendAsync<ReadOnlyLease<RespValue>>($"{command}{keys}", flags.WithDefaultCategory(command));
+            return sets.Context.SendAsync<ReadOnlyLease<RespValue>>($"{command}{keys}", flags);
         }
 
         /// <summary>Combine, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -272,7 +272,7 @@ namespace StackExchange.Redis.Interpolated
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
             var command = operation.ToSetCommand();
-            return sets.Context.SendAsync<RedisValue[]>($"{command}{keys}", flags.WithDefaultCategory(command));
+            return sets.Context.SendAsync<RedisValue[]>($"{command}{keys}", flags);
         }
 
         /// <summary>SUNIONSTORE/SINTERSTORE/SDIFFSTORE; the reply is the destination's size.</summary>
@@ -286,7 +286,7 @@ namespace StackExchange.Redis.Interpolated
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
             var command = operation.ToSetStoreCommand();
-            return sets.Context.SendAsync<long>($"{command}{destination}{keys}", flags.WithDefaultCategory(command));
+            return sets.Context.SendAsync<long>($"{command}{destination}{keys}", flags);
         }
 
         /// <summary>SINTERCARD/SUNIONCARD/SDIFFCARD: the size of a combination, without building it.</summary>
@@ -316,7 +316,7 @@ namespace StackExchange.Redis.Interpolated
             var command = operation.ToSetCardinalityCommand();
             return sets.Context.SendAsync<long>(
                 $"{command}{keys.Length}{keys}{RespLiterals.Approx.When(approximate)}{RespLiterals.Limit.When(limit)}{limit}",
-                flags.WithDefaultCategory(command));
+                flags);
         }
     }
 }

@@ -196,6 +196,7 @@ namespace StackExchange.Redis.Interpolated
             CancellationToken cancellationToken = default)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
+            flags = flags.WithDefaultCategory(request.Command); // see the note in SendAsync
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
 
             // detach HERE, not in the async continuation. RespFrame is a struct, so a by-value parameter
@@ -234,6 +235,7 @@ namespace StackExchange.Redis.Interpolated
             CancellationToken cancellationToken = default)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
+            flags = flags.WithDefaultCategory(request.Command); // see the note in SendAsync
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
 
             var body = request.Detach(flags);
@@ -435,6 +437,19 @@ namespace StackExchange.Redis.Interpolated
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             DemandNoCancellation(cancellationToken);
+
+            // THE one place a command's retry category is applied. The frame already carries the
+            // RedisCommand it rendered - stored when the command hole was written, not re-parsed - so no
+            // call site has to remember, and a new command cannot silently arrive without one. It is
+            // WithDefaultCategory rather than an override, so the 18 sites whose ARGUMENTS change the
+            // answer (SORT with STORE, GETEX with a TTL) still raise themselves first and win.
+            //
+            // It must happen HERE rather than at the call site for an ordering reason as well as a
+            // forgetting one: the cache reads flags to decide whether a reply may be served or stored, so
+            // the category has to be settled before PermitsCaching sees it. At the call site that was
+            // convention; here it is the order of the statements.
+            flags = flags.WithDefaultCategory(request.Command);
+
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
             NoteLocalWrite(cache, in request, flags);
@@ -530,6 +545,19 @@ namespace StackExchange.Redis.Interpolated
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             DemandNoCancellation(cancellationToken);
+
+            // THE one place a command's retry category is applied. The frame already carries the
+            // RedisCommand it rendered - stored when the command hole was written, not re-parsed - so no
+            // call site has to remember, and a new command cannot silently arrive without one. It is
+            // WithDefaultCategory rather than an override, so the 18 sites whose ARGUMENTS change the
+            // answer (SORT with STORE, GETEX with a TTL) still raise themselves first and win.
+            //
+            // It must happen HERE rather than at the call site for an ordering reason as well as a
+            // forgetting one: the cache reads flags to decide whether a reply may be served or stored, so
+            // the category has to be settled before PermitsCaching sees it. At the call site that was
+            // convention; here it is the order of the statements.
+            flags = flags.WithDefaultCategory(request.Command);
+
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
             NoteLocalWrite(cache, in request, flags);

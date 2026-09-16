@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> GetByIndexAsync(this in RespLists lists, RedisKey key, long index, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.LINDEX}{key}{index}", flags.WithDefaultCategory(RedisCommand.LINDEX));
+                $"{RedisCommand.LINDEX}{key}{index}", flags);
 
         /// <summary>LLEN.</summary>
         /// <param name="lists">The list command group.</param>
@@ -68,7 +68,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> LengthAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LLEN}{key}", flags.WithDefaultCategory(RedisCommand.LLEN));
+                $"{RedisCommand.LLEN}{key}", flags);
 
         /// <summary>LRANGE.</summary>
         /// <param name="lists">The list command group.</param>
@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LRANGE}{key}{start}{stop}",
-                flags.WithDefaultCategory(RedisCommand.LRANGE),
+                flags,
                 RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>LPOS: where an element sits, or -1.</summary>
@@ -104,7 +104,7 @@ namespace StackExchange.Redis.Interpolated
             => WhenDiscarded(
                 lists.Context.SendAsync(
                     $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}",
-                    flags.WithDefaultCategory(RedisCommand.LPOS),
+                    flags,
                     RespHandlers.Int64OrMinusOne),
                 flags,
                 -1L);
@@ -129,7 +129,7 @@ namespace StackExchange.Redis.Interpolated
             => WhenDiscarded(
                 lists.Context.SendAsync<ReadOnlyLease<long>>(
                     $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}{RespLiterals.Count}{count}",
-                    flags.WithDefaultCategory(RedisCommand.LPOS)),
+                    flags),
                 flags,
                 ReadOnlyLease<long>.Empty);
 
@@ -189,7 +189,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> LeftPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.LPOP}{key}", flags.WithDefaultCategory(RedisCommand.LPOP));
+                $"{RedisCommand.LPOP}{key}", flags);
 
         /// <summary>LPOP with a count.</summary>
         /// <param name="lists">The list command group.</param>
@@ -200,7 +200,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<RespValue>> LeftPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LPOP}{key}{count}",
-                flags.WithDefaultCategory(RedisCommand.LPOP),
+                flags,
                 RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>RPOP.</summary>
@@ -209,7 +209,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> RightPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.RPOP}{key}", flags.WithDefaultCategory(RedisCommand.RPOP));
+                $"{RedisCommand.RPOP}{key}", flags);
 
         /// <summary>RPOP with a count.</summary>
         /// <param name="lists">The list command group.</param>
@@ -220,7 +220,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<RespValue>> RightPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.RPOP}{key}{count}",
-                flags.WithDefaultCategory(RedisCommand.RPOP),
+                flags,
                 RespHandlers.ValueWindowHandler.Lease);
 
         /// <summary>LMPOP: take from the first of several keys that has anything.</summary>
@@ -265,7 +265,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.LMOVE}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}",
-                flags.WithDefaultCategory(RedisCommand.LMOVE));
+                flags);
 
         /// <summary>
         /// <c>LMOVE src dst RIGHT LEFT</c> where the server has it, <c>RPOPLPUSH</c> where it does not:
@@ -299,7 +299,7 @@ namespace StackExchange.Redis.Interpolated
             // cluster both keys are in the same slot anyway, or the server rejects the call
             return context.SendAsync<RedisValue>(
                 $"{RedisCommand.RPOPLPUSH}{sourceKey}{destinationKey}",
-                flags.WithDefaultCategory(RedisCommand.RPOPLPUSH));
+                flags);
         }
 
         /// <summary>LMOVEM: the bulk form, moving several elements at once.</summary>
@@ -329,7 +329,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}",
-                flags.WithDefaultCategory(RedisCommand.LMOVEM),
+                flags,
                 RespHandlers.ValueWindowHandler.NullableLease);
 
         /// <summary>LINSERT ... BEFORE.</summary>
@@ -340,7 +340,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> InsertBeforeAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LINSERT}{key}{RespLiterals.Before}{pivot}{value}", flags.WithDefaultCategory(RedisCommand.LINSERT));
+                $"{RedisCommand.LINSERT}{key}{RespLiterals.Before}{pivot}{value}", flags);
 
         /// <summary>LINSERT ... AFTER.</summary>
         /// <param name="lists">The list command group.</param>
@@ -350,7 +350,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> InsertAfterAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LINSERT}{key}{RespLiterals.After}{pivot}{value}", flags.WithDefaultCategory(RedisCommand.LINSERT));
+                $"{RedisCommand.LINSERT}{key}{RespLiterals.After}{pivot}{value}", flags);
 
         /// <summary>LREM; the reply is how many were removed.</summary>
         /// <param name="lists">The list command group.</param>
@@ -360,7 +360,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<long> RemoveAsync(this in RespLists lists, RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LREM}{key}{count}{value}", flags.WithDefaultCategory(RedisCommand.LREM));
+                $"{RedisCommand.LREM}{key}{count}{value}", flags);
 
         /// <summary>LSET.</summary>
         /// <param name="lists">The list command group.</param>
@@ -372,7 +372,7 @@ namespace StackExchange.Redis.Interpolated
         /// an error is the only thing such a call can report.</remarks>
         public static ValueTask SetByIndexAsync(this in RespLists lists, RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
-                $"{RedisCommand.LSET}{key}{index}{value}", flags.WithDefaultCategory(RedisCommand.LSET));
+                $"{RedisCommand.LSET}{key}{index}{value}", flags);
 
         /// <summary>LTRIM.</summary>
         /// <param name="lists">The list command group.</param>
@@ -383,7 +383,7 @@ namespace StackExchange.Redis.Interpolated
         /// <remarks><inheritdoc cref="SetByIndexAsync" path="/remarks"/></remarks>
         public static ValueTask TrimAsync(this in RespLists lists, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
-                $"{RedisCommand.LTRIM}{key}{start}{stop}", flags.WithDefaultCategory(RedisCommand.LTRIM));
+                $"{RedisCommand.LTRIM}{key}{start}{stop}", flags);
 
         // ---- the array shapes IDatabase still needs ----------------------------------------------------
         // Internal, as everywhere else: the array is the OLD spelling, it allocates where the lease need
@@ -398,7 +398,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<RedisValue[]> RangeArray(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LRANGE}{key}{start}{stop}",
-                flags.WithDefaultCategory(RedisCommand.LRANGE),
+                flags,
                 RespHandlers.Values);
 
         /// <inheritdoc cref="PositionsAsync"/>
@@ -420,7 +420,7 @@ namespace StackExchange.Redis.Interpolated
             => WhenDiscarded(
                 lists.Context.SendAsync<long[]>(
                     $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}{RespLiterals.Count}{count}",
-                    flags.WithDefaultCategory(RedisCommand.LPOS)),
+                    flags),
                 flags,
                 Array.Empty<long>());
 
@@ -432,7 +432,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<RedisValue[]> LeftPopArray(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LPOP}{key}{count}",
-                flags.WithDefaultCategory(RedisCommand.LPOP),
+                flags,
                 RespHandlers.Values);
 
         /// <inheritdoc cref="RightPopAsync(in RespLists, RedisKey, long, CommandFlags)"/>
@@ -443,7 +443,7 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<RedisValue[]> RightPopArray(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.RPOP}{key}{count}",
-                flags.WithDefaultCategory(RedisCommand.RPOP),
+                flags,
                 RespHandlers.Values);
 
         /// <inheritdoc cref="MoveAsync(in RespLists, RedisKey, RedisKey, ListSide, ListSide, long, ListMoveCount, ListMoveOrder, CommandFlags)"/>
@@ -469,7 +469,7 @@ namespace StackExchange.Redis.Interpolated
             CommandFlags flags = CommandFlags.None)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}",
-                flags.WithDefaultCategory(RedisCommand.LMOVEM),
+                flags,
                 RespHandlers.NullableValues);
 
         // ---- shared -------------------------------------------------------------------------------------
@@ -522,7 +522,7 @@ namespace StackExchange.Redis.Interpolated
         private static ValueTask<long> Push(in RespLists lists, RedisKey key, RedisValue value, When when, bool left, CommandFlags flags)
         {
             var command = SelectPush(when, left);
-            return lists.Context.SendAsync<long>($"{command}{key}{value}", flags.WithDefaultCategory(command));
+            return lists.Context.SendAsync<long>($"{command}{key}{value}", flags);
         }
 
         /// <inheritdoc cref="Push(in RespLists, RedisKey, RedisValue, When, bool, CommandFlags)"/>
@@ -532,11 +532,11 @@ namespace StackExchange.Redis.Interpolated
             {
                 // see the remarks on LeftPush: pushing nothing still has a length to report
                 return lists.Context.SendAsync<long>(
-                    $"{RedisCommand.LLEN}{key}", flags.WithDefaultCategory(RedisCommand.LLEN));
+                    $"{RedisCommand.LLEN}{key}", flags);
             }
 
             var command = SelectPush(when, left);
-            return lists.Context.SendAsync<long>($"{command}{key}{values}", flags.WithDefaultCategory(command));
+            return lists.Context.SendAsync<long>($"{command}{key}{values}", flags);
         }
 
         private static RedisCommand SelectPush(When when, bool left) => when switch
@@ -561,7 +561,7 @@ namespace StackExchange.Redis.Interpolated
             // a zero-argument fragment is for.
             return lists.Context.SendAsync<ListPopResult>(
                 $"{RedisCommand.LMPOP}{keys.Length}{keys}{end}{RespLiterals.Count}{count}",
-                flags.WithDefaultCategory(RedisCommand.LMPOP));
+                flags);
         }
 
         private static RespFragment AsFragment(ListSide side) => side switch

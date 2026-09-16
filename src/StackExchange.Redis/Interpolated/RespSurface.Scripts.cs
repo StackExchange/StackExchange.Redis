@@ -109,7 +109,7 @@ namespace StackExchange.Redis.Interpolated
                 var eval = readOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL;
                 return context.SendAsync<RespResult>(
                     $"{eval}{(RedisValue)script}{(RedisValue)keys.Length}{keys}{args}",
-                    flags.WithDefaultCategory(eval));
+                    flags);
             }
 
             var registry = context.ScriptCache;
@@ -176,7 +176,7 @@ namespace StackExchange.Redis.Interpolated
             try
             {
                 return context.SendWithPreambleAsync(
-                    ref preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result, gate);
+                    ref preamble, ref request, flags, RespHandlers.Result, gate);
             }
             finally
             {
@@ -204,7 +204,7 @@ namespace StackExchange.Redis.Interpolated
             try
             {
                 return context.SendWithPreambleAsync(
-                    preamble, ref request, flags.WithDefaultCategory(command), RespHandlers.Result, gate);
+                    preamble, ref request, flags, RespHandlers.Result, gate);
             }
             finally
             {

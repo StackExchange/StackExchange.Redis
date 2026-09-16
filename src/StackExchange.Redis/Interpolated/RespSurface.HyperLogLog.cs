@@ -48,7 +48,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> AddAsync(this in RespHyperLogLog log, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => log.Context.SendAsync<bool>(
-                $"{RedisCommand.PFADD}{key}{value}", flags.WithDefaultCategory(RedisCommand.PFADD));
+                $"{RedisCommand.PFADD}{key}{value}", flags);
 
         /// <summary>PFADD with several elements at once.</summary>
         /// <param name="log">The HyperLogLog command group.</param>
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         public static ValueTask<bool> AddAsync(this in RespHyperLogLog log, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None)
             => log.Context.SendAsync<bool>(
-                $"{RedisCommand.PFADD}{key}{values}", flags.WithDefaultCategory(RedisCommand.PFADD));
+                $"{RedisCommand.PFADD}{key}{values}", flags);
 
         /// <summary>PFCOUNT: the approximate cardinality.</summary>
         /// <param name="log">The HyperLogLog command group.</param>
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask MergeAsync(this in RespHyperLogLog log, RedisKey destination, ReadOnlySpan<RedisKey> sourceKeys, CommandFlags flags = CommandFlags.None)
             => log.Context.SendAsync(
-                $"{RedisCommand.PFMERGE}{destination}{sourceKeys}", flags.WithDefaultCategory(RedisCommand.PFMERGE));
+                $"{RedisCommand.PFMERGE}{destination}{sourceKeys}", flags);
 
         /// <summary>The flags a <c>PFCOUNT</c> should go out with, given what is known about the server.</summary>
         private static CommandFlags CountFlags(in RespContext context, in RedisKey key, CommandFlags flags)

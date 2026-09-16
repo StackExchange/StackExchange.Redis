@@ -76,7 +76,7 @@ public static partial class Streams
 
         return streams.Context.SendAsync(
             $"{command}{key}{first}{second}{RespLiterals.Count.When(count)}{count}",
-            flags.WithDefaultCategory(command),
+            flags,
             RangeReplyHandler);
     }
 
@@ -89,7 +89,7 @@ public static partial class Streams
     /// <param name="flags">Command flags.</param>
     public static ValueTask<long> LengthAsync(this in RespStreams streams, RedisKey key, CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<long>(
-            $"{RedisCommand.XLEN}{key}", flags.WithDefaultCategory(RedisCommand.XLEN));
+            $"{RedisCommand.XLEN}{key}", flags);
 
     /// <summary>XACK; how many of the listed entries were pending and are now acknowledged.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -99,7 +99,7 @@ public static partial class Streams
     /// <param name="flags">Command flags.</param>
     public static ValueTask<long> AcknowledgeAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<long>(
-            $"{RedisCommand.XACK}{key}{group}{messageId}", flags.WithDefaultCategory(RedisCommand.XACK));
+            $"{RedisCommand.XACK}{key}{group}{messageId}", flags);
 
     /// <inheritdoc cref="AcknowledgeAsync(in RespStreams, RedisKey, RedisValue, RedisValue, CommandFlags)"/>
     /// <param name="streams">The stream command group.</param>
@@ -115,7 +115,7 @@ public static partial class Streams
     {
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<long>(
-            $"{RedisCommand.XACK}{key}{group}{messageIds}", flags.WithDefaultCategory(RedisCommand.XACK));
+            $"{RedisCommand.XACK}{key}{group}{messageIds}", flags);
     }
 
     /// <summary>XDEL; how many of the listed entries existed and were removed.</summary>
@@ -127,7 +127,7 @@ public static partial class Streams
     {
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<long>(
-            $"{RedisCommand.XDEL}{key}{messageIds}", flags.WithDefaultCategory(RedisCommand.XDEL));
+            $"{RedisCommand.XDEL}{key}{messageIds}", flags);
     }
 
     /// <summary>
@@ -153,7 +153,7 @@ public static partial class Streams
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<ReadOnlyLease<StreamTrimResult>>(
             $"{RedisCommand.XDELEX}{key}{TrimModeToken(mode)}{RespLiterals.Ids}{messageIds.Length}{messageIds}",
-            flags.WithDefaultCategory(RedisCommand.XDELEX));
+            flags);
     }
 
     /// <inheritdoc cref="DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags)"/>
@@ -173,7 +173,7 @@ public static partial class Streams
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<StreamTrimResult[]>(
             $"{RedisCommand.XDELEX}{key}{TrimModeToken(mode)}{RespLiterals.Ids}{messageIds.Length}{messageIds}",
-            flags.WithDefaultCategory(RedisCommand.XDELEX));
+            flags);
     }
 
     /// <summary>XGROUP CREATE.</summary>
@@ -192,7 +192,7 @@ public static partial class Streams
         CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.Create}{key}{group}{ResolveGroupPosition(position)}{RespLiterals.MkStream.When(createStream)}",
-            flags.WithDefaultCategory(RedisCommand.XGROUP));
+            flags);
 
     /// <summary>XGROUP DESTROY.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -202,7 +202,7 @@ public static partial class Streams
     public static ValueTask<bool> DeleteConsumerGroupAsync(this in RespStreams streams, RedisKey key, RedisValue group, CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.Destroy}{key}{group}",
-            flags.WithDefaultCategory(RedisCommand.XGROUP));
+            flags);
 
     /// <summary>XGROUP DELCONSUMER; the number of pending entries the consumer still owned.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -213,7 +213,7 @@ public static partial class Streams
     public static ValueTask<long> DeleteConsumerAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue consumer, CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XGROUP}{RespLiterals.DeleteConsumer}{key}{group}{consumer}",
-            flags.WithDefaultCategory(RedisCommand.XGROUP));
+            flags);
 
     /// <summary>XGROUP SETID; move a group's read position.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -224,7 +224,7 @@ public static partial class Streams
     public static ValueTask<bool> SetConsumerGroupPositionAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue position, CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.SetId}{key}{group}{ResolveGroupPosition(position)}",
-            flags.WithDefaultCategory(RedisCommand.XGROUP));
+            flags);
 
     /// <summary>XTRIM MAXLEN; the number of entries removed.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -244,7 +244,7 @@ public static partial class Streams
         CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XTRIM}{key}{RespLiterals.MaxLen}{new TrimOperand(approximate, maxLength, limit, mode)}",
-            flags.WithDefaultCategory(RedisCommand.XTRIM));
+            flags);
 
     /// <summary>XTRIM MINID; the number of entries removed.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -264,7 +264,7 @@ public static partial class Streams
         CommandFlags flags = CommandFlags.None)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XTRIM}{key}{RespLiterals.MinId}{new TrimOperand(approximate, minId, limit, mode)}",
-            flags.WithDefaultCategory(RedisCommand.XTRIM));
+            flags);
 
     /// <summary>
     /// The tail of an <c>XTRIM</c>: <c>[~] threshold [LIMIT n] [mode]</c>.

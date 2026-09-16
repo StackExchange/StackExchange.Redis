@@ -1365,6 +1365,42 @@ Four consequences, none of them cosmetic:
       `DeferredWalk` remains useful as the floor: a consumer that only needs structure, not values, pays
       1,022us against 1,377us and allocates nothing.
 
+      ### The frame already knew its command - DONE 2026-09-16
+
+      Marc: *"is that cheaply from the original store, or by parsing? because if cheaply: presumably we
+      already had that, and could have done that from Send today?"* Cheaply - `RespFrame.Command` is a
+      stored property, written when the command hole is appended. So yes, we already had it, and `Send`
+      could have applied the retry category from the beginning.
+
+      **Verified safe before doing it**: 227 call sites name a command literally, and a scripted check for
+      "declares a category for a command it does not render" found **zero** real mismatches. (One flag was
+      a six-line lookback catching a neighbouring method: `CountFlags` declares `PFCOUNT` for the `PFCOUNT`
+      site, with `PFMERGE` above it.) The remaining ~33 pass a `command` variable, which matches by
+      construction.
+
+      **So `WithDefaultCategory(request.Command)` now happens in the four send entry points**, and **255
+      call-site calls are gone.** What this buys beyond deletion:
+
+      - **A new command cannot arrive without a category**, which was the real risk - and it retires the
+        analyzer idea, since you cannot forget a thing you no longer write.
+      - **Ordering becomes structural.** The cache reads flags to decide whether a reply may be served or
+        stored, so the category has to be settled before `PermitsCaching` sees it. At the call site that
+        was convention; in `SendAsync` it is the order of the statements.
+      - The 18 argument-dependent refinements are untouched and still win, because `WithRetryCategory` is
+        caller-wins.
+      - Ad-hoc `Execute` is unchanged: `frame.Command` is the parsed command for a recognised name and
+        `UNKNOWN` (-> `Never`) otherwise, which is exactly the compat Marc asked for.
+
+      **Four standalone assignments kept deliberately** - `CountFlags`, the BITFIELD selector, `SORT`, and
+      `ZRANGESTORE`. Each reads `flags` locally after setting the category (feature probes, routing
+      demotion), and the duplicate call in `Send` is a no-op because the category is already set. Changing
+      those wants individual review, not a regex.
+
+      **A test caught the version bump rather than this change**: `ExceptionFactoryTests.CanGetVersion`
+      pinned the major to `[2-3]`, so v4 failed it. Widened to any major - a version assertion that must be
+      edited every major release is asserting the wrong thing; what matters is that `GetLibVersion`
+      returns something version-shaped, since it appears in every connection exception message.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

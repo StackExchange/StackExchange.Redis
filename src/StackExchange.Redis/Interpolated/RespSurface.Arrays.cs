@@ -61,7 +61,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> SetAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, RedisValue value, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<bool>(
-                $"{RedisCommand.ARSET}{key}{index}{value}", flags.WithDefaultCategory(RedisCommand.ARSET));
+                $"{RedisCommand.ARSET}{key}{index}{value}", flags);
 
         /// <summary>ARSET of consecutive slots from <paramref name="index"/>; how many were written.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -73,7 +73,7 @@ namespace StackExchange.Redis.Interpolated
             => values.IsEmpty
                 ? default
                 : arrays.Context.SendAsync<long>(
-                    $"{RedisCommand.ARSET}{key}{index}{values}", flags.WithDefaultCategory(RedisCommand.ARSET));
+                    $"{RedisCommand.ARSET}{key}{index}{values}", flags);
 
         /// <summary>ARSET of scattered slots; how many were written.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -84,7 +84,7 @@ namespace StackExchange.Redis.Interpolated
             => entries.IsEmpty
                 ? default
                 : arrays.Context.SendAsync<long>(
-                    $"{RedisCommand.ARSET}{key}{entries}", flags.WithDefaultCategory(RedisCommand.ARSET));
+                    $"{RedisCommand.ARSET}{key}{entries}", flags);
 
         /// <summary>ARGET; the value at one slot.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -93,7 +93,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisValue> GetAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.ARGET}{key}{index}", flags.WithDefaultCategory(RedisCommand.ARGET));
+                $"{RedisCommand.ARGET}{key}{index}", flags);
 
         /// <summary>ARMGET; the values at scattered slots.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -104,7 +104,7 @@ namespace StackExchange.Redis.Interpolated
             => indices.IsEmpty
                 ? new(ReadOnlyLease<RedisValue>.Empty)
                 : arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(
-                    $"{RedisCommand.ARMGET}{key}{indices}", flags.WithDefaultCategory(RedisCommand.ARMGET));
+                    $"{RedisCommand.ARMGET}{key}{indices}", flags);
 
         /// <summary>ARGETRANGE; the values across a contiguous span of slots.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -114,7 +114,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<ReadOnlyLease<RedisValue>> GetRangeAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(
-                $"{RedisCommand.ARGETRANGE}{key}{start}{end}", flags.WithDefaultCategory(RedisCommand.ARGETRANGE));
+                $"{RedisCommand.ARGETRANGE}{key}{start}{end}", flags);
 
         /// <summary>ARLEN; the highest index in use, plus one.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -122,7 +122,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisArrayIndex> LengthAsync(this in RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayIndex>(
-                $"{RedisCommand.ARLEN}{key}", flags.WithDefaultCategory(RedisCommand.ARLEN));
+                $"{RedisCommand.ARLEN}{key}", flags);
 
         /// <summary>ARCOUNT; how many slots hold a value.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -130,7 +130,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisArrayIndex> CountAsync(this in RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayIndex>(
-                $"{RedisCommand.ARCOUNT}{key}", flags.WithDefaultCategory(RedisCommand.ARCOUNT));
+                $"{RedisCommand.ARCOUNT}{key}", flags);
 
         /// <summary>ARDEL; whether the slot held a value.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -139,7 +139,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> DeleteAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<bool>(
-                $"{RedisCommand.ARDEL}{key}{index}", flags.WithDefaultCategory(RedisCommand.ARDEL));
+                $"{RedisCommand.ARDEL}{key}{index}", flags);
 
         /// <summary>ARDEL of scattered slots; how many held a value.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -150,7 +150,7 @@ namespace StackExchange.Redis.Interpolated
             => indices.IsEmpty
                 ? default
                 : arrays.Context.SendAsync<long>(
-                    $"{RedisCommand.ARDEL}{key}{indices}", flags.WithDefaultCategory(RedisCommand.ARDEL));
+                    $"{RedisCommand.ARDEL}{key}{indices}", flags);
 
         /// <summary>ARDELRANGE; how many slots were cleared.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -160,7 +160,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisArrayIndex> DeleteRangeAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayIndex>(
-                $"{RedisCommand.ARDELRANGE}{key}{start}{end}", flags.WithDefaultCategory(RedisCommand.ARDELRANGE));
+                $"{RedisCommand.ARDELRANGE}{key}{start}{end}", flags);
 
         /// <summary>ARDELRANGE across several ranges; how many slots were cleared.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -171,7 +171,7 @@ namespace StackExchange.Redis.Interpolated
             => ranges.IsEmpty
                 ? default
                 : arrays.Context.SendAsync<RedisArrayIndex>(
-                    $"{RedisCommand.ARDELRANGE}{key}{ranges}", flags.WithDefaultCategory(RedisCommand.ARDELRANGE));
+                    $"{RedisCommand.ARDELRANGE}{key}{ranges}", flags);
 
         /// <summary>ARSCAN; the occupied slots in a range, as index/value pairs.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<RedisArrayEntry>> ScanAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<ReadOnlyLease<RedisArrayEntry>>(
                 $"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}",
-                flags.WithDefaultCategory(RedisCommand.ARSCAN));
+                flags);
 
         /// <summary>AROP; an aggregate over a range of slots.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -205,7 +205,7 @@ namespace StackExchange.Redis.Interpolated
             DemandOperandMatchesOperation(operation, operand);
             return arrays.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.AROP}{key}{start}{end}{OperationToken(operation)}{new OptionalValue(operand)}",
-                flags.WithDefaultCategory(RedisCommand.AROP));
+                flags);
         }
 
         /// <summary>ARRING; append to a ring buffer, evicting from the front past <paramref name="maxLength"/>.</summary>
@@ -216,7 +216,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisArrayIndex> RingAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex maxLength, RedisValue value, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayIndex>(
-                $"{RedisCommand.ARRING}{key}{maxLength}{value}", flags.WithDefaultCategory(RedisCommand.ARRING));
+                $"{RedisCommand.ARRING}{key}{maxLength}{value}", flags);
 
         /// <inheritdoc cref="RingAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisValue, CommandFlags)"/>
         /// <param name="arrays">The array command group.</param>
@@ -228,7 +228,7 @@ namespace StackExchange.Redis.Interpolated
             => values.IsEmpty
                 ? default
                 : arrays.Context.SendAsync<RedisArrayIndex>(
-                    $"{RedisCommand.ARRING}{key}{maxLength}{values}", flags.WithDefaultCategory(RedisCommand.ARRING));
+                    $"{RedisCommand.ARRING}{key}{maxLength}{values}", flags);
 
         /// <summary>ARNEXT; the next free slot, or <c>null</c> if the array is full.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -236,7 +236,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisArrayIndex?> NextAsync(this in RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayIndex?>(
-                $"{RedisCommand.ARNEXT}{key}", flags.WithDefaultCategory(RedisCommand.ARNEXT));
+                $"{RedisCommand.ARNEXT}{key}", flags);
 
         /// <summary>ARINSERT; store at the next free slot and report which.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -245,7 +245,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<RedisArrayIndex> InsertAsync(this in RespArrays arrays, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayIndex>(
-                $"{RedisCommand.ARINSERT}{key}{value}", flags.WithDefaultCategory(RedisCommand.ARINSERT));
+                $"{RedisCommand.ARINSERT}{key}{value}", flags);
 
         /// <inheritdoc cref="InsertAsync(in RespArrays, RedisKey, RedisValue, CommandFlags)"/>
         /// <param name="arrays">The array command group.</param>
@@ -256,7 +256,7 @@ namespace StackExchange.Redis.Interpolated
             => values.IsEmpty
                 ? default
                 : arrays.Context.SendAsync<RedisArrayIndex>(
-                    $"{RedisCommand.ARINSERT}{key}{values}", flags.WithDefaultCategory(RedisCommand.ARINSERT));
+                    $"{RedisCommand.ARINSERT}{key}{values}", flags);
 
         /// <summary>ARSEEK; move the insertion cursor.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -265,7 +265,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="flags">Command flags.</param>
         public static ValueTask<bool> SeekAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<bool>(
-                $"{RedisCommand.ARSEEK}{key}{index}", flags.WithDefaultCategory(RedisCommand.ARSEEK));
+                $"{RedisCommand.ARSEEK}{key}{index}", flags);
 
         /// <summary>ARLASTITEMS; the most recently occupied slots' values.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -276,7 +276,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ReadOnlyLease<RedisValue>> LastItemsAsync(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(
                 $"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}",
-                flags.WithDefaultCategory(RedisCommand.ARLASTITEMS));
+                flags);
 
         /// <summary>ARINFO; the array's shape.</summary>
         /// <param name="arrays">The array command group.</param>
@@ -286,7 +286,7 @@ namespace StackExchange.Redis.Interpolated
         public static ValueTask<ArrayInfo> InfoAsync(this in RespArrays arrays, RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<ArrayInfo>(
                 $"{RedisCommand.ARINFO}{key}{RespLiterals.Full.When(full)}",
-                flags.WithDefaultCategory(RedisCommand.ARINFO));
+                flags);
 
         /// <summary>A value that is written only when it is there.</summary>
         /// <remarks>
@@ -313,13 +313,13 @@ namespace StackExchange.Redis.Interpolated
             => indices.IsEmpty
                 ? new(Array.Empty<RedisValue>())
                 : arrays.Context.SendAsync<RedisValue[]>(
-                    $"{RedisCommand.ARMGET}{key}{indices}", flags.WithDefaultCategory(RedisCommand.ARMGET));
+                    $"{RedisCommand.ARMGET}{key}{indices}", flags);
 
         /// <inheritdoc cref="GetRangeAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, CommandFlags)"/>
         /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags)" path="/remarks"/></remarks>
         internal static ValueTask<RedisValue[]> GetRangeArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.ARGETRANGE}{key}{start}{end}", flags.WithDefaultCategory(RedisCommand.ARGETRANGE));
+                $"{RedisCommand.ARGETRANGE}{key}{start}{end}", flags);
 
         /// <inheritdoc cref="ScanAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags)"/>
         /// <remarks>
@@ -331,14 +331,14 @@ namespace StackExchange.Redis.Interpolated
         internal static ValueTask<RedisArrayEntry[]> ScanArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisArrayEntry[]>(
                 $"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}",
-                flags.WithDefaultCategory(RedisCommand.ARSCAN));
+                flags);
 
         /// <inheritdoc cref="LastItemsAsync(in RespArrays, RedisKey, int, bool, CommandFlags)"/>
         /// <remarks><inheritdoc cref="ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags)" path="/remarks"/></remarks>
         internal static ValueTask<RedisValue[]> LastItemsArray(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
             => arrays.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}",
-                flags.WithDefaultCategory(RedisCommand.ARLASTITEMS));
+                flags);
 
         /// <summary>The token for an <c>AROP</c> aggregate.</summary>
         private static RespFragment OperationToken(ArrayOperation operation) => operation switch
