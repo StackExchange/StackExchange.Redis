@@ -954,6 +954,31 @@ Four consequences, none of them cosmetic:
       would flake under parallel runs. The evaluation-order test is what stays, because that is the fact
       that makes the drop unavoidable.
 
+      **Does the correction change the rule? No - but the reason matters.** *"so does that change our
+      policy on the single-use CountOperand? or not?"* (Marc). It does not, and not because the fault path
+      is rare:
+
+      - **The drop belongs to the interpolated form, not to the operand.** `CountOperand` neither causes
+        it nor could prevent it - any hole in the same string faulting loses the buffer just the same. So
+        safety cannot discriminate between "operand plus interpolated" and "no operand plus interpolated";
+        it only discriminates between *interpolated* and *Compose*, which is a per-command choice made
+        before the question of operands arises.
+      - **And the drop is accepted**, so safety is not a tiebreaker at all. That leaves ergonomics, where
+        one expression beats twelve lines for one or two optional tokens. Unchanged: `CountOperand` stays
+        in Streams, single caller and all.
+
+      **One refinement, from checking rather than assuming.** It is tempting to say the interpolated form
+      only ever drops something small. It does not: the handler grows by renting a bigger array and
+      returning the old one, so exactly **one** buffer is dropped - but it is whatever the command had
+      grown to by the point of failure, which for a large variadic command is not 256 bytes. That does not
+      change the rule, but it does mean the existing use of `Compose` on the big variadic commands
+      (`GEOADD`, `BITFIELD`, `SORT`) is worth keeping deliberately rather than by habit: those are exactly
+      the commands where a dropped buffer would cost something. So the fuller rule:
+
+      > Operand struct for one or two optional tokens on a command of bounded size; `Compose`/`Append`
+      > when a command has several independent optional groups **or** when its buffer grows with the
+      > caller's input.
+
       **The finding worth acting on eventually is not the count, it is a divergence.** There are three
       mechanisms in play for "an optional token and a number": `CountOperand` (absent when `null`),
       `LimitOperand` (absent when `<= 0`), and hand-rolled `AppendFormatted(RespLiterals.Count)` inside
