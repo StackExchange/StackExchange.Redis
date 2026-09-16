@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -306,6 +307,32 @@ public class RespRangeReplyTests
         Assert.Equal(2, fields.Length);
         Assert.Equal("f", fields[0].Name);
         Assert.Equal("w", fields[1].Value);
+    }
+
+    /// <summary>
+    /// The rule for what gets captured and what gets read: <b>a window is bigger than a fixed-size
+    /// number</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A <see cref="RespValue"/> is a reference plus two offsets plus a flag - measurably larger than the
+    /// <see cref="long"/>, <see cref="int"/> or <see cref="TimeSpan"/> it would be describing. So deferring
+    /// a fixed-size scalar would <i>grow</i> the struct in order to avoid parsing four bytes, which is the
+    /// wrong way round. Deferring a string-like value is the opposite trade: the window replaces a copy
+    /// and an allocation.
+    /// </para>
+    /// <para>
+    /// That is why <see cref="Streams.RespStreamEntry"/> reads its idle time and delivery count outright
+    /// and captures its id and fields - not a taste call, a size one, and this is the arithmetic that
+    /// decides it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AWindowCostsMoreThanTheNumbersItWouldDescribe()
+    {
+        Assert.True(Unsafe.SizeOf<RespValue>() > sizeof(long));
+        Assert.True(Unsafe.SizeOf<RespValue>() > sizeof(int));
+        Assert.True(Unsafe.SizeOf<RespValue>() > Unsafe.SizeOf<TimeSpan?>());
     }
 
     /// <summary>Every route into the reply dies with it - the whole of the lifetime contract.</summary>

@@ -254,6 +254,11 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.Context.get -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.RespVectorSets() -> void
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.RespVectorSets(in StackExchange.Redis.Interpolated.RespContext context) -> void
+[SER010]StackExchange.Redis.RespNameValueEntry
+[SER010]StackExchange.Redis.RespNameValueEntry.Name.get -> RESPite.Messages.RespValue
+[SER010]StackExchange.Redis.RespNameValueEntry.RespNameValueEntry() -> void
+[SER010]StackExchange.Redis.RespNameValueEntry.ToNameValueEntry() -> StackExchange.Redis.NameValueEntry
+[SER010]StackExchange.Redis.RespNameValueEntry.Value.get -> RESPite.Messages.RespValue
 [SER010]StackExchange.Redis.RespReply
 [SER010]StackExchange.Redis.RespReply.Dispose() -> void
 [SER010]StackExchange.Redis.RespReply.GetReader() -> RESPite.Messages.RespReader
@@ -261,11 +266,6 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.RespReply.Payload.get -> StackExchange.Redis.Interpolated.RespPayload!
 [SER010]StackExchange.Redis.RespReply.RespReply(StackExchange.Redis.Interpolated.RespPayload! payload) -> void
 [SER010]StackExchange.Redis.Streams
-[SER010]StackExchange.Redis.Streams.RespNameValueEntry
-[SER010]StackExchange.Redis.Streams.RespNameValueEntry.Name.get -> RESPite.Messages.RespValue
-[SER010]StackExchange.Redis.Streams.RespNameValueEntry.RespNameValueEntry() -> void
-[SER010]StackExchange.Redis.Streams.RespNameValueEntry.ToNameValueEntry() -> StackExchange.Redis.NameValueEntry
-[SER010]StackExchange.Redis.Streams.RespNameValueEntry.Value.get -> RESPite.Messages.RespValue
 [SER010]StackExchange.Redis.Streams.RespRangeReply
 [SER010]StackExchange.Redis.Streams.RespRangeReply.Count.get -> int
 [SER010]StackExchange.Redis.Streams.RespRangeReply.Entries.get -> RESPite.Messages.RespAggregate<StackExchange.Redis.Streams.RespStreamEntry>
@@ -273,7 +273,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Streams.RespRangeReply.ToArray() -> StackExchange.Redis.StreamEntry[]!
 [SER010]StackExchange.Redis.Streams.RespStreamEntry
 [SER010]StackExchange.Redis.Streams.RespStreamEntry.DeliveryCount.get -> int
-[SER010]StackExchange.Redis.Streams.RespStreamEntry.Fields.get -> RESPite.Messages.RespPairAggregate<StackExchange.Redis.Streams.RespNameValueEntry>
+[SER010]StackExchange.Redis.Streams.RespStreamEntry.Fields.get -> RESPite.Messages.RespPairAggregate<StackExchange.Redis.RespNameValueEntry>
 [SER010]StackExchange.Redis.Streams.RespStreamEntry.Id.get -> RESPite.Messages.RespValue
 [SER010]StackExchange.Redis.Streams.RespStreamEntry.IdleTime.get -> System.TimeSpan?
 [SER010]StackExchange.Redis.Streams.RespStreamEntry.RespStreamEntry() -> void
@@ -282,7 +282,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.Equals(object? obj) -> bool
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.GetHashCode() -> int
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.ToString() -> string!
-[SER010]override StackExchange.Redis.Streams.RespNameValueEntry.ToString() -> string!
+[SER010]override StackExchange.Redis.RespNameValueEntry.ToString() -> string!
 [SER010]override StackExchange.Redis.Streams.RespRangeReply.ToString() -> string!
 [SER010]override StackExchange.Redis.Streams.RespStreamEntry.ToString() -> string!
 [SER010]static StackExchange.Redis.Interpolated.CacheOptions.Default.get -> StackExchange.Redis.Interpolated.CacheOptions!

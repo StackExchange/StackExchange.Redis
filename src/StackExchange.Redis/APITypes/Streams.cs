@@ -187,56 +187,9 @@ public static class Streams
         public StreamEntry ToStreamEntry()
             => _id.IsNull && _fields.Count == 0
                 ? StreamEntry.Null
-                : new StreamEntry(_id.AsRedisValue(), _fields.ToArray().ToNameValueEntries(), _idleTime, _deliveryCount);
+                : new StreamEntry(_id.AsRedisValue(), RespNameValueEntry.ToNameValueEntries(_fields.ToArray()), _idleTime, _deliveryCount);
 
         /// <inheritdoc/>
         public override string ToString() => $"{_id} ({_fields.Count} field{(_fields.Count == 1 ? "" : "s")})";
-    }
-
-    /// <summary>One name/value field of a stream entry, as a pair of windows.</summary>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public readonly struct RespNameValueEntry
-    {
-        /// <summary>Captures both halves of a field; handed readers positioned before each.</summary>
-        internal static readonly RespReader.PairProjection<object?, RespNameValueEntry> Projection =
-            static (ref object? owner, ref RespReader first, ref RespReader second) =>
-            {
-                RespValue.TryCaptureNext(owner, ref first, out var name);
-                RespValue.TryCaptureNext(owner, ref second, out var value);
-                return new RespNameValueEntry(name, value);
-            };
-
-        private readonly RespValue _name;
-        private readonly RespValue _value;
-
-        private RespNameValueEntry(RespValue name, RespValue value)
-        {
-            _name = name;
-            _value = value;
-        }
-
-        /// <summary>The field's name.</summary>
-        public RespValue Name => _name;
-
-        /// <summary>The field's value.</summary>
-        public RespValue Value => _value;
-
-        /// <summary>Materialise this field, so it outlives the reply it came from.</summary>
-        public NameValueEntry ToNameValueEntry() => new(_name.AsRedisValue(), _value.AsRedisValue());
-
-        /// <inheritdoc/>
-        public override string ToString() => $"{_name}: {_value}";
-    }
-
-    private static NameValueEntry[] ToNameValueEntries(this RespNameValueEntry[] fields)
-    {
-        if (fields.Length == 0) return [];
-
-        var result = new NameValueEntry[fields.Length];
-        for (var i = 0; i < fields.Length; i++)
-        {
-            result[i] = fields[i].ToNameValueEntry();
-        }
-        return result;
     }
 }

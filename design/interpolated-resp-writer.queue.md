@@ -787,6 +787,52 @@ Four consequences, none of them cosmetic:
       original argument did: permitting jagged cannot turn a working parse into a differently-valued one,
       because the alternative was never a different value - it was an exception.
 
+      ### Capture or read? A window is bigger than a number - DECIDED 2026-09-16
+
+      Marc, on `RespStreamEntry`: *"it looks like we parse out the 'free' bits - longs, timespans etc, and
+      defer on the aggregate; I think that's fine. I assume for string-like types we'd defer to
+      RespValue."* Yes, and the rule is arithmetic rather than taste:
+
+      **Capture a window when the alternative is copying bytes or allocating. Read outright when the value
+      is fixed-size and smaller than the window that would describe it.** Measured:
+      `RespValue` **24** bytes, `RespAggregate<T>` **32**, `RespPairAggregate<T>` **32** - against
+      `long` 8, `int` 4, `TimeSpan?` 16. So deferring a fixed-size number *grows* the struct to avoid
+      parsing four bytes; deferring a string-like value replaces a copy and an allocation. Pinned by
+      `RespRangeReplyTests.AWindowCostsMoreThanTheNumbersItWouldDescribe`.
+
+      **Store the window vs re-derive it on access:** both work now that a projection is handed a
+      positioned-before reader. Storing costs struct size (`RespStreamEntry` is **80** bytes, against
+      `StreamEntry`'s 48) and pays the capture once; re-deriving keeps the struct at one window (~24) and
+      pays a header parse per access. **Measured, neither is material at these sizes** - walking ids only
+      and walking everything came out the same within noise on 1000 entries x 10 fields - so this is a
+      clarity call, not a performance one. Store when the member is usually wanted; re-derive only if a
+      shape acquires enough optional members to bloat the struct.
+
+      **A worry that measured as nothing.** Capturing `Fields` runs `IsAllJaggedPairs`, which is O(children)
+      - so eager capture looked like it made the walk O(total fields) whether or not fields were read.
+      It does not: the test short-circuits on the first child that is not a 2-element aggregate, and a
+      real field list starts with a bulk string. Forcing `allowJagged: false` measured 1,274us against
+      1,289us - noise. The scan is only O(n) when the answer is "jagged", which is when you wanted it.
+
+      For scale while the numbers are here: 1000 entries x 10 fields, deferred full walk **~1.2ms**
+      against `ToArray()` **~2.1ms**, and the deferred walk allocates nothing beyond the reply.
+
+      ### `RespNameValueEntry` is not a stream type - MOVED 2026-09-16
+
+      Marc: *"probably common enough to move out of Streams."* Agreed, and it is now top-level
+      `StackExchange.Redis.RespNameValueEntry`.
+
+      A name/value run is what `HGETALL`, `CONFIG GET`, `XINFO`, a stream entry's fields and several
+      `CLIENT` replies all are. **The nesting convention exists to keep group-*specific* entities out of a
+      shared namespace**, and something every group can use is not one of those - so nesting it under
+      `Streams` would have meant hashes reaching for `Streams.RespNameValueEntry`, which reads as a
+      mistake. It also matches where the materialised counterpart already lives: `NameValueEntry` is
+      top-level too.
+
+      The rule that falls out, for the shapes still to move: **nest what a group owns, hoist what the wire
+      shares.** A `ToHashEntry()` twin belongs on this type when the hash commands move - same pair on the
+      wire, only the materialised type differs.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it
