@@ -99,6 +99,42 @@ public class RespKeyTests
         Assert.Equal(-1, asValue.Slot);
     }
 
+    /// <summary>
+    /// A <b>dynamic</b> argument list takes borrowed keys too, via the composed builder.
+    /// </summary>
+    /// <remarks>
+    /// I had claimed a run-time-sized argument list forced the array form - where a ref struct cannot go,
+    /// since it cannot live in a <see cref="ReadOnlyMemory{T}"/> - and therefore that spans could not help
+    /// a caller building N arguments. Wrong: <c>Compose</c>/<c>Append</c> builds in place, and every
+    /// <c>Append</c> is an interpolated hole that consumes immediately, so a borrowed key is as welcome
+    /// there as anywhere. The real line is <i>build in place</i> versus <i>hand over a collection</i>, and
+    /// only the latter excludes spans.
+    /// </remarks>
+    [Fact]
+    public void ADynamicArgumentListTakesBorrowedKeys()
+    {
+        var ctx = new RespContext();
+        string[] keys = ["a", "bb", "ccc"];
+
+        var cmd = ctx.Compose(RedisCommand.DEL, argHint: 1 + keys.Length);
+        try
+        {
+            foreach (var key in keys)
+            {
+                cmd.Append($"{new RespKey(key.AsSpan())}");
+            }
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        using var frame = cmd.Complete();
+        Assert.Equal("*4|$3|DEL|$1|a|$2|bb|$3|ccc|", Text(frame));
+        Assert.Equal(4, frame.ArgCount);
+    }
+
     /// <summary>The argument count is unaffected: one key is one argument, however it was sourced.</summary>
     [Fact]
     public void OneKeyIsOneArgument()

@@ -1688,11 +1688,24 @@ Four consequences, none of them cosmetic:
       last one needing `new RespContext(serverType: ServerType.Cluster)`, since slot folding is skipped
       off-cluster and the assertion would otherwise pass at `-1` without testing anything.
 
-      **Still open, and worth asking rather than inferring:** whether Monty's shape is *dynamic* (build N
-      args at runtime, which needs the array form - a ref struct cannot live in `ReadOnlyMemory<T>`, so
-      spans structurally cannot help there) or *fixed* (a known command with a few holes, where the
-      interpolated form takes spans completely, reachable today via `"FT.SEARCH".Command()`). That decides
-      whether this closes their case or an adjacent one.
+      **CORRECTION - the dynamic case is covered too** (Marc: *"dynamic works via the composed
+      builder"*). I had drawn the line at dynamic-versus-fixed, reasoning that a run-time-sized argument
+      list forced the array form, where a ref struct cannot go. Wrong: `Compose`/`Append` builds **in
+      place**, and every `Append` is an interpolated hole that consumes immediately, so a borrowed key is
+      as welcome there as in a fixed interpolation. Pinned by
+      `RespKeyTests.ADynamicArgumentListTakesBorrowedKeys`.
+
+      **The real line is *build in place* versus *hand over a collection*:**
+
+      | shape | spans? | |
+      |---|---|---|
+      | fixed interpolation | yes | `$"{cmd}{new RespKey(k)}"` |
+      | dynamic, built in place | **yes** | `Compose` + `Append` in a loop |
+      | a pre-built argument collection | no | `ReadOnlyMemory<RedisKeyOrValue>` has to store them |
+
+      So `RespKey` serves everything except handing over an argument list you already built - which is the
+      one case that genuinely needs the storage it is paying for. That closes #2844's intent rather than
+      an adjacent one.
 
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
