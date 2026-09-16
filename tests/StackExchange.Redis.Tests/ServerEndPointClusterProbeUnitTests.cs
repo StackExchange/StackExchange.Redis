@@ -34,7 +34,44 @@ public class ServerEndPointClusterProbeUnitTests
         await connection.GetDatabase().PingAsync();
 
         Assert.DoesNotContain(server.Recorded("GET"), args => args.Contains(tieBreakerKey, StringComparer.Ordinal));
-        Assert.DoesNotContain(server.Recorded("SET"), args => args.Contains("replica_read_only", StringComparer.OrdinalIgnoreCase));
+
+        // the wire spelling, not the C# identifier: RedisLiterals.replica_read_only carries
+        // "replica-read-only", so matching on the underscored name never matched anything and this
+        // assertion passed whatever the client sent
+        Assert.DoesNotContain(server.Recorded("SET"), args => args.Contains(ReplicaReadOnly, StringComparer.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The value <see cref="RedisLiterals"/> actually puts on the wire for the role probe.</summary>
+    private const string ReplicaReadOnly = "replica-read-only";
+
+    [Fact]
+    public async Task FirstHandshakeProbesBeforeClusterModeIsKnown()
+    {
+        // Pins the residue of #2970 rather than endorsing it. The guards added for that issue read the
+        // per-endpoint ServerType, which is seeded Standalone and only becomes Cluster once the CLUSTER NODES
+        // reply has been processed - and these probes are composed into the same pipeline batch that carries
+        // that command, so they are already on the wire by then. The result is exactly one unslotted round
+        // per new ServerEndPoint; every autoconfigure after it is clean, which is what
+        // AutoConfigureSkipsKeyProbesWhenClusterTopologyKnown covers.
+        //
+        // If handshake ordering is ever changed so the topology lands first, this test should begin failing.
+        // Invert it rather than deleting it: the point is that the behaviour is a deliberate, known state.
+        const string tieBreakerKey = "cluster-tie-breaker";
+        using var server = new RecordingServer { ServerType = ServerType.Cluster };
+        var config = server.GetClientConfig(defaultOnly: true);
+        var commands = server.GetCommands();
+        commands.Remove(nameof(RedisCommand.INFO));   // so the SET role probe is the fallback
+        commands.Remove(nameof(RedisCommand.CONFIG)); // ...and CONFIG GET does not answer first
+        commands.Remove(nameof(RedisCommand.HELLO));  // ...and the role is not known from HELLO
+        config.CommandMap = CommandMap.Create(commands);
+        config.Protocol = RedisProtocol.Resp2;
+        config.TieBreaker = tieBreakerKey;
+
+        // deliberately not cleared: this is about what the *first* handshake puts on the wire
+        await using var connection = await ConnectionMultiplexer.ConnectAsync(config);
+
+        Assert.Contains(server.Recorded("SET"), args => args.Contains(ReplicaReadOnly, StringComparer.OrdinalIgnoreCase));
+        Assert.Contains(server.Recorded("GET"), args => args.Contains(tieBreakerKey, StringComparer.Ordinal));
     }
 
     [Fact]
