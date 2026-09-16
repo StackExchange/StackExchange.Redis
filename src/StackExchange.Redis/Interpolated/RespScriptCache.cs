@@ -97,7 +97,7 @@ namespace StackExchange.Redis.Interpolated
             var frame = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
             try
             {
-                return new Entry(script, RespSurface.Sha1Hex(script), frame.Span.ToArray(), frame.ArgCount);
+                return new Entry(script, Scripts.Sha1Hex(script), frame.Span.ToArray(), frame.ArgCount);
             }
             finally
             {

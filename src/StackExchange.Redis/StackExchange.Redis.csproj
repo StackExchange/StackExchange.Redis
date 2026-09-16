@@ -73,7 +73,19 @@
 
     <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
+    <Compile Update="Groups\Arrays.*.cs" DependentUpon="Arrays.cs" />
+    <Compile Update="Groups\Bitmaps.*.cs" DependentUpon="Bitmaps.cs" />
+    <Compile Update="Groups\Geospatial.*.cs" DependentUpon="Geospatial.cs" />
+    <Compile Update="Groups\Hashes.*.cs" DependentUpon="Hashes.cs" />
+    <Compile Update="Groups\HyperLogLog.*.cs" DependentUpon="HyperLogLog.cs" />
+    <Compile Update="Groups\Keys.*.cs" DependentUpon="Keys.cs" />
+    <Compile Update="Groups\Lists.*.cs" DependentUpon="Lists.cs" />
+    <Compile Update="Groups\Scripts.*.cs" DependentUpon="Scripts.cs" />
+    <Compile Update="Groups\Sets.*.cs" DependentUpon="Sets.cs" />
+    <Compile Update="Groups\SortedSets.*.cs" DependentUpon="SortedSets.cs" />
     <Compile Update="Groups\Streams.*.cs" DependentUpon="Streams.cs" />
+    <Compile Update="Groups\Strings.*.cs" DependentUpon="Strings.cs" />
+    <Compile Update="Groups\VectorSets.*.cs" DependentUpon="VectorSets.cs" />
     <Compile Update="Interpolated\RespSurface.*.cs" DependentUpon="RespSurface.cs" />
     <Compile Update="Interpolated\TransitionalDatabase.*.cs" DependentUpon="TransitionalDatabase.cs" />
   </ItemGroup>

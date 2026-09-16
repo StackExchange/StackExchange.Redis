@@ -2188,6 +2188,9 @@ Four consequences, none of them cosmetic:
 
 ## Done
 
+- [x] Cancellation on every command group method, threaded to the send — `57600d51`
+- [x] Three-file layout per group (`Groups/X.cs` / `X.Methods.cs` / `X.Types.cs`), accessors
+      contributed to `RespDatabaseExtensions`; `SORT` as `Keys.Sort.cs` — `3461fa60`
 - [x] Single-flight / request coalescing — `934e8d2d`
 - [x] `CachePolicy` + finite entry lifetime, per-context `WithMaxCacheAge` — `9cf7da77`
 - [x] Invalidation delivery proven against a real server (`TrackingExecutor`) — `4f02b657`

@@ -62,7 +62,7 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, RangeReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Streams.RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)"/>
     /// <remarks>
     /// <para>
     /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> promises <see cref="StreamEntry"/><c>[]</c> and
@@ -193,7 +193,7 @@ public static partial class Streams
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XACK}{key}{group}{messageId}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="AcknowledgeAsync(in RespStreams, RedisKey, RedisValue, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Streams.AcknowledgeAsync(in RespStreams, RedisKey, RedisValue, RedisValue, CommandFlags, CancellationToken)"/>
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream.</param>
     /// <param name="group">The consumer group.</param>
@@ -250,7 +250,7 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<ReadOnlyLease<StreamTrimResult>>.Require(), cancellationToken);
     }
 
-    /// <inheritdoc cref="DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Streams.DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)"/>
     /// <remarks>
     /// <b>Permanent, not scaffolding.</b> <c>IDatabase.StreamDelete</c> promises an array and is not
     /// going anywhere, so this is how that signature is served from the new core. Internal because the

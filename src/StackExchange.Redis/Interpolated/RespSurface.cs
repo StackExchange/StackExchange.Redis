@@ -1107,5 +1107,22 @@ namespace StackExchange.Redis.Interpolated
     [SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Extension members on distinct group types; see the comment above")]
     public static partial class RespSurface
     {
+        /// <summary>The <c>NX</c>/<c>XX</c>/<c>GT</c>/<c>LT</c> token for an expiry condition.</summary>
+        /// <param name="when">The condition to render.</param>
+        /// <remarks>
+        /// <b>Shared, because two groups need it.</b> <c>EXPIRE</c> and <c>HEXPIRE</c> take the same four
+        /// tokens, so <see cref="Keys"/> and <see cref="Hashes"/> both render them - and a per-group copy
+        /// is exactly the duplication the group split is otherwise removing. It stays here rather than in
+        /// either group because neither owns it.
+        /// </remarks>
+        internal static RespFragment AsFragment(ExpireWhen when) => when switch
+        {
+            ExpireWhen.Always => default, // a zero-argument fragment: written, contributes nothing
+            ExpireWhen.HasExpiry => RespLiterals.Xx,
+            ExpireWhen.HasNoExpiry => RespLiterals.Nx,
+            ExpireWhen.GreaterThanCurrentExpiry => RespLiterals.Gt,
+            ExpireWhen.LessThanCurrentExpiry => RespLiterals.Lt,
+            _ => throw new ArgumentOutOfRangeException(nameof(when)),
+        };
     }
 }
