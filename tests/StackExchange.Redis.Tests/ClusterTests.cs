@@ -752,6 +752,33 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
+    public async Task InventKeyRoutesBackToTheServerThatInventedIt()
+    {
+        await using var conn = Create(allowAdmin: true);
+        var muxer = (ConnectionMultiplexer)conn;
+
+        int checkedServers = 0;
+        foreach (var endpoint in conn.GetEndPoints())
+        {
+            var server = conn.GetServer(endpoint);
+            var key = server.InventKey();
+            Assert.False(key.IsNull, $"{endpoint}: no key invented");
+
+            // a replica serves no slots of its own, so the key it invents must target its primary's
+            var expected = server.IsReplica ? muxer.GetServerEndPoint(endpoint, ServerProvenance.Configured).Primary?.EndPoint : endpoint;
+            Assert.NotNull(expected);
+
+            var slot = conn.GetHashSlot(key);
+            var owner = muxer.ServerSelectionStrategy.Select(slot, RedisCommand.GET, CommandFlags.DemandMaster, allowDisconnected: false);
+            Log($"{endpoint} (replica: {server.IsReplica}): key '{key}' -> slot {slot} -> {owner?.EndPoint}");
+            Assert.Equal(expected, owner?.EndPoint);
+            checkedServers++;
+        }
+
+        Assert.True(checkedServers > 1, "expected a multi-node cluster");
+    }
+
+    [Fact]
     public async Task MultiKeyQueryFails()
     {
         var keys = InventKeys(); // note the rules expected of this data are enforced in GroupedQueriesWork
