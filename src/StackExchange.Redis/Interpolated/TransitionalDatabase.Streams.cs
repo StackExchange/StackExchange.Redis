@@ -14,6 +14,28 @@ namespace StackExchange.Redis.Interpolated
     internal sealed partial class TransitionalDatabase
     {
         /// <inheritdoc/>
+        /// <remarks>
+        /// <b>This is the escape hatch being exercised, not a sidecar.</b> <see cref="IDatabase"/> promises
+        /// <see cref="StreamEntry"/><c>[]</c> and is not going anywhere, so the old shape is served by
+        /// materialising the new one - which means <c>ToArray()</c> is covered by the whole existing stream
+        /// suite rather than by whoever remembers to call it. The <c>using</c> is the cost of the
+        /// transition: the reply owns a pooled buffer, and the array has to be taken before it goes back.
+        /// </remarks>
+        public StreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            using var reply = Wait(Context.Streams.RangeAsync(key, minId, maxId, count, messageOrder, flags));
+            return reply.ToArray();
+        }
+
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
+        public async Task<StreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            using var reply = await Context.Streams.RangeAsync(key, minId, maxId, count, messageOrder, flags).ConfigureAwait(false);
+            return reply.ToArray();
+        }
+
+        /// <inheritdoc/>
         public long StreamLength(RedisKey key, CommandFlags flags = CommandFlags.None)
             => Wait(Context.Streams.LengthAsync(key, flags));
 

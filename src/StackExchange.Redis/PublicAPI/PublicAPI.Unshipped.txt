@@ -179,6 +179,8 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Release() -> void
 [SER010]StackExchange.Redis.Interpolated.RespPayload.Span.get -> System.ReadOnlySpan<byte>
 [SER010]StackExchange.Redis.Interpolated.RespPayload.TryRetain() -> bool
+[SER010]StackExchange.Redis.Interpolated.RespReplyHandler<TReply>
+[SER010]StackExchange.Redis.Interpolated.RespReplyHandler<TReply>.RespReplyHandler(System.Func<StackExchange.Redis.Interpolated.RespPayload!, TReply!>! factory) -> void
 [SER010]StackExchange.Redis.Interpolated.RespRequest
 [SER010]StackExchange.Redis.Interpolated.RespRequest.ArgCount.get -> int
 [SER010]StackExchange.Redis.Interpolated.RespRequest.Dispose() -> void
@@ -252,10 +254,37 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.Context.get -> StackExchange.Redis.Interpolated.RespContext
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.RespVectorSets() -> void
 [SER010]StackExchange.Redis.Interpolated.RespVectorSets.RespVectorSets(in StackExchange.Redis.Interpolated.RespContext context) -> void
+[SER010]StackExchange.Redis.RespReply
+[SER010]StackExchange.Redis.RespReply.Dispose() -> void
+[SER010]StackExchange.Redis.RespReply.GetReader() -> RESPite.Messages.RespReader
+[SER010]StackExchange.Redis.RespReply.IsDisposed.get -> bool
+[SER010]StackExchange.Redis.RespReply.Payload.get -> StackExchange.Redis.Interpolated.RespPayload!
+[SER010]StackExchange.Redis.RespReply.RespReply(StackExchange.Redis.Interpolated.RespPayload! payload) -> void
+[SER010]StackExchange.Redis.Streams
+[SER010]StackExchange.Redis.Streams.RespNameValueEntry
+[SER010]StackExchange.Redis.Streams.RespNameValueEntry.Name.get -> RESPite.Messages.RespValue
+[SER010]StackExchange.Redis.Streams.RespNameValueEntry.RespNameValueEntry() -> void
+[SER010]StackExchange.Redis.Streams.RespNameValueEntry.ToNameValueEntry() -> StackExchange.Redis.NameValueEntry
+[SER010]StackExchange.Redis.Streams.RespNameValueEntry.Value.get -> RESPite.Messages.RespValue
+[SER010]StackExchange.Redis.Streams.RespRangeReply
+[SER010]StackExchange.Redis.Streams.RespRangeReply.Count.get -> int
+[SER010]StackExchange.Redis.Streams.RespRangeReply.Entries.get -> RESPite.Messages.RespAggregate<StackExchange.Redis.Streams.RespStreamEntry>
+[SER010]StackExchange.Redis.Streams.RespRangeReply.RespRangeReply(StackExchange.Redis.Interpolated.RespPayload! payload) -> void
+[SER010]StackExchange.Redis.Streams.RespRangeReply.ToArray() -> StackExchange.Redis.StreamEntry[]!
+[SER010]StackExchange.Redis.Streams.RespStreamEntry
+[SER010]StackExchange.Redis.Streams.RespStreamEntry.DeliveryCount.get -> int
+[SER010]StackExchange.Redis.Streams.RespStreamEntry.Fields.get -> RESPite.Messages.RespPairAggregate<StackExchange.Redis.Streams.RespNameValueEntry>
+[SER010]StackExchange.Redis.Streams.RespStreamEntry.Id.get -> RESPite.Messages.RespValue
+[SER010]StackExchange.Redis.Streams.RespStreamEntry.IdleTime.get -> System.TimeSpan?
+[SER010]StackExchange.Redis.Streams.RespStreamEntry.RespStreamEntry() -> void
+[SER010]StackExchange.Redis.Streams.RespStreamEntry.ToStreamEntry() -> StackExchange.Redis.StreamEntry
 [SER010]override StackExchange.Redis.Interpolated.RespCommand.ToString() -> string!
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.Equals(object? obj) -> bool
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.GetHashCode() -> int
 [SER010]override StackExchange.Redis.Interpolated.RespRequest.ToString() -> string!
+[SER010]override StackExchange.Redis.Streams.RespNameValueEntry.ToString() -> string!
+[SER010]override StackExchange.Redis.Streams.RespRangeReply.ToString() -> string!
+[SER010]override StackExchange.Redis.Streams.RespStreamEntry.ToString() -> string!
 [SER010]static StackExchange.Redis.Interpolated.CacheOptions.Default.get -> StackExchange.Redis.Interpolated.CacheOptions!
 [SER010]static StackExchange.Redis.Interpolated.CachePolicy.Default.get -> StackExchange.Redis.Interpolated.CachePolicy!
 [SER010]static StackExchange.Redis.Interpolated.Downlevel.RespGroups.Arrays(this StackExchange.Redis.Interpolated.IRespKeyspaceTarget! target) -> StackExchange.Redis.Interpolated.RespArrays
@@ -434,6 +463,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.RandomMembersAsync(this in StackExchange.Redis.Interpolated.RespVectorSets sets, StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<RESPite.Messages.RespValue>!>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.RandomMembersWithScoresAsync(this in StackExchange.Redis.Interpolated.RespSortedSets sortedSets, StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<StackExchange.Redis.SortedSetEntry>!>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.RangeAsync(this in StackExchange.Redis.Interpolated.RespLists lists, StackExchange.Redis.RedisKey key, long start = 0, long stop = -1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<RESPite.Messages.RespValue>!>
+[SER010]static StackExchange.Redis.Interpolated.RespSurface.RangeAsync(this in StackExchange.Redis.Interpolated.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue? minId = null, StackExchange.Redis.RedisValue? maxId = null, int? count = null, StackExchange.Redis.Order messageOrder = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Streams.RespRangeReply!>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.RangeAsync(this in StackExchange.Redis.Interpolated.RespVectorSets sets, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = -1, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<RESPite.Messages.RespValue>!>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.RangeAndStoreAsync(this in StackExchange.Redis.Interpolated.RespSortedSets sortedSets, StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.RedisValue start, StackExchange.Redis.RedisValue stop, StackExchange.Redis.SortedSetOrder sortedSetOrder = StackExchange.Redis.SortedSetOrder.ByRank, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, long skip = 0, long? take = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<long>
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.RangeByRankAsync(this in StackExchange.Redis.Interpolated.RespSortedSets sortedSets, StackExchange.Redis.RedisKey key, long start = 0, long stop = -1, StackExchange.Redis.Order order = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<RESPite.Messages.RespValue>!>
@@ -524,6 +554,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_Strings(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespStrings
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_VectorSets(StackExchange.Redis.Interpolated.IRespKeyspaceTarget! target) -> StackExchange.Redis.Interpolated.RespVectorSets
 [SER010]static StackExchange.Redis.Interpolated.RespSurface.get_VectorSets(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.Interpolated.RespVectorSets
+[SER010]virtual StackExchange.Redis.RespReply.OnDisposed() -> void
 [SER011]StackExchange.Redis.Interpolated.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
 static StackExchange.Redis.ExtensionMethods.AsStream(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, bool ownsLease = true) -> System.IO.Stream?

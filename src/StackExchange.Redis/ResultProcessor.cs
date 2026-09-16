@@ -254,7 +254,7 @@ namespace StackExchange.Redis
             HashEntryArray = new HashEntryArrayProcessor();
 
         // If the server reports max (i.e. FATAL), use int.MinValue as a similarly obviously bad value.
-        private static int ParseStreamDeliveryCount(long deliveryCount)
+        internal static int ParseStreamDeliveryCount(long deliveryCount)
             => deliveryCount == long.MaxValue ? int.MinValue : checked((int)deliveryCount);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]

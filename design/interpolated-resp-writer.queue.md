@@ -555,6 +555,12 @@ Four consequences, none of them cosmetic:
       staying) or deliberately not yet moved (stream reads). Pick it up when there is appetite for a shape
       decision rather than a transcription.
 
+      **Status 2026-09-16: `XRANGE`/`XREVRANGE` have moved**, on the deferred shape - `RespReply` +
+      `Streams.RespRangeReply` + `RespStreamEntry` + `RespNameValueEntry`, with `ToArray()` serving
+      `IDatabase.StreamRange` off the same parse. SER352 106. The rest of the stream reads (`XREAD`,
+      `XREADGROUP`, `XCLAIM`, `XAUTOCLAIM`, `XPENDING`, `XINFO`) now have a pattern to follow rather than
+      a shape to decide.
+
       ### One parse, two readers - DECIDED 2026-09-16
 
       **Both shapes start from a `RespReader` over the leased buffer, so neither needs new parse code.**
@@ -640,6 +646,173 @@ Four consequences, none of them cosmetic:
 
       Cost: one reply type per shape, roughly **8** across the 19 methods, since `StreamEntry[]` x6 and
       `RedisStream[]` x6 collapse to two.
+
+      ### A shared root: `RespReply` - DECIDED 2026-09-16
+
+      **One abstract base for every deferred-view root**, holding the payload, guarding it, and giving it
+      back exactly once. Concrete replies add only the typed windows.
+
+      The base saves about ten lines per reply, which on its own would not justify a fifth `Resp*` name.
+      What justifies it is that **every root in the family has the same hazard**: a window that outlives
+      the lease. With a base that is one lifetime contract, one disposal implementation, and one place for
+      the `EveryAccessorDiesWithTheReply` sweep - so a new reply shape inherits the sweep instead of
+      someone remembering to write it.
+
+      **External derivation is supported** (Marc, 2026-09-16): a client building on this one - NRedisStack
+      and friends - defines its own reply shapes. So the constructor is `protected`, not `private
+      protected`.
+
+      **What that costs, and the rule that pays for it.** Once outside code can derive, the shape is
+      frozen: an `abstract` member added later breaks every derived type. So none will be added - *"we
+      won't - we'd add a virtual that throws with a 'supported' twin, or a `Try*`"* (Marc). That is the
+      `Stream.CanSeek`/`Seek` model, precedented for twenty-five years, and it trades compile-time
+      totality for the ability to evolve at all, which is the right way round for a base other people
+      derive from. One `protected virtual OnDisposed()` is defined **now** rather than added later;
+      `Dispose()` itself is non-virtual and `Interlocked`-exchanged, so double disposal cannot
+      double-release a pooled buffer.
+
+      **Rejected: deriving from `RespPayload` directly.** Tempting - no new type, no extra field, and a
+      root genuinely *is* those bytes retained. But `RespPayload`'s public surface is the *cache* protocol
+      (`TryRetain`/`Release`/`Span`/`Create`), and a `RespRangeReply` offering callers `.Release()`
+      alongside `.Dispose()` is a refcount footgun for no gain. Composition also leaves room for a root
+      over something that is not a payload.
+
+      **The retain contract, which is the part that matters.** The pipeline retains; the constructor
+      receives a reference it *owns*; the base's `Dispose` releases it. External code never calls
+      `TryRetain`/`Release` - which matters because `TryRetain` can **fail** (eviction won the race), and
+      a constructor is the worst possible place to discover that. Failure stays in the cache lookup,
+      before any reply object exists. `RespReplyHandler<TReply>` is where that happens, and losing the
+      race falls back to a copy rather than resurrecting a count from zero.
+
+      **`RespReplyHandler<TReply>` is the one public door onto retention.** `IRespPayloadHandler` stays
+      internal because retaining is safe only for a result that cannot write through the buffer; the
+      `where TReply : RespReply` constraint *is* that judgement expressed in the type system, so the door
+      can be opened without handing the privilege out generally.
+
+      **Rejected: `T : new()` + an `Init` handover.** Raised as the efficient shape (Marc), and it is not:
+      `new T()` under a constraint does not compile to a `newobj`, it goes through
+      `Activator.CreateInstance<T>` - no faster than invoking a cached delegate. And it costs two-phase
+      construction: an object that exists before it has a buffer, so every accessor needs an
+      initialised-guard for a state the type otherwise never has, and "walk once in the constructor"
+      becomes "walk in `Init`". The `CompareExchange` was right, but it guards a hazard the constraint
+      itself introduced.
+
+      **Still open:** a root over a *slice* of a shared buffer (several replies over one pipelined batch).
+      `RespPayload` already carries offset/length internally, but externally only the copying `Create` is
+      reachable. Left internal until something asks.
+
+      ### Nested captures were pointing at the wrong bytes - FIXED 2026-09-16
+
+      **Found while building `RespStreamEntry`, and it would have been a silent data bug.** A window
+      records an offset into the buffer its *owner* holds, and is bracketed by sampling
+      `RespReader.BytesConsumed`. But walking an aggregate means reading a **slice** of that buffer, so
+      offsets restarted at zero and anything captured during a walk recorded the distance from the
+      *aggregate* while claiming to be a distance from the *payload*. Well-formed, resolvable, wrong bytes
+      - no exception.
+
+      It never showed up in the prototype because that projection read eagerly (`ReadString`,
+      `AggregateLength`) and captured nothing, and it does not bite at the top level, where the enclosing
+      start is zero.
+
+      **The fix needed nothing new conceptually:** `RespReader._positionBase` already exists to keep
+      offsets absolute as a reader moves between the segments of a sequence, so a slice-aware constructor
+      seeds it. Everything else is relative arithmetic and is unaffected.
+
+      Pinned by `RespAggregateTests.AWindowCapturedInsideANestedWalkPointsAtTheOwnersBytes`, and the guard
+      was **verified load-bearing by mutation**: seeding `positionBase: 0` compiles and fails exactly that
+      test and no other.
+
+      ### Projections are handed a reader positioned *before* the element - DECIDED 2026-09-16
+
+      The original `RespAggregate<T>` projection got a reader positioned **on** its child. That reads
+      fine, but it structurally cannot **capture**: an element's start cannot be recovered once it has
+      been read past, so `RespAggregate<RespValue>` - the MGET shape - was not expressible, and neither
+      was a stream entry's `Id`.
+
+      Both enumerators now use `MoveNextRaw`, so a projection receives the reader positioned *before* its
+      element - **the same position `TryCaptureNext` expects**, which is what lets the two compose.
+      Attributes are still skipped, by `TryMoveNext`, wherever the projection makes its move. Cost: a
+      read-only projection opens with `MoveNext()`. Worth it, and it removes an inconsistency rather than
+      adding one.
+
+      ### Pairs are a different walk: `RespPairAggregate<T>` - DECIDED 2026-09-16
+
+      A pair is two **siblings**, and the enumerator hands a projection a reader trimmed to one sub-tree -
+      so a projection over `RespAggregate<T>` structurally cannot reach the second half. Adding a stride
+      would not be enough either, because of jaggedness. Hence a separate type, a `PairProjection`
+      delegate taking two readers (deliberately the same shape as the eager pair parser), and a walk that
+      handles both wire shapes.
+
+      **The jagged/interleaved decision is shared, not copied a third time.** `IsAllJaggedPairsReader` was
+      a private static on the generic `ValuePairInterleavedProcessorBase<T>` that never used `T` - the
+      same smell already fixed for the stream parses. It is now `RespReader.IsAllJaggedPairs()`, and both
+      the eager processor and the deferred window call it. Only the *policy* - whether jagged is permitted
+      - stays with the caller, because content is what the bytes are and policy is what the command
+      allows.
+
+      **The shape is decided once, at capture, and stored.** Detection is O(n) in the children, so
+      re-deciding per pair would make a walk quadratic. It is the one piece of parse state these windows
+      carry that cannot be re-read cheaply.
+
+      **`Count` counts pairs here**, which is not in tension with `RespAggregate<T>.Count` counting
+      children: there, halving a map would have made RESP2 and RESP3 disagree about the same reply; here
+      both wire shapes agree on the number of pairs, which is why they can share one type at all.
+
+      **The deferred stream path always permits jagged**, where the eager path gates on protocol version.
+      Safe because a stream entry's fields are scalars and can never look jagged - pinned by
+      `RespRangeReplyTests.ScalarFieldsAreNotJagged` - and because the existing comment already concedes
+      jaggedness is not really a RESP3 thing.
+
+      ### Layering: what could move to RESPite - RAISED 2026-09-16
+
+      Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it
+      may be preferable."* Agreed, and the audit says most of it already does:
+
+      - **Already in RESPite**, correctly: `RespReader`, `RespValue`, `RespAggregate<T>`,
+        `RespPairAggregate<T>`, `PairProjection`, `IsAllJaggedPairs`, the slice-aware constructor,
+        `RefCountedBuffer`.
+      - **Could move, and should**: `RespPayload`. Every line of it is pooled bytes and reference counts;
+        it imports only RESPite namespaces. Its **only** tie to this library is the internal
+        `ShareAsResult()`, and that inverts trivially because `RespResult.Share` already takes the
+        primitives rather than the payload. `RespReply` follows it, since its only tie is the constructor
+        parameter type.
+      - **Cannot move**: `ToLease<T>` (needs `ReadOnlyLease<T>`, shipped SE.Redis API - moving it is a
+        type-identity break), and the typed replies themselves, which mean Redis things.
+
+      **Not done today**, deliberately: `RespPayload` has 203 references across 37 files, and that diff
+      would drown the feature it is attached to. `RespReply` is therefore parked in namespace
+      `StackExchange.Redis` - which is where the entity types were already going - so it is in the right
+      namespace now and follows `RespPayload` whenever that moves.
+
+      ### The `.Interpolated` namespace does not survive - RAISED 2026-09-16
+
+      Marc: *"we have an extra `.Interpolated` namespace that I don't think makes sense at all - I think
+      we've used it by default... I don't think that survives on the 'real' API."* Agreed. It names the
+      **implementation mechanism** - interpolated string handlers - rather than anything a caller cares
+      about, and the entity types are already going to plain `StackExchange.Redis` (that is what makes the
+      group accessors work without a second `using`). Having half the surface in one namespace and half in
+      another is worse than either.
+
+      Not fixed today - it is a rename touching most of the spike - but it is the kind of thing that
+      cannot be fixed after shipping, so it is on the list **before** the experimental attributes come
+      off. New types are being placed in `StackExchange.Redis` from now on, so the eventual move shrinks.
+
+      ### Shipped types cannot be nested, so the twins coexist - 2026-09-16
+
+      Marc asked whether `ListPopResult` becomes structurally inner to a `static class Lists`. For the
+      **new** window twin, yes: `Lists.RespListPopResult`, exactly as `Streams.RespStreamEntry`. For the
+      **shipped** `ListPopResult`, no - it is in `PublicAPI.Shipped.txt`, and nesting changes its metadata
+      name, which is a binary *and* source break for every caller.
+
+      That is not a compromise, it is the arrangement the `Resp` prefix was chosen for: both names exist
+      at once, `using static` stays unambiguous, and the old type can be demoted later (delete the `this`)
+      without a binary break.
+
+      **One thing this does open up**, worth deciding separately: each group's *extension methods* could
+      live in its own static class (`Streams`, `Lists`, ...) rather than in the single partial
+      `RespSurface`, leaving `RespSurface` holding only the group accessor properties. `CS0542` forces
+      that split anyway - a member named `Streams` cannot live in a class named `Streams` - so the
+      accessors have to be somewhere else regardless.
 
       ### The way back to the old shapes: `To*()`
 

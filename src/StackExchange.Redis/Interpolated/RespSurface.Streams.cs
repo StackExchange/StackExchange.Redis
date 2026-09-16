@@ -49,6 +49,72 @@ namespace StackExchange.Redis.Interpolated
             public RespStreams Streams => new(context);
         }
 
+        /// <summary>
+        /// XRANGE/XREVRANGE; the entries in a range, as a reply whose contents are windows over its buffer.
+        /// </summary>
+        /// <param name="streams">The stream command group.</param>
+        /// <param name="key">The stream to read.</param>
+        /// <param name="minId">The lowest id to include; the start of the stream when omitted.</param>
+        /// <param name="maxId">The highest id to include; the end of the stream when omitted.</param>
+        /// <param name="count">How many entries to return at most; all of them when omitted.</param>
+        /// <param name="messageOrder">
+        /// Ascending reads with <c>XRANGE</c>, descending with <c>XREVRANGE</c> - which also swaps the two
+        /// bounds, since <c>XREVRANGE</c> takes them the other way round.
+        /// </param>
+        /// <param name="flags">Command flags.</param>
+        /// <returns>
+        /// A reply that must be disposed. Everything reachable from it - entries, ids, fields - points
+        /// into its buffer and dies with it; <c>ToArray()</c> is the way to keep the contents.
+        /// </returns>
+        /// <remarks>
+        /// <b>The first command on the deferred shape.</b> The old surface answers
+        /// <c>StreamEntry[]</c>, which for a nested reply means one array per entry's fields plus one for
+        /// the entries - measured at ~55KB for a thousand-entry read. This walks the reply where it landed
+        /// instead, and allocates the reply object and nothing else.
+        /// </remarks>
+        public static ValueTask<Streams.RespRangeReply> RangeAsync(
+            this in RespStreams streams,
+            RedisKey key,
+            RedisValue? minId = null,
+            RedisValue? maxId = null,
+            int? count = null,
+            Order messageOrder = Order.Ascending,
+            CommandFlags flags = CommandFlags.None)
+        {
+            if (count is <= 0) throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
+
+            var min = minId ?? StreamConstants.ReadMinValue;
+            var max = maxId ?? StreamConstants.ReadMaxValue;
+            var command = messageOrder == Order.Ascending ? RedisCommand.XRANGE : RedisCommand.XREVRANGE;
+
+            // XREVRANGE takes (high, low); the caller always says (min, max), so the swap happens here
+            var (first, second) = messageOrder == Order.Ascending ? (min, max) : (max, min);
+
+            return streams.Context.SendAsync(
+                $"{command}{key}{first}{second}{new CountOperand(count)}",
+                flags.WithDefaultCategory(command),
+                RangeReplyHandler);
+        }
+
+        private static readonly RespReplyHandler<Streams.RespRangeReply> RangeReplyHandler
+            = new(static payload => new Streams.RespRangeReply(payload));
+
+        /// <summary>A <c>COUNT n</c> operand that writes nothing at all when there is no count.</summary>
+        /// <remarks>
+        /// A conditional <see cref="RedisValue"/> hole cannot express this: it always writes and always
+        /// counts, so an absent count would become an empty argument and the server would read a different
+        /// command. The argument count in the header is what makes the difference visible.
+        /// </remarks>
+        private readonly struct CountOperand(int? count) : IRespArgument
+        {
+            public void WriteTo(scoped ref RespCommandHandler handler)
+            {
+                if (count is not int value) return; // absent: no tokens, no count
+                handler.AppendFormatted(StreamConstants.Count);
+                handler.AppendFormatted((RedisValue)value);
+            }
+        }
+
         /// <summary>XLEN; the number of entries in the stream.</summary>
         /// <param name="streams">The stream command group.</param>
         /// <param name="key">The stream to measure.</param>
