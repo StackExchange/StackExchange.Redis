@@ -555,6 +555,51 @@ Four consequences, none of them cosmetic:
       staying) or deliberately not yet moved (stream reads). Pick it up when there is appetite for a shape
       decision rather than a transcription.
 
+      ### Where the new types live, and what they are called - DECIDED 2026-09-15/16
+
+      **Nested in a per-group static class, with the `Resp` prefix**: `StackExchange.Redis.Streams.RespStreamEntry`.
+      The namespace stays `StackExchange.Redis`, so **no new `using`** - extension methods are found by
+      namespace, and `Streams` is a *class* in the one everybody already imports.
+
+      **Nesting is the feature** (Marc): it keeps the new types tidy, contained and localised instead of
+      polluting a shared namespace. Most usage is `var`, so the qualified name really only surfaces on
+      parameters, where `Streams.RespStreamEntry` is plenty clear; anyone wanting it shorter writes
+      `using static StackExchange.Redis.Streams;`.
+
+      **The `Resp` prefix, because the decision was already made once.** `RespValue` is the window
+      counterpart to `RedisValue` and its own docs say so, so `Redis*` -> `Resp*` is an established
+      transformation rather than a new convention, and `Resp*` is already how the new surface names itself
+      (28 types). Rejected: **`Reader`** - actively wrong, since `RespValue` is documented as *"the storable
+      counterpart to `RespReader`"*, a bookmark rather than a walker; **`Window`** - accurate but names the
+      mechanism, which is what doc comments are for; **`View`** - fine, but a second convention where one
+      already exists.
+
+      **The two choices are not redundant - they cover different failures, and together they close both.**
+      Verified by compiling each shape:
+      - `extension(...)` property `Streams` cannot live in class `Streams`: **CS0542**, member names cannot
+        match their enclosing type. So the accessors stay in their own class (today `RespSurface`, already
+        partial across 15 files). That is a constraint, not a preference.
+      - Nesting *alone*, reusing shipped simple names, breaks `using static`: `StreamEntry` becomes
+        **CS0104**, ambiguous between the shipped type and the nested one. Loud rather than silent, but it
+        takes the escape hatch away.
+      - Nesting **plus** the prefix compiles clean in every combination tried, `using static` included - so
+        the prefix is what makes the escape hatch usable, and nesting is what keeps the namespace tidy.
+
+      **One name to break the pattern on:** `RedisStream` -> `RespStream` would sit one letter from
+      `RespStreams`, the command group, while being an entirely different kind of thing. It is really
+      *(key, entries)*, so `RespNamedStream` (or `RespStreamResult`) says what it is and cannot be misread.
+
+      **No implicit conversions from the new shape to the old.** Raised as a migration aid and rejected:
+      an implicit `RespAggregate<T>` -> `StreamEntry[]` hides a 55KB allocation and an O(n) walk behind an
+      invisible conversion, fires where nobody asked (overload resolution, `var` chains, collection
+      initialisers), and - worst - breaks the disposal contract, since the converted-from root is then
+      typically never disposed and the pooled buffer goes to the GC instead of back to the pool, which is
+      invisible from outside. It also contradicts a convention already in force: `RespValue` distinguishes
+      `As*` ("hands back something you own") from `Frame`/`TryGetSpan` ("lend you the bytes"), and a named
+      `ToArray()` sits inside that convention where an implicit operator sits outside it and is silent about
+      which side it is on. Migration is driven by the new surface being complete and discoverable, and by
+      old commands being demotable later (delete the `this`) without a binary break.
+
       ### The proposal, and what prototyping it actually showed
 
       **Where this comes from** (Marc, 2026-09-15): the Cap'n Proto position - *the fastest deserialize is
