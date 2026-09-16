@@ -40,6 +40,79 @@ public class RespKeyTests
         Assert.Equal(expected, Text(fromMemory));
     }
 
+    /// <summary>
+    /// The <see cref="string"/> constructor exists so the obvious spelling works on <b>every</b> target.
+    /// </summary>
+    /// <remarks>
+    /// This test earns its keep on net481 rather than net10: the implicit conversion from
+    /// <see cref="string"/> to <c>ReadOnlySpan&lt;char&gt;</c> arrived in netstandard2.1, so without an
+    /// explicit constructor <c>new RespKey("k")</c> compiles on the newer targets and fails on the older
+    /// ones. The test project multi-targets, so this failing to compile IS the assertion.
+    /// </remarks>
+    [Fact]
+    public void AStringIsAKeyOnEveryTarget()
+    {
+        var ctx = new RespContext();
+
+        using var owned = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        using var borrowed = ctx.Render($"{RedisCommand.GET}{new RespKey("k")}");
+
+        Assert.Equal(Text(owned), Text(borrowed));
+    }
+
+    /// <summary>A null string is a null key, and matches the owned path.</summary>
+    /// <remarks>
+    /// The three-state discriminator exists so this need not choose between refusing null and silently
+    /// writing to <c>""</c> - a key that is shared, legal, and almost never what a null variable meant.
+    /// </remarks>
+    [Fact]
+    public void ANullStringIsANullKey()
+    {
+        var ctx = new RespContext();
+        string? nothing = null;
+
+        Assert.True(new RespKey(nothing).IsNull);
+
+        using var owned = ctx.Render($"{RedisCommand.GET}{(RedisKey)nothing!}");
+        using var borrowed = ctx.Render($"{RedisCommand.GET}{new RespKey(nothing)}");
+        Assert.Equal(Text(owned), Text(borrowed));
+    }
+
+    /// <summary>
+    /// <c>default(RespKey)</c> is null, as <c>default(RedisKey)</c> is - which a two-state discriminator
+    /// could not have managed.
+    /// </summary>
+    /// <remarks>
+    /// With a bool the default would have been an <i>empty</i> key, disagreeing with the owned type for
+    /// no reason anyone would ever guess. Pinned because it is the sort of asymmetry that only shows up
+    /// in somebody else's bug report.
+    /// </remarks>
+    [Fact]
+    public void TheDefaultIsNullJustAsRedisKeysIs()
+    {
+        var ctx = new RespContext();
+
+        Assert.True(default(RespKey).IsNull);
+        Assert.True(default(RedisKey).IsNull);
+
+        using var owned = ctx.Render($"{RedisCommand.GET}{default(RedisKey)}");
+        using var borrowed = ctx.Render($"{RedisCommand.GET}{default(RespKey)}");
+        Assert.Equal(Text(owned), Text(borrowed));
+    }
+
+    /// <summary>An empty key is NOT a null one, though they happen to render alike.</summary>
+    /// <remarks>
+    /// The distinction is the whole reason emptiness cannot serve as the discriminator: an empty key is
+    /// legal in Redis, so "no bytes" cannot be allowed to mean "no key".
+    /// </remarks>
+    [Fact]
+    public void AnEmptyKeyIsNotANullKey()
+    {
+        Assert.False(new RespKey("").IsNull);
+        Assert.False(new RespKey(ReadOnlySpan<byte>.Empty).IsNull);
+        Assert.True(new RespKey((string?)null).IsNull);
+    }
+
     /// <summary>Non-ASCII survives the UTF-16 reinterpretation and the encode.</summary>
     /// <remarks>
     /// The char source is stored as its UTF-16 code units reinterpreted as bytes, then encoded to UTF-8

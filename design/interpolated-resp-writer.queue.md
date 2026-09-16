@@ -1662,12 +1662,27 @@ Four consequences, none of them cosmetic:
       The writer **copies each hole into its rented buffer before `AppendFormatted` returns**, so a
       borrowed key never has to outlive the call.
 
-      **Three inputs, one field.** `ReadOnlyMemory<byte>` collapses into the span case, because the only
+      **Three input shapes, one span field and a three-state discriminator.** `ReadOnlyMemory<byte>` collapses into the span case, because the only
       reason to keep a `Memory` distinct from its `Span` is to outlive the call and nothing here does; a
-      `char` span is reinterpreted with `MemoryMarshal.AsBytes` and a flag. That is ~24 bytes against ~40
-      for the obvious two-spans-and-a-discriminator layout. **The flag is explicit rather than inferred
-      from emptiness, because an empty key is legal in Redis** - inferring would work in every test until
-      somebody stored under `""`.
+      `char` span is reinterpreted with `MemoryMarshal.AsBytes`. That is ~24 bytes against ~40 for the
+      obvious two-spans-and-a-discriminator layout.
+
+      **`Null`/`Blob`/`Clob` rather than a bool** (Marc). A two-state flag would have forced a choice
+      between refusing null and silently flattening it to `""` - a key that is shared, legal, and almost
+      never what a null variable meant. Three states avoid the choice, and fix something the bool version
+      had wrong that I had not noticed: **`default(RespKey)` now agrees with `default(RedisKey)` in being
+      null**, where the bool made the default an empty `Blob` instead. Costs nothing - a byte where a bool
+      was.
+
+      **And the discriminator cannot be inferred from emptiness**, because an empty key is legal in Redis:
+      "no bytes" must not be allowed to mean "no key". That would work in every test until somebody stored
+      under `""`.
+
+      **Expressing null is the type's job; writing one is the writer's** (Marc: *"we can't write a null key
+      to a request, but it isn't RespRequestKey, and besides: maybe RESP4 will allow null args and typed
+      args"*). Today a RESP request is an array of bulk strings with no null among them, so a null key
+      renders as empty exactly as `RedisKey` does - a property of RESP2/3 request framing rather than of
+      this type, and deliberately not baked in as permanent.
 
       **Constructors, not `AsKey()` extension methods** (Marc: *"I worry that these extension methods
       pollute and confuse normal usage a little"*). An extension would offer itself on every `string` and
