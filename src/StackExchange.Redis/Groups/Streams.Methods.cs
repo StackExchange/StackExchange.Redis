@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
@@ -36,6 +37,7 @@ public static partial class Streams
     /// bounds, since <c>XREVRANGE</c> takes them the other way round.
     /// </param>
     /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <returns>
     /// A reply that must be disposed. Everything reachable from it - entries, ids, fields - points
     /// into its buffer and dies with it; <c>ToArray()</c> is the way to keep the contents.
@@ -53,13 +55,14 @@ public static partial class Streams
         RedisValue? maxId = null,
         int? count = null,
         Order messageOrder = Order.Ascending,
-        CommandFlags flags = CommandFlags.None)
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
     {
         var cmd = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
-        return streams.Context.SendAsync(ref cmd, flags, RangeReplyHandler, default);
+        return streams.Context.SendAsync(ref cmd, flags, RangeReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)"/>
+    /// <inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)"/>
     /// <remarks>
     /// <para>
     /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> promises <see cref="StreamEntry"/><c>[]</c> and
@@ -82,10 +85,11 @@ public static partial class Streams
         RedisValue? maxId = null,
         int? count = null,
         Order messageOrder = Order.Ascending,
-        CommandFlags flags = CommandFlags.None)
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
     {
         var cmd = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
-        return streams.Context.SendAsync(ref cmd, flags, StreamEntriesHandler.Instance, default);
+        return streams.Context.SendAsync(ref cmd, flags, StreamEntriesHandler.Instance, cancellationToken);
     }
 
     /// <summary>
@@ -155,9 +159,10 @@ public static partial class Streams
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream to measure.</param>
     /// <param name="flags">Command flags.</param>
-    public static ValueTask<long> LengthAsync(this in RespStreams streams, RedisKey key, CommandFlags flags = CommandFlags.None)
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<long> LengthAsync(this in RespStreams streams, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
-            $"{RedisCommand.XLEN}{key}", flags);
+            $"{RedisCommand.XLEN}{key}", flags, cancellationToken: cancellationToken);
 
     /// <summary>XACK; how many of the listed entries were pending and are now acknowledged.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -165,25 +170,27 @@ public static partial class Streams
     /// <param name="group">The consumer group.</param>
     /// <param name="messageId">The entry to acknowledge.</param>
     /// <param name="flags">Command flags.</param>
-    public static ValueTask<long> AcknowledgeAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue messageId, CommandFlags flags = CommandFlags.None)
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<long> AcknowledgeAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue messageId, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
-            $"{RedisCommand.XACK}{key}{group}{messageId}", flags);
+            $"{RedisCommand.XACK}{key}{group}{messageId}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="AcknowledgeAsync(in RespStreams, RedisKey, RedisValue, RedisValue, CommandFlags)"/>
+    /// <inheritdoc cref="AcknowledgeAsync(in RespStreams, RedisKey, RedisValue, RedisValue, CommandFlags, CancellationToken)"/>
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream.</param>
     /// <param name="group">The consumer group.</param>
     /// <param name="messageIds">The entries to acknowledge; at least one.</param>
     /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <remarks>
     /// An empty run is <b>not</b> short-circuited to zero: <c>XACK</c> with no ids is a caller error
     /// rather than a request that trivially acknowledges nothing, and the old surface throws for it.
     /// </remarks>
-    public static ValueTask<long> AcknowledgeAsync(this in RespStreams streams, RedisKey key, RedisValue group, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None)
+    public static ValueTask<long> AcknowledgeAsync(this in RespStreams streams, RedisKey key, RedisValue group, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<long>(
-            $"{RedisCommand.XACK}{key}{group}{messageIds}", flags);
+            $"{RedisCommand.XACK}{key}{group}{messageIds}", flags, cancellationToken: cancellationToken);
     }
 
     /// <summary>XDEL; how many of the listed entries existed and were removed.</summary>
@@ -191,11 +198,12 @@ public static partial class Streams
     /// <param name="key">The stream.</param>
     /// <param name="messageIds">The entries to delete; at least one.</param>
     /// <param name="flags">Command flags.</param>
-    public static ValueTask<long> DeleteAsync(this in RespStreams streams, RedisKey key, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None)
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<long> DeleteAsync(this in RespStreams streams, RedisKey key, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<long>(
-            $"{RedisCommand.XDEL}{key}{messageIds}", flags);
+            $"{RedisCommand.XDEL}{key}{messageIds}", flags, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -206,6 +214,7 @@ public static partial class Streams
     /// <param name="messageIds">The entries to delete; at least one.</param>
     /// <param name="mode">What to do with entries that consumer groups still reference.</param>
     /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <remarks>
     /// A <see cref="ReadOnlyLease{T}"/> of an <b>enum</b>, which is the <c>ExpireResult</c> shape and
     /// not one of the composite results still to be designed: the elements own nothing, so the lease is
@@ -216,13 +225,14 @@ public static partial class Streams
         RedisKey key,
         ReadOnlySpan<RedisValue> messageIds,
         StreamTrimMode mode,
-        CommandFlags flags = CommandFlags.None)
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
     {
         var cmd = DeleteExCommand(streams.Context, key, messageIds, mode);
-        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<ReadOnlyLease<StreamTrimResult>>.Require(), default);
+        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<ReadOnlyLease<StreamTrimResult>>.Require(), cancellationToken);
     }
 
-    /// <inheritdoc cref="DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags)"/>
+    /// <inheritdoc cref="DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)"/>
     /// <remarks>
     /// <b>Permanent, not scaffolding.</b> <c>IDatabase.StreamDelete</c> promises an array and is not
     /// going anywhere, so this is how that signature is served from the new core. Internal because the
@@ -234,10 +244,11 @@ public static partial class Streams
         RedisKey key,
         ReadOnlySpan<RedisValue> messageIds,
         StreamTrimMode mode,
-        CommandFlags flags = CommandFlags.None)
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
     {
         var cmd = DeleteExCommand(streams.Context, key, messageIds, mode);
-        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<StreamTrimResult[]>.Require(), default);
+        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<StreamTrimResult[]>.Require(), cancellationToken);
     }
 
     /// <summary>Render <c>XDELEX</c> - the one place the command is composed.</summary>
@@ -259,26 +270,31 @@ public static partial class Streams
     /// <param name="position">Where the group starts reading; defaults to new messages only.</param>
     /// <param name="createStream">Whether to create the stream if it does not exist (<c>MKSTREAM</c>).</param>
     /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<bool> CreateConsumerGroupAsync(
         this in RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue? position = null,
         bool createStream = true,
-        CommandFlags flags = CommandFlags.None)
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.Create}{key}{group}{ResolveGroupPosition(position)}{RespLiterals.MkStream.When(createStream)}",
-            flags);
+            flags,
+            cancellationToken: cancellationToken);
 
     /// <summary>XGROUP DESTROY.</summary>
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream.</param>
     /// <param name="group">The consumer group to remove.</param>
     /// <param name="flags">Command flags.</param>
-    public static ValueTask<bool> DeleteConsumerGroupAsync(this in RespStreams streams, RedisKey key, RedisValue group, CommandFlags flags = CommandFlags.None)
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<bool> DeleteConsumerGroupAsync(this in RespStreams streams, RedisKey key, RedisValue group, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.Destroy}{key}{group}",
-            flags);
+            flags,
+            cancellationToken: cancellationToken);
 
     /// <summary>XGROUP DELCONSUMER; the number of pending entries the consumer still owned.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -286,10 +302,12 @@ public static partial class Streams
     /// <param name="group">The consumer group.</param>
     /// <param name="consumer">The consumer to remove.</param>
     /// <param name="flags">Command flags.</param>
-    public static ValueTask<long> DeleteConsumerAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue consumer, CommandFlags flags = CommandFlags.None)
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<long> DeleteConsumerAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue consumer, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XGROUP}{RespLiterals.DeleteConsumer}{key}{group}{consumer}",
-            flags);
+            flags,
+            cancellationToken: cancellationToken);
 
     /// <summary>XGROUP SETID; move a group's read position.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -297,10 +315,12 @@ public static partial class Streams
     /// <param name="group">The consumer group.</param>
     /// <param name="position">The new position.</param>
     /// <param name="flags">Command flags.</param>
-    public static ValueTask<bool> SetConsumerGroupPositionAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue position, CommandFlags flags = CommandFlags.None)
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<bool> SetConsumerGroupPositionAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue position, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.SetId}{key}{group}{ResolveGroupPosition(position)}",
-            flags);
+            flags,
+            cancellationToken: cancellationToken);
 
     /// <summary>XTRIM MAXLEN; the number of entries removed.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -310,6 +330,7 @@ public static partial class Streams
     /// <param name="limit">The most entries to remove in one call.</param>
     /// <param name="mode">What to do with references to trimmed entries.</param>
     /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<long> TrimAsync(
         this in RespStreams streams,
         RedisKey key,
@@ -317,10 +338,12 @@ public static partial class Streams
         bool approximate = false,
         long? limit = null,
         StreamTrimMode mode = StreamTrimMode.KeepReferences,
-        CommandFlags flags = CommandFlags.None)
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XTRIM}{key}{RespLiterals.MaxLen}{new TrimOperand(approximate, maxLength, limit, mode)}",
-            flags);
+            flags,
+            cancellationToken: cancellationToken);
 
     /// <summary>XTRIM MINID; the number of entries removed.</summary>
     /// <param name="streams">The stream command group.</param>
@@ -330,6 +353,7 @@ public static partial class Streams
     /// <param name="limit">The most entries to remove in one call.</param>
     /// <param name="mode">What to do with references to trimmed entries.</param>
     /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<long> TrimByMinIdAsync(
         this in RespStreams streams,
         RedisKey key,
@@ -337,10 +361,12 @@ public static partial class Streams
         bool approximate = false,
         long? limit = null,
         StreamTrimMode mode = StreamTrimMode.KeepReferences,
-        CommandFlags flags = CommandFlags.None)
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XTRIM}{key}{RespLiterals.MinId}{new TrimOperand(approximate, minId, limit, mode)}",
-            flags);
+            flags,
+            cancellationToken: cancellationToken);
 
     /// <summary>
     /// The tail of an <c>XTRIM</c>: <c>[~] threshold [LIMIT n] [mode]</c>.

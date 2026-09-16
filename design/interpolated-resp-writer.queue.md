@@ -90,16 +90,31 @@ Four consequences, none of them cosmetic:
       puts it in the same set as the `.Interpolated` namespace: cheap now, impossible later, and worth
       deciding together rather than one at a time.
 
-      **But do NOT simply add the parameter.** This queue already reasoned it out once and the reasoning
-      stands: a token that cancels nothing *"on a context reads as configuration; on every method
-      signature it reads as a promise"*. 256 signatures that throw when handed a cancellable token would
-      be worse than none.
+      **CORRECTION - my "what can cancellation even mean here" objection was wrong.** I argued that a RESP
+      request cannot be recalled, so the only honest cancellation is *stop waiting*, which would desync
+      unless the pipeline tracked the abandoned reply. Marc: *"the cancellation isn't about recall; it is
+      about (1) intercepting unsent things - retries, moves, etc, and (2) allowing the caller to get about
+      their day, whatever happens to the task."*
 
-      **The question that actually gates it** is what cancellation can mean here at all. A RESP request
-      cannot be recalled: the server still runs it and the reply still arrives on the connection, so the
-      only honest cancellation is *stop waiting* - which desyncs unless the pipeline tracks the abandoned
-      reply. Answering that belongs with the `Message` refactor, and the answer decides whether the
-      parameter should exist rather than merely when.
+      Both are real, and neither desyncs:
+
+      1. **Unsent work is genuinely cancellable** - the backlog, a retry, a re-dispatch after MOVED/ASK.
+         Nothing has gone to the server, so cancelling is cancelling, not a euphemism.
+      2. **Abandoning the await costs the connection nothing.** The pipeline already matches replies to
+         requests - it has to - so the reply still arrives, is still parsed, and the result is simply
+         dropped with nobody waiting. My desync claim confused "nobody is awaiting this" with "nobody is
+         reading the socket".
+
+      **And it is already built:** Marc has cancellation working fully in the unmerged v3 spike. So this is
+      not an open design question with an uncertain answer - it is a known implementation waiting to be
+      merged, which is why putting the parameter on the signatures now is the right call rather than a
+      promise we might not keep.
+
+      **Done for Streams as the template, 2026-09-16:** all 14 group methods take
+      `CancellationToken cancellationToken = default` as the last parameter and thread it to the send.
+      Until the pipeline lands, an already-cancelled token is honoured and a merely-cancellable one throws
+      `NotImplementedException` naming the reason - the resolution this queue already reached for
+      `Send`/`SendAsync`, now reaching the surface it was always meant to reach. The other 8 groups follow.
 
 - [x] **(the rejected idea, kept)** Recorded here
       because one idea was raised and rejected with evidence: having the **interpolated string handler**
