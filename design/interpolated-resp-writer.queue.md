@@ -555,6 +555,79 @@ Four consequences, none of them cosmetic:
       staying) or deliberately not yet moved (stream reads). Pick it up when there is appetite for a shape
       decision rather than a transcription.
 
+      ### The root the caller holds - DECIDED 2026-09-16
+
+      **One disposable class at the root, uncounted struct views inside it.** That is not a new rule; it is
+      today's `ReadOnlyLease<RespValue>` exactly - class root owning the buffer, struct windows pointing
+      into it, disposal once at the top. The deferred walk extends it from flat to nested.
+
+      **The root is concrete per reply shape, not generic**, and nested with the entities:
+
+      ```csharp
+      public static class Streams
+      {
+          public sealed class RespRangeReply : IDisposable
+          {
+              private RespPayload? _payload;
+              public RespAggregate<RespStreamEntry> Entries => new(Live, ...);
+              public void Dispose() => Interlocked.Exchange(ref _payload, null)?.Release();
+              private RespPayload Live => _payload ?? throw new ObjectDisposedException(...);
+          }
+
+          public readonly struct RespStreamEntry           // uncounted window, copied freely
+          {
+              public RespValue Id { get; }
+              public RespAggregate<RespNameValue> Fields { get; }   // same payload, no disposal of its own
+          }
+      }
+      ```
+
+      giving the call site Marc asked for, with no `.Value` in the way:
+
+      ```csharp
+      using var result = await ctx.Streams.RangeAsync(key, ...);
+      foreach (var entry in result.Entries)
+          foreach (var field in entry.Fields) { ... }
+      ```
+
+      **Why a class and not a struct**, since combining the lease and the view looked wrong at first: the
+      shipped `ReadOnlyLease<T>` is a **sealed class** whose `Dispose` is
+      `Interlocked.Exchange(ref _buffer, null)`, so double-disposal is safe by construction. As a struct the
+      root would be copyable, which is precisely the hazard `RespValue` rules out - *"a struct copy cannot
+      increment a reference count, so counting per value would be a leak or a double-free waiting to
+      happen"*. So `in result.Entries` cannot work, but not because lease and view cannot combine: because
+      `in` wants a struct and the root has to be a class.
+
+      **`<T>` lives only where it is a real container** (`RespAggregate<T>`). The payload stays untyped
+      because it is the **cache entry**, shared between callers who parse it as different things; the root
+      is typed by being concrete. Allocation is parity with today - one object per call, which is what
+      `ReadOnlyLease<T>` already costs - and it is what removes the N+1 arrays, so it is a straight win.
+
+      Cost: one reply type per shape, roughly **8** across the 19 methods, since `StreamEntry[]` x6 and
+      `RedisStream[]` x6 collapse to two.
+
+      ### The way back to the old shapes: `To*()`
+
+      For *"I accept the overhead, but I have existing code paths that want the old shape"* (Marc,
+      2026-09-16) - a projection at the root **and** at the leaves:
+
+      ```csharp
+      StreamEntry[] old = result.ToArray();      // root: materialise the whole reply
+      StreamEntry one = entry.ToStreamEntry();   // leaf: materialise one
+      ```
+
+      **`To*` and not `As*`, because the codebase already separates them by cost**: `As*` is cheap and hands
+      back something you own (`RespValue.AsInt64`, `AsBoolean`); `To*` materialises
+      (`ReadOnlyLease<T>.ToArray`). A caller reading `ToArray()` is being told it costs, which is exactly
+      the signal the rejected implicit conversion would have suppressed. **This is that capability, made
+      explicit** - the same escape hatch, with the price visible.
+
+      **And it is not a sidecar: it is how the old API is implemented.** `TransitionalDatabase` has to
+      satisfy `IDatabase.StreamRange`'s `StreamEntry[]`, and it does so by calling exactly this projection.
+      So the array form becomes *walk + materialise* over one parse rather than a second parse that can
+      drift - the same lesson `ScriptEvalMessage` taught - and the escape hatch is exercised by the whole
+      existing test suite rather than by whoever remembers to call it.
+
       ### Where the new types live, and what they are called - DECIDED 2026-09-15/16
 
       **Nested in a per-group static class, with the `Resp` prefix**: `StackExchange.Redis.Streams.RespStreamEntry`.
