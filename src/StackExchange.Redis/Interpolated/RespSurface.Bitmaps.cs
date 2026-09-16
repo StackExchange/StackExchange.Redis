@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 
@@ -55,9 +56,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="offset">The bit offset.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> GetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<bool> GetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => bitmaps.Context.SendAsync<bool>(
-                $"{RedisCommand.GETBIT}{key}{offset}", flags);
+                $"{RedisCommand.GETBIT}{key}{offset}", flags, cancellationToken: cancellationToken);
 
         /// <summary>SETBIT; the reply is the bit that was there before.</summary>
         /// <param name="bitmaps">The bitmap command group.</param>
@@ -65,9 +67,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="offset">The bit offset; the value is zero-extended up to it.</param>
         /// <param name="bit">The bit to set.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> SetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<bool> SetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => bitmaps.Context.SendAsync<bool>(
-                $"{RedisCommand.SETBIT}{key}{offset}{bit}", flags);
+                $"{RedisCommand.SETBIT}{key}{offset}{bit}", flags, cancellationToken: cancellationToken);
 
         /// <summary>BITCOUNT: how many bits are set, over a range.</summary>
         /// <param name="bitmaps">The bitmap command group.</param>
@@ -76,6 +79,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="end">The inclusive end of the range; negative counts back from the end.</param>
         /// <param name="indexType">Whether the range is in bytes or in bits.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// The index type is a token on the wire and nothing at all when it is the default, which is
         /// exactly what a zero-argument <see cref="RespFragment"/> spells - so the whole command is one
@@ -88,10 +92,12 @@ namespace StackExchange.Redis.Interpolated
             long start = 0,
             long end = -1,
             StringIndexType indexType = StringIndexType.Byte,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => bitmaps.Context.SendAsync<long>(
                 $"{RedisCommand.BITCOUNT}{key}{start}{end}{AsFragment(indexType)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
 
         /// <summary>BITPOS: the offset of the first bit with the given value.</summary>
         /// <param name="bitmaps">The bitmap command group.</param>
@@ -105,6 +111,7 @@ namespace StackExchange.Redis.Interpolated
         /// </param>
         /// <param name="indexType">Whether the range is in bytes or in bits.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// An open-ended range and a bit index cannot be combined: the server takes the BYTE/BIT token only
         /// <i>after</i> an explicit end, so there is nowhere to put it. Dropping it silently would
@@ -117,7 +124,8 @@ namespace StackExchange.Redis.Interpolated
             long start = 0,
             long end = -1,
             StringIndexType indexType = StringIndexType.Byte,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             if (end == StringIndex.Unbounded)
             {
@@ -130,12 +138,13 @@ namespace StackExchange.Redis.Interpolated
                 }
 
                 return bitmaps.Context.SendAsync<long>(
-                    $"{RedisCommand.BITPOS}{key}{bit}{start}", flags);
+                    $"{RedisCommand.BITPOS}{key}{bit}{start}", flags, cancellationToken: cancellationToken);
             }
 
             return bitmaps.Context.SendAsync<long>(
                 $"{RedisCommand.BITPOS}{key}{bit}{start}{end}{AsFragment(indexType)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>BITOP: combine bitmaps into a destination key; the reply is the destination's length.</summary>
@@ -144,6 +153,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="destination">The key to write the result to.</param>
         /// <param name="keys">The source keys.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// <b>One method where the old surface has two.</b> The <c>(first, second)</c> overload exists only
@@ -162,7 +172,8 @@ namespace StackExchange.Redis.Interpolated
             Bitwise operation,
             RedisKey destination,
             ReadOnlySpan<RedisKey> keys,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one source key is required.", nameof(keys));
             if (operation == Bitwise.Not && keys.Length != 1)
@@ -172,7 +183,8 @@ namespace StackExchange.Redis.Interpolated
 
             return bitmaps.Context.SendAsync<long>(
                 $"{RedisCommand.BITOP}{AsFragment(operation)}{destination}{keys}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>BITFIELD: several sub-operations against one key, in one command.</summary>
@@ -180,6 +192,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to operate on.</param>
         /// <param name="operations">The sub-operations, in order; the reply has one element per operation.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// The one command in this group that cannot be a single interpolated expression, and not because
@@ -205,23 +218,26 @@ namespace StackExchange.Redis.Interpolated
             this in RespBitmaps bitmaps,
             RedisKey key,
             ReadOnlySpan<BitFieldOperation> operations,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => FieldCore<ReadOnlyLease<long?>>(in bitmaps, key, operations, ReadOnlyLease<long?>.Empty, flags);
 
-        /// <inheritdoc cref="FieldAsync(in RespBitmaps, RedisKey, ReadOnlySpan{BitFieldOperation}, CommandFlags)"/>
+        /// <inheritdoc cref="FieldAsync(in RespBitmaps, RedisKey, ReadOnlySpan{BitFieldOperation}, CommandFlags, CancellationToken)"/>
         /// <param name="bitmaps">The bitmap command group.</param>
         /// <param name="key">The key to operate on.</param>
         /// <param name="operations">The sub-operations, in order.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// The writable-lease sibling, for <c>IDatabase.StringBitField</c>; see
-        /// <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags)"/>.
+        /// <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags, CancellationToken)"/>.
         /// </remarks>
         internal static ValueTask<Lease<long?>> FieldWritableLease(
             this in RespBitmaps bitmaps,
             RedisKey key,
             ReadOnlySpan<BitFieldOperation> operations,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => FieldCore<Lease<long?>>(in bitmaps, key, operations, Lease<long?>.Empty, flags);
 
         /// <summary>
@@ -265,12 +281,13 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to operate on.</param>
         /// <param name="operation">The sub-operation.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// The same bytes as the span form with one element, unwrapped from the array the server always
         /// replies with - so the common case costs neither a lease nor a disposal. <see langword="null"/>
         /// means the operation was skipped by <c>OVERFLOW FAIL</c>.
         /// </remarks>
-        public static ValueTask<long?> FieldAsync(this in RespBitmaps bitmaps, RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long?> FieldAsync(this in RespBitmaps bitmaps, RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             // deliberately NOT a one-element span: BitFieldOperation holds a RedisValue, so it cannot be
             // stackalloc'd, and the span-from-a-single-value constructor does not exist on every target
@@ -296,7 +313,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return bitmaps.Context.SendAsync<long?>(ref frame, flags, RespHandlers.NullableInt64, default);
+            return bitmaps.Context.SendAsync<long?>(ref frame, flags, RespHandlers.NullableInt64, cancellationToken);
         }
 
         /// <summary>

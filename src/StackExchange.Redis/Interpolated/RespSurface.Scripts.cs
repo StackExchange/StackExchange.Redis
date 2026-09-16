@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 
@@ -66,6 +67,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The keys the script accesses; these route the command.</param>
         /// <param name="args">Everything else the script needs.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// The hash is computed here rather than taken from the server's reply, which is what lets the body
@@ -85,7 +87,8 @@ namespace StackExchange.Redis.Interpolated
             string script,
             ReadOnlySpan<RedisKey> keys = default,
             ReadOnlySpan<RedisValue> args = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => Evaluate(in scripts, script, keys, args, flags, readOnly: false);
 
         private static ValueTask<RespResult> Evaluate(
@@ -140,6 +143,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The keys the script accesses; these route the command.</param>
         /// <param name="args">Everything else the script needs.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// A separate method rather than a flag on <c>Evaluate</c>, because it is a separate command with a
@@ -157,7 +161,8 @@ namespace StackExchange.Redis.Interpolated
             string script,
             ReadOnlySpan<RedisKey> keys = default,
             ReadOnlySpan<RedisValue> args = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => Evaluate(in scripts, script, keys, args, flags, readOnly: true);
 
         /// <summary>Render the EVALSHA and send it behind the preamble.</summary>

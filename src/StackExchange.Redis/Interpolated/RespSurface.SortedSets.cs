@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
@@ -58,6 +59,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="when">The condition the write is subject to.</param>
         /// <param name="change">Count members whose score changed, not only members that were new.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <c>change</c> is what the old surface spells as a separate <c>SortedSetUpdate</c> method; it is
         /// one token on the wire (<c>CH</c>) and changes what the reply counts, which is a parameter rather
@@ -70,12 +72,14 @@ namespace StackExchange.Redis.Interpolated
             double score,
             SortedSetWhen when = SortedSetWhen.Always,
             bool change = false,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var options = new RespSortedSetOptions(when, change, increment: false);
             return sortedSets.Context.SendAsync<bool>(
                 $"{RedisCommand.ZADD}{key}{options}{score}{member}",
-                flags.WithRetryCategory(options.RetryCategory));
+                flags.WithRetryCategory(options.RetryCategory),
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>ZADD with several members; the reply is how many were added (or changed, under CH).</summary>
@@ -85,6 +89,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="when">The condition the write is subject to.</param>
         /// <param name="change">Count members whose score changed, not only members that were new.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// Each entry writes <b>score then element</b>, which is the reverse of how a
         /// <see cref="SortedSetEntry"/> reads; the type owns that ordering, so the whole run is one hole.
@@ -95,14 +100,16 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<SortedSetEntry> entries,
             SortedSetWhen when = SortedSetWhen.Always,
             bool change = false,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             if (entries.IsEmpty) return new ValueTask<long>(0L);
 
             var options = new RespSortedSetOptions(when, change, increment: false);
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZADD}{key}{options}{entries}",
-                flags.WithRetryCategory(options.RetryCategory));
+                flags.WithRetryCategory(options.RetryCategory),
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>ZADD ... INCR, or ZINCRBY when there is no condition to carry.</summary>
@@ -112,6 +119,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="value">The amount to add.</param>
         /// <param name="when">The condition the increment is subject to.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// <see langword="null"/> when the condition refused the increment - which is why this reports
@@ -130,18 +138,20 @@ namespace StackExchange.Redis.Interpolated
             RedisValue member,
             double value,
             SortedSetWhen when = SortedSetWhen.Always,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             if (when == SortedSetWhen.Always)
             {
                 return sortedSets.Context.SendAsync<double?>(
-                    $"{RedisCommand.ZINCRBY}{key}{value}{member}", flags);
+                    $"{RedisCommand.ZINCRBY}{key}{value}{member}", flags, cancellationToken: cancellationToken);
             }
 
             var options = new RespSortedSetOptions(when, change: false, increment: true);
             return sortedSets.Context.SendAsync<double?>(
                 $"{RedisCommand.ZADD}{key}{options}{value}{member}",
-                flags.WithRetryCategory(options.RetryCategory));
+                flags.WithRetryCategory(options.RetryCategory),
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>ZREM.</summary>
@@ -149,20 +159,22 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="member">The member to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<bool> RemoveAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<bool> RemoveAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<bool>(
-                $"{RedisCommand.ZREM}{key}{member}", flags);
+                $"{RedisCommand.ZREM}{key}{member}", flags, cancellationToken: cancellationToken);
 
         /// <summary>ZREM with several members; the reply is how many were removed.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="members">The members to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveAsync(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> RemoveAsync(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => members.IsEmpty
                 ? new ValueTask<long>(0L)
                 : sortedSets.Context.SendAsync<long>(
-                    $"{RedisCommand.ZREM}{key}{members}", flags);
+                    $"{RedisCommand.ZREM}{key}{members}", flags, cancellationToken: cancellationToken);
 
         // ---- simple reads ------------------------------------------------------------------------------
 
@@ -171,20 +183,22 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="member">The member to look up.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<double?> ScoreAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<double?> ScoreAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<double?>(
-                $"{RedisCommand.ZSCORE}{key}{member}", flags);
+                $"{RedisCommand.ZSCORE}{key}{member}", flags, cancellationToken: cancellationToken);
 
         /// <summary>ZMSCORE: one score per member, in order; nil for a member that is not there.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="members">The members to look up.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<double?>> ScoresAsync(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<ReadOnlyLease<double?>> ScoresAsync(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => members.IsEmpty
                 ? new ValueTask<ReadOnlyLease<double?>>(ReadOnlyLease<double?>.Empty)
                 : sortedSets.Context.SendAsync<ReadOnlyLease<double?>>(
-                    $"{RedisCommand.ZMSCORE}{key}{members}", flags);
+                    $"{RedisCommand.ZMSCORE}{key}{members}", flags, cancellationToken: cancellationToken);
 
         /// <summary>Scores, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -198,11 +212,11 @@ namespace StackExchange.Redis.Interpolated
         /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
         /// </para>
         /// </remarks>
-        internal static ValueTask<double?[]> ScoresArray(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None)
+        internal static ValueTask<double?[]> ScoresArray(this in RespSortedSets sortedSets, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => members.IsEmpty
                 ? new ValueTask<double?[]>(Array.Empty<double?>())
                 : sortedSets.Context.SendAsync<double?[]>(
-                    $"{RedisCommand.ZMSCORE}{key}{members}", flags);
+                    $"{RedisCommand.ZMSCORE}{key}{members}", flags, cancellationToken: cancellationToken);
 
         /// <summary>ZCARD, or ZCOUNT when a score range is given.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -211,6 +225,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="max">The highest score to count.</param>
         /// <param name="exclude">Which bounds are exclusive.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// An unbounded range is the whole set, which <c>ZCARD</c> answers without the server having to
         /// walk anything - so the default arguments pick a different command, exactly as the old surface
@@ -222,17 +237,19 @@ namespace StackExchange.Redis.Interpolated
             double min = double.NegativeInfinity,
             double max = double.PositiveInfinity,
             Exclude exclude = Exclude.None,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             if (double.IsNegativeInfinity(min) && double.IsPositiveInfinity(max))
             {
                 return sortedSets.Context.SendAsync<long>(
-                    $"{RedisCommand.ZCARD}{key}", flags);
+                    $"{RedisCommand.ZCARD}{key}", flags, cancellationToken: cancellationToken);
             }
 
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZCOUNT}{key}{RedisDatabase.GetRange(min, exclude, isStart: true)}{RedisDatabase.GetRange(max, exclude, isStart: false)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>ZLEXCOUNT: how many members fall in a lexical range.</summary>
@@ -242,18 +259,21 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="max">The highest member to count.</param>
         /// <param name="exclude">Which bounds are exclusive.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<long> LengthByValueAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             RedisValue min,
             RedisValue max,
             Exclude exclude = Exclude.None,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             RedisDatabase.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZLEXCOUNT}{key}{Lex(min, exclude, isStart: true)}{Lex(max, exclude, isStart: false)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>ZRANK/ZREVRANK; <see langword="null"/> when the member is not there.</summary>
@@ -262,29 +282,32 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="member">The member to locate.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long?> RankAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long?> RankAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANK : RedisCommand.ZRANK;
             return sortedSets.Context.SendAsync<long?>(
-                $"{command}{key}{member}", flags);
+                $"{command}{key}{member}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>ZRANDMEMBER.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> RandomMemberAsync(this in RespSortedSets sortedSets, RedisKey key, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<RedisValue> RandomMemberAsync(this in RespSortedSets sortedSets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.ZRANDMEMBER}{key}", flags.NeverCached());
+                $"{RedisCommand.ZRANDMEMBER}{key}", flags.NeverCached(), cancellationToken: cancellationToken);
 
         /// <summary>ZRANDMEMBER with a count.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.NeverCached());
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.NeverCached(), cancellationToken: cancellationToken);
 
         /// <summary>RandomMembers, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -298,19 +321,21 @@ namespace StackExchange.Redis.Interpolated
         /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
         /// </para>
         /// </remarks>
-        internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.NeverCached());
+                $"{RedisCommand.ZRANDMEMBER}{key}{count}", flags.NeverCached(), cancellationToken: cancellationToken);
 
         /// <summary>ZRANDMEMBER ... WITHSCORES.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="count">How many to take; a negative count allows repeats.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScoresAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScoresAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-                flags.NeverCached());
+                flags.NeverCached(),
+                cancellationToken: cancellationToken);
 
         /// <summary>RandomMembersWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <remarks>
@@ -324,10 +349,11 @@ namespace StackExchange.Redis.Interpolated
         /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
         /// </para>
         /// </remarks>
-        internal static ValueTask<SortedSetEntry[]> RandomMembersWithScoresArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        internal static ValueTask<SortedSetEntry[]> RandomMembersWithScoresArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<SortedSetEntry[]>(
                 $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-                flags.NeverCached());
+                flags.NeverCached(),
+                cancellationToken: cancellationToken);
 
         // ---- ranges ------------------------------------------------------------------------------------
 
@@ -338,17 +364,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last rank to take.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<ReadOnlyLease<RespValue>> RangeByRankAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             long start = 0,
             long stop = -1,
             Order order = Order.Ascending,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{command}{key}{start}{stop}", flags);
+                $"{command}{key}{start}{stop}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>RangeByRank, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -369,11 +397,12 @@ namespace StackExchange.Redis.Interpolated
             long start = 0,
             long stop = -1,
             Order order = Order.Ascending,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<RedisValue[]>(
-                $"{command}{key}{start}{stop}", flags);
+                $"{command}{key}{start}{stop}", flags, cancellationToken: cancellationToken);
         }
 
         /// <inheritdoc cref="RangeByRankAsync"/>
@@ -383,17 +412,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The last rank to take.</param>
         /// <param name="order">Which end to count from.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByRankWithScoresAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
             long start = 0,
             long stop = -1,
             Order order = Order.Ascending,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
-                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags);
+                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>RangeByRankWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -414,11 +445,12 @@ namespace StackExchange.Redis.Interpolated
             long start = 0,
             long stop = -1,
             Order order = Order.Ascending,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
             return sortedSets.Context.SendAsync<SortedSetEntry[]>(
-                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags);
+                $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>ZRANGEBYSCORE/ZREVRANGEBYSCORE.</summary>
@@ -431,6 +463,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="skip">How many to discard from the front.</param>
         /// <param name="take">How many to return; -1 for all.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// The bounds are <b>swapped</b> when the caller's order and their numeric order disagree, and the
         /// exclusivity swaps with them - the server always wants low-then-high, whichever direction it is
@@ -446,7 +479,8 @@ namespace StackExchange.Redis.Interpolated
             Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => RangeByScoreCore<ReadOnlyLease<RespValue>>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
 
         /// <summary>RangeByScore, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -470,7 +504,8 @@ namespace StackExchange.Redis.Interpolated
             Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => RangeByScoreCore<RedisValue[]>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
 
         /// <inheritdoc cref="RangeByScoreAsync"/>
@@ -483,6 +518,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="skip">How many to discard from the front.</param>
         /// <param name="take">How many to return; -1 for all.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByScoreWithScoresAsync(
             this in RespSortedSets sortedSets,
             RedisKey key,
@@ -492,7 +528,8 @@ namespace StackExchange.Redis.Interpolated
             Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => RangeByScoreCore<ReadOnlyLease<SortedSetEntry>>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: true, flags);
 
         /// <summary>RangeByScoreWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -516,7 +553,8 @@ namespace StackExchange.Redis.Interpolated
             Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => RangeByScoreCore<SortedSetEntry[]>(in sortedSets, key, start, stop, exclude, order, skip, take, withScores: true, flags);
 
         /// <summary>ZRANGEBYLEX/ZREVRANGEBYLEX.</summary>
@@ -529,6 +567,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="skip">How many to discard from the front.</param>
         /// <param name="take">How many to return; -1 for all.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// As with the score form, the range is put into low-then-high order first; for a lexical range
         /// the open bounds then flip too, which is why <c>-</c> and <c>+</c> are chosen by the order
@@ -543,7 +582,8 @@ namespace StackExchange.Redis.Interpolated
             Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGEBYLEX : RedisCommand.ZRANGEBYLEX;
 
@@ -553,7 +593,8 @@ namespace StackExchange.Redis.Interpolated
 
             return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>RangeByValue, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -577,7 +618,8 @@ namespace StackExchange.Redis.Interpolated
             Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZREVRANGEBYLEX : RedisCommand.ZRANGEBYLEX;
 
@@ -587,7 +629,8 @@ namespace StackExchange.Redis.Interpolated
 
             return sortedSets.Context.SendAsync<RedisValue[]>(
                 $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>ZRANGESTORE; the reply is the destination's size.</summary>
@@ -602,6 +645,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="skip">How many to discard from the front.</param>
         /// <param name="take">How many to store; <see langword="null"/> for all.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// By rank, neither <paramref name="exclude"/> nor <paramref name="take"/> means anything and both
         /// are rejected - the server has no operand for either in that mode, so silently dropping them
@@ -618,7 +662,8 @@ namespace StackExchange.Redis.Interpolated
             Order order = Order.Ascending,
             long skip = 0,
             long? take = null,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var category = flags.WithDefaultCategory(RedisCommand.ZRANGESTORE);
             var rev = RespLiterals.Rev.When(order == Order.Descending); // a zero-argument fragment
@@ -640,7 +685,7 @@ namespace StackExchange.Redis.Interpolated
                 }
 
                 return sortedSets.Context.SendAsync<long>(
-                    $"{RedisCommand.ZRANGESTORE}{destinationKey}{sourceKey}{start}{stop}{rev}", category);
+                    $"{RedisCommand.ZRANGESTORE}{destinationKey}{sourceKey}{start}{stop}{rev}", category, cancellationToken: cancellationToken);
             }
 
             // ZRANGESTORE brackets a LEXICAL bound that is merely inclusive, where the read commands leave
@@ -651,7 +696,7 @@ namespace StackExchange.Redis.Interpolated
             var limit = take is > 0 ? new RespLimitRange(skip, take.GetValueOrDefault()) : RespLimitRange.None;
 
             return sortedSets.Context.SendAsync<long>(
-                $"{RedisCommand.ZRANGESTORE}{destinationKey}{sourceKey}{from}{to}{by}{rev}{limit}", category);
+                $"{RedisCommand.ZRANGESTORE}{destinationKey}{sourceKey}{from}{to}{by}{rev}{limit}", category, cancellationToken: cancellationToken);
         }
 
         // ---- removal by range --------------------------------------------------------------------------
@@ -662,9 +707,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="start">The first rank to remove.</param>
         /// <param name="stop">The last rank to remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveRangeByRankAsync(this in RespSortedSets sortedSets, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> RemoveRangeByRankAsync(this in RespSortedSets sortedSets, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<long>(
-                $"{RedisCommand.ZREMRANGEBYRANK}{key}{start}{stop}", flags);
+                $"{RedisCommand.ZREMRANGEBYRANK}{key}{start}{stop}", flags, cancellationToken: cancellationToken);
 
         /// <summary>ZREMRANGEBYSCORE.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -673,10 +719,12 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="stop">The highest score to remove.</param>
         /// <param name="exclude">Which bounds are exclusive.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveRangeByScoreAsync(this in RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> RemoveRangeByScoreAsync(this in RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZREMRANGEBYSCORE}{key}{RedisDatabase.GetRange(start, exclude, isStart: true)}{RedisDatabase.GetRange(stop, exclude, isStart: false)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
 
         /// <summary>ZREMRANGEBYLEX.</summary>
         /// <param name="sortedSets">The sorted-set command group.</param>
@@ -685,12 +733,14 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="max">The highest member to remove.</param>
         /// <param name="exclude">Which bounds are exclusive.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveRangeByValueAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> RemoveRangeByValueAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             RedisDatabase.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZREMRANGEBYLEX}{key}{Lex(min, exclude, isStart: true)}{Lex(max, exclude, isStart: false)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         // ---- combinations ------------------------------------------------------------------------------
@@ -702,13 +752,15 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<ReadOnlyLease<RespValue>> CombineAsync(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<double> weights = default,
             Aggregate aggregate = Aggregate.Sum,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
             return CombineCore<ReadOnlyLease<RespValue>>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
@@ -732,26 +784,29 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<double> weights = default,
             Aggregate aggregate = Aggregate.Sum,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
             return CombineCore<RedisValue[]>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
         }
 
-        /// <inheritdoc cref="CombineAsync(in RespSortedSets, SetOperation, ReadOnlySpan{RedisKey}, ReadOnlySpan{double}, Aggregate, CommandFlags)"/>
+        /// <inheritdoc cref="CombineAsync(in RespSortedSets, SetOperation, ReadOnlySpan{RedisKey}, ReadOnlySpan{double}, Aggregate, CommandFlags, CancellationToken)"/>
         /// <param name="sortedSets">The sorted-set command group.</param>
         /// <param name="operation">The operation to apply.</param>
         /// <param name="keys">The keys to combine.</param>
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<ReadOnlyLease<SortedSetEntry>> CombineWithScoresAsync(
             this in RespSortedSets sortedSets,
             SetOperation operation,
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<double> weights = default,
             Aggregate aggregate = Aggregate.Sum,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
             return CombineCore<ReadOnlyLease<SortedSetEntry>>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: true, flags);
@@ -775,7 +830,8 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<double> weights = default,
             Aggregate aggregate = Aggregate.Sum,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
             return CombineCore<SortedSetEntry[]>(in sortedSets, command, destination: default, keys, weights, aggregate, withScores: true, flags);
@@ -789,6 +845,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="weights">A multiplier per key, or <see langword="null"/> for all ones.</param>
         /// <param name="aggregate">How to fold the scores of a member present in several keys.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<long> CombineAndStoreAsync(
             this in RespSortedSets sortedSets,
             SetOperation operation,
@@ -796,7 +853,8 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<RedisKey> keys,
             ReadOnlySpan<double> weights = default,
             Aggregate aggregate = Aggregate.Sum,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var command = ValidateCombine(operation.ToSortedSetStoreCommand(), keys, weights, aggregate);
             return CombineCore<long>(in sortedSets, command, destination, keys, weights, aggregate, withScores: false, flags);
@@ -807,13 +865,15 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="keys">The keys to intersect.</param>
         /// <param name="limit">Stop counting at this many; <c>null</c> for no limit.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> CombineLengthAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long? limit = null, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> CombineLengthAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long? limit = null, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             if (keys.IsEmpty) throw new ArgumentException("At least one key is required.", nameof(keys));
 
             return sortedSets.Context.SendAsync<long>(
                 $"{RedisCommand.ZINTERCARD}{keys.Length}{keys}{RespLiterals.Limit.When(limit)}{limit}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         // ---- pops --------------------------------------------------------------------------------------
@@ -823,10 +883,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="order">Which end to take from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetEntry?> PopAsync(this in RespSortedSets sortedSets, RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<SortedSetEntry?> PopAsync(this in RespSortedSets sortedSets, RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
-            return sortedSets.Context.SendAsync<SortedSetEntry?>($"{command}{key}", flags);
+            return sortedSets.Context.SendAsync<SortedSetEntry?>($"{command}{key}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>ZPOPMIN/ZPOPMAX with a count.</summary>
@@ -835,14 +896,15 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take.</param>
         /// <param name="order">Which end to take from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ReadOnlyLease<SortedSetEntry>> PopAsync(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<ReadOnlyLease<SortedSetEntry>> PopAsync(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             // unlike SPOP, a count of zero here is well defined on the wire - but sending it is a round
             // trip to be told nothing, which the old surface also declines to make
             if (count == 0) return new ValueTask<ReadOnlyLease<SortedSetEntry>>(ReadOnlyLease<SortedSetEntry>.Empty);
 
             var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
-            return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>($"{command}{key}{count}", flags);
+            return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>($"{command}{key}{count}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>Pop, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -857,14 +919,14 @@ namespace StackExchange.Redis.Interpolated
         /// reach for the lease, and nothing outside this assembly should be able to choose otherwise.
         /// </para>
         /// </remarks>
-        internal static ValueTask<SortedSetEntry[]> PopArray(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        internal static ValueTask<SortedSetEntry[]> PopArray(this in RespSortedSets sortedSets, RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             // unlike SPOP, a count of zero here is well defined on the wire - but sending it is a round
             // trip to be told nothing, which the old surface also declines to make
             if (count == 0) return new ValueTask<SortedSetEntry[]>(Array.Empty<SortedSetEntry>());
 
             var command = order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN;
-            return sortedSets.Context.SendAsync<SortedSetEntry[]>($"{command}{key}{count}", flags);
+            return sortedSets.Context.SendAsync<SortedSetEntry[]>($"{command}{key}{count}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>ZMPOP: take from the first of several keys that has anything.</summary>
@@ -873,14 +935,16 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="count">How many to take from whichever key answers.</param>
         /// <param name="order">Which end to take from.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<SortedSetPopResult> PopAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<SortedSetPopResult> PopAsync(this in RespSortedSets sortedSets, ReadOnlySpan<RedisKey> keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             if (keys.IsEmpty) throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
 
             var end = order == Order.Descending ? RespLiterals.Max : RespLiterals.Min;
             return sortedSets.Context.SendAsync<SortedSetPopResult>(
                 $"{RedisCommand.ZMPOP}{keys.Length}{keys}{end}{RespLiterals.Count}{count}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         // ---- shared -------------------------------------------------------------------------------------

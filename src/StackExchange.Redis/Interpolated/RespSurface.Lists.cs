@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
@@ -58,17 +59,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to read.</param>
         /// <param name="index">The index to read; negative counts back from the end.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> GetByIndexAsync(this in RespLists lists, RedisKey key, long index, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<RedisValue> GetByIndexAsync(this in RespLists lists, RedisKey key, long index, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.LINDEX}{key}{index}", flags);
+                $"{RedisCommand.LINDEX}{key}{index}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LLEN.</summary>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> LengthAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> LengthAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LLEN}{key}", flags);
+                $"{RedisCommand.LLEN}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LRANGE.</summary>
         /// <param name="lists">The list command group.</param>
@@ -76,12 +79,14 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="start">The first index to take; negative counts back from the end.</param>
         /// <param name="stop">The last index to take; negative counts back from the end.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>A pooled lease, not an array, and it must be disposed; see <c>Strings.Get</c>.</remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LRANGE}{key}{start}{stop}",
                 flags,
-                RespHandlers.ValueWindowHandler.Lease);
+                RespHandlers.ValueWindowHandler.Lease,
+                cancellationToken: cancellationToken);
 
         /// <summary>LPOS: where an element sits, or -1.</summary>
         /// <param name="lists">The list command group.</param>
@@ -90,6 +95,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="rank">Which match to report; negative searches from the tail.</param>
         /// <param name="maxLength">How many entries to compare before giving up; zero for the whole list.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <c>RANK</c> and <c>MAXLEN</c> are always written, as the old surface writes them - the server's
         /// defaults are the same values, so this costs four arguments and keeps one shape.
@@ -100,12 +106,14 @@ namespace StackExchange.Redis.Interpolated
             RedisValue element,
             long rank = 1,
             long maxLength = 0,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => WhenDiscarded(
                 lists.Context.SendAsync(
                     $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}",
                     flags,
-                    RespHandlers.Int64OrMinusOne),
+                    RespHandlers.Int64OrMinusOne,
+                    cancellationToken: cancellationToken),
                 flags,
                 -1L);
 
@@ -117,6 +125,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="rank">Which match to start from; negative searches from the tail.</param>
         /// <param name="maxLength">How many entries to compare before giving up; zero for the whole list.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>The lease must be disposed.</remarks>
         public static ValueTask<ReadOnlyLease<long>> PositionsAsync(
             this in RespLists lists,
@@ -125,11 +134,13 @@ namespace StackExchange.Redis.Interpolated
             long count,
             long rank = 1,
             long maxLength = 0,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => WhenDiscarded(
                 lists.Context.SendAsync<ReadOnlyLease<long>>(
                     $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}{RespLiterals.Count}{count}",
-                    flags),
+                    flags,
+                    cancellationToken: cancellationToken),
                 flags,
                 ReadOnlyLease<long>.Empty);
 
@@ -141,44 +152,48 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="value">The value to push.</param>
         /// <param name="when">Whether the list must already exist.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <c>LPUSHX</c> survives for the reason <c>HSETNX</c> did and <c>SETNX</c> did not: <c>LPUSH</c>
         /// has no conditional operand at all, so the two really are two commands.
         /// </remarks>
-        public static ValueTask<long> LeftPushAsync(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LeftPushAsync(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => Push(in lists, key, value, when, left: true, flags);
 
-        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, RedisValue, When, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, RedisValue, When, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="values">The values to push.</param>
         /// <param name="when">Whether the list must already exist.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <b>Pushing nothing asks the length instead.</b> An arity-zero <c>LPUSH</c> is a server error,
         /// but the question "how long is it now" still has an answer, and that is what the old surface
         /// returns - so an empty run sends <c>LLEN</c>. Kept because the reply is observable and callers
         /// building a batch from a filtered collection do hit it.
         /// </remarks>
-        public static ValueTask<long> LeftPushAsync(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> LeftPushAsync(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => Push(in lists, key, values, when, left: true, flags);
 
-        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, RedisValue, When, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, RedisValue, When, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="value">The value to push.</param>
         /// <param name="when">Whether the list must already exist.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RightPushAsync(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> RightPushAsync(this in RespLists lists, RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => Push(in lists, key, value, when, left: false, flags);
 
-        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, ReadOnlySpan{RedisValue}, When, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPushAsync(in RespLists, RedisKey, ReadOnlySpan{RedisValue}, When, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="values">The values to push.</param>
         /// <param name="when">Whether the list must already exist.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RightPushAsync(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> RightPushAsync(this in RespLists lists, RedisKey key, ReadOnlySpan<RedisValue> values, When when = When.Always, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => Push(in lists, key, values, when, left: false, flags);
 
         // ---- pops --------------------------------------------------------------------------------------
@@ -187,59 +202,67 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> LeftPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<RedisValue> LeftPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.LPOP}{key}", flags);
+                $"{RedisCommand.LPOP}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LPOP with a count.</summary>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> LeftPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> LeftPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LPOP}{key}{count}",
                 flags,
-                RespHandlers.ValueWindowHandler.Lease);
+                RespHandlers.ValueWindowHandler.Lease,
+                cancellationToken: cancellationToken);
 
         /// <summary>RPOP.</summary>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> RightPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<RedisValue> RightPopAsync(this in RespLists lists, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.RPOP}{key}", flags);
+                $"{RedisCommand.RPOP}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>RPOP with a count.</summary>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>The lease must be disposed.</remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> RightPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> RightPopAsync(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.RPOP}{key}{count}",
                 flags,
-                RespHandlers.ValueWindowHandler.Lease);
+                RespHandlers.ValueWindowHandler.Lease,
+                cancellationToken: cancellationToken);
 
         /// <summary>LMPOP: take from the first of several keys that has anything.</summary>
         /// <param name="lists">The list command group.</param>
         /// <param name="keys">The keys to try, in order.</param>
         /// <param name="count">How many to take from whichever key answers.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// The result carries which key answered, since the caller asked about several.
         /// </remarks>
-        public static ValueTask<ListPopResult> LeftPopAsync(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ListPopResult> LeftPopAsync(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => MultiPop(in lists, keys, count, left: true, flags);
 
-        /// <inheritdoc cref="LeftPopAsync(in RespLists, ReadOnlySpan{RedisKey}, long, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPopAsync(in RespLists, ReadOnlySpan{RedisKey}, long, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="keys">The keys to try, in order.</param>
         /// <param name="count">How many to take from whichever key answers.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<ListPopResult> RightPopAsync(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<ListPopResult> RightPopAsync(this in RespLists lists, ReadOnlySpan<RedisKey> keys, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => MultiPop(in lists, keys, count, left: false, flags);
 
         // ---- moves and edits ---------------------------------------------------------------------------
@@ -251,6 +274,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sourceSide">Which end to take from.</param>
         /// <param name="destinationSide">Which end to add to.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// The one place a <see cref="ListSide"/> is a parameter rather than part of the name, because
         /// here the server takes it as an operand too. <c>RPOPLPUSH</c> is this command with both sides
@@ -262,10 +286,12 @@ namespace StackExchange.Redis.Interpolated
             RedisKey destinationKey,
             ListSide sourceSide,
             ListSide destinationSide,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<RedisValue>(
                 $"{RedisCommand.LMOVE}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
 
         /// <summary>
         /// <c>LMOVE src dst RIGHT LEFT</c> where the server has it, <c>RPOPLPUSH</c> where it does not:
@@ -275,9 +301,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="sourceKey">The key to take from.</param>
         /// <param name="destinationKey">The key to add to.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// Internal, and deliberately not part of the group's own surface: naming both sides is all
-        /// <c>RPOPLPUSH</c> is, so <see cref="MoveAsync(in RespLists, RedisKey, RedisKey, ListSide, ListSide, CommandFlags)"/>
+        /// <c>RPOPLPUSH</c> is, so <see cref="MoveAsync(in RespLists, RedisKey, RedisKey, ListSide, ListSide, CommandFlags, CancellationToken)"/>
         /// is the method callers want. This exists so that a caller of the <b>old</b> method keeps working
         /// against a server older than 6.2, where <c>LMOVE</c> does not exist.
         /// </remarks>
@@ -285,7 +312,8 @@ namespace StackExchange.Redis.Interpolated
             this in RespLists lists,
             RedisKey sourceKey,
             RedisKey destinationKey,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             var context = lists.Context;
             if (context.CommandMap.IsAvailable(RedisCommand.LMOVE)
@@ -299,7 +327,8 @@ namespace StackExchange.Redis.Interpolated
             // cluster both keys are in the same slot anyway, or the server rejects the call
             return context.SendAsync<RedisValue>(
                 $"{RedisCommand.RPOPLPUSH}{sourceKey}{destinationKey}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>LMOVEM: the bulk form, moving several elements at once.</summary>
@@ -312,6 +341,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="mode">Whether <paramref name="count"/> is a maximum or an exact requirement.</param>
         /// <param name="order">Whether the elements move as a block or one at a time.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <see langword="null"/> - not empty - when nothing moved, which is the one array reply in this
         /// library where those two are different answers; see <see cref="RespHandlers.ValueWindowHandler.NullableLease"/>.
@@ -326,11 +356,13 @@ namespace StackExchange.Redis.Interpolated
             long count,
             ListMoveCount mode = ListMoveCount.UpTo,
             ListMoveOrder order = ListMoveOrder.Bulk,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}",
                 flags,
-                RespHandlers.ValueWindowHandler.NullableLease);
+                RespHandlers.ValueWindowHandler.NullableLease,
+                cancellationToken: cancellationToken);
 
         /// <summary>LINSERT ... BEFORE.</summary>
         /// <param name="lists">The list command group.</param>
@@ -338,9 +370,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="pivot">The existing element to insert next to.</param>
         /// <param name="value">The value to insert.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> InsertBeforeAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> InsertBeforeAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LINSERT}{key}{RespLiterals.Before}{pivot}{value}", flags);
+                $"{RedisCommand.LINSERT}{key}{RespLiterals.Before}{pivot}{value}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LINSERT ... AFTER.</summary>
         /// <param name="lists">The list command group.</param>
@@ -348,9 +381,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="pivot">The existing element to insert next to.</param>
         /// <param name="value">The value to insert.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> InsertAfterAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> InsertAfterAsync(this in RespLists lists, RedisKey key, RedisValue pivot, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LINSERT}{key}{RespLiterals.After}{pivot}{value}", flags);
+                $"{RedisCommand.LINSERT}{key}{RespLiterals.After}{pivot}{value}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LREM; the reply is how many were removed.</summary>
         /// <param name="lists">The list command group.</param>
@@ -358,9 +392,10 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="value">The value to remove.</param>
         /// <param name="count">How many to remove; zero for all, negative to work from the tail.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> RemoveAsync(this in RespLists lists, RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> RemoveAsync(this in RespLists lists, RedisKey key, RedisValue value, long count = 0, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync<long>(
-                $"{RedisCommand.LREM}{key}{count}{value}", flags);
+                $"{RedisCommand.LREM}{key}{count}{value}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LSET.</summary>
         /// <param name="lists">The list command group.</param>
@@ -368,11 +403,12 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="index">The index to write; negative counts back from the end.</param>
         /// <param name="value">The value to write.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>Result-less: the reply is <c>+OK</c> and carries nothing, but is still read, because
         /// an error is the only thing such a call can report.</remarks>
-        public static ValueTask SetByIndexAsync(this in RespLists lists, RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask SetByIndexAsync(this in RespLists lists, RedisKey key, long index, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
-                $"{RedisCommand.LSET}{key}{index}{value}", flags);
+                $"{RedisCommand.LSET}{key}{index}{value}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LTRIM.</summary>
         /// <param name="lists">The list command group.</param>
@@ -380,26 +416,29 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="start">The first index to keep.</param>
         /// <param name="stop">The last index to keep.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks><inheritdoc cref="SetByIndexAsync" path="/remarks"/></remarks>
-        public static ValueTask TrimAsync(this in RespLists lists, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
+        public static ValueTask TrimAsync(this in RespLists lists, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
-                $"{RedisCommand.LTRIM}{key}{start}{stop}", flags);
+                $"{RedisCommand.LTRIM}{key}{start}{stop}", flags, cancellationToken: cancellationToken);
 
         // ---- the array shapes IDatabase still needs ----------------------------------------------------
         // Internal, as everywhere else: the array is the OLD spelling, it allocates where the lease need
         // not, and nothing outside this assembly should be able to choose it. See Strings.GetArray.
 
-        /// <inheritdoc cref="RangeAsync(in RespLists, RedisKey, long, long, CommandFlags)"/>
+        /// <inheritdoc cref="RangeAsync(in RespLists, RedisKey, long, long, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="start">The first index to take.</param>
         /// <param name="stop">The last index to take.</param>
         /// <param name="flags">Command flags.</param>
-        internal static ValueTask<RedisValue[]> RangeArray(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        internal static ValueTask<RedisValue[]> RangeArray(this in RespLists lists, RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LRANGE}{key}{start}{stop}",
                 flags,
-                RespHandlers.Values);
+                RespHandlers.Values,
+                cancellationToken: cancellationToken);
 
         /// <inheritdoc cref="PositionsAsync"/>
         /// <param name="lists">The list command group.</param>
@@ -409,6 +448,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="rank">Which match to start from.</param>
         /// <param name="maxLength">How many entries to compare before giving up.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         internal static ValueTask<long[]> PositionsArray(
             this in RespLists lists,
             RedisKey key,
@@ -416,37 +456,43 @@ namespace StackExchange.Redis.Interpolated
             long count,
             long rank = 1,
             long maxLength = 0,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => WhenDiscarded(
                 lists.Context.SendAsync<long[]>(
                     $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}{RespLiterals.Count}{count}",
-                    flags),
+                    flags,
+                    cancellationToken: cancellationToken),
                 flags,
                 Array.Empty<long>());
 
-        /// <inheritdoc cref="LeftPopAsync(in RespLists, RedisKey, long, CommandFlags)"/>
+        /// <inheritdoc cref="LeftPopAsync(in RespLists, RedisKey, long, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
-        internal static ValueTask<RedisValue[]> LeftPopArray(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        internal static ValueTask<RedisValue[]> LeftPopArray(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LPOP}{key}{count}",
                 flags,
-                RespHandlers.Values);
+                RespHandlers.Values,
+                cancellationToken: cancellationToken);
 
-        /// <inheritdoc cref="RightPopAsync(in RespLists, RedisKey, long, CommandFlags)"/>
+        /// <inheritdoc cref="RightPopAsync(in RespLists, RedisKey, long, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="key">The key to write.</param>
         /// <param name="count">How many to take.</param>
         /// <param name="flags">Command flags.</param>
-        internal static ValueTask<RedisValue[]> RightPopArray(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        internal static ValueTask<RedisValue[]> RightPopArray(this in RespLists lists, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.RPOP}{key}{count}",
                 flags,
-                RespHandlers.Values);
+                RespHandlers.Values,
+                cancellationToken: cancellationToken);
 
-        /// <inheritdoc cref="MoveAsync(in RespLists, RedisKey, RedisKey, ListSide, ListSide, long, ListMoveCount, ListMoveOrder, CommandFlags)"/>
+        /// <inheritdoc cref="MoveAsync(in RespLists, RedisKey, RedisKey, ListSide, ListSide, long, ListMoveCount, ListMoveOrder, CommandFlags, CancellationToken)"/>
         /// <param name="lists">The list command group.</param>
         /// <param name="sourceKey">The key to take from.</param>
         /// <param name="destinationKey">The key to add to.</param>
@@ -456,6 +502,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="mode">Whether the count is a maximum or exact.</param>
         /// <param name="order">Whether the elements move as a block or one at a time.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>Null stays null here, as the old signature promises.</remarks>
         internal static ValueTask<RedisValue[]?> MoveArray(
             this in RespLists lists,
@@ -466,11 +513,13 @@ namespace StackExchange.Redis.Interpolated
             long count,
             ListMoveCount mode = ListMoveCount.UpTo,
             ListMoveOrder order = ListMoveOrder.Bulk,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => lists.Context.SendAsync(
                 $"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}",
                 flags,
-                RespHandlers.NullableValues);
+                RespHandlers.NullableValues,
+                cancellationToken: cancellationToken);
 
         // ---- shared -------------------------------------------------------------------------------------
 

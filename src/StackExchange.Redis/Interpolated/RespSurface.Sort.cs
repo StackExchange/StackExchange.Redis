@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
@@ -20,6 +21,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="by">An external pattern to sort by, rather than the elements themselves.</param>
         /// <param name="get">Patterns to fetch for each element, in place of the element.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// On the <b>key</b> group rather than a group of its own, and not on the three element groups
@@ -43,7 +45,8 @@ namespace StackExchange.Redis.Interpolated
             SortType sortType = SortType.Numeric,
             RedisValue by = default,
             ReadOnlySpan<RedisValue> get = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => SortCore<ReadOnlyLease<RespValue>>(in keys, default, key, skip, take, order, sortType, by, get, flags);
 
         /// <summary>SORT ... STORE: the same sort, written to a key as a list; the reply is its length.</summary>
@@ -57,6 +60,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="by"><inheritdoc cref="SortAsync" path="/param[@name='by']"/></param>
         /// <param name="get"><inheritdoc cref="SortAsync" path="/param[@name='get']"/></param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// Always <c>SORT</c>, never <c>SORT_RO</c>: a destination makes this a write however read-only
         /// the sort itself is, which is also why the retry category is raised here and nowhere else in
@@ -72,7 +76,8 @@ namespace StackExchange.Redis.Interpolated
             SortType sortType = SortType.Numeric,
             RedisValue by = default,
             ReadOnlySpan<RedisValue> get = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             if (destination.IsNull) throw new ArgumentNullException(nameof(destination));
             return SortCore<long>(in keys, destination, key, skip, take, order, sortType, by, get, flags);

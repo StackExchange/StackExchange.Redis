@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
@@ -88,14 +89,16 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> GetAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<RedisValue> GetAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GET}{key}", flags);
+                $"{RedisCommand.GET}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>MGET.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="keys">The keys to read.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// The variadic form, in one expression: <c>{keys}</c> is a hole like any other, and each key in it
@@ -121,16 +124,17 @@ namespace StackExchange.Redis.Interpolated
         /// the internal <c>GetArray</c> sibling, which pays one <c>AsRedisValue</c> per element.
         /// </para>
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<RespValue>> GetAsync(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<RespValue>> GetAsync(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => keys.IsEmpty
                 ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
                 : strings.Context.SendAsync(
-                    $"{RedisCommand.MGET}{keys}", flags, RespHandlers.ValueWindowHandler.Lease);
+                    $"{RedisCommand.MGET}{keys}", flags, RespHandlers.ValueWindowHandler.Lease, cancellationToken: cancellationToken);
 
         /// <summary>MGET, as an array, for the old <c>IDatabase</c> surface.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="keys">The keys to read.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// <b>Internal, and deliberately a sibling rather than a conversion.</b> <c>IDatabase.StringGet</c>
@@ -147,16 +151,17 @@ namespace StackExchange.Redis.Interpolated
         /// to choose otherwise.
         /// </para>
         /// </remarks>
-        internal static ValueTask<RedisValue[]> GetArray(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None)
+        internal static ValueTask<RedisValue[]> GetArray(this in RespStrings strings, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => keys.IsEmpty
                 ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
                 : strings.Context.SendAsync(
-                    $"{RedisCommand.MGET}{keys}", flags, RespHandlers.Values);
+                    $"{RedisCommand.MGET}{keys}", flags, RespHandlers.Values, cancellationToken: cancellationToken);
 
         /// <summary>GET, retaining the payload as a <see cref="ReadOnlyLease{T}"/> rather than a value.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// Same command, different result shape - which is why it is a separate method rather than an
@@ -168,25 +173,26 @@ namespace StackExchange.Redis.Interpolated
         /// reply is retained contiguously, the lease points at it rather than copying. A writable lease
         /// could not - a buffer the caller may scribble on must not alias memory anything else can read -
         /// so the mutable <see cref="Lease{T}"/> always copies. The old surface's signatures say
-        /// <see cref="Lease{T}"/> and cannot change, which is what <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags)"/> is for.
+        /// <see cref="Lease{T}"/> and cannot change, which is what <see cref="GetWritableLease(in RespStrings, RedisKey, CommandFlags, CancellationToken)"/> is for.
         /// </para>
         /// </remarks>
-        public static ValueTask<ReadOnlyLease<byte>?> GetLeaseAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ReadOnlyLease<byte>?> GetLeaseAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<ReadOnlyLease<byte>?>(
-                $"{RedisCommand.GET}{key}", flags);
+                $"{RedisCommand.GET}{key}", flags, cancellationToken: cancellationToken);
 
-        /// <inheritdoc cref="GetLeaseAsync(in RespStrings, RedisKey, CommandFlags)"/>
+        /// <inheritdoc cref="GetLeaseAsync(in RespStrings, RedisKey, CommandFlags, CancellationToken)"/>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// The writable-lease sibling, for <c>IDatabase.StringGetLease</c>. Internal for the reason
-        /// <see cref="GetArray(in RespStrings, ReadOnlySpan{RedisKey}, CommandFlags)"/> is: the mutable lease is the <i>old</i> spelling, it copies where the
+        /// <see cref="GetArray(in RespStrings, ReadOnlySpan{RedisKey}, CommandFlags, CancellationToken)"/> is: the mutable lease is the <i>old</i> spelling, it copies where the
         /// read-only one need not, and nothing outside this assembly should be able to choose it.
         /// </remarks>
-        internal static ValueTask<Lease<byte>?> GetWritableLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+        internal static ValueTask<Lease<byte>?> GetWritableLease(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<Lease<byte>?>(
-                $"{RedisCommand.GET}{key}", flags);
+                $"{RedisCommand.GET}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>GETRANGE.</summary>
         /// <param name="strings">The string command group.</param>
@@ -194,17 +200,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="start">The inclusive start offset; negative counts back from the end.</param>
         /// <param name="end">The inclusive end offset; negative counts back from the end.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> GetRangeAsync(this in RespStrings strings, RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<RedisValue> GetRangeAsync(this in RespStrings strings, RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GETRANGE}{key}{start}{end}", flags);
+                $"{RedisCommand.GETRANGE}{key}{start}{end}", flags, cancellationToken: cancellationToken);
 
         /// <summary>GETDEL.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to read and remove.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<RedisValue> GetDeleteAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<RedisValue> GetDeleteAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GETDEL}{key}", flags);
+                $"{RedisCommand.GETDEL}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>GETEX: read the value, and set, keep or clear the expiration in the same call.</summary>
         /// <param name="strings">The string command group.</param>
@@ -214,6 +222,7 @@ namespace StackExchange.Redis.Interpolated
         /// <see cref="Expiration.Persist"/> clears it.
         /// </param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// <b>One method where the old surface has three.</b> <c>StringGetSetExpiry</c> exists as a
@@ -228,31 +237,33 @@ namespace StackExchange.Redis.Interpolated
         /// render into a command the server will reject.
         /// </para>
         /// </remarks>
-        public static ValueTask<RedisValue> GetSetExpiryAsync(this in RespStrings strings, RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<RedisValue> GetSetExpiryAsync(this in RespStrings strings, RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         {
             var mutatesTtl = expiry.GetTokenCount(allowEnx: false) != 0;
             if (mutatesTtl) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
             return strings.Context.SendAsync<RedisValue>(
-                $"{RedisCommand.GETEX}{key}{expiry}", flags);
+                $"{RedisCommand.GETEX}{key}{expiry}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>STRLEN.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to measure.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> LengthAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> LengthAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.STRLEN}{key}", flags);
+                $"{RedisCommand.STRLEN}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>APPEND; the reply is the new length.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to append to.</param>
         /// <param name="value">The value to append.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> AppendAsync(this in RespStrings strings, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> AppendAsync(this in RespStrings strings, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.APPEND}{key}{value}", flags);
+                $"{RedisCommand.APPEND}{key}{value}", flags, cancellationToken: cancellationToken);
 
         /// <summary>SETRANGE; the reply is the new length.</summary>
         /// <param name="strings">The string command group.</param>
@@ -260,28 +271,30 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="offset">The byte offset to write at; the value is zero-padded up to it.</param>
         /// <param name="value">The value to write.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <c>long</c>, not <c>RedisValue</c>. <c>SETRANGE</c> replies with an integer and always has; the
         /// old surface returns <c>RedisValue</c>, which makes every caller ask a second question of a reply
         /// that only ever answers one way. The adapter converts, so nothing observable changes for the old
         /// spelling.
         /// </remarks>
-        public static ValueTask<long> SetRangeAsync(this in RespStrings strings, RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> SetRangeAsync(this in RespStrings strings, RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.SETRANGE}{key}{offset}{value}", flags);
+                $"{RedisCommand.SETRANGE}{key}{offset}{value}", flags, cancellationToken: cancellationToken);
 
         /// <summary>DIGEST: the server's hash of the value, as a condition a later write can be gated on.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to digest.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <see langword="null"/> when the key does not exist. The result is directly usable as the
-        /// <c>when</c> of a later <see cref="SetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>,
+        /// <c>when</c> of a later <see cref="SetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags, CancellationToken)"/>,
         /// which is the whole point of returning a <see cref="ValueCondition"/> rather than bytes.
         /// </remarks>
-        public static ValueTask<ValueCondition?> DigestAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<ValueCondition?> DigestAsync(this in RespStrings strings, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<ValueCondition?>(
-                $"{RedisCommand.DIGEST}{key}", flags);
+                $"{RedisCommand.DIGEST}{key}", flags, cancellationToken: cancellationToken);
 
         /// <summary>SET, in full: expiration and value condition included.</summary>
         /// <param name="strings">The string command group.</param>
@@ -290,6 +303,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="expiry">When the key should expire; default for no expiration.</param>
         /// <param name="when">The condition the write is subject to; default to write unconditionally.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// Deliberately the <b>most complicated</b> command in the spike, because it is the one that tests
@@ -346,12 +360,14 @@ namespace StackExchange.Redis.Interpolated
             RedisValue value,
             Expiration expiry = default,
             ValueCondition when = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => value.IsNull
                 ? DeleteAsync(in strings, key, when: default, flags)
                 : strings.Context.SendAsync<bool>(
                     $"{RedisCommand.SET}{key}{value}{when}{expiry}",
-                    flags.WithRetryCategory(when.RetryCategory));
+                    flags.WithRetryCategory(when.RetryCategory),
+                    cancellationToken: cancellationToken);
 
         /// <summary>MSET/MSETNX/MSETEX: set several keys in one command.</summary>
         /// <param name="strings">The string command group.</param>
@@ -359,6 +375,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="expiry">When the keys should expire; default for no expiration.</param>
         /// <param name="when">The condition the write is subject to; default to write unconditionally.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// <b>Three commands behind one method, and unlike SET's arity relics these are not
@@ -373,7 +390,7 @@ namespace StackExchange.Redis.Interpolated
         /// rendering a command the server will reject.
         /// </para>
         /// <para>
-        /// No pairs means no command, as with <see cref="GetAsync(in RespStrings, ReadOnlySpan{RedisKey}, CommandFlags)"/>:
+        /// No pairs means no command, as with <see cref="GetAsync(in RespStrings, ReadOnlySpan{RedisKey}, CommandFlags, CancellationToken)"/>:
         /// writing nothing succeeded.
         /// </para>
         /// </remarks>
@@ -382,7 +399,8 @@ namespace StackExchange.Redis.Interpolated
             ReadOnlySpan<KeyValuePair<RedisKey, RedisValue>> values,
             Expiration expiry = default,
             ValueCondition when = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             if (values.IsEmpty) return new ValueTask<bool>(true);
 
@@ -404,8 +422,8 @@ namespace StackExchange.Redis.Interpolated
 
             // MSET/MSETNX take the pairs and nothing else; MSETEX prefixes a count and accepts the tail
             return command == RedisCommand.MSETEX
-                ? strings.Context.SendAsync<bool>($"{command}{values.Length}{values}{expiry}{when}", flags)
-                : strings.Context.SendAsync<bool>($"{command}{values}", flags);
+                ? strings.Context.SendAsync<bool>($"{command}{values.Length}{values}{expiry}{when}", flags, cancellationToken: cancellationToken)
+                : strings.Context.SendAsync<bool>($"{command}{values}", flags, cancellationToken: cancellationToken);
         }
 
         /// <summary>SET ... GET: write the value, and reply with the one it replaced.</summary>
@@ -415,6 +433,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="expiry">When the key should expire; default for no expiration.</param>
         /// <param name="when">The condition the write is subject to; default to write unconditionally.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// The canonical form, and <c>GETSET</c> is not emitted at all - it has been deprecated in favour
@@ -423,14 +442,14 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// <para>
         /// <b>Operand order is the documented grammar</b>, as in
-        /// <see cref="SetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>:
+        /// <see cref="SetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags, CancellationToken)"/>:
         /// the condition, then <c>GET</c>, then the expiration. The old builder emits <c>EX n XX GET</c>,
         /// which Redis parses and another RESP server need not.
         /// </para>
         /// <para>
         /// A nil reply is ambiguous by nature - the key was absent, or the condition refused the write -
         /// and that ambiguity is the command's, not ours. A caller who needs to tell them apart wants
-        /// <see cref="SetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>,
+        /// <see cref="SetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags, CancellationToken)"/>,
         /// whose boolean answers exactly that question.
         /// </para>
         /// </remarks>
@@ -440,12 +459,14 @@ namespace StackExchange.Redis.Interpolated
             RedisValue value,
             Expiration expiry = default,
             ValueCondition when = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => value.IsNull
                 ? GetDeleteAsync(in strings, key, flags) // as Set: a null value removes the key, and GETDEL is the read-it-back form
                 : strings.Context.SendAsync<RedisValue>(
                     $"{RedisCommand.SET}{key}{value}{when}{RespLiterals.Get}{expiry}",
-                    flags.WithRetryCategory(when.RetryCategory));
+                    flags.WithRetryCategory(when.RetryCategory),
+                    cancellationToken: cancellationToken);
 
         /// <summary>
         /// <c>SET ... GET</c> where the server has it, <c>GETSET</c> where it does not: the old
@@ -455,10 +476,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to write.</param>
         /// <param name="value">The value to write.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// Internal, and deliberately not part of the group's own surface: the modern spelling is
-        /// <see cref="SetAndGetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>,
+        /// <see cref="SetAndGetAsync(in RespStrings, RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags, CancellationToken)"/>,
         /// which composes with a condition and an expiration as <c>GETSET</c> never could. This exists so
         /// that a caller of the <b>old</b> method keeps working against a server older than 6.2, where
         /// <c>SET ... GET</c> is a syntax error.
@@ -474,7 +496,8 @@ namespace StackExchange.Redis.Interpolated
             this in RespStrings strings,
             RedisKey key,
             RedisValue value,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             value.AssertNotNull();
 
@@ -485,14 +508,16 @@ namespace StackExchange.Redis.Interpolated
             {
                 return context.SendAsync<RedisValue>(
                     $"{RedisCommand.SET}{key}{value}{RespLiterals.Get}",
-                    flags);
+                    flags,
+                    cancellationToken: cancellationToken);
             }
 
             // not known to be 6.2+, so the deprecated spelling, which every server understands. "Not sure"
             // has to mean the old one: the new one fails outright where it is missing.
             return context.SendAsync<RedisValue>(
                 $"{RedisCommand.GETSET}{key}{value}",
-                flags);
+                flags,
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>DEL/DELEX: remove a key, optionally only if it still holds what you think it does.</summary>
@@ -500,6 +525,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to remove.</param>
         /// <param name="when">The condition the delete is subject to; default to delete unconditionally.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// <see cref="ValueCondition.Exists"/> is the same request as no condition - <c>DEL</c> already
@@ -516,14 +542,15 @@ namespace StackExchange.Redis.Interpolated
             this in RespStrings strings,
             RedisKey key,
             ValueCondition when = default,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             switch (when.Kind)
             {
                 case ValueCondition.ConditionKind.Always:
                 case ValueCondition.ConditionKind.Exists:
                     return strings.Context.SendAsync<bool>(
-                        $"{RedisCommand.DEL}{key}", flags);
+                        $"{RedisCommand.DEL}{key}", flags, cancellationToken: cancellationToken);
 
                 case ValueCondition.ConditionKind.ValueEquals:
                 case ValueCondition.ConditionKind.ValueNotEquals:
@@ -531,7 +558,8 @@ namespace StackExchange.Redis.Interpolated
                 case ValueCondition.ConditionKind.DigestNotEquals:
                     return strings.Context.SendAsync<bool>(
                         $"{RedisCommand.DELEX}{key}{when}",
-                        flags.WithRetryCategory(when.RetryCategory));
+                        flags.WithRetryCategory(when.RetryCategory),
+                        cancellationToken: cancellationToken);
 
                 default:
                     return ThrowUnsupportedCondition<ValueTask<bool>>(when, nameof(DeleteAsync));
@@ -543,6 +571,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="key">The key to increment.</param>
         /// <param name="value">The amount to add.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// <b>There is deliberately no Decrement.</b> <c>DECRBY key n</c> and <c>INCRBY key -n</c> are the
@@ -556,18 +585,19 @@ namespace StackExchange.Redis.Interpolated
         /// branch on every call.
         /// </para>
         /// </remarks>
-        public static ValueTask<long> IncrementAsync(this in RespStrings strings, RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
+        public static ValueTask<long> IncrementAsync(this in RespStrings strings, RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.INCRBY}{key}{value}", flags);
+                $"{RedisCommand.INCRBY}{key}{value}", flags, cancellationToken: cancellationToken);
 
-        /// <inheritdoc cref="IncrementAsync(in RespStrings, RedisKey, long, CommandFlags)"/>
+        /// <inheritdoc cref="IncrementAsync(in RespStrings, RedisKey, long, CommandFlags, CancellationToken)"/>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to increment.</param>
         /// <param name="value">The amount to add.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<double> IncrementAsync(this in RespStrings strings, RedisKey key, double value, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<double> IncrementAsync(this in RespStrings strings, RedisKey key, double value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<double>(
-                $"{RedisCommand.INCRBYFLOAT}{key}{value}", flags);
+                $"{RedisCommand.INCRBYFLOAT}{key}{value}", flags, cancellationToken: cancellationToken);
 
         /// <summary>INCREX: increment with an expiration, and optionally with bounds.</summary>
         /// <param name="strings">The string command group.</param>
@@ -578,10 +608,11 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="upperBound">The highest value the result may take, if any.</param>
         /// <param name="options">Whether a bound clamps the result or rejects the increment.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         /// <remarks>
         /// <para>
         /// A separate command rather than an optional argument on
-        /// <see cref="IncrementAsync(in RespStrings, RedisKey, long, CommandFlags)"/>: the reply shape differs -
+        /// <see cref="IncrementAsync(in RespStrings, RedisKey, long, CommandFlags, CancellationToken)"/>: the reply shape differs -
         /// <c>INCREX</c> answers with the new value <i>and</i> the increment that was actually applied,
         /// which under a bound is not the one you asked for.
         /// </para>
@@ -599,7 +630,8 @@ namespace StackExchange.Redis.Interpolated
             long? lowerBound = null,
             long? upperBound = null,
             IncrementOptions options = IncrementOptions.None,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             ValidateIncrementExpiry(expiry);
 
@@ -618,10 +650,10 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return strings.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<StringIncrementResult<long>>.Require(), default);
+            return strings.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<StringIncrementResult<long>>.Require(), cancellationToken);
         }
 
-        /// <inheritdoc cref="IncrementAsync(in RespStrings, RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags)"/>
+        /// <inheritdoc cref="IncrementAsync(in RespStrings, RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags, CancellationToken)"/>
         /// <param name="strings">The string command group.</param>
         /// <param name="key">The key to increment.</param>
         /// <param name="value">The amount to add.</param>
@@ -630,6 +662,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="upperBound">The highest value the result may take, if any.</param>
         /// <param name="options">Whether a bound clamps the result or rejects the increment.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<StringIncrementResult<double>> IncrementAsync(
             this in RespStrings strings,
             RedisKey key,
@@ -638,7 +671,8 @@ namespace StackExchange.Redis.Interpolated
             double? lowerBound = null,
             double? upperBound = null,
             IncrementOptions options = IncrementOptions.None,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
             ValidateIncrementExpiry(expiry);
 
@@ -657,7 +691,7 @@ namespace StackExchange.Redis.Interpolated
             }
 
             var frame = cmd.Complete();
-            return strings.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<StringIncrementResult<double>>.Require(), default);
+            return strings.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<StringIncrementResult<double>>.Require(), cancellationToken);
         }
 
         /// <summary>LCS: the longest common subsequence of two keys' values.</summary>
@@ -665,18 +699,20 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="first">The first key.</param>
         /// <param name="second">The second key.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<string?> LongestCommonSubsequenceAsync(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<string?> LongestCommonSubsequenceAsync(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<string?>(
-                $"{RedisCommand.LCS}{first}{second}", flags);
+                $"{RedisCommand.LCS}{first}{second}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LCS ... LEN: the length of the longest common subsequence, without transferring it.</summary>
         /// <param name="strings">The string command group.</param>
         /// <param name="first">The first key.</param>
         /// <param name="second">The second key.</param>
         /// <param name="flags">Command flags.</param>
-        public static ValueTask<long> LongestCommonSubsequenceLengthAsync(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<long> LongestCommonSubsequenceLengthAsync(this in RespStrings strings, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
             => strings.Context.SendAsync<long>(
-                $"{RedisCommand.LCS}{first}{second}{RespLiterals.Len}", flags);
+                $"{RedisCommand.LCS}{first}{second}{RespLiterals.Len}", flags, cancellationToken: cancellationToken);
 
         /// <summary>LCS ... IDX: where the matches are, rather than what they contain.</summary>
         /// <param name="strings">The string command group.</param>
@@ -684,16 +720,19 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="second">The second key.</param>
         /// <param name="minLength">Matches shorter than this are not reported.</param>
         /// <param name="flags">Command flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask<LCSMatchResult> LongestCommonSubsequenceWithMatchesAsync(
             this in RespStrings strings,
             RedisKey first,
             RedisKey second,
             long minLength = 0,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
             => strings.Context.SendAsync(
                 $"{RedisCommand.LCS}{first}{second}{RespLiterals.Idx}{RespLiterals.MinMatchLen}{minLength}{RespLiterals.WithMatchLen}",
                 flags,
-                RespHandlers.Inbuilt<LCSMatchResult>.Require());
+                RespHandlers.Inbuilt<LCSMatchResult>.Require(),
+                cancellationToken: cancellationToken);
 
         /// <summary>
         /// Reject a condition this command has no spelling for, reusing <c>ValueCondition</c>'s own
