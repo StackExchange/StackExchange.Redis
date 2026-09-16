@@ -181,6 +181,30 @@ public class RespAggregateTests
             => _released ? throw new ObjectDisposedException(nameof(Releasable)) : bytes;
     }
 
+    /// <summary>
+    /// The prefix is what distinguishes the aggregate kinds, since <c>Count</c> cannot.
+    /// </summary>
+    /// <remarks>
+    /// A map of two pairs is <c>%2</c> and reports <b>4</b> children, which is indistinguishable from an
+    /// array of four without this.
+    /// </remarks>
+    [Theory]
+    [InlineData("*2|$1|a|$1|b|", RespPrefix.Array, 2)]
+    [InlineData("%2|$1|a|$1|b|$1|c|$1|d|", RespPrefix.Map, 4)]
+    [InlineData("~2|$1|a|$1|b|", RespPrefix.Set, 2)]
+    [InlineData(">2|$1|a|$1|b|", RespPrefix.Push, 2)]
+    public void ThePrefixSaysWhichKindOfAggregate(string resp, RespPrefix expected, int count)
+    {
+        var agg = Capture(Frame(resp), ReadString);
+
+        Assert.Equal(expected, agg.Prefix);
+        Assert.Equal(count, agg.Count);
+    }
+
+    [Fact]
+    public void AnAggregateWithNoBytesHasNoPrefix()
+        => Assert.Equal(RespPrefix.None, default(RespAggregate<string>).Prefix);
+
     /// <summary>A scalar is not an aggregate, and says so rather than reading as an empty one.</summary>
     [Fact]
     public void AScalarIsRejected()

@@ -8,6 +8,7 @@
 [SER012]RESPite.Messages.RespAggregate<T>.Enumerator.Enumerator() -> void
 [SER012]RESPite.Messages.RespAggregate<T>.Enumerator.MoveNext() -> bool
 [SER012]RESPite.Messages.RespAggregate<T>.GetEnumerator() -> RESPite.Messages.RespAggregate<T>.Enumerator
+[SER012]RESPite.Messages.RespAggregate<T>.Prefix.get -> RESPite.Messages.RespPrefix
 [SER012]RESPite.Messages.RespAggregate<T>.RespAggregate() -> void
 [SER012]RESPite.Messages.RespAggregate<T>.ToArray() -> T[]!
 [SER012]RESPite.Messages.RespValue
@@ -21,6 +22,7 @@
 [SER012]RESPite.Messages.RespValue.HasValue.get -> bool
 [SER012]RESPite.Messages.RespValue.IsNull.get -> bool
 [SER012]RESPite.Messages.RespValue.Length.get -> int
+[SER012]RESPite.Messages.RespValue.Prefix.get -> RESPite.Messages.RespPrefix
 [SER012]RESPite.Messages.RespValue.RespValue() -> void
 [SER012]RESPite.Messages.RespValue.TryGetSpan(out System.ReadOnlySpan<byte> payload) -> bool
 [SER012]override RESPite.Messages.RespAggregate<T>.ToString() -> string!

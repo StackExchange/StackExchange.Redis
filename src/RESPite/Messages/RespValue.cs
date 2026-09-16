@@ -141,6 +141,21 @@ public readonly struct RespValue : IEquatable<RespValue>
         return true;
     }
 
+    /// <summary>How the server spelled this value.</summary>
+    /// <remarks>
+    /// <para>
+    /// Read from the frame rather than stored, so it costs one header parse and the struct stays the size
+    /// it is - the same arrangement as <see cref="Length"/>.
+    /// </para>
+    /// <para>
+    /// What it is <i>for</i>: the accessors coerce, deliberately - <c>:1</c>, <c>#t</c> and <c>+OK</c> all
+    /// read as <see langword="true"/> - so the spelling is lost by the time you have a value. Inspection,
+    /// diagnostics and anything round-tripping a reply need to know which one arrived.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">If the owner has already given its buffer back.</exception>
+    public RespPrefix Prefix => Reader().Prefix;
+
     /// <summary>Read this value as a 64-bit integer.</summary>
     public long AsInt64() => Reader().ReadInt64();
 

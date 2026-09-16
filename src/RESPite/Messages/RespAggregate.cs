@@ -66,6 +66,35 @@ public readonly struct RespAggregate<T>
     /// </remarks>
     public int Count => _count;
 
+    /// <summary>How the server spelled this aggregate.</summary>
+    /// <remarks>
+    /// <para>
+    /// Read from the frame rather than stored, so it costs one header parse.
+    /// </para>
+    /// <para>
+    /// <b>It is what tells a map from an array</b>, which matters because <see cref="Count"/> counts
+    /// <i>children</i>: a map of two pairs is <c>%2</c> on the wire and reports <b>4</b>, since that is how
+    /// many elements the walk yields. Without the prefix a caller cannot tell that from an array of four.
+    /// Sets (<c>~</c>) and pushes (<c>&gt;</c>) are likewise only distinguishable here.
+    /// </para>
+    /// <para>
+    /// <see cref="RespPrefix.None"/> for an aggregate with no bytes - the default, and a captured nil,
+    /// which collapses to <see cref="Empty"/>.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">If the owner has already given its buffer back.</exception>
+    public RespPrefix Prefix
+    {
+        get
+        {
+            if (_owner is null) return RespPrefix.None;
+
+            var reader = new RespReader(Frame);
+            reader.MoveNext();
+            return reader.Prefix;
+        }
+    }
+
     /// <summary>The bytes of this aggregate's frame, as the owner still holds them.</summary>
     /// <exception cref="ObjectDisposedException">If the owner has already given its buffer back.</exception>
     private ReadOnlySpan<byte> Frame => _owner switch

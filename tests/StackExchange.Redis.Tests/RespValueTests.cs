@@ -161,6 +161,7 @@ public class RespValueTests
         { "Equals", "$1|1|", v => v.Equals(v) },
         { "GetHashCode", "$1|1|", v => v.GetHashCode() },
         { "ToString", "$1|1|", v => v.ToString() },
+        { "Prefix", "$1|1|", v => _ = v.Prefix },
     };
 
     [Theory]
@@ -275,4 +276,26 @@ public class RespValueTests
         Assert.Contains("requires a scalar element", ex.Message);
     }
 
+
+    /// <summary>
+    /// The prefix survives the coercion, which is what it is for.
+    /// </summary>
+    /// <remarks>
+    /// <c>:1</c>, <c>#t</c> and <c>+OK</c> all read as <see langword="true"/> - deliberately, since a server
+    /// answers a boolean three ways - so by the time you have a value the spelling is gone. Anything
+    /// inspecting or round-tripping a reply needs to know which one actually arrived.
+    /// </remarks>
+    [Theory]
+    [InlineData(":1|", RESPite.Messages.RespPrefix.Integer)]
+    [InlineData("#t|", RESPite.Messages.RespPrefix.Boolean)]
+    [InlineData("+OK|", RESPite.Messages.RespPrefix.SimpleString)]
+    public void ThePrefixOutlivesTheCoercion(string resp, RESPite.Messages.RespPrefix expected)
+    {
+        var frame = Frame(resp);
+        var reader = new RESPite.Messages.RespReader(frame);
+        Assert.True(RespValue.TryCaptureNext(frame, ref reader, out var value));
+
+        Assert.True(value.AsBoolean());        // all three coerce alike...
+        Assert.Equal(expected, value.Prefix);  // ...and the spelling is still there
+    }
 }
