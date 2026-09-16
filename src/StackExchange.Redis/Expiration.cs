@@ -319,7 +319,7 @@ public readonly struct Expiration : Interpolated.IRespArgument
     /// to a dedicated overload: if the extension mechanism is good enough for other libraries' types it is
     /// good enough for ours, and this is the proof.
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
     {
         var operand = OperandResp;
         if (operand.IsEmpty) return; // Expiration.Default contributes no arguments

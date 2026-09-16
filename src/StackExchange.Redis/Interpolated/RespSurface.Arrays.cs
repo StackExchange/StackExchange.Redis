@@ -299,7 +299,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         private readonly struct OptionalValue(RedisValue value) : IRespArgument
         {
-            public void WriteTo(scoped ref RespCommandHandler handler)
+            public void WriteTo(scoped ref RespRequestBuilder handler)
             {
                 // absent: writes no arguments, and so contributes nothing to the frame's argument count
                 if (value.IsNull) return;

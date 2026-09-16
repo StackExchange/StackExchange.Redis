@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using StackExchange.Redis.Interpolated;
 using Xunit;
 
@@ -32,7 +32,7 @@ public class InterpolatedWriterCapacityTests
     [InlineData(int.MaxValue - 64)]
     public void ReservationCoversTheBytesActuallyWritten(int payloadLength)
     {
-        long reserved = RespCommandHandler.BulkReservation(payloadLength);
+        long reserved = RespRequestBuilder.BulkReservation(payloadLength);
         Assert.True(
             reserved >= ActualBulkLength(payloadLength),
             $"reserved {reserved} for a payload of {payloadLength}, which needs {ActualBulkLength(payloadLength)}");
@@ -41,5 +41,5 @@ public class InterpolatedWriterCapacityTests
     /// <summary>The reservation must not overflow into a negative for a plausible large payload.</summary>
     [Fact]
     public void ReservationDoesNotOverflowForLargePayloads()
-        => Assert.True(RespCommandHandler.BulkReservation(int.MaxValue - 64) > 0);
+        => Assert.True(RespRequestBuilder.BulkReservation(int.MaxValue - 64) > 0);
 }

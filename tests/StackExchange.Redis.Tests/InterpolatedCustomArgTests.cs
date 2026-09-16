@@ -25,7 +25,7 @@ public class InterpolatedCustomArgTests
     /// <summary>A struct, so the constrained call has something to box if it is going to.</summary>
     private readonly struct Window(int from, int to) : IRespArgument
     {
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             handler.AppendFormatted((RedisValue)from);
             handler.AppendFormatted((RedisValue)to);
@@ -35,20 +35,20 @@ public class InterpolatedCustomArgTests
     /// <summary>Writes nothing: an absent optional argument is no argument, not an empty one.</summary>
     private readonly struct Absent : IRespArgument
     {
-        public void WriteTo(scoped ref RespCommandHandler handler) { }
+        public void WriteTo(scoped ref RespRequestBuilder handler) { }
     }
 
     /// <summary>Opts in AND converts to <see cref="RedisValue"/>, so both overloads are applicable.</summary>
     private readonly struct Ambiguous : IRespArgument
     {
         public static implicit operator RedisValue(Ambiguous value) => "CONVERSION";
-        public void WriteTo(scoped ref RespCommandHandler handler) => handler.AppendFormatted((RedisValue)"INTERFACE");
+        public void WriteTo(scoped ref RespRequestBuilder handler) => handler.AppendFormatted((RedisValue)"INTERFACE");
     }
 
     /// <summary>Format ONLY: a bare <c>$"{x}"</c> must not compile, because there is no safe default.</summary>
     private readonly struct Radius(double distance) : IRespFormattableArgument
     {
-        public void WriteTo(scoped ref RespCommandHandler handler, string? format)
+        public void WriteTo(scoped ref RespRequestBuilder handler, string? format)
         {
             handler.AppendFormatted((RedisValue)distance);
             handler.AppendFormatted((RedisValue)(format ?? "m"));
@@ -58,10 +58,10 @@ public class InterpolatedCustomArgTests
     /// <summary>Both, so each spelling has somewhere to go and we can see which one it picked.</summary>
     private readonly struct Either : IRespArgument, IRespFormattableArgument
     {
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
             => handler.AppendFormatted((RedisValue)"PLAIN");
 
-        public void WriteTo(scoped ref RespCommandHandler handler, string? format)
+        public void WriteTo(scoped ref RespRequestBuilder handler, string? format)
             => handler.AppendFormatted((RedisValue)("FORMAT:" + format));
     }
 
@@ -90,7 +90,7 @@ public class InterpolatedCustomArgTests
         // RESP is length-prefixed binary: `$"{key,10}"` would pad the payload and send a DIFFERENT key,
         // silently. It is CS1739 today, and the plausible way that breaks is someone adding the overload
         // "for symmetry" with the format one - which this catches, where a compile error cannot be tested.
-        var offenders = typeof(RespCommandHandler)
+        var offenders = typeof(RespRequestBuilder)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.Name == "AppendFormatted")
             .SelectMany(m => m.GetParameters())

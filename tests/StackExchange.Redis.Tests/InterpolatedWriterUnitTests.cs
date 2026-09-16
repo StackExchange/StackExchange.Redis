@@ -74,7 +74,7 @@ public class InterpolatedWriterUnitTests
     public void HeaderBackfillIsRightAligned(int extraArgs)
     {
         var ctx = new RespContext();
-        var handler = new RespCommandHandler(0, extraArgs + 2, ctx);
+        var handler = new RespRequestBuilder(0, extraArgs + 2, ctx);
         handler.AppendFormatted(RedisCommand.SET);
         handler.AppendFormatted((RedisKey)"mykey");
         for (int i = 0; i < extraArgs; i++) handler.AppendFormatted((RedisValue)i);
@@ -326,7 +326,7 @@ public class InterpolatedWriterUnitTests
         cts.Cancel();
         var ctx = new RespContext();
 
-        var handler = new RespCommandHandler(0, 1, ctx, RedisCommand.GET);
+        var handler = new RespRequestBuilder(0, 1, ctx, RedisCommand.GET);
         handler.AppendFormatted((RedisKey)"k");
 
         var threw = false;
@@ -350,7 +350,7 @@ public class InterpolatedWriterUnitTests
         using var cts = new CancellationTokenSource(); // live, but NOT cancelled
         var ctx = new RespContext();
 
-        var handler = new RespCommandHandler(0, 1, ctx, RedisCommand.GET);
+        var handler = new RespRequestBuilder(0, 1, ctx, RedisCommand.GET);
         handler.AppendFormatted((RedisKey)"k");
 
         NotImplementedException? caught = null;

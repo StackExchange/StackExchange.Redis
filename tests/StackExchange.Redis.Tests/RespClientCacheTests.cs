@@ -269,7 +269,7 @@ public class RespClientCacheTests
     [Fact]
     public void KeysBeyondTheBitmapAreReportedAsUnavailableNotAsASubset()
     {
-        var handler = new RespCommandHandler(0, 70, Ctx, "MGET");
+        var handler = new RespRequestBuilder(0, 70, Ctx, "MGET");
         for (var i = 0; i < 70; i++) handler.AppendFormatted((RedisKey)("k" + i));
         var frame = handler.Complete();
 
@@ -448,7 +448,7 @@ public class RespClientCacheTests
     public void SendAnswersEvenWhenTheFrameCannotBeCached()
     {
         using var cache = new RespClientCache();
-        var writer = new RespCommandHandler(0, 70, Ctx, "MGET");
+        var writer = new RespRequestBuilder(0, 70, Ctx, "MGET");
         for (var i = 0; i < 70; i++) writer.AppendFormatted((RedisKey)("k" + i));
         var frame = writer.Complete();
 

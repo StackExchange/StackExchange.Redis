@@ -57,7 +57,7 @@ public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex
     /// One argument, which is what makes a <c>ReadOnlySpan&lt;RedisArrayIndex&gt;</c> render as a run of
     /// indices through the handler's open span hole rather than needing an overload of its own.
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
         => handler.AppendFormatted(value);
 
     /// <summary>

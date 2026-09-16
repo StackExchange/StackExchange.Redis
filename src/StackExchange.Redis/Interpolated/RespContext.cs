@@ -462,7 +462,7 @@ namespace StackExchange.Redis.Interpolated
         /// <summary>Render an ad-hoc command, marking each argument as a key or a value.</summary>
         private RespRequestFrame Render(string command, ReadOnlySpan<RedisKeyOrValue> args)
         {
-            var handler = new RespCommandHandler(0, args.Length, this, command);
+            var handler = new RespRequestBuilder(0, args.Length, this, command);
             try
             {
                 foreach (var arg in args)
@@ -526,23 +526,23 @@ namespace StackExchange.Redis.Interpolated
         /// </code>
         /// </summary>
         /// <remarks>
-        /// The argument count is then only known at <see cref="RespCommandHandler.Complete"/>, so the
+        /// The argument count is then only known at <see cref="RespRequestBuilder.Complete"/>, so the
         /// <c>*N</c> header is back-filled rather than written as a compile-time constant. Prefer the
         /// single-expression form for fixed-arity commands.
         /// <para>
         /// NOTE: the handler cannot be held by <c>using</c>, because a <c>using</c> variable cannot be passed
         /// by <c>ref</c> (CS1657). If the window between Compose and Execute can throw, use try/finally and
-        /// call <see cref="RespCommandHandler.Dispose"/>. This is the same constraint
+        /// call <see cref="RespRequestBuilder.Dispose"/>. This is the same constraint
         /// <c>DefaultInterpolatedStringHandler</c> lives under, and accepted for the same reason - see
         /// design doc section 6.5, where the identical precedent covers abandoning the rented buffer when
         /// an interpolation throws.
         /// </para>
         /// </remarks>
-        public RespCommandHandler Compose([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
+        public RespRequestBuilder Compose([InterpolatedStringHandlerArgument("")] ref RespRequestBuilder handler)
             => handler;
 
         /// <summary>
-        /// As <see cref="Compose(ref RespCommandHandler)"/>, but with the command supplied as a real
+        /// As <see cref="Compose(ref RespRequestBuilder)"/>, but with the command supplied as a real
         /// argument rather than as the first hole:
         /// <code>
         /// var cmd = ctx.Compose(RedisCommand.SET, $"{key}{value}");
@@ -552,9 +552,9 @@ namespace StackExchange.Redis.Interpolated
         /// <c>("", nameof(command))</c> passes the receiver <b>and</b> the command into the handler's
         /// constructor, which lets the command map be consulted before the buffer is rented.
         /// </remarks>
-        internal RespCommandHandler Compose(
+        internal RespRequestBuilder Compose(
             RedisCommand command,
-            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespRequestBuilder handler)
             => handler;
 
         /// <summary>
@@ -567,7 +567,7 @@ namespace StackExchange.Redis.Interpolated
         /// </summary>
         /// <param name="command">The command to issue.</param>
         /// <param name="argHint">Expected number of arguments, used only to size the initial rent.</param>
-        internal RespCommandHandler Compose(RedisCommand command, int argHint = 0)
+        internal RespRequestBuilder Compose(RedisCommand command, int argHint = 0)
             => new(0, argHint < 0 ? 0 : argHint, this, command);
 
         /// <summary>
@@ -577,9 +577,9 @@ namespace StackExchange.Redis.Interpolated
         /// </summary>
         /// <param name="command">The command name to issue.</param>
         /// <param name="handler">The interpolated arguments.</param>
-        public RespCommandHandler Compose(
+        public RespRequestBuilder Compose(
             string command,
-            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespRequestBuilder handler)
             => handler;
 
         /// <summary>As the <c>RedisCommand</c> overload, taking a command <b>name</b>.</summary>
@@ -587,15 +587,15 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="handler">The interpolated arguments.</param>
         public RespRequestFrame Render(
             string command,
-            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespRequestBuilder handler)
             => Render(ref handler);
 
         /// <summary>
-        /// As <see cref="Render(ref RespCommandHandler)"/>, with the command as a real argument.
+        /// As <see cref="Render(ref RespRequestBuilder)"/>, with the command as a real argument.
         /// </summary>
         internal RespRequestFrame Render(
             RedisCommand command,
-            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespCommandHandler handler)
+            [InterpolatedStringHandlerArgument("", nameof(command))] ref RespRequestBuilder handler)
             => Render(ref handler);
 
         /// <summary>
@@ -611,7 +611,7 @@ namespace StackExchange.Redis.Interpolated
         /// </remarks>
         /// <param name="handler">The interpolated command and arguments.</param>
         /// <returns>The rendered frame, with routing and key metadata.</returns>
-        public RespRequestFrame Render([InterpolatedStringHandlerArgument("")] ref RespCommandHandler handler)
+        public RespRequestFrame Render([InterpolatedStringHandlerArgument("")] ref RespRequestBuilder handler)
         {
             return handler.Complete();
         }

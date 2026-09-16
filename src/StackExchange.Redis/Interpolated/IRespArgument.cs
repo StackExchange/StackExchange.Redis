@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Interpolated
         /// <c>ref struct</c> that must not be copied, and <c>scoped</c> because that is what lets the
         /// handler pass <c>ref this</c> in without the compiler rejecting the call (CS8350/CS8352).
         /// </remarks>
-        void WriteTo(scoped ref RespCommandHandler handler);
+        void WriteTo(scoped ref RespRequestBuilder handler);
     }
 
     /// <summary>
@@ -90,6 +90,6 @@ namespace StackExchange.Redis.Interpolated
         /// nullable to match the shape the interpolated-string lowering looks for.
         /// </param>
         /// <remarks>See <see cref="IRespArgument.WriteTo"/> for why the parameter is <c>scoped ref</c>.</remarks>
-        void WriteTo(scoped ref RespCommandHandler handler, string? format);
+        void WriteTo(scoped ref RespRequestBuilder handler, string? format);
     }
 }

@@ -502,7 +502,7 @@ namespace StackExchange.Redis.Interpolated
              + ((options & GeoRadiusOptions.WithGeoHash) == 0 ? 0 : 1);
 
         /// <summary>The WITH* operands, in the order the reply returns them.</summary>
-        private static void AppendOptions(ref RespCommandHandler cmd, GeoRadiusOptions options)
+        private static void AppendOptions(ref RespRequestBuilder cmd, GeoRadiusOptions options)
         {
             if ((options & GeoRadiusOptions.WithCoordinates) != 0) cmd.AppendFormatted(RespLiterals.WithCoord);
             if ((options & GeoRadiusOptions.WithDistance) != 0) cmd.AppendFormatted(RespLiterals.WithDist);

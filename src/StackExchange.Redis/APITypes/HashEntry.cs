@@ -68,7 +68,7 @@ public readonly struct HashEntry : IEquatable<HashEntry>, Interpolated.IRespArgu
     /// <see cref="Expiration"/> for the same arrangement.
     /// </para>
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
     {
         handler.AppendFormatted(name);
         handler.AppendFormatted(value);

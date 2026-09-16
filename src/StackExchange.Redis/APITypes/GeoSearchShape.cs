@@ -37,7 +37,7 @@ public abstract class GeoSearchShape
     /// added to without the other.
     /// </remarks>
     /// <param name="command">The frame being written.</param>
-    internal abstract void AddArgs(ref RespCommandHandler command);
+    internal abstract void AddArgs(ref RespRequestBuilder command);
 }
 
 /// <summary>
@@ -70,7 +70,7 @@ public class GeoSearchCircle : GeoSearchShape
     }
 
     /// <inheritdoc/>
-    internal sealed override void AddArgs(ref RespCommandHandler command)
+    internal sealed override void AddArgs(ref RespRequestBuilder command)
     {
         command.AppendFormatted(RespLiterals.ByRadius);
         command.AppendFormatted((RedisValue)_radius);
@@ -110,7 +110,7 @@ public class GeoSearchBox : GeoSearchShape
     }
 
     /// <inheritdoc/>
-    internal sealed override void AddArgs(ref RespCommandHandler command)
+    internal sealed override void AddArgs(ref RespRequestBuilder command)
     {
         command.AppendFormatted(RespLiterals.ByBox);
         command.AppendFormatted((RedisValue)_width);

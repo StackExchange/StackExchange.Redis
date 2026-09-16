@@ -36,7 +36,7 @@ public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) 
     /// place it means anything. Two arguments, so a span of these renders as a run through the handler's
     /// open span hole rather than needing an overload of its own.
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
     {
         handler.AppendFormatted(_index);
         handler.AppendFormatted(_value);

@@ -5,7 +5,7 @@ namespace StackExchange.Redis.Benchmarks;
 
 // Is the initial buffer estimate right? Measured, and the answer is yes - leave it alone.
 //
-// RespCommandHandler rents HeaderMax + 64 + literalLength + (holes * 24), and ArrayPool quantises to
+// RespRequestBuilder rents HeaderMax + 64 + literalLength + (holes * 24), and ArrayPool quantises to
 // power-of-two buckets, so a two-hole GET asks for 126 bytes and gets a 128-byte buffer.
 //
 // The tempting mistake is to compare the REQUEST to the bucket and conclude a GET has two bytes spare. What

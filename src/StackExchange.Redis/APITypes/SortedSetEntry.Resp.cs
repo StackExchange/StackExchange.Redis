@@ -18,7 +18,7 @@ public readonly partial struct SortedSetEntry : Interpolated.IRespArgument
     /// hole, where a whole run of entries is one <c>{values}</c>.
     /// </para>
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
     {
         handler.AppendFormatted((RedisValue)score);
         handler.AppendFormatted(element);

@@ -1066,7 +1066,7 @@ Four consequences, none of them cosmetic:
       ```csharp
       internal readonly struct RespPrefixedInt64(RespFragment token, long? value) : IRespArgument
       {
-          public void WriteTo(scoped ref RespCommandHandler handler)
+          public void WriteTo(scoped ref RespRequestBuilder handler)
           {
               if (value is not long actual) return;   // absent: no tokens, no count
               handler.AppendFormatted(token);
@@ -1098,7 +1098,7 @@ Four consequences, none of them cosmetic:
         counts no arguments, so this simply names the idiom already spelled `cond ? RespLiterals.X :
         default` in **eight** places. Optional modifier tokens are common, so this earns its keep on the
         boolean sites alone.
-      - `RespFragment.When<T>(T? value) where T : struct` plus `RespCommandHandler.AppendFormatted(long?)`
+      - `RespFragment.When<T>(T? value) where T : struct` plus `RespRequestBuilder.AppendFormatted(long?)`
         and `(double?)`, which write **nothing** when null. Taking the *value* rather than a bool is what
         stops the two halves disagreeing: both read the same `count`, so a token without its value - a
         malformed command, not merely a different one - takes two different variables to write.
@@ -1493,9 +1493,9 @@ Four consequences, none of them cosmetic:
       it doesn't actually protect us"* - `var y = x; SendAsync(ref x);` and the alias survives. True, and
       the question separates into two cases that happen to share a keyword.
 
-      **`ref RespCommandHandler` - structural, nothing to decide.** The compiler builds the handler from
+      **`ref RespRequestBuilder` - structural, nothing to decide.** The compiler builds the handler from
       the interpolated string and passes it by reference; that is how `$"..."` binds to
-      `RespCommandHandler` at all. It is also a `ref struct` whose `Complete()` moves ownership out, which
+      `RespRequestBuilder` at all. It is also a `ref struct` whose `Complete()` moves ownership out, which
       `RespAppend.Append` depends on - its remarks already record the `CS8350`/`CS8352` reason it cannot
       be an instance method. Invisible at the call site, and not droppable.
 
@@ -1706,6 +1706,31 @@ Four consequences, none of them cosmetic:
       So `RespKey` serves everything except handing over an argument list you already built - which is the
       one case that genuinely needs the storage it is paying for. That closes #2844's intent rather than
       an adjacent one.
+
+      ### `RespCommandHandler` -> `RespRequestBuilder` - RENAMED 2026-09-16
+
+      Marc: *"intent over arcane language specifics."* The old name was wrong on **both** axes, which is
+      why it reads worse than `RespFrame` did:
+
+      - **"Handler"** named the C# mechanism - the interpolated-string-handler pattern - rather than the
+        job. And interpolation is only *one* way to drive the type; `Compose`/`Append`/`Complete` is the
+        other, and that is a builder by any reading. The `[InterpolatedStringHandler]` attribute still sits
+        on the type, so the pattern is one click away for anyone who needs it.
+      - **"Command"** was the wrong noun by the distinction already settled here: a command is the verb
+        (`XRANGE`), a request is the verb plus its arguments. This type accumulates verb *and* arguments,
+        so it was never building a command.
+
+      The progression now reads as the three states it actually has:
+
+      ```
+      RespRequestBuilder --Complete()--> RespRequestFrame --Detach()--> RespRequest
+      ```
+
+      accumulating -> owned and complete -> dispatched and shareable.
+
+      **"Builder" is existing house vocabulary**, not an import: `CircuitBreaker.Builder`,
+      `HealthCheck.Builder` and `MultiGroupOptions.Builder` already mean "accumulates, then produces". 136
+      references across 31 files, free while SER010 is experimental.
 
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 

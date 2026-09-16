@@ -1,4 +1,4 @@
-# Interpolated-string RESP writer
+﻿# Interpolated-string RESP writer
 
 **Exploratory notes — ideas, not decisions.** Nothing here is agreed or committed to; it is a log of
 what was tried, what was verified empirically, what seems to follow, and what is still open. Treat
@@ -289,7 +289,7 @@ public static void AppendFormatted(this H h, Vec v)       // no
 extension(ref H h) { public void AppendFormatted(Blob v) } // no (C# 14 extension block)
 ```
 
-Re-verified on the current compiler against the real `RespCommandHandler`, and the third case below is
+Re-verified on the current compiler against the real `RespRequestBuilder`, and the third case below is
 the one that settles it — it is not "an instance member wins", it is that **extension lookup never runs**:
 
 | setup | `$"{x}"` |
@@ -361,7 +361,7 @@ but could not add a type that appears in one.
 
 #### Format specifiers: a second, unrelated interface
 
-`IRespFormattableArgument.WriteTo(scoped ref RespCommandHandler, string? format)` handles `$"{x:fmt}"`,
+`IRespFormattableArgument.WriteTo(scoped ref RespRequestBuilder, string? format)` handles `$"{x:fmt}"`,
 behind its own `AppendFormatted<T>(T, string?)` overload.
 
 It deliberately does **not** derive from `IRespArgument`, so the three combinations are three different
@@ -787,7 +787,7 @@ works, or callers are forced into `try`/`finally`.
 > rather than a sequence of `AppendFormatted` calls whose order is the caller's to keep straight.
 >
 > **It moves the command rather than referring to it.** The obvious design — a handler holding
-> `ref RespCommandHandler` and forwarding each call — does not compile on **any** target: *CS9050, a ref
+> `ref RespRequestBuilder` and forwarding each call — does not compile on **any** target: *CS9050, a ref
 > field cannot refer to a ref struct*. That is a language rule, not a down-level runtime gap, so narrowing
 > the target frameworks would not have helped. (netfx adds CS9064 on top, but it is not the blocker.)
 >
@@ -974,7 +974,7 @@ the real types on newer TFMs. A public method taking `Span<Range>` then fails wi
 `CS0051: Inconsistent accessibility`. Use a purpose-built `(offset, length)` struct.
 
 **~~Open seam~~ — resolved.** The framing above ("there aren't spare bits to carry both") is true of the
-*frame*, which must stay 64 bits. It is not true of the *writer*: `RespCommandHandler` is a `ref struct` on
+*frame*, which must stay 64 bits. It is not true of the *writer*: `RespRequestBuilder` is a `ref struct` on
 the stack with no size pressure, so it maintains **both** representations as it writes — the two offsets
 and a full argument-index bitmap — and `Complete()` publishes whichever fits. Nothing needs re-deriving,
 because nothing is discarded any more.
@@ -2849,7 +2849,7 @@ A working spike. The surface is public but gated behind `SER010`/`SER011` — se
 | --- | --- |
 | `src/StackExchange.Redis/FrameworkShims.InterpolatedStringHandler.cs` | the attribute polyfill (§1), same shape as the `IsExternalInit` shim |
 | `src/StackExchange.Redis/Interpolated/RespContext.cs` | CommandMap, KeyPrefix, ChannelPrefix, Database, ServerType, CancellationToken; `With*` clones; `Execute` |
-| `src/StackExchange.Redis/Interpolated/RespCommandHandler.cs` | renders the frame, folds the slot, marks keys |
+| `src/StackExchange.Redis/Interpolated/RespRequestBuilder.cs` | renders the frame, folds the slot, marks keys |
 | `src/StackExchange.Redis/Interpolated/RespFrame.cs` | rendered frame + slot + key marks + `KeyRange` |
 | `tests/StackExchange.Redis.Tests/InterpolatedWriterUnitTests.cs` | 41 tests |
 | `src/StackExchange.Redis/Interpolated/RespFragment.cs` | pre-framed token runs + the `[Resp]` marker |
@@ -3303,7 +3303,7 @@ member means a real sync path can arrive later without reshaping the API, and it
 
 ### 9.5 Layering: why this stays in SE.Redis for now
 
-**Decision: it stays. Not moving `RespCommandHandler` to RESPite.**
+**Decision: it stays. Not moving `RespRequestBuilder` to RESPite.**
 
 The prize would be real — RESPite already owns `RespReader`, and a matching writer would let anything
 build RESP commands with pooled buffers, key marks and slot folding, with no Redis semantics attached.
@@ -3324,7 +3324,7 @@ with it.
 **The shape that would work, when it is worth doing:** split the type, do not relocate it. RESPite owns a
 `RespWriter` — buffer rental, bulk framing, the `*N` back-fill, argument counters, key marks, slot folding
 — exposing primitives only (`AppendBulk`, `AppendKey(prefix, body)`, a pre-framed form, `Complete`).
-SE.Redis keeps `RespCommandHandler` as the `[InterpolatedStringHandler]`, holding a `RespWriter` **by
+SE.Redis keeps `RespRequestBuilder` as the `[InterpolatedStringHandler]`, holding a `RespWriter` **by
 value** and owning the whole hole vocabulary. Verified to compile and run: a `ref struct` may contain
 another `ref struct` by value, and the outer type's `AppendFormatted` members bind normally while
 delegating the writing inward. (CS9050 bars a ref *field* to a ref struct; by-value containment is fine.)

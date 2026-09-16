@@ -19,10 +19,10 @@ public abstract partial class VectorSetAddRequest
     /// writer - as <c>GeoSearchShape</c> does. Both are internal abstract, so the type is effectively
     /// sealed to this assembly and neither can be added to without the other.
     /// </remarks>
-    internal abstract void WriteTo(scoped ref RespCommandHandler command, in RedisKey key);
+    internal abstract void WriteTo(scoped ref RespRequestBuilder command, in RedisKey key);
 
     /// <summary>The operands common to every element shape, either side of the element itself.</summary>
-    private protected void WriteOptions(scoped ref RespCommandHandler command, bool before)
+    private protected void WriteOptions(scoped ref RespRequestBuilder command, bool before)
     {
         if (before)
         {
@@ -59,7 +59,7 @@ public abstract partial class VectorSetAddRequest
     }
 
     /// <summary>The trailing <c>M</c> operand, which comes after the attributes.</summary>
-    private protected void WriteMaxConnections(scoped ref RespCommandHandler command)
+    private protected void WriteMaxConnections(scoped ref RespRequestBuilder command)
     {
         if (MaxConnections is { } max)
         {
@@ -90,7 +90,7 @@ public abstract partial class VectorSetAddRequest
     /// smaller and exact - but only where the machine agrees with the wire about endianness, which is
     /// what <c>CanUseFp32</c> settles once at startup.
     /// </remarks>
-    private protected static void WriteVector(scoped ref RespCommandHandler command, ReadOnlyMemory<float> values, bool useFp32)
+    private protected static void WriteVector(scoped ref RespRequestBuilder command, ReadOnlyMemory<float> values, bool useFp32)
     {
         if (useFp32)
         {
@@ -121,7 +121,7 @@ public abstract partial class VectorSetAddRequest
              + (Attributes is null ? 0 : 2)
              + OptionArgCount;
 
-        internal override void WriteTo(scoped ref RespCommandHandler command, in RedisKey key)
+        internal override void WriteTo(scoped ref RespRequestBuilder command, in RedisKey key)
         {
             command.AppendFormatted(key);
             WriteOptions(ref command, before: true);

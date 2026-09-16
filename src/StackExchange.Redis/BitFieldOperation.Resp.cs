@@ -49,7 +49,7 @@ public readonly partial struct BitFieldOperation
     /// handler has nowhere to put that, which is why this is a plain internal method and why the group
     /// method loops rather than passing a span into a hole.
     /// </remarks>
-    internal void WriteTo(scoped ref RespCommandHandler handler, ref BitFieldOverflow overflow)
+    internal void WriteTo(scoped ref RespRequestBuilder handler, ref BitFieldOverflow overflow)
     {
         if (_kind != OperationKind.Get && Overflow != overflow)
         {
@@ -125,7 +125,7 @@ public readonly partial struct BitFieldEncoding
 {
     /// <summary>Write this encoding as one bulk string - <c>i8</c>, <c>u63</c> - into a command being composed.</summary>
     /// <param name="handler">The command being written.</param>
-    internal void WriteTo(scoped ref RespCommandHandler handler)
+    internal void WriteTo(scoped ref RespRequestBuilder handler)
     {
         if (IsDefault)
         {
@@ -157,7 +157,7 @@ public readonly partial struct BitFieldOffset
 {
     /// <summary>Write this offset - a bit position, or the <c>#</c> element form - into a command being composed.</summary>
     /// <param name="handler">The command being written.</param>
-    internal void WriteTo(scoped ref RespCommandHandler handler)
+    internal void WriteTo(scoped ref RespRequestBuilder handler)
     {
         if (!_isElement)
         {

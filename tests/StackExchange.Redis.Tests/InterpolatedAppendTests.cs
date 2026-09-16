@@ -30,7 +30,7 @@ public partial class InterpolatedAppendTests
         // by construction, not by keeping two lists aligned: the handler for an append IS the command
         // handler, so there is one set of overloads and nothing to fall out of step. An earlier design
         // used a separate proxy type and needed a test to guard exactly this.
-        var accepted = typeof(RespCommandHandler)
+        var accepted = typeof(RespRequestBuilder)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.Name == "AppendFormatted")
             .Select(m => m.GetParameters()[0].ParameterType.Name) // [0] is the value; a format may follow
@@ -77,7 +77,7 @@ public partial class InterpolatedAppendTests
         // the compiler spells it, because that window is not observable from `cmd.Append($"...")`.
         var cmd = Ctx.Compose($"{RedisCommand.SET}{(RedisKey)"k"}");
 
-        var handler = new RespCommandHandler(0, 1, ref cmd);
+        var handler = new RespRequestBuilder(0, 1, ref cmd);
 
         // cmd now owns nothing: every path off it is a clean throw or a no-op, never a double-free.
         // Spelled as try/catch rather than Assert.Throws because a ref struct cannot be captured by a lambda.
@@ -95,7 +95,7 @@ public partial class InterpolatedAppendTests
     }
 
     /// <summary>Whether <c>Complete</c> rejects this handler as empty, without disturbing it if it does.</summary>
-    private static bool CompleteThrows(ref RespCommandHandler handler)
+    private static bool CompleteThrows(ref RespRequestBuilder handler)
     {
         try
         {
@@ -172,7 +172,7 @@ public partial class InterpolatedAppendTests
     /// Append single-argument fragments until one is refused; returns the frame's argument count at that
     /// point, or -1 if it was never refused.
     /// </summary>
-    private static int AppendUntilRefused(ref RespCommandHandler handler, int max)
+    private static int AppendUntilRefused(ref RespRequestBuilder handler, int max)
     {
         for (var i = 2; i <= max + 1; i++)
         {
@@ -198,7 +198,7 @@ public partial class InterpolatedAppendTests
     [Fact]
     public void ARefusedCloseReturnsTheBuffer()
     {
-        var empty = new RespCommandHandler(0, 0, Ctx);
+        var empty = new RespRequestBuilder(0, 0, Ctx);
         Assert.True(CompleteThrows(ref empty), "an empty command should be refused");
         empty.Dispose(); // no-op if Complete gave the buffer back; a double-return otherwise
     }

@@ -360,7 +360,7 @@ namespace StackExchange.Redis.Interpolated
         /// The buffer is rented in the CALLER's frame, before this method is entered - the same reason the
         /// context's old cancellation check disposed the handler rather than simply throwing.
         /// </remarks>
-        private static void DemandNoCancellation(ref RespCommandHandler request, CancellationToken cancellationToken)
+        private static void DemandNoCancellation(ref RespRequestBuilder request, CancellationToken cancellationToken)
         {
             // already cancelled is the half we CAN honour - refusing to start costs nothing - so it gets the
             // right exception rather than "not implemented". Checked first, because a cancelled token is
@@ -610,7 +610,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static ValueTask<TResult> SendAsync<TResult>(
             this RespContext context,
-            [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
             CommandFlags flags,
             IRespHandler<TResult>? handler = null,
             CancellationToken cancellationToken = default)
@@ -652,7 +652,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask SendAsync(
             this RespContext context,
-            [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
             CommandFlags flags = CommandFlags.None,
             CancellationToken cancellationToken = default)
         {
@@ -664,7 +664,7 @@ namespace StackExchange.Redis.Interpolated
             static async ValueTask Awaited(ValueTask<bool> pending) => await pending.ConfigureAwait(false);
         }
 
-        /// <inheritdoc cref="SendAsync{TResult}(RespContext, ref RespCommandHandler, CommandFlags, IRespHandler{TResult}, CancellationToken)"/>
+        /// <inheritdoc cref="SendAsync{TResult}(RespContext, ref RespRequestBuilder, CommandFlags, IRespHandler{TResult}, CancellationToken)"/>
         /// <param name="context">The context to send through.</param>
         /// <param name="request">The command, written as an interpolated string.</param>
         /// <param name="flags">The command's flags.</param>
@@ -672,7 +672,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
         public static TResult Send<TResult>(
             this RespContext context,
-            [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
             CommandFlags flags,
             IRespHandler<TResult>? handler = null,
             CancellationToken cancellationToken = default)

@@ -303,7 +303,7 @@ public readonly struct ValueCondition : Interpolated.IRespArgument
 
     /// <inheritdoc/>
     /// <remarks>See <see cref="Expiration"/> for why this is an explicit implementation.</remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespCommandHandler handler)
+    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
     {
         var keyword = KeywordResp;
         if (keyword.IsEmpty) return; // ValueCondition.Always contributes no arguments

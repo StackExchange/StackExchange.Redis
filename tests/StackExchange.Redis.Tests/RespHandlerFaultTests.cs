@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using StackExchange.Redis.Interpolated;
 using Xunit;
@@ -33,7 +33,7 @@ public class RespHandlerFaultTests
 {
     private sealed class Recording(List<string> written, string name) : IRespArgument
     {
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             written.Add(name);
             handler.AppendFormatted((RedisValue)name);
@@ -42,7 +42,7 @@ public class RespHandlerFaultTests
 
     private sealed class Throwing(List<string> written) : IRespArgument
     {
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             written.Add("boom");
             throw new InvalidOperationException("operand failed");

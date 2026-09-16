@@ -397,7 +397,7 @@ public static partial class Streams
     /// </remarks>
     private readonly struct TrimOperand(bool approximate, RedisValue threshold, long? limit, StreamTrimMode mode) : IRespArgument
     {
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             if (approximate) handler.AppendFormatted(RespLiterals.Approximate);
             handler.AppendFormatted(threshold);

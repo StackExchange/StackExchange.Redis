@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="handler">The fragment; supplied by the compiler from an interpolated string.</param>
         /// <remarks>
         /// <para>
-        /// The handler here is a <see cref="RespCommandHandler"/> - the same type, moved in and moved back
+        /// The handler here is a <see cref="RespRequestBuilder"/> - the same type, moved in and moved back
         /// out - so an append accepts exactly what the command does, by construction rather than by
         /// keeping two lists aligned.
         /// </para>
@@ -41,8 +41,8 @@ namespace StackExchange.Redis.Interpolated
         /// </para>
         /// </remarks>
         public static void Append(
-            this ref RespCommandHandler command,
-            [InterpolatedStringHandlerArgument(nameof(command))] ref RespCommandHandler handler)
+            this ref RespRequestBuilder command,
+            [InterpolatedStringHandlerArgument(nameof(command))] ref RespRequestBuilder handler)
         {
             command = handler;
             handler = default;

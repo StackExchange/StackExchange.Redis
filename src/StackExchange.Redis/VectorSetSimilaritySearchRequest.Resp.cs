@@ -34,7 +34,7 @@ public abstract partial class VectorSetSimilaritySearchRequest
     /// <param name="command">The frame being written.</param>
     /// <param name="key">The key to search.</param>
     /// <remarks><inheritdoc cref="VectorSetAddRequest.WriteTo" path="/remarks"/></remarks>
-    internal void WriteTo(scoped ref RespCommandHandler command, in RedisKey key)
+    internal void WriteTo(scoped ref RespRequestBuilder command, in RedisKey key)
     {
         command.AppendFormatted(key);
         WriteSearchTarget(ref command);
@@ -76,13 +76,13 @@ public abstract partial class VectorSetSimilaritySearchRequest
         if (DisableThreading) command.AppendFormatted(RespLiterals.NoThread);
     }
 
-    private protected abstract void WriteSearchTarget(scoped ref RespCommandHandler command);
+    private protected abstract void WriteSearchTarget(scoped ref RespRequestBuilder command);
 
     private sealed partial class VectorSetSimilarityByMemberSearchRequest
     {
         private protected override int SearchTargetArgCount => 2; // ELE {member}
 
-        private protected override void WriteSearchTarget(scoped ref RespCommandHandler command)
+        private protected override void WriteSearchTarget(scoped ref RespRequestBuilder command)
         {
             command.AppendFormatted(RespLiterals.Ele);
             command.AppendFormatted(_member);
@@ -96,7 +96,7 @@ public abstract partial class VectorSetSimilaritySearchRequest
         private protected override int SearchTargetArgCount => Fp32 ? 2 : 2 + _vector.Length;
 
         /// <remarks><inheritdoc cref="VectorSetAddRequest.WriteVector" path="/remarks"/></remarks>
-        private protected override void WriteSearchTarget(scoped ref RespCommandHandler command)
+        private protected override void WriteSearchTarget(scoped ref RespRequestBuilder command)
         {
             if (Fp32)
             {

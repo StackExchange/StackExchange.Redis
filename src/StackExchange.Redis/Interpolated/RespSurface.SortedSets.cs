@@ -1052,7 +1052,7 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <inheritdoc/>
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             if ((_when & SortedSetWhen.NotExists) != 0) handler.AppendFormatted(RespLiterals.Nx);
             if ((_when & SortedSetWhen.Exists) != 0) handler.AppendFormatted(RespLiterals.Xx);
@@ -1093,7 +1093,7 @@ namespace StackExchange.Redis.Interpolated
             => new(value, (exclude & Exclude.Stop) != 0, order == SortedSetOrder.ByLex);
 
         /// <inheritdoc/>
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             if (_exclusive) handler.AppendFormatted(("(" + _value).AsRedisValue());
             else if (_lex) handler.AppendFormatted(("[" + _value).AsRedisValue());
@@ -1111,7 +1111,7 @@ namespace StackExchange.Redis.Interpolated
     internal readonly struct RespAggregate(Aggregate aggregate) : IRespArgument
     {
         /// <inheritdoc/>
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             switch (aggregate)
             {
@@ -1156,7 +1156,7 @@ namespace StackExchange.Redis.Interpolated
         internal static RespLimitRange None => new(0, -1);
 
         /// <inheritdoc/>
-        public void WriteTo(scoped ref RespCommandHandler handler)
+        public void WriteTo(scoped ref RespRequestBuilder handler)
         {
             if (skip == 0 && take == -1) return; // the server's own behaviour without the operand
 

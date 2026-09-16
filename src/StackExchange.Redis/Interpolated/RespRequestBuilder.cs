@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Interpolated
     /// </remarks>
     [InterpolatedStringHandler]
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-    public ref struct RespCommandHandler
+    public ref struct RespRequestBuilder
     {
         /// <summary>'*' plus an int32 text form plus CRLF; reserved at the front so the header can be
         /// back-filled right-aligned once the final argument count is known.</summary>
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Interpolated
         /// <param name="literalLength">Total length of the literal segments; compiler-supplied.</param>
         /// <param name="formattedCount">Number of holes; compiler-supplied.</param>
         /// <param name="context">The receiver of the call, supplying the command map and prefixes.</param>
-        public RespCommandHandler(int literalLength, int formattedCount, RespContext context)
+        public RespRequestBuilder(int literalLength, int formattedCount, RespContext context)
         {
             _context = context;
             _buffer = ArrayPool<byte>.Shared.Rent(HeaderMax + 64 + literalLength + (formattedCount * 24));
@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Interpolated
         /// repeat, being configuration-driven - drops nothing on the floor. See
         /// <c>design/interpolated-resp-writer.md</c> section 6.5.
         /// </remarks>
-        internal RespCommandHandler(int literalLength, int formattedCount, RespContext context, RedisCommand command)
+        internal RespRequestBuilder(int literalLength, int formattedCount, RespContext context, RedisCommand command)
         {
             // resolve FIRST: this throws before anything is rented
             var resp = context.ResolveCommand(command);
@@ -104,7 +104,7 @@ namespace StackExchange.Redis.Interpolated
         /// aliasing and disabling still apply; anything unrecognised is framed verbatim, matching how
         /// <c>IDatabase.Execute(string, ...)</c> already behaves.
         /// </summary>
-        public RespCommandHandler(int literalLength, int formattedCount, RespContext context, string command)
+        public RespRequestBuilder(int literalLength, int formattedCount, RespContext context, string command)
         {
             if (command is null) throw new ArgumentNullException(nameof(command));
 
@@ -339,7 +339,7 @@ namespace StackExchange.Redis.Interpolated
         /// satisfied by <c>in</c>, and the compiler accepts either.
         /// </para>
         /// </remarks>
-        public RespCommandHandler(int literalLength, int formattedCount, scoped ref RespCommandHandler command)
+        public RespRequestBuilder(int literalLength, int formattedCount, scoped ref RespRequestBuilder command)
         {
             _ = literalLength;
             _ = formattedCount;

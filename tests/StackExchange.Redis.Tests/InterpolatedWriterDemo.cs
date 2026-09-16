@@ -106,7 +106,7 @@ public class InterpolatedWriterDemo
     {
         const int Count = 70; // comfortably past MaxBitmapArg (62)
 
-        var shared = new RespCommandHandler(0, Count, Cluster, "MGET");
+        var shared = new RespRequestBuilder(0, Count, Cluster, "MGET");
         for (var i = 0; i < Count; i++) shared.AppendFormatted((RedisKey)("{u}:" + i));
         using var sharedFrame = shared.Complete();
 
@@ -116,7 +116,7 @@ public class InterpolatedWriterDemo
         // the case that actually pins it: everything up to the bitmap's limit agrees, and ONLY a key
         // beyond it disagrees. Keys that already differ within the first 62 would report MultipleSlots
         // whether or not the tail was folded, so they prove nothing about the tail.
-        var tail = new RespCommandHandler(0, Count, Cluster, "MGET");
+        var tail = new RespRequestBuilder(0, Count, Cluster, "MGET");
         for (var i = 0; i < Count - 1; i++) tail.AppendFormatted((RedisKey)("{u}:" + i));
         tail.AppendFormatted((RedisKey)"{elsewhere}:last");
         using var tailFrame = tail.Complete();
