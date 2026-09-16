@@ -150,12 +150,19 @@ public partial class ConnectionMultiplexer
         sentinelConfig.Password = configuration.SentinelPassword;
 
         var sentinelConnection = SentinelConnect(sentinelConfig, log);
+        try
+        {
+            var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
+            // Set reference to sentinel connection so that we can dispose it
+            muxer.sentinelConnection = sentinelConnection;
 
-        var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
-        // Set reference to sentinel connection so that we can dispose it
-        muxer.sentinelConnection = sentinelConnection;
-
-        return muxer;
+            return muxer;
+        }
+        catch
+        {
+            try { sentinelConnection.Dispose(); } catch { }
+            throw;
+        }
     }
 
     /// <summary>
@@ -172,12 +179,19 @@ public partial class ConnectionMultiplexer
         sentinelConfig.Password = configuration.SentinelPassword;
 
         var sentinelConnection = await SentinelConnectAsync(sentinelConfig, writer).ForAwait();
+        try
+        {
+            var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, writer);
+            // Set reference to sentinel connection so that we can dispose it
+            muxer.sentinelConnection = sentinelConnection;
 
-        var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, writer);
-        // Set reference to sentinel connection so that we can dispose it
-        muxer.sentinelConnection = sentinelConnection;
-
-        return muxer;
+            return muxer;
+        }
+        catch
+        {
+            try { sentinelConnection.Dispose(); } catch { }
+            throw;
+        }
     }
 
     /// <summary>
@@ -187,7 +201,8 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The writer to log to, if any.</param>
     public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter? log = null)
     {
-        if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+        // A soft-failed SentinelConnect cannot detect a server type, but _isSentinel still records its intent.
+        if (ServerSelectionStrategy.ServerType != ServerType.Sentinel && (config.AbortOnConnectFail || !_isSentinel))
         {
             throw new RedisConnectionException(
                 ConnectionFailureType.UnableToConnect,
@@ -210,110 +225,166 @@ public partial class ConnectionMultiplexer
         bool success = false;
         ConnectionMultiplexer? connection = null;
         EndPointCollection? endpoints = null;
+        RedisConnectionException? failure = null;
 
-        var sw = ValueStopwatch.StartNew();
-        do
+        try
         {
-            // Sentinel has some fun race behavior internally - give things a few shots for a quicker overall connect.
-            const int queryAttempts = 2;
-
-            EndPoint? newPrimaryEndPoint = null;
-            for (int i = 0; i < queryAttempts && newPrimaryEndPoint is null; i++)
+            var sw = ValueStopwatch.StartNew();
+            do
             {
-                newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName);
+                // Sentinel has some fun race behavior internally - give things a few shots for a quicker overall connect.
+                const int queryAttempts = 2;
+
+                EndPoint? newPrimaryEndPoint = null;
+                for (int i = 0; i < queryAttempts && newPrimaryEndPoint is null; i++)
+                {
+                    newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName);
+                }
+
+                if (newPrimaryEndPoint is null)
+                {
+                    failure = new RedisConnectionException(
+                        ConnectionFailureType.UnableToConnect,
+                        CommandFlags.None,
+                        $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
+                    if (config.AbortOnConnectFail)
+                    {
+                        throw failure;
+                    }
+
+                    if (connection is not null) try { connection.Dispose(); } catch { }
+                    endpoints = config.EndPoints.Clone();
+                    connection = ConnectImpl(config, log, endpoints: endpoints);
+                    break;
+                }
+
+                EndPoint[]? replicaEndPoints = null;
+                for (int i = 0; i < queryAttempts && replicaEndPoints is null; i++)
+                {
+                    replicaEndPoints = GetReplicasForService(serviceName);
+                }
+
+                endpoints = config.EndPoints.Clone();
+
+                // Replace the primary endpoint, if we found another one
+                // If not, assume the last state is the best we have and minimize the race
+                if (endpoints.Count == 1)
+                {
+                    endpoints[0] = newPrimaryEndPoint;
+                }
+                else
+                {
+                    endpoints.Clear();
+                    endpoints.TryAdd(newPrimaryEndPoint);
+                }
+
+                if (replicaEndPoints is not null)
+                {
+                    foreach (var replicaEndPoint in replicaEndPoints)
+                    {
+                        endpoints.TryAdd(replicaEndPoint);
+                    }
+                }
+
+                if (connection is not null) try { connection.Dispose(); } catch { }
+                connection = ConnectImpl(config, log, endpoints: endpoints);
+
+                // verify role is primary according to:
+                // https://redis.io/topics/sentinel-clients
+                bool isPrimary;
+                var server = connection.GetServer(newPrimaryEndPoint);
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                if (server is { })
+                {
+                    try
+                    {
+                        isPrimary = connection.CommandMap.IsAvailable(RedisCommand.ROLE)
+                            ? server.Role()?.Value == Role.LabelForMaster
+                            : !server.IsReplica;
+                    }
+                    catch
+                    {
+                        // fallback if ROLE unavailable but not declared; see #3064
+                        isPrimary = !server.IsReplica;
+                    }
+
+                    if (isPrimary)
+                    {
+                        success = true;
+                        break;
+                    }
+                }
+
+                Thread.Sleep(100);
             }
+            while (sw.ElapsedMilliseconds < config.ConnectTimeout);
 
-            if (newPrimaryEndPoint is null)
+            if (!success)
             {
-                throw new RedisConnectionException(
+                failure ??= new RedisConnectionException(
                     ConnectionFailureType.UnableToConnect,
                     CommandFlags.None,
                     $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
-            }
-
-            EndPoint[]? replicaEndPoints = null;
-            for (int i = 0; i < queryAttempts && replicaEndPoints is null; i++)
-            {
-                replicaEndPoints = GetReplicasForService(serviceName);
-            }
-
-            endpoints = config.EndPoints.Clone();
-
-            // Replace the primary endpoint, if we found another one
-            // If not, assume the last state is the best we have and minimize the race
-            if (endpoints.Count == 1)
-            {
-                endpoints[0] = newPrimaryEndPoint;
-            }
-            else
-            {
-                endpoints.Clear();
-                endpoints.TryAdd(newPrimaryEndPoint);
-            }
-
-            if (replicaEndPoints is not null)
-            {
-                foreach (var replicaEndPoint in replicaEndPoints)
+                if (config.AbortOnConnectFail)
                 {
-                    endpoints.TryAdd(replicaEndPoint);
-                }
-            }
-
-            connection = ConnectImpl(config, log, endpoints: endpoints);
-
-            // verify role is primary according to:
-            // https://redis.io/topics/sentinel-clients
-            bool isPrimary;
-            var server = connection.GetServer(newPrimaryEndPoint);
-            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-            if (server is { })
-            {
-                try
-                {
-                    isPrimary = connection.CommandMap.IsAvailable(RedisCommand.ROLE)
-                        ? server.Role()?.Value == Role.LabelForMaster
-                        : !server.IsReplica;
-                }
-                catch
-                {
-                    // fallback if ROLE unavailable but not declared; see #3064
-                    isPrimary = !server.IsReplica;
+                    throw failure;
                 }
 
-                if (isPrimary)
+                if (connection is null)
                 {
-                    success = true;
-                    break;
+                    endpoints = config.EndPoints.Clone();
+                    connection = ConnectImpl(config, log, endpoints: endpoints);
                 }
+
+                connection.LastException = failure;
+                connection.Logger?.LogErrorSyncConnectTimeout(failure, failure.Message);
             }
 
-            Thread.Sleep(100);
+            // Attach to reconnect event to ensure proper connection to the new primary
+            connection.ConnectionRestored += OnManagedConnectionRestored;
+
+            // If we lost the connection, run a switch to a least try and get updated info about the primary
+            connection.ConnectionFailed += OnManagedConnectionFailed;
+
+            lock (sentinelConnectionChildren)
+            {
+                sentinelConnectionChildren[serviceName] = connection;
+            }
+
+            // Perform the initial switchover
+            var switchBlame = endpoints is { Count: > 0 } ? endpoints[0] : null;
+            try
+            {
+                SwitchPrimary(switchBlame, connection, log);
+            }
+            catch when (!config.AbortOnConnectFail)
+            {
+                // AbortOnConnectFail=false means "hand me the multiplexer and keep trying" - which has to
+                // hold however far we got. Gating this on !success would tear down a connection that had
+                // *successfully* reached its primary just because the follow-up switchover threw, and throw
+                // from a call the caller asked never to throw.
+                ScheduleSentinelPrimaryReconnect(connection, switchBlame);
+            }
+
+            return connection;
         }
-        while (sw.ElapsedMilliseconds < config.ConnectTimeout);
-
-        if (!success)
+        catch
         {
-            throw new RedisConnectionException(
-                ConnectionFailureType.UnableToConnect,
-                CommandFlags.None,
-                $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
+            if (connection is not null)
+            {
+                connection.ConnectionRestored -= OnManagedConnectionRestored;
+                connection.ConnectionFailed -= OnManagedConnectionFailed;
+                lock (sentinelConnectionChildren)
+                {
+                    if (sentinelConnectionChildren.TryGetValue(serviceName, out var child) && ReferenceEquals(child, connection))
+                    {
+                        sentinelConnectionChildren.Remove(serviceName);
+                    }
+                }
+                try { connection.Dispose(); } catch { }
+            }
+            throw;
         }
-
-        // Attach to reconnect event to ensure proper connection to the new primary
-        connection.ConnectionRestored += OnManagedConnectionRestored;
-
-        // If we lost the connection, run a switch to a least try and get updated info about the primary
-        connection.ConnectionFailed += OnManagedConnectionFailed;
-
-        lock (sentinelConnectionChildren)
-        {
-            sentinelConnectionChildren[serviceName] = connection;
-        }
-
-        // Perform the initial switchover
-        SwitchPrimary(endpoints[0], connection, log);
-
-        return connection;
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
@@ -360,7 +431,6 @@ public partial class ConnectionMultiplexer
         }
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
     internal void OnManagedConnectionFailed(object? sender, ConnectionFailedEventArgs e)
     {
         if (sender is not ConnectionMultiplexer connection)
@@ -368,38 +438,59 @@ public partial class ConnectionMultiplexer
             return; // This should never happen - called from non-nullable ConnectionFailedEventArgs
         }
 
+        ScheduleSentinelPrimaryReconnect(connection, e.EndPoint);
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
+    private void ScheduleSentinelPrimaryReconnect(ConnectionMultiplexer connection, EndPoint? endPoint)
+    {
         // Periodically check to see if we can reconnect to the proper primary.
         // This is here in case we lost our subscription to a good sentinel instance
         // or if we miss the published primary change.
-        if (connection.sentinelPrimaryReconnectTimer == null)
-        {
-            connection.sentinelPrimaryReconnectTimer = new Timer(
-                _ =>
+        //
+        // Built before it is published, and published with a compare-exchange: this is now reached from the
+        // connect path as well as from ConnectionFailed, and the handler is wired up a few lines before the
+        // connect path calls it - on a connection that is already failing in the background. A plain null
+        // check would let both threads create a timer, and only one of them could ever be reached by
+        // OnManagedConnectionRestored to be disposed; the loser would keep firing SwitchPrimary every second
+        // for the life of the process, with no handle left to stop it.
+        var timer = new Timer(
+            _ =>
+            {
+                try
+                {
+                    // Attempt, but do not fail here
+                    SwitchPrimary(endPoint, connection);
+                }
+                catch (Exception)
+                {
+                }
+                finally
                 {
                     try
                     {
-                        // Attempt, but do not fail here
-                        SwitchPrimary(e.EndPoint, connection);
+                        connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
                     }
-                    catch (Exception)
+                    catch (ObjectDisposedException)
                     {
+                        // If we get here the managed connection was restored and the timer was
+                        // disposed by another thread, so there's no need to run the timer again.
                     }
-                    finally
-                    {
-                        try
-                        {
-                            connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                        }
-                        catch (ObjectDisposedException)
-                        {
-                            // If we get here the managed connection was restored and the timer was
-                            // disposed by another thread, so there's no need to run the timer again.
-                        }
-                    }
-                },
-                null,
-                TimeSpan.Zero,
-                Timeout.InfiniteTimeSpan);
+                }
+            },
+            null,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
+
+        if (Interlocked.CompareExchange(ref connection.sentinelPrimaryReconnectTimer, timer, null) is null)
+        {
+            // we won: start it. Deliberately not started at construction - a timer that fires before it is
+            // published cannot be found by the callback's own Change call, nor disposed on restore.
+            timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+        }
+        else
+        {
+            timer.Dispose();
         }
     }
 
