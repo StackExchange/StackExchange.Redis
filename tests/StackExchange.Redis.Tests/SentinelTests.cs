@@ -524,4 +524,58 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         Assert.NotEmpty(managed.GetEndPoints());
         await managed.GetDatabase().PingAsync();
     }
+
+    [Fact]
+    public async Task AbortOnConnectFailFalseRecoversOnceSentinelsAppear()
+    {
+        SkipOnWindowsRelease();
+
+        // Returning a multiplexer instead of throwing is only worth anything if it goes on to connect, so
+        // drive the whole arc: start with nothing listening, then make a sentinel reachable at that address.
+        // A forwarder rather than stopping the real sentinel, so this cannot disturb the shared topology.
+        var port = TcpForwarder.GetFreePort();
+        var options = new ConfigurationOptions
+        {
+            AbortOnConnectFail = false,
+            ServiceName = ServiceName,
+            ConnectTimeout = 2000,
+            AllowAdmin = true,
+        };
+        options.EndPoints.Add(IPAddress.Loopback, port);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+
+        // the point of the fix: a multiplexer, not an exception
+        Assert.False(conn.IsConnected);
+        var failure = Assert.IsType<RedisConnectionException>(conn.LastException);
+        Assert.Equal(ConnectionFailureType.UnableToConnect, failure.FailureType);
+        var seedEndPoint = Assert.Single(conn.GetEndPoints());
+
+        using var forwarder = new TcpForwarder(port, TestConfig.Current.SentinelPortA);
+        Log($"forwarding {port} -> {TestConfig.Current.SentinelPortA}");
+
+        var db = conn.GetDatabase();
+        await UntilConditionAsync(TimeSpan.FromSeconds(30), () => TryPing(db));
+        Assert.True(TryPing(db), "did not recover once the sentinel became reachable");
+
+        // and the endpoint it was seeded with - a sentinel address, never a data node - does not linger as a
+        // server in the multiplexer once the real topology is known
+        await UntilConditionAsync(
+            TimeSpan.FromSeconds(10),
+            () => !conn.GetServerSnapshot().ToArray().Any(x => Equals(x.EndPoint, seedEndPoint)));
+        Assert.DoesNotContain(seedEndPoint, conn.GetEndPoints());
+
+        static bool TryPing(IDatabase db)
+        {
+            try
+            {
+                db.Ping();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 }

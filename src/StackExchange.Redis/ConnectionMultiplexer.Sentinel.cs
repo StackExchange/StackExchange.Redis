@@ -357,8 +357,12 @@ public partial class ConnectionMultiplexer
             {
                 SwitchPrimary(switchBlame, connection, log);
             }
-            catch when (!success && !config.AbortOnConnectFail)
+            catch when (!config.AbortOnConnectFail)
             {
+                // AbortOnConnectFail=false means "hand me the multiplexer and keep trying" - which has to
+                // hold however far we got. Gating this on !success would tear down a connection that had
+                // *successfully* reached its primary just because the follow-up switchover threw, and throw
+                // from a call the caller asked never to throw.
                 ScheduleSentinelPrimaryReconnect(connection, switchBlame);
             }
 
@@ -443,35 +447,50 @@ public partial class ConnectionMultiplexer
         // Periodically check to see if we can reconnect to the proper primary.
         // This is here in case we lost our subscription to a good sentinel instance
         // or if we miss the published primary change.
-        if (connection.sentinelPrimaryReconnectTimer == null)
-        {
-            connection.sentinelPrimaryReconnectTimer = new Timer(
-                _ =>
+        //
+        // Built before it is published, and published with a compare-exchange: this is now reached from the
+        // connect path as well as from ConnectionFailed, and the handler is wired up a few lines before the
+        // connect path calls it - on a connection that is already failing in the background. A plain null
+        // check would let both threads create a timer, and only one of them could ever be reached by
+        // OnManagedConnectionRestored to be disposed; the loser would keep firing SwitchPrimary every second
+        // for the life of the process, with no handle left to stop it.
+        var timer = new Timer(
+            _ =>
+            {
+                try
+                {
+                    // Attempt, but do not fail here
+                    SwitchPrimary(endPoint, connection);
+                }
+                catch (Exception)
+                {
+                }
+                finally
                 {
                     try
                     {
-                        // Attempt, but do not fail here
-                        SwitchPrimary(endPoint, connection);
+                        connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
                     }
-                    catch (Exception)
+                    catch (ObjectDisposedException)
                     {
+                        // If we get here the managed connection was restored and the timer was
+                        // disposed by another thread, so there's no need to run the timer again.
                     }
-                    finally
-                    {
-                        try
-                        {
-                            connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                        }
-                        catch (ObjectDisposedException)
-                        {
-                            // If we get here the managed connection was restored and the timer was
-                            // disposed by another thread, so there's no need to run the timer again.
-                        }
-                    }
-                },
-                null,
-                TimeSpan.Zero,
-                Timeout.InfiniteTimeSpan);
+                }
+            },
+            null,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
+
+        if (Interlocked.CompareExchange(ref connection.sentinelPrimaryReconnectTimer, timer, null) is null)
+        {
+            // we won: start it. Deliberately not started at construction - a timer that fires before it is
+            // published cannot be found by the callback's own Change call, nor disposed on restore.
+            timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+        }
+        else
+        {
+            timer.Dispose();
         }
     }
 
