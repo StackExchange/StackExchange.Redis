@@ -60,8 +60,19 @@ public static partial class Streams
         var max = maxId ?? StreamConstants.ReadMaxValue;
         var command = messageOrder == Order.Ascending ? RedisCommand.XRANGE : RedisCommand.XREVRANGE;
 
-        // XREVRANGE takes (high, low); the caller always says (min, max), so the swap happens here
-        var (first, second) = messageOrder == Order.Ascending ? (min, max) : (max, min);
+        // XREVRANGE takes (high, low); the caller always says (min, max), so the swap happens here.
+        // Two locals rather than a tuple deconstruction: Roslyn does optimise the tuple away here (all six
+        // target frameworks were checked for a System.ValueTuple type reference and all are clean), but
+        // this library deliberately does not reference System.ValueTuple - SanityChecks.ValueTupleNotReferenced
+        // guards it, because it breaks binding on .NET Framework - and that guard only ever inspects the
+        // one build the test process happened to load. Not relying on an optimisation to stay inside a
+        // rule costs nothing here.
+        RedisValue first = min, second = max;
+        if (messageOrder != Order.Ascending)
+        {
+            first = max;
+            second = min;
+        }
 
         return streams.Context.SendAsync(
             $"{command}{key}{first}{second}{new CountOperand(count)}",

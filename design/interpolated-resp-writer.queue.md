@@ -873,6 +873,31 @@ Four consequences, none of them cosmetic:
       **Remaining to migrate: 14 groups.** Each is the same three-file move plus its accessor; none of them
       needs a decision, so this can happen alongside the command work rather than as a big-bang rename.
 
+      ### The ValueTuple rule, and a gap in the guard - 2026-09-16
+
+      Marc, on `RangeAsync`: *"does that force value-tuple to be ref'd? that has a netfx gotcha that we
+      have unit tests to prevent."* Good instinct, and the answer is **no** - checked rather than assumed.
+
+      `var (first, second) = cond ? (min, max) : (max, min)` emits **no** `System.ValueTuple` type
+      reference: Roslyn turns it into branches with direct assignments. Verified by reading the metadata
+      of all six built assemblies - net461, net472, netstandard2.0, net6.0, net8.0, net10.0 - every one
+      clean.
+
+      **Rewritten as two locals anyway.** Relying on an optimisation to stay inside a rule is a footgun
+      for whoever edits that line next, and the alternative costs nothing.
+
+      **The finding worth keeping is about the guard, not the line.**
+      `SanityChecks.ValueTupleNotReferenced` inspects `typeof(RedisValue).Assembly.Location` - *the one
+      build the test process happened to load*. On Linux CI that is net10.0/net8.0; the net481 leg covers
+      net472. So **net461 and netstandard2.0 are never scanned by it on any platform** - which is exactly
+      backwards, since net461 is the framework the rule exists for.
+
+      Not widened here, because the honest fix has a trade-off to weigh: reaching the sibling TFM outputs
+      from a test means walking from the test's output directory back into the source tree, which is
+      fragile and wrong for a packaged run. The robust version is a build-time check over
+      `@(IntermediateAssembly)` in the library project, or a check over the produced `.nupkg`. Worth doing,
+      but as its own decision rather than smuggled in beside a stream command.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it
