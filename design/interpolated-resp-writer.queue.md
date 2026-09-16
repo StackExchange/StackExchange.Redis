@@ -910,15 +910,49 @@ Four consequences, none of them cosmetic:
       every existing user wraps the appends in `try`/`catch { cmd.Dispose(); throw; }` before completing.
       Roughly:
 
-      | | call site | safety |
+      | | call site | on a faulting argument |
       |---|---|---|
-      | operand struct | one expression inside the interpolated string | exception-safe by construction |
-      | Compose/Append | ~12 lines incl. the try/catch, **every time** | the try/catch must be remembered |
+      | operand struct | one expression inside the interpolated string | drops the rented buffer |
+      | Compose/Append | ~12 lines incl. the try/catch, **every time** | returns it, if the try/catch is remembered |
 
       So: **an operand struct for one or two optional tokens; Compose/Append when a command has several
       independent optional groups.** That is already what the codebase does without having said so -
       `INCREX` (lower bound, upper bound, options, expiry), `GEOADD` and `BITFIELD` compose; the
       single-token cases use operands. Writing the rule down so the next one is not a coin toss.
+
+      **Correction - the interpolated path is NOT exception-safe.** This entry first claimed the operand
+      struct was "exception-safe by construction". Marc: *"can we check that? I don't think it is; assume
+      that any operand evaluation could fail, and recall that they are not, IIRC, all evaluated before it
+      starts calling AppendLiteral/AppendFormatted."* Correct, and measured:
+
+      - The handler rents in its **constructor**; the compiler lowers the holes to calls made after that
+        and before the method the handler is passed to, so a throw in the middle skips the rest and
+        nothing is left in a position to return the buffer. Pinned by
+        `RespHandlerFaultTests.ArgumentsAreWrittenOneAtATime`, which shows an operand after the faulting
+        one never runs.
+      - An `ArrayPool` bucket fingerprint confirms it: a successful render leaves the pool unchanged, a
+        throwing one loses a 256-byte array. (The first version of that probe watched a 256-byte bucket
+        while the handler rented 128, so it could not have seen the leak, and passed. A planted-leak check
+        is now part of the method - a probe that cannot detect a planted leak is not evidence.)
+
+      **And that is fine** (Marc): *"it is exactly what DefaultInterpolatedStringHandler does today."*
+      Measured too - `$"...{x}..."` where `x.ToString()` throws loses a 256-char array by the same probe.
+      So this is the language's existing bargain rather than something this library invented, and a fault
+      while building a command is already exceptional. The point of recording it is that nobody should
+      claim the write path is exception-safe; it is not, deliberately.
+
+      **Why it could not reasonably be otherwise** (Marc): *"if the compiler evaluated everything to the
+      stack first, it might be - but that would be super nasty for the poor unsuspecting stack."* Quite:
+      the only lowering that would make this safe is one that materialises every hole into a temporary
+      before appending anything, and that is a language-wide choice, not one this library could make. It
+      would also undo the reason the handler pattern exists at all - appending as it goes is precisely
+      what stops every intermediate value having to be live at once, which is the cost the old
+      `string.Format` path paid. So the interleaving is the feature, and dropping a rented buffer on a
+      fault is the price the whole language already pays for it.
+
+      The pool-identity measurement is **not** kept as an assertion: it reads `ArrayPool` internals and
+      would flake under parallel runs. The evaluation-order test is what stays, because that is the fact
+      that makes the drop unavoidable.
 
       **The finding worth acting on eventually is not the count, it is a divergence.** There are three
       mechanisms in play for "an optional token and a number": `CountOperand` (absent when `null`),
