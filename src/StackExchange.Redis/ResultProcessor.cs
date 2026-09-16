@@ -2292,7 +2292,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal sealed class SingleStreamProcessor : StreamProcessorBase<StreamEntry[]>
+        internal sealed class SingleStreamProcessor : ResultProcessor<StreamEntry[]>
         {
             private readonly bool skipStreamName;
 
@@ -2393,7 +2393,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Handles <see href="https://redis.io/commands/xread"/>.
         /// </summary>
-        internal sealed class MultiStreamProcessor : StreamProcessorBase<RedisStream[]>
+        internal sealed class MultiStreamProcessor : ResultProcessor<RedisStream[]>
         {
             /*
                 The result is similar to the XRANGE result (see SingleStreamProcessor)
@@ -2474,7 +2474,7 @@ namespace StackExchange.Redis
                             {
                                 throw new InvalidOperationException("Expected stream entries");
                             }
-                            var entries = StreamProcessorBase<RedisStream[]>.ParseRedisStreamEntries(ref itemReader, protocol);
+                            var entries = ParseRedisStreamEntries(ref itemReader, protocol);
 
                             return new RedisStream(key: key, entries: entries);
                         },
@@ -2506,14 +2506,14 @@ namespace StackExchange.Redis
 
             protected override RedisStream Parse(ref RespReader first, ref RespReader second, object? state)
             {
-                return new(key: first.ReadRedisKey(), entries: StreamProcessorBase<RedisStream[]>.ParseRedisStreamEntries(ref second, _protocol));
+                return new(key: first.ReadRedisKey(), entries: ParseRedisStreamEntries(ref second, _protocol));
             }
         }
 
         /// <summary>
         /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *without* the <see cref="StreamConstants.JustId"/> option.
         /// </summary>
-        internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
+        internal sealed class StreamAutoClaimProcessor : ResultProcessor<StreamAutoClaimResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
@@ -2779,7 +2779,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal sealed class StreamInfoProcessor : StreamProcessorBase<StreamInfo>
+        internal sealed class StreamInfoProcessor : ResultProcessor<StreamInfo>
         {
             // Parse the following format:
             // > XINFO mystream
@@ -3057,75 +3057,79 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Handles stream responses. For formats, see <see href="https://redis.io/topics/streams-intro"/>.
+        /// Reads an <c>XRANGE</c>-shaped reply into the array shape the old surface promises.
+        /// For formats, see <see href="https://redis.io/topics/streams-intro"/>.
         /// </summary>
-        /// <typeparam name="T">The type of the stream result.</typeparam>
-        internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
+        /// <remarks>
+        /// <b>Off the generic class it used to sit on</b>, which never used its type argument - so calling
+        /// it read as <c>StreamProcessorBase&lt;StreamEntry[]&gt;.ParseRedisStreamEntries(...)</c>, naming a
+        /// type purely to reach a static. It lives here because the deferred-view work needs a second
+        /// caller: a reply object holding the payload projects to the old shape by constructing a reader
+        /// over the same buffer and calling exactly this, so the array shape never acquires a second parse.
+        /// </remarks>
+        internal static StreamEntry ParseRedisStreamEntry(ref RespReader reader, RedisProtocol protocol)
         {
-            protected static StreamEntry ParseRedisStreamEntry(ref RespReader reader, RedisProtocol protocol)
+            if (!reader.IsAggregate || reader.IsNull)
             {
-                if (!reader.IsAggregate || reader.IsNull)
-                {
-                    return StreamEntry.Null;
-                }
-                // Process the Multibulk array for each entry. The entry contains the following elements:
-                //  [0] = SimpleString (the ID of the stream entry)
-                //  [1] = Multibulk array of the name/value pairs of the stream entry's data
-                // optional (XREADGROUP with CLAIM):
-                //  [2] = idle time (in milliseconds)
-                //  [3] = delivery count
-                int length = reader.AggregateLength();
-                var iter = reader.AggregateChildren();
+                return StreamEntry.Null;
+            }
+            // Process the Multibulk array for each entry. The entry contains the following elements:
+            //  [0] = SimpleString (the ID of the stream entry)
+            //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+            // optional (XREADGROUP with CLAIM):
+            //  [2] = idle time (in milliseconds)
+            //  [3] = delivery count
+            int length = reader.AggregateLength();
+            var iter = reader.AggregateChildren();
 
+            iter.DemandNext();
+            var id = iter.Value.ReadRedisValue();
+
+            iter.DemandNext();
+            var values = ParseStreamEntryValues(ref iter.Value, protocol);
+
+            // check for optional fields (XREADGROUP with CLAIM)
+            if (length >= 4)
+            {
                 iter.DemandNext();
-                var id = iter.Value.ReadRedisValue();
-
-                iter.DemandNext();
-                var values = ParseStreamEntryValues(ref iter.Value, protocol);
-
-                // check for optional fields (XREADGROUP with CLAIM)
-                if (length >= 4)
+                if (iter.Value.TryReadInt64(out var idleTimeInMs))
                 {
                     iter.DemandNext();
-                    if (iter.Value.TryReadInt64(out var idleTimeInMs))
+                    if (iter.Value.TryReadInt64(out var deliveryCount))
                     {
-                        iter.DemandNext();
-                        if (iter.Value.TryReadInt64(out var deliveryCount))
-                        {
-                            return new StreamEntry(
-                                id: id,
-                                values: values,
-                                idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
-                                deliveryCount: ParseStreamDeliveryCount(deliveryCount));
-                        }
+                        return new StreamEntry(
+                            id: id,
+                            values: values,
+                            idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
+                            deliveryCount: ParseStreamDeliveryCount(deliveryCount));
                     }
                 }
-
-                return new StreamEntry(
-                    id: id,
-                    values: values);
             }
-            protected internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
+
+            return new StreamEntry(
+                id: id,
+                values: values);
+        }
+        internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
+        {
+            if (!reader.IsAggregate || reader.IsNull)
             {
-                if (!reader.IsAggregate || reader.IsNull)
-                {
-                    return [];
-                }
-
-                return reader.ReadPastArray(
-                    ref protocol,
-                    static (ref protocol, ref r) => ParseRedisStreamEntry(ref r, protocol),
-                    scalar: false) ?? [];
+                return [];
             }
 
-            protected static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, RedisProtocol protocol)
+            return reader.ReadPastArray(
+                ref protocol,
+                static (ref protocol, ref r) => ParseRedisStreamEntry(ref r, protocol),
+                scalar: false) ?? [];
+        }
+
+        internal static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, RedisProtocol protocol)
+        {
+            if (!reader.IsAggregate || reader.IsNull)
             {
-                if (!reader.IsAggregate || reader.IsNull)
-                {
-                    return [];
-                }
-                return StreamNameValueEntryProcessor.Instance.ParseArray(ref reader, protocol, false, out _, null)!;
+                return [];
             }
+            return StreamNameValueEntryProcessor.Instance.ParseArray(ref reader, protocol, false, out _, null)!;
         }
 
         private sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, string>>

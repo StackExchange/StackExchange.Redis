@@ -555,6 +555,41 @@ Four consequences, none of them cosmetic:
       staying) or deliberately not yet moved (stream reads). Pick it up when there is appetite for a shape
       decision rather than a transcription.
 
+      ### One parse, two readers - DECIDED 2026-09-16
+
+      **Both shapes start from a `RespReader` over the leased buffer, so neither needs new parse code.**
+      `RespPayload.GetReader()` is already `new RespReader(Span)`, and the eager parse already exists and
+      already takes `ref RespReader`. So:
+
+      ```csharp
+      // the shim handler: IRespHandler<T> is handed a ref RespReader by the pipeline
+      StreamEntry[] IRespHandler<StreamEntry[]>.Parse(ref RespReader reader)
+          => ParseRedisStreamEntries(ref reader, RedisProtocol.Resp3);
+
+      // ToArray(): a reader over the same buffer, the same call
+      public StreamEntry[] ToArray()
+      {
+          var reader = Live.GetReader();
+          reader.MoveNext();
+          return ParseRedisStreamEntries(ref reader, RedisProtocol.Resp3);
+      }
+      ```
+
+      **The rule, stated generally: do not implement eager in terms of lazy.** Projecting the old shape by
+      walking the typed view would capture a window per entry, build a sub-reader per level and re-read
+      frame headers at each step - paying for laziness that is discarded immediately. One forward pass is
+      what the eager shape wants, and it is what the existing parse already does.
+
+      So the shim and `To*()` are **not two implementations to keep in sync** - they are two *call sites* of
+      one function, differing only in where the reader comes from. The array shape never acquires a second
+      parse, and the two are byte-identical by construction rather than by review.
+
+      **Prerequisite, done 2026-09-16:** the three stream parses were `protected [internal] static` on the
+      generic `StreamProcessorBase<T>` and none of them used `T`, so reaching one read as
+      `StreamProcessorBase<StreamEntry[]>.ParseRedisStreamEntries(...)` - naming a type purely to get at a
+      static. They now sit on the non-generic `ResultProcessor`, beside `TryParseArrayInfo`. The base class
+      was empty afterwards and is gone; its four processors derive from `ResultProcessor<T>` directly.
+
       ### The root the caller holds - DECIDED 2026-09-16
 
       **One disposable class at the root, uncounted struct views inside it.** That is not a new rule; it is
