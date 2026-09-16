@@ -90,10 +90,10 @@ namespace StackExchange.Redis.Interpolated.Downlevel
         /// <inheritdoc cref="RespSurface.extension(IRespKeyspaceTarget).SortedSets"/>
         public static RespSortedSets SortedSets(this in RespContext context) => new RespSortedSets(context);
 
-        /// <inheritdoc cref="RespSurface.extension(IRespKeyspaceTarget).Streams"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Streams"/>
         public static RespStreams Streams(this IRespKeyspaceTarget target) => new RespStreams(target.Context);
 
-        /// <inheritdoc cref="RespSurface.extension(IRespKeyspaceTarget).Streams"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Streams"/>
         public static RespStreams Streams(this in RespContext context) => new RespStreams(context);
 
         /// <inheritdoc cref="RespSurface.extension(IRespKeyspaceTarget).Strings"/>

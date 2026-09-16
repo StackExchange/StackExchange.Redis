@@ -7,28 +7,24 @@ using StackExchange.Redis.Interpolated;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The stream reply shapes, as <b>windows over the reply buffer</b>.
+/// The stream reply shapes, as <b>windows over the reply buffer</b>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>A class, in the namespace everybody already imports</b>, rather than a namespace of its own: the
-/// command groups are found by extension-method lookup, so a sub-namespace would mean a second
-/// <c>using</c> for anyone touching both streams and strings. Nesting keeps these types tidy and localised
-/// without that cost - most usage is <c>var</c>, so the qualified name really only surfaces on parameters,
-/// where <c>Streams.RespStreamEntry</c> is plenty clear. Anyone who wants it shorter writes
-/// <c>using static StackExchange.Redis.Streams;</c>, which works precisely because of the <c>Resp</c>
-/// prefix below.
+/// <b>Nested in the group, because these types are the group's.</b> A stream entry means nothing outside
+/// streams, so it lives where it is used rather than in a shared namespace. The counterpart rule is that
+/// anything the <i>wire</i> shares gets hoisted out - <see cref="RespNameValueEntry"/> is a name/value
+/// pair, which is equally <c>HGETALL</c> and <c>CONFIG GET</c>, so it sits at the top level instead.
 /// </para>
 /// <para>
 /// <b>The <c>Resp</c> prefix is not decoration.</b> Reusing the shipped simple names and relying on
-/// nesting alone makes <c>using static</c> ambiguous (<c>CS0104</c>) between <c>StreamEntry</c> and this
-/// one - loud rather than silent, but it takes the escape hatch away. The prefix also follows a
-/// transformation this codebase already made once: <see cref="RespValue"/> is the window counterpart to
+/// nesting alone makes <c>using static</c> ambiguous (<c>CS0104</c>) between <see cref="StreamEntry"/>
+/// and the window - loud rather than silent, but it takes the escape hatch away. The prefix also follows
+/// a transformation this codebase already made once: <see cref="RespValue"/> is the window counterpart to
 /// <see cref="RedisValue"/>.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-public static class Streams
+public static partial class Streams
 {
     /// <summary>
     /// The reply to a stream range read (<c>XRANGE</c>/<c>XREVRANGE</c>): a run of entries, walked on

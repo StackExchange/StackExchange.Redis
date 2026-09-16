@@ -833,6 +833,46 @@ Four consequences, none of them cosmetic:
       shares.** A `ToHashEntry()` twin belongs on this type when the hash commands move - same pair on the
       wire, only the materialised type differs.
 
+      ### The per-group file layout, piloted on Streams - DONE 2026-09-16
+
+      Marc: *"I would like to end up with Streams in 3 (or more) partials... I think we should try to get
+      one looking 'just so', as a baseline."* Done, and it is the template:
+
+      ```
+      src/StackExchange.Redis/Groups/
+          Streams.cs           // the group type, the .Streams accessor, the empty anchor partial
+          Streams.Methods.cs   // the commands
+          Streams.Types.cs     // RespRangeReply, RespStreamEntry
+      ```
+
+      Namespace `StackExchange.Redis` - **out of the staging `Interpolated` area**, which is where all of
+      this is going. Costs callers nothing: extension methods bind by namespace, and a caller in
+      `StackExchange.Redis.Tests` (or `.Interpolated`) finds `StackExchange.Redis` by walking outward, so
+      no `using` was added anywhere. `Compile Update="Groups\Streams.*.cs" DependentUpon="Streams.cs"`
+      nests them in the IDE, as the repo already does for `BitFieldOperation.*` and `HotKeys.*`.
+
+      **The accessor cannot live in the group class** - `CS0542`, a member named `Streams` inside a class
+      named `Streams` - so it hangs off `RespDatabaseExtensions`, a partial that each group file
+      contributes its own accessor to. That means adding a group stays one file and the accessor list
+      cannot fall out of step with what exists.
+
+      **The empty `partial class Streams` in `Streams.cs` earns its place**: it makes the file named after
+      the group the one to open first, and it is where the class-level attributes live.
+
+      **A real gain from the split, found by doing it.** `RespSurface` carried a class-wide `RS0026`
+      suppression ("do not add multiple overloads with optional parameters") whose justification had to
+      reason about *every command in the library at once* - the overloads are fine because each takes a
+      different group as its first parameter. Per group, the same suppression is a much narrower claim: a
+      dozen methods, one receiver, differing in a parameter that has no default. A suppression you can
+      actually check.
+
+      **And the down-level shim test caught the move**, which is what it is for: it reflects over the
+      accessor host, so relocating one group's accessor made the counts disagree. It now scans both hosts
+      while the migration runs, and `RespSurface` drops off that list when the last group leaves.
+
+      **Remaining to migrate: 14 groups.** Each is the same three-file move plus its accessor; none of them
+      needs a decision, so this can happen alongside the command work rather than as a big-bang rename.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Reflection;
 using StackExchange.Redis.Interpolated;
@@ -25,9 +25,20 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespDownlevelShimTests
 {
+    /// <summary>
+    /// Where a group accessor can live - <b>two places, while the surface is being split up</b>.
+    /// </summary>
+    /// <remarks>
+    /// Groups are moving out of the staging <c>Interpolated</c> namespace one at a time, each taking its
+    /// accessor from <c>RespSurface</c> to <see cref="RespDatabaseExtensions"/> as it goes. Looking in
+    /// both is what lets that happen a group at a time instead of in one sweep; when the last group moves,
+    /// <c>RespSurface</c> drops off this list and then out of the library.
+    /// </remarks>
+    private static readonly Type[] AccessorHosts = [typeof(RespSurface), typeof(RespDatabaseExtensions)];
+
     private static string[] AccessorNames(Type receiver) =>
-        typeof(RespSurface)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+        AccessorHosts
+            .SelectMany(host => host.GetMethods(BindingFlags.Public | BindingFlags.Static))
             .Where(m => m.Name.StartsWith("get_", StringComparison.Ordinal))
             .Where(m => m.GetParameters() is { Length: 1 } ps && ps[0].ParameterType.Name == receiver.Name)
             .Select(m => m.Name.Substring(4))
