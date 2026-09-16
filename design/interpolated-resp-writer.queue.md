@@ -74,7 +74,34 @@ Four consequences, none of them cosmetic:
       what you are holding. Mechanical across 11 groups, free while SER010 is experimental, expensive after.
       Agreed, and done in the same pass as the cancellation change below, since both touch every signature.
 
-- [x] **`CancellationToken` moved off the context onto the call** - see the Done entry. Recorded here
+- [ ] **`CancellationToken` moved off the context onto the call - HALF DONE, found 2026-09-16.**
+      Marc: *"RangeAsync doesn't carry cancellationtoken - did we lose that somewhere? other victims?"*
+      Checked: **zero** `CancellationToken` references across `RespSurface.*.cs` and `Groups/*.cs`, and
+      zero on `RespContext`. So it is not a regression - the token came *off* the context as recorded, and
+      went *onto* `Send`/`SendAsync`, but never reached a single one of the ~256 public group methods.
+      Every one of them, uniformly, not a few stragglers.
+
+      **The entry below argues from a signature that does not exist** - `db.Strings.GetAsync(key, flags,
+      token)` - which is how a half-finished change came to be ticked off. Left unticked now.
+
+      **The deadline is not "now", it is before SER010 comes off.** Adding an optional parameter to an
+      existing method is a binary break (AGENTS.md), so after the experimental attributes are removed
+      every one of those methods needs a permanent overload instead. While experimental it is free. That
+      puts it in the same set as the `.Interpolated` namespace: cheap now, impossible later, and worth
+      deciding together rather than one at a time.
+
+      **But do NOT simply add the parameter.** This queue already reasoned it out once and the reasoning
+      stands: a token that cancels nothing *"on a context reads as configuration; on every method
+      signature it reads as a promise"*. 256 signatures that throw when handed a cancellable token would
+      be worse than none.
+
+      **The question that actually gates it** is what cancellation can mean here at all. A RESP request
+      cannot be recalled: the server still runs it and the reply still arrives on the connection, so the
+      only honest cancellation is *stop waiting* - which desyncs unless the pipeline tracks the abandoned
+      reply. Answering that belongs with the `Message` refactor, and the answer decides whether the
+      parameter should exist rather than merely when.
+
+- [x] **(the rejected idea, kept)** Recorded here
       because one idea was raised and rejected with evidence: having the **interpolated string handler**
       take the token via `[InterpolatedStringHandlerArgument]`, so `ThrowIfCancellationRequested` runs
       before anything is formatted.
