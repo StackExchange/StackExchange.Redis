@@ -1234,6 +1234,48 @@ Four consequences, none of them cosmetic:
       The full Release build and suite pass under it, but that is a bigger consequence than adding a TFM
       and should be revisited before any actual release build.
 
+      ### Measured: the machinery, with the socket removed - 2026-09-16
+
+      `StreamRangeMachineryBenchmarks`, a fake executor handing back one pre-built reply (retained per
+      call, so the harness allocates nothing). Empty **and** 1000x10, inline-completion **and** forced
+      suspension. Short jobs, in-process toolchain - indicative, not publication-grade.
+
+      **Why not a count** (Marc): a count is one await through the surface; only an aggregate reply
+      exercises the shim's shape. **Why empty AND large**: empty alone flatters the array paths, since the
+      deferred shape still allocates its reply object. **Why in-process**: an empty XRANGE round trip is
+      tens of microseconds and would bury a tens-of-nanoseconds difference entirely - so these numbers
+      measure machinery and must never be compared with server-based ones.
+
+      | shape | entries | suspend | net10 | net11 off | net11 on |
+      |---|---|---|---|---|---|
+      | Deferred | 0 | no | 124.6ns / 104B | 125.0ns / 104B | **114.1ns** / 104B |
+      | Deferred | 0 | yes | 819.5ns / 536B | 3013.7ns / 536B | 3128.4ns / **488B** |
+      | DeferredWalk | 1000 | no | 1135us / **186B** | 1052us / 186B | 1046us / 186B |
+      | TransitionalArray | 1000 | no | 1401us / **392,210B** | 1390us / 392,209B | 1380us / 392,209B |
+
+      **1. The deferred view is the big win, and it is independent of any of this.** At 1000x10 the walk
+      allocates **186 B** against the array shape's **392,210 B** - about 2,100x - and is ~19% faster. The
+      design's claim, now measured through the real API rather than a prototype.
+
+      **2. Runtime async is worth much less here than the microbenchmark suggested.** ~9% on the
+      inline-completion path and ~48 B saved per suspension - not the 2x a tight loop showed, because
+      through the real surface the protocol work dominates the machinery. Real, but not a reason on its
+      own.
+
+      **3. The control column paid for itself immediately.** Suspension went 819ns -> 3014ns from net10 to
+      net11 **with runtime async OFF** - so the dramatic regression is .NET 11 (or the harness on it), NOT
+      runtime async. Without that column the obvious and wrong conclusion was right there. It also
+      matches, and explains, the "suspend measured worse" result from the earlier scratch harness, which
+      had no control.
+
+      **That regression is NOT a finding yet** - 3.7x on `Task.Yield()`-based suspension with identical
+      allocations is too large to believe from a short in-process job on an RC runtime. It needs
+      reproducing outside BenchmarkDotNet before it is worth anyone's attention upstream.
+
+      **Still to do:** the old `RedisDatabase` row, which cannot take an `IRespExecutor` at all - it needs
+      the in-process managed server, and therefore its own table, since the regimes are not comparable.
+      And the cache-on/cache-off split for rows 2 and 3.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

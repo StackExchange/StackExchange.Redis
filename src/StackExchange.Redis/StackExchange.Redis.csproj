@@ -28,7 +28,7 @@
     <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
 
     <!-- see the IncludePreviewTargets note above; this is half the opt-in, RuntimeAsync.cs is the other -->
-    <Features Condition="'$(TargetFramework)' == 'net11.0'">runtime-async=on</Features>
+    <Features Condition="'$(TargetFramework)' == 'net11.0' and '$(DisableRuntimeAsync)' != 'true'">runtime-async=on</Features>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
     <PackageReadmeFile>README.md</PackageReadmeFile>
 
@@ -42,6 +42,11 @@
          disappears by itself when the count reaches zero. -->
     <WarningsNotAsErrors>$(WarningsNotAsErrors);SER352</WarningsNotAsErrors>
 </PropertyGroup>
+
+  <!-- /p:DisableRuntimeAsync=true builds the net11.0 target WITHOUT runtime async: the control column -->
+  <ItemGroup Condition="'$(DisableRuntimeAsync)' == 'true'">
+    <Compile Remove="RuntimeAsync.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- needed everywhere -->
