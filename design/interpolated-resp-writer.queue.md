@@ -2188,6 +2188,19 @@ Four consequences, none of them cosmetic:
 
 ## Done
 
+- [x] **`WithDatabase` sent to the wrong database - found and fixed 2026-09-16.** Found while costing the
+      server group: `DBSIZE` takes a database, so the question "how does a context change database?" had
+      to be answered, and the answer was "it does not". The database is **not part of the rendered frame** -
+      no `SELECT` is written - so routing is decided by the executor, and `WithDatabase` only replaced a
+      property. `db.WithDatabase(1).Strings.GetAsync(key)` read database **0** and reported database 1.
+
+      Silent, and worse than usually silent: the cache keys on `executor.Database`, so the cache agreed
+      with where the request actually went. Nothing was inconsistent with anything; the answer was just
+      wrong. `RespMessageExecutor` now re-points onto the same target, and an executor that cannot be
+      re-pointed throws instead of being carried along. Pinned end-to-end against a real server
+      (`WithDatabaseActuallyRoutesToThatDatabase`) - the test failed before the fix - and on the refusal
+      path with a fake.
+
 - [x] Command factories where the request text carries a decision — see the note below
 
 - [x] Cancellation on every command group method, threaded to the send — `57600d51`

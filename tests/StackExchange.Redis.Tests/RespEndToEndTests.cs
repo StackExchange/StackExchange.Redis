@@ -510,4 +510,24 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.Equal(Me(), recovered.ReadScalar().ReadString());
         Assert.True(sep.IsScriptLoaded(script), "the retry should have re-loaded it");
     }
+
+    [Fact]
+    public async Task WithDatabaseActuallyRoutesToThatDatabase()
+    {
+        await using var conn = Create(allowAdmin: true);
+        var key = Me();
+
+        var zero = conn.GetDatabase(0);
+        var one = conn.GetDatabase(1);
+        await zero.KeyDeleteAsync(key);
+        await one.KeyDeleteAsync(key);
+        await one.StringSetAsync(key, "from-one");
+
+        // the surface starts on database 0, and asks for database 1 the way the surface offers
+        var surface = NewSurface(conn, 0).WithDatabase(1);
+        Assert.Equal(1, surface.Context.Database);
+
+        var value = await surface.Strings.GetAsync(key);
+        Assert.Equal("from-one", value);
+    }
 }

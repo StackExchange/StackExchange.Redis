@@ -280,8 +280,37 @@ namespace StackExchange.Redis.Interpolated
 
         /// <summary>A copy of this context targeting a different database.</summary>
         /// <param name="database">The database index.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The executor moves too, and that is the whole method.</b> The database is not part of the
+        /// rendered frame - no <c>SELECT</c> is written - so where a request actually lands is decided by
+        /// the executor, not by this property. Changing only the property produced a context that
+        /// <i>reported</i> database 1 and <i>read</i> database 0: a wrong answer with nothing to see, and
+        /// the cache agreed with the executor, so it was not even inconsistent with itself.
+        /// </para>
+        /// <para>
+        /// An executor that cannot be re-pointed says so rather than being carried along silently. The
+        /// only one in this library can - it is the message pipeline, and a database is one field of the
+        /// message - so this throws for fakes and for anything a third party supplies that does not
+        /// already run against <paramref name="database"/>.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="NotSupportedException">
+        /// The context has an executor that runs against a different database and cannot be re-pointed.
+        /// </exception>
         public RespContext WithDatabase(int database)
-            => new(CommandMap, KeyPrefix, default, database, ServerType, Executor, _services);
+        {
+            var executor = Executor switch
+            {
+                null => null,                                        // nothing to route yet; WithExecutor comes later
+                RespMessageExecutor message => message.WithDatabase(database),
+                { } other when other.Database == database => other,  // already there; nothing to do
+                { } other => throw new NotSupportedException(
+                    $"This context's executor ({other.GetType().Name}) runs against database {other.Database} and cannot be re-pointed at database {database}."),
+            };
+
+            return new(CommandMap, KeyPrefix, default, database, ServerType, executor, _services);
+        }
 
         /// <summary>A copy of this context with a different server type.</summary>
         /// <param name="serverType">The server type.</param>

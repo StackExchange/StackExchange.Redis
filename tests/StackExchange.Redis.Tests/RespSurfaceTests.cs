@@ -216,6 +216,19 @@ public class RespSurfaceTests
     }
 
     [Fact]
+    public void WithDatabaseRefusesAnExecutorItCannotRePoint()
+    {
+        // an executor decides where a request lands; the database is not in the frame. So a context that
+        // cannot move its executor must not hand back one that merely CLAIMS a different database - that
+        // shape read database 0 while reporting database 1, with nothing to see.
+        var ctx = new RespContext().WithExecutor(new FakeExecutor("+OK\r\n"));
+
+        Assert.Equal(0, ctx.WithDatabase(0).Database); // already there: allowed, and nothing changes
+        var ex = Assert.Throws<NotSupportedException>(() => ctx.WithDatabase(1));
+        Assert.Contains("cannot be re-pointed at database 1", ex.Message);
+    }
+
+    [Fact]
     public async Task FlagsAreCumulativeRatherThanReplacing()
     {
         var executor = new FakeExecutor("+OK\r\n");

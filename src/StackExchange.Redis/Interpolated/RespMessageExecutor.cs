@@ -42,6 +42,16 @@ namespace StackExchange.Redis.Interpolated
 
         public int Database { get; }
 
+        /// <summary>The same target, sending to a different database.</summary>
+        /// <param name="database">The database index.</param>
+        /// <remarks>
+        /// The target is the thing that owns the connection and the routing; the database is one field of
+        /// the message it builds. So re-pointing is a new executor over the same target, not a new target -
+        /// which is why <see cref="RespContext.WithDatabase"/> can offer it at all.
+        /// </remarks>
+        internal RespMessageExecutor WithDatabase(int database)
+            => database == Database ? this : new RespMessageExecutor(_target, database);
+
         /// <summary>Issue the request and return the reply; null if the caller declined one.</summary>
         /// <param name="request">The rendered request.</param>
         /// <remarks>
