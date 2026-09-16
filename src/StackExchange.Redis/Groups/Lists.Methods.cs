@@ -102,13 +102,30 @@ public static partial class Lists
         long maxLength = 0,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => WhenDiscarded(
-            lists.Context.SendAsync<ReadOnlyLease<long>>(
-                $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}{RespLiterals.Count}{count}",
-                flags,
-                cancellationToken: cancellationToken),
+    {
+        var cmd = PositionsCommand(lists.Context, key, element, count, rank, maxLength);
+        return WhenDiscarded(
+            lists.Context.SendAsync<ReadOnlyLease<long>>(ref cmd, flags, cancellationToken: cancellationToken),
             flags,
             ReadOnlyLease<long>.Empty);
+    }
+
+    /// <summary>
+    /// Render <c>LPOS ... COUNT</c> - the one place the command is composed.
+    /// </summary>
+    /// <remarks>
+    /// The lease form and the array form differ only in what parses the reply; the six arguments and the
+    /// order they are written in are the same, and a surface where that is copied per overload is a
+    /// surface where the copies drift. The returned frame owns a pooled buffer and must be sent.
+    /// </remarks>
+    private static RespRequestFrame PositionsCommand(
+        in RespContext context,
+        RedisKey key,
+        RedisValue element,
+        long count,
+        long rank,
+        long maxLength)
+        => context.Render($"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}{RespLiterals.Count}{count}");
 
     // ---- pushes ------------------------------------------------------------------------------------
 
@@ -324,11 +341,30 @@ public static partial class Lists
         ListMoveOrder order = ListMoveOrder.Bulk,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => lists.Context.SendAsync(
-            $"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}",
-            flags,
-            RespHandlers.ValueWindowHandler.NullableLease,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = MoveManyCommand(lists.Context, sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order);
+        return lists.Context.SendAsync(ref cmd, flags, RespHandlers.ValueWindowHandler.NullableLease, cancellationToken);
+    }
+
+    /// <summary>
+    /// Render <c>LMOVEM</c> - the one place the command is composed.
+    /// </summary>
+    /// <remarks>
+    /// Seven arguments, three of which are enum-to-token translations, written once. The lease form and
+    /// the array form differ only in what parses the reply, and null means something different to each of
+    /// them; the request they send does not differ at all. The returned frame owns a pooled buffer and
+    /// must be sent.
+    /// </remarks>
+    private static RespRequestFrame MoveManyCommand(
+        in RespContext context,
+        RedisKey sourceKey,
+        RedisKey destinationKey,
+        ListSide sourceSide,
+        ListSide destinationSide,
+        long count,
+        ListMoveCount mode,
+        ListMoveOrder order)
+        => context.Render($"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}");
 
     /// <summary>LINSERT ... BEFORE.</summary>
     /// <param name="lists">The list command group.</param>
@@ -424,13 +460,13 @@ public static partial class Lists
         long maxLength = 0,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => WhenDiscarded(
-            lists.Context.SendAsync<long[]>(
-                $"{RedisCommand.LPOS}{key}{element}{RespLiterals.Rank}{rank}{RespLiterals.MaxLen}{maxLength}{RespLiterals.Count}{count}",
-                flags,
-                cancellationToken: cancellationToken),
+    {
+        var cmd = PositionsCommand(lists.Context, key, element, count, rank, maxLength);
+        return WhenDiscarded(
+            lists.Context.SendAsync<long[]>(ref cmd, flags, cancellationToken: cancellationToken),
             flags,
             Array.Empty<long>());
+    }
 
     /// <inheritdoc cref="Lists.LeftPopAsync(in RespLists, RedisKey, long, CommandFlags, CancellationToken)"/>
     /// <param name="lists">The list command group.</param>
@@ -481,11 +517,10 @@ public static partial class Lists
         ListMoveOrder order = ListMoveOrder.Bulk,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => lists.Context.SendAsync(
-            $"{RedisCommand.LMOVEM}{sourceKey}{destinationKey}{AsFragment(sourceSide)}{AsFragment(destinationSide)}{AsFragment(mode)}{count}{AsFragment(order)}",
-            flags,
-            RespHandlers.NullableValues,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = MoveManyCommand(lists.Context, sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order);
+        return lists.Context.SendAsync(ref cmd, flags, RespHandlers.NullableValues, cancellationToken);
+    }
 
     // ---- shared -------------------------------------------------------------------------------------
 

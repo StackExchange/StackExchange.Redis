@@ -2188,6 +2188,8 @@ Four consequences, none of them cosmetic:
 
 ## Done
 
+- [x] Command factories where the request text carries a decision — see the note below
+
 - [x] Cancellation on every command group method, threaded to the send — `57600d51`
 - [x] Three-file layout per group (`Groups/X.cs` / `X.Methods.cs` / `X.Types.cs`), accessors
       contributed to `RespDatabaseExtensions`; `SORT` as `Keys.Sort.cs` — `3461fa60`
@@ -2338,3 +2340,20 @@ Four consequences, none of them cosmetic:
 
 - **Deriving `BCAST PREFIX` from `AppendKeyPrefix`.** Prefixes are connection-global, must not overlap —
   context prefixes routinely nest — and cannot be removed individually. §6.13.
+
+- **A factory for every duplicated command text.** Decided 2026-09-16, after factoring the ones that
+  matter. The lease/array/writable-lease siblings mean most commands are written two or three times, and
+  the first instinct is to say "no command text appears twice, ever". The line landed elsewhere: a text
+  is factored when it contains a **decision** - an optional token (`RespLiterals.Count.When(count)`), a
+  derived operand (`{fields.Length}`), a command chosen from an argument (`ZRANGE` vs `ZREVRANGE`), an
+  enum-to-token translation. Those are where a copy can silently disagree with its sibling, and where
+  disagreeing changes the reply shape rather than just the bytes.
+
+  A bare `$"{RedisCommand.GET}{key}"` has nothing to get out of step. Wrapping it in `GetCommand(ctx, key)`
+  buys no correctness and costs the one thing this surface is for: the method body reads as the wire
+  format. Twenty-nine such texts stay written where they are sent.
+
+  What DID come out of it, and is worth restating: `flags.NeverCached()` is duplicated across sibling
+  pairs the same way, and a factory over the *text* does not capture it. Forgetting it on one of a pair
+  caches a random-member reply. That belongs with `WithDefaultCategory` - derived from the command, once,
+  at the send - not at the call site; queued rather than done.

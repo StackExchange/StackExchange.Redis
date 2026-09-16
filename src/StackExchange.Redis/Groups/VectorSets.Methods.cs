@@ -187,11 +187,10 @@ public static partial class VectorSets
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<VectorSetLink>?> GetLinksWithScoresAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => sets.Context.SendAsync(
-            $"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}",
-            flags,
-            LinkHandler.ScoredLease,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = GetLinksWithScoresCommand(sets.Context, key, member);
+        return sets.Context.SendAsync(ref cmd, flags, LinkHandler.ScoredLease, cancellationToken);
+    }
 
     /// <summary>VINFO: what the index says about itself.</summary>
     /// <param name="sets">The vector-set command group.</param>
@@ -236,6 +235,14 @@ public static partial class VectorSets
                 $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags, cancellationToken: cancellationToken);
     }
 
+    /// <summary>Render <c>VLINKS ... WITHSCORES</c>.</summary>
+    /// <remarks>
+    /// The trailer is what makes the reply carry distances, so the read-only lease and the writable
+    /// lease behind <c>IDatabase</c> must not be able to disagree about it.
+    /// </remarks>
+    private static RespRequestFrame GetLinksWithScoresCommand(in RespContext context, RedisKey key, RedisValue member)
+        => context.Render($"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}");
+
     // ---- the writable-lease shapes IDatabase still needs -------------------------------------------
     // Internal, as everywhere else: Lease<T> is the OLD spelling, the caller may write to it, and so
     // it cannot share storage with the reply the way a read-only lease does.
@@ -267,11 +274,10 @@ public static partial class VectorSets
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     internal static ValueTask<Lease<VectorSetLink>?> GetLinksWithScoresWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => sets.Context.SendAsync(
-            $"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}",
-            flags,
-            LinkHandler.ScoredWritable,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = GetLinksWithScoresCommand(sets.Context, key, member);
+        return sets.Context.SendAsync(ref cmd, flags, LinkHandler.ScoredWritable, cancellationToken);
+    }
 
     /// <inheritdoc cref="SimilaritySearchAsync"/>
     /// <param name="sets">The vector-set command group.</param>

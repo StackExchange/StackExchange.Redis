@@ -144,6 +144,12 @@ namespace StackExchange.Redis.Interpolated
     // frame - so no call can be ambiguous between them, whatever is added. Both are public because the
     // frame form is what Compose produces, and that path is public.
     [SuppressMessage("ApiDesign", "RS0027:API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Overloads differ by parameter type; ambiguity is impossible")]
+
+    // RS0026 warns that overloads carrying optional parameters can become ambiguous when a parameter is
+    // added later. Not here: the SendAsync overloads are told apart by their FIRST parameter - a rendered
+    // RespRequestFrame, an interpolated RespRequestBuilder, a string command - and that parameter never
+    // has a default, so a call can only ever bind to one of them however many optionals arrive after it.
+    [SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Overloads differ in a leading parameter that has no default; see the comment above")]
     public static class RespExecutor
     {
         /// <summary>
@@ -540,10 +546,13 @@ namespace StackExchange.Redis.Interpolated
             this RespContext context,
             ref RespRequestFrame request,
             CommandFlags flags,
-            IRespHandler<TResult> handler,
-            CancellationToken cancellationToken)
+            IRespHandler<TResult>? handler = null,
+            CancellationToken cancellationToken = default)
         {
-            if (handler is null) throw new ArgumentNullException(nameof(handler));
+            // The handler defaults exactly as it does on the interpolated overload - omitting it asks for
+            // the inbuilt handler for TResult - so a command factory does not force its callers to spell
+            // out a handler they were happy to leave implicit before the factory existed.
+            handler ??= RespHandlers.Inbuilt<TResult>.Require();
             DemandNoCancellation(cancellationToken);
 
             // THE one place a command's retry category is applied. The frame already carries the

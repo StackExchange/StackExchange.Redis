@@ -159,10 +159,21 @@ public static partial class Arrays
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<RedisArrayEntry>> ScanAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => arrays.Context.SendAsync<ReadOnlyLease<RedisArrayEntry>>(
-            $"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}",
-            flags,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = ScanCommand(arrays.Context, key, start, end, limit);
+        return arrays.Context.SendAsync<ReadOnlyLease<RedisArrayEntry>>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Render <c>ARSCAN</c> - the one place the command is composed.
+    /// </summary>
+    /// <remarks>
+    /// <c>LIMIT</c> is optional and its token is written only when the value is, which is a decision -
+    /// and a decision copied per overload is a decision that drifts. The lease form and the array form
+    /// differ only in what parses the reply. The returned frame owns a pooled buffer and must be sent.
+    /// </remarks>
+    private static RespRequestFrame ScanCommand(in RespContext context, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit)
+        => context.Render($"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}");
 
     /// <summary>AROP; an aggregate over a range of slots.</summary>
     /// <param name="arrays">The array command group.</param>
@@ -263,10 +274,17 @@ public static partial class Arrays
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<RedisValue>> LastItemsAsync(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(
-            $"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}",
-            flags,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = LastItemsCommand(arrays.Context, key, count, reverse);
+        return arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Render <c>ARLASTITEMS</c> - the one place the command is composed.
+    /// </summary>
+    /// <remarks><inheritdoc cref="ScanCommand" path="/remarks"/></remarks>
+    private static RespRequestFrame LastItemsCommand(in RespContext context, RedisKey key, int count, bool reverse)
+        => context.Render($"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}");
 
     /// <summary>ARINFO; the array's shape.</summary>
     /// <param name="arrays">The array command group.</param>
@@ -321,18 +339,18 @@ public static partial class Arrays
     /// able to choose otherwise.
     /// </remarks>
     internal static ValueTask<RedisArrayEntry[]> ScanArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => arrays.Context.SendAsync<RedisArrayEntry[]>(
-            $"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}",
-            flags,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = ScanCommand(arrays.Context, key, start, end, limit);
+        return arrays.Context.SendAsync<RedisArrayEntry[]>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     /// <inheritdoc cref="Arrays.LastItemsAsync(in RespArrays, RedisKey, int, bool, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="Arrays.ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
     internal static ValueTask<RedisValue[]> LastItemsArray(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => arrays.Context.SendAsync<RedisValue[]>(
-            $"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}",
-            flags,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = LastItemsCommand(arrays.Context, key, count, reverse);
+        return arrays.Context.SendAsync<RedisValue[]>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     /// <summary>The token for an <c>AROP</c> aggregate.</summary>
     private static RespFragment OperationToken(ArrayOperation operation) => operation switch

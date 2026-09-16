@@ -301,10 +301,10 @@ public static partial class SortedSets
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<SortedSetEntry>> RandomMembersWithScoresAsync(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
-            $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-            flags.NeverCached(),
-            cancellationToken: cancellationToken);
+    {
+        var cmd = RandomMembersWithScoresCommand(sortedSets.Context, key, count);
+        return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(ref cmd, flags.NeverCached(), cancellationToken: cancellationToken);
+    }
 
     /// <summary>RandomMembersWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -319,10 +319,10 @@ public static partial class SortedSets
     /// </para>
     /// </remarks>
     internal static ValueTask<SortedSetEntry[]> RandomMembersWithScoresArray(this in RespSortedSets sortedSets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => sortedSets.Context.SendAsync<SortedSetEntry[]>(
-            $"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}",
-            flags.NeverCached(),
-            cancellationToken: cancellationToken);
+    {
+        var cmd = RandomMembersWithScoresCommand(sortedSets.Context, key, count);
+        return sortedSets.Context.SendAsync<SortedSetEntry[]>(ref cmd, flags.NeverCached(), cancellationToken: cancellationToken);
+    }
 
     // ---- ranges ------------------------------------------------------------------------------------
 
@@ -343,9 +343,8 @@ public static partial class SortedSets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
-        return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-            $"{command}{key}{start}{stop}", flags, cancellationToken: cancellationToken);
+        var cmd = RangeByRankCommand(sortedSets.Context, key, start, stop, order, withScores: false);
+        return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(ref cmd, flags, cancellationToken: cancellationToken);
     }
 
     /// <summary>RangeByRank, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -369,9 +368,8 @@ public static partial class SortedSets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
-        return sortedSets.Context.SendAsync<RedisValue[]>(
-            $"{command}{key}{start}{stop}", flags, cancellationToken: cancellationToken);
+        var cmd = RangeByRankCommand(sortedSets.Context, key, start, stop, order, withScores: false);
+        return sortedSets.Context.SendAsync<RedisValue[]>(ref cmd, flags, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc cref="RangeByRankAsync"/>
@@ -391,9 +389,8 @@ public static partial class SortedSets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
-        return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(
-            $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags, cancellationToken: cancellationToken);
+        var cmd = RangeByRankCommand(sortedSets.Context, key, start, stop, order, withScores: true);
+        return sortedSets.Context.SendAsync<ReadOnlyLease<SortedSetEntry>>(ref cmd, flags, cancellationToken: cancellationToken);
     }
 
     /// <summary>RangeByRankWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -417,9 +414,8 @@ public static partial class SortedSets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
-        return sortedSets.Context.SendAsync<SortedSetEntry[]>(
-            $"{command}{key}{start}{stop}{RespLiterals.WithScores}", flags, cancellationToken: cancellationToken);
+        var cmd = RangeByRankCommand(sortedSets.Context, key, start, stop, order, withScores: true);
+        return sortedSets.Context.SendAsync<SortedSetEntry[]>(ref cmd, flags, cancellationToken: cancellationToken);
     }
 
     /// <summary>ZRANGEBYSCORE/ZREVRANGEBYSCORE.</summary>
@@ -917,6 +913,31 @@ public static partial class SortedSets
     }
 
     // ---- shared -------------------------------------------------------------------------------------
+
+    /// <summary>Render <c>ZRANGE</c>/<c>ZREVRANGE</c> by rank - the one place the command is composed.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Four call sites, two decisions.</b> Which command the order picks, and whether the
+    /// <c>WITHSCORES</c> trailer is written, were each written out four times: once for the lease form
+    /// and once for the array form, of each of the two shapes. The trailer is what changes the reply, so
+    /// getting it wrong at one of four sites is a parse failure rather than a wrong answer - but the fix
+    /// is the same either way, which is to have one place to be wrong in.
+    /// </para>
+    /// <para>The returned frame owns a pooled buffer and is consumed by the send, so a caller must send it.</para>
+    /// </remarks>
+    private static RespRequestFrame RangeByRankCommand(in RespContext context, RedisKey key, long start, long stop, Order order, bool withScores)
+    {
+        var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
+        return context.Render($"{command}{key}{start}{stop}{RespLiterals.WithScores.When(withScores)}");
+    }
+
+    /// <summary>Render <c>ZRANDMEMBER ... WITHSCORES</c>.</summary>
+    /// <remarks>
+    /// The trailer is the whole difference between this and the plain random-member read, and it changes
+    /// the reply shape; the lease form and the array form must not be able to disagree about it.
+    /// </remarks>
+    private static RespRequestFrame RandomMembersWithScoresCommand(in RespContext context, RedisKey key, long count)
+        => context.Render($"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}");
 
     /// <summary>ZRANGEBYSCORE and its with-scores twin, which differ only in one token and the result.</summary>
     private static ValueTask<TResult> RangeByScoreCore<TResult>(

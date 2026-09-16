@@ -232,10 +232,10 @@ public static partial class Hashes
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<HashEntry>> RandomFieldsWithValuesAsync(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync<ReadOnlyLease<HashEntry>>(
-            $"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}",
-            flags.NeverCached(),
-            cancellationToken: cancellationToken);
+    {
+        var cmd = RandomFieldsWithValuesCommand(hashes.Context, key, count);
+        return hashes.Context.SendAsync<ReadOnlyLease<HashEntry>>(ref cmd, flags.NeverCached(), cancellationToken: cancellationToken);
+    }
 
     /// <summary>RandomFieldsWithValues, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -250,10 +250,10 @@ public static partial class Hashes
     /// </para>
     /// </remarks>
     internal static ValueTask<HashEntry[]> RandomFieldsWithValuesArray(this in RespHashes hashes, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync<HashEntry[]>(
-            $"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}",
-            flags.NeverCached(),
-            cancellationToken: cancellationToken);
+    {
+        var cmd = RandomFieldsWithValuesCommand(hashes.Context, key, count);
+        return hashes.Context.SendAsync<HashEntry[]>(ref cmd, flags.NeverCached(), cancellationToken: cancellationToken);
+    }
 
     // ---- writes ------------------------------------------------------------------------------------
 
@@ -401,11 +401,8 @@ public static partial class Hashes
     {
         if (fields.IsEmpty) return new ValueTask<ReadOnlyLease<ExpireResult>>(ReadOnlyLease<ExpireResult>.Empty);
 
-        var command = SelectExpireCommand(expiry);
-        return hashes.Context.SendAsync<ReadOnlyLease<ExpireResult>>(
-            $"{command}{key}{expiry.Value}{RespSurface.AsFragment(when)}{RespLiterals.Fields}{fields.Length}{fields}",
-            flags.WithRetryCategory(when.AsRetryCategory()),
-            cancellationToken: cancellationToken);
+        var cmd = ExpireCommand(hashes.Context, key, fields, expiry, when);
+        return hashes.Context.SendAsync<ReadOnlyLease<ExpireResult>>(ref cmd, flags.WithRetryCategory(when.AsRetryCategory()), cancellationToken: cancellationToken);
     }
 
     /// <summary>Expire, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -431,11 +428,8 @@ public static partial class Hashes
     {
         if (fields.IsEmpty) return new ValueTask<ExpireResult[]>(Array.Empty<ExpireResult>());
 
-        var command = SelectExpireCommand(expiry);
-        return hashes.Context.SendAsync<ExpireResult[]>(
-            $"{command}{key}{expiry.Value}{RespSurface.AsFragment(when)}{RespLiterals.Fields}{fields.Length}{fields}",
-            flags.WithRetryCategory(when.AsRetryCategory()),
-            cancellationToken: cancellationToken);
+        var cmd = ExpireCommand(hashes.Context, key, fields, expiry, when);
+        return hashes.Context.SendAsync<ExpireResult[]>(ref cmd, flags.WithRetryCategory(when.AsRetryCategory()), cancellationToken: cancellationToken);
     }
 
     /// <summary>HPERSIST: remove the fields' deadlines.</summary>
@@ -445,12 +439,12 @@ public static partial class Hashes
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<PersistResult>> PersistAsync(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<ReadOnlyLease<PersistResult>>(ReadOnlyLease<PersistResult>.Empty)
-            : hashes.Context.SendAsync<ReadOnlyLease<PersistResult>>(
-                $"{RedisCommand.HPERSIST}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags,
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<ReadOnlyLease<PersistResult>>(ReadOnlyLease<PersistResult>.Empty);
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HPERSIST, key, fields);
+        return hashes.Context.SendAsync<ReadOnlyLease<PersistResult>>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     /// <summary>Persist, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -465,12 +459,12 @@ public static partial class Hashes
     /// </para>
     /// </remarks>
     internal static ValueTask<PersistResult[]> PersistArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<PersistResult[]>(Array.Empty<PersistResult>())
-            : hashes.Context.SendAsync<PersistResult[]>(
-                $"{RedisCommand.HPERSIST}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags,
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<PersistResult[]>(Array.Empty<PersistResult>());
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HPERSIST, key, fields);
+        return hashes.Context.SendAsync<PersistResult[]>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     /// <summary>HPTTL: how long the fields have left, in milliseconds.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -483,12 +477,12 @@ public static partial class Hashes
     /// and a caller who needed milliseconds could not recover them.
     /// </remarks>
     public static ValueTask<ReadOnlyLease<long>> GetTimeToLiveAsync(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty)
-            : hashes.Context.SendAsync<ReadOnlyLease<long>>(
-                $"{RedisCommand.HPTTL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags.NeverCached(),
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty);
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HPTTL, key, fields);
+        return hashes.Context.SendAsync<ReadOnlyLease<long>>(ref cmd, flags.NeverCached(), cancellationToken: cancellationToken);
+    }
 
     /// <summary>GetTimeToLive, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -503,12 +497,12 @@ public static partial class Hashes
     /// </para>
     /// </remarks>
     internal static ValueTask<long[]> GetTimeToLiveArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<long[]>(Array.Empty<long>())
-            : hashes.Context.SendAsync<long[]>(
-                $"{RedisCommand.HPTTL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags.NeverCached(),
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<long[]>(Array.Empty<long>());
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HPTTL, key, fields);
+        return hashes.Context.SendAsync<long[]>(ref cmd, flags.NeverCached(), cancellationToken: cancellationToken);
+    }
 
     /// <summary>HPEXPIRETIME: when the fields expire, as a Unix time in milliseconds.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -532,12 +526,12 @@ public static partial class Hashes
     /// </para>
     /// </remarks>
     public static ValueTask<ReadOnlyLease<long>> GetExpireDateTimeAsync(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty)
-            : hashes.Context.SendAsync<ReadOnlyLease<long>>(
-                $"{RedisCommand.HPEXPIRETIME}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags,
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<ReadOnlyLease<long>>(ReadOnlyLease<long>.Empty);
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HPEXPIRETIME, key, fields);
+        return hashes.Context.SendAsync<ReadOnlyLease<long>>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     /// <summary>GetExpireDateTime, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -552,12 +546,12 @@ public static partial class Hashes
     /// </para>
     /// </remarks>
     internal static ValueTask<long[]> GetExpireDateTimeArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<long[]>(Array.Empty<long>())
-            : hashes.Context.SendAsync<long[]>(
-                $"{RedisCommand.HPEXPIRETIME}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags,
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<long[]>(Array.Empty<long>());
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HPEXPIRETIME, key, fields);
+        return hashes.Context.SendAsync<long[]>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     // ---- read/write combinations -------------------------------------------------------------------
 
@@ -568,11 +562,10 @@ public static partial class Hashes
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<RedisValue> GetDeleteAsync(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync(
-            $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{1}{field}",
-            flags,
-            RespHandlers.SingletonValue,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = FieldCommand(hashes.Context, RedisCommand.HGETDEL, key, field);
+        return hashes.Context.SendAsync(ref cmd, flags, RespHandlers.SingletonValue, cancellationToken: cancellationToken);
+    }
 
     /// <summary>HGETDEL with several fields.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -581,12 +574,12 @@ public static partial class Hashes
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<RespValue>> GetDeleteAsync(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
-            : hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags,
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty);
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HGETDEL, key, fields);
+        return hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     /// <summary>GetDelete, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -601,12 +594,12 @@ public static partial class Hashes
     /// </para>
     /// </remarks>
     internal static ValueTask<RedisValue[]> GetDeleteArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
-            : hashes.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{fields.Length}{fields}",
-                flags,
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<RedisValue[]>(Array.Empty<RedisValue>());
+
+        var cmd = FieldsCommand(hashes.Context, RedisCommand.HGETDEL, key, fields);
+        return hashes.Context.SendAsync<RedisValue[]>(ref cmd, flags, cancellationToken: cancellationToken);
+    }
 
     /// <summary>HGETDEL, retaining the payload as a <see cref="Lease{T}"/>.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -616,11 +609,10 @@ public static partial class Hashes
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <remarks>The lease must be disposed.</remarks>
     public static ValueTask<ReadOnlyLease<byte>?> GetLeaseDeleteAsync(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync(
-            $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{1}{field}",
-            flags,
-            RespHandlers.SingletonReadOnlyLease,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = FieldCommand(hashes.Context, RedisCommand.HGETDEL, key, field);
+        return hashes.Context.SendAsync(ref cmd, flags, RespHandlers.SingletonReadOnlyLease, cancellationToken: cancellationToken);
+    }
 
     /// <inheritdoc cref="Hashes.GetLeaseDeleteAsync(in RespHashes, RedisKey, RedisValue, CommandFlags, CancellationToken)"/>
     /// <param name="hashes">The hash command group.</param>
@@ -630,11 +622,10 @@ public static partial class Hashes
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <remarks>The writable-lease sibling; see <see cref="Strings.GetWritableLease(in RespStrings, RedisKey, CommandFlags, CancellationToken)"/>.</remarks>
     internal static ValueTask<Lease<byte>?> GetWritableLeaseDelete(this in RespHashes hashes, RedisKey key, RedisValue field, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync(
-            $"{RedisCommand.HGETDEL}{key}{RespLiterals.Fields}{1}{field}",
-            flags,
-            RespHandlers.SingletonLease,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = FieldCommand(hashes.Context, RedisCommand.HGETDEL, key, field);
+        return hashes.Context.SendAsync(ref cmd, flags, RespHandlers.SingletonLease, cancellationToken: cancellationToken);
+    }
 
     /// <summary>HGETEX: read a field, and set, keep or clear its expiration in the same call.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -648,11 +639,10 @@ public static partial class Hashes
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <remarks><inheritdoc cref="Strings.GetSetExpiryAsync(in RespStrings, RedisKey, Expiration, CommandFlags, CancellationToken)" path="/remarks/para[2]"/></remarks>
     public static ValueTask<RedisValue> GetSetExpiryAsync(this in RespHashes hashes, RedisKey key, RedisValue field, Expiration expiry = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync(
-            $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}",
-            WithGetExCategory(expiry, flags),
-            RespHandlers.SingletonValue,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = GetSetExpiryCommand(hashes.Context, key, expiry, field);
+        return hashes.Context.SendAsync(ref cmd, WithGetExCategory(expiry, flags), RespHandlers.SingletonValue, cancellationToken: cancellationToken);
+    }
 
     /// <summary>HGETEX with several fields.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -662,12 +652,12 @@ public static partial class Hashes
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<ReadOnlyLease<RespValue>> GetSetExpiryAsync(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty)
-            : hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(
-                $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{fields.Length}{fields}",
-                WithGetExCategory(expiry, flags),
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<ReadOnlyLease<RespValue>>(ReadOnlyLease<RespValue>.Empty);
+
+        var cmd = GetSetExpiryCommand(hashes.Context, key, expiry, fields);
+        return hashes.Context.SendAsync<ReadOnlyLease<RespValue>>(ref cmd, WithGetExCategory(expiry, flags), cancellationToken: cancellationToken);
+    }
 
     /// <summary>GetSetExpiry, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -682,12 +672,12 @@ public static partial class Hashes
     /// </para>
     /// </remarks>
     internal static ValueTask<RedisValue[]> GetSetExpiryArray(this in RespHashes hashes, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => fields.IsEmpty
-            ? new ValueTask<RedisValue[]>(Array.Empty<RedisValue>())
-            : hashes.Context.SendAsync<RedisValue[]>(
-                $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{fields.Length}{fields}",
-                WithGetExCategory(expiry, flags),
-                cancellationToken: cancellationToken);
+    {
+        if (fields.IsEmpty) return new ValueTask<RedisValue[]>(Array.Empty<RedisValue>());
+
+        var cmd = GetSetExpiryCommand(hashes.Context, key, expiry, fields);
+        return hashes.Context.SendAsync<RedisValue[]>(ref cmd, WithGetExCategory(expiry, flags), cancellationToken: cancellationToken);
+    }
 
     /// <summary>HGETEX, retaining the payload as a <see cref="Lease{T}"/>.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -698,11 +688,10 @@ public static partial class Hashes
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <remarks>The lease must be disposed.</remarks>
     public static ValueTask<ReadOnlyLease<byte>?> GetLeaseSetExpiryAsync(this in RespHashes hashes, RedisKey key, RedisValue field, Expiration expiry = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync(
-            $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}",
-            WithGetExCategory(expiry, flags),
-            RespHandlers.SingletonReadOnlyLease,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = GetSetExpiryCommand(hashes.Context, key, expiry, field);
+        return hashes.Context.SendAsync(ref cmd, WithGetExCategory(expiry, flags), RespHandlers.SingletonReadOnlyLease, cancellationToken: cancellationToken);
+    }
 
     /// <inheritdoc cref="Hashes.GetLeaseSetExpiryAsync(in RespHashes, RedisKey, RedisValue, Expiration, CommandFlags, CancellationToken)"/>
     /// <param name="hashes">The hash command group.</param>
@@ -713,11 +702,10 @@ public static partial class Hashes
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     /// <remarks>The writable-lease sibling; see <see cref="Strings.GetWritableLease(in RespStrings, RedisKey, CommandFlags, CancellationToken)"/>.</remarks>
     internal static ValueTask<Lease<byte>?> GetWritableLeaseSetExpiry(this in RespHashes hashes, RedisKey key, RedisValue field, Expiration expiry = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => hashes.Context.SendAsync(
-            $"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}",
-            WithGetExCategory(expiry, flags),
-            RespHandlers.SingletonLease,
-            cancellationToken: cancellationToken);
+    {
+        var cmd = GetSetExpiryCommand(hashes.Context, key, expiry, field);
+        return hashes.Context.SendAsync(ref cmd, WithGetExCategory(expiry, flags), RespHandlers.SingletonLease, cancellationToken: cancellationToken);
+    }
 
     /// <summary>HSETEX: write a field and its expiration in one command.</summary>
     /// <param name="hashes">The hash command group.</param>
@@ -788,6 +776,64 @@ public static partial class Hashes
     }
 
     // ---- shared -------------------------------------------------------------------------------------
+
+    /// <summary>Render <c>HRANDFIELD ... WITHVALUES</c>.</summary>
+    /// <remarks>
+    /// The trailer is what makes the reply field/value pairs rather than field names, so the lease form
+    /// and the array form must not be able to disagree about it.
+    /// </remarks>
+    private static RespRequestFrame RandomFieldsWithValuesCommand(in RespContext context, RedisKey key, long count)
+        => context.Render($"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}");
+
+    /// <summary>
+    /// Render a command that ends <c>FIELDS numfields field [field ...]</c> - the shape this group's
+    /// commands share.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Named for the shape, not for a command</b>, because the shape is what is duplicated: eight of
+    /// this group's methods write the same trailer, each with a lease form and an array form behind it,
+    /// which was the same text eighteen times. The count is <i>derived</i> from the span rather than
+    /// passed, so the one way to send a count that disagrees with the fields is to write the trailer
+    /// again - and after this there is nowhere to write it.
+    /// </para>
+    /// <para>
+    /// The returned frame owns a pooled buffer and is consumed by the send, so a caller must send it.
+    /// An empty span is the caller's problem: the server rejects <c>numfields 0</c>, and every caller
+    /// here answers an empty request without sending.
+    /// </para>
+    /// </remarks>
+    private static RespRequestFrame FieldsCommand(in RespContext context, RedisCommand command, RedisKey key, ReadOnlySpan<RedisValue> fields)
+        => context.Render($"{command}{key}{RespLiterals.Fields}{fields.Length}{fields}");
+
+    /// <summary>The single-field spelling of <see cref="FieldsCommand"/>; the count is the literal 1.</summary>
+    /// <remarks>
+    /// Not <c>FieldsCommand(context, command, key, new[] { field })</c>: that would allocate to say
+    /// "one", and the count is known at the call rather than counted from anything.
+    /// </remarks>
+    private static RespRequestFrame FieldCommand(in RespContext context, RedisCommand command, RedisKey key, RedisValue field)
+        => context.Render($"{command}{key}{RespLiterals.Fields}{1}{field}");
+
+    /// <summary>Render <c>HEXPIRE</c>/<c>HPEXPIRE</c>/<c>HEXPIREAT</c>/<c>HPEXPIREAT</c>.</summary>
+    /// <remarks>
+    /// Which of the four it is comes from <see cref="SelectExpireCommand"/>, which means the choice and
+    /// the operand that goes with it - <see cref="Expiration.Value"/>, in whichever unit the command
+    /// implies - are decided in one place rather than at each of the two call sites.
+    /// </remarks>
+    private static RespRequestFrame ExpireCommand(in RespContext context, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry, ExpireWhen when)
+        => context.Render($"{SelectExpireCommand(expiry)}{key}{expiry.Value}{RespSurface.AsFragment(when)}{RespLiterals.Fields}{fields.Length}{fields}");
+
+    /// <summary>Render <c>HGETEX</c>, whose expiry comes before the <c>FIELDS</c> trailer.</summary>
+    /// <remarks>
+    /// Its own factory rather than an argument to <see cref="FieldsCommand"/>, because the expiry is not
+    /// part of that shape: it sits between the key and the trailer, and only this command has it.
+    /// </remarks>
+    private static RespRequestFrame GetSetExpiryCommand(in RespContext context, RedisKey key, Expiration expiry, ReadOnlySpan<RedisValue> fields)
+        => context.Render($"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{fields.Length}{fields}");
+
+    /// <summary>The single-field spelling of <see cref="GetSetExpiryCommand(in RespContext, RedisKey, Expiration, ReadOnlySpan{RedisValue})"/>.</summary>
+    private static RespRequestFrame GetSetExpiryCommand(in RespContext context, RedisKey key, Expiration expiry, RedisValue field)
+        => context.Render($"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}");
 
     /// <summary>
     /// Which of the four field-expiry commands an <see cref="Expiration"/> asks for.
