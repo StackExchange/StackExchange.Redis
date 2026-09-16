@@ -108,6 +108,18 @@ namespace StackExchange.Redis.Benchmarks
         [Benchmark]
         public int HashString() => _string.GetHashCode();
 
+        /// <summary>The opt-in byte comparer on the same mixed case: no decode at all.</summary>
+        [Benchmark]
+        public bool BinaryStringVsByteArray() => RedisValue.EqualityComparer.Binary.Equals(_string, _byteArray);
+
+        /// <summary>The opt-in byte comparer, blob against blob.</summary>
+        [Benchmark]
+        public bool BinaryBlobVsBlob() => RedisValue.EqualityComparer.Binary.Equals(_other, _byteArray);
+
+        /// <summary>Hashing a blob through the byte comparer: raw bytes, never decoded.</summary>
+        [Benchmark]
+        public int BinaryHashBlob() => RedisValue.EqualityComparer.Binary.GetHashCode(_byteArray);
+
         private sealed class Segment : ReadOnlySequenceSegment<byte>
         {
             public Segment(ReadOnlyMemory<byte> value, Segment? head)
