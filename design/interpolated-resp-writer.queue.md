@@ -898,6 +898,39 @@ Four consequences, none of them cosmetic:
       `@(IntermediateAssembly)` in the library project, or a check over the produced `.nupkg`. Worth doing,
       but as its own decision rather than smuggled in beside a stream command.
 
+      ### Operand struct vs Compose/Append - RULE, 2026-09-16
+
+      Marc, on `CountOperand`: *"is that used in many places? we also have the option of using the
+      multi-step pattern... if we use it *lots* it probably moves up out of streams?"*
+
+      **Used once** - only `RangeAsync`. So it stays put; hoisting a type with one caller buys nothing.
+
+      **The two mechanisms, and when each wins.** The multi-step pattern is `Compose` / `Append` /
+      `Complete`, and its real shape is not three lines - the composed handler owns a rented buffer, so
+      every existing user wraps the appends in `try`/`catch { cmd.Dispose(); throw; }` before completing.
+      Roughly:
+
+      | | call site | safety |
+      |---|---|---|
+      | operand struct | one expression inside the interpolated string | exception-safe by construction |
+      | Compose/Append | ~12 lines incl. the try/catch, **every time** | the try/catch must be remembered |
+
+      So: **an operand struct for one or two optional tokens; Compose/Append when a command has several
+      independent optional groups.** That is already what the codebase does without having said so -
+      `INCREX` (lower bound, upper bound, options, expiry), `GEOADD` and `BITFIELD` compose; the
+      single-token cases use operands. Writing the rule down so the next one is not a coin toss.
+
+      **The finding worth acting on eventually is not the count, it is a divergence.** There are three
+      mechanisms in play for "an optional token and a number": `CountOperand` (absent when `null`),
+      `LimitOperand` (absent when `<= 0`), and hand-rolled `AppendFormatted(RespLiterals.Count)` inside
+      bespoke operands in Geospatial and SortedSets. Each is locally defensible - they follow their own
+      parameter shapes, `int? count = null` against `int limit = 0` - but two spellings of *absent* for the
+      same idea is the kind of thing that eventually gets copied to a command where `0` is meaningful.
+
+      **Trigger for hoisting:** when a third independent optional-token site appears, hoist **one** operand
+      rather than a family, and settle on `null` as the single absent convention - `int?` cannot confuse
+      "zero" with "unset", where `int` has to.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it
