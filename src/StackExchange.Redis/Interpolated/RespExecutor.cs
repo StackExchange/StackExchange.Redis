@@ -649,13 +649,16 @@ namespace StackExchange.Redis.Interpolated
         /// makes and would be lost by simply awaiting it in an <c>async</c> wrapper.
         /// </para>
         /// </remarks>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
         public static ValueTask SendAsync(
             this RespContext context,
             [InterpolatedStringHandlerArgument(nameof(context))] ref RespCommandHandler request,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
         {
+            DemandNoCancellation(ref request, cancellationToken);
             var frame = request.Complete();
-            var pending = SendAsync(context, ref frame, flags, RespHandlers.Success, default);
+            var pending = SendAsync(context, ref frame, flags, RespHandlers.Success, cancellationToken);
             return pending.IsCompletedSuccessfully ? default : Awaited(pending);
 
             static async ValueTask Awaited(ValueTask<bool> pending) => await pending.ConfigureAwait(false);

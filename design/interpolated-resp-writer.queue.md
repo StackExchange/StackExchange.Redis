@@ -1562,6 +1562,49 @@ Four consequences, none of them cosmetic:
       **And the local is `cmd`, not `req`**, because `RespRequest` is a real and different type here, so a
       `req` holding a request *frame* would be a false cousin of it.
 
+      ### The send surface, laid out - and a claim I got wrong - 2026-09-16
+
+      Marc asked to see the whole dispatch shape in one place. **Seven entry points**, splitting in two:
+
+      | | returns | request form | handler | token |
+      |---|---|---|---|---|
+      | `Send<T>` | `T` | `ref RespRequestFrame` | required | required |
+      | `SendAsync<T>` | `ValueTask<T>` | `ref RespRequestFrame` | required | required |
+      | `SendAsync<T>` | `ValueTask<T>` | interpolated | optional | defaulted |
+      | `SendAsync` | `ValueTask` | interpolated | none | **was absent - now added** |
+      | `Send<T>` | `T` | interpolated | optional | defaulted |
+      | `SendWithPreambleAsync<T>` x2 | `ValueTask<T>` | preamble + `ref` frame | required | defaulted |
+
+      **Frame form is the plumbing** - everything explicit, nothing defaulted, which is what the command
+      factories call. **Interpolated form is the call site.** The two preamble overloads exist for
+      `SCRIPT LOAD` + `EVALSHA` adjacency and differ by *who owns the preamble*: a freshly rendered frame
+      (`ref`) versus an already-detached, shared one (`RespRequest`) - the cached `SCRIPT LOAD`, which must
+      not be consumed by a single send.
+
+      **The delegate/interface mix is not arbitrary - it splits on whether the pipeline must *interrogate*
+      the thing or merely *call* it.** `IRespHandler<T>` is an interface because the pipeline type-tests it
+      for `IRespPayloadHandler<T>` to decide whether a result may retain the buffer; `IRespArgument` is one
+      because it is used under a generic constraint so a struct does not box. `Projection` and
+      `PairProjection` are delegates because they take `ref RespReader`, which an interface method cannot,
+      and because they vary per call site rather than per shape. `Func<RespPayload, TReply>` is a delegate
+      because a cached `static readonly` factory is all it needs.
+
+      **Fixed: the no-reply overload had no `CancellationToken`.** Its docs argue three deliberate choices
+      and say nothing about cancellation; it passed `default` inward. Same oversight as the surface-wide
+      one. Four methods were affected - `MergeAsync`, `SetAsync`, `SetByIndexAsync`, `TrimAsync`.
+
+      **NOT done, because I was wrong: deleting the sync `Send` pair.** I reported "zero call sites
+      anywhere" and Marc agreed to remove them on that basis. **There are 24, in tests** -
+      `RespEndToEndTests`, `RespClientCacheTests` - and my grep missed them because it required `Send<` or
+      `Context.Send(` while the tests write `ctx.Send(...)`. So the sync path is neither dead nor
+      untested: the cache tests are exactly what exercises it. The deletion was reverted and the premise
+      corrected.
+
+      **What remains true** is the narrower observation: the sync frame overload carries ~93 lines of cache
+      probe/fill/stampede logic against the async one's 47, and **no production code calls it** - only
+      tests. Whether a public synchronous dispatch path is something v4 wants is a real question; it is
+      just not the open-and-shut one I presented.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

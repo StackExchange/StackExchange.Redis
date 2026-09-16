@@ -301,7 +301,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]static StackExchange.Redis.Interpolated.RespAppend.Append(this ref StackExchange.Redis.Interpolated.RespCommandHandler command, ref StackExchange.Redis.Interpolated.RespCommandHandler handler) -> void
 [SER010]static StackExchange.Redis.Interpolated.RespCommands.Command(this System.ReadOnlySpan<byte> name) -> StackExchange.Redis.Interpolated.RespCommand
 [SER010]static StackExchange.Redis.Interpolated.RespCommands.Command(this string! name, bool preform = false) -> StackExchange.Redis.Interpolated.RespCommand
-[SER010]static StackExchange.Redis.Interpolated.RespExecutor.SendAsync(this StackExchange.Redis.Interpolated.RespContext context, ref StackExchange.Redis.Interpolated.RespCommandHandler request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask
+[SER010]static StackExchange.Redis.Interpolated.RespExecutor.SendAsync(this StackExchange.Redis.Interpolated.RespContext context, ref StackExchange.Redis.Interpolated.RespCommandHandler request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 [SER010]static StackExchange.Redis.Interpolated.RespFragment.CreateValidated(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> StackExchange.Redis.Interpolated.RespFragment
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Boolean.get -> StackExchange.Redis.Interpolated.IRespHandler<bool>!
 [SER010]static StackExchange.Redis.Interpolated.RespHandlers.Double.get -> StackExchange.Redis.Interpolated.IRespHandler<double>!
