@@ -23,7 +23,7 @@ public class ServerEndPointClusterProbeUnitTests
         config.TieBreaker = tieBreakerKey;
 
         await using var connection = await ConnectionMultiplexer.ConnectAsync(config);
-        var endpoint = connection.GetServerEndPoint(server.DefaultEndPoint);
+        var endpoint = connection.GetServerEndPoint(server.DefaultEndPoint, ServerProvenance.Configured);
         Assert.NotNull(await connection.GetServer(server.DefaultEndPoint).ClusterNodesAsync());
         Assert.Equal(ServerType.Cluster, endpoint.ServerType);
         Assert.NotNull(endpoint.ClusterConfiguration?[endpoint.EndPoint]);
@@ -49,7 +49,7 @@ public class ServerEndPointClusterProbeUnitTests
         config.CommandMap = CommandMap.Create(commands);
 
         await using var connection = await ConnectionMultiplexer.ConnectAsync(config);
-        var endpoint = connection.GetServerEndPoint(server.DefaultEndPoint);
+        var endpoint = connection.GetServerEndPoint(server.DefaultEndPoint, ServerProvenance.Configured);
         var node = endpoint.ClusterConfiguration?.Nodes.Single(x => x.EndPoint?.Equals(endpoint.EndPoint) == true);
         Assert.NotNull(node);
         var targetSlot = node.Slots[0].From;
@@ -74,7 +74,7 @@ public class ServerEndPointClusterProbeUnitTests
         config.CommandMap = CommandMap.Create(commands);
 
         await using var connection = await ConnectionMultiplexer.ConnectAsync(config);
-        using var endpoint = new ServerEndPoint(connection, new IPEndPoint(IPAddress.Loopback, 12345))
+        using var endpoint = new ServerEndPoint(connection, new IPEndPoint(IPAddress.Loopback, 12345), ServerProvenance.Configured)
         {
             ServerType = ServerType.Standalone,
         };
@@ -99,7 +99,7 @@ public class ServerEndPointClusterProbeUnitTests
         config.CommandMap = CommandMap.Create(commands);
 
         await using var connection = await ConnectionMultiplexer.ConnectAsync(config);
-        using var endpoint = new ServerEndPoint(connection, new IPEndPoint(IPAddress.Loopback, 12345))
+        using var endpoint = new ServerEndPoint(connection, new IPEndPoint(IPAddress.Loopback, 12345), ServerProvenance.Configured)
         {
             ServerType = ServerType.Cluster,
         };
@@ -134,7 +134,7 @@ public class ServerEndPointClusterProbeUnitTests
             $"primary-id {primaryEndPoint} master - 0 0 1 connected {targetSlot}-{targetSlot}{Environment.NewLine}" +
             $"replica-id {replicaEndPoint} replica primary-id 0 0 2 connected",
             replicaEndPoint);
-        using var endpoint = new ServerEndPoint(connection, replicaEndPoint)
+        using var endpoint = new ServerEndPoint(connection, replicaEndPoint, ServerProvenance.Configured)
         {
             ServerType = ServerType.Cluster,
             IsReplica = true,

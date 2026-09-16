@@ -64,8 +64,7 @@ namespace StackExchange.Redis
         private bool isDisposed, replicaReadOnly, isReplica, allowReplicaWrites;
         private bool? supportsDatabases, supportsPrimaryWrites;
         private ServerType serverType;
-        private RedisKey tracerKey;
-        private int? tracerKeySlot = ServerSelectionStrategy.MultipleSlots;
+        private TracerKeyCache? tracerKeyCache;
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
 
@@ -861,17 +860,41 @@ namespace StackExchange.Redis
             return msg;
         }
 
+        /// <summary>
+        /// The key for the <c>EXISTS</c> tracer, memoized because this runs on the heartbeat path.
+        /// </summary>
+        /// <remarks>
+        /// Cached as one object rather than as separate slot and key fields: a <see cref="RedisKey"/> is two
+        /// references, so writing one while a heartbeat on another thread reads it can hand that reader a
+        /// prefix from the new key and a value from the old. Publishing a whole new instance makes the update
+        /// a single reference write, which cannot tear. Two threads racing here both build the same key, so
+        /// the duplicated work is harmless and needs no lock.
+        /// </remarks>
+        private sealed class TracerKeyCache
+        {
+            public TracerKeyCache(int? slot, RedisKey key)
+            {
+                Slot = slot;
+                Key = key;
+            }
+
+            public int? Slot { get; }
+            public RedisKey Key { get; }
+        }
+
         internal RedisKey GetTracerKey()
         {
             var slot = GetServableSlot();
-            if (tracerKeySlot != slot)
+            var cache = tracerKeyCache; // one read: everything below works off this snapshot
+            if (cache is null || cache.Slot != slot)
             {
-                tracerKey = slot is int value
+                RedisKey key = slot is int value
                     ? ServerSelectionStrategy.CreateKeyForSlot(value, Multiplexer.UniqueId)
                     : Multiplexer.UniqueId;
-                tracerKeySlot = slot;
+                cache = new TracerKeyCache(slot, key);
+                tracerKeyCache = cache;
             }
-            return tracerKey;
+            return cache.Key;
         }
 
         internal UnselectableFlags GetUnselectableFlags() => unselectableReasons;
