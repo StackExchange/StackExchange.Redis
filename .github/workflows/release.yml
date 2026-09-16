@@ -1,0 +1,79 @@
+# Publishes to nuget.org when a GitHub Release is published.
+#
+# Auth is NuGet Trusted Publishing (OIDC): no long-lived API key is stored anywhere.
+# The one-time setup on nuget.org is: username menu -> Trusted Publishing -> add policy with
+#   Repository Owner: StackExchange / Repository: StackExchange.Redis / Workflow File: release.yml
+#   Environment: release
+# plus a NUGET_USER repository secret holding the nuget.org profile name to publish as.
+#
+# Versioning note: Nerdbank.GitVersioning computes the version from version.json plus commit
+# height - the tag name does not set it. Read the version to tag off the CI run's step summary
+# ("Report computed version" in CI.yml) and create the release with that tag; the guard step
+# below fails the run on any mismatch rather than publishing a package that disagrees with its
+# release.
+#
+# Deliberately does not run tests: the commit being released already passed CI, and this job's
+# only job is to reproduce that build byte-for-byte and push it. Also deliberately runs on Linux,
+# not Windows: net461/net472 build fine against their reference assemblies without a Windows
+# runtime, and nothing here executes test code.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+  # dry run: everything except the tag check and the push, so the pipeline can be
+  # proven (and the packages inspected, via the run artifact) without cutting a release
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write # for the OIDC exchange with nuget.org
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0  # Fetch the full history (for versioning)
+    - name: Install .NET SDK
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: |
+          8.0.x
+          10.0.x
+    - name: Verify tag matches computed version
+      if: github.event_name == 'release'
+      run: |
+        dotnet tool install --global nbgv
+        computed=$(nbgv get-version --project src/StackExchange.Redis --variable NuGetPackageVersion)
+        tag="${{ github.event.release.tag_name }}"
+        tag="${tag#v}"
+        if [ "$computed" != "$tag" ]; then
+          echo "::error::Tag '$tag' does not match the computed version '$computed'; retag the release commit so the two agree."
+          exit 1
+        fi
+        echo "Publishing $computed"
+    - name: Restore dependencies
+      run: dotnet restore Build.csproj
+    - name: Build
+      run: dotnet build Build.csproj --no-restore -c Release /p:CI=true
+    - name: Pack
+      run: dotnet pack Build.csproj --no-build -c Release /p:CI=true /p:PackageOutputPath=${{ github.workspace }}/.nupkgs
+    # The packages survive as a run artifact even if the push fails
+    - name: Upload packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: packages
+        path: .nupkgs/*.nupkg
+    - name: NuGet login (OIDC to temp API key)
+      if: github.event_name == 'release'
+      uses: NuGet/login@v1
+      id: login
+      with:
+        user: ${{ secrets.NUGET_USER }}
+    - name: Push to nuget.org
+      if: github.event_name == 'release'
+      run: dotnet nuget push .nupkgs/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

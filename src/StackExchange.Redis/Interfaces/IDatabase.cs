@@ -1612,6 +1612,17 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The raw, undecoded reply (dispose when done); check <see cref="RespResult.IsNull"/> for a RESP null.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
+        RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for executing modules,
+        /// but may also be used to provide access to new features that lack a direct API.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
         /// <returns>A dynamic representation of the command's result.</returns>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         RedisResult Execute(string command, params object[] args);
@@ -1626,6 +1637,21 @@ namespace StackExchange.Redis
         /// <returns>A dynamic representation of the command's result.</returns>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
         RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against (available to the script as <c>KEYS</c>).</param>
+        /// <param name="values">The values to execute against (available to the script as <c>ARGV</c>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The raw, undecoded reply (dispose when done); check <see cref="RespResult.IsNull"/> for a RESP null.</returns>
+        /// <remarks>
+        /// See
+        /// <seealso href="https://redis.io/commands/eval"/>,
+        /// <seealso href="https://redis.io/commands/evalsha"/>.
+        /// </remarks>
+        RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a Lua script against the server.
@@ -1705,6 +1731,21 @@ namespace StackExchange.Redis
         /// <returns>A dynamic representation of the script's result.</returns>
         /// <remarks><seealso href="https://redis.io/commands/evalsha_ro"/></remarks>
         RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read-only variant of the EVAL command that cannot execute commands that modify data.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against (available to the script as <c>KEYS</c>).</param>
+        /// <param name="values">The values to execute against (available to the script as <c>ARGV</c>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The raw, undecoded reply (dispose when done); check <see cref="RespResult.IsNull"/> for a RESP null.</returns>
+        /// <remarks>
+        /// See
+        /// <seealso href="https://redis.io/commands/eval_ro"/>,
+        /// <seealso href="https://redis.io/commands/evalsha_ro"/>.
+        /// </remarks>
+        RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Add the specified member to the set stored at key.
@@ -2835,6 +2876,41 @@ namespace StackExchange.Redis
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
         RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist and <see cref="StreamAddOptions.CreateStream"/> is set, a new key holding a
+        /// stream is created. The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamField">The field name for the stream entry.</param>
+        /// <param name="streamValue">The value to set in the stream entry.</param>
+        /// <param name="options">Additional options for this operation, such as trimming and the entry ID.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The ID of the newly created message, or a null value when the key does not exist and
+        /// <see cref="StreamAddOptions.CreateStream"/> is <c>false</c>.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+#pragma warning disable RS0027 // additive overload: `options` is required, so existing calls still bind to the overloads above
+        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamAddOptions options, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist and <see cref="StreamAddOptions.CreateStream"/> is set, a new key holding a
+        /// stream is created. The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
+        /// <param name="options">Additional options for this operation, such as trimming and the entry ID.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The ID of the newly created message, or a null value when the key does not exist and
+        /// <see cref="StreamAddOptions.CreateStream"/> is <c>false</c>.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamAddOptions options, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
 #pragma warning restore RS0026
 
         /// <summary>
@@ -3317,6 +3393,47 @@ namespace StackExchange.Redis
         long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Performs a single arbitrary-width integer operation on the string at <paramref name="key"/>,
+        /// treating it as an array of bitfields.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="operation">The operation to perform.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The value read (for <see cref="BitFieldOperation.Get"/>), the previous value (for
+        /// <see cref="BitFieldOperation.Set"/>) or the new value (for
+        /// <see cref="BitFieldOperation.IncrementBy"/>); <see langword="null"/> if the operation was
+        /// skipped because of <see cref="BitFieldOverflow.Fail"/>.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
+#pragma warning disable RS0026 // competing overloads - disambiguated via parameter types
+        long? StringBitField(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Performs a batch of arbitrary-width integer operations on the string at <paramref name="key"/>,
+        /// treating it as an array of bitfields. The operations are applied in order, and the result has
+        /// one element per operation.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="operations">The operations to perform; an empty batch is a no-op.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// One element per operation, in order; an element is <see langword="null"/> if that operation was
+        /// skipped because of <see cref="BitFieldOverflow.Fail"/>. Empty for an empty batch, or when the
+        /// result is not observable (<see cref="CommandFlags.FireAndForget"/>). The caller owns the lease.
+        /// </returns>
+        /// <remarks>
+        /// <para><seealso href="https://redis.io/commands/bitfield"/></para>
+        /// <para>
+        /// If every operation is a <see cref="BitFieldOperation.Get"/> this is issued as <c>BITFIELD_RO</c>
+        /// where the server supports it (6.0 and above), so it can be served by a replica; otherwise it is
+        /// issued as <c>BITFIELD</c>, which the server treats as a write and will only accept on a primary.
+        /// </para>
+        /// </remarks>
+        Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
         /// Perform a bitwise operation between multiple keys (containing string values) and store the result in the destination key.
         /// The BITOP command supports four bitwise operations; note that NOT is a unary operator: the second key should be omitted in this case
         /// and only the first key will be considered.
@@ -3357,14 +3474,24 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="bit">True to check for the first 1 bit, false to check for the first 0 bit.</param>
         /// <param name="start">The position to start looking (defaults to 0).</param>
-        /// <param name="end">The position to stop looking (defaults to -1, unlimited).</param>
+        /// <param name="end">The position to stop looking (defaults to -1, the last byte); <see cref="StringIndex.Unbounded"/> leaves the range open-ended, which is not the same thing when <paramref name="bit"/> is <c>false</c> - see the remarks.</param>
         /// <param name="indexType">In Redis 7+, we can choose if <paramref name="start"/> and <paramref name="end"/> specify a bit index or byte index (defaults to <see cref="StringIndexType.Byte"/>).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns the position of the first bit set to 1 or 0 according to the request.
         /// If we look for set bits(the bit argument is 1) and the string is empty or composed of just zero bytes, -1 is returned.
         /// </returns>
-        /// <remarks><seealso href="https://redis.io/commands/bitpos"/></remarks>
+        /// <remarks>
+        /// <para><seealso href="https://redis.io/commands/bitpos"/></para>
+        /// <para>
+        /// When looking for a clear bit (<paramref name="bit"/> is <c>false</c>), the server treats an explicit
+        /// range differently from an open-ended one: with an explicit <paramref name="end"/> the search is confined
+        /// to the string, so a string of all-set bits gives -1, whereas with no end at all the result is the first
+        /// bit past the end of the string. Pass <see cref="StringIndex.Unbounded"/> as <paramref name="end"/> for
+        /// the latter; that requires <see cref="StringIndexType.Byte"/>, since the server accepts a bit/byte index
+        /// type only after an explicit end.
+        /// </para>
+        /// </remarks>
         long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

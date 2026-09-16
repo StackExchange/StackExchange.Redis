@@ -5,7 +5,7 @@ using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.Availability;
 
-[AutoDatabase]
+[AutoDatabase(Replays = true)]
 internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     // IRedisArgsMutator <==== if we ever want to support key-mapping
 {
@@ -82,57 +82,78 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     // note: the state cannot be taken by `in` here (async methods forbid by-ref parameters);
     // only the projection takes it by readonly-ref, avoiding a copy per attempt
     private async Task<TResult> ExecuteAsync<TState, TResult>(TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
-        where TState : struct
+        where TState : struct, IDisposable
     {
         /* key mapping, not used currently
          * state.MapInPlace(this); */
 
-        int attempt = 0;
-        TResult result;
-        // note we need to capture this *before* the attempt - otherwise the failover could happen
-        // between the failed attempt and fetching this, and we'd miss it
-        CancellationToken failover = GetNextFailover();
-        while (true)
+        // the capture owns a pooled copy of any Memory<T> arguments it holds: the caller's own buffer is
+        // theirs again once the call returns, and we may still be replaying long after that. Disposed here
+        // rather than by the capture's creator, because this is the only point that knows the last attempt
+        // is done. The IDisposable constraint makes that call constrained rather than boxed.
+        try
         {
-            try
+            int attempt = 0;
+            TResult result;
+            // note we need to capture this *before* the attempt - otherwise the failover could happen
+            // between the failed attempt and fetching this, and we'd miss it
+            CancellationToken failover = GetNextFailover();
+            while (true)
             {
-                result = await operation(in state, _inner).ConfigureAwait(false);
-                break;
+                try
+                {
+                    result = await operation(in state, _inner).ConfigureAwait(false);
+                    break;
+                }
+                catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
+                {
+                    await _controller.FailoverOrDelayAsync(delay).ConfigureAwait(false);
+                }
             }
-            catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
-            {
-                await _controller.FailoverOrDelayAsync(delay).ConfigureAwait(false);
-            }
+
+            /* key mapping, not used currently
+            // post-process results outside the loop
+            return this.UnMap(state, result);*/
+            return result;
         }
-        /* key mapping, not used currently
-        // post-process results outside the loop
-        return this.UnMap(state, result);*/
-        return result;
+        finally
+        {
+            state.Dispose();
+        }
     }
 
     private async Task ExecuteAsync<TState>(TState state, AutoDatabaseAsyncOperation<TState> operation)
-        where TState : struct
+        where TState : struct, IDisposable
     {
         /* key mapping, not used currently
          * state.MapInPlace(this); */
 
-        int attempt = 0;
-        // note we need to capture this *before* the attempt - otherwise the failover could happen
-        // between the failed attempt and fetching this, and we'd miss it
-        CancellationToken failover = GetNextFailover();
-        while (true)
+        // see the TResult overload
+        try
         {
-            try
+            int attempt = 0;
+            // note we need to capture this *before* the attempt - otherwise the failover could happen
+            // between the failed attempt and fetching this, and we'd miss it
+            CancellationToken failover = GetNextFailover();
+            while (true)
             {
-                await operation(in state, _inner).ConfigureAwait(false);
-                break;
+                try
+                {
+                    await operation(in state, _inner).ConfigureAwait(false);
+                    break;
+                }
+                catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
+                {
+                    await _controller.FailoverOrDelayAsync(delay).ConfigureAwait(false);
+                }
             }
-            catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
-            {
-                await _controller.FailoverOrDelayAsync(delay).ConfigureAwait(false);
-            }
+
+            // (nothing to post-process)
         }
-        // (nothing to post-process)
+        finally
+        {
+            state.Dispose();
+        }
     }
 
     // forwarding is not using: these decorators must implement the interface in full, and the

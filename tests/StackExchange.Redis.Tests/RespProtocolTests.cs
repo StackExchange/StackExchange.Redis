@@ -112,7 +112,7 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
 
         await using var muxer = await ConnectionMultiplexer.ConnectAsync(config, Writer);
         await muxer.GetDatabase().PingAsync(); // is connected
-        var ep = muxer.GetServerEndPoint(muxer.GetEndPoints()[0]);
+        var ep = muxer.GetServerEndPoint(muxer.GetEndPoints()[0], ServerProvenance.Configured);
         if (!ep.GetFeatures().Resp3) // this is just a v6 check
         {
             isResp3 = false; // then, no: it won't be

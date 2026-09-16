@@ -63,6 +63,8 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue MkStream = RedisValue.FromRaw("MKSTREAM"u8);
 
+        internal static readonly RedisValue NoMkStream = RedisValue.FromRaw("NOMKSTREAM"u8);
+
         internal static readonly RedisValue Stream = RedisValue.FromRaw("STREAM"u8);
 
         private static readonly RedisValue KeepRef = RedisValue.FromRaw("KEEPREF"u8), DelRef = RedisValue.FromRaw("DELREF"u8), Acked = RedisValue.FromRaw("ACKED"u8);

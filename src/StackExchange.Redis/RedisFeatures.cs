@@ -75,6 +75,11 @@ namespace StackExchange.Redis
         public bool BitwiseOperations => Version.IsAtLeast(v2_6_0);
 
         /// <summary>
+        /// Is <see href="https://redis.io/commands/bitfield_ro/">BITFIELD_RO</see> available?
+        /// </summary>
+        public bool BitFieldReadOnly => Version.IsAtLeast(v6_0_0);
+
+        /// <summary>
         /// Is <see href="https://redis.io/commands/client-setname/">CLIENT SETNAME</see> available?
         /// </summary>
         public bool ClientName => Version.IsAtLeast(v2_6_9);
@@ -158,6 +163,12 @@ namespace StackExchange.Redis
         /// Does this support <see href="https://redis.io/commands/sort_ro">SORT_RO</see>?
         /// </summary>
         internal bool ReadOnlySort => Version.IsAtLeast(v7_0_0_rc1);
+
+        /// <summary>
+        /// Does this support <see href="https://redis.io/commands/eval_ro">EVAL_RO</see> and
+        /// <see href="https://redis.io/commands/evalsha_ro">EVALSHA_RO</see>?
+        /// </summary>
+        internal bool ReadOnlyScripts => Version.IsAtLeast(v7_0_0_rc1);
 
         /// <summary>
         /// Is <see href="https://redis.io/commands/scan/">SCAN</see> (cursor-based scanning) available?

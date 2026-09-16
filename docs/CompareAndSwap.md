@@ -316,6 +316,6 @@ var condition = ValueCondition.CalculateDigest(largeValueBytes);
 
 ## See Also
 
-- [Transactions](Transactions.md) - For multi-key atomic operations
-- [Keys and Values](KeysValues.md) - Understanding Redis data types
+- [Transactions](Transactions) - For multi-key atomic operations
+- [Keys and Values](KeysValues) - Understanding Redis data types
 - [Redis CAS/CAD Documentation](https://redis.io/docs/latest/commands/set/) - Redis 8.4 SET command with IFEQ/IFNE/IFDEQ/IFDNE modifiers

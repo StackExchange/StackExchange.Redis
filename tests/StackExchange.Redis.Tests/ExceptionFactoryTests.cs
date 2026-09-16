@@ -112,11 +112,11 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
             var server = GetServer(conn);
             conn.AllowConnect = false;
             var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-            var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint));
+            var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint, ServerProvenance.Configured));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
             Log("Exception: " + ex.Message);
 
-            // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (Please take a look at this article for some common client-side issues that can cause timeouts: https://seredis.dev/Timeouts)";
+            // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (see https://seredis.dev/Timeouts for some common client-side issues that can cause timeouts)";
             Assert.StartsWith("Test Timeout, command=PING", ex.Message);
             Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
             // Ensure our pipe numbers are in place
@@ -138,7 +138,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
             Assert.Contains("Timers=", ex.Message);
 #endif
             Assert.DoesNotContain("Unspecified/", ex.Message);
-            Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://seredis.dev/Timeouts)", ex.Message);
+            Assert.EndsWith(" (see https://seredis.dev/Timeouts for some common client-side issues that can cause timeouts)", ex.Message);
             Assert.Null(ex.InnerException);
         }
         finally
@@ -192,7 +192,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
                 options.IncludePerformanceCountersInExceptions = hasDetail;
 
                 var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-                var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint));
+                var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint, ServerProvenance.Configured));
                 var ex = Assert.IsType<RedisConnectionException>(rawEx);
                 Log("Exception: " + ex.Message);
 

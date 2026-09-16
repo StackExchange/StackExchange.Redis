@@ -8,3 +8,4 @@ override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Rea
 override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Write(System.ReadOnlySpan<byte> buffer) -> void
 override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+[SER009]StackExchange.Redis.Configuration.TlsOptions.GetSslClientAuthenticationOptions(string! host) -> System.Net.Security.SslClientAuthenticationOptions?

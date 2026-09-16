@@ -1508,4 +1508,26 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         Assert.True(await db.SortedSetUpdateAsync(key, member, 1));
         Assert.Equal(1, await db.SortedSetUpdateAsync(key, values));
     }
+
+    [Fact]
+    public async Task SortedSetRemoveArgTests()
+    {
+        await using var conn = Create();
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        RedisValue[]? members = null;
+        var ex = Assert.Throws<ArgumentNullException>(() => db.SortedSetRemove(key, members!));
+        Assert.Equal("members", ex.ParamName);
+        ex = await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SortedSetRemoveAsync(key, members!).ForAwait()).ForAwait();
+        Assert.Equal("members", ex.ParamName);
+
+        members = [];
+        Assert.Equal(0, db.SortedSetRemove(key, members));
+
+        var pending = db.SortedSetRemoveAsync(key, members);
+        Assert.True(pending.IsCompleted); // sync; never reaches the server
+        Assert.Equal(0, await pending.ForAwait());
+    }
 }

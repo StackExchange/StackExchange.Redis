@@ -1200,8 +1200,13 @@ namespace StackExchange.Redis
                 // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
                 bool flush = false;
-                while (IsConnected && physical is { HasOutputPipe: true })
+                while (IsConnected)
                 {
+                    // Snapshot the connection for the whole of this message: OnDisconnected nulls the field
+                    // without waiting for the write lock, so re-reading it (as the loop guard used to) can hand
+                    // null to a write path that requires a connection. See #3167.
+                    if (this.physical is not { HasOutputPipe: true } physical) break;
+
                     Message? message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
 
@@ -1440,13 +1445,19 @@ namespace StackExchange.Redis
 
         private WriteResult HandleWriteException(PhysicalConnection? physical, Message message, Exception ex)
         {
-            var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, message.Flags, "Failed to write", ex);
+            // FIRST, before anything that can allocate - see the note in WriteMessageToServerInsideWriteLock.
+            physical?.PoisonWrite();
+            MarkNeedsReconnect();
+
+            var failureType = PhysicalConnection.ClassifyWriteFailure(ex, physical);
+            var inner = new RedisConnectionException(failureType, message.Flags, "Failed to write", ex);
             message.SetExceptionAndComplete(inner, physical);
             // Tear down the physical connection. A write that throws may have left a partial frame on the
             // wire, and continuing to use the same socket would let the next reply match the wrong message
             // in the response queue. Forcing a reconnect drains the in-flight queue with failures and
             // restores wire-level synchronization.
-            physical?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, inner);
+            Multiplexer.OnBeforeWriteTeardown();
+            physical?.RecordConnectionFailed(failureType, inner);
             return WriteResult.WriteFailure;
         }
 
@@ -1583,6 +1594,12 @@ namespace StackExchange.Redis
                 return WriteResult.Success; // for some definition of success
             }
 
+            if (connection.IsWriteFaulted)
+            {
+                // never add to the response queue of a connection whose queue we no longer trust
+                return WriteResult.WriteFailure;
+            }
+
             bool isQueued = false;
             try
             {
@@ -1715,12 +1732,23 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
+                // FIRST, before anything that can allocate: mark the connection untrustworthy. Everything
+                // below here allocates, and it only runs because something already failed; under memory
+                // exhaustion it can fail again, and then we would never reach RecordConnectionFailed and
+                // would leave a queued-but-unwritten message desyncing every later reply (#2919).
+                connection?.PoisonWrite();
+                MarkNeedsReconnect();
+
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
+
+                // Most likely an IOException, or the connection being torn down underneath us
+                var failureType = PhysicalConnection.ClassifyWriteFailure(ex, connection);
+                message.Fail(failureType, ex, null, Multiplexer);
                 message.Complete(connection);
 
-                // We're not sure *what* happened here - probably an IOException; kill the connection
-                connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                // We don't know how far the write got; kill the connection
+                Multiplexer.OnBeforeWriteTeardown();
+                connection?.RecordConnectionFailed(failureType, ex);
                 return WriteResult.WriteFailure;
             }
         }

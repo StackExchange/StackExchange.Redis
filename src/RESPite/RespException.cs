@@ -1,11 +1,8 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace RESPite;
+﻿namespace RESPite;
 
 /// <summary>
 /// Represents a RESP error message.
 /// </summary>
-[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public sealed class RespException(string message) : Exception(message)
 {
 }

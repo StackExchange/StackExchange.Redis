@@ -27,6 +27,15 @@ public sealed class KeyPrefixedDatabaseTests
         return Arg.Is(lambda);
     }
 
+    internal static ReadOnlyMemory<RedisValue> IsValueMemory(params RedisValue[] expected) => IsRawMemory(expected);
+    private static ReadOnlyMemory<T> IsRawMemory<T>(T[] expected)
+    {
+        // NB: can't touch .Span inside the expression tree - Span<T>/ReadOnlySpan<T> are ref structs,
+        // which can't appear in an expression tree; ToArray() sidesteps that.
+        Expression<Predicate<ReadOnlyMemory<T>>> lambda = actual => actual.Length == expected.Length && expected.SequenceEqual(actual.ToArray());
+        return Arg.Is(lambda);
+    }
+
     public KeyPrefixedDatabaseTests()
     {
         mock = Substitute.For<IDatabase>();
@@ -603,6 +612,49 @@ public sealed class KeyPrefixedDatabaseTests
         RedisKey[] keys = ["a", "b"];
         prefixed.ScriptEvaluate(script: "script", keys: keys, values: values, flags: CommandFlags.None);
         mock.Received().ScriptEvaluate(script: "script", keys: IsKeys(["prefix:a", "prefix:b"]), values: values, flags: CommandFlags.None);
+    }
+
+    [Fact]
+    public void ScriptEvaluateResp_1()
+    {
+        // NB: ScriptEvaluateResp rents its inner RedisKey[] from the ArrayPool and returns it
+        // (clearArray: true) as soon as the (mocked) inner call completes, so by the time
+        // mock.Received() re-evaluates its argument matcher, the array backing the recorded
+        // ReadOnlyMemory<RedisKey> has already been zeroed. Capture a copy at call time instead.
+        RedisKey[]? captured = null;
+        mock.ScriptEvaluateResp(
+            Arg.Any<string>(),
+            Arg.Do<ReadOnlyMemory<RedisKey>>(m => captured = m.ToArray()),
+            Arg.Any<ReadOnlyMemory<RedisValue>>(),
+            Arg.Any<CommandFlags>());
+
+        RedisValue[] values = ["v1", "v2"];
+        RedisKey[] keys = ["a", "b"];
+        prefixed.ScriptEvaluateResp("script", keys, values, CommandFlags.None);
+
+        mock.Received().ScriptEvaluateResp("script", Arg.Any<ReadOnlyMemory<RedisKey>>(), IsValueMemory("v1", "v2"), CommandFlags.None);
+        Assert.NotNull(captured);
+        Assert.Equal<RedisKey>(["prefix:a", "prefix:b"], captured);
+    }
+
+    [Fact]
+    public void ScriptEvaluateReadOnlyResp_1()
+    {
+        // see ScriptEvaluateResp_1 for why keys must be captured at call time, not verified after the fact.
+        RedisKey[]? captured = null;
+        mock.ScriptEvaluateReadOnlyResp(
+            Arg.Any<string>(),
+            Arg.Do<ReadOnlyMemory<RedisKey>>(m => captured = m.ToArray()),
+            Arg.Any<ReadOnlyMemory<RedisValue>>(),
+            Arg.Any<CommandFlags>());
+
+        RedisValue[] values = ["v1", "v2"];
+        RedisKey[] keys = ["a", "b"];
+        prefixed.ScriptEvaluateReadOnlyResp("script", keys, values, CommandFlags.None);
+
+        mock.Received().ScriptEvaluateReadOnlyResp("script", Arg.Any<ReadOnlyMemory<RedisKey>>(), IsValueMemory("v1", "v2"), CommandFlags.None);
+        Assert.NotNull(captured);
+        Assert.Equal<RedisKey>(["prefix:a", "prefix:b"], captured);
     }
 
     [Fact]
@@ -1484,6 +1536,29 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void ExecuteResp_1()
+    {
+        // NB: ExecuteResp rents its inner RedisKeyOrValue[] from the ArrayPool and returns it
+        // (clearArray: true) as soon as the (mocked) inner call completes, so by the time
+        // mock.Received() re-evaluates its argument matcher, the array backing the recorded
+        // ReadOnlyMemory<RedisKeyOrValue> has already been zeroed. Capture a copy at call time instead.
+        RedisKeyOrValue[]? captured = null;
+        mock.ExecuteResp(
+            Arg.Any<string>(),
+            Arg.Do<ReadOnlyMemory<RedisKeyOrValue>>(m => captured = m.ToArray()),
+            Arg.Any<CommandFlags>());
+
+        RedisKeyOrValue[] args = [(RedisValue)"value1", (RedisKey)"key1", (RedisKey)"key2"];
+        prefixed.ExecuteResp("CUSTOM", args, CommandFlags.None);
+
+        mock.Received().ExecuteResp("CUSTOM", Arg.Any<ReadOnlyMemory<RedisKeyOrValue>>(), CommandFlags.None);
+        Assert.NotNull(captured);
+        Assert.Equal<RedisKeyOrValue>(
+            [(RedisValue)"value1", (RedisKey)"prefix:key1", (RedisKey)"prefix:key2"],
+            captured);
+    }
+
+    [Fact]
     public void GeoAdd_1()
     {
         prefixed.GeoAdd("key", 1.23, 4.56, "member", CommandFlags.None);
@@ -1775,6 +1850,23 @@ public sealed class KeyPrefixedDatabaseTests
         var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
         prefixed.StreamAdd("key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
         mock.Received().StreamAdd("prefix:key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamAdd_WithOptions_1()
+    {
+        var options = new StreamAddOptions { MaxLength = 1000, CreateStream = false };
+        prefixed.StreamAdd("key", "field", "value", options, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", "field", "value", options, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamAdd_WithOptions_2()
+    {
+        var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
+        var options = new StreamAddOptions { MinId = "5-5", CreateStream = false };
+        prefixed.StreamAdd("key", fields, options, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", fields, options, CommandFlags.None);
     }
 
     [Fact]

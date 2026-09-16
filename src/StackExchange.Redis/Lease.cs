@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -18,6 +19,10 @@ namespace StackExchange.Redis
         public static Lease<T> Empty { get; } = new Lease<T>(System.Array.Empty<T>(), 0);
 
         private object? _buffer;
+
+        // where the data starts within _buffer; non-zero only for a lease that shares a larger,
+        // reference-counted buffer with other holders (see Create(in PayloadReservation))
+        private readonly int _offset;
 
         /// <summary>
         /// Gets whether this lease is empty.
@@ -63,15 +68,28 @@ namespace StackExchange.Redis
             return lease;
         }
 
+        /// <summary>
+        /// Create a lease over part of a buffer owned - and reference-counted - by someone else; disposing
+        /// the lease releases its reference, rather than returning the buffer directly.
+        /// </summary>
+        internal static Lease<T> Create(IMemoryOwner<T> owner, int offset, int length)
+        {
+            // must be non-empty: Dispose() short-circuits on Length == 0, so a zero-length lease would
+            // take the reference and never give it back, stranding the buffer
+            Debug.Assert(length > 0, "a shared lease must be non-empty");
+            return new Lease<T>(owner, length, offset);
+        }
+
         private Lease(T[] arr, int length)
         {
             _buffer = arr;
             Length = length;
         }
 
-        private Lease(IMemoryOwner<T> memoryOwner, int length)
+        private Lease(IMemoryOwner<T> memoryOwner, int length, int offset = 0)
         {
             _buffer = memoryOwner;
+            _offset = offset;
             Length = length;
         }
 
@@ -100,15 +118,15 @@ namespace StackExchange.Redis
         /// The data as a <see cref="Memory{T}"/>.
         /// </summary>
         public Memory<T> Memory => _buffer is IMemoryOwner<T> memoryOwner
-            ? memoryOwner.Memory.Slice(0, Length)
-            : new Memory<T>((T[]?)_buffer ?? ThrowDisposed(), 0, Length);
+            ? memoryOwner.Memory.Slice(_offset, Length)
+            : new Memory<T>((T[]?)_buffer ?? ThrowDisposed(), _offset, Length);
 
         /// <summary>
         /// The data as a <see cref="Span{T}"/>.
         /// </summary>
         public Span<T> Span => _buffer is IMemoryOwner<T> memoryOwner
-            ? memoryOwner.Memory.Span.Slice(0, Length)
-            : new Span<T>((T[]?)_buffer ?? ThrowDisposed(), 0, Length);
+            ? memoryOwner.Memory.Span.Slice(_offset, Length)
+            : new Span<T>((T[]?)_buffer ?? ThrowDisposed(), _offset, Length);
 
         /// <summary>
         /// The data as an <see cref="ArraySegment{T}"/>.
@@ -122,9 +140,9 @@ namespace StackExchange.Redis
                     if (!MemoryMarshal.TryGetArray((ReadOnlyMemory<T>)memoryOwner.Memory, out var segment))
                         throw new NotSupportedException("Only array-backed buffers are supported");
 
-                    return new ArraySegment<T>(segment.Array!, segment.Offset, Length);
+                    return new ArraySegment<T>(segment.Array!, segment.Offset + _offset, Length);
                 }
-                return new ArraySegment<T>((T[]?)_buffer ?? ThrowDisposed(), 0, Length);
+                return new ArraySegment<T>((T[]?)_buffer ?? ThrowDisposed(), _offset, Length);
             }
         }
     }

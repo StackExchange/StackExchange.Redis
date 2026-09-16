@@ -396,11 +396,17 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.Publish(RedisChannel, RedisValue, CommandFlags)"/>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.ExecuteResp(string, ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)"/>
+        Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.Execute(string, object[])"/>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
         /// <inheritdoc cref="IDatabase.Execute(string, ICollection{object}, CommandFlags)"/>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.ScriptEvaluateResp(string, ReadOnlyMemory{RedisKey}, ReadOnlyMemory{RedisValue}, CommandFlags)"/>
+        Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluate(string, RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
@@ -420,6 +426,9 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.ScriptEvaluateReadOnly(byte[], RedisKey[], RedisValue[], CommandFlags)"/>
         Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.ScriptEvaluateReadOnlyResp(string, ReadOnlyMemory{RedisKey}, ReadOnlyMemory{RedisValue}, CommandFlags)"/>
+        Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.SetAdd(RedisKey, RedisValue, CommandFlags)"/>
         Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
@@ -698,6 +707,14 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, NameValueEntry[], StreamIdempotentId, long?, bool, long?, StreamTrimMode, CommandFlags)"/>
         Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, StreamAddOptions, CommandFlags)"/>
+#pragma warning disable RS0027 // additive overload: `options` is required, so existing calls still bind to the overloads above
+        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamAddOptions options, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, NameValueEntry[], StreamAddOptions, CommandFlags)"/>
+        Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamAddOptions options, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
 #pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StreamConfigure(RedisKey, StreamConfiguration, CommandFlags)"/>
@@ -814,6 +831,14 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.StringBitCount(RedisKey, long, long, StringIndexType, CommandFlags)"/>
         Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StringBitField(RedisKey, BitFieldOperation, CommandFlags)"/>
+#pragma warning disable RS0026 // competing overloads - disambiguated via parameter types
+        Task<long?> StringBitFieldAsync(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StringBitField(RedisKey, System.ReadOnlyMemory{BitFieldOperation}, CommandFlags)"/>
+        Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StringBitOperation(Bitwise, RedisKey, RedisKey, RedisKey, CommandFlags)"/>
         Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None);

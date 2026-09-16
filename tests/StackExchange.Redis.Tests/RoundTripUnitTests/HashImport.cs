@@ -39,7 +39,7 @@ public class HashImport(ITestOutputHelper log)
         var token = StackExchange.Redis.HashImport.Create("f1", "f2");
         byte[] name = BitConverter.GetBytes(token.Id);
         ReadOnlyMemory<RedisValue> values = new RedisValue[] { "v1", "v2" };
-        var msg = new HashImportSetMessage(0, CommandFlags.None, token, (RedisKey)"user:1", values);
+        var msg = new HashImportSetMessage(0, CommandFlags.None, token, (RedisKey)"user:1", values, null);
 
         // HIMPORT SET user:1 <field-set> v1 v2
         var request = "*6\r\n$7\r\nHIMPORT\r\n$3\r\nSET\r\n$6\r\nuser:1\r\n" + Bulk(name) + "$2\r\nv1\r\n$2\r\nv2\r\n";
@@ -53,7 +53,7 @@ public class HashImport(ITestOutputHelper log)
         var token = StackExchange.Redis.HashImport.Create("only");
         byte[] name = BitConverter.GetBytes(token.Id);
         ReadOnlyMemory<RedisValue> values = new RedisValue[] { "v" };
-        var msg = new HashImportSetMessage(0, CommandFlags.None, token, (RedisKey)"k", values);
+        var msg = new HashImportSetMessage(0, CommandFlags.None, token, (RedisKey)"k", values, null);
 
         var request = "*5\r\n$7\r\nHIMPORT\r\n$3\r\nSET\r\n$1\r\nk\r\n" + Bulk(name) + "$1\r\nv\r\n";
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.DemandOK, request, "+OK\r\n", log: log);

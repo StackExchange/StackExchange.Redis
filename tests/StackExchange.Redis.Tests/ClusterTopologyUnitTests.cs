@@ -7,12 +7,11 @@ using static StackExchange.Redis.Server.RedisServer;
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
-/// The id-keyed <c>CLUSTER SLOTS</c> topology is currently populated *alongside* the <c>CLUSTER NODES</c>
-/// view that drives routing, so that the two can be compared before anything depends on the new one. These
-/// are the comparison: they assert the shadow view agrees with what routing actually uses, and that it
-/// unifies identities where the old view cannot.
+/// The id-keyed <c>CLUSTER SLOTS</c> topology, which now drives the slot map. The agreement tests against the
+/// <c>CLUSTER NODES</c> view are retained deliberately: <c>NODES</c> is no longer what routes, but it remains
+/// the public admin surface, and the two disagreeing would mean one of them is wrong.
 /// </summary>
-public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
+public class ClusterTopologyUnitTests(ITestOutputHelper log)
 {
     private const string Hostname = "host-1.redis.example.com";
 
@@ -27,9 +26,9 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
     }
 
     /// <summary>
-    /// Builds the view from an explicit <c>CLUSTER SLOTS</c> call. Autoconfigure does not ask for it yet - see
-    /// the comment in <c>ServerEndPoint.AutoConfigureAsync</c> - so these exercise the model and the parser
-    /// rather than the wiring; the wiring is covered where it is enabled.
+    /// Builds the view from an explicit <c>CLUSTER SLOTS</c> call, so that most of these exercise the model
+    /// and the parser independently of the autoconfigure wiring; <see cref="AutoConfigurePopulatesTheTopology"/>
+    /// covers the wiring itself.
     /// </summary>
     private static async Task<ClusterTopology> GetShadowAsync(IConnectionMultiplexer conn, EndPoint endpoint)
     {
@@ -37,6 +36,30 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         var topology = ClusterTopology.From(slots);
         Assert.NotNull(topology);
         return topology;
+    }
+
+    [Theory]
+    [InlineData(ClusterEndpointType.Ip)]
+    [InlineData(ClusterEndpointType.Hostname)]
+    public async Task AutoConfigurePopulatesTheTopology(ClusterEndpointType preferred)
+    {
+        // the wiring, as opposed to the model: connecting is enough, because autoconfigure asks for
+        // CLUSTER SLOTS as part of its pipelined burst
+        using var server = CreateServer(log, preferred);
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+
+        var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+        var topology = endpoint.ClusterTopology;
+        Assert.NotNull(topology);
+
+        var node = Assert.Single(topology.Nodes);
+        log.WriteLine(node.ToString());
+        Assert.False(string.IsNullOrEmpty(node.NodeId));
+
+        // and both identities are known, which is what routing will later rely on
+        GetHost(server.DefaultEndPoint, out var port);
+        Assert.Contains(new IPEndPoint(IPAddress.Loopback, port), node.Identities);
+        Assert.Contains(new DnsEndPoint(Hostname, port), node.Identities);
     }
 
     [Theory]
@@ -99,6 +122,8 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
         var fromShadow = topology.Nodes.Where(x => !x.IsReplica)
             .Select(x => x.NodeId).OrderBy(x => x).ToArray();
 
+        EndpointResolutionUnitTests.AssertOneEndpointPerNode(conn, log);
+
         log.WriteLine($"NODES:  {string.Join(",", fromNodes)}");
         log.WriteLine($"SHADOW: {string.Join(",", fromShadow)}");
         Assert.Equal(fromNodes, fromShadow);
@@ -117,6 +142,98 @@ public class ClusterTopologyShadowUnitTests(ITestOutputHelper log)
 
         static int[] Slots(System.Collections.Generic.IEnumerable<SlotRange> ranges)
             => ranges.SelectMany(r => Enumerable.Range(r.From, r.To - r.From + 1)).OrderBy(x => x).ToArray();
+    }
+
+    [Fact]
+    public async Task SlotMapIsDrivenByTheSlotsView()
+    {
+        // proves the flip took effect rather than the two views merely agreeing: the toy server reports a
+        // slot as migrated in SLOTS *only*, so routing can only be correct if the SLOTS view is what feeds
+        // ServerSelectionStrategy
+        using var server = CreateServer(log, announceHostname: false);
+        GetHost(server.DefaultEndPoint, out var port);
+        var other = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
+        server.Migrate((RedisKey)"slot-map-key", other);
+
+        await using var conn = await server.ConnectAsync();
+
+        // NoRedirect: if the slot map is right, this lands on the owner first time and needs no redirect
+        var db = conn.GetDatabase();
+        await db.StringSetAsync("slot-map-key", "value", flags: CommandFlags.NoRedirect);
+        Assert.Equal("value", await db.StringGetAsync("slot-map-key", CommandFlags.NoRedirect));
+
+        // ...and the command went to the node that owns the slot
+        var owner = conn.GetServer(new IPEndPoint(IPAddress.Loopback, port + 1));
+        log.WriteLine($"owner: {owner.EndPoint}");
+        Assert.Equal(new IPEndPoint(IPAddress.Loopback, port + 1), owner.EndPoint);
+
+        EndpointResolutionUnitTests.AssertOneEndpointPerNode(conn, log);
+    }
+
+    [Fact]
+    public async Task HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints()
+    {
+        // the case the flip exists for: SLOTS names every node by hostname while NODES names them by
+        // address, so a slot map fed from SLOTS must still resolve to the servers we already hold
+        using var server = CreateServer(log, ClusterEndpointType.Hostname);
+        GetHost(server.DefaultEndPoint, out var port);
+        var other = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
+        server.SetHostname(other, "host-2.redis.example.com");
+        server.Migrate((RedisKey)"hostname-routed-key", other);
+
+        await using var conn = await server.ConnectAsync();
+        var db = conn.GetDatabase();
+        await db.StringSetAsync("hostname-routed-key", "value");
+        Assert.Equal("value", await db.StringGetAsync("hostname-routed-key"));
+
+        foreach (var ep in conn.GetEndPoints())
+        {
+            log.WriteLine($"endpoint: {ep}");
+        }
+        EndpointResolutionUnitTests.AssertOneEndpointPerNode(conn, log);
+
+        // two nodes, two endpoints - not four
+        Assert.Equal(2, conn.GetEndPoints().Length);
+    }
+
+    [Fact]
+    public async Task SlotLessNodesAreKnownButNotConnected()
+    {
+        // CLUSTER SLOTS does not list a node that serves nothing, so NODES contributes it - registered but
+        // not dialled, since there is nothing to route to it. It stays addressable, and first use connects it
+        using var server = CreateServer(log, announceHostname: false);
+        var idle = server.AddEmptyNode(); // no slots
+
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        await conn.GetServer(server.DefaultEndPoint).PingAsync(); // force a reconfigure pass
+
+        foreach (var ep in conn.GetEndPoints())
+        {
+            log.WriteLine($"endpoint: {ep}");
+        }
+        Assert.Contains(idle, conn.GetEndPoints());
+
+        var api = conn.GetServer(idle);
+        Assert.False(api.IsConnected); // known, but no bridge was created for it
+
+        // ...and using it activates it, so nothing is lost by not dialling eagerly
+        await api.PingAsync();
+        Assert.True(api.IsConnected);
+    }
+
+    [Fact]
+    public async Task SlotServingNodesAreConnectedEagerly()
+    {
+        // the counterpart: a node that owns slots is in the SLOTS view and so is connected as before
+        using var server = CreateServer(log, announceHostname: false);
+        GetHost(server.DefaultEndPoint, out var port);
+        var owner = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
+        server.Migrate((RedisKey)"eager-key", owner);
+
+        await using var conn = await server.ConnectAsync();
+        await conn.GetServer(server.DefaultEndPoint).PingAsync();
+
+        Assert.True(conn.GetServer(owner).IsConnected);
     }
 
     [Fact]

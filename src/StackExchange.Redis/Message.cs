@@ -954,8 +954,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex) when (ex is not RedisCommandException) // these have specific meaning; don't wrap
             {
-                physical?.OnInternalError(ex);
-                Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+                FailWrite(physical, ex);
                 // Re-throw so the outer write path (PhysicalBridge.HandleWriteException) can tear down the
                 // connection. A partial write would otherwise leave bytes on the wire while the response
                 // queue still considers the slot healthy, allowing a subsequent reply to match the wrong
@@ -973,14 +972,28 @@ namespace StackExchange.Redis
             }
             catch (Exception ex) when (ex is not RedisCommandException) // these have specific meaning; don't wrap
             {
-                physical?.OnInternalError(ex);
-                Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+                FailWrite(physical, ex);
                 // Re-throw so the outer write path (PhysicalBridge.HandleWriteException) can tear down the
                 // connection. A partial write would otherwise leave bytes on the wire while the response
                 // queue still considers the slot healthy, allowing a subsequent reply to match the wrong
                 // in-flight message.
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Fail this message after a write fault, only shouting via OnInternalError when it really was an internal
+        /// fault; see <see cref="PhysicalConnection.ClassifyWriteFailure"/>.
+        /// </summary>
+        private void FailWrite(PhysicalConnection? physical, Exception ex)
+        {
+            var failureType = PhysicalConnection.ClassifyWriteFailure(ex, physical);
+            if (failureType == ConnectionFailureType.InternalFailure)
+            {
+                physical?.OnInternalError(ex);
+            }
+
+            Fail(failureType, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
         }
 
         private static ReadOnlySpan<byte> ChecksumTemplate => "$4\r\nXXXX\r\n"u8;
@@ -1001,8 +1014,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                physical?.OnInternalError(ex);
-                Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+                FailWrite(physical, ex);
             }
         }
 

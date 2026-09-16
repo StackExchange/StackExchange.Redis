@@ -1706,6 +1706,23 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StreamAddAsync_WithOptions_1()
+        {
+            var options = new StreamAddOptions { MaxLength = 1000, CreateStream = false };
+            await prefixed.StreamAddAsync("key", "field", "value", options, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", "field", "value", options, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamAddAsync_WithOptions_2()
+        {
+            var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
+            var options = new StreamAddOptions { MinId = "5-5", CreateStream = false };
+            await prefixed.StreamAddAsync("key", fields, options, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", fields, options, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task StreamTrimAsync_WithMode()
         {
             await prefixed.StreamTrimAsync("key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);

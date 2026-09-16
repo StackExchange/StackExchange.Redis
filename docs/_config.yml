@@ -17,6 +17,15 @@ show_downloads: false
 titles_from_headings:
   strip_title: true
 
+# Cayman's footer reads "<repository> is maintained by <site.github.owner_name>", and that name
+# comes from whoever owns the repository - so the site claimed to be maintained by the organisation
+# rather than by a person, which isn't true of this project. jekyll-github-metadata merges anything
+# set here over the values it reads from the API (SiteGitHubMunger#github_namespace does
+# drop.merge(config)), so naming the maintainer is enough; nothing else on the site reads either key.
+github:
+  owner_name: Marc Gravell
+  owner_url: https://github.com/mgravell
+
 # Not in the always-on GitHub Pages plugin set, so it has to be asked for; generates
 # sitemap.xml and robots.txt, neither of which the site had.
 plugins:

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -196,31 +197,36 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
 
 // HIMPORT SET <key> <field-set> <value...>: the user-facing per-row import. Carries a reference to its field-set so
 // the write path can inject a PREPARE the first time this field-set is seen on a connection (see PhysicalBridge).
-internal sealed class HashImportSetMessage : Message.CommandKeyBase
+internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedArgsOwner
 {
     private readonly HashImport _fieldSet;
-    private readonly ReadOnlyMemory<RedisValue> _values;
 
-    public HashImportSetMessage(int db, CommandFlags flags, HashImport fieldSet, in RedisKey key, ReadOnlyMemory<RedisValue> values)
+    // rendered at construction rather than aliased: this is the per-row bulk-import API, so reusing one
+    // values buffer per row is the intended usage - and a batch defers every write to Execute(), by which
+    // point that buffer holds only the last row. Not readonly; see RenderedArgs.
+    private RenderedArgs _values;
+
+    public HashImportSetMessage(int db, CommandFlags flags, HashImport fieldSet, in RedisKey key, ReadOnlyMemory<RedisValue> values, MemoryPool<byte>? pool)
         : base(db, flags, RedisCommand.HIMPORT, key)
     {
         _fieldSet = fieldSet;
-        _values = values;
+        _values = RenderedArgs.Create(default, values.Span, pool);
     }
+
+    void IRenderedArgsOwner.ReleaseRenderedArgs() => RenderedArgs.Recycle(ref _values);
 
     internal HashImport FieldSet => _fieldSet;
 
     protected override void WriteImpl(in MessageWriter writer)
     {
-        var values = _values.Span;
-        writer.WriteHeader(RedisCommand.HIMPORT, 3 + values.Length);
+        writer.WriteHeader(RedisCommand.HIMPORT, ArgCount);
         writer.WriteBulkString(RedisLiterals.SET);
         writer.Write(Key);
         _fieldSet.WriteName(writer);
-        for (int i = 0; i < values.Length; i++) writer.WriteBulkString(values[i]);
+        _values.WriteTo(writer);
     }
 
-    public override int ArgCount => 3 + _values.Length;
+    public override int ArgCount => 3 + _values.Count;
 }
 
 // HIMPORT PREPARE <field-set> <field...>: injected fire-and-forget ahead of the first SET for a field-set on a

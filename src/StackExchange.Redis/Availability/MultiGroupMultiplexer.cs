@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
@@ -410,17 +411,7 @@ namespace StackExchange.Redis
 
             public ReadOnlySpan<ConnectionGroupMember> GetMembers() => _members;
 
-            internal ConnectionMultiplexer Active
-            {
-                get
-                {
-                    return _activeStub.Active ?? Throw();
-
-                    [DoesNotReturn]
-                    static ConnectionMultiplexer Throw() =>
-                        throw new InvalidOperationException("All connections are unavailable.");
-                }
-            }
+            internal ConnectionMultiplexer Active => _activeStub.Active ?? ThrowUnavailable<ConnectionMultiplexer>();
 
             // non-throwing twin of Active, for callers that have a trivial answer when the group is fully down
             internal ConnectionMultiplexer? TryGetActive() => _activeStub.Active;
@@ -448,15 +439,61 @@ namespace StackExchange.Redis
 
             ConnectionGroupMember? IConnectionGroup.ActiveMember => GetActiveMember();
 
-            internal ConnectionGroupMember ActiveMember
-            {
-                get
-                {
-                    return GetActiveMember() ?? Throw();
+            internal ConnectionGroupMember ActiveMember => GetActiveMember() ?? ThrowUnavailable<ConnectionGroupMember>();
 
-                    [DoesNotReturn]
-                    static ConnectionGroupMember Throw() =>
-                        throw new InvalidOperationException("All connections are unavailable.");
+            /// <summary>
+            /// Every member is down, so there is nothing to send to.
+            /// </summary>
+            /// <remarks>
+            /// <para>
+            /// A <see cref="RedisConnectionException"/> rather than an <see cref="InvalidOperationException"/>,
+            /// because a group is an <see cref="IConnectionMultiplexer"/> and a plain one reports the same
+            /// situation that way. Callers catching <see cref="RedisConnectionException"/> - a Polly policy,
+            /// an ordinary catch block - should not have to know which kind they were handed. See #3223.
+            /// </para>
+            /// <para>
+            /// The leading sentence is unchanged, so anything already matching on it still matches; what
+            /// follows is a count per state, because "all unavailable" alone does not say whether nothing
+            /// ever connected or everything was judged unhealthy, and those point at different causes.
+            /// </para>
+            /// <para>
+            /// <b>Counts, not names.</b> A member's name defaults to its endpoint, and an exception message
+            /// travels: logs, error-reporting services, sometimes a response body. The deployment's
+            /// hostnames are not ours to put there, and the count carries the diagnosis anyway.
+            /// </para>
+            /// </remarks>
+            [DoesNotReturn]
+            private T ThrowUnavailable<T>()
+            {
+                int unhealthy = 0, connected = 0, disconnected = 0;
+                foreach (var member in _members)
+                {
+                    // unhealthy first: a member can be connected and still excluded, and that is the case
+                    // most likely to be surprising
+                    if (member.IsUnhealthy) unhealthy++;
+                    else if (member.IsConnected) connected++;
+                    else disconnected++;
+                }
+
+                var sb = new StringBuilder("All connections are unavailable.");
+                var first = true;
+                Append(sb, ref first, unhealthy, "unhealthy");
+                Append(sb, ref first, connected, "connected");
+                Append(sb, ref first, disconnected, "not connected");
+                if (!first) sb.Append(')');
+
+                // CommandFlags.None because there is no message here to take them from - the group is being
+                // asked for a connection, not asked to send. The single-multiplexer path passes the
+                // message's flags for the same slot.
+                throw new RedisConnectionException(
+                    ConnectionFailureType.UnableToConnect, CommandFlags.None, sb.ToString());
+
+                static void Append(StringBuilder sb, ref bool first, int count, string state)
+                {
+                    if (count == 0) return;
+
+                    sb.Append(first ? " (" : ", ").Append(count).Append(' ').Append(state);
+                    first = false;
                 }
             }
 

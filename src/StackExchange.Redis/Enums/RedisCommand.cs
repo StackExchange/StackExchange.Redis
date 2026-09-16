@@ -35,6 +35,10 @@ internal enum RedisCommand
     BGREWRITEAOF,
     BGSAVE,
     BITCOUNT,
+    [AsciiHash("BITFIELD")]
+    BITFIELD,
+    [AsciiHash("BITFIELD_RO")]
+    BITFIELD_RO,
     BITOP,
     BITPOS,
     BLPOP,
@@ -346,6 +350,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.ARRING:
             case RedisCommand.ARSEEK:
             case RedisCommand.ARSET:
+            case RedisCommand.BITFIELD:
             case RedisCommand.BITOP:
             case RedisCommand.BLPOP:
             case RedisCommand.BRPOP:
@@ -462,6 +467,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.BGREWRITEAOF:
             case RedisCommand.BGSAVE:
             case RedisCommand.BITCOUNT:
+            case RedisCommand.BITFIELD_RO:
             case RedisCommand.BITPOS:
             case RedisCommand.CLIENT:
             case RedisCommand.CLUSTER:

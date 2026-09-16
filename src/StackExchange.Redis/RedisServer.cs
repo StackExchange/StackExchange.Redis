@@ -162,6 +162,14 @@ namespace StackExchange.Redis
         internal static Message GetClusterNodesMessage(CommandFlags flags)
             => Message.Create(-1, flags.WithCategory(NodeLocalRead), RedisCommand.CLUSTER, RedisLiterals.NODES);
 
+        /// <summary>
+        /// As <see cref="GetClusterNodesMessage"/>, for the <c>CLUSTER SLOTS</c> view of the same topology:
+        /// likewise asked both by the public API and by the autoconfigure probe, and likewise a node-local
+        /// read - it reports what the answering node believes, so it is safe to replay against that node.
+        /// </summary>
+        internal static Message GetClusterSlotsMessage(CommandFlags flags)
+            => Message.Create(-1, flags.WithCategory(NodeLocalRead), RedisCommand.CLUSTER, RedisLiterals.SLOTS);
+
         public KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetConfigGetMessage(pattern, flags);

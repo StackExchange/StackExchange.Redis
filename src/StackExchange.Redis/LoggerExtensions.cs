@@ -328,6 +328,36 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 111,
+        Message = "Registering {EndPoint} without connecting: serves no slots")]
+    internal static partial void LogInformationRegisteringInertNode(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 115,
+        Message = "Merging {EndPoint} into {Survivor}: the same node under two names")]
+    internal static partial void LogInformationMergingDuplicateServer(this ILogger logger, EndPointLogValue endPoint, EndPointLogValue survivor);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 114,
+        Message = "Pruning {EndPoint}: absent from the topology for {Generations} generations")]
+    internal static partial void LogInformationPruningServer(this ILogger logger, EndPointLogValue endPoint, int generations);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 112,
+        Message = "Retiring {EndPoint}: {Reason}")]
+    internal static partial void LogInformationRetiringServer(this ILogger logger, EndPointLogValue endPoint, string reason);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 113,
+        Message = "Retiring {EndPoint} with {Outstanding} operation(s) still outstanding; closing anyway")]
+    internal static partial void LogInformationRetiringServerAbandoned(this ILogger logger, EndPointLogValue endPoint, int outstanding);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 43,
         Message = "Election summary:")]
     internal static partial void LogInformationElectionSummary(this ILogger logger);

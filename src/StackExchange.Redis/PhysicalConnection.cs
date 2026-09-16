@@ -46,6 +46,40 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
+        // services offered to every reader we create over this connection's buffers; null for a
+        // detached/dummy connection, where readers simply fall back to shared defaults
+        private readonly ReaderServices? _readerServices;
+
+        private volatile bool _writeFaulted;
+
+        /// <summary>
+        /// Indicates that a write against this connection failed part-way through, so the messages in
+        /// <see cref="_writtenAwaitingResponse"/> may no longer line up with the replies on the wire.
+        /// </summary>
+        internal bool IsWriteFaulted => _writeFaulted;
+
+        /// <summary>
+        /// Marks this connection as untrustworthy for response matching.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately allocation-free and infallible. The richer teardown in
+        /// <see cref="RecordConnectionFailed"/> is reached via callers that allocate first (building
+        /// failure messages and exceptions), and those callers only run *because* something already
+        /// failed - under memory exhaustion they can fail again, skipping teardown and leaving a
+        /// queued-but-unwritten message at the head of the queue. From that point every reply matches
+        /// the wrong message, silently and permanently. See #2919.
+        /// </remarks>
+        internal void PoisonWrite() => _writeFaulted = true;
+
+        /// <summary>
+        /// Pre-allocated so that it can be thrown from the read loop when we are poisoned - which may
+        /// well be because we are out of memory. See <see cref="PoisonWrite"/>.
+        /// </summary>
+        private static readonly Exception WriteFaultedSentinel = new RedisConnectionException(
+            ConnectionFailureType.ProtocolFailure,
+            CommandFlags.None,
+            "A write failed part-way and the connection could not be torn down cleanly; the request and response queues may be out of step, so this connection has been abandoned.");
+
         private Message? _awaitingToken;
 
         private readonly string _physicalName;
@@ -110,6 +144,9 @@ namespace StackExchange.Redis
             connectionType = bridge.ConnectionType;
             WriteMode = writeMode;
             _bridge = new WeakReference(bridge);
+            // resolved once here rather than per frame: readers are created for every reply, and the
+            // route to the multiplexer is a weak reference plus two hops
+            _readerServices = bridge.Multiplexer.ReaderServices;
             ChannelPrefix = bridge.Multiplexer.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
@@ -184,7 +221,23 @@ namespace StackExchange.Redis
                 // connectTo=null no-socket pattern): connect and TLS belong to the tunnel, and the
                 // stream/SslStream machinery below never runs. The TLS intent goes with it precisely
                 // because TLS is now the tunnel's job: it cannot honour an intent it cannot see.
-                var transport = await tunnel.ConnectTransportAsync(endpoint, bridge.ConnectionType, new(rawConfig), CancellationToken.None).ForAwait();
+                RESPite.Transports.DuplexTransport? transport;
+                try
+                {
+                    transport = await tunnel.ConnectTransportAsync(endpoint, bridge.ConnectionType, new(rawConfig), CancellationToken.None).ForAwait();
+                }
+                catch (Exception ex)
+                {
+                    // A tunnel refuses a dial by throwing, and the message is the useful part: it is where
+                    // "this configuration asks for something this transport cannot do" gets said. This
+                    // method runs fire-and-forget (PhysicalBridge calls it as BeginConnectAsync(log)
+                    // .RedisFireAndForget()) and the try below has not been entered yet, so an escaping
+                    // exception was reported nowhere - the caller saw a bare connect timeout, and the
+                    // reason was lost.
+                    RecordConnectionFailed(ConnectionFailureType.UnableToConnect, ex, isInitialConnect: true);
+                    return;
+                }
+
                 if (transport is not null)
                 {
                     _transport = transport;
@@ -325,6 +378,7 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
         internal void Shutdown(ConnectionFailureType failureType = ConnectionFailureType.ConnectionDisposed)
         {
+            _isShutdown = true; // *before* discarding the output, so an observed-null output implies this flag
             var output = Interlocked.Exchange(ref _output, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
             var transport = Interlocked.Exchange(ref _transport, null);
@@ -396,6 +450,15 @@ namespace StackExchange.Redis
             bool isInitialConnect = false,
             Stream? connectingStream = null)
         {
+            // Close the response queue to new writers before detaching the bridge or failing messages.
+            // A writer may already hold a reference to this physical connection; without this gate it can
+            // enqueue against the old socket after the failure path has drained the queue. A reply already in
+            // flight can then be matched to that newer command, permanently shifting response ownership.
+            lock (_writtenAwaitingResponse)
+            {
+                _isShutdown = true;
+            }
+
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -599,6 +662,32 @@ namespace StackExchange.Redis
         /// <returns>A string that represents the current object.</returns>
         public override string ToString() => $"{_physicalName} ({_writeStatus})";
 
+        /// <summary>
+        /// Classify a fault from the write path. Prefer what the exception already knows - an inner
+        /// <see cref="RedisConnectionException"/> carries its own failure type, and a discarded output pipe or a
+        /// dead socket is a closure - falling back to <see cref="ConnectionFailureType.InternalFailure"/> only when
+        /// there is nothing better to go on. Writes can lose the connection underneath them at any point, because
+        /// <see cref="Shutdown"/> does not (and must not) wait on the write lock; that is an ordinary connection
+        /// failure, not an internal fault, and badging it as the latter also reports it via OnInternalError. See #3167.
+        /// </summary>
+        internal static ConnectionFailureType ClassifyWriteFailure(Exception exception, PhysicalConnection? connection)
+        {
+            var failureType = exception is RedisConnectionException rce ? rce.FailureType : ConnectionFailureType.InternalFailure;
+            IdentifyFailureType(exception, ref failureType);
+
+            // A write killed by *our own* output cancellation is the same closure that the read loop reports as
+            // SocketClosed (see ReadAllAsync), and RESPite calls it out as expected teardown noise. A cancellation
+            // that came from the caller is a different thing, so check whose token actually fired.
+            if (failureType == ConnectionFailureType.InternalFailure
+                && exception is OperationCanceledException
+                && connection?.OutputCancel.IsCancellationRequested == true)
+            {
+                failureType = ConnectionFailureType.SocketClosed;
+            }
+
+            return failureType;
+        }
+
         internal static void IdentifyFailureType(Exception? exception, ref ConnectionFailureType failureType)
         {
             if (exception != null && failureType == ConnectionFailureType.InternalFailure)
@@ -633,6 +722,14 @@ namespace StackExchange.Redis
             bool wasEmpty;
             lock (_writtenAwaitingResponse)
             {
+                if (_isShutdown)
+                {
+                    throw new RedisConnectionException(
+                        ConnectionFailureType.SocketClosed,
+                        next.Flags,
+                        "The connection was closed before the command could be written");
+                }
+
                 wasEmpty = _writtenAwaitingResponse.Count == 0;
                 _writtenAwaitingResponse.Enqueue(next);
             }
@@ -864,14 +961,11 @@ namespace StackExchange.Redis
 
         internal void Flush()
         {
-            var tmp = _output;
-            if (tmp is null) Throw();
+            var tmp = _output ?? ThrowOutputUnavailable();
             _writeStatus = WriteStatus.Flushing;
             tmp.Flush();
             _writeStatus = WriteStatus.Flushed;
             UpdateLastWriteTime();
-            [DoesNotReturn]
-            static void Throw() => throw new InvalidOperationException("Output pipe not initialized");
         }
 
         internal readonly struct ConnectionStatus
@@ -1053,6 +1147,18 @@ namespace StackExchange.Redis
                     }
 
                     InitTransportOutput(transport);
+
+                    // Start inbound delivery BEFORE anything is written. OnConnectedAsync below sends the
+                    // handshake, and a transport is already connected by the time we get here, so if the
+                    // receiver were attached afterwards (as it was until now, via StartReading once this
+                    // method returned) the reply could be on the wire first. That is not theoretical: it
+                    // cost every SUBSCRIBE on a transport-backed multiplexer, because the subscription
+                    // connection lost that race every time while the interactive one happened to win it.
+                    // Starting first also makes DuplexTransport.Start's contract - a receiver set "before
+                    // any data is expected" - true, rather than something each implementer must discover
+                    // and work around by buffering.
+                    StartTransportReading(transport);
+
                     log?.LogInformationTransportConnected(bridge.Name, transport.IsEncrypted);
                     await bridge.OnConnectedAsync(this, log).ForAwait();
                     return true;

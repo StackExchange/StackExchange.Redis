@@ -1,237 +1,135 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
+using RESPite.Buffers;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
-internal static class RespReaderExtensions
+/// <summary>
+/// Provides utility methods for consuming <see cref="RespReader"/> values as additional SE.Redis common types.
+/// </summary>
+public static class RespReaderExtensions
 {
-    extension(in RespReader reader)
+    /// <summary>
+    /// Read a scalar value as a <see cref="RedisValue"/>.
+    /// </summary>
+    public static RedisValue ReadRedisValue(this in RespReader reader)
     {
-        public RedisValue ReadRedisValue()
+        reader.DemandScalar();
+        if (reader.IsNull) return RedisValue.Null;
+
+        switch (reader.Prefix)
         {
-            reader.DemandScalar();
-            if (reader.IsNull) return RedisValue.Null;
-
-            switch (reader.Prefix)
-            {
-                case RespPrefix.Boolean:
-                    return reader.ReadBoolean();
-                case RespPrefix.Integer:
-                    return reader.ReadInt64();
-            }
-
-            // bulk/simple/verbatim string. Only inline (non-streaming) scalars get the compact storage
-            // kinds; streaming scalars fall through to ReadByteArray.
-            if (reader.IsInlineScalar)
-            {
-                var length = reader.ScalarLength();
-
-                // Short payloads (<= 8 bytes) pack inline as a short-blob: allocation-free, and with *no*
-                // eager numeric parse - any later (long)/(double)/etc. is deferred to the caller (Simplify
-                // on demand), which is cheaper for the common case of values never interpreted as numbers.
-                // Contiguous data (the common case) is taken straight from TryGetSpan - no stackalloc. Only a
-                // scalar that straddles segments needs linearizing into the 8-byte stack buffer; the length
-                // guard is what makes that fixed buffer safe, since Buffer() silently truncates an over-long
-                // discontiguous payload.
-                if (length <= RedisValue.MaxInlineBytes)
-                {
-                    return RedisValue.FromRaw(reader.TryGetSpan(out var buffer) ?
-                        buffer : reader.Buffer(stackalloc byte[RedisValue.MaxInlineBytes]));
-                }
-
-                // Longer payloads: prefer a compact numeric storage kind when the text is the *canonical*
-                // representation of that number, so every projection (ToString, (byte[]), equality, hash)
-                // still round-trips byte-for-byte; this also avoids the byte[] alloc. Canonical parsing needs
-                // a contiguous span, so a discontiguous payload falls through to ReadByteArray.
-                if (reader.TryGetSpan(out var span) && TryReadCanonicalNumber(span, out var number))
-                {
-                    return number;
-                }
-            }
-            return reader.ReadByteArray();
+            case RespPrefix.Boolean:
+                return reader.ReadBoolean();
+            case RespPrefix.Integer:
+                return reader.ReadInt64();
         }
 
-        public string DebugReadTruncatedString(int maxChars)
+        // bulk/simple/verbatim string. Only inline (non-streaming) scalars get the compact storage
+        // kinds; streaming scalars fall through to ReadByteArray.
+        if (reader.IsInlineScalar)
         {
-            if (!reader.IsScalar) return "";
-            try
-            {
-                var s = reader.ReadString() ?? "";
-                return s.Length <= maxChars ? s : s.Substring(0, maxChars) + "...";
-            }
-            catch
-            {
-                return "";
-            }
-        }
-
-        public RedisKey ReadRedisKey() => (RedisKey)reader.ReadByteArray();
-
-        public RedisChannel ReadRedisChannel(RedisChannel.RedisChannelOptions options)
-            => new(reader.ReadByteArray(), options);
-
-        private bool TryGetFirst(out string first)
-        {
-            if (reader.IsNonNullAggregate && !reader.AggregateIsEmpty())
-            {
-                var clone = reader.Clone();
-                if (clone.TryMoveNext())
-                {
-                    unsafe
-                    {
-                        if (clone.IsScalar &&
-                            clone.TryParseScalar(&PhysicalConnection.PushKindMetadata.TryParse, out PhysicalConnection.PushKind kind))
-                        {
-                            first = kind.ToString();
-                            return true;
-                        }
-                    }
-
-                    first = clone.GetOverview();
-                    return true;
-                }
-            }
-            first = "";
-            return false;
-        }
-
-        public string GetOverview()
-        {
-            // return reader.BufferUtf8(); // <== for when you really can't grok what is happening
-            if (reader.Prefix is RespPrefix.None)
-            {
-                var copy = reader;
-                copy.MovePastBof();
-                return copy.Prefix is RespPrefix.None ? "(empty)" : copy.GetOverview();
-            }
-            if (reader.IsNull) return "(null)";
-
-            return reader.Prefix switch
-            {
-                RespPrefix.SimpleString or RespPrefix.Integer or RespPrefix.SimpleError or RespPrefix.Double => $"{reader.Prefix}: {reader.ReadString()}",
-                RespPrefix.Push when reader.TryGetFirst(out var first) => $"{reader.Prefix} ({first}): {reader.AggregateLength()} items",
-                _ when reader.IsScalar => $"{reader.Prefix}: {reader.ScalarLength()} bytes, '{reader.DebugReadTruncatedString(16)}'",
-                _ when reader.IsAggregate => $"{reader.Prefix}: {reader.AggregateLength()} items",
-                _ => $"(unknown: {reader.Prefix})",
-            };
-        }
-
-        public RespPrefix GetFirstPrefix()
-        {
-            var prefix = reader.Prefix;
-            if (prefix is RespPrefix.None)
-            {
-                var mutable = reader;
-                mutable.MovePastBof();
-                prefix = mutable.Prefix;
-            }
-            return prefix;
-        }
-
-        /*
-        public bool AggregateHasAtLeast(int count)
-        {
-            reader.DemandAggregate();
-            if (reader.IsNull) return false;
-            if (reader.IsStreaming) return CheckStreamingAggregateAtLeast(in reader, count);
-            return reader.AggregateLength() >= count;
-
-            static bool CheckStreamingAggregateAtLeast(in RespReader reader, int count)
-            {
-                var iter = reader.AggregateChildren();
-                object? attributes = null;
-                while (count > 0 && iter.MoveNextRaw(null!, ref attributes))
-                {
-                    count--;
-                }
-
-                return count == 0;
-            }
-        }
-        */
-    }
-
-    extension(ref RespReader reader)
-    {
-        public bool SafeTryMoveNext() => reader.TryMoveNext(checkError: false) & !reader.IsError;
-
-        public void MovePastBof()
-        {
-            // if we're at BOF, read the first element, ignoring errors
-            if (reader.Prefix is RespPrefix.None) reader.SafeTryMoveNext();
-        }
-
-        public RedisValue[]? ReadPastRedisValues()
-            => reader.ReadPastArray(static (ref r) => r.ReadRedisValue(), scalar: true);
-
-        public Lease<byte>? AsLease(PhysicalConnection? connection)
-        {
-            if (!reader.IsScalar) throw new InvalidCastException("Cannot convert to Lease: " + reader.Prefix);
-            if (reader.IsNull) return null;
-
             var length = reader.ScalarLength();
-            if (length == 0) return Lease<byte>.Empty;
 
-            var pool = connection?.BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseBufferPool;
-            var lease = Lease<byte>.Create(length, pool, clear: false);
-            if (reader.TryGetSpan(out var span))
+            // Short payloads (<= 8 bytes) pack inline as a short-blob: allocation-free, and with *no*
+            // eager numeric parse - any later (long)/(double)/etc. is deferred to the caller (Simplify
+            // on demand), which is cheaper for the common case of values never interpreted as numbers.
+            // Contiguous data (the common case) is taken straight from TryGetSpan - no stackalloc. Only a
+            // scalar that straddles segments needs linearizing into the 8-byte stack buffer; the length
+            // guard is what makes that fixed buffer safe, since Buffer() silently truncates an over-long
+            // discontiguous payload.
+            if (length <= RedisValue.MaxInlineBytes)
             {
-                span.CopyTo(lease.Span);
+                return RedisValue.FromRaw(reader.TryGetSpan(out var buffer) ?
+                    buffer : reader.Buffer(stackalloc byte[RedisValue.MaxInlineBytes]));
             }
-            else
+
+            // Longer payloads: prefer a compact numeric storage kind when the text is the *canonical*
+            // representation of that number, so every projection (ToString, (byte[]), equality, hash)
+            // still round-trips byte-for-byte; this also avoids the byte[] alloc. Canonical parsing needs
+            // a contiguous span, so a discontiguous payload falls through to ReadByteArray.
+            if (reader.TryGetSpan(out var span) && TryReadCanonicalNumber(span, out var number))
             {
-                var buffer = reader.Buffer(lease.Span);
-                Debug.Assert(buffer.Length == length, "buffer length mismatch");
+                return number;
             }
-            return lease;
         }
+        return reader.ReadByteArray();
     }
 
-    public static RespPrefix GetRespPrefix(ReadOnlySpan<byte> frame)
+    /// <summary>
+    /// Read a scalar value as a <see cref="Lease{T}"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Whether the lease shares the underlying buffer or takes a copy depends on where the reader came
+    /// from, not on the caller. When the source can hand out a counted reservation over a contiguous
+    /// payload - as <see cref="RespResult"/> does - the lease points into that buffer and shares its
+    /// lifetime; otherwise, and for a payload that is not contiguous, the value is copied into a buffer of
+    /// its own. Either way the lease belongs to the caller and must be disposed.
+    /// </para>
+    /// <para>
+    /// In the sharing case the reply stays rented until the lease is disposed, so a short value taken from
+    /// a large reply keeps the whole reply alive. That is the right trade for the case this exists for -
+    /// retrieving a large payload without copying it - but it means leases should be disposed promptly,
+    /// and that a small part of a large reply is better copied out (<c>RespReader.CopyTo</c>)
+    /// than retained as a lease.
+    /// </para>
+    /// </remarks>
+    public static Lease<byte>? ReadLease(this in RespReader reader)
     {
-        var reader = new RespReader(frame);
-        reader.SafeTryMoveNext();
-        return reader.Prefix;
-    }
+        reader.DemandScalar();
+        if (reader.IsNull) return null;
 
-    extension(RespPrefix prefix)
-    {
-        public ResultType ToResultType() => prefix switch
+        var length = reader.ScalarLength();
+        if (length == 0) return Lease<byte>.Empty;
+
+        // if the payload is a single contiguous run inside a buffer that supports counted reservations,
+        // point at it rather than copying; the lease then keeps that buffer alive until it is disposed,
+        // which means a small payload can pin the whole reply - deliberate, and cheaper than the copy
+        if (reader.TryReservePayload(out var reservation))
         {
-            RespPrefix.Array => ResultType.Array,
-            RespPrefix.Attribute => ResultType.Attribute,
-            RespPrefix.BigInteger => ResultType.BigInteger,
-            RespPrefix.Boolean => ResultType.Boolean,
-            RespPrefix.BulkError => ResultType.BlobError,
-            RespPrefix.BulkString => ResultType.BulkString,
-            RespPrefix.SimpleString => ResultType.SimpleString,
-            RespPrefix.Map => ResultType.Map,
-            RespPrefix.Set => ResultType.Set,
-            RespPrefix.Double => ResultType.Double,
-            RespPrefix.Integer => ResultType.Integer,
-            RespPrefix.SimpleError => ResultType.Error,
-            RespPrefix.Null => ResultType.Null,
-            RespPrefix.VerbatimString => ResultType.VerbatimString,
-            RespPrefix.Push => ResultType.Push,
-            _ => throw new ArgumentOutOfRangeException(nameof(prefix), prefix, null),
-        };
-    }
-
-    extension<T>(T?[] array) where T : class
-    {
-        internal bool AnyNull()
-        {
-            foreach (var el in array)
-            {
-                if (el is null) return true;
-            }
-
-            return false;
+            Debug.Assert(reservation.Length == length, "reserved length mismatch");
+            return Lease<byte>.Create(reservation.Owner, reservation.Offset, reservation.Length);
         }
+
+        // otherwise copy - renting from the same pool the data came from, which the reader knows about
+        // via its services; there is deliberately no pool argument, because on the sharing path above
+        // any such argument would be silently ignored
+        reader.TryGetService<IBufferPoolProvider>(out var pools);
+        var lease = Lease<byte>.Create(length, pools?.BufferPool, clear: false);
+        if (reader.TryGetSpan(out var span))
+        {
+            span.CopyTo(lease.Span);
+        }
+        else
+        {
+            var buffer = reader.Buffer(lease.Span);
+            Debug.Assert(buffer.Length == length, "buffer length mismatch");
+        }
+        return lease;
+    }
+
+    /// <summary>
+    /// Read a scalar value as a <see cref="RedisKey"/>; note that no key-prefix compensation is made.
+    /// </summary>
+    /// <returns>The key value.</returns>
+    public static RedisKey ReadRedisKey(this in RespReader reader) => (RedisKey)reader.ReadByteArray();
+
+    /// <summary>
+    /// Read a value - scalar, aggregate, error, or null - as a <see cref="RedisResult"/>.
+    /// </summary>
+    public static RedisResult ReadRedisResult(this in RespReader reader)
+    {
+        var mutable = reader.Clone();
+        if (!RedisResult.TryCreate(null, ref mutable, out var result))
+        {
+            throw new InvalidOperationException("Unable to interpret RESP reply as a RedisResult");
+        }
+        return result;
     }
 
     private static readonly int MaxCanonicalLength = Math.Max(Format.MaxInt64TextLen, Format.MaxDoubleTextLen);

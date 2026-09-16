@@ -309,9 +309,12 @@ namespace StackExchange.Redis
             }
             AddCommonDetail(data, sb, message, multiplexer, server);
 
-            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ")
+            // Keep the URL away from the end of the message and away from punctuation: linkifiers in log
+            // viewers, chat and issue trackers greedily swallow a trailing ')' or '"', and the docs site
+            // then sees a 404 for /Timeouts). The space after it is what makes them stop.
+            sb.Append(" (see ")
               .Append(TimeoutHelpLink)
-              .Append(')');
+              .Append(" for some common client-side issues that can cause timeouts)");
 
             // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
             // and we have a more direct cause: we had no connection to send it on.

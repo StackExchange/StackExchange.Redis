@@ -91,5 +91,5 @@ public partial class ConnectionMultiplexer
         => GetPhysical(endpoint, connectionType)?.IsSyncWriter;
 
     private PhysicalConnection? GetPhysical(EndPoint endpoint, ConnectionType connectionType)
-        => GetServerEndPoint(endpoint, activate: false)?.GetBridge(connectionType, create: false)?.Physical;
+        => TryResolveServerEndPoint(endpoint)?.GetBridge(connectionType, create: false)?.Physical;
 }

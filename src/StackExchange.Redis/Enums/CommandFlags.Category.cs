@@ -1,4 +1,4 @@
-namespace StackExchange.Redis;
+﻿namespace StackExchange.Redis;
 
 internal static class CommandFlagsExtensions
 {
@@ -159,6 +159,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.ZUNION:
                 case RedisCommand.ZINTERCARD:
                 case RedisCommand.BITCOUNT:
+                case RedisCommand.BITFIELD_RO:
                 case RedisCommand.BITPOS:
                 case RedisCommand.GETBIT:
                 case RedisCommand.PFCOUNT:
@@ -287,6 +288,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.ZMPOP:
                 case RedisCommand.XADD: // explicit ids and IDMP/IDMPAUTO are demoted where we can see the args
                 case RedisCommand.PFMERGE: // destination accumulates union each call
+                case RedisCommand.BITFIELD: // INCRBY sub-ops compound; demoted to last-wins when the payload has none
                     return CommandFlags.CommandRetryWriteAccumulating;
 
                 // ==========================================================================
