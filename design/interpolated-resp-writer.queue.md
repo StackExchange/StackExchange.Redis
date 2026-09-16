@@ -1177,6 +1177,63 @@ Four consequences, none of them cosmetic:
       (`RespSurface.cs`), beside the RS0026 rationale, since it is the house rule for the 14 groups still
       to migrate.
 
+      ### .NET 11 runtime-native async: wired for discovery, cannot ship - 2026-09-16
+
+      Prompted by the transitional shim (`async Task<StreamEntry[]>` over a `using` + `await` + project)
+      and Marc's instinct that a hand-rolled `ValueTask<T>.ContinueWith` would be work in exactly the area
+      the runtime is about to do better.
+
+      **Both knobs are required, and neither works alone.** `<Features>runtime-async=on</Features>` *and*
+      an assembly-level `[RuntimeAsyncMethodGeneration(true)]` - which is present in CoreLib but
+      **absent from the RC1 reference pack**, so it is declared locally, the `IsExternalInit`
+      arrangement. Verified on clean builds; an intermediate conclusion that the attribute alone sufficed
+      turned out to be an artifact of a stale `obj/`, which is worth remembering for anything measured
+      this way.
+
+      **Measured on the shape Marc asked for** - a count, `ValueTask<long>`, nothing materialised, since
+      `RedisValue` allocates for anything over eight bytes and would have polluted it. 2M iterations, an
+      awaiter that suspends and resumes inline so the state-machine box is isolated from thread-pool
+      scheduling:
+
+      | | off | on |
+      |---|---|---|
+      | sync-complete | 0 B, 40.4 ns | 0 B, **19.6 ns** |
+      | suspend x1 | 160 B, 74.4 ns | 198 B, 102.5 ns |
+      | suspend x3 | 176 B, 132 ns | 234 B, 114 ns |
+
+      The sync-completing path is **2.05x faster at zero allocation**, and that is the case a cache hit
+      and a buffered pipelined reply both take. The suspending path measured *worse*; that harness resumes
+      inline from `OnCompleted` rather than from real I/O, so it is **not** evidence yet - it needs a
+      count command against a live server before it means anything.
+
+      **Binary size: UNRESOLVED.** Marc asked, expecting something SlimFast-shaped. A same-TFM
+      on-versus-off comparison came out at +512 bytes with identical `strings | grep d__` counts, which
+      contradicts an earlier reading of the same thing, so `strings` is not a sound proxy at this scale.
+      Answering it properly needs a metadata-based count of `AsyncStateMachineAttribute`, not a symbol
+      grep. Not built; recorded so the next person does not repeat the bad measurement.
+
+      **How it is wired, and why it cannot ship.** `net11.0` is appended only under
+      `/p:IncludePreviewTargets=true`, **and** never while `Packing`:
+
+      ```xml
+      <TargetFrameworks Condition="'$(IncludePreviewTargets)' == 'true' and '$(Packing)' != 'true'">$(TargetFrameworks);net11.0</TargetFrameworks>
+      ```
+
+      **The Packing test has to be part of that same condition.** Expressing it as a separate
+      `<IncludePreviewTargets Condition="'$(Packing)'=='true'">false</IncludePreviewTargets>` looks right,
+      builds, and **put net11.0 in the .nupkg** - because `/p:IncludePreviewTargets=true` is a *global*
+      property and a project-level assignment cannot override one. Verified by packing with the opt-in
+      forced on and checking the package contents: 0 net11.0 entries.
+
+      **Keyed on an opt-in, not on `Configuration`**, because Release builds are exactly what benchmarking
+      needs. And the opt-in is what makes the merge date a non-question: the target is not there unless
+      somebody asks for it.
+
+      **The cost to be aware of:** `global.json` now says `allowPrerelease: true`, which means *every*
+      build - including the shipping TFMs - uses the .NET 11 RC compiler, not just the preview target.
+      The full Release build and suite pass under it, but that is a bigger consequence than adding a TFM
+      and should be revisited before any actual release build.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

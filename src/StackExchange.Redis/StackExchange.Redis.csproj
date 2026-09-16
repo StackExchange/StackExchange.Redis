@@ -3,6 +3,22 @@
     <Nullable>enable</Nullable>
     <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
     <TargetFrameworks>net461;netstandard2.0;net472;net8.0;net10.0</TargetFrameworks>
+
+    <!--
+      DISCOVERY ONLY - .NET 11 runtime-native async. Opt IN with /p:IncludePreviewTargets=true; never on
+      by default, and forced off while packing, because a package that carries a TFM built against a
+      preview runtime cannot ship as a non-preview release. The opt-in is what keeps the merge date from
+      mattering: the target simply is not there unless somebody asks for it.
+
+      Two knobs are needed, and NEITHER works alone - verified on clean builds, because an incremental
+      one will happily report success from a stale obj/. The <Features> flag below, and the assembly
+      attribute in RuntimeAsync.cs.
+      The Packing test is part of the SAME condition, deliberately: trying to force it by assigning
+      IncludePreviewTargets=false in a PropertyGroup does NOT work, because /p:IncludePreviewTargets=true
+      is a global property and a project-level assignment cannot override one. That was tried, looked
+      right, and put net11.0 in the .nupkg - so the gate is expressed where it cannot be outvoted.
+    -->
+    <TargetFrameworks Condition="'$(IncludePreviewTargets)' == 'true' and '$(Packing)' != 'true'">$(TargetFrameworks);net11.0</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
@@ -10,6 +26,9 @@
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <SignAssembly>true</SignAssembly>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
+
+    <!-- see the IncludePreviewTargets note above; this is half the opt-in, RuntimeAsync.cs is the other -->
+    <Features Condition="'$(TargetFramework)' == 'net11.0'">runtime-async=on</Features>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
     <PackageReadmeFile>README.md</PackageReadmeFile>
 
