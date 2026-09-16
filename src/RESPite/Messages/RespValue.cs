@@ -273,7 +273,17 @@ public readonly struct RespValue : IEquatable<RespValue>
     }
 
     /// <inheritdoc/>
-    /// <remarks>For humans and debuggers; nil reads as <c>(nil)</c> rather than null.</remarks>
+    /// <remarks>
+    /// For humans and debuggers; nil reads as <c>(nil)</c> rather than null.
+    /// <para>
+    /// <b>Throws once the owner has handed its buffer back</b>, like every other accessor here - pinned by
+    /// <c>RespValueTests.EveryAccessorDiesWithTheLease</c>, which sweeps all thirteen routes to the bytes.
+    /// The uniformity is the point: "everything fails after disposal" needs no exceptions remembered.
+    /// The counter-argument is real but has not been taken - <c>ToString</c> is what a debugger calls
+    /// implicitly, so a released value throws from inside a watch window. Returning a marker instead would
+    /// hand back no data and so would not weaken the safety property; it would only weaken the rule.
+    /// </para>
+    /// </remarks>
     public override string ToString() => (string?)this ?? "(nil)";
 
     private RespReader Reader()

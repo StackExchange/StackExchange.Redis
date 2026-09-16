@@ -274,4 +274,5 @@ public class RespValueTests
 
         Assert.Contains("requires a scalar element", ex.Message);
     }
+
 }

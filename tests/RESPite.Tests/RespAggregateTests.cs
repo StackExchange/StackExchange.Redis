@@ -120,6 +120,67 @@ public class RespAggregateTests
         Assert.Equal("tail", reader.ReadString());
     }
 
+    [Fact]
+    public void ToArrayMaterialises()
+    {
+        var agg = Capture(Frame("*3|$1|a|$1|b|$1|c|"), ReadString);
+
+        Assert.Equal(["a", "b", "c"], agg.ToArray());
+        Assert.Empty(default(RespAggregate<string>).ToArray());
+        Assert.Empty(Capture(Frame("*0|"), ReadString).ToArray());
+    }
+
+    /// <summary>
+    /// A truncated frame is caught by the <b>reader</b>, during capture - not by a count check afterwards.
+    /// </summary>
+    /// <remarks>
+    /// Worth pinning, because it is why <c>ToArray</c> has no short-fill guard: RESP framing makes "fewer
+    /// children than the header promised" unreachable, since the count is how many the reader reads. A
+    /// guard there would be dead code that reads as load-bearing.
+    /// </remarks>
+    [Fact]
+    public void ATruncatedFrameThrowsOutOfTheWalk()
+    {
+        static void Capture()
+        {
+            var bytes = Frame("*3|$1|a|$1|b|");   // *3 declared, two supplied
+            var reader = new RespReader(bytes);
+            RespAggregate<string>.TryCaptureNext(bytes, ref reader, ReadString, out _);
+        }
+
+        Assert.ThrowsAny<Exception>(Capture);
+    }
+
+    /// <summary>
+    /// <see cref="RespAggregate{T}.ToString"/> touches no bytes, so the owner going away cannot affect it.
+    /// </summary>
+    [Fact]
+    public void ToStringReadsNoBytes()
+    {
+        var owner = new Releasable(Frame("*2|$1|a|$1|b|"));
+        var reader = new RespReader(owner.Bytes);
+        Assert.True(RespAggregate<string>.TryCaptureNext(owner, ref reader, ReadString, out var agg));
+
+        Assert.Equal("(2 items)", agg.ToString());
+
+        // Count came off the header at capture, so this still answers after the buffer has gone back
+        owner.Release();
+        Assert.Equal("(2 items)", agg.ToString());
+        Assert.Throws<ObjectDisposedException>(() => agg.ToArray());   // reading the children does not
+    }
+
+    private sealed class Releasable(byte[] bytes) : IRespBufferOwner
+    {
+        private bool _released;
+
+        public byte[] Bytes => bytes;
+
+        public void Release() => _released = true;
+
+        public ReadOnlySpan<byte> GetReadOnlySpan()
+            => _released ? throw new ObjectDisposedException(nameof(Releasable)) : bytes;
+    }
+
     /// <summary>A scalar is not an aggregate, and says so rather than reading as an empty one.</summary>
     [Fact]
     public void AScalarIsRejected()

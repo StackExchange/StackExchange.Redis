@@ -531,6 +531,7 @@ static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redi
 static StackExchange.Redis.ReadOnlyLease<T>.Empty.get -> StackExchange.Redis.ReadOnlyLease<T>!
 static StackExchange.Redis.RespReaderExtensions.AsRedisValue(this in RESPite.Messages.RespValue value) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RespReaderExtensions.ReadLease(in RESPite.Messages.RespReader reader) -> StackExchange.Redis.Lease<byte>?
+static StackExchange.Redis.RespReaderExtensions.ToLease<T>(this in RESPite.Messages.RespAggregate<T> aggregate) -> StackExchange.Redis.ReadOnlyLease<T>!
 static StackExchange.Redis.RespReaderLeaseExtensions.ReadLease(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.ReadOnlyLease<byte>?
 [SER010]StackExchange.Redis.Interpolated.IRespKeyspaceTarget
 [SER010]StackExchange.Redis.Interpolated.IRespServerTarget

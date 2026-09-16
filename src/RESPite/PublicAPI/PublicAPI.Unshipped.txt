@@ -9,6 +9,7 @@
 [SER012]RESPite.Messages.RespAggregate<T>.Enumerator.MoveNext() -> bool
 [SER012]RESPite.Messages.RespAggregate<T>.GetEnumerator() -> RESPite.Messages.RespAggregate<T>.Enumerator
 [SER012]RESPite.Messages.RespAggregate<T>.RespAggregate() -> void
+[SER012]RESPite.Messages.RespAggregate<T>.ToArray() -> T[]!
 [SER012]RESPite.Messages.RespValue
 [SER012]RESPite.Messages.RespValue.AsBoolean() -> bool
 [SER012]RESPite.Messages.RespValue.AsDouble() -> double
@@ -22,6 +23,7 @@
 [SER012]RESPite.Messages.RespValue.Length.get -> int
 [SER012]RESPite.Messages.RespValue.RespValue() -> void
 [SER012]RESPite.Messages.RespValue.TryGetSpan(out System.ReadOnlySpan<byte> payload) -> bool
+[SER012]override RESPite.Messages.RespAggregate<T>.ToString() -> string!
 [SER012]override RESPite.Messages.RespValue.Equals(object? obj) -> bool
 [SER012]override RESPite.Messages.RespValue.GetHashCode() -> int
 [SER012]override RESPite.Messages.RespValue.ToString() -> string!

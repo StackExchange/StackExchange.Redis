@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace RESPite.Messages;
@@ -122,6 +123,40 @@ public readonly struct RespAggregate<T>
 
     /// <summary>Walk the children, projecting each.</summary>
     public Enumerator GetEnumerator() => new(Frame, _projection, _owner);
+
+    /// <summary>Materialise the children into an array.</summary>
+    /// <remarks>
+    /// <b><c>To</c>, not <c>As</c>:</b> this allocates and copies, where <c>As*</c> on these types means
+    /// cheap-and-yours. The name is the price. What it buys is independence - the array outlives the owner,
+    /// where the children do not.
+    /// </remarks>
+    public T[] ToArray()
+    {
+        var count = Count;
+        if (count == 0) return [];
+
+        // no guard for "fewer children than the header promised": RESP framing makes that unreachable,
+        // because the count IS how many the reader reads - a truncated frame throws out of the walk long
+        // before it gets here. A check would be dead code that reads as load-bearing.
+        var result = new T[count];
+        var index = 0;
+        foreach (var child in this)
+        {
+            result[index++] = child;
+        }
+
+        Debug.Assert(index == count, "the walk disagreed with the header");
+        return result;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Cannot throw, and needs no guard to say so: <see cref="Count"/> was read from the header when the
+    /// window was captured, so this touches no bytes and does not care whether the owner still holds them.
+    /// <see cref="RespValue.ToString"/> does read bytes, and catches for that reason.
+    /// </remarks>
+    public override string ToString()
+        => _owner is null ? "(nil)" : $"({Count} item{(Count == 1 ? "" : "s")})";
 
     /// <summary>Walks an aggregate's children, projecting each as it goes.</summary>
     /// <remarks>

@@ -38,6 +38,47 @@ public static class RespReaderExtensions
         return reader.ReadRedisValue();
     }
 
+    /// <summary>Materialise an aggregate's children into a pooled lease.</summary>
+    /// <typeparam name="T">The projected child type.</typeparam>
+    /// <param name="aggregate">The aggregate to read.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>An extension, and here rather than on the type, because of layering</b>: <c>RespAggregate&lt;T&gt;</c>
+    /// is protocol-level (RESPite) and <see cref="ReadOnlyLease{T}"/> is client-level, so the type cannot
+    /// name the lease. <c>AsRedisValue</c> above lives here for exactly the same reason.
+    /// </para>
+    /// <para>
+    /// <b><c>To</c>, not <c>As</c></b>: this rents and copies. What it buys over <c>ToArray</c> is the pool -
+    /// the caller gives the storage back - and what it costs over enumerating is the copy itself. Reach for
+    /// it when the children have to outlive the reply, or be indexed.
+    /// </para>
+    /// </remarks>
+    public static ReadOnlyLease<T> ToLease<T>(this in RespAggregate<T> aggregate)
+    {
+        var count = aggregate.Count;
+        if (count == 0) return ReadOnlyLease<T>.Empty;
+
+        var lease = ReadOnlyLease<T>.Rent(count, null, out var target);
+        try
+        {
+            // as ToArray: no short-fill guard, because RESP framing makes a header that disagrees with its
+            // own children unreachable - a truncated frame throws out of the walk
+            var index = 0;
+            foreach (var child in aggregate)
+            {
+                target[index++] = child;
+            }
+
+            return lease;
+        }
+        catch
+        {
+            // rented by now, and nobody else has a reference to hand back
+            lease.Dispose();
+            throw;
+        }
+    }
+
     /// <summary>
     /// Read a scalar value as a <see cref="RedisValue"/>.
     /// </summary>
