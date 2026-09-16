@@ -84,6 +84,7 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisChannel value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisKey value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RedisValue value) -> void
+[SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(StackExchange.Redis.RespKey value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(double? value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(long? value) -> void
 [SER010]StackExchange.Redis.Interpolated.RespCommandHandler.AppendFormatted(scoped System.ReadOnlySpan<StackExchange.Redis.RedisKey> value) -> void
@@ -257,6 +258,11 @@ StackExchange.Redis.RespReaderLeaseExtensions
 [SER010]StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.Interpolated.IRespKeyspaceTarget!).Streams.get -> StackExchange.Redis.RespStreams
 [SER010]StackExchange.Redis.RespDatabaseExtensions.extension(in StackExchange.Redis.Interpolated.RespContext)
 [SER010]StackExchange.Redis.RespDatabaseExtensions.extension(in StackExchange.Redis.Interpolated.RespContext).Streams.get -> StackExchange.Redis.RespStreams
+[SER010]StackExchange.Redis.RespKey
+[SER010]StackExchange.Redis.RespKey.RespKey() -> void
+[SER010]StackExchange.Redis.RespKey.RespKey(System.ReadOnlyMemory<byte> value) -> void
+[SER010]StackExchange.Redis.RespKey.RespKey(System.ReadOnlySpan<byte> value) -> void
+[SER010]StackExchange.Redis.RespKey.RespKey(System.ReadOnlySpan<char> value) -> void
 [SER010]StackExchange.Redis.RespNameValueEntry
 [SER010]StackExchange.Redis.RespNameValueEntry.Name.get -> RESPite.Messages.RespValue
 [SER010]StackExchange.Redis.RespNameValueEntry.RespNameValueEntry() -> void

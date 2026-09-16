@@ -1648,6 +1648,52 @@ Four consequences, none of them cosmetic:
       implicitly would force churning it when the second arrives. Named static accessors so call sites
       need no cast, matching how `Float32Handler` and friends already read.
 
+      ### `RespKey`: a borrowed key - DONE 2026-09-16
+
+      Prompted by PRs #2578 (`ReadOnlyMemory<byte>` for key prefixes) and #2844 (allocation-free ad-hoc
+      `Execute`), both of which foundered on the same rock. Reading the **intent** rather than the diffs:
+      *the library should not tax you for not using its own types.*
+
+      **Why those could not have it and this can.** #2844's blocker was
+      *"key-prefixing becomes untenable when argument roles are ambiguous"* - with `Execute(cmd,
+      object[])` nothing knows which argument is a key. Here **overload resolution is the role
+      declaration**: `AppendFormatted(RedisKey)` applies the prefix, marks for invalidation and folds the
+      slot; a value hole does none of it. #2578's blocker was lifetime - a `RedisKey` *stores* its bytes.
+      The writer **copies each hole into its rented buffer before `AppendFormatted` returns**, so a
+      borrowed key never has to outlive the call.
+
+      **Three inputs, one field.** `ReadOnlyMemory<byte>` collapses into the span case, because the only
+      reason to keep a `Memory` distinct from its `Span` is to outlive the call and nothing here does; a
+      `char` span is reinterpreted with `MemoryMarshal.AsBytes` and a flag. That is ~24 bytes against ~40
+      for the obvious two-spans-and-a-discriminator layout. **The flag is explicit rather than inferred
+      from emptiness, because an empty key is legal in Redis** - inferring would work in every test until
+      somebody stored under `""`.
+
+      **Constructors, not `AsKey()` extension methods** (Marc: *"I worry that these extension methods
+      pollute and confuse normal usage a little"*). An extension would offer itself on every `string` and
+      span in any file importing `StackExchange.Redis`, which is nearly all of them. Four characters at
+      the call site against not touching a type everybody already uses.
+
+      **And a correction:** I had said `$"{someString}"` was already fine for keys. It is not - a bare
+      string binds to `AppendFormatted(RedisValue)` through the implicit conversion, so it gets no prefix,
+      no mark and no slot. Silent, and exactly the failure the type exists to prevent.
+
+      **Down-level:** `Encoding.GetBytes(ReadOnlySpan<char>, Span<byte>)` is supplied everywhere by
+      `System.Memory`, but `GetByteCount(ReadOnlySpan<char>)` is not - so net461/net472/netstandard2.0
+      take the `char*` overload rather than allocating a `char[]` to ask the question.
+
+      **Pinned by `RespKeyTests`:** all three sources produce byte-identical frames to the owned key
+      (including the empty key and non-ASCII, where the UTF-16 reinterpretation would show); the context
+      key prefix is applied where a value hole gets none; and the cluster slot folds identically - that
+      last one needing `new RespContext(serverType: ServerType.Cluster)`, since slot folding is skipped
+      off-cluster and the assertion would otherwise pass at `-1` without testing anything.
+
+      **Still open, and worth asking rather than inferring:** whether Monty's shape is *dynamic* (build N
+      args at runtime, which needs the array form - a ref struct cannot live in `ReadOnlyMemory<T>`, so
+      spans structurally cannot help there) or *fixed* (a known command with a few holes, where the
+      interpolated form takes spans completely, reachable today via `"FT.SEARCH".Command()`). That decides
+      whether this closes their case or an adjacent one.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

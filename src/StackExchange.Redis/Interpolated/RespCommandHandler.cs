@@ -371,6 +371,39 @@ namespace StackExchange.Redis.Interpolated
             CountArguments();
         }
 
+        /// <summary>
+        /// Append a <b>borrowed</b> key: prefixed, marked and slot-folded exactly as an owned one.
+        /// </summary>
+        /// <param name="value">The key to append; its bytes are copied before this returns.</param>
+        /// <remarks>
+        /// <para>
+        /// The same four things <see cref="AppendFormatted(RedisKey)"/> does - context prefix, invalidation
+        /// mark, cluster slot, argument count - because a key is a key regardless of where its bytes came
+        /// from. Only the source differs, so only the length and copy differ.
+        /// </para>
+        /// <para>
+        /// This is what lets a caller who already holds the bytes avoid materialising a
+        /// <see cref="RedisKey"/> for them. It is safe here and nowhere else in the library: the copy
+        /// happens before this method returns, so the borrowed span never has to outlive the call.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted(RespKey value)
+        {
+            DemandCommand();
+
+            var prefix = _context.KeyPrefixSpan;
+            MarkKey(_offset);
+            var keyLength = value.GetByteCount();
+            var length = prefix.Length + keyLength;
+            var payload = WriteBulk(length, out var payloadOffset);
+            prefix.CopyTo(payload);
+            var written = value.CopyTo(payload.Slice(prefix.Length));
+            Debug.Assert(written == keyLength, "key length disagreed with itself");
+            CommitBulk(payloadOffset, length);
+            FoldSlot(payload);
+            CountArguments();
+        }
+
         /// <summary>Append a channel, applying the channel prefix unless the channel opts out.</summary>
         /// <param name="value">The channel to append.</param>
         public void AppendFormatted(RedisChannel value)
