@@ -797,6 +797,15 @@ Four consequences, none of them cosmetic:
         precisely the problem, because the shape of the API is what makes the promise. Enumeration is the
         offered access; a caller who needs indexing materialises, explicitly, and pays for it visibly.
 
+      - **Do NOT halve a map's count to report pairs** - raised 2026-09-16 for RESP2/RESP3 consistency, and
+        measured to already be the case. The same `HGETALL` reply is `*4` on RESP2 and `%2` on RESP3, and
+        the reader **already normalises**: both report **4** and both walk 4 elements. The protocol shows up
+        in `Prefix` and nowhere else. Halving for maps would make RESP3 say 2 where RESP2 says 4 - inventing
+        the difference it was meant to remove - and would break the invariant that matters more here, since
+        we expose no `Read()`-call-count API: **`Count` is what the enumerator yields.** Pairs belong to a
+        pairwise *projection*, where `T` is the pair and both shapes give 2.
+        Pinned by `RespAggregateTests.Resp2AndResp3AgreeOnCountAndWalk`.
+
       - **`Count` is fine** (Marc, 2026-09-15): *"streaming basically doesn't exist"*. `AggregateLength()`
         reads the count out of the header, O(1); only a **streamed** aggregate (`*?` ... `.`) has no count
         there and falls back to a walk, and no server in practice sends one. The fallback stays because it

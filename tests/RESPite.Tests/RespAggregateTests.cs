@@ -201,6 +201,37 @@ public class RespAggregateTests
         Assert.Equal(count, agg.Count);
     }
 
+    /// <summary>
+    /// The same logical reply counts and walks the same in RESP2 and RESP3, even though the wire differs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>HGETALL</c> arrives as a flat <c>*4</c> on RESP2 and as a <c>%2</c> map on RESP3. The reader
+    /// already normalises that: a map reports its <b>element</b> count, so both say 4 and both walk 4. The
+    /// protocol shows up in <see cref="RespAggregate{T}.Prefix"/> and nowhere else.
+    /// </para>
+    /// <para>
+    /// Worth pinning because the tempting "fix" runs the other way: dividing a map's count by two to report
+    /// <i>pairs</i> would make RESP3 say 2 where RESP2 says 4, inventing the very difference this removes -
+    /// and would break the invariant that matters more, since <c>Count</c> is what the enumerator yields.
+    /// Pairs belong to a pairwise projection, where <c>T</c> is the pair and both shapes give 2.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Resp2AndResp3AgreeOnCountAndWalk()
+    {
+        var resp2 = Capture(Frame("*4|$1|a|$1|1|$1|b|$1|2|"), ReadString);   // flat array
+        var resp3 = Capture(Frame("%2|$1|a|$1|1|$1|b|$1|2|"), ReadString);   // map
+
+        Assert.Equal(RespPrefix.Array, resp2.Prefix);
+        Assert.Equal(RespPrefix.Map, resp3.Prefix);   // the only thing that differs
+
+        Assert.Equal(resp2.Count, resp3.Count);
+        Assert.Equal(4, resp3.Count);
+        Assert.Equal(resp2.ToArray(), resp3.ToArray());
+        Assert.Equal(["a", "1", "b", "2"], resp3.ToArray());
+    }
+
     [Fact]
     public void AnAggregateWithNoBytesHasNoPrefix()
         => Assert.Equal(RespPrefix.None, default(RespAggregate<string>).Prefix);
