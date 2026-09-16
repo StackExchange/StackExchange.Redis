@@ -13,8 +13,22 @@ public class RespAggregateTests
 {
     private static byte[] Frame(string s) => Encoding.UTF8.GetBytes(s.Replace("|", "\r\n"));
 
+    // a projection is handed a reader positioned BEFORE its child - the same position TryCaptureNext
+    // expects - so every projection here steps in first
     private static readonly RespReader.Projection<object?, string> ReadString =
-        static (ref object? owner, ref RespReader r) => r.ReadString() ?? "";
+        static (ref object? owner, ref RespReader r) =>
+        {
+            r.MoveNext();
+            return r.ReadString() ?? "";
+        };
+
+    /// <summary>Captures each child as a window, rather than reading it.</summary>
+    private static readonly RespReader.Projection<object?, RespValue> CaptureValue =
+        static (ref object? owner, ref RespReader r) =>
+        {
+            RespValue.TryCaptureNext(owner, ref r, out var value);
+            return value;
+        };
 
     private static RespAggregate<T> Capture<T>(byte[] frame, RespReader.Projection<object?, T> projection)
     {
@@ -61,6 +75,7 @@ public class RespAggregateTests
         var entries = Capture<string>(frame, static (ref object? owner, ref RespReader r) =>
         {
             // the entry: [id, [name, value, ...]]
+            r.MoveNext();
             var children = r.AggregateChildren();
             children.DemandNext();
             var id = children.Value.ReadString();
@@ -73,6 +88,52 @@ public class RespAggregateTests
         var seen = new List<string>();
         foreach (var entry in entries) seen.Add(entry);
         Assert.Equal(["1-1/2", "1-2/2"], seen);
+    }
+
+    /// <summary>
+    /// A window captured <i>inside</i> a walk must point at the owner's bytes, not at the slice the walk
+    /// happened to be reading.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the test that pins the position base.</b> A walk reads a slice of the owner's buffer,
+    /// but a window is recorded as an offset into the whole buffer - so unless the reader is told where
+    /// its slice starts, every offset captured during the walk is short by exactly that amount. The
+    /// failure is silent: the window is well-formed and resolves to <i>some</i> bytes, just the wrong
+    /// ones, and it only bites below the top level, where the enclosing start is no longer zero.
+    /// </para>
+    /// <para>
+    /// So the second entry's fields are what matter here: the first entry starts at zero and reads
+    /// correctly either way.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AWindowCapturedInsideANestedWalkPointsAtTheOwnersBytes()
+    {
+        var frame = Frame("*2|*2|$3|1-1|*2|$1|f|$1|v|*2|$3|1-2|*2|$1|g|$1|w|");
+
+        // each entry becomes a window over its own field list, captured during the outer walk
+        var entries = Capture<RespAggregate<RespValue>>(frame, static (ref object? owner, ref RespReader r) =>
+        {
+            r.MoveNext();                                    // onto the entry
+            RespValue.TryCaptureNext(owner, ref r, out _);   // past the id
+            RespAggregate<RespValue>.TryCaptureNext(owner, ref r, CaptureValue, out var fields);
+            return fields;
+        });
+
+        var lists = entries.ToArray();
+        Assert.Equal(2, lists.Length);
+
+        // walking a captured field list, and capturing from inside THAT walk: two levels of slice
+        Assert.Equal(["f", "v"], Read(lists[0]));
+        Assert.Equal(["g", "w"], Read(lists[1]));
+
+        static List<string?> Read(RespAggregate<RespValue> fields)
+        {
+            var seen = new List<string?>();
+            foreach (var field in fields) seen.Add((string?)field);
+            return seen;
+        }
     }
 
     /// <summary>A nil aggregate reads as empty, as every other aggregate shape on this surface does.</summary>

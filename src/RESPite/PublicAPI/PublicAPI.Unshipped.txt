@@ -1,4 +1,6 @@
 ﻿#nullable enable
+RESPite.Messages.RespReader.IsAllJaggedPairs() -> bool
+RESPite.Messages.RespReader.PairProjection<TState, TResult>
 [SER012]RESPite.Messages.IRespBufferOwner
 [SER012]RESPite.Messages.IRespBufferOwner.GetReadOnlySpan() -> System.ReadOnlySpan<byte>
 [SER012]RESPite.Messages.RespAggregate<T>
@@ -11,6 +13,17 @@
 [SER012]RESPite.Messages.RespAggregate<T>.Prefix.get -> RESPite.Messages.RespPrefix
 [SER012]RESPite.Messages.RespAggregate<T>.RespAggregate() -> void
 [SER012]RESPite.Messages.RespAggregate<T>.ToArray() -> T[]!
+[SER012]RESPite.Messages.RespPairAggregate<T>
+[SER012]RESPite.Messages.RespPairAggregate<T>.Count.get -> int
+[SER012]RESPite.Messages.RespPairAggregate<T>.Enumerator
+[SER012]RESPite.Messages.RespPairAggregate<T>.Enumerator.Current.get -> T
+[SER012]RESPite.Messages.RespPairAggregate<T>.Enumerator.Enumerator() -> void
+[SER012]RESPite.Messages.RespPairAggregate<T>.Enumerator.MoveNext() -> bool
+[SER012]RESPite.Messages.RespPairAggregate<T>.GetEnumerator() -> RESPite.Messages.RespPairAggregate<T>.Enumerator
+[SER012]RESPite.Messages.RespPairAggregate<T>.IsJagged.get -> bool
+[SER012]RESPite.Messages.RespPairAggregate<T>.Prefix.get -> RESPite.Messages.RespPrefix
+[SER012]RESPite.Messages.RespPairAggregate<T>.RespPairAggregate() -> void
+[SER012]RESPite.Messages.RespPairAggregate<T>.ToArray() -> T[]!
 [SER012]RESPite.Messages.RespValue
 [SER012]RESPite.Messages.RespValue.AsBoolean() -> bool
 [SER012]RESPite.Messages.RespValue.AsDouble() -> double
@@ -26,11 +39,15 @@
 [SER012]RESPite.Messages.RespValue.RespValue() -> void
 [SER012]RESPite.Messages.RespValue.TryGetSpan(out System.ReadOnlySpan<byte> payload) -> bool
 [SER012]override RESPite.Messages.RespAggregate<T>.ToString() -> string!
+[SER012]override RESPite.Messages.RespPairAggregate<T>.ToString() -> string!
 [SER012]override RESPite.Messages.RespValue.Equals(object? obj) -> bool
 [SER012]override RESPite.Messages.RespValue.GetHashCode() -> int
 [SER012]override RESPite.Messages.RespValue.ToString() -> string!
 [SER012]static RESPite.Messages.RespAggregate<T>.Empty.get -> RESPite.Messages.RespAggregate<T>
 [SER012]static RESPite.Messages.RespAggregate<T>.TryCaptureNext(object? owner, scoped ref RESPite.Messages.RespReader reader, RESPite.Messages.RespReader.Projection<object?, T>! projection, out RESPite.Messages.RespAggregate<T> value) -> bool
+[SER012]static RESPite.Messages.RespPairAggregate<T>.Empty.get -> RESPite.Messages.RespPairAggregate<T>
+[SER012]static RESPite.Messages.RespPairAggregate<T>.TryCaptureNext(object? owner, scoped ref RESPite.Messages.RespReader reader, RESPite.Messages.RespReader.PairProjection<object?, T>! projection, bool allowJagged, out RESPite.Messages.RespPairAggregate<T> value) -> bool
 [SER012]static RESPite.Messages.RespValue.Null.get -> RESPite.Messages.RespValue
 [SER012]static RESPite.Messages.RespValue.TryCaptureNext(object? owner, scoped ref RESPite.Messages.RespReader reader, out RESPite.Messages.RespValue value) -> bool
 [SER012]static RESPite.Messages.RespValue.explicit operator string?(RESPite.Messages.RespValue value) -> string?
+virtual RESPite.Messages.RespReader.PairProjection<TState, TResult>.Invoke(ref TState state, ref RESPite.Messages.RespReader first, ref RESPite.Messages.RespReader second) -> TResult

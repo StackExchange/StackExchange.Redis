@@ -851,22 +851,6 @@ namespace StackExchange.Redis
             // on a per-processor basis if needed
             protected virtual bool AllowJaggedPairs(RedisProtocol protocol) => protocol >= RedisProtocol.Resp3;
 
-            private static bool IsAllJaggedPairsReader(in RespReader reader)
-            {
-                // Check whether each child element is an array of exactly length 2
-                // Use AggregateChildren to create isolated child iterators without mutating the reader
-                var iter = reader.AggregateChildren();
-                while (iter.MoveNext())
-                {
-                    // Check if this child is an array with exactly 2 elements
-                    if (!(iter.Value.IsAggregate && iter.Value.AggregateLengthIs(2)))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }
-
             public T[]? ParseArray(ref RespReader reader, RedisProtocol protocol, bool allowOversized, out int count, object? state)
             {
                 if (reader.IsNull)
@@ -882,8 +866,11 @@ namespace StackExchange.Redis
                     return [];
                 }
 
-                // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style)
-                bool isJagged = AllowJaggedPairs(protocol) && IsAllJaggedPairsReader(reader);
+                // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style). The detection
+                // itself is RespReader.IsAllJaggedPairs - shared with the deferred pair window
+                // (RespPairAggregate<T>), so the two paths cannot drift about what the bytes are; only the
+                // policy of whether jagged is permitted stays here.
+                bool isJagged = AllowJaggedPairs(protocol) && reader.IsAllJaggedPairs();
 
                 if (isJagged)
                 {

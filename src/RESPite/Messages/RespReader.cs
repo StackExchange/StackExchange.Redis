@@ -252,7 +252,61 @@ public ref partial struct RespReader
         => (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
             ? _length == count : AggregateLengthIsSlow(count);
 
+    /// <summary>
+    /// Indicates whether every child of the current aggregate is itself an aggregate of exactly two
+    /// elements - i.e. whether a pair-shaped reply is <i>jagged</i> (<c>[[k,v],[k,v]]</c>) rather than
+    /// <i>interleaved</i> (<c>[k,v,k,v]</c>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Decided from content, not from the protocol version.</b> Some pair-shaped replies became jagged
+    /// when RESP3 arrived, but jaggedness is expressible in RESP2 too, so the wire is the only reliable
+    /// witness. Whether to <i>allow</i> the jagged reading is policy and stays with the caller; this
+    /// answers only what the bytes are.
+    /// </para>
+    /// <para>
+    /// Non-mutating: it walks isolated child iterators, so the reader is left exactly where it was. It is
+    /// O(n) in the children, which is why callers test once per reply rather than once per pair.
+    /// </para>
+    /// </remarks>
+    public readonly bool IsAllJaggedPairs()
+    {
+        // an empty aggregate is not jagged: there is nothing to be jagged about, and reading it as pairs
+        // and as interleaved give the same answer anyway
+        var any = false;
+        var iter = AggregateChildren();
+        while (iter.MoveNext())
+        {
+            if (!(iter.Value.IsAggregate && iter.Value.AggregateLengthIs(2))) return false;
+            any = true;
+        }
+        return any;
+    }
+
+    /// <summary>Projects the element a reader is positioned on.</summary>
+    /// <typeparam name="T">What the element is projected to.</typeparam>
+    /// <param name="value">The reader, positioned on the element.</param>
     public delegate T Projection<out T>(ref RespReader value);
+
+    /// <summary>
+    /// Projects a <b>pair</b> of elements, as pair-shaped replies - hashes, stream fields, config - are read.
+    /// </summary>
+    /// <typeparam name="TState">Caller state threaded through the walk.</typeparam>
+    /// <typeparam name="TResult">What the pair is projected to.</typeparam>
+    /// <param name="state">Caller state; for a window capture, who the bytes belong to.</param>
+    /// <param name="first">The reader, positioned on the first element of the pair.</param>
+    /// <param name="second">The reader, positioned on the second element of the pair.</param>
+    /// <remarks>
+    /// Two readers rather than one, because the two halves are <i>siblings</i>: a projection handed a
+    /// single reader cannot reach the next element, since the enumerator hands out a reader trimmed to one
+    /// sub-tree. It is deliberately the same shape as the eager pair parser this library already has, so
+    /// the deferred and materialising paths can share a projection rather than growing a second one.
+    /// </remarks>
+    public delegate TResult PairProjection<TState, out TResult>(ref TState state, ref RespReader first, ref RespReader second)
+#if NET10_0_OR_GREATER
+        where TState : allows ref struct
+#endif
+        ;
 
     public delegate TResult Projection<TState, out TResult>(ref TState state, ref RespReader value)
 #if NET10_0_OR_GREATER
@@ -1145,6 +1199,34 @@ public ref partial struct RespReader
     /// <param name="value">The raw contents to parse with this instance.</param>
     /// <param name="services">The service - or <see cref="IServiceProvider"/> - associated with the buffer.</param>
     internal RespReader(ReadOnlySpan<byte> value, object? services)
+        : this(value, services, positionBase: 0)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RespReader"/> struct over a <b>slice</b> of a larger
+    /// buffer, reporting <see cref="BytesConsumed"/> as offsets into that larger buffer rather than into
+    /// the slice.
+    /// </summary>
+    /// <param name="value">The raw contents to parse with this instance.</param>
+    /// <param name="services">The service - or <see cref="IServiceProvider"/> - associated with the buffer.</param>
+    /// <param name="positionBase">Where <paramref name="value"/> starts within the buffer it is a slice of.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>This is what makes a nested capture point at the right bytes.</b> A window - see
+    /// <c>RespValue</c> and <c>RespAggregate&lt;T&gt;</c> - is recorded as an offset into the buffer its
+    /// <i>owner</i> holds, and is bracketed by sampling <see cref="BytesConsumed"/>. Walking an aggregate
+    /// means reading a slice of that buffer, so without a base the offsets restart at zero and a window
+    /// captured inside the walk records the distance from the <i>aggregate</i> while claiming to be a
+    /// distance from the <i>payload</i>. That reads the wrong bytes rather than throwing.
+    /// </para>
+    /// <para>
+    /// <see cref="_positionBase"/> already exists for exactly this reckoning - it is what keeps offsets
+    /// absolute as a reader moves between the segments of a sequence - so this seeds it rather than adding
+    /// a parallel notion of position. Everything else is relative arithmetic and is unaffected.
+    /// </para>
+    /// </remarks>
+    internal RespReader(ReadOnlySpan<byte> value, object? services, long positionBase)
     {
         _length = 0;
         _flags = RespFlags.None;
@@ -1152,7 +1234,8 @@ public ref partial struct RespReader
         _services = services;
         SetCurrent(value);
 
-        _remainingTailLength = _positionBase = 0;
+        _remainingTailLength = 0;
+        _positionBase = positionBase;
         _tail = null;
     }
 

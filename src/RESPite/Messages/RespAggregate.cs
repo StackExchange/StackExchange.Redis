@@ -110,7 +110,9 @@ public readonly struct RespAggregate<T>
     /// </summary>
     /// <param name="owner">Who the bytes belong to; the captured window is valid for as long as it is.</param>
     /// <param name="reader">The reader, positioned before the element to capture.</param>
-    /// <param name="projection">How to read one child.</param>
+    /// <param name="projection">
+    /// How to read one child; handed a reader positioned <b>before</b> that child, as this method is.
+    /// </param>
     /// <param name="value">The captured aggregate, when this returns <see langword="true"/>.</param>
     /// <remarks>
     /// As <see cref="RespValue.TryCaptureNext"/>: the reader knows <i>where</i> but not <i>whose</i>, so the
@@ -151,7 +153,14 @@ public readonly struct RespAggregate<T>
     }
 
     /// <summary>Walk the children, projecting each.</summary>
-    public Enumerator GetEnumerator() => new(Frame, _projection, _owner);
+    /// <remarks>
+    /// The window's start goes with the frame because the walk reads a <i>slice</i> of the owner's
+    /// buffer while anything captured during it records an offset into the <i>whole</i> buffer; see the
+    /// slice-aware <see cref="RespReader"/> constructor. Without it a nested window - a stream entry's
+    /// fields, say - points at bytes that are off by the enclosing aggregate's position, which reads as
+    /// data rather than as an error.
+    /// </remarks>
+    public Enumerator GetEnumerator() => new(Frame, _projection, _owner, _start);
 
     /// <summary>Materialise the children into an array.</summary>
     /// <remarks>
@@ -200,7 +209,7 @@ public readonly struct RespAggregate<T>
         private object? _owner;
         private readonly bool _empty;
 
-        internal Enumerator(ReadOnlySpan<byte> frame, RespReader.Projection<object?, T>? projection, object? owner)
+        internal Enumerator(ReadOnlySpan<byte> frame, RespReader.Projection<object?, T>? projection, object? owner, int start)
         {
             _projection = projection;
             _owner = owner;
@@ -214,7 +223,7 @@ public readonly struct RespAggregate<T>
             }
 
             _empty = false;
-            var reader = new RespReader(frame);
+            var reader = new RespReader(frame, services: null, positionBase: start);
             reader.MoveNext(); // onto the aggregate header itself
             _children = reader.AggregateChildren();
         }
@@ -223,9 +232,17 @@ public readonly struct RespAggregate<T>
         public T Current { get; private set; }
 
         /// <summary>Walk to the next child.</summary>
+        /// <remarks>
+        /// <b><c>MoveNextRaw</c>, so the projection is handed a reader positioned <i>before</i> its
+        /// child</b> - the same position <see cref="TryCaptureNext"/> expects, and the reason the two can
+        /// be composed. A projection that only reads can step in with <c>MoveNext()</c>; a projection that
+        /// <i>captures</i> - a nested window - has no way to do so from a reader already positioned on the
+        /// element, because an element's start cannot be recovered once it has been read past. Attributes
+        /// are still skipped, by <c>TryMoveNext</c>, wherever the projection makes its move.
+        /// </remarks>
         public bool MoveNext()
         {
-            if (_empty || !_children.MoveNext()) return false;
+            if (_empty || !_children.MoveNextRaw()) return false;
 
             Current = _projection!(ref _owner, ref _children.Value);
             return true;
