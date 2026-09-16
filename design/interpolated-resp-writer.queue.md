@@ -1401,6 +1401,50 @@ Four consequences, none of them cosmetic:
       edited every major release is asserting the wrong thing; what matters is that `GetLibVersion`
       returns something version-shaped, since it appears in every connection exception message.
 
+      ### XRANGE as the template: a command factory and a handler - DONE 2026-09-16
+
+      Marc's two moves, taken together, on the one command:
+
+      **1. The command text is composed once.** `RangeCommand(in RespContext, ...)` returns a `RespFrame`
+      and is the only place that decides XRANGE-vs-XREVRANGE, swaps the bounds, writes the optional count
+      and validates. *"OurMagicCommandThing"* turned out to need no new type at all: `RespContext.Render`
+      already returns `RespFrame`, `SendAsync(ref RespFrame, ...)` already consumes one.
+
+      This is not hypothetical duplication: **44 distinct command texts are currently written more than
+      once on this surface, 48 redundant copies** - `ARSCAN` appears identically in `ScanAsync` and
+      `ScanArray`, and so on. Exactly what `RedisDatabase`'s message factories exist to prevent, already
+      reproduced.
+
+      **2. The array shape is served by a handler, not by projecting the reply.** `RangeArray` sends with
+      a `StreamEntriesHandler` that calls the same `ParseRedisStreamEntries`; the transitional shim is now
+      one expression with no `async`, no `using`, and no reply object.
+
+      **Rejected on the way there** - a custom `ContinueWith`. Marc raised three options; all three lose:
+      the baseline helper saves nothing, `AsTask().ContinueWith()` allocates *more* (a Task, a continuation
+      object, and the result Task) with scheduler hazards on top, and a pooled `IValueTaskSource` still
+      has to end in `.AsTask()` because `IDatabase` demands `Task<T>` - so it buys maybe 20-40 bytes for a
+      token-versioned, thread-safe, recycle-on-`GetResult` primitive. The answer was not a better
+      continuation, it was not needing one.
+
+      **Measured, `HandlerArray` against `TransitionalArray`:**
+
+      | | inline | suspending |
+      |---|---|---|
+      | handler | 105.0ns / **48B** | 151.0ns / **224B** |
+      | projection | 121.5ns / 104B | 165.8ns / 280B |
+
+      **~14% faster and a flat 56 B less**, on every row. That 56 B is the reply object; the harness
+      cannot see the other half, because both benchmark methods are a single `async Task<int>` and the
+      second async layer only existed in the real shim. Adding the separately measured ~120 B per
+      suspending layer: **~176 B per call on a real round trip.**
+
+      **What it costs:** `ToArray()` loses the incidental coverage it had from being how the shim worked -
+      the "exercised by the whole existing stream suite" argument in the one-parse-two-readers entry no
+      longer applies to it. It keeps `RespRangeReplyTests`, and both paths still call one function, so
+      they still cannot drift; only the breadth of coverage changes.
+
+      **Next:** the same two moves on the other 43 duplicated command texts.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

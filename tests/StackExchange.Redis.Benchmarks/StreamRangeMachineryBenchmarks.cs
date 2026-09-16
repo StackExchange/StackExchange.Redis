@@ -180,6 +180,18 @@ public class StreamRangeMachineryBenchmarks
     }
 
     /// <summary>
+    /// The array shape served by a <b>handler</b>, with no reply object and no wrapping async layer.
+    /// </summary>
+    /// <remarks>
+    /// The shape <c>IDatabase.StreamRange</c> actually uses. Against <see cref="TransitionalArray"/> -
+    /// the same array, reached by projecting the reply object - this is what supplying a different handler
+    /// is worth.
+    /// </remarks>
+    [Benchmark]
+    public async Task<int> HandlerArray()
+        => (await _context.Streams.RangeArray("s").ConfigureAwait(false)).Length;
+
+    /// <summary>
     /// The transitional shim: the same reply projected to the array shape <c>IDatabase</c> promises.
     /// </summary>
     [Benchmark]

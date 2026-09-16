@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
+using RESPite.Messages;
 using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis;
@@ -54,6 +55,63 @@ public static partial class Streams
         Order messageOrder = Order.Ascending,
         CommandFlags flags = CommandFlags.None)
     {
+        var frame = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
+        return streams.Context.SendAsync(ref frame, flags, RangeReplyHandler, default);
+    }
+
+    /// <inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)"/>
+    /// <remarks>
+    /// <para>
+    /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> promises <see cref="StreamEntry"/><c>[]</c> and
+    /// is not going anywhere, so this is how that signature is served from the new core - the same
+    /// arrangement as the other <c>*Array</c> shims on this surface. Internal because the array is the
+    /// <i>old</i> spelling.
+    /// </para>
+    /// <para>
+    /// <b>It does not go through the reply object</b>, and that is the point: projecting with
+    /// <c>reply.ToArray()</c> means an extra <c>async</c> layer wrapping the send, and a suspending async
+    /// layer costs ~120 bytes - measured - on top of the reply object it allocates and immediately throws
+    /// away. Supplying a handler that parses straight to the array removes both. The parse is the same
+    /// function either way, so the two shapes still cannot drift.
+    /// </para>
+    /// </remarks>
+    internal static ValueTask<StreamEntry[]> RangeArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue? minId = null,
+        RedisValue? maxId = null,
+        int? count = null,
+        Order messageOrder = Order.Ascending,
+        CommandFlags flags = CommandFlags.None)
+    {
+        var frame = RangeCommand(streams.Context, key, minId, maxId, count, messageOrder);
+        return streams.Context.SendAsync(ref frame, flags, StreamEntriesHandler.Instance, default);
+    }
+
+    /// <summary>
+    /// Render <c>XRANGE</c>/<c>XREVRANGE</c> - the one place the command is composed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A factory, because the command text is the part that must not be written twice.</b> The two
+    /// overloads above differ only in what parses the reply; everything decided here - which command, the
+    /// bound swap, the optional count, the validation - is identical, and a surface where that is copied
+    /// per overload is a surface where the copies drift. The older <c>RedisDatabase</c> has message
+    /// factories for exactly this reason.
+    /// </para>
+    /// <para>
+    /// The returned frame owns a pooled buffer and is consumed by the send on every path, so a caller must
+    /// send it. Validation happens <i>before</i> the render, so a rejected call never rents at all.
+    /// </para>
+    /// </remarks>
+    private static RespFrame RangeCommand(
+        in RespContext context,
+        RedisKey key,
+        RedisValue? minId,
+        RedisValue? maxId,
+        int? count,
+        Order messageOrder)
+    {
         if (count is <= 0) throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
 
         var min = minId ?? StreamConstants.ReadMinValue;
@@ -61,12 +119,8 @@ public static partial class Streams
         var command = messageOrder == Order.Ascending ? RedisCommand.XRANGE : RedisCommand.XREVRANGE;
 
         // XREVRANGE takes (high, low); the caller always says (min, max), so the swap happens here.
-        // Two locals rather than a tuple deconstruction: Roslyn does optimise the tuple away here (all six
-        // target frameworks were checked for a System.ValueTuple type reference and all are clean), but
-        // this library deliberately does not reference System.ValueTuple - SanityChecks.ValueTupleNotReferenced
-        // guards it, because it breaks binding on .NET Framework - and that guard only ever inspects the
-        // one build the test process happened to load. Not relying on an optimisation to stay inside a
-        // rule costs nothing here.
+        // Two locals rather than a tuple deconstruction: this library deliberately does not reference
+        // System.ValueTuple, and not relying on an optimisation to stay inside a rule costs nothing here.
         RedisValue first = min, second = max;
         if (messageOrder != Order.Ascending)
         {
@@ -74,10 +128,24 @@ public static partial class Streams
             second = min;
         }
 
-        return streams.Context.SendAsync(
-            $"{command}{key}{first}{second}{RespLiterals.Count.When(count)}{count}",
-            flags,
-            RangeReplyHandler);
+        return context.Render($"{command}{key}{first}{second}{RespLiterals.Count.When(count)}{count}");
+    }
+
+    /// <summary>Parses an <c>XRANGE</c>-shaped reply straight to the array shape.</summary>
+    /// <remarks>
+    /// The same <c>ParseRedisStreamEntries</c> the reply object's <c>ToArray</c> calls, so the deferred
+    /// and materialising shapes remain two call sites of one function rather than two parsers.
+    /// </remarks>
+    private sealed class StreamEntriesHandler : IRespHandler<StreamEntry[]>
+    {
+        public static readonly StreamEntriesHandler Instance = new();
+
+        private StreamEntriesHandler()
+        {
+        }
+
+        public StreamEntry[] Parse(ref RespReader reader)
+            => ResultProcessor.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
     }
 
     private static readonly RespReplyHandler<RespRangeReply> RangeReplyHandler
