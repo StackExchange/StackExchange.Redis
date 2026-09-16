@@ -990,6 +990,60 @@ Four consequences, none of them cosmetic:
       rather than a family, and settle on `null` as the single absent convention - `int?` cannot confuse
       "zero" with "unset", where `int` has to.
 
+      ### Scan: optional "token + integer" is everywhere, spelled five ways - 2026-09-16
+
+      Marc: *"can you do a scan for other precedents of optional 'someprefix integer' pairs... I'm
+      wondering if there's a case for a more general PrefixInt32(RespLiteral, int?)."* There is, and it is
+      much stronger than the `CountOperand`-alone answer suggested. **Eight sites on the new surface, five
+      different spellings of "absent":**
+
+      | Site | Token | Value | absent when |
+      |---|---|---|---|
+      | `Streams.CountOperand` | `COUNT` | `int?` | `null` |
+      | `Streams.TrimOperand` (inner) | `LIMIT` | `long?` | `!HasValue` |
+      | `Strings` INCREX (Compose) | `LBOUND`/`UBOUND` | `long?`/`double?` | `!HasValue` |
+      | `Arrays.LimitOperand` | `LIMIT` | `int` | `<= 0` |
+      | `Sets.RespLimit` | `LIMIT` | `long` | `<= 0` |
+      | `Keys.DatabaseOperand` | `DB` | `int` | `< 0` |
+      | `Geospatial` GEORADIUS (inline) | `COUNT` | `int` (default -1) | `<= 0` |
+      | `Geospatial` GEOSEARCH (inline) | `COUNT` | `int` (default -1) | `< 0` |
+
+      **The last two are the same token in the same file with different boundaries**, so `count: 0` is
+      silently dropped by one and written as `COUNT 0` by the other - and the server rejects `COUNT 0`.
+      Worth a decision on its own account; found by this scan rather than by looking for it.
+
+      **Future demand:** the old surface still has 27 uses of these literals to move - `COUNT` x10,
+      `LIMIT` x8, `IDLE` x3, `RANK` x2, `MAXLEN` x2, `DB` x2 - most of them optional.
+
+      **Shapes that are related but must NOT be forced into the same type:** `SortedSets.RespLimitRange`
+      (`LIMIT offset count` - token plus *two* numbers, all-or-nothing), `Arrays.OptionalValue` (a value
+      with no token), and `AGGREGATE COUNT` (token plus token, no number at all).
+
+      **Proposed:**
+
+      ```csharp
+      internal readonly struct RespPrefixedInt64(RespFragment token, long? value) : IRespArgument
+      {
+          public void WriteTo(scoped ref RespCommandHandler handler)
+          {
+              if (value is not long actual) return;   // absent: no tokens, no count
+              handler.AppendFormatted(token);
+              handler.AppendFormatted((RedisValue)actual);
+          }
+      }
+      ```
+
+      `long?` rather than `int?`, because the lifted implicit conversion means an `int?` caller still
+      binds - so one type covers `COUNT`, `LIMIT`, `DB`, `RANK`, `MAXLEN` and both INCREX bounds, instead
+      of an Int32 and an Int64 twin. `RespFragment` is what `RespLiterals.*` already are.
+
+      **The type is trivial; the work and the decision are the normalisation.** Four of those eight sites
+      express "absent" with a sentinel because their *public parameter* says `int limit = 0` or
+      `int count = -1`. Converting them to one convention means changing those signatures to `int?` -
+      which is the right shape (it cannot confuse zero with unset) and is still free while the surface is
+      experimental, but it is an API decision rather than a refactor. **Doing half would be the worst
+      outcome**, since the whole value is in there being one convention.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it
