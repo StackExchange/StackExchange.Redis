@@ -430,6 +430,22 @@ namespace StackExchange.Redis.Interpolated
         /// serving it.
         /// </para>
         /// <para>
+        /// <b>The retry category is inferred from the command NAME, and the name is not the contract.</b>
+        /// A name that parses - <c>XREAD</c>, <c>SORT</c>, <c>GETEX</c> - picks up the category this
+        /// library assumes for its own typed use of that command, and the arguments that would change the
+        /// answer are ones only the caller can see. <c>XREAD</c> is categorised read-only, so
+        /// <c>Execute("XREAD", "BLOCK", 0, ...)</c> is treated as replayable <i>and cacheable</i>;
+        /// <c>SORT</c> is read-only until a <c>STORE</c> argument makes it a write. The typed surface
+        /// raises those cases explicitly because it can see the arguments; here, nobody can.
+        /// </para>
+        /// <para>
+        /// <b>So say so</b> when an ad-hoc command is not what its name suggests:
+        /// <c>flags.WithRetryCategory(CommandFlags.CommandRetryNever)</c> - or whichever rung fits. The
+        /// caller's choice always wins over the inference. The default is kept as inference rather than
+        /// "assume the worst" for compatibility with <c>IDatabase.Execute</c>, where the same reasoning
+        /// has always applied.
+        /// </para>
+        /// <para>
         /// Not an <c>async</c> method: the handler is a <c>ref struct</c> and cannot cross an <c>await</c>,
         /// so composition finishes synchronously and only the reply is awaited.
         /// </para>

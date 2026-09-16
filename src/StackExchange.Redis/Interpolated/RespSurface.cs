@@ -1076,6 +1076,26 @@ namespace StackExchange.Redis.Interpolated
     /// </remarks>
     [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 
+    // HOW A COMMAND SAYS HOW SAFE IT IS TO REPLAY - the house rule for every group on this surface.
+    //
+    // The retry category comes from CommandFlagsExtensions.WithDefaultCategory: the same per-command table
+    // the MessageWriter path uses, rather than a constant named at each call site. Two writers agreeing on
+    // the bytes and disagreeing on whether a command is safe to replay is the kind of divergence nothing
+    // would catch, so the table is the single source of truth.
+    //
+    // A command whose ARGUMENTS change the answer raises it EXPLICITLY, with WithRetryCategory, before
+    // falling through to the table - SORT with STORE, GETEX with a TTL, SET under NX, SCAN past the first
+    // cursor. There are 18 such sites, and they are the whole reason the table can afford to be keyed on
+    // the command alone: it says "raised to a write where we can see the args", and these are where they
+    // are seen. WithRetryCategory is caller-wins, so this composes in either order and never overrides a
+    // category the caller chose.
+    //
+    // Which is also why spelling the category at all ~250 sites was considered and REJECTED: it would be
+    // ~240 restatements of the table plus the 18 refinements that already exist, and the restatements are
+    // pure drift risk against the path that still reads the table. See the queue.
+    //
+    // WithRetryCategory stays public for surfaces outside this assembly, which cannot see the table.
+
     // RS0026 warns about overloads that carry optional parameters, because adding one later can make an
     // existing call ambiguous. That hazard cannot arise here, and saying so once beats a pragma per
     // command: every member of this class is an extension method whose FIRST parameter is a group type -

@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using System.Diagnostics;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// Helpers for composing <see cref="CommandFlags"/>.
@@ -90,12 +92,37 @@ public static class CommandFlagsExtensions
             // Note also that some commands may have *conditionally* included their category based on
             // rules specific to the parameters, for example SCAN 0 is not server specific,
             // but SCAN 12341234 *is*.
-            flags |= DefaultCategory(command);
+            var category = TryGetDefaultCategory(command);
+
+            // A command the table does not know about is a GAP, not a dangerous command - and the symptom
+            // is silent and one-directional: it stops being retried and stops being cached, so a read
+            // added without a category simply gets slower and nothing fails. Nobody reports that.
+            //
+            // The assert is a courtesy for local debugging only: it needs the command to be EXECUTED, in
+            // a Debug build, by a test that happens to exist - and CI runs Release, where it compiles out
+            // entirely. The guard that actually runs is the exhaustive sweep,
+            // CommandCategoryTests.EveryCommandDeclaresARetryCategory, which found four missing commands
+            // the first time it was written.
+            Debug.Assert(category.HasValue, $"No retry category for {command}; add it to {nameof(TryGetDefaultCategory)}.");
+
+            flags |= category ?? CommandFlags.CommandRetryNever;
         }
 
         return flags;
+    }
 
-        static CommandFlags DefaultCategory(RedisCommand command)
+    /// <summary>
+    /// The retry category this library assumes for a command, or <see langword="null"/> if the table has
+    /// no opinion - which means the table is incomplete, not that the command is unsafe.
+    /// </summary>
+    /// <remarks>
+    /// Separated from <see cref="WithDefaultCategory"/> so that "no entry" is expressible at all: folded
+    /// together, a missing command and one deliberately categorised
+    /// <see cref="CommandFlags.CommandRetryNever"/> are the same value, and nothing can tell a decision
+    /// from an omission.
+    /// </remarks>
+    internal static CommandFlags? TryGetDefaultCategory(RedisCommand command)
+    {
         {
             // This is *not* using switch expressions very deliberately, because there are a *lot* of
             // options in each; let's keep things vertical rather than horizontal.
@@ -177,6 +204,8 @@ public static class CommandFlagsExtensions
                 case RedisCommand.SDIFF:
                 case RedisCommand.SINTER:
                 case RedisCommand.SINTERCARD:
+                case RedisCommand.SDIFFCARD:
+                case RedisCommand.SUNIONCARD:
                 case RedisCommand.SUNION:
                 case RedisCommand.ZCARD:
                 case RedisCommand.ZSCORE:
@@ -319,6 +348,7 @@ public static class CommandFlagsExtensions
                 case RedisCommand.RPOP:
                 case RedisCommand.RPOPLPUSH:
                 case RedisCommand.LMOVE:
+                case RedisCommand.LMOVEM:
                 case RedisCommand.LMPOP:
                 case RedisCommand.SPOP:
                 case RedisCommand.ZPOPMIN:
@@ -443,8 +473,17 @@ public static class CommandFlagsExtensions
                 // if we don't recognize it: default to the most pessimistic
                 case RedisCommand.NONE:
                 case RedisCommand.UNKNOWN:
-                default:
+                // HIMPORT sets fields from a field set PREPARED ON THE CONNECTION, so unlike HSET its
+                // safety is not decided by the keyspace alone: a replay after a reconnect only works if
+                // the preamble is re-sent with it. Spelled out at its current effective value rather than
+                // guessed upward - see the queue; this one wants a decision, not an inference.
+                case RedisCommand.HIMPORT:
                     return CommandFlags.CommandRetryNever;
+
+                default:
+                    // No opinion. UNKNOWN and NONE have cases of their own above, so reaching here means
+                    // the table is missing an entry; the caller decides what to do about that.
+                    return null;
             }
         }
     }

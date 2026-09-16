@@ -1099,6 +1099,65 @@ Four consequences, none of them cosmetic:
       experimental, but it is an API decision rather than a refactor. **Doing half would be the worst
       outcome**, since the whole value is in there being one convention.
 
+      ### Retry categories: keep the table, guard the gaps - DECIDED 2026-09-16
+
+      Marc proposed replacing `WithDefaultCategory(command)` with an explicit `WithRetryCategory(...)` at
+      every call site, on the grounds that if we are touching every file anyway, each command should spell
+      out the stance we think it has. **Investigated and rejected**, on evidence:
+
+      - The convention was already written down, and its reason is stronger than reviewability: *"two
+        writers agreeing on the bytes and disagreeing on whether a command is safe to replay is the kind
+        of divergence nothing would catch."* While the old `Message` path and the new surface coexist,
+        both read the same table; ~250 hand-written literals could drift from it, and from each other,
+        silently.
+      - **The refinement already happens.** 256 send sites, 260 `WithDefaultCategory`, and **18** explicit
+        `WithRetryCategory` refinements - exactly the arguments-change-the-answer cases (`SORT ... STORE`,
+        `GETEX` with a TTL, `SET` under NX, `SCAN` past the first cursor). The table's own comments say
+        those are *"raised to a write where we can see the args"*, and the 18 sites are where they are
+        seen.
+      - So the sweep would have been ~240 restatements of the table plus 18 refinements that already
+        exist. The restatements carry all the drift risk and none of the information.
+
+      **Ad-hoc `Execute` keeps the inference too** (Marc): *"if they do stupid things: they should have
+      given us the hint."* Agreed for compatibility - but the hazard is real and inverted from the obvious
+      reading: a name that **parses** is the dangerous one, because the lookup succeeds and returns a
+      confident answer, where an unrecognised name falls to `CommandRetryNever` and is safe.
+      `Execute("XREAD", "BLOCK", 0, ...)` is treated as replayable *and cacheable* today. Documented on
+      `RespContext.ExecuteAsync` rather than changed, because "they should have told us" only holds if the
+      need for a hint is discoverable.
+
+      ### Every command must declare a category - FIXED 2026-09-16
+
+      Marc asked for a `Debug.Assert` where the table falls through to "assume never", on the grounds that
+      a known command reaching it means something upstream failed to categorise it. **It would have caught
+      four commands immediately**, which is the argument for doing more than assert:
+
+      `SDIFFCARD` and `SUNIONCARD` were missing while their siblings `SDIFF`, `SINTER`, `SINTERCARD` and
+      `SUNION` all sat in the read-only group - and `SUNIONCARD` is on the new surface **today**, so set
+      union-cardinality was silently neither retried nor cached while intersection-cardinality was both.
+      Also missing: `LMOVEM` (now with `LMOVE`, write-accumulating) and `HIMPORT`.
+
+      **`HIMPORT` is spelled out at its current value rather than guessed upward**, and wants a decision:
+      unlike `HSET`, its safety is not decided by the keyspace alone, because it sets fields from a field
+      set *prepared on the connection* - a replay after a reconnect only works if the preamble goes with
+      it.
+
+      **The table can now say "I don't know".** `TryGetDefaultCategory` returns `CommandFlags?`, because
+      folded together a missing command and one deliberately categorised `CommandRetryNever` are the same
+      value and nothing can tell a decision from an omission. `WithDefaultCategory` coalesces to `Never`,
+      so a gap is still safe - it just stops being invisible.
+
+      **The sweep is the guard, not the assert** (Marc: *"our CI tests run in Release, IIRC"*). Correct -
+      `Debug.Assert` compiles out there, and in any case it needs the command to be *executed* by a test
+      that happens to exist. `CommandCategoryTests` enumerates the enum instead: every command declares a
+      category, every declared category is a real rung of the ladder, a gap still lands on `Never`, and
+      the caller's own category always wins. Verified load-bearing by mutation - removing `SUNIONCARD`
+      fails the sweep by name.
+
+      **Also done:** the convention moved out of a comment in `RespSurface.Strings.cs` to the surface root
+      (`RespSurface.cs`), beside the RS0026 rationale, since it is the house rule for the 14 groups still
+      to migrate.
+
       ### Layering: what could move to RESPite - RAISED 2026-09-16
 
       Marc: *"we tried very hard to make RESPite agnostic... if any of these pieces can live in there, it

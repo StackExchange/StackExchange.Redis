@@ -63,13 +63,6 @@ namespace StackExchange.Redis.Interpolated
         // `in` because RespStrings is a readonly struct: no defensive copy, and nothing to copy on the
         // way to a network round trip.
 
-        // The retry category comes from CommandFlagsExtensions.WithDefaultCategory - the same per-command
-        // table the MessageWriter path uses - rather than a constant named at each call site. Two writers
-        // agreeing on the bytes and disagreeing on whether a command is safe to replay is the kind of
-        // divergence nothing would catch; the table is the single source of truth, and a command whose
-        // ARGUMENTS change the answer (GETEX with a TTL, SET under NX) raises it explicitly and says why.
-        // WithRetryCategory stays public for surfaces outside this assembly, which cannot see the table.
-
         /// <summary>
         /// Run an arbitrary command and return the raw reply - the escape hatch, reachable from anything
         /// that can produce a context.
