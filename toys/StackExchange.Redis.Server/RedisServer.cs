@@ -305,9 +305,15 @@ namespace StackExchange.Redis.Server
         /// Add an empty node, fixing what it announces as its own address before it becomes visible.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Setting this afterwards, via <see cref="SetAnnouncedAddress"/>, leaves a window in which a topology
         /// read can observe the node still announcing an address - which is enough to make a client route
         /// straight to it rather than take the redirect a test was trying to provoke.
+        /// </para>
+        /// <para>
+        /// A <see cref="DnsEndPoint"/> takes a name-only identity, which cannot also announce an address;
+        /// asking for one throws rather than quietly ignoring the argument.
+        /// </para>
         /// </remarks>
         public EndPoint AddEmptyNode(EndPoint endpoint, AnnouncedAddress announced, NodeFlags flags = NodeFlags.None)
             => AddEmptyNodeCore(endpoint, flags, announced);
@@ -315,6 +321,14 @@ namespace StackExchange.Redis.Server
         private EndPoint AddEmptyNodeCore(EndPoint endpoint, NodeFlags flags, AnnouncedAddress? announced)
         {
             if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
+            if (announced is { } requested && requested != AnnouncedAddress.Empty && endpoint is DnsEndPoint)
+            {
+                // ApplyNameOnlyIdentity below would overwrite it; refuse the contradiction rather than
+                // silently doing something else
+                throw new ArgumentException(
+                    $"A name-only node cannot announce {requested}: {Format.ToString(endpoint)}", nameof(announced));
+            }
+
             var node = new Node(this, endpoint, flags);
             if (announced is { } value) node.Announced = value;
             node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
