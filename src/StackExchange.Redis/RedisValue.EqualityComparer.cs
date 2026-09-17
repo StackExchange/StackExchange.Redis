@@ -185,8 +185,6 @@ namespace StackExchange.Redis
                     {
                         var take = Math.Min(ChunkChars, chars.Length);
 
-                        // never split a surrogate pair: the encoder would emit U+FFFD for each half, which is
-                        // not what encoding the whole string would have produced
                         // Never end a chunk on a high surrogate: the encoder would emit U+FFFD for each half
                         // of a pair split across chunks, which is not what encoding the whole string gives.
                         // Step *back* rather than forward - taking one more character would both overrun the
