@@ -1815,6 +1815,14 @@ namespace StackExchange.Redis
                             // discovery classing a slot-map node as serving nothing - is corrected at source in
                             // GetEndpointsFromClusterNodes, and no test here fails without this line. Kept because
                             // the cost is one idempotent call and the failure mode is a silent stall.
+                            //
+                            // ...which is also why it says when it fires. A guard that repairs the state in silence
+                            // hides any *new* route into it behind a connect that simply works; this way the log
+                            // names the endpoint, and the question "does anything still reach here?" has an answer
+                            if (server.GetBridge(ConnectionType.Interactive, create: false) is null)
+                            {
+                                log?.LogInformationActivatingUndialledServer(new(server.EndPoint));
+                            }
                             ActivateServer(server, log);
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected

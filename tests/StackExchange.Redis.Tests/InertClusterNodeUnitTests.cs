@@ -72,6 +72,10 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
         // ...and it was not written off as serving nothing, which is what left it undialled
         Assert.DoesNotContain($"Registering {otherReplica} without connecting", connectLog);
 
+        // nor did the connect loop's guard have to repair it on the way into the wait: discovery is what
+        // fixes this, and the guard staying quiet is how we know that is still true
+        Assert.DoesNotContain("reached the connect wait with no connection open", connectLog);
+
         // before the fix this waited out the whole ConnectTimeout on a connection nobody was opening,
         // and then reported the node as unresponsive
         var timeout = conn.RawConfig.ConnectTimeout;
