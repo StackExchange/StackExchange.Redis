@@ -334,12 +334,13 @@ namespace StackExchange.Redis.Server
                 throw new ArgumentException($"No such node: {Format.ToString(primary)}", nameof(primary));
             }
 
-            var result = AddEmptyNodeCore(endpoint, NodeFlags.Replica, announced: null);
-            _nodes[result].PrimaryId = primaryNode.Id;
-            return result;
+            // the link is passed in rather than set afterwards, for the same reason the announced address is:
+            // publication has to be the last step, or a topology read can land in the window where this node
+            // still looks like a slotless primary - which is exactly the shape other tests set up deliberately
+            return AddEmptyNodeCore(endpoint, NodeFlags.Replica, announced: null, primaryId: primaryNode.Id);
         }
 
-        private EndPoint AddEmptyNodeCore(EndPoint endpoint, NodeFlags flags, AnnouncedAddress? announced)
+        private EndPoint AddEmptyNodeCore(EndPoint endpoint, NodeFlags flags, AnnouncedAddress? announced, string primaryId = null)
         {
             if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
             if (announced is { } requested && requested != AnnouncedAddress.Empty && endpoint is DnsEndPoint)
@@ -352,6 +353,7 @@ namespace StackExchange.Redis.Server
 
             var node = new Node(this, endpoint, flags);
             if (announced is { } value) node.Announced = value;
+            node.PrimaryId = primaryId;
             node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
             ApplyNameOnlyIdentity(endpoint, node);
 
@@ -571,7 +573,7 @@ namespace StackExchange.Redis.Server
             span[8] = TypedRedisValue.BulkString("mode");
             span[9] = TypedRedisValue.BulkString(ServerModeValue);
             span[10] = TypedRedisValue.BulkString("role");
-            span[11] = TypedRedisValue.BulkString("master");
+            span[11] = TypedRedisValue.BulkString(GetPrimaryOf(client?.Node) is null ? "master" : "replica");
             span[12] = TypedRedisValue.BulkString("modules");
             span[13] = TypedRedisValue.EmptyArray(RespPrefix.Array);
             return reply;
@@ -894,7 +896,7 @@ namespace StackExchange.Redis.Server
         }
 
         /// <summary>The nodes that replicate <paramref name="primary"/>, in endpoint order.</summary>
-        private List<Node> GetReplicasOf(Node primary)
+        private IReadOnlyList<Node> GetReplicasOf(Node primary)
         {
             List<Node> replicas = null;
             if (!string.IsNullOrEmpty(primary.Id))
@@ -907,7 +909,20 @@ namespace StackExchange.Redis.Server
             return replicas ?? EmptyNodes;
         }
 
-        private static readonly List<Node> EmptyNodes = new List<Node>();
+        /// <summary>The node <paramref name="node"/> replicates, or <c>null</c> when it is a primary.</summary>
+        private Node GetPrimaryOf(Node node)
+        {
+            if (node is null || string.IsNullOrEmpty(node.PrimaryId)) return null;
+            foreach (var pair in _nodes)
+            {
+                if (pair.Value.Id == node.PrimaryId) return pair.Value;
+            }
+            return null;
+        }
+
+        // not a shared List<Node>: that would be handed out to callers, and one accidental Add would
+        // corrupt every later reply
+        private static readonly IReadOnlyList<Node> EmptyNodes = Array.Empty<Node>();
 
         // the metadata map is documented as the *complement* of the primary position: ip when the
         // preferred type is not ip, hostname when the node has one and the preferred type is not
@@ -1600,22 +1615,28 @@ namespace StackExchange.Redis.Server
         [RedisCommand(-1, LockFree = true, MaxArgs = 2)]
         protected virtual TypedRedisValue Info(RedisClient client, in RedisRequest request)
         {
-            var info = Info(request.Count == 1 ? null : request.GetString(1));
+            var info = Info(request.Count == 1 ? null : request.GetString(1), client);
             return TypedRedisValue.BulkString(info);
         }
-        protected virtual string Info(string selected)
+
+        /// <param name="selected">The section requested, or <c>null</c> for all of them.</param>
+        /// <param name="client">
+        /// The asking client, whose <see cref="RedisClient.Node"/> is the node answering; <c>null</c> when
+        /// there is no such context, in which case the server's own perspective is used.
+        /// </param>
+        protected virtual string Info(string selected, RedisClient client = null)
         {
             var sb = new StringBuilder();
             bool IsMatch(string section) => string.IsNullOrWhiteSpace(selected)
                 || string.Equals(section, selected, StringComparison.OrdinalIgnoreCase);
-            if (IsMatch("Server")) Info(sb, "Server");
-            if (IsMatch("Clients")) Info(sb, "Clients");
-            if (IsMatch("Memory")) Info(sb, "Memory");
-            if (IsMatch("Persistence")) Info(sb, "Persistence");
-            if (IsMatch("Stats")) Info(sb, "Stats");
-            if (IsMatch("Replication")) Info(sb, "Replication");
-            if (IsMatch("Cluster")) Info(sb, "Cluster");
-            if (IsMatch("Keyspace")) Info(sb, "Keyspace");
+            if (IsMatch("Server")) Info(sb, "Server", client);
+            if (IsMatch("Clients")) Info(sb, "Clients", client);
+            if (IsMatch("Memory")) Info(sb, "Memory", client);
+            if (IsMatch("Persistence")) Info(sb, "Persistence", client);
+            if (IsMatch("Stats")) Info(sb, "Stats", client);
+            if (IsMatch("Replication")) Info(sb, "Replication", client);
+            if (IsMatch("Cluster")) Info(sb, "Cluster", client);
+            if (IsMatch("Keyspace")) Info(sb, "Keyspace", client);
             return sb.ToString();
         }
 
@@ -1671,7 +1692,7 @@ namespace StackExchange.Redis.Server
 
         protected virtual string ServerModeKey => "redis_mode";
 
-        protected virtual void Info(StringBuilder sb, string section)
+        protected virtual void Info(StringBuilder sb, string section, RedisClient client = null)
         {
             StringBuilder AddHeader()
             {
@@ -1709,7 +1730,20 @@ namespace StackExchange.Redis.Server
                         .Append("total_commands_processed:").Append(TotalCommandsProcesed).AppendLine();
                     break;
                 case "Replication":
-                    AddHeader().AppendLine("role:master");
+                    // a node that replicates another has to say so consistently: CLUSTER NODES/SLOTS calling
+                    // it a replica while it introduces itself as a primary is a contradiction, and role is
+                    // one of the things autoconfigure reads back from the node itself
+                    if (GetPrimaryOf(client?.Node) is { } replicationPrimary)
+                    {
+                        AddHeader().AppendLine("role:slave")
+                            .Append("master_host:").Append(replicationPrimary.Host).AppendLine()
+                            .Append("master_port:").Append(replicationPrimary.Port).AppendLine()
+                            .AppendLine("master_link_status:up");
+                    }
+                    else
+                    {
+                        AddHeader().AppendLine("role:master");
+                    }
                     break;
                 case "Cluster":
                     AddHeader().Append("cluster_enabled:").Append(ServerType is ServerType.Cluster ? 1 : 0).AppendLine();
@@ -1774,6 +1808,18 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Role(RedisClient client, in RedisRequest request)
         {
+            if (GetPrimaryOf(client?.Node) is { } primary)
+            {
+                // <role> <master-host> <master-port> <link-state> <offset>
+                var replica = TypedRedisValue.Rent(5, out var replicaSpan, RespPrefix.Array);
+                replicaSpan[0] = TypedRedisValue.BulkString("slave");
+                replicaSpan[1] = TypedRedisValue.BulkString(primary.Host);
+                replicaSpan[2] = TypedRedisValue.Integer(primary.Port);
+                replicaSpan[3] = TypedRedisValue.BulkString("connected");
+                replicaSpan[4] = TypedRedisValue.Integer(0);
+                return replica;
+            }
+
             var arr = TypedRedisValue.Rent(3, out var span, RespPrefix.Array);
             span[0] = TypedRedisValue.BulkString("master");
             span[1] = TypedRedisValue.Integer(0);
