@@ -67,6 +67,35 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Nothing should extend a naked `RespContext` - HALF DONE 2026-09-17.** Marc: *"the .Lists etc
+      extension properties (and fallback methods) should be against the semantic-carrying structs... it
+      may even be that we don't even need the naked struct"*. A context on its own is routing and
+      configuration; it cannot say whether `Strings` or `Keyspace` is a sensible thing to offer, so it
+      should not be offering either.
+
+      **Done so far:** `RespDatabaseContext` (was the `RespDatabase` class) and `RespServerContext` are
+      now `readonly struct`s that wrap a context and add exactly one thing - which kind it is - the same
+      shape the groups themselves use. `conn.GetDatabaseContext()` / `GetServerContext()` return them.
+
+      **The accessors had to go generic first, and the reason is measurable.** They bound to the
+      interface, and a struct receiver passed to an interface parameter **boxes**: measured at 24 bytes
+      per `db.Strings`, 24,000 bytes per 1000 calls. `extension<TTarget>(TTarget target) where TTarget :
+      IRespKeyspaceTarget` is a constrained call instead - **0 bytes** - and still binds from an
+      interface-typed variable, so nothing that worked stopped working. The same change applies to the
+      down-level method shims. `RespDownlevelShimTests` had to learn about it: it matched accessors by
+      parameter type, which a generic parameter is not, so it found nothing and failed loudly rather than
+      passing vacuously - which is what its `Assert.NotEmpty` was put there for.
+
+      **Still to do:** delete the `extension(in RespContext)` accessors and their down-level twins, and
+      move the ~361 live `ctx.Strings.…` call sites onto a typed context. Most of those are tests that
+      take a context from a per-file helper, so changing the helper's return type moves the call sites
+      with it; the ones that break are where the same local is used for both `ctx.Strings` and
+      `ctx.SendAsync`, which now needs `.Context`.
+
+      **Then the open question Marc raised:** whether `RespContext` needs to be public at all, if both
+      typed contexts expose the executor in a common way for `Execute`-style patterns. It is 108 public
+      API lines and is what `IRespTarget.Context` returns, so that is a separate decision.
+
 - [ ] **`StackExchange.Redis.Build.Tests` is red, and CI does not run it. Found 2026-09-17**, while
       retiring `SER010`; **pre-existing**, confirmed by stashing the change and re-running - 18 of 174
       fail on `HEAD` too. The analyzer samples call `ctx.Execute("SET", $"...")`, and `RespContext` has no

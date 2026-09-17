@@ -29,82 +29,82 @@ namespace StackExchange.Redis.Downlevel
     /// </remarks>
     public static class RespGroups
     {
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Arrays"/>
-        public static RespArrays Arrays(this IRespKeyspaceTarget target) => new RespArrays(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Arrays"/>
+        public static RespArrays Arrays<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespArrays(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Arrays"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Arrays"/>
         public static RespArrays Arrays(this in RespContext context) => new RespArrays(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Bitmaps"/>
-        public static RespBitmaps Bitmaps(this IRespKeyspaceTarget target) => new RespBitmaps(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Bitmaps"/>
+        public static RespBitmaps Bitmaps<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespBitmaps(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Bitmaps"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Bitmaps"/>
         public static RespBitmaps Bitmaps(this in RespContext context) => new RespBitmaps(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Geospatial"/>
-        public static RespGeospatial Geospatial(this IRespKeyspaceTarget target) => new RespGeospatial(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Geospatial"/>
+        public static RespGeospatial Geospatial<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespGeospatial(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Geospatial"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Geospatial"/>
         public static RespGeospatial Geospatial(this in RespContext context) => new RespGeospatial(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Hashes"/>
-        public static RespHashes Hashes(this IRespKeyspaceTarget target) => new RespHashes(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Hashes"/>
+        public static RespHashes Hashes<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespHashes(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Hashes"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Hashes"/>
         public static RespHashes Hashes(this in RespContext context) => new RespHashes(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).HyperLogLog"/>
-        public static RespHyperLogLog HyperLogLog(this IRespKeyspaceTarget target) => new RespHyperLogLog(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).HyperLogLog"/>
+        public static RespHyperLogLog HyperLogLog<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespHyperLogLog(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).HyperLogLog"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).HyperLogLog"/>
         public static RespHyperLogLog HyperLogLog(this in RespContext context) => new RespHyperLogLog(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Keys"/>
-        public static RespKeys Keys(this IRespKeyspaceTarget target) => new RespKeys(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Keys"/>
+        public static RespKeys Keys<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespKeys(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Keys"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Keys"/>
         public static RespKeys Keys(this in RespContext context) => new RespKeys(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Lists"/>
-        public static RespLists Lists(this IRespKeyspaceTarget target) => new RespLists(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Lists"/>
+        public static RespLists Lists<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespLists(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Lists"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Lists"/>
         public static RespLists Lists(this in RespContext context) => new RespLists(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Scripts"/>
-        public static RespScripts Scripts(this IRespKeyspaceTarget target) => new RespScripts(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Scripts"/>
+        public static RespScripts Scripts<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespScripts(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Scripts"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Scripts"/>
         public static RespScripts Scripts(this in RespContext context) => new RespScripts(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Sets"/>
-        public static RespSets Sets(this IRespKeyspaceTarget target) => new RespSets(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Sets"/>
+        public static RespSets Sets<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespSets(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Sets"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Sets"/>
         public static RespSets Sets(this in RespContext context) => new RespSets(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).SortedSets"/>
-        public static RespSortedSets SortedSets(this IRespKeyspaceTarget target) => new RespSortedSets(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).SortedSets"/>
+        public static RespSortedSets SortedSets<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespSortedSets(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).SortedSets"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).SortedSets"/>
         public static RespSortedSets SortedSets(this in RespContext context) => new RespSortedSets(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Streams"/>
-        public static RespStreams Streams(this IRespKeyspaceTarget target) => new RespStreams(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Streams"/>
+        public static RespStreams Streams<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespStreams(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Streams"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Streams"/>
         public static RespStreams Streams(this in RespContext context) => new RespStreams(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Strings"/>
-        public static RespStrings Strings(this IRespKeyspaceTarget target) => new RespStrings(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Strings"/>
+        public static RespStrings Strings<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespStrings(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Strings"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Strings"/>
         public static RespStrings Strings(this in RespContext context) => new RespStrings(context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).VectorSets"/>
-        public static RespVectorSets VectorSets(this IRespKeyspaceTarget target) => new RespVectorSets(target.Context);
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).VectorSets"/>
+        public static RespVectorSets VectorSets<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespVectorSets(target.Context);
 
-        /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).VectorSets"/>
+        /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).VectorSets"/>
         public static RespVectorSets VectorSets(this in RespContext context) => new RespVectorSets(context);
     }
 }

@@ -71,7 +71,7 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         await db.KeyDeleteAsync("p:" + key);
         await db.StringSetAsync("p:" + key, "hello world");
 
-        var prefixed = new RespDatabase(db.Context.AppendKeyPrefix("p:"));
+        var prefixed = new RespDatabaseContext(db.Context.AppendKeyPrefix("p:"));
         Assert.Equal("hello", await prefixed.Contoso().SubstringAsync(key, 0, 4));
     }
 
@@ -96,7 +96,7 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         // module command, so it assumes the worst - the command is not replayed after a reconnect, and
         // not cached. That is a safe default, not a free one; saying the category is opting IN.
         var executor = new FlagRecordingExecutor("$5\r\nhello\r\n");
-        var db = new RespDatabase(new RespContext().WithExecutor(executor));
+        var db = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         await db.Contoso().SubstringAsync("k", 0, 4);
         Assert.Equal(CommandFlags.CommandRetryNever, executor.Flags[0] & Message.MaskRetryCategory);

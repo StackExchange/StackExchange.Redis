@@ -63,7 +63,7 @@ public readonly struct RespGeospatial
 
 public static partial class RespDatabaseExtensions
 {
-    extension(IRespKeyspaceTarget target)
+    extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The geospatial commands.</summary>
         public RespGeospatial Geospatial => new(target.Context);

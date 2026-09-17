@@ -41,7 +41,7 @@ public abstract class TransitionalSurfaceFixture
         // RedisDatabase.Context is already wired to a live executor (RespMessageExecutor), so the new
         // surface reaches the same connection, the same backlog and the same multiplexing as the old one;
         // the only thing that differs is how the bytes were produced and how the reply was read
-        return new TransitionalDatabase(new RespDatabase(inner.Context), conn, asyncState, inner);
+        return new TransitionalDatabase(new RespDatabaseContext(inner.Context), conn, asyncState, inner);
     }
 }
 

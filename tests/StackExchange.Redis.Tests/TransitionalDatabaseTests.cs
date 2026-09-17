@@ -38,7 +38,7 @@ public class TransitionalDatabaseTests
     // the multiplexer is only reached to apply a timeout when a send does NOT complete synchronously;
     // the fake always does, so passing null here also pins that the fast path really is the fast path
     private static IDatabase Target(FakeExecutor executor)
-        => new TransitionalDatabase(new RespDatabase(new RespContext().WithExecutor(executor)), null!, null);
+        => new TransitionalDatabase(new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
     [Fact]
     public void AMovedCommandReachesTheContextSurface()
@@ -140,7 +140,7 @@ public class TransitionalDatabaseTests
         // IDatabase.Context already goes new <- legacy; this is the other direction, so neither surface is
         // a one-way door. Note the concrete type stays internal - the contract is IDatabase.
         var executor = new FakeExecutor("$4\r\nmarc\r\n");
-        var surface = new RespDatabase(new RespContext().WithExecutor(executor));
+        var surface = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         IDatabase legacy = surface.AsDatabase(Substitute.For<IConnectionMultiplexer>());
 

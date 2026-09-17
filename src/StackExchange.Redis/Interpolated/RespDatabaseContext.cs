@@ -5,15 +5,16 @@ using RESPite;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A minimal <see cref="IRespTarget"/>: a context, and nothing else.
+    /// A context that knows it is for a <b>keyspace</b>: the entry point to the database command groups.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is what the context surface looks like without a live connection behind it - enough to exercise
-    /// <c>target.Strings.SetAsync(...)</c> end to end, and to show that the whole public surface really is one
-    /// member plus extension members. The connection-backed types (<c>RedisDatabase</c> and friends) throw
-    /// from <see cref="IRespTarget.Context"/> for now: routing a rendered frame through the existing
-    /// message pipeline is separate work, and there is no reason to hold this up behind it.
+    /// <b>A struct that wraps a context and adds semantics</b>, exactly as <see cref="RespStrings"/> and the
+    /// other groups do - the difference being that this one says <i>which kind</i> of context it is. A naked
+    /// <see cref="RespContext"/> carries no such claim, which is why nothing extends one: it cannot say
+    /// whether the groups hanging off it make sense. This can, and its server twin
+    /// <see cref="RespServerContext"/> says the opposite thing, so <c>server.Strings</c> and
+    /// <c>db.Keyspace</c> fail to compile rather than being offered and then failing.
     /// </para>
     /// <para>
     /// Note what is <i>not</i> here: no command methods. <c>Set</c>, <c>Get</c> and everything after them
@@ -21,11 +22,11 @@ namespace StackExchange.Redis
     /// the entire argument of design notes section 9.4, made concrete.
     /// </para>
     /// </remarks>
-    public sealed class RespDatabase : IRespKeyspaceTarget
+    public readonly struct RespDatabaseContext : IRespKeyspaceTarget
     {
         /// <summary>Create a database over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
-        public RespDatabase(in RespContext context) => Context = context;
+        public RespDatabaseContext(in RespContext context) => Context = context;
 
         /// <inheritdoc/>
         public RespContext Context { get; }
@@ -37,11 +38,11 @@ namespace StackExchange.Redis
         /// One context clone, with no per-method forwarding - the whole write half of
         /// <c>KeyPrefixedDatabase</c>.
         /// </remarks>
-        public RespDatabase AppendKeyPrefix(RedisKey prefix) => new(Context.AppendKeyPrefix(prefix));
+        public RespDatabaseContext AppendKeyPrefix(RedisKey prefix) => new(Context.AppendKeyPrefix(prefix));
 
         /// <summary>A database bound to a different database index.</summary>
         /// <param name="database">The database index.</param>
-        public RespDatabase WithDatabase(int database) => new(Context.WithDatabase(database));
+        public RespDatabaseContext WithDatabase(int database) => new(Context.WithDatabase(database));
 
         /// <summary>
         /// This database as an <see cref="IDatabase"/>, for handing to code written against the existing

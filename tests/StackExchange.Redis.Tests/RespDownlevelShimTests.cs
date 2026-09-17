@@ -35,11 +35,31 @@ public class RespDownlevelShimTests
     /// </remarks>
     private static readonly Type[] AccessorHosts = [typeof(RespSurface), typeof(RespDatabaseExtensions)];
 
+    /// <summary>
+    /// Does this single-parameter method take <paramref name="receiver"/>, directly or as a constraint?
+    /// </summary>
+    /// <remarks>
+    /// The accessors are <b>generic over the target</b> - <c>extension&lt;TTarget&gt;(TTarget target) where
+    /// TTarget : IRespKeyspaceTarget</c> - so that a struct context reaches its groups through a
+    /// constrained call rather than being boxed on every <c>db.Strings</c>. That makes the parameter type a
+    /// generic parameter rather than the interface, so matching on the parameter type alone silently finds
+    /// nothing; the constraint is where the receiver is now named.
+    /// </remarks>
+    private static bool Takes(MethodInfo method, Type receiver)
+    {
+        if (method.GetParameters() is not { Length: 1 } ps) return false;
+        var type = ps[0].ParameterType;
+        if (type.Name == receiver.Name) return true;
+
+        return type.IsGenericParameter
+            && Array.Exists(type.GetGenericParameterConstraints(), c => c.Name == receiver.Name);
+    }
+
     private static string[] AccessorNames(Type receiver) =>
         AccessorHosts
             .SelectMany(host => host.GetMethods(BindingFlags.Public | BindingFlags.Static))
             .Where(m => m.Name.StartsWith("get_", StringComparison.Ordinal))
-            .Where(m => m.GetParameters() is { Length: 1 } ps && ps[0].ParameterType.Name == receiver.Name)
+            .Where(m => Takes(m, receiver))
             .Select(m => m.Name.Substring(4))
             .Distinct()
             .OrderBy(x => x, StringComparer.Ordinal)
@@ -48,7 +68,7 @@ public class RespDownlevelShimTests
     private static string[] ShimNames(Type receiver) =>
         typeof(RespGroups)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.GetParameters() is { Length: 1 } ps && ps[0].ParameterType.Name == receiver.Name)
+            .Where(m => Takes(m, receiver))
             .Select(m => m.Name)
             .Distinct()
             .OrderBy(x => x, StringComparer.Ordinal)

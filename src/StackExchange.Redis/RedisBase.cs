@@ -9,12 +9,12 @@ namespace StackExchange.Redis
         /// <summary>The context commands are composed and sent through.</summary>
         /// <remarks>
         /// Not yet implemented for connection-backed types. The context surface is being brought up
-        /// against a minimal implementation first (<c>RespDatabase</c>); wiring it to a live multiplexer
+        /// against a minimal implementation first (<c>RespDatabaseContext</c>); wiring it to a live multiplexer
         /// means routing a rendered frame through the existing message pipeline, which is separate work.
         /// </remarks>
         public RespContext Context
             => throw new NotImplementedException(
-                "The context surface is not yet wired to a live connection; see RespDatabase.");
+                "The context surface is not yet wired to a live connection; see RespDatabaseContext.");
 
         /// <summary>Lets the context surface ask what the receiving server can do.</summary>
         /// <remarks>

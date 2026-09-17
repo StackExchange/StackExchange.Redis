@@ -38,7 +38,7 @@ public class RespSurfaceTests
             => new(Send(request));
     }
 
-    private static RespDatabase Target(FakeExecutor executor, RespClientCache? cache = null)
+    private static RespDatabaseContext Target(FakeExecutor executor, RespClientCache? cache = null)
         => new(new RespContext().WithExecutor(executor).WithCache(cache));
 
     [Fact]
@@ -368,15 +368,15 @@ public class RespSurfaceTests
     public void ConnectionBackedTypesThrowForNow()
     {
         // IRedis carries the member, so IDatabase/IServer/ISubscriber all have it - but wiring it to a live
-        // multiplexer is separate work, so those throw while RespDatabase is what actually runs
-        IRespTarget target = (IRespTarget)(object)new RespDatabase(new RespContext());
+        // multiplexer is separate work, so those throw while RespDatabaseContext is what actually runs
+        IRespTarget target = (IRespTarget)(object)new RespDatabaseContext(new RespContext());
         Assert.Equal(0, target.Context.Database); // the minimal one works
     }
 
     [Fact]
     public void MissingExecutorFailsLoudlyRatherThanSilently()
     {
-        var target = new RespDatabase(new RespContext());
+        var target = new RespDatabaseContext(new RespContext());
         Assert.Throws<InvalidOperationException>(() => target.Strings.GetAsync("mykey"));
     }
 }

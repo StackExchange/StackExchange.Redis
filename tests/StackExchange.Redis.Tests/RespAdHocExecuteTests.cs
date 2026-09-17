@@ -83,7 +83,7 @@ public class RespAdHocExecuteTests
     {
         // one extension on IRespTarget, and every database gets it without being touched
         var executor = new FakeExecutor("$3\r\nabc\r\n");
-        IRespTarget target = new RespDatabase(Context(executor));
+        IRespTarget target = new RespDatabaseContext(Context(executor));
 
         using var result = await target.ExecuteAsync("SOME.COMMAND", new[] { RedisKeyOrValue.FromValue("x") });
 
@@ -116,7 +116,7 @@ public class RespAdHocExecuteTests
         // ExecuteResp's signature and the context method agree exactly, RedisKeyOrValue included - so the
         // adapter is a pass-through, and an IDatabase caller gets the key-marking behaviour for free
         var executor = new FakeExecutor("$3\r\nabc\r\n");
-        IDatabase db = new RespDatabase(Context(executor)).AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+        IDatabase db = new RespDatabaseContext(Context(executor)).AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
 
         using var result = await db.ExecuteRespAsync("MODULE.GET", new[] { RedisKeyOrValue.FromKey("k") });
 

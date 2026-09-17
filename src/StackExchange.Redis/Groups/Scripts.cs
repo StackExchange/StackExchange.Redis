@@ -74,7 +74,7 @@ public readonly struct RespScripts
 
 public static partial class RespDatabaseExtensions
 {
-    extension(IRespKeyspaceTarget target)
+    extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The scripting commands.</summary>
         public RespScripts Scripts => new(target.Context);

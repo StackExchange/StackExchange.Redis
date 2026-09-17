@@ -1,3 +1,4 @@
+﻿using NSubstitute;
 ﻿using System;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,13 +18,13 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    private static RespDatabase NewSurface(IConnectionMultiplexer conn, int db, RespClientCache? cache = null)
+    private static RespDatabaseContext NewSurface(IConnectionMultiplexer conn, int db, RespClientCache? cache = null)
     {
         var database = (RedisBase)conn.GetDatabase(db);
         var context = new RespContext(database.multiplexer.CommandMap, database: db)
             .WithExecutor(new RespMessageExecutor(database, db))
             .WithCache(cache);
-        return new RespDatabase(context);
+        return new RespDatabaseContext(context);
     }
 
     [Fact]
@@ -559,5 +560,58 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         // no sentinel: a server context has no database of its own, so there is nothing for -1 to mean
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await server.Keyspace.CountAsync(-1));
+    }
+
+    [Fact]
+    public async Task GetDatabaseContextIsTheSameContextTheDatabaseCarries()
+    {
+        await using var conn = Create();
+        var key = Me();
+        await conn.GetDatabase().KeyDeleteAsync(key);
+
+        // the front door, and the route it replaces - same connection, same database, same answer
+        var ctx = conn.GetDatabaseContext();
+        await ctx.Strings.SetAsync(key, "via-context");
+        Assert.Equal("via-context", await conn.GetDatabase().Strings.GetAsync(key));
+
+        // and it honours the database argument rather than quietly using the default
+        var other = TestConfig.GetDedicatedDB();
+        Skip.IfMissingDatabase(conn, other);
+        Assert.Equal(other, conn.GetDatabaseContext(other).Context.Database);
+        Assert.Equal(conn.GetDatabase(other).Context.Database, conn.GetDatabaseContext(other).Context.Database);
+    }
+
+    [Fact]
+    public async Task GetServerContextPinsToThatServer()
+    {
+        await using var conn = Create(allowAdmin: true);
+        var endpoint = conn.GetEndPoints()[0];
+
+        var viaServer = conn.GetServer(endpoint).Context;
+        var viaExtension = conn.GetServerContext(endpoint);
+
+        // a server context carries no database of its own; both spellings agree on that
+        Assert.Equal(viaServer.Database, viaExtension.Context.Database);
+
+        // and the typed context reaches the server groups, which is the whole point of it being typed:
+        // the accessor is constrained to IRespServerTarget, so a bare RespContext would not compile here
+        var db = TestConfig.GetDedicatedDB();
+        Skip.IfMissingDatabase(conn, db);
+        await conn.GetServer(endpoint).FlushDatabaseAsync(db);
+        Assert.Equal(0, await viaExtension.Keyspace.CountAsync(db));
+    }
+
+    [Fact]
+    public void GetDatabaseContextWorksOnAnyImplementation()
+    {
+        // the reason these are extension methods rather than members of IConnectionMultiplexer: that
+        // interface is implemented everywhere - doubles, wrappers, decorators - and adding to it breaks
+        // all of them. A substitute has to work, or the argument was wrong.
+        var surface = new RespDatabaseContext(new RespContext());
+        var fake = Substitute.For<IConnectionMultiplexer>();
+        fake.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(surface.AsDatabase(fake));
+
+        Assert.Equal(surface.Context.Database, fake.GetDatabaseContext().Context.Database);
+        Assert.Throws<ArgumentNullException>(() => ((IConnectionMultiplexer)null!).GetDatabaseContext());
     }
 }

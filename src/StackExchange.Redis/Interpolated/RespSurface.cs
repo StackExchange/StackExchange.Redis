@@ -1112,7 +1112,7 @@ namespace StackExchange.Redis
         /// <param name="args">The arguments, each already known to be a key or a value.</param>
         /// <param name="flags">The command's flags.</param>
         /// <remarks>
-        /// One extension method, and <c>RespDatabase</c>, <c>IDatabase</c> and anything else implementing
+        /// One extension method, and <c>RespDatabaseContext</c>, <c>IDatabase</c> and anything else implementing
         /// <see cref="IRespTarget"/> all gain it without being touched - which is section 9.4's argument
         /// working rather than being asserted. See <see cref="RespContext.ExecuteAsync"/> for why the
         /// argument type matters.

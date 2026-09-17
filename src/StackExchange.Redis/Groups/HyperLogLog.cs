@@ -57,7 +57,7 @@ public readonly struct RespHyperLogLog
 
 public static partial class RespDatabaseExtensions
 {
-    extension(IRespKeyspaceTarget target)
+    extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The HyperLogLog commands.</summary>
         public RespHyperLogLog HyperLogLog => new(target.Context);

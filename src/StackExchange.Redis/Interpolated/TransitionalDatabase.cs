@@ -31,10 +31,10 @@ namespace StackExchange.Redis
     /// </para>
     /// </remarks>
     [AutoDatabase(WarnIfIncomplete = true)]
-    internal sealed partial class TransitionalDatabase(RespDatabase inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
+    internal sealed partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
         : IDatabase
     {
-        private readonly RespDatabase _inner = inner;
+        private readonly RespDatabaseContext _inner = inner;
 
         /// <summary>
         /// An old-surface database to forward not-yet-moved commands to, or <see langword="null"/> to throw.

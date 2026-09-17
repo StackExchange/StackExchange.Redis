@@ -70,7 +70,7 @@ public readonly struct RespArrays
 
 public static partial class RespDatabaseExtensions
 {
-    extension(IRespKeyspaceTarget target)
+    extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The array commands.</summary>
         public RespArrays Arrays => new(target.Context);
