@@ -340,3 +340,58 @@ and the script text. This is the reflection payload from §1.
 
 **Licensing:** contrib is Apache-2.0 (SPDX headers on every file); this repo is MIT. Code owner is
 @matt-hensley.
+
+## 9. Npgsql's public surface, in full
+
+Since Npgsql is the model (§7), it is worth being exact about what "native telemetry" cost them in
+public API. Read off `npgsql/main`; they use the same `PublicApiAnalyzers` we do, so this is their
+own `PublicAPI.Shipped.txt`, not a reading of the source.
+
+**In the core `Npgsql` package** — 14 API lines, all of them knobs:
+
+```text
+Npgsql.NpgsqlTracingOptionsBuilder
+Npgsql.NpgsqlTracingOptionsBuilder.ConfigureCommandFilter(System.Func<Npgsql.NpgsqlCommand!, bool>? commandFilter) -> Npgsql.NpgsqlTracingOptionsBuilder!
+Npgsql.NpgsqlTracingOptionsBuilder.ConfigureCommandEnrichmentCallback(System.Action<System.Diagnostics.Activity!, Npgsql.NpgsqlCommand!>? commandEnrichmentCallback) -> Npgsql.NpgsqlTracingOptionsBuilder!
+Npgsql.NpgsqlTracingOptionsBuilder.ConfigureCommandSpanNameProvider(System.Func<Npgsql.NpgsqlCommand!, string?>? commandSpanNameProvider) -> Npgsql.NpgsqlTracingOptionsBuilder!
+   ... the same three again for Batch, and again for CopyOperation ...
+Npgsql.NpgsqlTracingOptionsBuilder.EnableFirstResponseEvent(bool enable = true) -> Npgsql.NpgsqlTracingOptionsBuilder!
+Npgsql.NpgsqlTracingOptionsBuilder.EnablePhysicalOpenTracing(bool enable = true) -> Npgsql.NpgsqlTracingOptionsBuilder!
+Npgsql.NpgsqlDataSourceBuilder.ConfigureTracing(System.Action<Npgsql.NpgsqlTracingOptionsBuilder!>! configureAction) -> Npgsql.NpgsqlDataSourceBuilder!
+Npgsql.NpgsqlSlimDataSourceBuilder.ConfigureTracing(...) -> Npgsql.NpgsqlSlimDataSourceBuilder!
+Npgsql.NpgsqlMetricsOptions
+Npgsql.NpgsqlMetricsOptions.NpgsqlMetricsOptions() -> void
+```
+
+What is *not* there: `NpgsqlActivitySource` is **internal**. No public source-name constant, no
+public meter-name constant, no public telemetry types beyond the options. `NpgsqlMetricsOptions` is
+a bare class with a default constructor — a placeholder so the metrics extension has something to
+take.
+
+**All the instrumentation lives in the core assembly.** There is no IVT-ed sink library.
+
+**The `Npgsql.OpenTelemetry` package is four lines of code**, in two files:
+
+```csharp
+public static TracerProviderBuilder AddNpgsql(this TracerProviderBuilder builder)
+    => builder.AddSource("Npgsql");
+
+public static MeterProviderBuilder AddNpgsqlInstrumentation(
+    this MeterProviderBuilder builder, Action<NpgsqlMetricsOptions>? options = null)
+    => builder.AddMeter("Npgsql");
+```
+
+That is the entire package. Note the `options` parameter on the metrics one is accepted and
+ignored. The package exists for exactly one reason: those two extension methods need types from
+`OpenTelemetry`, and the core driver must not depend on `OpenTelemetry`.
+
+Two further observations worth carrying into our own design:
+
+- **They shipped `Filter` and `Enrich` in-box after all** — filters, enrichment callbacks *and*
+  span-name providers, for each of commands, batches and copy operations. That is direct
+  counter-evidence to the position that `ActivityListener.Sample` makes in-box filtering
+  unnecessary. Someone who has run this in production for years concluded otherwise.
+- **`EnablePhysicalOpenTracing` and `EnableFirstResponseEvent` are opt-in, defaulting off** —
+  connection-establishment spans and extra timing events are not free enough to be on by default.
+  Contrib, by contrast, has its timing events **on** by default, which is a compatibility
+  constraint for us (§8) and not an endorsement.

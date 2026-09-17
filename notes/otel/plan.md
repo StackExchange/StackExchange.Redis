@@ -136,6 +136,107 @@ genuinely worth having is (a) the exact attribute/event/default inventory, which
 is captured in findings §8, and (b) their **test suite**, which is the compatibility oracle and is
 the part where the licensing question actually bites. Ask about the tests explicitly.
 
+## Public API impact
+
+Modelled on Npgsql, whose full telemetry surface is inventoried in findings §9: 14 API lines in the
+core package, all knobs, with the `ActivitySource` itself kept internal and no public name
+constants. Ours is smaller, because `ConfigurationOptions` + `DefaultOptionsProvider` is a cheaper
+place to hang a setting than a data-source builder.
+
+In `PublicAPI.Unshipped.txt` terms, phase by phase:
+
+**Phase 1 — statement text** (2 lines)
+
+```text
+StackExchange.Redis.Profiling.ProfilingExtensions
+static StackExchange.Redis.Profiling.ProfilingExtensions.GetStatement(this StackExchange.Redis.Profiling.IProfiledCommand! command) -> string?
+```
+
+**Phase 2 — metrics** (0 lines)
+
+Nothing. The meter name is a documented string; there is no knob worth having on day one. If we
+ever need one, Npgsql's placeholder `NpgsqlMetricsOptions` is the shape — and the fact that theirs
+is still an empty class with a default constructor suggests waiting.
+
+**Phase 3 — traces** (3 lines)
+
+```text
+StackExchange.Redis.ConfigurationOptions.EmitQueryText.get -> bool
+StackExchange.Redis.ConfigurationOptions.EmitQueryText.set -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.EmitQueryText.get -> bool
+```
+
+The connection-string keyword is free: `OptionKeys` is a `private static class` inside
+`ConfigurationOptions`, so parsing support adds no public API.
+
+**Deliberately not mirrored onto `IConnectionMultiplexer`.** `IncludeDetailInExceptions` is the
+cautionary example — it costs six API lines because it appears on `ConfigurationOptions`,
+`ConnectionMultiplexer` *and* `IConnectionMultiplexer`, and that last one means the property can
+never be added to without breaking implementers. Telemetry settings are read from `RawConfig` on
+the command path; nothing needs them on the multiplexer interface.
+
+**Phase 4 — connection tracing** (3 lines, same shape)
+
+```text
+StackExchange.Redis.ConfigurationOptions.EmitConnectionTracing.get -> bool
+StackExchange.Redis.ConfigurationOptions.EmitConnectionTracing.set -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.EmitConnectionTracing.get -> bool
+```
+
+Opt-in and defaulting off, following Npgsql's `EnablePhysicalOpenTracing`.
+
+**Running total: eight lines**, no new public types beyond one static extension class, no new
+interfaces, no change to any existing interface. That is the whole cost of the in-box option and it
+is worth weighing against the alternative below.
+
+**Not in the total, because it is a separate decision:** `Filter` / `Enrich` / span-name-provider
+equivalents. Npgsql shipped all three, for commands, batches *and* copy operations — nine methods
+plus a builder type, i.e. the bulk of their surface — which is real counter-evidence to the
+"`ActivityListener.Sample` is enough" position (open question 4). If we follow them, the surface
+roughly triples.
+
+There is a genuine design problem underneath it, which is why it is not sketched here: *what do we
+hand the callback?* Npgsql passes the live `NpgsqlCommand`. Our equivalent would be
+`IProfiledCommand` — but the whole point of the deferred-creation design is that we do **not**
+build a `ProfiledCommand` unless someone registered a profiler. Handing one to a filter means
+allocating the thing we were avoiding. Likely answers are a `readonly ref struct` view over the
+`Message`, or accepting the allocation only when a callback is configured. Needs deciding before
+any of this is sketched as API.
+
+## One assembly, or hooks plus an IVT sink?
+
+Recommendation: **one assembly.** Not strongly held on the packaging, but the technical argument is
+fairly one-sided.
+
+1. **The hook sites have to be in core either way.** The data is produced on the reader thread
+   inside `Message.Complete`, and the parent context is captured on the caller thread in
+   `ConnectionMultiplexer`. A second assembly cannot reach those. It can only be *called* — which
+   means an indirection in core (a per-command virtual dispatch, plus a registration mechanism that
+   is itself near-public API) — or it can *poll*, which is exactly the `ProfilingSession` design we
+   are trying to delete.
+2. **`ActivitySource` and `Meter` already are the indirection.** That is the entire point of them
+   living in the BCL. A second assembly binding over internals would be re-implementing
+   `ActivityListener`, worse and privately.
+3. **Cross-package IVT is lockstep with a runtime failure mode.** `StackExchange.Redis` 3.5 plus
+   `StackExchange.Redis.Telemetry` 3.2 is a perfectly resolvable NuGet graph that throws
+   `MissingMethodException` on first use. That is the same failure class as the reflection this
+   whole exercise is meant to retire — moved behind a compiler check, but not removed.
+4. **The reference is free where it matters.** `System.Diagnostics.DiagnosticSource` is in-box on
+   `net8.0` and `net10.0`; only `net472` and `netstandard2.0` gain an actual package reference, and
+   `net461` gains nothing because it compiles out.
+5. **Npgsql — the model — put everything in core.** Their separate package holds only the two
+   OpenTelemetry-typed extension methods, because *those* need `OpenTelemetry` types and the driver
+   must not. It contains no instrumentation: four lines total.
+
+The honest case for the split is narrow: it buys a `netstandard2.0`/`net472` build with no new
+package reference, and independent versioning of the telemetry. If we decide that reference is
+unacceptable, the split is what buys it — and nothing else.
+
+And on the OpenTelemetry-typed wrapper specifically: Npgsql needed a second package because nobody
+else was going to write `AddNpgsql()` for them. **We do not have that problem** — contrib already
+owns `AddRedisInstrumentation`, already has a maintainer, and would be reduced to precisely those
+four lines. That is the conversation to have with them.
+
 ## Target frameworks
 
 `System.Diagnostics.DiagnosticSource` reaches all of our targets except `net461` — the package
@@ -289,10 +390,14 @@ Worth putting to @martincostello directly, since he offered to collaborate:
 3. **Can we have the tests?** Their test suite is the compatibility oracle, and it is Apache-2.0
    going into an MIT repo. Explicit blessing, an agreed attribution form, or a clean-room rewrite
    from the behaviour inventory — but decided up front, not discovered in review.
-4. **`Filter` and `Enrich` equivalents.** Do we need them in-box, or is per-command filtering
-   better done by the listener? Nick's 2022 objection was specifically that *deciding not to
-   profile* costs something per command; with `ActivityListener.Sample` that decision moves to the
-   collector, which is where it belongs.
+4. **`Filter` and `Enrich` equivalents.** My instinct was that `ActivityListener.Sample` makes
+   in-box filtering unnecessary — Nick's 2022 objection was precisely that *deciding not to
+   profile* costs something per command, and `Sample` moves that decision to the collector.
+   **Npgsql's experience says otherwise**: they ship filters, enrichment callbacks and span-name
+   providers for commands, batches and copy operations, and that is the bulk of their public
+   surface (findings §9). Contrib ships `Filter`/`Enrich` too. Two independent implementations
+   converging on the same thing is worth more than my instinct. If we adopt them we need to settle
+   what gets handed to the callback first — see "Public API impact".
 5. **Version/schema pinning.** Should the `ActivitySource` version track the package version, or a
    semconv schema version (contrib uses the latter via `ActivitySourceFactory.Create<T>(version)`)?
 6. **Does this need to wait for v4?** The IO core rewrite moves all five hook sites. Hooks placed
