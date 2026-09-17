@@ -76,8 +76,11 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
             var server = GetAnyPrimary(conn);
-            server.FlushDatabase(db1Id, CommandFlags.FireAndForget);
-            server.FlushDatabase(db2Id, CommandFlags.FireAndForget);
+
+            // awaited, not fire-and-forget: the writes below happen on a *different* connection, so nothing
+            // orders them against these flushes, and an unlucky run counts the leftovers too
+            await server.FlushDatabaseAsync(db1Id);
+            await server.FlushDatabaseAsync(db2Id);
         }
         await using (var conn = Create(defaultDatabase: db2Id))
         {
