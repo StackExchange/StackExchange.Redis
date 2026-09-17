@@ -57,9 +57,12 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
         server.Migrate((RedisKey)Key, otherPrimary);
         server.QuietPort = port + 1;
 
+        // no pub/sub: this is about whether discovery classifies and dials the node, and with subscriptions
+        // available the wait also depends on the *second* connection completing - which drags in a separate
+        // mechanism, and an intermittent stall on a replica's subscription leg that #3240 tracks
         var text = new StringWriter();
         var watch = Stopwatch.StartNew();
-        await using var conn = await server.ConnectAsync(defaultOnly: true, log: text);
+        await using var conn = await server.ConnectAsync(withPubSub: false, defaultOnly: true, log: text);
         watch.Stop();
 
         var connectLog = text.ToString();
