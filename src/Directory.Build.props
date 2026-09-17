@@ -13,7 +13,6 @@
          those are not part of the published surface and have no docs requirements. -->
     <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
     <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" Condition=" '$(DEVCONTAINER)' != 'true' " />
   </ItemGroup>
   <!-- shared NuGet package logo (assets/seredis.png at the repo root) -->

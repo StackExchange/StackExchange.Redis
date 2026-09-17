@@ -335,6 +335,18 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 116,
+        Message = "Registering {EndPoint} from the slot map")]
+    internal static partial void LogInformationRegisteringSlotMapNode(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 117,
+        Message = "Activating {EndPoint}: reached the connect wait with no connection open")]
+    internal static partial void LogInformationActivatingUndialledServer(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 115,
         Message = "Merging {EndPoint} into {Survivor}: the same node under two names")]
     internal static partial void LogInformationMergingDuplicateServer(this ILogger logger, EndPointLogValue endPoint, EndPointLogValue survivor);

@@ -41,15 +41,16 @@ public class UnroutableRedirectUnitTests(ITestOutputHelper log)
         var server = CreateServer(log, out var targetEndpoint);
         var conn = await server.ConnectAsync(defaultOnly: true);
 
-        var target = server.AddEmptyNode(targetEndpoint);
-
-        // the target must be unaddressable by *every* form, not merely un-named. Hostnames are preferred and
+        // The target must be unaddressable by *every* form, not merely un-named. Hostnames are preferred and
         // it announces none, so the endpoint field is "?" - but the complement rule would then put its address
-        // in the metadata, and a topology refresh landing between here and the command would discover it there
-        // and route straight to it, leaving no redirect to test. Marking the address unknown as well removes
-        // that race by construction rather than relying on the refresh not happening: under RESP2 the
-        // subscription connection completing can trigger one, which is why this only ever failed on RESP2
-        server.SetAnnouncedAddress(target, AnnouncedAddress.Empty);
+        // in the metadata, and a topology refresh discovering it there would route straight to it, leaving no
+        // redirect to test. Under RESP2 the subscription connection completing can trigger such a refresh,
+        // which is why this only ever failed there.
+        //
+        // Announced at construction rather than set afterwards: setting it on the next line leaves the node
+        // visible, briefly, still announcing an address - a window a refresh landing at the wrong moment can
+        // see. That was the remaining flake.
+        var target = server.AddEmptyNode(targetEndpoint, AnnouncedAddress.Empty);
 
         server.Migrate((RedisKey)Key, target);
         return (conn, server);

@@ -103,7 +103,7 @@ namespace StackExchange.Redis
             unchecked(Environment.TickCount - Volatile.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
         /// <inheritdoc cref="ConfigurationOptions.IncludeDetailInExceptions"/>
-        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.2.", error: true)]
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludeDetailInExceptions
         {
@@ -112,7 +112,7 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc cref="ConfigurationOptions.IncludePerformanceCountersInExceptions"/>
-        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.2.", error: true)]
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludePerformanceCountersInExceptions
         {
@@ -1207,12 +1207,7 @@ namespace StackExchange.Redis
                 // spin up the connection if this is new
                 if (isNew && activate)
                 {
-                    server.Activate(ConnectionType.Interactive, log);
-                    if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                    {
-                        // Intentionally not logging the sub connection
-                        server.Activate(ConnectionType.Subscription, null);
-                    }
+                    ActivateServer(server, log);
                 }
             }
             return server;
@@ -1730,16 +1725,35 @@ namespace StackExchange.Redis
 
         private void ActivateAllServers(ILogger? log)
         {
-            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             foreach (var server in GetServerSnapshot())
             {
-                server.Activate(ConnectionType.Interactive, log);
-                // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                {
-                    // Intentionally not logging the sub connection
-                    server.Activate(ConnectionType.Subscription, null);
-                }
+                ActivateServer(server, log);
+            }
+        }
+
+        /// <summary>
+        /// Starts establishing the connections for a server, creating the bridges if they do not exist yet.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Idempotent: a server that is already active keeps the bridges it has, so this is safe to call on
+        /// anything we are about to depend on being connected.
+        /// </para>
+        /// <para>
+        /// Both legs, where the subscription connection is a separate one: under RESP2 the waiters registered
+        /// by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
+        /// up, so activating the interactive bridge alone leaves such a wait hanging.
+        /// </para>
+        /// </remarks>
+        internal static void ActivateServer(ServerEndPoint server, ILogger? log)
+        {
+            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
+            server.Activate(ConnectionType.Interactive, log);
+            // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            {
+                // Intentionally not logging the sub connection
+                server.Activate(ConnectionType.Subscription, null);
             }
         }
 
@@ -1854,6 +1868,26 @@ namespace StackExchange.Redis
                             var server = GetServerEndPoint(endpoints[i], ServerProvenance.ClusterTopology);
                             // server.ReportNextFailure();
                             servers[i] = server;
+
+                            // never wait on a server without making sure something is dialling it: GetServerEndPoint
+                            // only activates what it *creates*, so a server already held *inert* - addressable but
+                            // deliberately never dialled - arrives here with no bridge, and the wait below then has
+                            // nothing that can ever complete it. The whole connect burns its ConnectTimeout and then
+                            // reports the node as unresponsive, which is how #3232 presented.
+                            //
+                            // This is an invariant guard rather than the fix for that: the route that produced it -
+                            // discovery classing a slot-map node as serving nothing - is corrected at source in
+                            // GetEndpointsFromClusterNodes, and no test here fails without this line. Kept because
+                            // the cost is one idempotent call and the failure mode is a silent stall.
+                            //
+                            // ...which is also why it says when it fires. A guard that repairs the state in silence
+                            // hides any *new* route into it behind a connect that simply works; this way the log
+                            // names the endpoint, and the question "does anything still reach here?" has an answer
+                            if (server.GetBridge(ConnectionType.Interactive, create: false) is null)
+                            {
+                                log?.LogInformationActivatingUndialledServer(new(server.EndPoint));
+                            }
+                            ActivateServer(server, log);
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
                             // (which is the reconfigure case, except second iteration which is only for newly discovered cluster members).
@@ -2134,6 +2168,7 @@ namespace StackExchange.Redis
 
                 var topology = ClusterTopology.From(slots);
                 var clusterEndpoints = new EndPointCollection();
+                HashSet<EndPoint>? listedInSlots = null;
 
                 if (topology is not null)
                 {
@@ -2141,9 +2176,14 @@ namespace StackExchange.Redis
                     // connect to. Resolve through every identity first, so a node we already hold under
                     // another name is not duplicated
                     RegisterServerIdentities(topology);
+                    listedInSlots = new HashSet<EndPoint>();
                     foreach (var node in topology.Nodes)
                     {
                         if (SelectIdentity(node) is { } endpoint) clusterEndpoints.TryAdd(endpoint);
+
+                        // every name the node answers to, not just the one chosen above: NODES may well
+                        // report it under a different form than SLOTS did
+                        foreach (var identity in node.Identities) listedInSlots.Add(identity);
                     }
                 }
 
@@ -2159,7 +2199,21 @@ namespace StackExchange.Redis
                         // no usable SLOTS view (pre-4.0, or an error reply): behave exactly as before
                         clusterEndpoints.TryAdd(node.EndPoint);
                     }
-                    else if (TryResolveServerEndPoint(node.EndPoint) is null)
+                    else if (TryResolveServerEndPoint(node.EndPoint) is not null)
+                    {
+                        // already known: whatever it is, it is not ours to reclassify here
+                    }
+                    else if (listedInSlots!.Contains(node.EndPoint))
+                    {
+                        // SLOTS lists it, so it is in clusterEndpoints and we are about to connect to it and
+                        // wait for it. Only the *existence* of a server was ever checked here, which a node
+                        // in this state fails - a replica of a shard we have not reached yet is created by
+                        // its primary's genealogy pass, and that has not run. Registering it inert then left
+                        // it waited on but undialled, for the whole ConnectTimeout (#3232)
+                        log?.LogInformationRegisteringSlotMapNode(new(node.EndPoint));
+                        GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology, log);
+                    }
+                    else
                     {
                         log?.LogInformationRegisteringInertNode(new(node.EndPoint));
                         GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology, activate: false);

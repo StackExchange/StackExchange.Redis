@@ -34,7 +34,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// From 2.0, this flag is not used.
         /// </summary>
-        [Obsolete("From 2.0, this flag is not used, this will be removed in 3.2.", error: true)]
+        [Obsolete("From 2.0, this flag is not used, this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         HighPriority = 1,
 
@@ -51,14 +51,14 @@ namespace StackExchange.Redis
         /// This operation should be performed on the replica if it is available, but will be performed on
         /// a primary if no replicas are available. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.2.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         PreferSlave = 8,
 
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.2.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         DemandSlave = 12,
 

@@ -95,7 +95,7 @@ Expected servers (defaults in `tests/StackExchange.Redis.Tests/Helpers/TestConfi
 - `7000`-`7005` cluster nodes
 - `7010`/`7011` + `26379`-`26381` sentinel
 
-Tests skip as *inconclusive* when their required server is absent (e.g. cluster tests skip with "Unable to connect to server"). Override hosts/ports for local runs with a `tests/StackExchange.Redis.Tests/TestConfig.json` (gitignored). A stray container squatting on `6379` is a common failure: it makes the primary reachable but leaves no replica/cluster, so replica/cluster tests fail or skip — clear it before bringing the compose up.
+Tests skip as *inconclusive* when their required server is absent (e.g. cluster tests skip with "Unable to connect to server"). Override hosts/ports for local runs by editing `tests/StackExchange.Redis.Tests/RedisTestConfig.json` — note that it is **tracked**, and is read as an *embedded resource* rather than from disk, so changes need a rebuild and show up as a dirty working tree rather than acting as a private override. `RunLongRunning` there also unlocks the tests gated behind `Skip.UnlessLongRunning()`, which CI never runs. A stray container squatting on `6379` is a common failure: it makes the primary reachable but leaves no replica/cluster, so replica/cluster tests fail or skip — clear it before bringing the compose up.
 
 To probe these servers ad hoc, the local user may have `resp-cli` installed — a `dotnet` global tool that is functionally similar to `redis-cli` (same basic flags: `-p`, `-a`, `-n`, `--tls`, `-3`). Prefer `resp-cli` when it's available; fall back to `redis-cli` otherwise.
 

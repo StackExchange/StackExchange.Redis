@@ -506,7 +506,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets whether this node is a replica.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead, this will be removed in 3.2.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead, this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IsSlave => IsReplica;
 
@@ -539,7 +539,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the parent node of the current node.
         /// </summary>
-        public ClusterNode? Parent => (parent is not null) ? parent = configuration[ParentNodeId!] : null;
+        public ClusterNode? Parent => ParentNodeId is null ? null : (parent ??= configuration[ParentNodeId]);
 
         /// <summary>
         /// Gets the unique node-id of the parent of the current node.

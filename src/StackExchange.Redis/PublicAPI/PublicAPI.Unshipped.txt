@@ -75,3 +75,8 @@ StackExchange.Redis.ConfigurationOptions.TopologyRefreshSeconds.get -> int
 StackExchange.Redis.ConfigurationOptions.TopologyRefreshSeconds.set -> void
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Name.get -> string?
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TopologyRefreshInterval.get -> System.TimeSpan
+abstract StackExchange.Redis.RedisValue.EqualityComparer.Equals(StackExchange.Redis.RedisValue x, StackExchange.Redis.RedisValue y) -> bool
+abstract StackExchange.Redis.RedisValue.EqualityComparer.GetHashCode(StackExchange.Redis.RedisValue obj) -> int
+StackExchange.Redis.RedisValue.EqualityComparer
+static StackExchange.Redis.RedisValue.EqualityComparer.Binary.get -> StackExchange.Redis.RedisValue.EqualityComparer!
+static StackExchange.Redis.RedisValue.EqualityComparer.Default.get -> StackExchange.Redis.RedisValue.EqualityComparer!

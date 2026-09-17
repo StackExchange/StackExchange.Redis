@@ -3308,12 +3308,35 @@ The coordinates as an array of two items x,y (longitude,latitude).
 
                 connection.BridgeCouldBeNull?.ServerEndPoint?.SetLatency(message.CreatedDateTime);
                 connection.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{reader.Prefix}' for '{message.CommandAndKey}' on '{connection}'");
-                var final = base.SetResult(connection, message, ref reader);
 
-                if (isError)
+                var errorKind = isError ? RedisErrorKindMetadata.Classify(copy) : RedisErrorKind.None;
+
+                // A redirect answers the only question a tracer asks - is this server up, speaking RESP, and
+                // talking to us - so it completes the handshake rather than failing it.
+                //
+                // This matters because the keyed EXISTS fallback, reached when ECHO, PING and TIME are all
+                // disabled, cannot target a slot the node owns during its first handshake: the CLUSTER NODES
+                // reply that would say which slots those are is still in flight in the same pipeline batch,
+                // so ServerType is still the seeded Standalone when the key is chosen. Treating the resulting
+                // MOVED as a protocol failure tore the connection down, and on an OSS cluster that left nodes
+                // unestablished while the connect burned its whole ConnectTimeout. See #2970.
+                bool redirected = errorKind is RedisErrorKind.Moved or RedisErrorKind.Ask;
+
+                bool final;
+                if (redirected)
+                {
+                    connection.BridgeCouldBeNull?.Multiplexer.Trace($"Tracer redirected ({errorKind}); the server answered, so the connection stands", ToString());
+                    SetResult(message, true);
+                    final = true;
+                }
+                else
+                {
+                    final = base.SetResult(connection, message, ref reader);
+                }
+
+                if (isError && !redirected)
                 {
                     reader = copy; // rewind and re-parse
-                    var errorKind = RedisErrorKindMetadata.Classify(reader);
                     if (errorKind is RedisErrorKind.NotPermitted or RedisErrorKind.NoAuth)
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(reader.GetOverview() + " Verify if the Redis password provided is correct. Attempted command: " + message.Command));
