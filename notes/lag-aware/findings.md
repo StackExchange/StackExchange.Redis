@@ -1,7 +1,8 @@
 # Lag-aware availability checks
 
 Investigation, September 2026. Does Redis Enterprise's lag-aware database-availability API belong in
-our health checks for geo-redundant failover, and if so, where?
+our health checks for geo-redundant failover, and if so, where? The sequence that follows from this
+is in [`plan.md`](plan.md).
 
 Short answer: **yes, it is the same feature every other Redis client has already shipped, and our
 abstractions already fit it — but it needs HTTP and JSON, which `src/` has neither of, and it does
