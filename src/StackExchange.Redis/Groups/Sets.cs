@@ -57,15 +57,15 @@ public readonly struct RespSets
 
 public static partial class RespDatabaseExtensions
 {
+    extension(in RespDatabaseContext context)
+    {
+        /// <summary>The set commands.</summary>
+        public RespSets Sets => new(context.Raw);
+    }
+
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The set commands.</summary>
-        public RespSets Sets => new(target.Context);
-    }
-
-    extension(in RespContext context)
-    {
-        /// <summary>The set commands.</summary>
-        public RespSets Sets => new(context);
+        public RespSets Sets => target.Context.Sets;
     }
 }

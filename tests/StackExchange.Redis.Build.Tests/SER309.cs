@@ -25,7 +25,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Execute("SET", $"{key}{|#0: nx |}{value}");
+                using var frame = ctx.Raw.Execute("SET", $"{key}{|#0: nx |}{value}");
             }
         }
         """,
@@ -38,7 +38,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Execute("GET", $"{key}{|#0:  |}{key}");
+                using var frame = ctx.Raw.Execute("GET", $"{key}{|#0:  |}{key}");
             }
         }
         """,
@@ -51,7 +51,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Execute("GET", $"{|#0:SET |}{key}");
+                using var frame = ctx.Raw.Execute("GET", $"{|#0:SET |}{key}");
             }
         }
         """,
@@ -64,7 +64,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Execute("SET", $"{key}{|#0: nx |}{value}{|#1: xx|}");
+                using var frame = ctx.Raw.Execute("SET", $"{key}{|#0: nx |}{value}{|#1: xx|}");
             }
         }
         """,
@@ -78,7 +78,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Execute("GET", $"{|#0: |}{key}");
+                using var frame = ctx.Raw.Execute("GET", $"{|#0: |}{key}");
             }
         }
         """,
@@ -91,7 +91,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Execute("GET", $"{key}{|#0: |}");
+                using var frame = ctx.Raw.Execute("GET", $"{key}{|#0: |}");
             }
         }
         """,
@@ -106,7 +106,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Execute("SET", $"{key} {value}");
+                using var frame = ctx.Raw.Execute("SET", $"{key} {value}");
             }
         }
         """);
@@ -118,7 +118,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Execute("SET", $"{key}{value}");
+                using var frame = ctx.Raw.Execute("SET", $"{key}{value}");
             }
         }
         """);

@@ -140,7 +140,7 @@ public class TransitionalDatabaseTests
         // IDatabase.Context already goes new <- legacy; this is the other direction, so neither surface is
         // a one-way door. Note the concrete type stays internal - the contract is IDatabase.
         var executor = new FakeExecutor("$4\r\nmarc\r\n");
-        var surface = new RespDatabaseContext(new RespContext().WithExecutor(executor));
+        var surface = new RespContext().WithExecutor(executor);
 
         IDatabase legacy = surface.AsDatabase(Substitute.For<IConnectionMultiplexer>());
 
@@ -148,7 +148,7 @@ public class TransitionalDatabaseTests
         Assert.Equal("*2|$3|GET|$6|user:1|", Assert.Single(executor.Sent));
 
         // and back again, to the same context
-        Assert.Same(executor, ((IRespTarget)legacy).Context.Executor);
+        Assert.Same(executor, ((IRespTarget)legacy).Raw.Executor);
     }
 
     [Fact]

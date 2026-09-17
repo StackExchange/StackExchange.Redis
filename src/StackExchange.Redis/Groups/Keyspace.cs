@@ -61,10 +61,16 @@ public readonly struct RespKeyspace
 /// </remarks>
 public static partial class RespServerExtensions
 {
+    extension(in RespServerContext context)
+    {
+        /// <summary>The keyspace commands of this server.</summary>
+        public RespKeyspace Keyspace => new(context.Raw);
+    }
+
     extension<TTarget>(TTarget target) where TTarget : IRespServerTarget
     {
         /// <summary>The keyspace commands of this server.</summary>
-        public RespKeyspace Keyspace => new(target.Context);
+        public RespKeyspace Keyspace => target.Context.Keyspace;
     }
 }
 

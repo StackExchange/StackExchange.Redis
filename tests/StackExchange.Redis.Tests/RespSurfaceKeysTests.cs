@@ -36,10 +36,10 @@ public class RespSurfaceKeysTests
             => new(Send(request));
     }
 
-    private static (RespContext Context, FakeExecutor Executor) Target(params string[] replies)
+    private static (RespDatabaseContext Context, FakeExecutor Executor) Target(params string[] replies)
     {
         var executor = new FakeExecutor(replies.Length == 0 ? [":1\r\n"] : replies);
-        return (new RespContext().WithExecutor(executor), executor);
+        return (new RespDatabaseContext(new RespContext().WithExecutor(executor)), executor);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class RespSurfaceKeysTests
     [Fact]
     public async Task TheUncacheableKeyCommandsSaySo()
     {
-        static async Task<(bool Cached, long Refused)> Run(string reply, Func<RespContext, ValueTask> go)
+        static async Task<(bool Cached, long Refused)> Run(string reply, Func<RespDatabaseContext, ValueTask> go)
         {
             using var cache = new RespClientCache();
             var executor = new FakeExecutor(reply);

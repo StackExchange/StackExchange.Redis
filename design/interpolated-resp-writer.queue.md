@@ -67,6 +67,40 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Typed contexts: the library half is done, THE TESTS DO NOT COMPILE.** Pushed deliberately for
+      eyeballs; `tests/StackExchange.Redis.Tests` has **232 errors**, identical on net10.0 and net8.0.
+      The library is clean on both, analyzers included.
+
+      **What the design now says.** A context is the thing that carries what can differ from upstream -
+      the key prefix, the database, the services - so the groups hang off the *context*
+      (`extension(in RespDatabaseContext context)`), and a target merely forwards to its own
+      (`db.Strings => db.Context.Strings`). That killed the circular `Context => this` that came from
+      hanging groups off the target and then making the context pretend to be one. `IRespTarget.Context`
+      became `Raw`; `IRespKeyspaceTarget.Context` is a `RespDatabaseContext` and
+      `IRespServerTarget.Context` a `RespServerContext`, each derived from `Raw` by its implementor so a
+      target cannot disagree with itself. `ExecuteAsync` diverges as Marc asked: the database context
+      takes `(command, args, flags)`, the server context has that *and* `(database, command, args, flags)`
+      with the database first and required - the shape `IServer.Execute(int?, ...)` has had for years.
+
+      **Two things still open, and one is Marc's to decide:**
+
+      1. **`Database` is a delegating property, not the field it should be.** Marc: *"the database number
+         is part of the RespDatabaseContext, not some upstream thing"* - agreed, and not done. The field
+         move needs the *frame* to carry the database: `Render` runs with the context in hand and the frame
+         already captures the command and the cluster slot, so it can capture this the same way,
+         `Detach`/`AsLookupKey` carry it into the request, and the executor and cache read `request.Database`
+         instead of `executor.Database`. That deletes `IRespExecutor.Database` rather than keeping a second
+         copy in sync, and needs no changes to the 30 executor fakes. **Wants eyeballs before doing.**
+      2. **`Raw` may not need a name.** Held deliberately: if `RespContext` is demoted to shared state that
+         both typed contexts embed, `Raw` disappears and the naming question with it. Do that first, then
+         see whether anything still needs a public name.
+
+      **What is left mechanically:** 232 test errors in four shapes - a typed context passed where shared
+      state is wanted, a naked context reaching a group, the ad-hoc `Execute` move, and cascading inference.
+      They want doing **by hand, not by regex**: the same expression (`db.ExecuteAsync(...)`,
+      `ctx.Send(...)`) is the legacy API in some tests and the new one in others, and a blanket pass
+      "fixed" ten files of legacy `IDatabase.ExecuteAsync` into `db.Raw.ExecuteAsync` before being undone.
+
 - [ ] **Nothing should extend a naked `RespContext` - HALF DONE 2026-09-17.** Marc: *"the .Lists etc
       extension properties (and fallback methods) should be against the semantic-carrying structs... it
       may even be that we don't even need the naked struct"*. A context on its own is routing and

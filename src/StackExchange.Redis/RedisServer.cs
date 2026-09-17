@@ -14,6 +14,8 @@ namespace StackExchange.Redis
 {
     internal sealed partial class RedisServer : RedisBase, IServer
     {
+        /// <inheritdoc/>
+        public RespServerContext Context => new(Raw);
         // Several server commands are a single RedisCommand covering wildly different verbs (CLIENT, CLUSTER,
         // CONFIG, SCRIPT, SLOWLOG, LATENCY, MEMORY), so the whole-command default has to assume the most
         // side-effecting subcommand. Where we know the subcommand we can be accurate instead. Everything here
@@ -51,7 +53,7 @@ namespace StackExchange.Redis
         /// inheritance that makes a batch's context queue rather than send.
         /// </para>
         /// </remarks>
-        public new RespContext Context
+        public override RespContext Raw
         {
             get
             {

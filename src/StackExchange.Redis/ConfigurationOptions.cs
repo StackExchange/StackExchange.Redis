@@ -418,6 +418,7 @@ namespace StackExchange.Redis
         public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
 
 #if NET
+
         /// <summary>
         /// Supply a user certificate from a PEM file pair and enable TLS.
         /// </summary>
@@ -855,6 +856,7 @@ namespace StackExchange.Redis
         public SocketManager? SocketManager { get; set; }
 
 #if NET
+
         /// <summary>
         /// A <see cref="SslClientAuthenticationOptions"/> provider for a given host, for custom TLS connection options.
         /// Note: this overrides *all* other TLS and certificate settings, only for advanced use cases.

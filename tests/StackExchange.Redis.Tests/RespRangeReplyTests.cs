@@ -46,10 +46,10 @@ public class RespRangeReplyTests
           "*2|$3|1-1|*4|$1|f|$1|v|$1|g|$1|w|" +
           "*2|$3|2-2|*2|$4|name|$5|value|";
 
-    private static (RespContext Context, FakeExecutor Executor) Target(params string[] replies)
+    private static (RespDatabaseContext Context, FakeExecutor Executor) Target(params string[] replies)
     {
         var executor = new FakeExecutor(replies.Length == 0 ? [Wire(TwoEntries)] : replies);
-        return (new RespContext().WithExecutor(executor), executor);
+        return (new RespDatabaseContext(new RespContext().WithExecutor(executor)), executor);
     }
 
     private static string Wire(string s) => s.Replace("|", "\r\n");

@@ -100,7 +100,7 @@ public class StreamRangeMachineryBenchmarks
     }
 
     private RespPayload _payload = null!;
-    private RespContext _context;
+    private RespDatabaseContext _context;
 
     /// <summary>Entries in the reply; zero is the machinery floor, 1000 is where the shapes diverge.</summary>
     [Params(0, 1000)]
@@ -114,7 +114,7 @@ public class StreamRangeMachineryBenchmarks
     public void Setup()
     {
         _payload = RespPayload.Create(Encoding.UTF8.GetBytes(BuildReply(Entries)));
-        _context = new RespContext().WithExecutor(new PrebuiltExecutor(_payload, Suspend));
+        _context = new RespDatabaseContext(new RespContext().WithExecutor(new PrebuiltExecutor(_payload, Suspend)));
     }
 
     [GlobalCleanup]

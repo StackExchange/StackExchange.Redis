@@ -45,10 +45,10 @@ public class RespSurfaceSortTests
         }
     }
 
-    private static (RespContext Context, FakeExecutor Executor) Target(params string[] replies)
+    private static (RespDatabaseContext Context, FakeExecutor Executor) Target(params string[] replies)
     {
         var executor = new FakeExecutor(replies.Length == 0 ? ["*0\r\n"] : replies);
-        return (new RespContext().WithExecutor(executor), executor);
+        return (new RespDatabaseContext(new RespContext().WithExecutor(executor)), executor);
     }
 
     private static RespContext Server(in RespContext context, int major)

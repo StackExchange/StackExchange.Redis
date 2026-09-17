@@ -14,6 +14,8 @@ namespace StackExchange.Redis
 {
     internal partial class RedisDatabase : RedisBase, IDatabase, IInternalDatabaseAsync
     {
+        /// <inheritdoc/>
+        public RespDatabaseContext Context => new(Raw);
         internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object? asyncState)
             : base(multiplexer, asyncState)
         {
@@ -33,7 +35,7 @@ namespace StackExchange.Redis
         /// property access would allocate on a path meant to allocate nothing. The context itself is a
         /// struct, so callers copy rather than share.
         /// </remarks>
-        public new RespContext Context
+        public override RespContext Raw
         {
             get
             {

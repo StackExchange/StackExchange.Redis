@@ -66,15 +66,15 @@ public readonly struct RespLists
 
 public static partial class RespDatabaseExtensions
 {
+    extension(in RespDatabaseContext context)
+    {
+        /// <summary>The list commands.</summary>
+        public RespLists Lists => new(context.Raw);
+    }
+
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The list commands.</summary>
-        public RespLists Lists => new(target.Context);
-    }
-
-    extension(in RespContext context)
-    {
-        /// <summary>The list commands.</summary>
-        public RespLists Lists => new(context);
+        public RespLists Lists => target.Context.Lists;
     }
 }

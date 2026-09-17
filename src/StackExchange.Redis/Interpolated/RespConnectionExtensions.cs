@@ -46,7 +46,7 @@ namespace StackExchange.Redis
         public static RespDatabaseContext GetDatabaseContext(this IConnectionMultiplexer multiplexer, int db = -1, object? asyncState = null)
         {
             if (multiplexer is null) throw new ArgumentNullException(nameof(multiplexer));
-            return new(multiplexer.GetDatabase(db, asyncState).Context);
+            return multiplexer.GetDatabase(db, asyncState).Context;
         }
 
         /// <summary>
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
         public static RespServerContext GetServerContext(this IConnectionMultiplexer multiplexer, EndPoint endpoint, object? asyncState = null)
         {
             if (multiplexer is null) throw new ArgumentNullException(nameof(multiplexer));
-            return new(multiplexer.GetServer(endpoint, asyncState).Context);
+            return multiplexer.GetServer(endpoint, asyncState).Context;
         }
 
         /// <inheritdoc cref="GetServerContext(IConnectionMultiplexer, EndPoint, object?)"/>
@@ -74,7 +74,7 @@ namespace StackExchange.Redis
         public static RespServerContext GetServerContext(this IConnectionMultiplexer multiplexer, string host, int port, object? asyncState = null)
         {
             if (multiplexer is null) throw new ArgumentNullException(nameof(multiplexer));
-            return new(multiplexer.GetServer(host, port, asyncState).Context);
+            return multiplexer.GetServer(host, port, asyncState).Context;
         }
     }
 }

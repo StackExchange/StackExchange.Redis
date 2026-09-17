@@ -24,18 +24,18 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags));
+            => Wait(_inner.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags));
 
         /// <inheritdoc/>
         public Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Context.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags).AsTask();
+            => _inner.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags).AsTask();
 
         /// <inheritdoc/>
         public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags));
+            => Wait(_inner.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags));
 
         /// <inheritdoc/>
         public Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-            => Context.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags).AsTask();
+            => _inner.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags).AsTask();
     }
 }

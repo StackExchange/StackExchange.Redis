@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using RESPite;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis
 {
@@ -22,14 +25,66 @@ namespace StackExchange.Redis
     /// the entire argument of design notes section 9.4, made concrete.
     /// </para>
     /// </remarks>
-    public readonly struct RespDatabaseContext : IRespKeyspaceTarget
+    public readonly struct RespDatabaseContext
     {
         /// <summary>Create a database over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
-        public RespDatabaseContext(in RespContext context) => Context = context;
+        public RespDatabaseContext(in RespContext context) => Raw = context;
 
-        /// <inheritdoc/>
-        public RespContext Context { get; }
+        /// <summary>The shared plumbing this context wraps: key prefix, services, executor.</summary>
+        public RespContext Raw { get; }
+
+        /// <summary>The database index these commands run against.</summary>
+        /// <remarks>
+        /// <b>A database context's own fact</b>, which is why <see cref="RespServerContext"/> has no such
+        /// member: a server is not database-scoped, and a property that always answered <c>-1</c> would be
+        /// a worse answer than not offering one. It reads through to the shared state today; moving the
+        /// field here outright is queued, and is what makes the number impossible to duplicate.
+        /// </remarks>
+        public int Database => Raw.Database;
+
+        /// <summary>Run an arbitrary command against this database and return the raw reply.</summary>
+        /// <param name="command">The command name.</param>
+        /// <param name="args">The arguments, each already known to be a key or a value.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <remarks>
+        /// <b>The escape hatch, and it diverges from the server one on purpose.</b> A database already
+        /// knows which database it is, so this does not ask; <see cref="RespServerContext"/>'s twin does,
+        /// because a node-pinned command has to say. That split is not new - <c>IServer.Execute</c> has
+        /// carried an <c>int?</c> database overload for years and <c>IDatabase.Execute</c> never needed
+        /// one - it is just being said in the types now rather than in overloads.
+        /// </remarks>
+        public ValueTask<RespResult> ExecuteAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
+            => Raw.ExecuteAsync(command, args, flags);
+
+        // The scoping family returns THIS type rather than a bare context, and that is the whole reason it
+        // is written out per context rather than shared: a naked context offers no groups, so a chain that
+        // dropped back to one - db.Context.WithKeyPrefix("x:").Strings - would stop compiling halfway
+        // along. Each is one line over the context underneath; the types are what carry the meaning.
+
+        /// <summary>A copy of this context with <paramref name="services"/> added to the service bag.</summary>
+        /// <param name="services">The service (or services) to add.</param>
+        public RespDatabaseContext WithServices(object? services) => new(Raw.WithServices(services));
+
+        /// <summary>A copy of this context with client-side caching disabled.</summary>
+        public RespDatabaseContext WithoutCache() => new(Raw.WithoutCache());
+
+        /// <summary>A copy of this context that will not serve a cached reply older than <paramref name="maxAge"/>.</summary>
+        /// <param name="maxAge">The oldest reply this context will accept from the cache.</param>
+        public RespDatabaseContext WithMaxCacheAge(TimeSpan maxAge) => new(Raw.WithMaxCacheAge(maxAge));
+
+        /// <summary>A copy of this context using <paramref name="scripts"/> to remember loaded scripts.</summary>
+        /// <param name="scripts">The script cache, or <see langword="null"/> for none.</param>
+        public RespDatabaseContext WithScriptCache(RespScriptCache? scripts) => new(Raw.WithScriptCache(scripts));
+
+        /// <summary>A copy of this context whose channels carry <paramref name="channelPrefix"/>.</summary>
+        /// <param name="channelPrefix">The prefix to append to whatever is already in force.</param>
+        public RespDatabaseContext AppendChannelPrefix(RedisChannel channelPrefix) => new(Raw.AppendChannelPrefix(channelPrefix));
+
+        /// <inheritdoc cref="RespContext.Render(ref RespRequestBuilder)"/>
+        /// <param name="request">The command, written as an interpolated string.</param>
+        public RespRequestFrame Render([InterpolatedStringHandlerArgument("")] ref RespRequestBuilder request)
+            => Raw.Render(ref request);
 
         /// <summary>A database for the same connection, with <paramref name="prefix"/> appended to whatever
         /// key prefix is already in force.</summary>
@@ -38,11 +93,11 @@ namespace StackExchange.Redis
         /// One context clone, with no per-method forwarding - the whole write half of
         /// <c>KeyPrefixedDatabase</c>.
         /// </remarks>
-        public RespDatabaseContext AppendKeyPrefix(RedisKey prefix) => new(Context.AppendKeyPrefix(prefix));
+        public RespDatabaseContext AppendKeyPrefix(RedisKey prefix) => new(Raw.AppendKeyPrefix(prefix));
 
         /// <summary>A database bound to a different database index.</summary>
         /// <param name="database">The database index.</param>
-        public RespDatabaseContext WithDatabase(int database) => new(Context.WithDatabase(database));
+        public RespDatabaseContext WithDatabase(int database) => new(Raw.WithDatabase(database));
 
         /// <summary>
         /// This database as an <see cref="IDatabase"/>, for handing to code written against the existing

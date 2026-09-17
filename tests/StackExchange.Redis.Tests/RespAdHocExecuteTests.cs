@@ -49,8 +49,8 @@ public class RespAdHocExecuteTests
             => new(Send(request));
     }
 
-    private static RespContext Context(FakeExecutor executor, RespClientCache? cache = null)
-        => new RespContext().WithExecutor(executor).WithCache(cache);
+    private static RespDatabaseContext Context(FakeExecutor executor, RespClientCache? cache = null)
+        => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
     [Fact]
     public async Task AnUnmodelledCommandRoundTrips()
@@ -58,7 +58,7 @@ public class RespAdHocExecuteTests
         var executor = new FakeExecutor("*2\r\n$3\r\ndoc\r\n:1\r\n");
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("idx"), RedisKeyOrValue.FromValue("@title:hello")];
 
-        using var result = await Context(executor).ExecuteAsync("FT.SEARCH", args);
+        using var result = await Context(executor).Raw.ExecuteAsync("FT.SEARCH", args);
 
         Assert.Equal("*3|$9|FT.SEARCH|$3|idx|$12|@title:hello|", Assert.Single(executor.Sent));
         Assert.Equal(RespPrefix.Array, result.Prefix);
@@ -72,7 +72,7 @@ public class RespAdHocExecuteTests
         var executor = new FakeExecutor("+OK\r\n");
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("thekey"), RedisKeyOrValue.FromValue("thevalue")];
 
-        using var _ = await Context(executor).ExecuteAsync("JSON.SET", args);
+        using var _ = await Context(executor).Raw.ExecuteAsync("JSON.SET", args);
 
         // exactly one of the two arguments was marked as a key, and it was the right one
         Assert.Equal("thekey", Assert.Single(executor.Keys));
@@ -83,9 +83,9 @@ public class RespAdHocExecuteTests
     {
         // one extension on IRespTarget, and every database gets it without being touched
         var executor = new FakeExecutor("$3\r\nabc\r\n");
-        IRespTarget target = new RespDatabaseContext(Context(executor));
+        IRespTarget target = Context(executor);
 
-        using var result = await target.ExecuteAsync("SOME.COMMAND", new[] { RedisKeyOrValue.FromValue("x") });
+        using var result = await target.Raw.ExecuteAsync("SOME.COMMAND", new[] { RedisKeyOrValue.FromValue("x") });
 
         Assert.Equal("abc", result.ReadScalar().ReadString());
     }
@@ -99,13 +99,13 @@ public class RespAdHocExecuteTests
         var context = Context(executor, cache);
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("k")];
 
-        (await context.ExecuteAsync("MODULE.GET", args, CommandFlags.CommandRetryReadOnly)).Dispose();
-        (await context.ExecuteAsync("MODULE.GET", args, CommandFlags.CommandRetryReadOnly)).Dispose();
+        (await context.Raw.ExecuteAsync("MODULE.GET", args, CommandFlags.CommandRetryReadOnly)).Dispose();
+        (await context.Raw.ExecuteAsync("MODULE.GET", args, CommandFlags.CommandRetryReadOnly)).Dispose();
         Assert.Single(executor.Sent);   // served from cache
 
         Assert.True(cache.OnInvalidate(Encoding.UTF8.GetBytes("k")));
 
-        using var fresh = await context.ExecuteAsync("MODULE.GET", args, CommandFlags.CommandRetryReadOnly);
+        using var fresh = await context.Raw.ExecuteAsync("MODULE.GET", args, CommandFlags.CommandRetryReadOnly);
         Assert.Equal(2, executor.Sent.Count);   // invalidated by key, and re-fetched
         Assert.Equal("xyz", fresh.ReadScalar().ReadString());
     }
@@ -116,7 +116,7 @@ public class RespAdHocExecuteTests
         // ExecuteResp's signature and the context method agree exactly, RedisKeyOrValue included - so the
         // adapter is a pass-through, and an IDatabase caller gets the key-marking behaviour for free
         var executor = new FakeExecutor("$3\r\nabc\r\n");
-        IDatabase db = new RespDatabaseContext(Context(executor)).AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+        IDatabase db = Context(executor).AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
 
         using var result = await db.ExecuteRespAsync("MODULE.GET", new[] { RedisKeyOrValue.FromKey("k") });
 
@@ -128,7 +128,7 @@ public class RespAdHocExecuteTests
     public async Task NoArgumentsIsFine()
     {
         var executor = new FakeExecutor("+PONG\r\n");
-        using var result = await Context(executor).ExecuteAsync("PING", default);
+        using var result = await Context(executor).Raw.ExecuteAsync("PING", default);
 
         Assert.Equal("*1|$4|PING|", Assert.Single(executor.Sent));
         Assert.Equal("PONG", result.ReadScalar().ReadString());

@@ -261,7 +261,7 @@ public class RespSurfaceTests
         var ctx = new RespContext().WithExecutor(executor);
 
         // no handler named: resolved from TResult, which is what lets a command surface be one expression
-        Assert.Equal("hello", await ctx.SendAsync<RedisValue>(
+        Assert.Equal("hello", await ctx.Raw.SendAsync<RedisValue>(
             $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly));
     }
 
@@ -272,7 +272,7 @@ public class RespSurfaceTests
         var ctx = new RespContext().WithExecutor(executor);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await ctx.SendAsync<Uri>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly));
+            await ctx.Raw.SendAsync<Uri>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly));
         Assert.Contains("Uri", ex.Message);
     }
 
@@ -370,7 +370,7 @@ public class RespSurfaceTests
         // IRedis carries the member, so IDatabase/IServer/ISubscriber all have it - but wiring it to a live
         // multiplexer is separate work, so those throw while RespDatabaseContext is what actually runs
         IRespTarget target = (IRespTarget)(object)new RespDatabaseContext(new RespContext());
-        Assert.Equal(0, target.Context.Database); // the minimal one works
+        Assert.Equal(0, target.Database); // the minimal one works
     }
 
     [Fact]

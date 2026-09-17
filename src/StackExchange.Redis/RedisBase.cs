@@ -12,7 +12,7 @@ namespace StackExchange.Redis
         /// against a minimal implementation first (<c>RespDatabaseContext</c>); wiring it to a live multiplexer
         /// means routing a rendered frame through the existing message pipeline, which is separate work.
         /// </remarks>
-        public RespContext Context
+        public virtual RespContext Raw
             => throw new NotImplementedException(
                 "The context surface is not yet wired to a live connection; see RespDatabaseContext.");
 

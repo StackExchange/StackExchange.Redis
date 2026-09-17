@@ -28,13 +28,15 @@ namespace StackExchange.Redis.Availability;
 [AutoDatabase(Replays = true)]
 internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 {
+    /// <inheritdoc/>
+    public RespDatabaseContext Context => new(Raw);
     // Note: the *command* surface is async-only, exactly like RetryDatabase - retrying is inherently
     // delay-ish; only the terminal Execute is offered synchronously.
     private readonly IDatabaseAsync _source;
     private readonly RetryController _controller;
 
-    /// <inheritdoc cref="RetryDatabase.Context"/>
-    public RespContext Context
+    /// <inheritdoc cref="RetryDatabase.Raw"/>
+    public RespContext Raw
         => throw new NotImplementedException(
             "The context surface does not yet support retry; a retry executor is separate work, and "
             + "forwarding the inner context here would silently drop the retry.");

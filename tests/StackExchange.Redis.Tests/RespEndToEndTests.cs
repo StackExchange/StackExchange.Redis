@@ -38,7 +38,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         // RedisDatabase.Context HIDES the throwing RedisBase.Context with 'new', so the interface mapping
         // has to land on the derived one - if it ever landed on the base, every extension member would
         // throw, since they all reach the context through IRespTarget
-        Assert.NotNull(((IRespTarget)db).Context.Executor);
+        Assert.NotNull(((IRespTarget)db).Raw.Executor);
 
         // no casts, no executor, no context construction - GetDatabase() is already an IRespTarget
         Assert.True(await db.Strings.SetAsync(key, "marc"));
@@ -54,7 +54,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var db = conn.GetDatabase(3);
         await db.KeyDeleteAsync(key);
 
-        Assert.Equal(3, db.Context.Database);
+        Assert.Equal(3, db.Database);
         Assert.True(await db.Strings.SetAsync(key, "on-three"));
 
         // it really went to db 3, not db 0
@@ -180,7 +180,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await db.KeyDeleteAsync(key);
 
         const CommandFlags Flags = CommandFlags.CommandRetryWriteLastWins | CommandFlags.FireAndForget;
-        var context = ((IRespTarget)db).Context;
+        var context = ((IRespTarget)db).Raw;
         var frame = context.Render($"{RedisCommand.SET}{(RedisKey)key}{(RedisValue)"marc"}");
         Assert.False(context.Send(ref frame, Flags, RespHandlers.Boolean, default));
 
@@ -330,7 +330,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     {
         await using var conn = Create();
         var db = conn.GetDatabase();
-        var ctx = ((IRespTarget)db).Context;
+        var ctx = ((IRespTarget)db).Raw;
         var key = Me();
         await db.KeyDeleteAsync(key);
 
@@ -372,7 +372,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     {
         await using var conn = Create();
         var db = conn.GetDatabase();
-        var ctx = ((IRespTarget)db).Context;
+        var ctx = ((IRespTarget)db).Raw;
         var key = Me();
 
         await db.KeyDeleteAsync(key);
@@ -424,8 +424,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         // and a prefixed batch/transaction gets one too, which it did not before: the clone moved onto the
         // shared KeyPrefixed<T> base rather than sitting on KeyPrefixedDatabase alone
         var tenant = db.WithKeyPrefix("t9:");
-        Assert.Equal("t9:", (string?)((IRespKeyspaceTarget)tenant.CreateBatch()).Context.KeyPrefix);
-        Assert.Equal("t9:", (string?)((IRespKeyspaceTarget)tenant.CreateTransaction()).Context.KeyPrefix);
+        Assert.Equal("t9:", (string?)((IRespKeyspaceTarget)tenant.CreateBatch()).Raw.KeyPrefix);
+        Assert.Equal("t9:", (string?)((IRespKeyspaceTarget)tenant.CreateTransaction()).Raw.KeyPrefix);
     }
 
     /// <summary>
@@ -525,7 +525,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         // the surface starts on database 0, and asks for database 1 the way the surface offers
         var surface = NewSurface(conn, 0).WithDatabase(1);
-        Assert.Equal(1, surface.Context.Database);
+        Assert.Equal(1, surface.Database);
 
         var value = await surface.Strings.GetAsync(key);
         Assert.Equal("from-one", value);
@@ -577,8 +577,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         // and it honours the database argument rather than quietly using the default
         var other = TestConfig.GetDedicatedDB();
         Skip.IfMissingDatabase(conn, other);
-        Assert.Equal(other, conn.GetDatabaseContext(other).Context.Database);
-        Assert.Equal(conn.GetDatabase(other).Context.Database, conn.GetDatabaseContext(other).Context.Database);
+        Assert.Equal(other, conn.GetDatabaseContext(other).Raw.Database);
+        Assert.Equal(conn.GetDatabase(other).Raw.Database, conn.GetDatabaseContext(other).Raw.Database);
     }
 
     [Fact]
@@ -591,7 +591,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var viaExtension = conn.GetServerContext(endpoint);
 
         // a server context carries no database of its own; both spellings agree on that
-        Assert.Equal(viaServer.Database, viaExtension.Context.Database);
+        Assert.Equal(viaServer.Database, viaExtension.Database);
 
         // and the typed context reaches the server groups, which is the whole point of it being typed:
         // the accessor is constrained to IRespServerTarget, so a bare RespContext would not compile here
@@ -611,7 +611,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var fake = Substitute.For<IConnectionMultiplexer>();
         fake.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(surface.AsDatabase(fake));
 
-        Assert.Equal(surface.Context.Database, fake.GetDatabaseContext().Context.Database);
+        Assert.Equal(surface.Database, fake.GetDatabaseContext().Raw.Database);
         Assert.Throws<ArgumentNullException>(() => ((IConnectionMultiplexer)null!).GetDatabaseContext());
     }
 }

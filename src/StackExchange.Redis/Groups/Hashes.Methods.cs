@@ -858,7 +858,6 @@ public static partial class Hashes
     }
 
     /// <summary>The NX/XX/GT/LT condition of the field-expiry commands, or nothing.</summary>
-
     /// <summary>The FNX/FXX condition of <c>HSETEX</c>, or nothing.</summary>
     private static RespFragment AsFieldCondition(When when) => when switch
     {

@@ -95,9 +95,9 @@ public class RespDownlevelShimTests
     [Fact]
     public void AShimComposesWithTheCommandsThatHangOffIt()
     {
-        var ctx = new RespContext();
+        var ctx = new RespDatabaseContext(new RespContext());
         Assert.Equal(
-            ctx.Strings().Context.Database,
+            ctx.Strings().Raw.Database,
             ctx.Database); // the group carries the context it was made from
     }
 }

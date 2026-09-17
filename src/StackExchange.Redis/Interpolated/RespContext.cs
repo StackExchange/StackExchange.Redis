@@ -41,7 +41,7 @@ namespace StackExchange.Redis
         {
             _commandMap = commandMap;
             _keyPrefix = keyPrefix; // normalise to bytes ONCE; the conversion can allocate for a string-backed key
-            Database = database;
+            _database = database;
             ServerType = serverType;
             Executor = executor;
             _services = channelPrefix.IsNull
@@ -273,7 +273,17 @@ namespace StackExchange.Redis
             => TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
 
         /// <summary>The database index; part of cache identity, and NOT part of the rendered frame.</summary>
-        public int Database { get; }
+        /// <remarks>
+        /// <b>The executor answers this whenever there is one</b>, because the executor is what actually
+        /// routes: the cache keys on <c>executor.Database</c> and the message is built with it. Storing a
+        /// second copy here and trusting it is what made <see cref="WithDatabase"/> wrong once already -
+        /// it changed this value and not the executor's, so the call read database 0 and reported 1, with
+        /// nothing inconsistent to see because the cache agreed with the executor. Deferring means the two
+        /// cannot disagree; the field below is only what a context says before it has an executor at all.
+        /// </remarks>
+        public int Database => Executor?.Database ?? _database;
+
+        private readonly int _database;
 
         /// <summary>The server type; cluster slots are only computed when this is a cluster.</summary>
         public ServerType ServerType { get; }
@@ -311,11 +321,6 @@ namespace StackExchange.Redis
 
             return new(CommandMap, KeyPrefix, default, database, ServerType, executor, _services);
         }
-
-        /// <summary>A copy of this context with a different server type.</summary>
-        /// <param name="serverType">The server type.</param>
-        public RespContext WithServerType(ServerType serverType)
-            => new(CommandMap, KeyPrefix, default, Database, serverType, Executor, _services);
 
         /// <summary>
         /// Returns a context whose keys carry <paramref name="keyPrefix"/>, <b>appended to</b> any prefix

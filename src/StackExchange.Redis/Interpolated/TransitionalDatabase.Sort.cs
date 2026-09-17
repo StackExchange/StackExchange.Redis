@@ -14,18 +14,18 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Keys.SortArray(key, skip, take, order, sortType, by, get, flags));
+            => Wait(_inner.Keys.SortArray(key, skip, take, order, sortType, by, get, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => Context.Keys.SortArray(key, skip, take, order, sortType, by, get, flags).AsTask();
+            => _inner.Keys.SortArray(key, skip, take, order, sortType, by, get, flags).AsTask();
 
         /// <inheritdoc/>
         public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags));
+            => Wait(_inner.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags));
 
         /// <inheritdoc/>
         public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => Context.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags).AsTask();
+            => _inner.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags).AsTask();
     }
 }

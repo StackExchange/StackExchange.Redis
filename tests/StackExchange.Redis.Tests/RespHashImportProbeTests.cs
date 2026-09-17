@@ -44,11 +44,11 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
         internal static partial RespFragment NameAndAge { get; }
     }
 
-    private static RespContext NewContext(IConnectionMultiplexer conn, int db)
+    private static RespDatabaseContext NewContext(IConnectionMultiplexer conn, int db)
     {
         var database = (RedisBase)conn.GetDatabase(db);
-        return new RespContext(database.multiplexer.CommandMap, database: db)
-            .WithExecutor(new RespMessageExecutor(database, db));
+        return new RespDatabaseContext(new RespContext(database.multiplexer.CommandMap, database: db)
+            .WithExecutor(new RespMessageExecutor(database, db)));
     }
 
     private async Task<IConnectionMultiplexer> RequireHashImportAsync()
@@ -142,7 +142,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
             {
                 // Boolean rather than Result: +OK is the reply, and a typed handler is what a real command
                 // group would use - the probe should not take an easier route than the thing it stands in for
-                Assert.True(await ctx.SendWithPreambleAsync(
+                Assert.True(await ctx.Raw.SendWithPreambleAsync(
                     ref preamble, ref request, CommandFlags.None, RespHandlers.Boolean, gate));
             }
             finally
@@ -211,7 +211,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
                     try
                     {
                         gun.SignalAndWait();
-                        return ctx.SendWithPreambleAsync(
+                        return ctx.Raw.SendWithPreambleAsync(
                             ref preamble, ref request, CommandFlags.None, RespHandlers.Boolean, gate).AsTask();
                     }
                     finally

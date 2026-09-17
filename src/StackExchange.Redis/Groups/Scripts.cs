@@ -74,15 +74,15 @@ public readonly struct RespScripts
 
 public static partial class RespDatabaseExtensions
 {
+    extension(in RespDatabaseContext context)
+    {
+        /// <summary>The scripting commands.</summary>
+        public RespScripts Scripts => new(context.Raw);
+    }
+
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The scripting commands.</summary>
-        public RespScripts Scripts => new(target.Context);
-    }
-
-    extension(in RespContext context)
-    {
-        /// <summary>The scripting commands.</summary>
-        public RespScripts Scripts => new(context);
+        public RespScripts Scripts => target.Context.Scripts;
     }
 }

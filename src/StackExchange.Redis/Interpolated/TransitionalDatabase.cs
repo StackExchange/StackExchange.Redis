@@ -34,6 +34,8 @@ namespace StackExchange.Redis
     internal sealed partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
         : IDatabase
     {
+        /// <inheritdoc/>
+        public RespDatabaseContext Context => new(Raw);
         private readonly RespDatabaseContext _inner = inner;
 
         /// <summary>
@@ -56,13 +58,13 @@ namespace StackExchange.Redis
         private readonly IDatabase? _fallback = fallback;
 
         /// <inheritdoc/>
-        public RespContext Context => _inner.Context;
+        public RespContext Raw => _inner.Raw;
 
         /// <summary>The async state carried by tasks this database produces.</summary>
         public object? AsyncState => asyncState;
 
         /// <inheritdoc/>
-        public int Database => Context.Database;
+        public int Database => Raw.Database;
 
         /// <inheritdoc/>
         public IConnectionMultiplexer Multiplexer => multiplexer;

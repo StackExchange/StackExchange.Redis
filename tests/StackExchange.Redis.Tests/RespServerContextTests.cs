@@ -26,7 +26,7 @@ public class RespServerContextTests(ITestOutputHelper output, SharedConnectionFi
         await using var conn = Create(allowAdmin: true);
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-        using var reply = await server.Context.ExecuteAsync("PING", default);
+        using var reply = await server.Raw.ExecuteAsync("PING", default);
         Assert.Equal("PONG", reply.ReadScalar().ReadString());
     }
 
@@ -50,7 +50,7 @@ public class RespServerContextTests(ITestOutputHelper output, SharedConnectionFi
             var server = conn.GetServer(endpoint);
             if (!server.IsConnected) continue;
 
-            using var reply = await server.Context.ExecuteAsync(
+            using var reply = await server.Raw.ExecuteAsync(
                 "CONFIG", new[] { RedisKeyOrValue.FromValue("GET"), RedisKeyOrValue.FromValue("port") });
 
             var reader = reply.Read();
@@ -71,7 +71,7 @@ public class RespServerContextTests(ITestOutputHelper output, SharedConnectionFi
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
         var ex = await Assert.ThrowsAnyAsync<System.Exception>(
-            async () => (await server.Context.ExecuteAsync("GET", new[] { RedisKeyOrValue.FromKey(Me()) })).Dispose());
+            async () => (await server.Raw.ExecuteAsync("GET", new[] { RedisKeyOrValue.FromKey(Me()) })).Dispose());
 
         Assert.Contains("database", ex.Message, System.StringComparison.OrdinalIgnoreCase);
     }

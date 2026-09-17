@@ -671,6 +671,54 @@ namespace StackExchange.Redis
             static async ValueTask Awaited(ValueTask<bool> pending) => await pending.ConfigureAwait(false);
         }
 
+        /// <summary>Compose and send, from a typed context.</summary>
+        /// <typeparam name="TResult">The type the reply is read as.</typeparam>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="request">The command, written as an interpolated string.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <param name="handler">Reads the reply; the inbuilt handler for <typeparamref name="TResult"/> when omitted.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        /// <remarks>
+        /// One line each, forwarding to the <see cref="RespContext"/> implementation. They exist because a
+        /// typed context is now the thing callers hold, and an interpolated-string handler is built from
+        /// the receiver - so without these the send path would have to be written out per context instead
+        /// of being one implementation with two doors.
+        /// </remarks>
+        public static ValueTask<TResult> SendAsync<TResult>(
+            this RespDatabaseContext context,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
+            CommandFlags flags = CommandFlags.None,
+            IRespHandler<TResult>? handler = null,
+            CancellationToken cancellationToken = default)
+            => SendAsync(context.Raw, ref request, flags, handler, cancellationToken);
+
+        /// <summary>Compose and send a command whose reply carries nothing worth reading, from a typed context.</summary>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="request">The command, written as an interpolated string.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask SendAsync(
+            this RespDatabaseContext context,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
+            => SendAsync(context.Raw, ref request, flags, cancellationToken);
+
+        /// <summary>Compose and send, from a server context.</summary>
+        /// <typeparam name="TResult">The type the reply is read as.</typeparam>
+        /// <param name="context">The context to send through.</param>
+        /// <param name="request">The command, written as an interpolated string.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <param name="handler">Reads the reply; the inbuilt handler for <typeparamref name="TResult"/> when omitted.</param>
+        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        public static ValueTask<TResult> SendAsync<TResult>(
+            this RespServerContext context,
+            [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
+            CommandFlags flags = CommandFlags.None,
+            IRespHandler<TResult>? handler = null,
+            CancellationToken cancellationToken = default)
+            => SendAsync(context.Raw, ref request, flags, handler, cancellationToken);
+
         /// <inheritdoc cref="SendAsync{TResult}(RespContext, ref RespRequestBuilder, CommandFlags, IRespHandler{TResult}, CancellationToken)"/>
         /// <param name="context">The context to send through.</param>
         /// <param name="request">The command, written as an interpolated string.</param>

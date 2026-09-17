@@ -53,6 +53,30 @@ namespace StackExchange.Redis.Protocol
         private RedisCommand _command; // the command's IDENTITY, for routing and diagnostics; the
                                        // bytes are already written, so this is never used to render
 
+        /// <summary>Compose against a database context.</summary>
+        /// <param name="literalLength">Total length of the literal segments; compiler-supplied.</param>
+        /// <param name="formattedCount">Number of holes; compiler-supplied.</param>
+        /// <param name="context">The receiver of the call; its <c>Raw</c> supplies the map and prefixes.</param>
+        /// <remarks>
+        /// The interpolated-string handler is constructed from the RECEIVER of the call, so a send written
+        /// against a typed context - which is every send now that nothing extends a naked one - needs a
+        /// constructor that accepts one. Two one-line overloads here are what let the send path stay a
+        /// single implementation over <see cref="RespContext"/> instead of being written out per context.
+        /// </remarks>
+        public RespRequestBuilder(int literalLength, int formattedCount, RespDatabaseContext context)
+            : this(literalLength, formattedCount, context.Raw)
+        {
+        }
+
+        /// <summary>Compose against a server context.</summary>
+        /// <param name="literalLength">The literal segments' total length; compiler-supplied.</param>
+        /// <param name="formattedCount">How many holes there are; compiler-supplied.</param>
+        /// <param name="context">The call's receiver; its <c>Raw</c> supplies the map and prefixes.</param>
+        public RespRequestBuilder(int literalLength, int formattedCount, RespServerContext context)
+            : this(literalLength, formattedCount, context.Raw)
+        {
+        }
+
         /// <summary>Initialize with the command supplied as the first hole.</summary>
         /// <param name="literalLength">Total length of the literal segments; compiler-supplied.</param>
         /// <param name="formattedCount">Number of holes; compiler-supplied.</param>

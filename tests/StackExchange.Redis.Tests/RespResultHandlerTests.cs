@@ -32,14 +32,14 @@ public class RespResultHandlerTests
             => new(Send(request));
     }
 
-    private static RespContext Context(FakeExecutor executor, RespClientCache? cache = null)
-        => new RespContext().WithExecutor(executor).WithCache(cache);
+    private static RespDatabaseContext Context(FakeExecutor executor, RespClientCache? cache = null)
+        => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
     [Fact]
     public async Task AnyCommandCanComeBackAsARespResult()
     {
         var executor = new FakeExecutor("$5\r\nhello\r\n");
-        using var result = await Context(executor).SendAsync<RespResult>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None);
+        using var result = await Context(executor).Raw.SendAsync<RespResult>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None);
 
         Assert.Equal(RespPrefix.BulkString, result.Prefix);
         Assert.False(result.IsNull);
@@ -54,7 +54,7 @@ public class RespResultHandlerTests
         // the point of the undecoded reply: we do not need to know the shape. This is what a module command
         // looks like to us.
         var executor = new FakeExecutor("*3\r\n$1\r\na\r\n:42\r\n$-1\r\n");
-        using var result = await Context(executor).SendAsync<RespResult>($"{RedisCommand.MGET}{(RedisKey)"k"}", CommandFlags.None);
+        using var result = await Context(executor).Raw.SendAsync<RespResult>($"{RedisCommand.MGET}{(RedisKey)"k"}", CommandFlags.None);
 
         Assert.Equal(RespPrefix.Array, result.Prefix);
 
@@ -72,7 +72,7 @@ public class RespResultHandlerTests
     public async Task ANullReplyIsARespResultToo()
     {
         var executor = new FakeExecutor("_\r\n");
-        using var result = await Context(executor).SendAsync<RespResult>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None);
+        using var result = await Context(executor).Raw.SendAsync<RespResult>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None);
 
         Assert.True(result.IsNull);
     }
@@ -85,13 +85,13 @@ public class RespResultHandlerTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var context = Context(executor, cache);
 
-        using (var first = await context.SendAsync<RespResult>(
+        using (var first = await context.Raw.SendAsync<RespResult>(
             $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly))
         {
             Assert.Equal("hello", first.ReadScalar().ReadString());
         }
 
-        using (var second = await context.SendAsync<RespResult>(
+        using (var second = await context.Raw.SendAsync<RespResult>(
             $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly))
         {
             Assert.Equal("hello", second.ReadScalar().ReadString());
@@ -146,13 +146,13 @@ public class RespResultHandlerTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var context = Context(executor, cache);
 
-        using (var first = await context.SendAsync<RespResult>(
+        using (var first = await context.Raw.SendAsync<RespResult>(
             $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly))
         {
             Assert.Equal("hello", first.ReadScalar().ReadString());
         }
 
-        using var second = await context.SendAsync<RespResult>(
+        using var second = await context.Raw.SendAsync<RespResult>(
             $"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly);
 
         Assert.Equal(1, executor.Sends);   // the second was a cache hit
@@ -168,7 +168,7 @@ public class RespResultHandlerTests
         // the pipeline releases its own reference as soon as Parse returns, so a result that did not own
         // its bytes would be reading a recycled buffer by the time the caller looked
         var executor = new FakeExecutor("$5\r\nhello\r\n");
-        var result = await Context(executor).SendAsync<RespResult>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None);
+        var result = await Context(executor).Raw.SendAsync<RespResult>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None);
 
         for (var i = 0; i < 32; i++) _ = new byte[4096];   // churn the pool a little
         GC.Collect();

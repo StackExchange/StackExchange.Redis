@@ -66,15 +66,15 @@ public readonly struct RespBitmaps
 
 public static partial class RespDatabaseExtensions
 {
+    extension(in RespDatabaseContext context)
+    {
+        /// <summary>The bitmap commands.</summary>
+        public RespBitmaps Bitmaps => new(context.Raw);
+    }
+
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The bitmap commands.</summary>
-        public RespBitmaps Bitmaps => new(target.Context);
-    }
-
-    extension(in RespContext context)
-    {
-        /// <summary>The bitmap commands.</summary>
-        public RespBitmaps Bitmaps => new(context);
+        public RespBitmaps Bitmaps => target.Context.Bitmaps;
     }
 }

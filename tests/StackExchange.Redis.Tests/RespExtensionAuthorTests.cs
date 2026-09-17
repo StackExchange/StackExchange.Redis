@@ -96,7 +96,7 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         // module command, so it assumes the worst - the command is not replayed after a reconnect, and
         // not cached. That is a safe default, not a free one; saying the category is opting IN.
         var executor = new FlagRecordingExecutor("$5\r\nhello\r\n");
-        var db = new RespDatabaseContext(new RespContext().WithExecutor(executor));
+        var db = new RespContext().WithExecutor(executor);
 
         await db.Contoso().SubstringAsync("k", 0, 4);
         Assert.Equal(CommandFlags.CommandRetryNever, executor.Flags[0] & Message.MaskRetryCategory);
@@ -143,7 +143,7 @@ public static class ContosoExtensions
     private static readonly RespCommand Substr = "SUBSTR".Command(preform: true);
 
     /// <summary>The Contoso commands.</summary>
-    public static ContosoCommands Contoso(this IRespKeyspaceTarget target) => new(target.Context);
+    public static ContosoCommands Contoso(this IRespKeyspaceTarget target) => new(target.Context.Raw);
 
     /// <summary>SUBSTR: the substring between two inclusive offsets.</summary>
     public static ValueTask<RedisValue> SubstringAsync(
@@ -153,7 +153,7 @@ public static class ContosoExtensions
         long end,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => contoso.Context.SendAsync<RedisValue>(
+        => contoso.Raw.SendAsync<RedisValue>(
             $"{Substr}{key}{start}{end}", flags, cancellationToken: cancellationToken);
 
     /// <summary>The same command, read by a handler of the library's own.</summary>
@@ -164,7 +164,7 @@ public static class ContosoExtensions
         long end,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => contoso.Context.SendAsync(
+        => contoso.Raw.SendAsync(
             $"{Substr}{key}{start}{end}", flags, LengthHandler.Instance, cancellationToken: cancellationToken);
 
     /// <summary>Reads the reply without materialising it: the length of the blob, not the blob.</summary>
@@ -186,6 +186,6 @@ public static class ContosoPropertyExtensions
     extension(IRespKeyspaceTarget target)
     {
         /// <summary>The Contoso commands.</summary>
-        public ContosoCommands Contoso2 => new(target.Context);
+        public ContosoCommands Contoso2 => new(target.Context.Raw);
     }
 }

@@ -18,15 +18,28 @@ namespace StackExchange.Redis
     /// break nobody. See design notes section 9.4.
     /// </para>
     /// <para>
-    /// <see cref="Context"/> returns <b>by value</b>. A <c>ref readonly</c> would save a copy of roughly
+    /// <b>This carries the shared plumbing; the SEMANTIC context lives on the derived interfaces.</b>
+    /// <see cref="IRespKeyspaceTarget.Context"/> is a <see cref="RespDatabaseContext"/> and
+    /// <see cref="IRespServerTarget.Context"/> is a <see cref="RespServerContext"/>, which is what decides
+    /// whether <c>Strings</c> or <c>Keyspace</c> is on offer. <see cref="Raw"/> is what both of them wrap.
+    /// </para>
+    /// <para>
+    /// <see cref="Raw"/> returns <b>by value</b>. A <c>ref readonly</c> would save a copy of roughly
     /// four registers, and cost the ability to use the result in an <c>async</c> method - which is the only
     /// kind of method this surface has.
     /// </para>
     /// </remarks>
     public interface IRespTarget
     {
-        /// <summary>The context commands are composed and sent through.</summary>
-        RespContext Context { get; }
+        /// <summary>The shared plumbing every context wraps: command map, key prefix, services, executor.</summary>
+        /// <remarks>
+        /// <b>Named <c>Raw</c> because <c>Context</c> means the semantic one now.</b> A database's context
+        /// is a <see cref="RespDatabaseContext"/> and a server's is a <see cref="RespServerContext"/> -
+        /// that is what says which groups make sense - and this is the thing both of them wrap. You need
+        /// it when composing a command by hand and essentially never otherwise; <c>Raw</c> is the spelling
+        /// <c>IServer.InfoRaw</c> and <c>ClusterNodesRaw</c> already use for "the underlying form".
+        /// </remarks>
+        RespContext Raw { get; }
     }
 
     /// <summary>
@@ -50,6 +63,8 @@ namespace StackExchange.Redis
     /// </remarks>
     public interface IRespKeyspaceTarget : IRespTarget
     {
+        /// <summary>The keyspace context: the entry point to the database command groups.</summary>
+        RespDatabaseContext Context { get; }
     }
 
     /// <summary>
@@ -68,6 +83,8 @@ namespace StackExchange.Redis
     /// </remarks>
     public interface IRespServerTarget : IRespTarget
     {
+        /// <summary>The server context: the entry point to the server-scoped command groups.</summary>
+        RespServerContext Context { get; }
     }
 
     /// <summary>EXPERIMENTAL SPIKE. Reply handlers for the prototype command surface.</summary>
@@ -1122,7 +1139,7 @@ namespace StackExchange.Redis
             string command,
             ReadOnlyMemory<RedisKeyOrValue> args,
             CommandFlags flags = CommandFlags.None)
-            => target.Context.ExecuteAsync(command, args, flags);
+            => target.Raw.ExecuteAsync(command, args, flags);
 
         /// <summary>The <c>NX</c>/<c>XX</c>/<c>GT</c>/<c>LT</c> token for an expiry condition.</summary>
         /// <param name="when">The condition to render.</param>

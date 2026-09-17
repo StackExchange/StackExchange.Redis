@@ -44,7 +44,7 @@ public class RespCacheExclusionTests
     /// <summary>Run the same command twice and report whether the second one was served locally.</summary>
     private static async Task<(bool Cached, long Refused)> RunTwice(
         string reply,
-        Func<RespContext, ValueTask> command)
+        Func<RespDatabaseContext, ValueTask> command)
     {
         using var cache = new RespClientCache();
         var executor = new FakeExecutor(reply);
@@ -67,7 +67,7 @@ public class RespCacheExclusionTests
     [Fact]
     public async Task RandomMemberCommandsAreNeverCached()
     {
-        var cases = new (string Name, string Reply, Func<RespContext, ValueTask> Run)[]
+        var cases = new (string Name, string Reply, Func<RespDatabaseContext, ValueTask> Run)[]
         {
             ("SRANDMEMBER", "$1\r\na\r\n", static c => Discard(c.Sets.RandomMemberAsync("k"))),
             ("SRANDMEMBER count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Sets.RandomMembersAsync("k", 2))),

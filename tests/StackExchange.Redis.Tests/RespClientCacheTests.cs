@@ -18,8 +18,8 @@ public class RespClientCacheTests
 {
     private static readonly RespContext Ctx = new();
 
-    private static RespContext Via(IRespExecutor executor, RespClientCache? cache = null)
-        => new RespContext().WithExecutor(executor).WithCache(cache);
+    private static RespDatabaseContext Via(IRespExecutor executor, RespClientCache? cache = null)
+        => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
     private static RespRequestFrame Get(string key) => Ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
 
@@ -352,7 +352,7 @@ public class RespClientCacheTests
         {
             // note: no 'using' on the frame and none on any payload - Send owns both
             var frame = Get("abc");
-            Assert.Equal("$5|hello|", Via(executor, cache).Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+            Assert.Equal("$5|hello|", Via(executor, cache).Raw.Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         }
 
         Assert.Equal(1, executor.Sent);
@@ -365,10 +365,10 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
-        Assert.Equal("$5|hello|", await Via(executor, cache).SendAsync(ref miss, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$5|hello|", await Via(executor, cache).Raw.SendAsync(ref miss, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
 
         var hit = Get("abc");
-        var pending = Via(executor, cache).SendAsync(ref hit, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        var pending = Via(executor, cache).Raw.SendAsync(ref hit, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
 
         // a hit never touches the executor, so it must not build a state machine or a Task either
         Assert.True(pending.IsCompletedSuccessfully);
@@ -383,7 +383,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
 
         var frame = Get("abc");
-        Via(executor, cache).Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
 
         // this is why the request is not a span: a backlog must be able to hold it past the call, and
         // still read it afterwards to resend
@@ -399,7 +399,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var frame = Get("abc");
-        Via(executor, cache).Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
 
         using var probe = Get("abc");
         Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var payload));
@@ -421,11 +421,11 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var a = Get("abc");
-        Assert.Equal("$5|hello|", Via(executor).Send(ref a, CommandFlags.None, TextHandler.Instance, default));
+        Assert.Equal("$5|hello|", Via(executor).Raw.Send(ref a, CommandFlags.None, TextHandler.Instance, default));
 
         // a null cache takes the same overload, so enabling caching is one argument, not a rewrite
         var b = Get("abc");
-        Assert.Equal("$5|hello|", Via(executor).Send(ref b, CommandFlags.None, TextHandler.Instance, default));
+        Assert.Equal("$5|hello|", Via(executor).Raw.Send(ref b, CommandFlags.None, TextHandler.Instance, default));
 
         Assert.Equal(2, executor.Sent); // no caching either way
     }
@@ -440,7 +440,7 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n", () => cache.OnInvalidate(Utf8("abc")));
 
         var frame = Get("abc");
-        Assert.Equal("$5|hello|", Via(executor, cache).Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$5|hello|", Via(executor, cache).Raw.Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         Assert.Equal(0, cache.Count);                                                      // ... not cached
     }
 
@@ -453,7 +453,7 @@ public class RespClientCacheTests
         var frame = writer.Complete();
 
         var executor = new FakeExecutor("$2\r\nok\r\n");
-        Assert.Equal("$2|ok|", Via(executor, cache).Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$2|ok|", Via(executor, cache).Raw.Send(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         Assert.Equal(0, cache.Count);
 
         // this path FALLS THROUGH to the uncached tail rather than duplicating it, so the frame must be
@@ -468,10 +468,10 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
-        Via(executor, cache).Send(ref fill, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref fill, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
 
         var hit = Get("abc");
-        Via(executor, cache).Send(ref hit, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref hit, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
 
         // exactly one reference survives - the cache entry's. If the helper leaked the caller's retain the
         // buffer would never return to the pool; if it over-released, the entry would be reading freed bytes
@@ -489,15 +489,15 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
-        Via(executor, cache).Send(ref miss, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref miss, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         Assert.Throws<ObjectDisposedException>(() => miss.AsLookupKey());
 
         var hit = Get("abc");
-        Via(executor, cache).Send(ref hit, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref hit, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         Assert.Throws<ObjectDisposedException>(() => hit.AsLookupKey());
 
         var uncached = Get("abc");
-        Via(executor).Send(ref uncached, CommandFlags.None, TextHandler.Instance, default); // the no-cache overload too
+        Via(executor).Raw.Send(ref uncached, CommandFlags.None, TextHandler.Instance, default); // the no-cache overload too
         Assert.Throws<ObjectDisposedException>(() => uncached.AsLookupKey());
     }
 
@@ -581,18 +581,18 @@ public class RespClientCacheTests
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
-        Via(executor, cache).Send(ref fill, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref fill, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         Assert.Equal(1, executor.Sent);
 
         // opting out must mean the caller does not RECEIVE a cached answer either - not merely that this
         // reply is not kept. Otherwise "don't cache this" silently still serves stale data.
         var opted = Get("abc");
-        Via(executor, cache).Send(ref opted, CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref opted, CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, TextHandler.Instance, default);
         Assert.Equal(2, executor.Sent);
 
         // ... and the entry is untouched for callers who did not opt out
         var normal = Get("abc");
-        Via(executor, cache).Send(ref normal, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref normal, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         Assert.Equal(2, executor.Sent);
     }
 
@@ -1008,19 +1008,19 @@ public class RespClientCacheTests
 
         // nothing stored, and the executor was still asked: the command really was sent
         var frame = Get("abc");
-        Assert.Null(Via(executor, cache).Send(ref frame, FireAndForget, TextHandler.Instance, default));
+        Assert.Null(Via(executor, cache).Raw.Send(ref frame, FireAndForget, TextHandler.Instance, default));
         Assert.Equal(1, executor.Sent);
         Assert.Equal(0, cache.Count);
         Assert.Equal(1, cache.RefusedByFlags);
 
         // now cache it properly, so there IS something a probe could wrongly return
         var warm = Get("abc");
-        Assert.Equal("$5|hello|", Via(executor, cache).Send(ref warm, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$5|hello|", Via(executor, cache).Raw.Send(ref warm, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         Assert.Equal(1, cache.Count);
 
         // ...and the fire-and-forget caller still gets default, not the cached value
         var again = Get("abc");
-        Assert.Null(Via(executor, cache).Send(ref again, FireAndForget, TextHandler.Instance, default));
+        Assert.Null(Via(executor, cache).Raw.Send(ref again, FireAndForget, TextHandler.Instance, default));
         Assert.Equal(3, executor.Sent);
     }
 
@@ -1033,11 +1033,11 @@ public class RespClientCacheTests
         const CommandFlags FireAndForget = CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget;
 
         var warm = Get("abc");
-        Assert.Equal("$5|hello|", await Via(executor, cache).SendAsync(ref warm, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$5|hello|", await Via(executor, cache).Raw.SendAsync(ref warm, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         Assert.Equal(1, cache.Count);
 
         var ff = Get("abc");
-        Assert.Null(await Via(executor, cache).SendAsync(ref ff, FireAndForget, TextHandler.Instance, default));
+        Assert.Null(await Via(executor, cache).Raw.SendAsync(ref ff, FireAndForget, TextHandler.Instance, default));
         Assert.Equal(2, executor.Sent);
         Assert.Equal(1, cache.Count); // and it did not disturb what was already there
     }
@@ -1337,13 +1337,13 @@ public class RespClientCacheTests
         var context = Via(executor, cache);
 
         var frame = Get("abc");
-        Assert.Equal("$1|x|", await context.SendAsync(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$1|x|", await context.Raw.SendAsync(ref frame, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         var first = cache.Bytes;
         Assert.True(first > 0);
 
         await Task.Delay(90); // past the soft threshold: the next read is served AND starts a refresh
         var again = Get("abc");
-        Assert.Equal("$1|x|", await context.SendAsync(ref again, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$1|x|", await context.Raw.SendAsync(ref again, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
 
         Assert.True(
             await WaitUntil(() => cache.Stored == 2),
@@ -1430,21 +1430,21 @@ public class RespClientCacheTests
         var context = Via(executor, cache);
 
         var read = Get("abc");
-        Assert.Equal("$2|v1|", await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$2|v1|", await context.Raw.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         Assert.Equal(1, executor.Sent);
 
         // cached: a second read does not reach the executor
         var again = Get("abc");
-        Assert.Equal("$2|v1|", await context.SendAsync(ref again, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$2|v1|", await context.Raw.SendAsync(ref again, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         Assert.Equal(1, executor.Sent);
 
         // now WE write it - no server invalidation involved anywhere in this test
         var write = Ctx.Render($"{RedisCommand.SET}{(RedisKey)"abc"}{(RedisValue)"v2"}");
-        await context.SendAsync(ref write, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref write, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance, default);
 
         // ...and the next read must go and ask, rather than hand back what we just replaced
         var after = Get("abc");
-        Assert.Equal("$2|v1|", await context.SendAsync(ref after, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
+        Assert.Equal("$2|v1|", await context.Raw.SendAsync(ref after, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default));
         Assert.Equal(3, executor.Sent); // read, write, re-read
     }
 
@@ -1464,11 +1464,11 @@ public class RespClientCacheTests
         var context = Via(executor, cache);
 
         var read = Get("abc");
-        await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         Assert.Equal(1, cache.Count);
 
         var other = Get("abc");
-        await context.SendAsync(ref other, readFlags, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref other, readFlags, TextHandler.Instance, default);
 
         // still cached, and still servable
         using var probe = Get("abc");
@@ -1492,11 +1492,11 @@ public class RespClientCacheTests
         var context = Via(executor, cache);
 
         var read = Get("abc");
-        await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         Assert.Equal(1, cache.Count);
 
         var unknown = Ctx.Render($"{RedisCommand.SET}{(RedisKey)"abc"}{(RedisValue)"v2"}");
-        await context.SendAsync(ref unknown, CommandFlags.None, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref unknown, CommandFlags.None, TextHandler.Instance, default);
 
         using var probe = Get("abc");
         Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), "an undeclared command should be assumed to write");
@@ -1526,7 +1526,7 @@ public class RespClientCacheTests
         foreach (var key in new[] { "a", "b", "c" })
         {
             var read = Get(key);
-            await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+            await context.Raw.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         }
 
         Assert.Equal(3, cache.Count);
@@ -1537,7 +1537,7 @@ public class RespClientCacheTests
         var frame = Ctx.Render(ref many);
         Assert.True(frame.KeyCount < 0, $"expected unknowable keys, got KeyCount={frame.KeyCount}");
 
-        await context.SendAsync(ref frame, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref frame, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance, default);
 
         // the unrelated entries survive: this write never mentioned them
         foreach (var key in new[] { "a", "b", "c" })
@@ -1564,7 +1564,7 @@ public class RespClientCacheTests
 
         // k70 sits well past the bitmap's last markable argument
         var read = Get("k70");
-        await context.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref read, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
         Assert.Equal(1, cache.Count);
 
         var many = Ctx.Compose($"{RedisCommand.MSET}");
@@ -1572,7 +1572,7 @@ public class RespClientCacheTests
         var frame = Ctx.Render(ref many);
         Assert.True(frame.KeyCount < 0);
 
-        await context.SendAsync(ref frame, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance, default);
+        await context.Raw.SendAsync(ref frame, CommandFlags.CommandRetryWriteLastWins, TextHandler.Instance, default);
 
         using var probe = Get("k70");
         Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), "a key past the bitmap must still be invalidated");

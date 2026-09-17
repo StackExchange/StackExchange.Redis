@@ -54,8 +54,8 @@ public class RespStaleWhileRevalidateTests
         return condition();
     }
 
-    private static RespContext Context(CountingExecutor executor, RespClientCache cache)
-        => new RespContext().WithExecutor(executor).WithCache(cache);
+    private static RespDatabaseContext Context(CountingExecutor executor, RespClientCache cache)
+        => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
     [Fact]
     public async Task AnAgeingEntryIsServedAndRefreshed()
