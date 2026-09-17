@@ -42,7 +42,6 @@ public static partial class Streams
     /// reachable from it dies at the same moment. See <see cref="RespReply"/> for the rule in full.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class RespRangeReply : RespReply
     {
         private readonly RespAggregate<RespStreamEntry> _entries;
@@ -118,7 +117,6 @@ public static partial class Streams
     /// exactly as long as it is. Copying one does not extend its life, which is why disposal lives on the
     /// reply and nowhere else.
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public readonly struct RespStreamEntry
     {
         /// <summary>Reads one entry from the run; handed a reader positioned before that entry.</summary>

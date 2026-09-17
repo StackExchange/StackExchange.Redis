@@ -67,15 +67,42 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-- [ ] **Take `[Experimental(SER010)]` off the group surface before 4.0 ships.** Decided 2026-09-17: v4
-      ships this API as normal, supported surface, not as an experiment. The docs are already written that
-      way - `docs/Basics.md` and the rest now teach `db.Strings.GetAsync`, and `docs/LegacyApi.md` presents
-      the old spelling as the supported-but-previous one - so the attributes are now the only thing saying
-      otherwise, and they say it to anyone who copies an example. Also delete the opt-in lines from
-      `docs/exp/SER010.md` (or retire the page), and decide the same question for `SER011`/`SER012`.
+- [ ] **`StackExchange.Redis.Build.Tests` is red, and CI does not run it. Found 2026-09-17**, while
+      retiring `SER010`; **pre-existing**, confirmed by stashing the change and re-running - 18 of 174
+      fail on `HEAD` too. The analyzer samples call `ctx.Execute("SET", $"...")`, and `RespContext` has no
+      `Execute`: the public surface has `ExecuteAsync(string, ReadOnlyMemory<RedisKeyOrValue>, ...)` and
+      `Render`. The samples are stale against a reshape this spike did to the send API, and every failure
+      is the same `CS1061` knocking the expected diagnostic column out.
 
-      Related, and cheap while the attribute is still on: the `.Interpolated` namespace, which the same
-      entry below says should go. Both are free now and both are binary breaks later.
+      **The reason nobody noticed is the more useful half**: `.github/workflows/CI.yml` runs
+      `tests/StackExchange.Redis.Tests` only. The analyzer's own tests - the thing that decides whether a
+      shipped analyzer reports correctly - are built by CI and never executed. Fixing the samples is
+      mechanical; adding the project to the CI test step is what stops it happening again, and should
+      probably come first so the fix is what turns the light green.
+
+- [x] **`SER010` retired entirely — 4.0 ships this as supported API.** Not "the attribute comes off the
+      groups": the whole experiment is over, so the ID joins `SER002`/`SER003`/`SER006` in the reserved
+      list, 67 `[Experimental]` attributes are gone, 612 `[SER010]` prefixes come off the public-API
+      files, and `SER010` leaves the repo-wide `NoWarn` - which is the part that proves it, since the
+      solution now builds with nothing suppressing it anywhere.
+
+      **Two things fell out of removing the gate.** An experimental symbol used *inside* another
+      experimental symbol is exempt from the diagnostic, so `RespFragment.Parse` had been silently
+      building a fragment through the `SER011`-guarded constructor; it now says so, scoped to the one
+      statement, with the justification that the validation immediately above it is precisely what the
+      guard exists to demand. And `SA1506` started firing on doc comments that were followed by a comment
+      block: the attribute used to break the run, and without it a blank line inside the block reads as a
+      blank line after the documentation.
+
+      **`SER011` stays, and it is not the same kind of marker**: it guards hand-constructing a
+      `RespFragment`, which is a speed bump on a sharp tool rather than a maturity gate - the surface
+      being supported does not make unchecked bytes safer.
+
+      **`SER012` is now the open question, and it is not independent.** Measured, not guessed: taking it
+      out of `NoWarn` produces **1,174 diagnostics**, because `RespValue` is the element type of the
+      leases the groups return - `db.Sets.MembersAsync` hands back `ReadOnlyLease<RespValue>`. A
+      supported surface whose return types are experimental is not a coherent position, so this needs
+      answering before 4.0, and "retire it too" is the only answer that leaves the groups usable.
 
 - [x] **`*Async` suffixes on the new surface.** MSFT review, 2026-09-15; done the same day. Checked whether the suffix would
       be redundant: the surface is async-only (22 `ValueTask` returns in Strings alone, zero sync twins), so

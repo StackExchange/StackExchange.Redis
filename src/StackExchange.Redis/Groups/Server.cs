@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using StackExchange.Redis.Interpolated;
@@ -30,7 +30,6 @@ namespace StackExchange.Redis;
 /// so that the group could be called what it is, rather than <c>Servers</c> to dodge a collision.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 public static partial class Server
 {
 }
@@ -43,7 +42,6 @@ public static partial class Server
 /// not database-scoped; the members that do need a database take it explicitly and move the context onto
 /// it, which is the model <c>IServer</c> already follows.
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 public readonly struct RespServer
 {
     private readonly RespContext _context;
@@ -66,7 +64,6 @@ public readonly struct RespServer
 /// <c>DEL</c> and server-scoped for <c>KEYS</c>/<c>SCAN</c> - and keeping the accessors apart is what
 /// lets that happen without either side inheriting the other's members.
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 public static partial class RespServerExtensions
 {
     extension(IRespServerTarget target)

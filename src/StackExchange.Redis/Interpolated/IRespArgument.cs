@@ -29,7 +29,6 @@ namespace StackExchange.Redis.Interpolated
     /// covers the whole of SET with no branch.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public interface IRespArgument
     {
         /// <summary>Write this value as zero or more RESP arguments.</summary>
@@ -79,7 +78,6 @@ namespace StackExchange.Redis.Interpolated
     /// that way, because adding it "for symmetry" is the plausible mistake.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public interface IRespFormattableArgument
     {
         /// <summary>Write this value as zero or more RESP arguments, in the requested format.</summary>

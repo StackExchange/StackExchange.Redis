@@ -41,7 +41,6 @@ namespace StackExchange.Redis.Interpolated
     /// they are ever dropped from table 2.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     internal sealed class RespClientCache : IDisposable
     {
         private readonly ConcurrentDictionary<EntryKey, Entry> _entries = new();
@@ -1294,7 +1293,6 @@ namespace StackExchange.Redis.Interpolated
         }
 
         /// <summary>An in-flight fill: the frame that will become the cache key, and what it depends on.</summary>
-        [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
         public readonly struct RespFill
         {
             internal RespFill(RespRequest key, int database, Dependency[] dependencies, RespClientCache? owner = null, object? slot = null, bool replaces = false)

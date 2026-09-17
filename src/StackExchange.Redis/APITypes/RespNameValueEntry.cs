@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using RESPite.Messages;
@@ -21,7 +21,6 @@ namespace StackExchange.Redis;
 /// reference, and this is a view valid for exactly as long as that is.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 public readonly struct RespNameValueEntry
 {
     /// <summary>Captures both halves of a pair; handed readers positioned before each.</summary>

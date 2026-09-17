@@ -35,7 +35,6 @@ namespace StackExchange.Redis.Interpolated
     /// reason, and the failure mode it prevents is wrong data served from cache, not a crash.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class RespPayload : IDisposable, RESPite.Messages.IRespBufferOwner
     {
         /// <inheritdoc/>

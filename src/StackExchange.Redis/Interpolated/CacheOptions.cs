@@ -24,7 +24,6 @@ namespace StackExchange.Redis.Interpolated
     /// <c>CLIENT TRACKING ... BCAST</c>, so it cannot vary per call - the server was only told once.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class CacheOptions
     {
         /// <summary>The default options, used when none are given.</summary>

@@ -25,8 +25,6 @@ namespace StackExchange.Redis;
 /// group contributes its own accessor to.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-
 // RS0026 warns about overloads carrying optional parameters, because adding one later can make an
 // existing call ambiguous. That cannot arise here: every member of this class is an extension method on
 // one group type, so two members sharing a name are always candidates for the same call - and within the
@@ -58,7 +56,6 @@ public static partial class Keys
 /// the scan cursors were: a different command shape, better done together.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 public readonly struct RespKeys
 {
     private readonly RespContext _context;

@@ -14,6 +14,10 @@
         //   SER002 = Server_8_4  (Redis 8.4 features)
         //   SER003 = Server_8_6  (Redis 8.6 features)
         //   SER006 = Server_8_8  (Redis 8.8 features)
+        //   SER010 = InterpolatedWriter - the RespContext surface and the command groups, which
+        //            ARE the 4.0 API rather than a preview of one. It was gated while the shape was
+        //            being argued with; the documentation now teaches it, so the gate was the only
+        //            thing still calling it an experiment.
 
         // ReSharper disable InconsistentNaming
         public const string Respite = "SER004";
@@ -22,12 +26,14 @@
         public const string Server_8_10 = "SER008";
         public const string Transport = "SER009";
 
-        /// <summary>The interpolated-string RESP writer: RespContext, the command handler, and friends.</summary>
-        public const string InterpolatedWriter = "SER010";
-
         /// <summary>
         /// Constructing a <c>RespFragment</c> by hand. Deliberately NOT in the global NoWarn: the whole point
         /// is that it should be seen. Generated code suppresses it at the emit site.
+        /// <para>
+        /// This one did NOT retire with SER010, and is not the same kind of marker: SER010 asked whether
+        /// the surface was ready, this asks whether you are sure - a speed bump on a sharp tool, which the
+        /// surface being supported does not blunt.
+        /// </para>
         /// </summary>
         public const string HandWrittenRespFragment = "SER011";
 
@@ -35,10 +41,10 @@
         /// Borrowed reply values: <c>RespValue</c> and the commands that hand back leases of them.
         /// </summary>
         /// <remarks>
-        /// Separate from <see cref="InterpolatedWriter"/> deliberately: that asks whether commands should
-        /// be WRITTEN this way, this asks whether replies should be BORROWED rather than owned, and the
-        /// two can be answered differently. Turning this one off says how much of a codebase depends on
-        /// the borrowing.
+        /// Separate from the (now retired) SER010 deliberately: that asked whether commands should be
+        /// WRITTEN this way, this asks whether replies should be BORROWED rather than owned, and the two
+        /// can be answered differently. Turning this one off says how much of a codebase depends on the
+        /// borrowing.
         /// </remarks>
         public const string BorrowedValues = "SER012";
 

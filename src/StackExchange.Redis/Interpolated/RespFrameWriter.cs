@@ -25,7 +25,6 @@ namespace StackExchange.Redis.Interpolated
     /// keys as it writes them, and that is the entire integration.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class RespFrameWriter : IBufferWriter<byte>
     {
         private byte[] _buffer;

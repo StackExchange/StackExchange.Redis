@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using RESPite;
@@ -32,7 +32,6 @@ namespace StackExchange.Redis.Interpolated
     /// per call. A malformed name fails at type-initialisation, not on the wire.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public readonly struct RespCommand
     {
         private readonly RedisCommand _command;
@@ -91,7 +90,6 @@ namespace StackExchange.Redis.Interpolated
     }
 
     /// <summary>EXPERIMENTAL SPIKE. Resolving a command name once.</summary>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public static class RespCommands
     {
         /// <summary>

@@ -34,7 +34,6 @@ namespace StackExchange.Redis.Interpolated
     /// its rendering. A well-behaved application has a handful of scripts.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class RespScriptCache
     {
         private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);

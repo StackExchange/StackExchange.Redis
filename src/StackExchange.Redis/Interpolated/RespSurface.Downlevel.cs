@@ -27,7 +27,6 @@ namespace StackExchange.Redis.Interpolated.Downlevel
     /// <c>StackExchange.Redis.Interpolated</c> for the commands that hang off them.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public static class RespGroups
     {
         /// <inheritdoc cref="RespDatabaseExtensions.extension(IRespKeyspaceTarget).Arrays"/>

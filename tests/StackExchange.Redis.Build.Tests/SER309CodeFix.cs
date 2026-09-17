@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Testing;
 using StackExchange.Redis.CodeFixes;
@@ -20,7 +20,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
     // the bodies come from RespFragmentGenerator. The fixer only looks for a [Resp] property, so this is
     // faithful to what it actually resolves against.
     private const string Declarations = """
-        #pragma warning disable SER010, SER011
+        #pragma warning disable SER011
         using StackExchange.Redis;
         using StackExchange.Redis.Interpolated;
 

@@ -36,7 +36,6 @@ namespace StackExchange.Redis;
 /// call site; the benefit is that nothing is added to a type everybody already uses.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 public readonly ref struct RespKey
 {
     // The bytes to write: raw UTF-8 for a Blob, or UTF-16 code units reinterpreted for a Clob.

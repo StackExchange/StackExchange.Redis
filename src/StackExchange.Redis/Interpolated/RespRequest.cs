@@ -33,7 +33,6 @@ namespace StackExchange.Redis.Interpolated
     /// every holder has to know whether ownership moved, and the answer is only known after dispatch.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public readonly struct RespRequest : IEquatable<RespRequest>, IDisposable
     {
         private readonly byte[]? _array;

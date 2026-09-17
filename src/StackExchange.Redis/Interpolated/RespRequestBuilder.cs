@@ -19,7 +19,6 @@ namespace StackExchange.Redis.Interpolated
     /// compiler-supplied <c>formattedCount</c> the argument count. See <c>design/interpolated-resp-writer.md</c>.
     /// </remarks>
     [InterpolatedStringHandler]
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public ref struct RespRequestBuilder
     {
         /// <summary>'*' plus an int32 text form plus CRLF; reserved at the front so the header can be

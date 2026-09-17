@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using RESPite.Messages;
@@ -29,7 +29,6 @@ namespace StackExchange.Redis.Interpolated
     /// call.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class RespReplyHandler<TReply> : IRespHandler<TReply>, IRespPayloadHandler<TReply>
         where TReply : RespReply
     {

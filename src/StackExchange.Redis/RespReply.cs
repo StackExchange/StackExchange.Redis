@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite;
@@ -41,7 +41,6 @@ namespace StackExchange.Redis;
 /// which is the right way round for a base type other people derive from.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
 public abstract class RespReply : IDisposable
 {
     private RespPayload? _payload;

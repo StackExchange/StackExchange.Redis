@@ -77,7 +77,6 @@ namespace StackExchange.Redis.Interpolated
     /// EXPERIMENTAL SPIKE. Turns a reply into a result - the <c>ResultProcessor</c> half.
     /// </summary>
     /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public interface IRespHandler<TResult>
     {
         /// <summary>Read a reply - cached or fresh - into a result.</summary>
@@ -136,8 +135,6 @@ namespace StackExchange.Redis.Interpolated
     /// "no cache" is an ordinary case rather than a missing one. It is also the right layering: a cache that
     /// called the executor would have to sit above dispatch and know how to send.
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-
     // RS0027 wants the overload carrying optional parameters to have the most parameters. It is guidance
     // aimed at ambiguity when parameters are added later, and it does not apply here: the two overloads
     // differ in the TYPE of their second parameter - an interpolated-string handler versus a rendered

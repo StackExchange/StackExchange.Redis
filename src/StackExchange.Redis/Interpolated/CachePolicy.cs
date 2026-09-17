@@ -26,7 +26,6 @@ namespace StackExchange.Redis.Interpolated
     /// policy plus at most one override, rather than a field per knob.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class CachePolicy
     {
         /// <summary>The default policy, used when none is given.</summary>

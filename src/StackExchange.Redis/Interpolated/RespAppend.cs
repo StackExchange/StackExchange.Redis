@@ -15,7 +15,6 @@ namespace StackExchange.Redis.Interpolated
     /// using var frame = ctx.Render(ref cmd);
     /// </code>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public static class RespAppend
     {
         /// <summary>Append more arguments, written the same way as the command itself.</summary>

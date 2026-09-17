@@ -1428,7 +1428,6 @@ namespace StackExchange.Redis
         /// not read what <see cref="CachePolicy.InvalidationGracePeriod"/> actually permits.
         /// </para>
         /// </remarks>
-        [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
         public CacheOptions? ClientCache { get; set; }
 
         /// <summary>

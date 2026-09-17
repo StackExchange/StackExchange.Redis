@@ -20,7 +20,6 @@ namespace StackExchange.Redis.Interpolated
     /// <c>design/interpolated-resp-writer.md</c> section 2.3.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public readonly ref struct RespFragment
     {
         /// <summary>
@@ -130,7 +129,13 @@ namespace StackExchange.Redis.Interpolated
 
             if (found != argCount) throw Malformed($"contains {found} bulk string(s), but {argCount} was declared");
 
+            // SER011 guards hand-constructing a fragment, because nothing else checks that the bytes really
+            // are well-formed RESP. THIS is the code that checks - everything above this line is that check -
+            // so this call site is the sanctioned one, and it is the reason the guard can be strict
+            // everywhere else. Scoped to the single statement rather than the file, deliberately.
+#pragma warning disable SER011
             return new RespFragment(bytes, argCount);
+#pragma warning restore SER011
         }
 
         private static ArgumentException Malformed(string detail)
@@ -148,7 +153,6 @@ namespace StackExchange.Redis.Interpolated
     /// Omit the tokens to infer a single token from the member name, as <c>AsciiHashAttribute</c> does.
     /// </summary>
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class RespAttribute : Attribute
     {
         /// <summary>Infer a single token from the member name, upper-cased.</summary>

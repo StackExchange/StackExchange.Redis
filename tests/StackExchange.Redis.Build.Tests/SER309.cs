@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Xunit;
 
@@ -15,7 +15,6 @@ namespace StackExchange.Redis.Build.Tests;
 public class SER309 : Verifier<RespInterpolationAnalyzer>
 {
     private const string Using = """
-        #pragma warning disable SER010
         using StackExchange.Redis;
         using StackExchange.Redis.Interpolated;
         """;

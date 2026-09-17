@@ -10,7 +10,6 @@ namespace StackExchange.Redis.Interpolated
     /// EXPERIMENTAL SPIKE. A rendered RESP frame, plus the routing and invalidation metadata that was
     /// folded while it was being written.
     /// </summary>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public struct RespRequestFrame : IDisposable
     {
         // Key marks, two alternative encodings in one 64-bit field:
@@ -354,7 +353,6 @@ namespace StackExchange.Redis.Interpolated
     /// must be internal (a public one would collide with the real type on newer targets), so it cannot
     /// appear in API that a consumer might one day see.
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public readonly struct KeyRange
     {
         /// <summary>Create a range over a payload within a frame's buffer.</summary>

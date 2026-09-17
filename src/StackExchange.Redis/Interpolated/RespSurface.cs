@@ -22,7 +22,6 @@ namespace StackExchange.Redis.Interpolated
     /// kind of method this surface has.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public interface IRespTarget
     {
         /// <summary>The context commands are composed and sent through.</summary>
@@ -48,7 +47,6 @@ namespace StackExchange.Redis.Interpolated
     /// about which commands are <b>offered</b>, which is a separate question from where they go.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public interface IRespKeyspaceTarget : IRespTarget
     {
     }
@@ -67,13 +65,11 @@ namespace StackExchange.Redis.Interpolated
     /// already draw, and it wants drawing deliberately rather than by whichever group is written first.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public interface IRespServerTarget : IRespTarget
     {
     }
 
     /// <summary>EXPERIMENTAL SPIKE. Reply handlers for the prototype command surface.</summary>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public static class RespHandlers
     {
         /// <summary>Reads a bulk string reply as a <see cref="RedisValue"/>; null stays null.</summary>
@@ -1075,8 +1071,6 @@ namespace StackExchange.Redis.Interpolated
     /// documents itself, and how <c>RedisDatabase</c>'s ~6k lines would have liked to be split.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
-
     // HOW A COMMAND SAYS HOW SAFE IT IS TO REPLAY - the house rule for every group on this surface.
     //
     // The retry category comes from CommandFlagsExtensions.WithDefaultCategory: the same per-command table
@@ -1096,7 +1090,7 @@ namespace StackExchange.Redis.Interpolated
     // pure drift risk against the path that still reads the table. See the queue.
     //
     // WithRetryCategory stays public for surfaces outside this assembly, which cannot see the table.
-
+    //
     // RS0026 warns about overloads that carry optional parameters, because adding one later can make an
     // existing call ambiguous. That hazard cannot arise here, and saying so once beats a pragma per
     // command: every member of this class is an extension method whose FIRST parameter is a group type -

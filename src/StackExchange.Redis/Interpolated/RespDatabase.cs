@@ -21,7 +21,6 @@ namespace StackExchange.Redis.Interpolated
     /// the entire argument of design notes section 9.4, made concrete.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public sealed class RespDatabase : IRespKeyspaceTarget
     {
         /// <summary>Create a database over a context.</summary>

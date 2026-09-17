@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
 namespace StackExchange.Redis.Interpolated
@@ -18,7 +18,6 @@ namespace StackExchange.Redis.Interpolated
     /// offered here is genuinely open; see <see cref="PerKey"/>.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.InterpolatedWriter, UrlFormat = Experiments.UrlFormat)]
     public enum CacheTrackingMode
     {
         /// <summary>
