@@ -261,7 +261,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack
-        /// a direct API.
+        /// a direct API. Commands that require a database run against the configured default database;
+        /// to choose a different one, use <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/>.
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
@@ -276,9 +277,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack
-        /// a direct API. The command is assumed to be not database-specific. If this is not the case,
-        /// <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/> should be used to
-        /// specify the database (using <langword>null</langword> to use the configured default database).
+        /// a direct API. Commands that require a database run against the configured default database, and
+        /// commands that do not are sent without one, leaving the connection's current database alone. To
+        /// choose a specific database, use <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/>
+        /// (passing <see langword="null"/> for the configured default).
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
