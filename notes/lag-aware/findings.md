@@ -286,10 +286,8 @@ things currently taken on trust:
 - what does a failure body actually look like — are the composed codes
   (`bdb_unavailable_shard_unreachable_port_unbound`) real, and is `error_code` reliably present?
 - is a `Host: cnm.cluster.fqdn` header actually required, as the docs' header table implies?
-- what does `GET /v1/bdbs?fields=uid,endpoints` really return? That shape decides whether the
-  JSON-avoidance argument in §5 holds, or whether discovery is cheap enough to include after all.
-- TLS on 9443: self-signed by default? That decides whether we need redis-py's `ca_file` /
-  `client_cert_file` / `verify_tls` surface or can rely on the ambient trust store.
+  (`ClusterRestClient` sets no such header and works, so: apparently not — but it only issues
+  `GET /v1/bdbs`, so worth re-checking on the availability route.)
 - **what lag do real geo-replicated links actually show?** This is the empirical way to settle
   100 ms versus Lettuce's 5000 ms (§3), and it is a much better argument than reading either
   default off a page.
@@ -298,44 +296,59 @@ The two then compose rather than compete, and the synthesis is the useful bit: *
 cluster to capture responses, and the fakes to replay them.** A recorded set of genuine 200/503/404
 bodies baked into the stub means the deterministic tests stop guessing at the wire format.
 
-### The fault injector — correcting the assumption above
+### The fault injector — and we already have one
 
 I had assumed a real cluster could not be made to show "reachable but stale" on demand. **That is
-wrong**, and it is worth knowing before planning any of this: Redis ships a **fault injection
-service** that the client test suites drive over HTTP, precisely so failover behaviour can be tested
-against real Redis Enterprise deployments.
+wrong twice over**: Redis ships a fault injection service for exactly this, *and we already have a
+test tier built on it.*
 
-From Lettuce's `src/test/java/io/lettuce/scenario/FaultInjectionClient.java`:
+**`tests/StackExchange.Redis.FaultInjector.Tests`** exists on `marc/maint-optin-server`, open as
+**[#3191](https://github.com/StackExchange/StackExchange.Redis/pull/3191)** (107 files, +13,160,
+unmerged at the time of writing). Per its README it drives *"a real Redis Enterprise deployment
+through the fault injector, and watch[es] how SE.Redis reacts … the tier that can observe what no
+in-process fake can: real DNS, real TLS identity, real timing."* Gating is
+`SER_FI_CONFIG_DIR` plus an explicit `E2E_SCENARIO_TESTS=true` opt-in, with `FAULT_INJECTION_API_URL`
+defaulting to `http://127.0.0.1:20324`.
 
-- base URL `http://127.0.0.1:20324` by default, overridable with `FAULT_INJECTION_API_URL`
-- `POST /action` with `{ "type": <action>, "parameters": { … } }` → `{ "action_id": … }`, then poll
-  that id until the action completes
-- generous timeouts by category — up to 5 minutes for migrations and failovers — plus a
-  stabilisation delay afterwards
+Two pieces of it matter directly here.
 
-Action types visible in their suite:
+**`FaultInjector/FaultInjectorClient.cs`** — `POST /action` returning an id, `GET /action/{id}` to
+poll, with its own note that this is *"the same shape go-redis, redis-py and node-redis wrap …
+they integrated independently and converged, so the contract is stable"*. It is richer than Lettuce's:
+alongside `StartActionAsync` / `RunActionAsync` / `WaitForActionAsync` there is
+`GetValidTriggersAsync(scenario, effect, clusterIndex)`, so **we can ask the injector what
+lag-inducing effects the deployment actually supports rather than guessing at an action name.**
+Lettuce's own Active-Active failover test uses `network_latency` with `bdb_id`, `delay_ms` and
+`duration`, which is the obvious candidate to look for.
 
-| action | parameters | used for |
-| --- | --- | --- |
-| `network_latency` | `bdb_id`, `delay_ms`, `duration` | **Active-Active failover scenarios** |
-| `network_failure` | endpoint | reconnection / pub-sub recovery |
-| `dmc_restart` | endpoint | reconnection / pub-sub recovery |
+**`Environment/ClusterRestClient.cs`** — *already a Redis Enterprise REST client*, described as "the
+cluster's own REST API on port 9443, for the few facts the fault injector does not expose". It
+already does `GET /v1/bdbs?fields=uid,name`, with HTTP Basic auth and `System.Text.Json`. Adding
+`GET /v1/bdbs/{uid}/availability?extend_check=lag` beside it is a method, not a project.
 
-`ActiveActiveFailoverScenarioTest` injects `network_latency` against the primary's `bdb_id` for a
-bounded duration — which is exactly the mechanism for driving replication lag past the tolerance and
-watching the lag-aware check flip while the plain check stays green. So the authoritative end-to-end
-test for this feature is real cluster + fault injector, and it is a road Lettuce has already built.
+That client also **answers several questions in §9 empirically**, which is worth more than the
+documentation they were drawn from:
 
-That demotes the fakes but does not remove them. They remain worth having for: CI and dev machines
-with no Enterprise cluster; speed (the injector's failover actions budget minutes, and there is a
-10-second stabilisation wait); and the cases the injector does not obviously cover — specific
-`error_code` bodies, 401/403 credential expiry, and slow-but-successful responses for probe-timeout
-behaviour.
+- **TLS on 9443 is self-signed per environment.** The client pins to a CA from the config directory
+  via `ServerCertificateCustomValidationCallback` with `X509ChainTrustMode.CustomRootTrust`, with the
+  comment *"this channel carries credentials"*. So a lag-aware probe **does** need CA/cert
+  configuration in the redis-py mould; relying on the ambient trust store will not do.
+- **Auth is HTTP Basic**, confirmed against a real cluster rather than inferred from Lettuce.
+- **`/v1/bdbs?fields=…` returns an array of objects carrying the requested fields**, so Lettuce's
+  `fields=uid,endpoints` discovery is straightforward. That weakens the §5 argument a little: skipping
+  discovery still keeps JSON out of **`src/`**, but "discovery is hard" is not the reason to skip it.
 
-Their scenario tests also follow the same gating shape we already use: endpoints come from
-configuration (`Endpoints.DEFAULT.getEndpoint("re-standalone")`) with `assumeTrue(... != null,
-"Skipping test because no Redis endpoint is configured!")`, which is our `Skip.IfNoServer` pattern
-under a different name.
+The fakes are demoted, not removed: they still cover machines with no Enterprise cluster, they are
+far faster (injector actions budget minutes, plus a stabilisation wait), and they reach what the
+injector does not obviously reach — specific `error_code` bodies, 401/403 credential expiry, and
+slow-but-successful responses for probe-timeout behaviour.
+
+**Sequencing consequence:** an end-to-end lag-aware test is downstream of #3191. That is a real
+dependency to plan around, not a detail.
+
+And #3191's own write-up is the strongest possible support for validating §1 before writing code:
+*"the specifications are prose, the payloads were never published, and nearly every assumption I
+started with was wrong in some way that mattered."* Same vendor, same class of API, same trap.
 
 Gating is a solved problem here: `tests/.../Helpers/Skip.cs` already has `IfNoServer(host, port)`,
 `IfNoCluster()`, `IfNoFailoverPair()` and `UnlessLongRunning()`, and `TestConfig` carries per-role
@@ -443,12 +456,15 @@ external probe can already reach `context.Server.Multiplexer.RawConfig.Tunnel` w
    needs to map endpoint → REST configuration, which per-member health checks make unnecessary but do
    not forbid.
 6. **Credentials and rotation.** Lettuce takes a `Supplier<RedisCredentials>` so credentials can
-   rotate; redis-py supports Basic plus mTLS. Whatever we do should not bake in a static password.
-7. **How is this tested?** Answered in §7: real cluster plus Redis's **fault injection service** is
-   the authoritative path — `network_latency` against a `bdb_id` drives real replication lag past
-   the tolerance, which is how Lettuce tests Active-Active failover — with stubbed HTTP transport
-   for the deterministic/CI tier and `toys/KestrelRedisServer` (already serving HTTP on 5000) in
-   between. Open: whether we stand up a fault-injector-backed scenario suite at all, who owns it,
-   and whether the injector is available to us alongside the clusters. The real-cluster validation
-   in any case wants doing *before* code, since several §1 facts are documentation rather than
-   observation.
+   rotate; redis-py supports Basic plus mTLS; our own `ClusterRestClient` pins a CA because the
+   management certificate is self-signed per environment (§7). So the probe needs *at least* Basic
+   plus CA pinning, and should not bake in a static password.
+7. ~~**How is this tested?**~~ Largely answered in §7: the tier exists, in #3191. What is genuinely
+   open is **sequencing and scope** — an end-to-end lag-aware test is downstream of an unmerged
+   107-file PR, so either this waits for #3191 or it starts at the stubbed tier and the scenario test
+   follows. Also open: whether the deployments we have access to expose a lag-inducing effect at all
+   (ask `GetValidTriggersAsync` rather than assuming `network_latency`).
+8. **Does any of this need `src/` changes at all?** On the evidence so far, possibly none:
+   `HealthCheckProbe` is externally subclassable, `RawConfig`/`Tunnel` are public, and the REST
+   plumbing precedent lives in the test tier. The `Tunnel` addition in §8 is the one thing that would
+   have to land in the core package — and only if we want the management plane to honour tunnels.
