@@ -1916,6 +1916,123 @@ public ref partial struct RespReader
     }
 
     /// <summary>
+    /// Decode the current scalar value as text into the supplied <paramref name="target"/>, or as much as
+    /// can be decoded.
+    /// </summary>
+    /// <param name="target">The destination for the decode operation.</param>
+    /// <param name="encoding">
+    /// How the payload's bytes are text; <see langword="null"/> means UTF-8, which is what a RESP server
+    /// sends unless a caller stored something else.
+    /// </param>
+    /// <returns>The number of characters successfully written.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The text twin of <see cref="CopyTo(Span{byte})"/></b>, with the same promise: it writes what
+    /// fits and tells you how much that was. It never writes a partial character - a target too small to
+    /// hold the last one stops before it rather than splitting it - so the result is always well-formed
+    /// text, just possibly less of it than the value holds.
+    /// </para>
+    /// <para>
+    /// <b>A <see cref="Decoder"/> rather than <see cref="Encoding.GetChars(ReadOnlySpan{byte}, Span{char})"/></b>
+    /// for two reasons, both of which are correctness rather than taste: a streamed value's chunks can
+    /// split a multi-byte sequence down the middle, and only a decoder carries the half-read sequence
+    /// across the boundary; and <c>GetChars</c> <i>throws</i> on a short destination where this must
+    /// truncate. The decoder is skipped entirely - no allocation at all - when the value is one contiguous
+    /// run and the target is provably large enough for it, which is the ordinary case.
+    /// </para>
+    /// <para>
+    /// <b>The payload, verbatim.</b> Like its byte twin and unlike <see cref="ReadString()"/>, this does
+    /// not strip the <c>txt:</c>/<c>mkd:</c> marker from a verbatim string - the two <c>CopyTo</c>
+    /// overloads must describe the same bytes, or one of them is lying about the value.
+    /// </para>
+    /// </remarks>
+    public readonly int CopyTo(scoped Span<char> target, Encoding? encoding = null)
+    {
+        encoding ??= RespConstants.UTF8;
+        if (target.IsEmpty) return 0;
+
+        if (TryGetSpan(out var value))
+        {
+            if (value.IsEmpty) return 0;
+
+            // GetMaxCharCount is arithmetic, not a pass over the data, so this is a cheap way to know that
+            // GetChars cannot overflow - which is the only thing that stops us using it. The ordinary case
+            // lands here: one contiguous run, a target with room, no decoder and no allocation at all.
+            if (target.Length >= encoding.GetMaxCharCount(value.Length)) return encoding.GetChars(value, target);
+        }
+
+        // Room for whatever ONE more byte can produce, fallback included. Below this the decoder must not
+        // be pointed at the target, because Convert THROWS when the destination cannot hold even one
+        // character - it does not report "nothing fitted", which is what this method has to return. The
+        // clamp is a stack guard and never binds for a real encoding (UTF-8 asks for 2).
+        var headroom = Math.Min(encoding.GetMaxCharCount(1), MaxDecodeScratchChars);
+        Span<char> scratch = stackalloc char[headroom];
+
+        var decoder = encoding.GetDecoder();
+        int written = 0;
+        var iterator = ScalarChunks();
+        while (iterator.MoveNext())
+        {
+            var bytes = iterator.Current;
+
+            // Convert stops when EITHER buffer runs out, so one call per chunk is not enough: it can
+            // return with the chunk half-read because the target filled, and the rest would be dropped
+            // while there was still room for it
+            while (!bytes.IsEmpty)
+            {
+                if (target.Length >= headroom)
+                {
+                    decoder.Convert(bytes, target, flush: false, out var used, out var chars, out _);
+                    bytes = bytes.Slice(used);
+                    target = target.Slice(chars);
+                    written += chars;
+                    continue;
+                }
+
+                // the tail, where the target may be too small for the next character: decode aside and
+                // take only whole ones. A surrogate pair is ONE character and is never split in half.
+                decoder.Convert(bytes, scratch, flush: false, out var tailUsed, out var produced, out _);
+                bytes = bytes.Slice(tailUsed);
+                if (!TakeWholeChars(scratch, produced, ref target, ref written)) return written;
+            }
+        }
+
+        // the value may have ended mid-sequence; flushing is what turns that into the encoding's
+        // replacement character rather than silently dropping it
+        while (!target.IsEmpty)
+        {
+            if (target.Length >= headroom)
+            {
+                decoder.Convert(default, target, flush: true, out _, out var chars, out var done);
+                written += chars;
+                target = target.Slice(chars);
+                if (done || chars == 0) break;
+                continue;
+            }
+
+            decoder.Convert(default, scratch, flush: true, out _, out var flushed, out var completed);
+            if (flushed == 0) break;
+            if (!TakeWholeChars(scratch, flushed, ref target, ref written) || completed) break;
+        }
+
+        return written;
+
+        // copies as many WHOLE characters as fit; false once the target can take no more
+        static bool TakeWholeChars(scoped ReadOnlySpan<char> scratch, int produced, scoped ref Span<char> target, ref int written)
+        {
+            var take = Math.Min(produced, target.Length);
+            if (take > 0 && char.IsHighSurrogate(scratch[take - 1])) take--; // the pair does not fit; leave it
+            scratch.Slice(0, take).CopyTo(target);
+            target = target.Slice(take);
+            written += take;
+            return take == produced && !target.IsEmpty;
+        }
+    }
+
+    // a stack guard for the decode scratch above; no shipped encoding comes close
+    private const int MaxDecodeScratchChars = 64;
+
+    /// <summary>
     /// Copy the current scalar value out into the supplied <paramref name="target"/>, or as much as can be copied.
     /// </summary>
     /// <param name="target">The destination for the copy operation.</param>

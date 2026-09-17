@@ -1,4 +1,5 @@
 ﻿#nullable enable
+RESPite.Messages.RespReader.CopyTo(scoped System.Span<char> target, System.Text.Encoding? encoding = null) -> int
 RESPite.Messages.RespReader.IsAllJaggedPairs() -> bool
 RESPite.Messages.RespReader.PairProjection<TState, TResult>
 [SER012]RESPite.Messages.IRespBufferOwner
@@ -30,6 +31,7 @@ RESPite.Messages.RespReader.PairProjection<TState, TResult>
 [SER012]RESPite.Messages.RespValue.AsInt32() -> int
 [SER012]RESPite.Messages.RespValue.AsInt64() -> long
 [SER012]RESPite.Messages.RespValue.CopyTo(scoped System.Span<byte> target) -> int
+[SER012]RESPite.Messages.RespValue.CopyTo(scoped System.Span<char> target, System.Text.Encoding? encoding = null) -> int
 [SER012]RESPite.Messages.RespValue.Equals(RESPite.Messages.RespValue other) -> bool
 [SER012]RESPite.Messages.RespValue.Frame.get -> System.ReadOnlySpan<byte>
 [SER012]RESPite.Messages.RespValue.HasValue.get -> bool

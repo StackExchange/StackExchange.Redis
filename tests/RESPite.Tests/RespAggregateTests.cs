@@ -312,4 +312,38 @@ public class RespAggregateTests
 
         Assert.ThrowsAny<InvalidOperationException>(() => Capture(frame));
     }
+
+    [Fact]
+    public void RespValueCopiesToChars()
+    {
+        // the value half of the text API: same decode, reached through a captured window rather than a
+        // live reader, which is the shape a caller actually holds after a reply is parsed
+        var frame = Frame("*2|$5|hello|$6|a€z!|");
+        var values = Capture(frame, CaptureValue).ToArray();
+
+        Span<char> target = stackalloc char[16];
+        Assert.Equal(5, values[0].CopyTo(target));
+        Assert.Equal("hello", target.Slice(0, 5).ToString());
+
+        var chars = values[1].CopyTo(target);
+        Assert.Equal("a€z!", target.Slice(0, chars).ToString());
+
+        // and the byte twin still says the same thing, in its own units
+        Span<byte> bytes = stackalloc byte[16];
+        Assert.Equal(6, values[1].CopyTo(bytes)); // "a" + 3 bytes of euro + "z" + "!"
+    }
+
+    [Fact]
+    public void RespValueCopiesToCharsWithAnExplicitEncoding()
+    {
+        // bytes that are NOT UTF-8; reading them as UTF-8 would give replacement characters, which is the
+        // case the encoding parameter exists for
+        var frame = new byte[] { (byte)'$', (byte)'3', 13, 10, 0xE9, 0xE8, 0xFC, 13, 10 };
+        var reader = new RespReader(frame);
+        Assert.True(RespValue.TryCaptureNext(frame, ref reader, out var value));
+
+        Span<char> target = stackalloc char[8];
+        Assert.Equal(3, value.CopyTo(target, Encoding.GetEncoding(28591)));
+        Assert.Equal("éèü", target.Slice(0, 3).ToString());
+    }
 }

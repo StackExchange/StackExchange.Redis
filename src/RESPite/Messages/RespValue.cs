@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using RESPite.Buffers;
 
 namespace RESPite.Messages;
@@ -203,6 +204,23 @@ public readonly struct RespValue : IEquatable<RespValue>
     /// <param name="target">Where to write; <see cref="Length"/> says how much room to leave.</param>
     /// <returns>How many bytes were written.</returns>
     public int CopyTo(scoped Span<byte> target) => Reader().CopyTo(target);
+
+    /// <summary>Decode this value's payload as text, joining the chunks of a streamed value.</summary>
+    /// <param name="target">Where to write; a character never needs more room than a byte does.</param>
+    /// <param name="encoding">
+    /// How the payload's bytes are text; <see langword="null"/> means UTF-8, which is what a RESP server
+    /// sends unless a caller stored something else.
+    /// </param>
+    /// <returns>How many characters were written.</returns>
+    /// <remarks>
+    /// <inheritdoc cref="RespReader.CopyTo(Span{char}, Encoding)" path="/remarks/para[1]"/>
+    /// <para>
+    /// The non-allocating counterpart to <c>(string?)value</c>: same text, no string. Note that a nil
+    /// value writes nothing and reports <c>0</c>, which the cast distinguishes and this does not - if
+    /// null matters, ask <see cref="IsNull"/> first.
+    /// </para>
+    /// </remarks>
+    public int CopyTo(scoped Span<char> target, Encoding? encoding = null) => Reader().CopyTo(target, encoding);
 
     /// <summary>This value as text, or <see langword="null"/> if it is nil.</summary>
     /// <param name="value">The value to convert.</param>
