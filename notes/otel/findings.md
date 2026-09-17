@@ -266,3 +266,77 @@ still label the tracing support experimental, tracking the semconv churn above.
 That is the template: **the telemetry is in-box; the OpenTelemetry-shaped convenience wrapper is a
 separate, near-empty package** — and in our case that package already exists and already has a
 maintainer, so the wrapper need not be ours at all.
+
+## 8. What contrib emits today — the compatibility baseline
+
+If we intend to replace the package (see `plan.md`), this is the inventory we have to match. Read
+off contrib `main` as of 2026-09-17, package version 1.18.0-beta.3.
+
+**Release history:** 48 versions since 0.3.0-beta.1, and **not one stable release**. Their README
+attributes this to the database semantic conventions still being Experimental, not to the code
+being immature.
+
+**Activity identity**
+
+| | value |
+| --- | --- |
+| `ActivitySource.Name` | `OpenTelemetry.Instrumentation.StackExchangeRedis` (the assembly name, via `ActivitySourceFactory`) |
+| `ActivitySource.Version` | the package version |
+| `TelemetrySchemaUrl` | derived from the semconv version — 1.23.0 for the old source, 1.42.0 for the new, unset when emitting both |
+| span name | `command.Command`, i.e. the bare command string; falls back to `"{ActivitySource.Name}.Execute"` if empty |
+| span kind | `Client` |
+| start / end | `command.CommandCreated` and `+ command.ElapsedTime` — explicit, because the span is built after the fact |
+
+**The old/new attribute switch.** `EmitOldAttributes` / `EmitNewAttributes` are *internal*, not
+user-facing knobs; they are set in the options constructor from the standard
+`OTEL_SEMCONV_STABILITY_OPT_IN` environment variable via OTel's shared
+`DatabaseSemanticConventionHelper`:
+
+- `database/dup` → both
+- `database` → new only
+- **anything else, including unset → `Old`**
+
+That default is the important part. **Unless a user has opted in, what they are seeing in
+production today is the 1.23-era names.**
+
+| mode | attributes emitted |
+| --- | --- |
+| Old (default) | `db.system` = `redis`; `db.statement`; `db.redis.database_index` |
+| New | `db.system.name` = `redis`; `db.operation.name`; `db.namespace`; `db.query.text` |
+| Dupe | both sets |
+
+Note `db.redis.database_index` — contrib's own invention, not in any semantic convention, and
+present only in old mode.
+
+**Always emitted, in every mode**, from `command.EndPoint`:
+
+- `IPEndPoint` → `server.address`, `server.port`, `network.peer.address`, `network.peer.port`
+- `DnsEndPoint` → `server.address`, `server.port`
+- `UnixDomainSocketEndPoint` (net only) → `server.address`, `network.peer.address`
+
+**Activity events** — `EnrichActivityWithTimingEvents`, default **`true`**: `Enqueued`, `Sent`,
+`ResponseReceived`, timestamped by accumulating `CreationToEnqueued`, `EnqueuedToSending`,
+`SentToResponse` onto `CommandCreated`.
+
+This matters for implementation, not just for parity: **it consumes all five profiling timestamps**,
+so any replacement that captures only start-and-complete silently drops data that people have
+today.
+
+**`db.statement` / `db.query.text` content** — the command string by default; with
+`SetVerboseDatabaseStatements` (default `false`), `CommandAndKey` plus, for EVAL/EVALSHA, a space
+and the script text. This is the reflection payload from §1.
+
+**Not emitted, at all:**
+
+- any error or failure information — no `error.type`, no `db.response.status_code`, and
+  `ActivityStatusCode` is never set. A Redis command that fails produces a span indistinguishable
+  from one that succeeded.
+- `db.operation.batch.size`
+- anything about retransmission (`// TODO: deal with the re-transmission`)
+- metrics of any kind — the package is traces only
+
+**User-facing options:** `FlushInterval` (default 10s), `SetVerboseDatabaseStatements` (false),
+`EnrichActivityWithTimingEvents` (true), `Filter`, `Enrich`.
+
+**Licensing:** contrib is Apache-2.0 (SPDX headers on every file); this repo is MIT. Code owner is
+@matt-hensley.

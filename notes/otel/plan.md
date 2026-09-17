@@ -55,6 +55,87 @@ Initial knob, defaulting off:
   keys can carry PII. Command **and key**; never argument values. Matches contrib's
   `SetVerboseDatabaseStatements` and Lettuce's `includeCommandArgsInSpanTags`.
 
+## Subsuming the contrib package
+
+The intent is to **replace** `OpenTelemetry.Instrumentation.StackExchangeRedis`, not to sit
+alongside it. That needs agreement from its owners — code owner is @matt-hensley, with
+@martincostello active on it — and mgravell is raising it with them.
+
+It should not be especially controversial. In 48 releases since 2020 the package has **never
+shipped a stable version**; every one is `-beta` or `-rc`. Their README says why, and the reason
+matters to us:
+
+> This component is based on the OpenTelemetry semantic conventions for traces. These conventions
+> are Experimental, and hence, this package is a pre-release. Until a stable version is released,
+> there can be breaking changes.
+
+So the reason it is not GA is semconv instability, not immaturity — which is precisely the thing we
+inherit by taking it over. See open question 1.
+
+### The compatibility contract
+
+**Default to matching their output byte-for-byte; deviate only deliberately, and write the
+deviation down here.** People have dashboards, alerts and saved queries built on these spans, and
+"we rewrote it and your error rate graph went flat" is not an acceptable upgrade story.
+
+Concretely, from findings §8:
+
+- **Honour `OTEL_SEMCONV_STABILITY_OPT_IN`**, with the same three modes and the same default. This
+  is the single most important item: the default today is `Old`, so unopted users are seeing
+  `db.system` and `db.statement`, *not* `db.system.name` and `db.query.text`. An earlier draft of
+  this plan said "new names only" — that was wrong, and would have silently broken every existing
+  consumer. Honouring the env var is also simply the correct behaviour for any .NET library
+  emitting database telemetry, and it gives a clean exit: when the conventions go stable, our
+  default flips in lockstep with the rest of the ecosystem rather than on our own schedule.
+- **Keep `db.redis.database_index`** in old mode. It is contrib-specific, not semconv, and it is in
+  people's dashboards.
+- **Keep the timing events** — `Enqueued`, `Sent`, `ResponseReceived` — and keep them on by
+  default, as `EnrichActivityWithTimingEvents` is. This has a design consequence: a
+  compatibility-preserving implementation must capture **all five** profiling timestamps when data
+  is requested, not just create-and-complete. Cheaper span construction is not worth losing data
+  people already have.
+- **Keep the span name rule**: the bare command string.
+- **Set `TelemetrySchemaUrl`** on the `ActivitySource` from the semconv version, as they do.
+
+### Where we intend to be better
+
+Additive is always fine. Changing the value or meaning of something that already exists is not.
+
+- Failure attribution — `error.type`, `db.response.status_code`, and an actual
+  `ActivityStatusCode.Error`. Contrib sets **none** of these; failures are currently invisible.
+  This is a deliberate deviation: error rates that were flat will stop being flat. Call it out in
+  release notes.
+- `-MOVED` / `-ASK` retransmission, which they have a `// TODO` for.
+- Batch and transaction shape (`db.operation.batch.size`).
+- Connection lifecycle: establishment, failover, sentinel, discovery.
+- Metrics at all — they ship traces only.
+- Statement text without reflection, and correct for every message type rather than the handful
+  the reflection knows about.
+
+### Two things that cannot be preserved
+
+1. **The `ActivitySource` name changes.** Theirs is the assembly name,
+   `OpenTelemetry.Instrumentation.StackExchangeRedis`; ours will be `StackExchange.Redis`. We are
+   not squatting their name. Anyone calling `AddRedisInstrumentation()` sees nothing — the
+   extension just changes which source it adds — but anyone who hand-wrote
+   `AddSource("OpenTelemetry.Instrumentation.StackExchangeRedis")` has to edit one string. Document
+   it prominently; consider asking contrib to add *both* names for a transition window.
+2. **`Filter` and `Enrich`.** Callbacks on their options object with no obvious in-box equivalent.
+   `ActivityListener.Sample` is the better home for filtering — see open question 3.
+
+### On starting from their implementation
+
+Their code is Apache-2.0; this repo is MIT. Apache-2.0 is permissive and can be incorporated, but
+§4 has real obligations (retain notices, state changes, carry the license text for the derived
+portions) — so this is a decision to make on purpose, with their blessing, not a quiet copy-paste.
+
+The practical recommendation is to **use it as a specification rather than a source**: most of the
+implementation is machinery for the drain thread, the session cache and the baggage restoration,
+all of which we are deleting, and the rest is written against internals we will not have. What is
+genuinely worth having is (a) the exact attribute/event/default inventory, which is behaviour and
+is captured in findings §8, and (b) their **test suite**, which is the compatibility oracle and is
+the part where the licensing question actually bites. Ask about the tests explicitly.
+
 ## Target frameworks
 
 `System.Diagnostics.DiagnosticSource` reaches all of our targets except `net461` — the package
@@ -164,10 +245,9 @@ permanently at Stack Overflow scale, and connection-level telemetry is the part
 
 `ActivitySource` with the deferred-creation pattern. Span kind `CLIENT`, span name = bare command
 name (`db.namespace` deliberately excluded from the name per semconv; bare command name is also
-what go-redis and Lettuce do). Attribute set per findings §3, emitting **current** semconv names
-only — `db.system.name`, `db.operation.name`, `db.query.text` — not the 1.23-era
-`db.system`/`db.statement`. Contrib can keep its dual-emit shim for people who need the old names;
-we should not carry that migration into a library that has not shipped any of it yet.
+what go-redis and Lettuce do). Attribute set per findings §3, honouring
+`OTEL_SEMCONV_STABILITY_OPT_IN` exactly as contrib does — see "Subsuming the contrib package"
+below, which is what fixes the attribute names, the defaults, and the timing events.
 
 New material that the profiling API cannot express today and that comes free here:
 `db.response.status_code` (Redis error prefix — `WRONGTYPE`, `MOVED`, `NOSCRIPT`) and `error.type`.
@@ -194,21 +274,28 @@ scope until the above lands.
 
 Worth putting to @martincostello directly, since he offered to collaborate:
 
-1. **Who owns semconv churn?** Contrib currently ships three `ActivitySource`s to straddle 1.23 vs
-   1.42. If we emit natively, that migration becomes ours. Is the dual-emit window genuinely
-   closing, or are we signing up for it permanently? This is the strongest argument for the middle
-   ground and we should hear it argued before dismissing it.
+1. **Who owns semconv churn?** Contrib ships three `ActivitySource`s to straddle 1.23 vs 1.42, and
+   has never shipped a stable version in six years *because* the conventions are experimental. If
+   we emit natively, that becomes our problem — and StackExchange.Redis does not have the option of
+   shipping perpetual betas. Do we mark the telemetry `[Experimental]` (we already have the
+   `SER00x` machinery in `src/RESPite/Shared/Experiments.cs`), or do we accept that our stable
+   package emits attributes that may be renamed under us? This is the strongest argument for the
+   middle ground and we should hear it argued before dismissing it.
 2. **Does contrib want to become a one-liner, or keep producing spans?** If we go native, does the
    package retire, or keep an `AddRedisInstrumentation()` that calls `AddSource` plus the old
    `Filter`/`Enrich` knobs? Those two callbacks are the only features that do not obviously survive
-   the transition.
-3. **`Filter` and `Enrich` equivalents.** Do we need them in-box, or is per-command filtering
+   the transition. Either way, ask them to add our source name — and ideally to keep adding their
+   own for a window, so existing hand-written `AddSource` calls do not break.
+3. **Can we have the tests?** Their test suite is the compatibility oracle, and it is Apache-2.0
+   going into an MIT repo. Explicit blessing, an agreed attribution form, or a clean-room rewrite
+   from the behaviour inventory — but decided up front, not discovered in review.
+4. **`Filter` and `Enrich` equivalents.** Do we need them in-box, or is per-command filtering
    better done by the listener? Nick's 2022 objection was specifically that *deciding not to
    profile* costs something per command; with `ActivityListener.Sample` that decision moves to the
    collector, which is where it belongs.
-4. **Version/schema pinning.** Should the `ActivitySource` version track the package version, or a
+5. **Version/schema pinning.** Should the `ActivitySource` version track the package version, or a
    semconv schema version (contrib uses the latter via `ActivitySourceFactory.Create<T>(version)`)?
-5. **Does this need to wait for v4?** The IO core rewrite moves all five hook sites. Hooks placed
+6. **Does this need to wait for v4?** The IO core rewrite moves all five hook sites. Hooks placed
    now survive as *concepts* but not as code. Landing metrics on 3.x and traces on 4.x is a
    defensible split; so is landing both on 3.x and accepting the port.
 
@@ -217,7 +304,9 @@ Worth putting to @martincostello directly, since he offered to collaborate:
 - **Not depending on any OpenTelemetry package.** Library authors depend on
   `System.Diagnostics.DiagnosticSource` only; this is both Microsoft's and OpenTelemetry's own
   guidance.
-- **Not emitting 1.23-era attribute names.** New code, current conventions.
+- **Not picking our own attribute names or our own default.** We follow
+  `OTEL_SEMCONV_STABILITY_OPT_IN` like every other .NET database instrumentation, including its
+  current `Old` default, however much we might prefer the new names.
 - **Not putting command argument values in spans.** Command and key only, and that opt-in.
 - **Not removing or changing the profiling API.** It stays, unchanged, on every target including
   `net461`. Native telemetry is additive.
