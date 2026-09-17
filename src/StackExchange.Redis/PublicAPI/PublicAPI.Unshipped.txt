@@ -178,6 +178,7 @@ StackExchange.Redis.Interpolated.RespScriptCache.Rendered.get -> long
 StackExchange.Redis.Interpolated.RespScriptCache.RespScriptCache() -> void
 StackExchange.Redis.Interpolated.RespSurface
 StackExchange.Redis.Keys
+StackExchange.Redis.Keyspace
 StackExchange.Redis.Lists
 StackExchange.Redis.ReadOnlyLease<T>
 StackExchange.Redis.ReadOnlyLease<T>.Dispose() -> void
@@ -248,6 +249,10 @@ StackExchange.Redis.RespKeys
 StackExchange.Redis.RespKeys.Context.get -> StackExchange.Redis.Interpolated.RespContext
 StackExchange.Redis.RespKeys.RespKeys() -> void
 StackExchange.Redis.RespKeys.RespKeys(in StackExchange.Redis.Interpolated.RespContext context) -> void
+StackExchange.Redis.RespKeyspace
+StackExchange.Redis.RespKeyspace.Context.get -> StackExchange.Redis.Interpolated.RespContext
+StackExchange.Redis.RespKeyspace.RespKeyspace() -> void
+StackExchange.Redis.RespKeyspace.RespKeyspace(in StackExchange.Redis.Interpolated.RespContext context) -> void
 StackExchange.Redis.RespLists
 StackExchange.Redis.RespLists.Context.get -> StackExchange.Redis.Interpolated.RespContext
 StackExchange.Redis.RespLists.RespLists() -> void
@@ -268,15 +273,9 @@ StackExchange.Redis.RespScripts
 StackExchange.Redis.RespScripts.Context.get -> StackExchange.Redis.Interpolated.RespContext
 StackExchange.Redis.RespScripts.RespScripts() -> void
 StackExchange.Redis.RespScripts.RespScripts(in StackExchange.Redis.Interpolated.RespContext context) -> void
-StackExchange.Redis.RespServer
-StackExchange.Redis.RespServer.Context.get -> StackExchange.Redis.Interpolated.RespContext
-StackExchange.Redis.RespServer.RespServer() -> void
-StackExchange.Redis.RespServer.RespServer(in StackExchange.Redis.Interpolated.RespContext context) -> void
 StackExchange.Redis.RespServerExtensions
 StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.Interpolated.IRespServerTarget!)
-StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.Interpolated.IRespServerTarget!).Server.get -> StackExchange.Redis.RespServer
-StackExchange.Redis.RespServerExtensions.extension(in StackExchange.Redis.Interpolated.RespContext)
-StackExchange.Redis.RespServerExtensions.extension(in StackExchange.Redis.Interpolated.RespContext).Server.get -> StackExchange.Redis.RespServer
+StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.Interpolated.IRespServerTarget!).Keyspace.get -> StackExchange.Redis.RespKeyspace
 StackExchange.Redis.RespSets
 StackExchange.Redis.RespSets.Context.get -> StackExchange.Redis.Interpolated.RespContext
 StackExchange.Redis.RespSets.RespSets() -> void
@@ -298,7 +297,6 @@ StackExchange.Redis.RespVectorSets.Context.get -> StackExchange.Redis.Interpolat
 StackExchange.Redis.RespVectorSets.RespVectorSets() -> void
 StackExchange.Redis.RespVectorSets.RespVectorSets(in StackExchange.Redis.Interpolated.RespContext context) -> void
 StackExchange.Redis.Scripts
-StackExchange.Redis.Server
 StackExchange.Redis.Sets
 StackExchange.Redis.SortedSets
 StackExchange.Redis.Streams
@@ -481,6 +479,7 @@ static StackExchange.Redis.Keys.TouchAsync(this in StackExchange.Redis.RespKeys 
 static StackExchange.Redis.Keys.TypeAsync(this in StackExchange.Redis.RespKeys keys, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RedisType>
 static StackExchange.Redis.Keys.UnlinkAsync(this in StackExchange.Redis.RespKeys keys, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.Keys.UnlinkAsync(this in StackExchange.Redis.RespKeys keys, System.ReadOnlySpan<StackExchange.Redis.RedisKey> targets, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
+static StackExchange.Redis.Keyspace.CountAsync(this in StackExchange.Redis.RespKeyspace keyspace, int database, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Lists.GetByIndexAsync(this in StackExchange.Redis.RespLists lists, StackExchange.Redis.RedisKey key, long index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RedisValue>
 static StackExchange.Redis.Lists.InsertAfterAsync(this in StackExchange.Redis.RespLists lists, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue pivot, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Lists.InsertBeforeAsync(this in StackExchange.Redis.RespLists lists, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue pivot, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
@@ -534,11 +533,9 @@ static StackExchange.Redis.RespReaderExtensions.AsRedisValue(this in RESPite.Mes
 static StackExchange.Redis.RespReaderExtensions.ReadLease(in RESPite.Messages.RespReader reader) -> StackExchange.Redis.Lease<byte>?
 static StackExchange.Redis.RespReaderExtensions.ToLease<T>(this in RESPite.Messages.RespAggregate<T> aggregate) -> StackExchange.Redis.ReadOnlyLease<T>!
 static StackExchange.Redis.RespReaderLeaseExtensions.ReadLease(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.ReadOnlyLease<byte>?
-static StackExchange.Redis.RespServerExtensions.get_Server(StackExchange.Redis.Interpolated.IRespServerTarget! target) -> StackExchange.Redis.RespServer
-static StackExchange.Redis.RespServerExtensions.get_Server(in StackExchange.Redis.Interpolated.RespContext context) -> StackExchange.Redis.RespServer
+static StackExchange.Redis.RespServerExtensions.get_Keyspace(StackExchange.Redis.Interpolated.IRespServerTarget! target) -> StackExchange.Redis.RespKeyspace
 static StackExchange.Redis.Scripts.EvaluateAsync(this in StackExchange.Redis.RespScripts scripts, string! script, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys = default(System.ReadOnlySpan<StackExchange.Redis.RedisKey>), System.ReadOnlySpan<StackExchange.Redis.RedisValue> args = default(System.ReadOnlySpan<StackExchange.Redis.RedisValue>), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
 static StackExchange.Redis.Scripts.EvaluateReadOnlyAsync(this in StackExchange.Redis.RespScripts scripts, string! script, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys = default(System.ReadOnlySpan<StackExchange.Redis.RedisKey>), System.ReadOnlySpan<StackExchange.Redis.RedisValue> args = default(System.ReadOnlySpan<StackExchange.Redis.RedisValue>), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
-static StackExchange.Redis.Server.DatabaseSizeAsync(this in StackExchange.Redis.RespServer server, int database, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Sets.AddAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.Sets.AddAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.RedisKey key, System.ReadOnlySpan<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Sets.CombineAndStoreAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.SetOperation operation, StackExchange.Redis.RedisKey destination, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>

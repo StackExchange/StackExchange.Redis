@@ -71,7 +71,7 @@ public class DocsSurfaceTests(ITestOutputHelper log)
         Assert.SkipWhen(root is null, "not running from a source checkout");
         var text = File.ReadAllText(Path.Combine(root!, relativePath));
 
-        // db.Strings.GetAsync( / batch.Hashes.SetAsync( / server.Server.DatabaseSizeAsync(
+        // db.Strings.GetAsync( / batch.Hashes.SetAsync( / server.Keyspace.CountAsync(
         //
         // The receiver is restricted to the handful of names the documentation actually uses, because a
         // group name can be an ordinary word: docs/Failover.md has `context.Server.InventKey(...)`, which

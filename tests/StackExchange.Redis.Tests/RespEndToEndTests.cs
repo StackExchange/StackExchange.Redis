@@ -532,7 +532,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     [Fact]
-    public async Task TheServerGroupCountsTheDatabaseItIsAskedAbout()
+    public async Task TheKeyspaceGroupCountsTheDatabaseItIsAskedAbout()
     {
         NoConcurrentRuntime();
 
@@ -551,14 +551,14 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         // DBSIZE takes no operand, so a count that lands on the wrong database is a plausible-looking
         // number rather than an error; two databases with KNOWN and DIFFERENT contents is what makes the
         // difference observable at all
-        Assert.Equal(0, await server.Server.DatabaseSizeAsync(emptyDb));
-        Assert.Equal(1, await server.Server.DatabaseSizeAsync(oneKeyDb));
+        Assert.Equal(0, await server.Keyspace.CountAsync(emptyDb));
+        Assert.Equal(1, await server.Keyspace.CountAsync(oneKeyDb));
 
         // and against IServer, which has answered this correctly for years
-        Assert.Equal(await server.DatabaseSizeAsync(emptyDb), await server.Server.DatabaseSizeAsync(emptyDb));
-        Assert.Equal(await server.DatabaseSizeAsync(oneKeyDb), await server.Server.DatabaseSizeAsync(oneKeyDb));
+        Assert.Equal(await server.DatabaseSizeAsync(emptyDb), await server.Keyspace.CountAsync(emptyDb));
+        Assert.Equal(await server.DatabaseSizeAsync(oneKeyDb), await server.Keyspace.CountAsync(oneKeyDb));
 
         // no sentinel: a server context has no database of its own, so there is nothing for -1 to mean
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await server.Server.DatabaseSizeAsync(-1));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await server.Keyspace.CountAsync(-1));
     }
 }

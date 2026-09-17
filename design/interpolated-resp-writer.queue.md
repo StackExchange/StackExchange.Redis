@@ -2060,31 +2060,42 @@ Four consequences, none of them cosmetic:
       end-to-end test comparing against `IDatabase` - which has answered this correctly for years and is the
       cheapest oracle available - rather than by reasoning about the reply shape.
 
-- [x] **`DBSIZE`, and the first server-scoped group. Done 2026-09-17.** `server.Server.DatabaseSizeAsync(db)`,
-      on `IRespServerTarget` - which had been declared with nothing bound to it - reached through
-      `RespServerExtensions`, the server-side twin of `RespDatabaseExtensions`.
+- [x] **`DBSIZE`, and the first server-scoped group. Done 2026-09-17, reshaped the same day.**
+      `server.Keyspace.CountAsync(database)`, on `IRespServerTarget` - which had been declared with
+      nothing bound to it - reached through `RespServerExtensions`, the server-side twin of
+      `RespDatabaseExtensions`.
 
-      **The name cost a rename, and Marc authorised it.** A public type `StackExchange.Redis.Server` and a
-      namespace `StackExchange.Redis.Server` are both reachable as `Server` from inside
-      `StackExchange.Redis`, which is `CS0435` - reported, tellingly, at the *generated* AsciiHash file,
-      which is roughly what a consumer would see. The alternatives were `Servers` (consistent with the
-      plural convention, reads badly: `server.Servers.…`), a class/accessor name split (breaks the
-      one-name-per-group rule the file layout depends on), or folding `DBSIZE` into a server-scoped `Keys`.
-      Instead the toy moved: `toys/StackExchange.Redis.Server` keeps its assembly and package name and its
-      code now lives in `StackExchange.Redis.ManagedServer` - the term AGENTS.md already used for it. Its
-      `RespServer` base class became `RespServerBase` for the same reason, since `RespServer` is now the
-      group struct.
+      **It shipped first as a `Server` group, and that was wrong.** Marc: *"everything on a
+      RespServerContext is a Server item, by definition"* - and he is right, the name repeats the
+      receiver and names nothing. `IServer` has ~70 members and they fall into families (config, cluster,
+      sentinel, latency, memory, clients, slowlog, replication, scripts, keyspace), so one `Server` group
+      would have been the flat interface again, one level down. The families arrive as their own groups;
+      keyspace is the first.
 
-      **The database is required, no `-1` sentinel.** `IServer.DatabaseSize` defaults it and resolves the
-      default from the multiplexer; a server context has no database at all, and `DBSIZE` *is*
-      database-scoped (`Message.RequiresDatabase`), so the choice was teach a sentinel to resolve itself or
-      ask. Asking is the model this file already recorded for `IServer`'s database-scoped members.
+      **Then the compiler took the name.** The plan in this file was for `Keys` to appear on both sides -
+      key-routed for `DEL`, server-scoped for `DBSIZE` - but `IServer` has shipped a *method* called
+      `Keys` since forever (the `KEYS`/`SCAN` enumerator), and a member and an extension property cannot
+      share a name: `server.Keys.CountAsync(0)` is `CS0119`. Renaming the shipped method is a binary
+      break, so the group is `Keyspace`, which is the better name regardless - `DBSIZE`, `KEYS`, `SCAN`,
+      `FLUSHDB` and `SWAPDB` are all about a node's whole keyspace rather than any key in it. **So the
+      two-sided-group prediction is wrong for `Keys` specifically, and the reason is shipped API, not
+      taste.** `Scripts` is still free to divide that way - but check the shipped `IServer` members before
+      assuming any other group name is available, because that is the constraint that decides it.
 
-      **Pinned with two dedicated databases, one flushed and one holding exactly one key**, compared
-      against `IServer` as the oracle. Mutation-checked both ways: dropping `WithDatabase` throws
-      ("A target database is required for DBSIZE"), and pinning it to database 0 returns 124,447 where 0
-      was expected. The ambient-count version of this test passed for the wrong reason first time, which is
-      why it counts a database whose contents are known rather than one that merely differs.
+      **The server accessors hang off `IRespServerTarget` only, never off a bare `RespContext`** - unlike
+      the keyspace ones. A context does not know whether it is pinned to an endpoint, and two extension
+      properties of the same name on `RespContext` would be ambiguous at every call site anyway.
+
+      **The database is required, no `-1` sentinel**, which is the model this file already recorded for
+      `IServer`'s database-scoped members. Pinned with two dedicated databases, one flushed and one
+      holding exactly one key, against `IServer` as the oracle; mutation-checked both ways - dropping
+      `WithDatabase` throws, pinning it to database 0 returns 124,447 where 0 was expected.
+
+      **Footnote on the toy rename.** `toys/StackExchange.Redis.Server` moved to the
+      `StackExchange.Redis.ManagedServer` namespace to free the name for a `Server` type. That type no
+      longer exists, so the rename is no longer *required* - it stays because a namespace and a type that
+      are both reachable as `StackExchange.Redis.Server` is a landmine for whatever wants the name next,
+      and `ManagedServer` is what AGENTS.md called it anyway.
 
 ## Later / decide first
 
