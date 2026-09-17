@@ -137,12 +137,10 @@ public class ServerExecuteDatabaseTests(ITestOutputHelper output, SharedConnecti
             _ = server.Execute("PING");
             Assert.Equal($"db={otherDb}", ReportedDatabase(server));
 
-            // unrecognised command: the assertion never applied to it, and must not start applying
-            if (server.Version.IsAtLeast(RedisFeatures.v6_0_0))
-            {
-                _ = server.Execute("ACL", "WHOAMI");
-                Assert.Equal($"db={otherDb}", ReportedDatabase(server));
-            }
+            // unrecognised command: the assertion never applied to it, and must not start applying.
+            // ACL needs 6.0, which the 6.2 this test already requires for CLIENT INFO covers
+            _ = server.Execute("ACL", "WHOAMI");
+            Assert.Equal($"db={otherDb}", ReportedDatabase(server));
 
             // ...and the oracle itself does not move it
             Assert.Equal($"db={otherDb}", ReportedDatabase(server));
