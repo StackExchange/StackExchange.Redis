@@ -125,15 +125,47 @@ resolution rule rather than a support statement.** The
 
 So the restore succeeds and the build may well succeed; whether it *works* depends on the
 `netstandard.dll` facade and binding redirects being right. 4.7.2 is the floor Microsoft actually
-stands behind — which is also why `net472` is in our target list and `net461` is the one that
-cannot be made comfortable here.
+stands behind.
 
-Two independent reasons to leave net461 out, then: the package has no net461 asset, and the only
-fallback is the path Microsoft explicitly advises against.
+### The net461 target is already notional
 
-So: telemetry everywhere except `net461`, which compiles the instrumentation out. That matches the
-existing `VECTOR_SAFE` / `UNIX_SOCKET` idiom in `StackExchange.Redis.csproj` and costs net461 users
-nothing they have today.
+Special-casing telemetry out of net461 would be protecting a target that is *already* built
+entirely on the fallback above. Checked against nuget.org, every Microsoft package
+`StackExchange.Redis` already depends on:
+
+| package | lowest .NET Framework asset |
+| --- | --- |
+| `Microsoft.Extensions.Logging.Abstractions` 10.0.5 | `net462` |
+| `System.IO.Hashing` 10.0.12 | `net462` |
+| `System.IO.Pipelines` 10.0.12 | `net462` |
+| `Microsoft.Bcl.AsyncInterfaces` 10.0.12 | `net462` |
+| `System.Threading.Channels` 10.0.12 | `net462` |
+
+**Not one of them ships a net461 asset.** Our net461 build already resolves every one of them
+through `netstandard2.0` — the exact path the footnote warns about. `System.Diagnostics.DiagnosticSource`
+would not be introducing a new problem; it would be joining a queue.
+
+### And net461 has been out of support since 2022
+
+From the [.NET Framework lifecycle](https://learn.microsoft.com/en-us/lifecycle/products/microsoft-net-framework):
+
+| version | end of support |
+| --- | --- |
+| 4.6.1 | **27 April 2022** — retired alongside 4.5.2 and 4.6 |
+| 4.6.2 | **13 January 2027** |
+| 4.7, 4.7.1, 4.7.2, 4.8, 4.8.1 | none |
+
+4.5.2, 4.6 and 4.6.1 were retired specifically because they were signed with SHA-1 certificates.
+
+Note the middle row: **net462 is supported for about four more months** from these notes. Bumping a
+floor onto a version that expires within the year is not a bump worth doing — which is what points
+at `net472`, the oldest .NET Framework with no end-of-support date, the version Microsoft's own
+footnote names ("upgrade the project to target .NET Framework 4.7.2 or higher"), and a target
+`StackExchange.Redis` already ships.
+
+So the question is not "how do we compile telemetry out of net461" but "why is net461 still a
+target". See `plan.md`, "The net461 question", which is a repo-level decision this topic merely
+surfaced.
 
 ## 3. Semantic conventions
 

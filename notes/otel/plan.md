@@ -257,14 +257,44 @@ dropped its `net461` asset after 6.0.1 and now bottoms out at `net462` (see find
 | `net8.0` | yes | none — in-box |
 | `net472` | yes | `System.Diagnostics.DiagnosticSource` (`lib/net462`) |
 | `netstandard2.0` | yes | `System.Diagnostics.DiagnosticSource` (`lib/netstandard2.0`) |
-| `net461` | **compiled out** | none |
+| `net461` | see below | — |
 
-Guarded by a `TELEMETRY` compile symbol defined for everything but `net461`, following the existing
-`VECTOR_SAFE` / `UNIX_SOCKET` idiom in `StackExchange.Redis.csproj`. Version pinned in
-`Directory.Packages.props` like every other reference.
+Version pinned in `Directory.Packages.props` like every other reference.
 
-net461 users lose nothing they have today; the existing profiling API stays where it is on every
-target.
+### The net461 question
+
+An earlier version of this section proposed a `TELEMETRY` compile symbol defined for everything but
+`net461`, on the `VECTOR_SAFE` / `UNIX_SOCKET` model. **Don't.** The evidence in findings §2 says
+the conditional would be protecting a target that does not need protecting:
+
+- **net461 has been out of support since 27 April 2022** — retired with 4.5.2 and 4.6 because they
+  were SHA-1 signed.
+- **Every Microsoft package we already depend on bottoms out at `net462`** — logging abstractions,
+  hashing, pipelines, async interfaces, channels. Not one ships a net461 asset. Our net461 build is
+  *already* resolving all of them through `netstandard2.0`, which is precisely the combination the
+  .NET Standard footnote warns about. Adding `System.Diagnostics.DiagnosticSource` to that list
+  changes nothing about the risk profile; it joins a queue.
+
+So the honest options are to drop `net461`, or to raise the floor — and if raising it, **`net472`,
+not `net462`**: 4.6.2 itself loses support on 13 January 2027, so bumping onto it buys a few months.
+`net472` has no end-of-support date, is the version Microsoft's own footnote names, and is a target
+we already ship — so "drop net461" and "move to net472" are the same change.
+
+What net461 consumers would actually experience: not a hard break. NuGet still considers net461
+compatible with `netstandard2.0`, so they would fall back to our `netstandard2.0` asset — the same
+fallback they already get for every dependency listed above.
+
+Knock-on tidying if net461 goes: `VECTOR_SAFE` becomes unconditional, the
+`System.Runtime.InteropServices.RuntimeInformation` reference disappears, the `net461` arms of the
+`Microsoft.Bcl.AsyncInterfaces` / `System.Threading.Channels` / `System.IO.Compression` conditions
+go, and `Directory.Build.targets` loses its net461 analyzer branch. Same for `src/RESPite` and
+`toys/TestConsoleBaseline`.
+
+**This is a repo-level decision that telemetry merely surfaced, not a telemetry decision** — it
+affects the whole package and wants deciding on its own terms, probably alongside v4. Recorded here
+because this is where the evidence turned up. If net461 stays for reasons outside this topic, the
+`TELEMETRY` symbol is the fallback and costs net461 users nothing they have today; the profiling
+API stays on every target regardless.
 
 ## Pay-for-play
 
@@ -476,5 +506,8 @@ Worth putting to @martincostello directly, since he offered to collaborate:
   `OTEL_SEMCONV_STABILITY_OPT_IN` like every other .NET database instrumentation, including its
   current `Old` default, however much we might prefer the new names.
 - **Not putting command argument values in spans.** Command and key only, and that opt-in.
-- **Not removing or changing the profiling API.** It stays, unchanged, on every target including
-  `net461`. Native telemetry is additive.
+- **Not removing or changing the profiling API.** It stays, unchanged, on every target we ship.
+  Native telemetry is additive.
+- **Not deciding the net461 question on telemetry's behalf.** The evidence is recorded above
+  because this is where it surfaced, but the target list belongs to the package, not to this
+  feature.
