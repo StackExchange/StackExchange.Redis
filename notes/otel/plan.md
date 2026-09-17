@@ -88,12 +88,13 @@ deviation down here.** People have dashboards, alerts and saved queries built on
 Concretely, from findings §8:
 
 - **Honour `OTEL_SEMCONV_STABILITY_OPT_IN`**, with the same three modes and the same default. This
-  is the single most important item: the default today is `Old`, so unopted users are seeing
-  `db.system` and `db.statement`, *not* `db.system.name` and `db.query.text`. An earlier draft of
-  this plan said "new names only" — that was wrong, and would have silently broken every existing
-  consumer. Honouring the env var is also simply the correct behaviour for any .NET library
-  emitting database telemetry, and it gives a clean exit: when the conventions go stable, our
-  default flips in lockstep with the rest of the ecosystem rather than on our own schedule.
+  is the single most important item, and the easiest to get wrong: the default today is `Old`, so
+  unopted users are seeing `db.system` and `db.statement`, *not* `db.system.name` and
+  `db.query.text`. Emitting only the current names would look like the modern, correct choice and
+  would silently break every existing consumer. Honouring the env var is also simply the correct
+  behaviour for any .NET library emitting database telemetry, and it gives a clean exit: when the
+  conventions go stable, our default flips in lockstep with the rest of the ecosystem rather than
+  on our own schedule.
 - **Keep `db.redis.database_index`** in old mode. It is contrib-specific, not semconv, and it is in
   people's dashboards.
 - **Keep the timing events** — `Enqueued`, `Sent`, `ResponseReceived` — and keep them on by
@@ -328,7 +329,7 @@ Returns command + key + script text — the exact payload the reflection reconst
 decision on whether it is gated by `EmitQueryText` or always available to a caller who asks (it is
 already opt-in by virtue of being an explicit call).
 
-*Open:* interface member vs. extension method. Raising rather than assuming, per AGENTS.md.
+*Open:* interface member vs. extension method.
 
 ### Phase 2 — metrics
 
@@ -397,14 +398,13 @@ Worth putting to @martincostello directly, since he offered to collaborate:
 3. **Can we have the tests?** Their test suite is the compatibility oracle, and it is Apache-2.0
    going into an MIT repo. Explicit blessing, an agreed attribution form, or a clean-room rewrite
    from the behaviour inventory — but decided up front, not discovered in review.
-4. **`Filter` and `Enrich` equivalents.** My instinct was that `ActivityListener.Sample` makes
-   in-box filtering unnecessary — Nick's 2022 objection was precisely that *deciding not to
-   profile* costs something per command, and `Sample` moves that decision to the collector.
-   **Npgsql's experience says otherwise**: they ship filters, enrichment callbacks and span-name
-   providers for commands, batches and copy operations, and that is the bulk of their public
-   surface (findings §9). Contrib ships `Filter`/`Enrich` too. Two independent implementations
-   converging on the same thing is worth more than my instinct. If we adopt them we need to settle
-   what gets handed to the callback first — see "Public API impact".
+4. **`Filter` and `Enrich` equivalents.** The case against is that `ActivityListener.Sample` already
+   does this at the collector — which answers Nick's 2022 objection that *deciding not to profile*
+   costs something per command. The case for is that both existing implementations shipped them
+   anyway: Npgsql has filters, enrichment callbacks and span-name providers for commands, batches
+   and copy operations, which is the bulk of their public surface (findings §9), and the contrib
+   package has `Filter`/`Enrich`. If we adopt them, what gets handed to the callback has to be
+   settled first — see "Public API impact".
 5. **Version/schema pinning.** Should the `ActivitySource` version track the package version, or a
    semconv schema version (contrib uses the latter via `ActivitySourceFactory.Create<T>(version)`)?
 6. **Does this need to wait for v4?** The IO core rewrite moves all five hook sites. Hooks placed

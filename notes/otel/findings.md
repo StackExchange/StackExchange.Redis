@@ -11,10 +11,8 @@ The conversation this came out of is [#1044](https://github.com/StackExchange/St
 `OpenTelemetry.Instrumentation.StackExchangeRedis` is a community package in
 [opentelemetry-dotnet-contrib](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/tree/main/src/OpenTelemetry.Instrumentation.StackExchangeRedis),
 the OpenTelemetry .NET SIG's repository for instrumentation of libraries outside the core
-distribution. **These notes call that package "the contrib package" throughout** — the OpenTelemetry
-project uses "contrib" for the repository, and it is shorter than writing the package name out
-thirty times. Where the *people* are meant rather than the package, they are named as its
-maintainers.
+distribution. **These notes call that package "the contrib package" throughout**; where the
+*people* are meant rather than the package, they are named as its maintainers.
 
 It has exactly one hook into us: `IConnectionMultiplexer.RegisterProfiler`.
 
