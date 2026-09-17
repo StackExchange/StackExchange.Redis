@@ -101,17 +101,17 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
         // asserted as "no bridge was ever created", not "not connected yet": the latter is also true of a
         // node that is being dialled right now, so it would not notice the regression it exists to catch
         var mux = (ConnectionMultiplexer)conn;
-        var server2 = mux.GetServerEndPoint(idle, ServerProvenance.ClusterTopology, activate: false);
-        Assert.Null(server2.GetBridge(ConnectionType.Interactive, create: false));
+        var idleServer = mux.GetServerEndPoint(idle, ServerProvenance.ClusterTopology, activate: false);
+        Assert.Null(idleServer.GetBridge(ConnectionType.Interactive, create: false));
     }
 
     [Fact]
     public async Task WaitingOnAnUndialledServerCannotComplete()
     {
-        // why the connect loop activates whatever it is about to await, rather than trusting discovery to
-        // have done it: an inert server can still reach that loop legitimately - a node registered inert on
-        // one connect attempt may be listed in CLUSTER SLOTS on the retry - and waiting on one is a stall,
-        // not a slow success. There is nothing to complete the wait
+        // why the connect loop activates whatever it is about to await, rather than trusting whoever created
+        // the server to have done it: waiting on an undialled one is a stall, not a slow success - there is
+        // nothing that can complete the wait, so it runs to the full ConnectTimeout. This pins that hazard
+        // directly; the route that used to reach it is fixed at source in GetEndpointsFromClusterNodes
         using var server = new InProcessTestServer(log) { ServerType = ServerType.Cluster };
         await using var conn = await server.ConnectAsync(defaultOnly: true);
         GetHost(server.DefaultEndPoint, out var port);
@@ -125,16 +125,11 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
         Assert.NotSame(connected, await Task.WhenAny(connected, Task.Delay(250)));
         Assert.False(connected.IsCompleted);
 
-        // ...and activating it is what lets the wait end; Activate is idempotent, so doing this to a server
-        // that was already dialled costs nothing
-        // ...and dialling it is what lets the wait end. Both legs, as ActivateServer does: under RESP2 the
-        // monitors are only completed once the subscription connection is up too ("the second leg"), so
-        // activating the interactive bridge alone would leave this hanging just the same
-        inert.Activate(ConnectionType.Interactive, null);
-        if (inert.SupportsSubscriptions && !inert.KnowOrAssumeResp3())
-        {
-            inert.Activate(ConnectionType.Subscription, null);
-        }
+        // ...and dialling it is what lets the wait end. Through the same helper the connect loop uses, rather
+        // than a copy of it: under RESP2 the waiters are only completed once the *subscription* connection is
+        // up too, so a version of this that activated the interactive bridge alone would hang just the same -
+        // and a copy would not stay in step with that rule
+        ConnectionMultiplexer.ActivateServer(inert, null);
 
         var settled = await Task.WhenAny(connected, Task.Delay(TimeSpan.FromSeconds(10)));
         log.WriteLine($"IsConnected={inert.IsConnected}, state={inert.GetBridge(ConnectionType.Interactive, create: false)?.ConnectionState}");

@@ -1671,10 +1671,17 @@ namespace StackExchange.Redis
         /// Starts establishing the connections for a server, creating the bridges if they do not exist yet.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Idempotent: a server that is already active keeps the bridges it has, so this is safe to call on
         /// anything we are about to depend on being connected.
+        /// </para>
+        /// <para>
+        /// Both legs, where the subscription connection is a separate one: under RESP2 the waiters registered
+        /// by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
+        /// up, so activating the interactive bridge alone leaves such a wait hanging.
+        /// </para>
         /// </remarks>
-        private static void ActivateServer(ServerEndPoint server, ILogger? log)
+        internal static void ActivateServer(ServerEndPoint server, ILogger? log)
         {
             // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             server.Activate(ConnectionType.Interactive, log);
@@ -1798,12 +1805,16 @@ namespace StackExchange.Redis
                             // server.ReportNextFailure();
                             servers[i] = server;
 
-                            // a node discovered from the cluster topology may already be registered *inert* -
-                            // addressable, but deliberately never dialled. GetServerEndPoint only activates what
-                            // it creates, so an inert one arrives here with no bridge at all, and the task below
-                            // then waits on a connection that nobody is opening: it never completes, and the
-                            // whole connect burns its ConnectTimeout before reporting the node as unresponsive.
-                            // We are about to await it, so it has to be dialled; Activate is idempotent. See #3232
+                            // never wait on a server without making sure something is dialling it: GetServerEndPoint
+                            // only activates what it *creates*, so a server already held *inert* - addressable but
+                            // deliberately never dialled - arrives here with no bridge, and the wait below then has
+                            // nothing that can ever complete it. The whole connect burns its ConnectTimeout and then
+                            // reports the node as unresponsive, which is how #3232 presented.
+                            //
+                            // This is an invariant guard rather than the fix for that: the route that produced it -
+                            // discovery classing a slot-map node as serving nothing - is corrected at source in
+                            // GetEndpointsFromClusterNodes, and no test here fails without this line. Kept because
+                            // the cost is one idempotent call and the failure mode is a silent stall.
                             ActivateServer(server, log);
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
