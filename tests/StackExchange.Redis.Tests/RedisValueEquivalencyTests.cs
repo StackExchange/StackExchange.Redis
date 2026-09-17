@@ -627,4 +627,143 @@ public class RedisValueEquivalencyUnitTests
         Assert.Equal(RedisValue.StorageType.Null, value.Type);
         Assert.Equal(0, value.Length());
     }
+
+    // Comparing a string against a byte-backed value no longer decodes the blob into a transient string, so
+    // these pin the relation itself: the answer must still be "the blob, read as UTF-8 text, equals the
+    // string" for every input - including text that does not survive a UTF-8 round trip, which is where a
+    // byte-domain comparison would silently disagree and put equal values in different hash buckets.
+    //
+    // Cases are built in code rather than as InlineData: a lone surrogate does not survive either a UTF-8
+    // source file or xunit's argument serialization, and those are exactly the interesting inputs.
+    private static byte[][] EquivalenceBlobs() =>
+    [
+        [],
+        Encoding.UTF8.GetBytes("abc"),
+        Encoding.UTF8.GetBytes("abd"),
+        Encoding.UTF8.GetBytes("ab"),
+        Encoding.UTF8.GetBytes("abcd"),
+        Encoding.UTF8.GetBytes("моя строка"), // cyrillic
+        Encoding.UTF8.GetBytes("你好世界"),                                // CJK
+        Encoding.UTF8.GetBytes(new string([(char)0xD83D, (char)0xDE00])),                   // emoji: surrogate pair
+        Encoding.UTF8.GetBytes(new string('x', 300)),                                       // spans several decode chunks
+        [0xFF],                                     // invalid
+        [0xC3],                                     // truncated 2-byte sequence
+        [0xE4, 0xBD],                               // truncated 3-byte sequence
+        [0xF0, 0x9F, 0x98],                         // truncated 4-byte sequence
+        [0x61, 0xFF, 0x62],                         // invalid byte mid-payload
+        [0xC0, 0xAF],                               // overlong encoding
+        [0xED, 0xA0, 0x80],                         // surrogate encoded as UTF-8
+        [0x61, 0xF0, 0x9F, 0x98, 0x80, 0x62],       // emoji mid-payload
+    ];
+
+    private static string[] EquivalenceStrings() =>
+    [
+        "",
+        "abc",
+        "abd",
+        "ab",
+        "abcd",
+        "моя строка",
+        "你好世界",
+        new string([(char)0xD83D, (char)0xDE00]),
+        new string('x', 300),
+        "�",
+        "a�b",
+        new string([(char)0xD800]),   // lone high surrogate: UTF-8 cannot represent it
+        "a��b",
+        "a😀b",
+    ];
+
+    [Fact]
+    public void StringVersusBlob_MatchesDecodedComparison()
+    {
+        foreach (var blob in EquivalenceBlobs())
+        {
+            RedisValue asBlob = blob;
+            var decoded = (string?)asBlob;
+            foreach (var s in EquivalenceStrings())
+            {
+                RedisValue asString = s;
+                bool expected = s == decoded;
+                var because = $"'{Escape(s)}' vs {BitConverter.ToString(blob)}";
+
+                Assert.True(expected == (asString == asBlob), because);
+                Assert.True(expected == (asBlob == asString), because + " (reversed)");
+            }
+        }
+    }
+
+    [Fact]
+    public void StringVersusSegmentedBlob_MatchesAtEverySplit()
+    {
+        foreach (var blob in EquivalenceBlobs())
+        {
+            if (blob.Length < 2) continue;
+            var decoded = (string?)(RedisValue)blob;
+
+            // every split point, so a multi-byte sequence broken across segments is covered
+            for (int split = 1; split < blob.Length; split++)
+            {
+                RedisValue segmented = Segmented(blob, split);
+                Assert.Equal(decoded, (string?)segmented);
+
+                foreach (var s in EquivalenceStrings())
+                {
+                    RedisValue asString = s;
+                    Assert.True(
+                        (s == decoded) == (asString == segmented),
+                        $"'{Escape(s)}' vs {BitConverter.ToString(blob)} split at {split}");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void EqualStringAndBlobShareHashCodes()
+    {
+        foreach (var blob in EquivalenceBlobs())
+        {
+            RedisValue asBlob = blob;
+            foreach (var s in EquivalenceStrings())
+            {
+                RedisValue asString = s;
+                if (asString != asBlob) continue;
+
+                Assert.True(
+                    asString.GetHashCode() == asBlob.GetHashCode(),
+                    $"equal values must share a hash code: '{Escape(s)}' vs {BitConverter.ToString(blob)}");
+            }
+        }
+    }
+
+    private static RedisValue Segmented(byte[] payload, int split)
+    {
+        var first = new EquivalenceSegment(new ReadOnlyMemory<byte>(payload, 0, split), null);
+        var second = new EquivalenceSegment(new ReadOnlyMemory<byte>(payload, split, payload.Length - split), first);
+        return new ReadOnlySequence<byte>(first, 0, second, second.Memory.Length);
+    }
+
+    private static string Escape(string value)
+    {
+        var sb = new StringBuilder();
+        foreach (var c in value)
+        {
+            if (c is >= (char)32 and <= (char)126) sb.Append(c);
+            else sb.Append("\\u").Append(((int)c).ToString("X4"));
+        }
+        return sb.ToString();
+    }
+
+    private sealed class EquivalenceSegment : ReadOnlySequenceSegment<byte>
+    {
+        public EquivalenceSegment(ReadOnlyMemory<byte> value, EquivalenceSegment? head)
+        {
+            Memory = value;
+            if (head is not null)
+            {
+                RunningIndex = head.RunningIndex + head.Memory.Length;
+                head.Next = this;
+            }
+        }
+    }
 }
