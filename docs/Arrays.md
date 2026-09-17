@@ -14,9 +14,9 @@ Use `ArraySetAsync` and `ArrayGetAsync` to write and read individual cells:
 var db = conn.GetDatabase();
 RedisKey key = "events";
 
-bool inserted = await db.ArraySetAsync(key, 0, "created");
-RedisValue value = await db.ArrayGetAsync(key, 0);
-RedisValue missing = await db.ArrayGetAsync(key, 1);
+bool inserted = await db.Arrays.SetAsync(key, 0, "created");
+RedisValue value = await db.Arrays.GetAsync(key, 0);
+RedisValue missing = await db.Arrays.GetAsync(key, 1);
 
 Console.WriteLine(inserted); // True when the cell did not previously have a value
 Console.WriteLine(value);    // created
@@ -26,8 +26,8 @@ Console.WriteLine(missing.IsNull); // True
 Array indexes use `RedisArrayIndex`, with implicit conversions from `int`, `long`, and `ulong`. This allows normal small indexes to be used directly, while still allowing the full unsigned index range when needed.
 
 ```csharp
-await db.ArraySetAsync(key, 42, "answer");
-await db.ArraySetAsync(key, new RedisArrayIndex(10_000_000UL), "large index");
+await db.Arrays.SetAsync(key, 42, "answer");
+await db.Arrays.SetAsync(key, new RedisArrayIndex(10_000_000UL), "large index");
 ```
 
 ## Sparse Arrays
@@ -35,13 +35,13 @@ await db.ArraySetAsync(key, new RedisArrayIndex(10_000_000UL), "large index");
 Arrays are sparse: unset cells do not have values. `ArrayLengthAsync` reports the notional length, which is the highest used index plus one. `ArrayCountAsync` reports only cells that currently have values.
 
 ```csharp
-await db.KeyDeleteAsync(key);
+await db.Keys.DeleteAsync(key);
 
-await db.ArraySetAsync(key, 0, "a");
-await db.ArraySetAsync(key, 10, "b");
+await db.Arrays.SetAsync(key, 0, "a");
+await db.Arrays.SetAsync(key, 10, "b");
 
-RedisArrayIndex length = await db.ArrayLengthAsync(key); // 11
-RedisArrayIndex count = await db.ArrayCountAsync(key);   // 2
+RedisArrayIndex length = await db.Arrays.LengthAsync(key); // 11
+RedisArrayIndex count = await db.Arrays.CountAsync(key);   // 2
 ```
 
 ## Setting Multiple Values
@@ -49,13 +49,13 @@ RedisArrayIndex count = await db.ArrayCountAsync(key);   // 2
 To write a contiguous range, pass the first index and the values:
 
 ```csharp
-int inserted = await db.ArraySetAsync(key, 0, ["a", "b", "c"]);
+int inserted = await db.Arrays.SetAsync(key, 0, ["a", "b", "c"]);
 ```
 
 To write multiple specific indexes, use `RedisArrayEntry` values:
 
 ```csharp
-await db.ArraySetAsync(key,
+await db.Arrays.SetAsync(key,
 [
     new RedisArrayEntry(0, "alpha"),
     new RedisArrayEntry(5, "bravo"),
@@ -70,20 +70,20 @@ The returned `int` is the number of cells that were newly filled.
 Read selected indexes with `ArrayGetAsync`:
 
 ```csharp
-RedisValue[] values = await db.ArrayGetAsync(key, [0, 5, 6, 100]);
+RedisValue[] values = await db.Arrays.GetAsync(key, [0, 5, 6, 100]);
 ```
 
 Read a range with `ArrayGetRangeAsync`. Ranges can be read forward or backward:
 
 ```csharp
-RedisValue[] forward = await db.ArrayGetRangeAsync(key, 0, 5);
-RedisValue[] reverse = await db.ArrayGetRangeAsync(key, 5, 0);
+RedisValue[] forward = await db.Arrays.GetRangeAsync(key, 0, 5);
+RedisValue[] reverse = await db.Arrays.GetRangeAsync(key, 5, 0);
 ```
 
 For sparse arrays, use `ArrayScanAsync` to return only populated cells in a range:
 
 ```csharp
-RedisArrayEntry[] entries = await db.ArrayScanAsync(key, 0, 100, limit: 50);
+RedisArrayEntry[] entries = await db.Arrays.ScanAsync(key, 0, 100, limit: 50);
 
 foreach (var entry in entries)
 {
@@ -96,21 +96,21 @@ foreach (var entry in entries)
 Delete a single cell with `ArrayDeleteAsync`:
 
 ```csharp
-bool removed = await db.ArrayDeleteAsync(key, 5);
+bool removed = await db.Arrays.DeleteAsync(key, 5);
 ```
 
 Delete multiple specific cells by index:
 
 ```csharp
-int removedCount = await db.ArrayDeleteAsync(key, [0, 5, 100]);
+int removedCount = await db.Arrays.DeleteAsync(key, [0, 5, 100]);
 ```
 
 Delete one or more ranges:
 
 ```csharp
-await db.ArrayDeleteRangeAsync(key, 10, 20);
+await db.Arrays.DeleteRangeAsync(key, 10, 20);
 
-await db.ArrayDeleteRangeAsync(key,
+await db.Arrays.DeleteRangeAsync(key,
 [
     new RedisArrayRange(100, 199),
     new RedisArrayRange(500, 599),
@@ -171,17 +171,17 @@ RedisArrayEntry[] matches = await db.ArrayGrepAsync(key, request);
 Arrays have a write head used by insert operations. `ArrayInsertAsync` writes at the current write head and advances it.
 
 ```csharp
-RedisArrayIndex first = await db.ArrayInsertAsync(key, "first");
-RedisArrayIndex second = await db.ArrayInsertAsync(key, "second");
+RedisArrayIndex first = await db.Arrays.InsertAsync(key, "first");
+RedisArrayIndex second = await db.Arrays.InsertAsync(key, "second");
 
-RedisArrayIndex? next = await db.ArrayNextAsync(key);
+RedisArrayIndex? next = await db.Arrays.NextAsync(key);
 ```
 
 Move the write head with `ArraySeekAsync`:
 
 ```csharp
-bool moved = await db.ArraySeekAsync(key, 1_000);
-RedisArrayIndex written = await db.ArrayInsertAsync(key, "later");
+bool moved = await db.Arrays.SeekAsync(key, 1_000);
+RedisArrayIndex written = await db.Arrays.InsertAsync(key, "later");
 ```
 
 ## Ring Buffers
@@ -191,17 +191,17 @@ Use `ArrayRingAsync` to keep at most a fixed number of cells and wrap writes aro
 ```csharp
 for (int i = 0; i < 10; i++)
 {
-    await db.ArrayRingAsync(key, maxLength: 5, value: i);
+    await db.Arrays.RingAsync(key, maxLength: 5, value: i);
 }
 
-RedisArrayIndex count = await db.ArrayCountAsync(key); // 5
+RedisArrayIndex count = await db.Arrays.CountAsync(key); // 5
 ```
 
 `ArrayLastItemsAsync` is intended for this capped ring-buffer model. It reads the last values in the ring-buffer sense, where "last" relates to the retained values after wrap-around and trimming:
 
 ```csharp
-RedisValue[] last = await db.ArrayLastItemsAsync(key, count: 10);
-RedisValue[] lastReversed = await db.ArrayLastItemsAsync(key, count: 10, reverse: true);
+RedisValue[] last = await db.Arrays.LastItemsAsync(key, count: 10);
+RedisValue[] lastReversed = await db.Arrays.LastItemsAsync(key, count: 10, reverse: true);
 ```
 
 ## Operations and Info
@@ -209,16 +209,16 @@ RedisValue[] lastReversed = await db.ArrayLastItemsAsync(key, count: 10, reverse
 Use `ArrayOperationAsync` for simple server-side operations over a range:
 
 ```csharp
-RedisValue sum = await db.ArrayOperationAsync(key, 0, 10, ArrayOperation.Sum);
-RedisValue used = await db.ArrayOperationAsync(key, 0, 10, ArrayOperation.Used);
-RedisValue matches = await db.ArrayOperationAsync(key, 0, 10, ArrayOperation.Match, "error");
+RedisValue sum = await db.Arrays.OperationAsync(key, 0, 10, ArrayOperation.Sum);
+RedisValue used = await db.Arrays.OperationAsync(key, 0, 10, ArrayOperation.Used);
+RedisValue matches = await db.Arrays.OperationAsync(key, 0, 10, ArrayOperation.Match, "error");
 ```
 
 Use `ArrayInfoAsync` for metadata:
 
 ```csharp
-ArrayInfo info = await db.ArrayInfoAsync(key);
-ArrayInfo fullInfo = await db.ArrayInfoAsync(key, full: true);
+ArrayInfo info = await db.Arrays.InfoAsync(key);
+ArrayInfo fullInfo = await db.Arrays.InfoAsync(key, full: true);
 
 Console.WriteLine($"Count: {info.Count}");
 Console.WriteLine($"Length: {info.Length}");

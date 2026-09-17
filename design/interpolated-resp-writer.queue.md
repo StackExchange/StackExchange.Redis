@@ -67,6 +67,16 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Take `[Experimental(SER010)]` off the group surface before 4.0 ships.** Decided 2026-09-17: v4
+      ships this API as normal, supported surface, not as an experiment. The docs are already written that
+      way - `docs/Basics.md` and the rest now teach `db.Strings.GetAsync`, and `docs/LegacyApi.md` presents
+      the old spelling as the supported-but-previous one - so the attributes are now the only thing saying
+      otherwise, and they say it to anyone who copies an example. Also delete the opt-in lines from
+      `docs/exp/SER010.md` (or retire the page), and decide the same question for `SER011`/`SER012`.
+
+      Related, and cheap while the attribute is still on: the `.Interpolated` namespace, which the same
+      entry below says should go. Both are free now and both are binary breaks later.
+
 - [x] **`*Async` suffixes on the new surface.** MSFT review, 2026-09-15; done the same day. Checked whether the suffix would
       be redundant: the surface is async-only (22 `ValueTask` returns in Strings alone, zero sync twins), so
       the *compiler* never needs it - but the justification is the reader, not the compiler, and

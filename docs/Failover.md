@@ -113,8 +113,8 @@ await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
 
 // Use the connection normally
 var db = conn.GetDatabase();
-await db.StringSetAsync("mykey", "myvalue");
-var value = await db.StringGetAsync("mykey");
+await db.Strings.SetAsync("mykey", "myvalue");
+var value = await db.Strings.GetAsync("mykey");
 ```
 
 ### Using ConfigurationOptions
@@ -174,31 +174,35 @@ The `IDatabase` interface works transparently with connection groups. All operat
 var db = conn.GetDatabase();
 
 // String operations
-await db.StringSetAsync("user:1:name", "Alice");
-var name = await db.StringGetAsync("user:1:name");
+await db.Strings.SetAsync("user:1:name", "Alice");
+var name = await db.Strings.GetAsync("user:1:name");
 
 // Hash operations
-await db.HashSetAsync("user:1", new HashEntry[] {
+await db.Hashes.SetAsync("user:1", new HashEntry[] {
     new("name", "Alice"),
     new("email", "alice@example.com")
 });
 
 // List operations
-await db.ListRightPushAsync("queue:tasks", "task1");
-var task = await db.ListLeftPopAsync("queue:tasks");
+await db.Lists.RightPushAsync("queue:tasks", "task1");
+var task = await db.Lists.LeftPopAsync("queue:tasks");
 
 // Set operations
-await db.SetAddAsync("tags", new RedisValue[] { "redis", "cache", "database" });
-var members = await db.SetMembersAsync("tags");
+await db.Sets.AddAsync("tags", new RedisValue[] { "redis", "cache", "database" });
+using (var members = await db.Sets.MembersAsync("tags"))
+{
+    // a lease: a window over the reply buffer, valid until disposed
+    foreach (var member in members.Span) { /* ... */ }
+}
 
 // Sorted set operations
-await db.SortedSetAddAsync("leaderboard", "player1", 100);
-var rank = await db.SortedSetRankAsync("leaderboard", "player1");
+await db.SortedSets.AddAsync("leaderboard", "player1", 100);
+var rank = await db.SortedSets.RankAsync("leaderboard", "player1");
 
 // Transactions
 var tran = db.CreateTransaction();
-var t1 = tran.StringSetAsync("key1", "value1");
-var t2 = tran.StringSetAsync("key2", "value2");
+var t1 = tran.Strings.SetAsync("key1", "value1");
+var t2 = tran.Strings.SetAsync("key2", "value2");
 if (await tran.ExecuteAsync())
 {
     await t1;
@@ -207,8 +211,8 @@ if (await tran.ExecuteAsync())
 
 // Batches
 var batch = db.CreateBatch();
-var b1 = batch.StringSetAsync("key1", "value1");
-var b2 = batch.StringSetAsync("key2", "value2");
+var b1 = batch.Strings.SetAsync("key1", "value1");
+var b2 = batch.Strings.SetAsync("key2", "value2");
 batch.Execute();
 await Task.WhenAll(b1, b2);
 ```
@@ -568,7 +572,7 @@ IDatabaseAsync db = conn.GetDatabase().WithRetry();
 
 // a transient fault (e.g. the active member briefly returning LOADING) is retried
 // automatically; if the group fails over in the meantime, the retry lands on the new member
-var value = await db.StringGetAsync("mykey");
+var value = await db.Strings.GetAsync("mykey");
 ```
 
 > You can call `WithRetry` on any database (`IDatabase` or `IDatabaseAsync`), but the wrapper it returns exposes only the **async** API — there is no synchronous form, since retrying may inherently have delays. It cannot wrap a batch or an existing transaction, nor an already-retrying database.

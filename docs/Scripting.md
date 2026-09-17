@@ -3,6 +3,8 @@ Scripting
 
 [Lua scripting](https://redis.io/commands/EVAL) lets you run a script server-side, atomically, in one round trip. StackExchange.Redis exposes this through `IDatabase.ScriptEvaluateResp(Async)` (and the read-only `ScriptEvaluateReadOnlyResp(Async)` twin), plus the `IServer.ScriptLoad(Async)`/`ScriptExists(Async)`/`ScriptFlush(Async)` support commands.
 
+From 4.0 there is also `db.Scripts.EvaluateAsync(script, keys, values)` and its `EvaluateReadOnlyAsync` twin, which take spans rather than arrays and return the same `RespResult`. The `IDatabase` members documented below are unchanged and are not going anywhere; see [The original `IDatabase` API](LegacyApi).
+
 Basic use
 ---
 

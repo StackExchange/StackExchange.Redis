@@ -5,18 +5,18 @@ This page is for **library authors**: you ship a package on top of StackExchange
 
 There are three levels, and they are not alternatives so much as a progression. All three send through the same connection, pipeline and backlog as every built-in command; none of them needs anything added to StackExchange.Redis.
 
-| | you write | you get | stable? |
+| | you write | you get | since |
 |---|---|---|---|
-| **1. Ad-hoc** | `db.ExecuteResp("JSON.GET", args)` | one call, raw reply | yes - shipped |
-| **2. Ad-hoc, new core** | `db.ExecuteAsync("JSON.GET", args)` | the same, on a `RespContext` | `SER010`, experimental |
-| **3. Your own surface** | `db.Json().GetAsync(key, path)` | your API, no `object[]`, no per-call allocation | `SER010`, experimental |
+| **1. Ad-hoc** | `db.ExecuteResp("JSON.GET", args)` | one call, raw reply | 3.2 |
+| **2. Ad-hoc, on a context** | `db.ExecuteAsync("JSON.GET", args)` | the same, reached from a `RespContext` | 4.0 |
+| **3. Your own surface** | `db.Json().GetAsync(key, path)` | your API, no `object[]`, no per-call allocation | 4.0 |
 
-Level 3 is what the rest of this page is about, but start at level 1: if a command is used once, it does not need a surface.
+Level 3 is what the rest of this page is about, but start at level 1: if a command is used once, it does not need a surface - and level 1 works on 3.2, so a library that must support both majors has somewhere to stand.
 
 Level 1: the ad-hoc call
 ---
 
-`ExecuteResp`/`ExecuteRespAsync` is **shipped API, not experimental**, and it is the right answer for a command you call occasionally. It takes the command name and one `ReadOnlyMemory<RedisKeyOrValue>` of arguments, in the order the command wants them:
+`ExecuteResp`/`ExecuteRespAsync` is the right answer for a command you call occasionally, and the only one of the three available before 4.0. It takes the command name and one `ReadOnlyMemory<RedisKeyOrValue>` of arguments, in the order the command wants them:
 
 ```csharp
 using RespResult reply = await db.ExecuteRespAsync(
@@ -168,9 +168,9 @@ Handled for you, on every command written this way:
 - **RESP2 vs RESP3** - one request; the reader copes with both spellings of the reply
 - **pipelining, the backlog, reconnects, timeouts** - the same path as every built-in command
 
-Stability
+Supporting both majors
 ---
 
-Levels 2 and 3 are gated behind `SER010` and are **experimental**: the shape is being argued with, and it will change. Opt in with `<NoWarn>$(NoWarn);SER010</NoWarn>` or a call-site suppression, and expect to revisit. Level 1 (`ExecuteResp`) is shipped and stable, and is the safe place to be until this settles.
+If your package targets 3.x as well as 4.0, level 1 is the common denominator: `ExecuteResp` exists in both, with the same signature and the same `RespResult`. A surface of your own can then be added for 4.0 callers behind a `#if`, over the same request-building code, rather than being a second implementation.
 
 The samples on this page are compiled and run as tests (`RespExtensionAuthorTests`), so they do not rot. `SUBSTR` stands in for the module command you would actually be adding: it is a real server command this client has no API for - not even a `RedisCommand` entry - so it exercises the unknown-command path exactly as `JSON.GET` would.
