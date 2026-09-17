@@ -887,6 +887,59 @@ public class RedisValueEquivalencyUnitTests
         }
     }
 
+    // The chunked encode in Binary works 512 chars at a time, so anything shorter than that never reaches a
+    // chunk boundary - and every string in the corpus above is well under it. These put the awkward shapes
+    // exactly where the seam falls.
+    [Fact]
+    public void BinaryComparer_HandlesSurrogatesAtTheChunkBoundary()
+    {
+        var binary = RedisValue.EqualityComparer.Binary;
+        var pair = new string([(char)0xD83D, (char)0xDE00]);   // U+1F600
+        var loneHigh = new string([(char)0xD800]);
+
+        foreach (var s in new[]
+        {
+            // a pair straddling the seam, behind enough three-byte characters that taking one *more* char
+            // would also overflow the encode buffer
+            new string('你', 511) + pair + "x",
+
+            // a lone high surrogate at the seam, immediately followed by a real pair: extending the chunk
+            // would step onto the pair and split that instead
+            new string('a', 511) + loneHigh + pair + "x",
+
+            // the seam landing inside a pair from the other side
+            new string('a', 510) + pair + pair + "x",
+
+            // and a plain long value, so the multi-chunk path itself is covered
+            new string('a', 2000),
+        })
+        {
+            RedisValue asString = s;
+            RedisValue asBlob = Encoding.UTF8.GetBytes(s);
+            Assert.True(binary.Equals(asString, asBlob), $"length {s.Length}");
+            Assert.True(binary.Equals(asBlob, asString), $"length {s.Length} (reversed)");
+            Assert.Equal(binary.GetHashCode(asString), binary.GetHashCode(asBlob));
+        }
+    }
+
+    [Fact]
+    public void BinaryComparer_DivergesOnNumericText()
+    {
+        // RedisValue equality runs Simplify() first, so text that parses to the same number is equal however
+        // it was spelled. Binary compares the bytes, so it is not - which is the right answer for a byte
+        // reading, and matches how the server identifies members, but it is a divergence worth pinning.
+        var binary = RedisValue.EqualityComparer.Binary;
+        foreach (var (a, b) in new[] { ("1.0", "1.00"), ("1", "1.0"), ("0", "-0.0"), ("1e2", "100") })
+        {
+            RedisValue x = a, y = b;
+            Assert.True(x == y, $"'{a}' == '{b}' under the default rules");
+            Assert.False(binary.Equals(x, y), $"'{a}' vs '{b}' under Binary");
+        }
+
+        // identical text still agrees, of course
+        Assert.True(binary.Equals((RedisValue)"42", (RedisValue)"42"));
+    }
+
     [Fact]
     public void BinaryComparer_WorksAsADictionaryComparer()
     {

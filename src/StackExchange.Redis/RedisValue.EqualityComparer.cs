@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO.Hashing;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -40,17 +41,23 @@ namespace StackExchange.Redis
             /// </summary>
             /// <remarks>
             /// <para>
-            /// Agrees with <see cref="Default"/> wherever a value's UTF-8 form round-trips, which is to say
-            /// for all well-formed text. It differs where that fails, and either side can be the cause:
+            /// Agrees with <see cref="Default"/> for text that is well-formed and not numeric. It differs in
+            /// three places:
             /// </para>
             /// <list type="bullet">
             /// <item><description>
-            /// A string holding an unpaired surrogate encodes to the same bytes as one holding U+FFFD, so
-            /// this calls those equal where <see cref="Default"/> does not.
+            /// <b>Numeric text.</b> <see cref="Default"/> reduces anything that parses as a number before
+            /// comparing, so <c>"1.0"</c>, <c>"1.00"</c> and <c>"1"</c> are all equal to it, as are <c>"0"</c>
+            /// and <c>"-0.0"</c>. This compares the bytes, so they are not - which is how the server
+            /// identifies members, and usually what a byte reading is wanted for.
             /// </description></item>
             /// <item><description>
-            /// A blob that is not canonical UTF-8 decodes to U+FFFD but does not re-encode to itself - the
-            /// single byte <c>0xFF</c>, say - so this calls it distinct from the text U+FFFD where
+            /// <b>Unpaired surrogates.</b> A string holding one encodes to the same bytes as one holding
+            /// U+FFFD, so this calls those equal where <see cref="Default"/> does not.
+            /// </description></item>
+            /// <item><description>
+            /// <b>Non-canonical UTF-8.</b> A blob that does not re-encode to itself - the single byte
+            /// <c>0xFF</c>, say, which decodes to U+FFFD - is distinct from that text here, where
             /// <see cref="Default"/> calls them equal.
             /// </description></item>
             /// </list>
@@ -101,8 +108,22 @@ namespace StackExchange.Redis
 
             private sealed class BinaryComparer : EqualityComparer
             {
-                /// <summary>Per-process entropy, so hash codes are not predictable between runs.</summary>
-                private static readonly long Seed = BitConverter.ToInt64(Guid.NewGuid().ToByteArray(), 0);
+                /// <summary>
+                /// Per-process entropy, so hash codes are not predictable between runs. Not from
+                /// <see cref="Guid.NewGuid"/>: its version and variant bits are fixed, so the first eight
+                /// bytes carry slightly less than they appear to.
+                /// </summary>
+                private static readonly long Seed = ReadSeed();
+
+                private static long ReadSeed()
+                {
+                    // the array form rather than Fill(Span<byte>), which the down-level targets lack; this
+                    // runs once per process
+                    var bytes = new byte[sizeof(long)];
+                    using var rng = RandomNumberGenerator.Create();
+                    rng.GetBytes(bytes);
+                    return BitConverter.ToInt64(bytes, 0);
+                }
 
                 private const int StackLimit = 256;
 
@@ -112,6 +133,15 @@ namespace StackExchange.Redis
 
                     // byte-backed on both sides: the bytes are already there, so no copy is needed
                     if (IsBlob(x.Type) && IsBlob(y.Type)) return BlobSequenceEqual(x, y);
+
+                    // identical text encodes identically, so this is a shortcut rather than a rule; the
+                    // unequal case still has to go the byte route, because two different strings can share a
+                    // UTF-8 form once unpaired surrogates are involved
+                    if (x.Type == StorageType.String && y.Type == StorageType.String
+                        && string.Equals(x.RawString(), y.RawString(), StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
 
                     // A string against a contiguous blob is the case worth caring about: encode the string a
                     // chunk at a time straight onto the blob's own bytes, so a mismatch near the front stops
@@ -157,7 +187,14 @@ namespace StackExchange.Redis
 
                         // never split a surrogate pair: the encoder would emit U+FFFD for each half, which is
                         // not what encoding the whole string would have produced
-                        if (take < chars.Length && char.IsHighSurrogate(chars[take - 1])) take++;
+                        // Never end a chunk on a high surrogate: the encoder would emit U+FFFD for each half
+                        // of a pair split across chunks, which is not what encoding the whole string gives.
+                        // Step *back* rather than forward - taking one more character would both overrun the
+                        // buffer (513 three-byte characters do not fit in 512*3 bytes) and, where the
+                        // character at the boundary is a lone high surrogate, simply move the split onto the
+                        // following pair instead of avoiding it. Only reachable when take == ChunkChars, so
+                        // it cannot reach zero.
+                        if (take < chars.Length && char.IsHighSurrogate(chars[take - 1])) take--;
 
                         var written = Encoding.UTF8.GetBytes(chars.Slice(0, take), buffer);
                         if (written > utf8.Length || !buffer.Slice(0, written).SequenceEqual(utf8.Slice(0, written))) return false;
