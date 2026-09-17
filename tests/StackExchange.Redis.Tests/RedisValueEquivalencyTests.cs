@@ -941,6 +941,23 @@ public class RedisValueEquivalencyUnitTests
     }
 
     [Fact]
+    public void BinaryComparer_DoesNotDependOnHowAValueIsStored()
+    {
+        // Binary reads the UTF8 form of both sides, so the same text compares equal to itself however it
+        // arrived. The default rules do not manage this for every input - see #3233, where a string and the
+        // bytes of that same string can simplify differently - so this is a property worth holding onto.
+        var binary = RedisValue.EqualityComparer.Binary;
+        foreach (var text in new[] { "1,000", "(5)", " 5 ", "1,0,0,0", "1e2", "42", "hello", "" })
+        {
+            RedisValue asString = text;
+            RedisValue asBlob = Encoding.UTF8.GetBytes(text);
+
+            Assert.True(binary.Equals(asString, asBlob), $"'{text}' across storage");
+            Assert.Equal(binary.GetHashCode(asString), binary.GetHashCode(asBlob));
+        }
+    }
+
+    [Fact]
     public void BinaryComparer_WorksAsADictionaryComparer()
     {
         var dictionary = new Dictionary<RedisValue, string>(RedisValue.EqualityComparer.Binary)

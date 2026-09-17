@@ -67,6 +67,11 @@ namespace StackExchange.Redis
             /// <see cref="RedisValue.GetHashCode()"/> hashes the decoded text.
             /// </para>
             /// <para>
+            /// It also does not care how a value is stored: the same text compares equal to itself whether it
+            /// arrived as a string or as the bytes of that string, which is not true of the default rules for
+            /// every input.
+            /// </para>
+            /// <para>
             /// Hashing is not resistant to deliberate collision-finding - it is chosen for speed, unlike the
             /// framework's string hashing. Do not use it to key on values an untrusted party controls.
             /// </para>
