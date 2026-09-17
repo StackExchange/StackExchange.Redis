@@ -1954,12 +1954,26 @@ public ref partial struct RespReader
         if (TryGetSpan(out var value))
         {
             if (value.IsEmpty) return 0;
-
-            // GetMaxCharCount is arithmetic, not a pass over the data, so this is a cheap way to know that
-            // GetChars cannot overflow - which is the only thing that stops us using it. The ordinary case
-            // lands here: one contiguous run, a target with room, no decoder and no allocation at all.
-            if (target.Length >= encoding.GetMaxCharCount(value.Length)) return encoding.GetChars(value, target);
+            if (TryDecodeWhole(encoding, value, target, out var whole)) return whole;
         }
+        else
+        {
+            // NOT contiguous, which is not the same as streamed: an ordinary bulk string that happens to
+            // straddle two buffer segments lands here too, and that is not a rare event - it is whatever
+            // the socket handed us. Linearizing onto the stack puts short values back on the contiguous
+            // path, and short is nearly all of them.
+            Span<byte> linear = stackalloc byte[MaxStackLinearizeBytes];
+            var buffered = Buffer(linear);
+
+            // a full buffer means there may be more - only a SHORT read proves the value is complete
+            if (buffered.Length < MaxStackLinearizeBytes)
+            {
+                if (buffered.IsEmpty) return 0;
+                if (TryDecodeWhole(encoding, buffered, target, out var whole)) return whole;
+            }
+        }
+
+        // Past here the answer really is "more text than room", which is the one job only a decoder does.
 
         // Room for whatever ONE more byte can produce, fallback included. Below this the decoder must not
         // be pointed at the target, because Convert THROWS when the destination cannot hold even one
@@ -2029,8 +2043,44 @@ public ref partial struct RespReader
         }
     }
 
+    /// <summary>
+    /// Decode a contiguous payload in one go, when it can be proven that it will all fit.
+    /// </summary>
+    /// <remarks>
+    /// A contiguous run has no cross-chunk state to carry, so the <i>only</i> thing a
+    /// <see cref="Decoder"/> buys is truncation - <c>GetChars</c> throws where this must write what fits.
+    /// Hence two chances to prove truncation is not needed, cheapest first, and no decoder if either lands.
+    /// </remarks>
+    private static bool TryDecodeWhole(Encoding encoding, scoped ReadOnlySpan<byte> value, scoped Span<char> target, out int written)
+    {
+        // arithmetic, not a pass over the data
+        if (target.Length >= encoding.GetMaxCharCount(value.Length))
+        {
+            written = encoding.GetChars(value, target);
+            return true;
+        }
+
+        // measurement. The worst case is pessimistic by design - UTF-8 asks for length + 1 - so a caller
+        // who sized the target by the payload's BYTE length, which is the obvious way to size it and always
+        // enough for UTF-8, fails the arithmetic and would otherwise be pushed onto the decoder path by one
+        // hypothetical character. GetCharCount is exact, allocates nothing, and costs one pass that the
+        // decoder path would have spent anyway.
+        if (target.Length >= encoding.GetCharCount(value))
+        {
+            written = encoding.GetChars(value, target);
+            return true;
+        }
+
+        written = 0;
+        return false;
+    }
+
     // a stack guard for the decode scratch above; no shipped encoding comes close
     private const int MaxDecodeScratchChars = 64;
+
+    // how much of a non-contiguous scalar is worth assembling on the stack to reach the contiguous path;
+    // the same budget ReadString uses for the same job
+    private const int MaxStackLinearizeBytes = 256;
 
     /// <summary>
     /// Copy the current scalar value out into the supplied <paramref name="target"/>, or as much as can be copied.
