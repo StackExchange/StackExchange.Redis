@@ -356,7 +356,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the connection should be encrypted.
         /// </summary>
-        [Obsolete("Please use .Ssl instead of .UseSsl, will be removed in 3.2.", error: true),
+        [Obsolete("Please use .Ssl instead of .UseSsl, will be removed in 4.0.", error: true),
          Browsable(false),
          EditorBrowsable(EditorBrowsableState.Never)]
         public bool UseSsl
@@ -683,7 +683,7 @@ namespace StackExchange.Redis
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default).
         /// If <see langword="false"/>, <see cref="ThreadPriority.Normal"/> will be used.
         /// </summary>
-        [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 3.2.", error: true)]
+        [Obsolete($"This setting no longer has any effect, please use {nameof(SocketManager.SocketManagerOptions)}.{nameof(SocketManager.SocketManagerOptions.UseHighPrioritySocketThreads)} instead - this setting will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool HighPrioritySocketThreads
         {
@@ -782,7 +782,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order.
         /// </summary>
-        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + " - this will be removed in 3.2.", error: true)]
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue) + " - this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool PreserveAsyncOrder
         {
@@ -830,7 +830,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy.
         /// </summary>
-        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.2.", error: true)]
+        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int ResponseTimeout
         {
@@ -910,7 +910,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The size of the output buffer to use.
         /// </summary>
-        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 3.2.", error: true)]
+        [Obsolete("This setting no longer has any effect, and should not be used - will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public int WriteBuffer
         {
