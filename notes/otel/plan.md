@@ -94,7 +94,8 @@ Concretely, from findings §8:
   would silently break every existing consumer. Honouring the env var is also simply the correct
   behaviour for any .NET library emitting database telemetry, and it gives a clean exit: when the
   conventions go stable, our default flips in lockstep with the rest of the ecosystem rather than
-  on our own schedule.
+  on our own schedule. Honouring it does not mean it has to be the *only* way to choose — see open
+  question 5 on making the selection an explicit enum as well.
 - **Keep `db.redis.database_index`** in old mode. It is contrib-specific, not semconv, and it is in
   people's dashboards.
 - **Keep the timing events** — `Enqueued`, `Sent`, `ResponseReceived` — and keep them on by
@@ -389,7 +390,9 @@ Worth putting to @martincostello directly, since he offered to collaborate:
    shipping perpetual betas. Do we mark the telemetry `[Experimental]` (we already have the
    `SER00x` machinery in `src/RESPite/Shared/Experiments.cs`), or do we accept that our stable
    package emits attributes that may be renamed under us? This is the strongest argument for the
-   middle ground and we should hear it argued before dismissing it.
+   middle ground and we should hear it argued before dismissing it. **See question 5 for a way to
+   make this much less binary** — gating individual enum members rather than the whole feature, so
+   only the callers who opted into unstable conventions carry the diagnostic.
 2. **Do its maintainers want the package to become a one-liner, or to keep producing spans?** If we
    go native, does it retire, or keep an `AddRedisInstrumentation()` that calls `AddSource` plus the old
    `Filter`/`Enrich` knobs? Those two callbacks are the only features that do not obviously survive
@@ -405,9 +408,62 @@ Worth putting to @martincostello directly, since he offered to collaborate:
    and copy operations, which is the bulk of their public surface (findings §9), and the contrib
    package has `Filter`/`Enrich`. If we adopt them, what gets handed to the callback has to be
    settled first — see "Public API impact".
-5. **Version/schema pinning.** Should the `ActivitySource` version track the package version, or a
+5. **Should the semconv choice be an explicit enum rather than only an environment variable?**
+   `OTEL_SEMCONV_STABILITY_OPT_IN` is ambient, process-wide, and read once at construction — a
+   library silently changing the attribute names it emits based on an environment variable is
+   exactly the sort of action-at-a-distance that produces a baffled bug report. An explicit setting
+   means nobody is surprised:
+
+   ```csharp
+   // sketch only
+   public enum RedisSemanticConventions { Default, Old, New, Both }
+
+   options.SemanticConventions = RedisSemanticConventions.New;
+   ```
+
+   `Default` would mean "follow `OTEL_SEMCONV_STABILITY_OPT_IN`, and its `Old` default if unset", so
+   an operator who sets the variable once still gets every instrumentation in the service agreeing
+   — which is the whole point of the variable, and a strong reason *not* to simply ignore it.
+   Anything else is an explicit override that wins.
+
+   Costs three or four more public API lines than the sketch above (the enum, the property pair, the
+   `DefaultOptionsProvider` virtual). Probably worth it: this is the single setting most likely to
+   produce "why did my dashboard go blank", and the one place where being explicit is cheap.
+
+   Two details to settle if we do it: whether `Default` resolves at multiplexer construction (as the
+   contrib package does) or per command, and whether it is connection-string-parsable like the rest
+   of `ConfigurationOptions`.
+
+   **This is also a better answer to open question 1 than gating the whole feature.**
+   `ExperimentalAttribute` includes `AttributeTargets.Field` — in the runtime's version *and* in the
+   down-level polyfill in `src/RESPite/Shared/Experiments.cs`, so it works on our netfx targets too
+   — and enum members are fields. So individual members can be gated:
+
+   ```csharp
+   public enum RedisSemanticConventions
+   {
+       Default,
+       Old,
+       [Experimental(Experiments.SemanticConventions, UrlFormat = Experiments.UrlFormat)] New,
+       [Experimental(Experiments.SemanticConventions, UrlFormat = Experiments.UrlFormat)] Both,
+   }
+   ```
+
+   The stable half — `Default` and `Old`, which is what everyone gets today — stays plain stable
+   API. Only the members that actually track still-experimental conventions carry the gate, so the
+   churn risk is scoped to the people who opted into churn. Marking the *whole* telemetry feature
+   `[Experimental]` is all-or-nothing and puts a diagnostic in front of people who only ever wanted
+   the default behaviour.
+
+   And the exit is clean: when the database conventions go stable, delete the attribute from the
+   member. That is neither a source nor a binary break — the diagnostic simply stops firing.
+
+   Repo convention is `[Experimental(Experiments.X, UrlFormat = Experiments.UrlFormat)]` with a
+   `docs/exp/SERxxx.md` page; `SER001`–`SER009` are taken (retired IDs stay reserved), so this would
+   be `SER010`.
+6. **Version/schema pinning.** Should the `ActivitySource` version track the package version, or a
    semconv schema version (contrib uses the latter via `ActivitySourceFactory.Create<T>(version)`)?
-6. **Does this need to wait for v4?** The IO core rewrite moves all five hook sites. Hooks placed
+7. **Does this need to wait for v4?** The IO core rewrite moves all five hook sites. Hooks placed
    now survive as *concepts* but not as code. Landing metrics on 3.x and traces on 4.x is a
    defensible split; so is landing both on 3.x and accepting the port.
 

@@ -120,12 +120,22 @@ nothing they have today.
 
 ## 3. Semantic conventions
 
-Two documents apply, both in
-[open-telemetry/semantic-conventions](https://github.com/open-telemetry/semantic-conventions):
+Three documents apply, all in
+[open-telemetry/semantic-conventions](https://github.com/open-telemetry/semantic-conventions). The
+first two are the ones @martincostello pointed at in
+[#1044](https://github.com/StackExchange/StackExchange.Redis/issues/1044#issuecomment-5713538582)
+as what the contrib package is implementing:
 
-**Spans** (`docs/db/redis.md`, over `docs/db/database-spans.md`). Span kind `CLIENT`; span name
-follows the general database convention **except** that `db.namespace` is deliberately left out of
-the name, because for Redis it is a bare integer and reads as noise.
+- [`docs/db/redis.md`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/db/redis.md)
+  — Redis client spans
+- [`docs/db/database-spans.md`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/db/database-spans.md)
+  — the general database span conventions the Redis one builds on
+- [`docs/db/database-metrics.md`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/db/database-metrics.md)
+  — database client metrics
+
+**Spans.** Span kind `CLIENT`; span name follows the general database convention **except** that
+`db.namespace` is deliberately left out of the name, because for Redis it is a bare integer and
+reads as noise.
 
 | attribute | requirement level | where we get it |
 | --- | --- | --- |
@@ -142,7 +152,7 @@ the name, because for Redis it is a bare integer and reads as noise.
 For batches the convention is to prepend `MULTI` or `PIPELINE` to the span name when the
 constituent operations share a command.
 
-**Metrics** (`docs/db/database-metrics.md`). `db.client.operation.duration` is a histogram in
+**Metrics** (`database-metrics.md` above). `db.client.operation.duration` is a histogram in
 seconds and is **stable**, with recommended buckets
 `[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10]`; required attribute `db.system.name`, plus
 `db.operation.name`, `db.namespace`, `server.address`/`server.port`, `error.type` on failure. The
@@ -194,8 +204,9 @@ Takeaways:
 
 1. A client library shipping or blessing its own telemetry is normal, not novel. go-redis does it
    in-repo; Lettuce does it via an SPI plus adapters.
-2. **There is no agreed cross-language vocabulary beyond the semantic conventions themselves**, and
-   adoption of those lags badly and unevenly — go-redis is still on `db.statement`, Python has a
+2. **There is no agreed cross-language vocabulary beyond the
+   [semantic conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/db/redis.md)
+   themselves**, and adoption of those lags badly and unevenly — go-redis is still on `db.statement`, Python has a
    dual-mode switch, .NET has a triple-source switch. Following current semconv puts us *ahead* of
    the field, not out of step with it.
 3. Where the clients *do* informally agree, it is on things semconv does not mandate: span name is
