@@ -7,10 +7,21 @@ namespace StackExchange.Redis.Benchmarks
 {
     /// <summary>
     /// Sizes the cost of <see cref="RedisValue"/> equality where one side is a string and the other a blob.
-    /// That mixed case currently decodes the blob into a transient string (see operator ==), which is the
-    /// allocation PR #3116 set out to remove; this measures whether it is worth removing, and - via the
-    /// DiffAtStart case - how much is lost by comparing only after the whole payload has been materialised.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// That mixed case is the one with room to move: everything else already compares in place. The
+    /// DiffAtStart shape is the interesting one, since it separates the cost of comparing from the cost of
+    /// materialising - an implementation that decodes before it compares pays the same for a value that
+    /// differs in its first byte as for one that matches.
+    /// </para>
+    /// <para>
+    /// Note that the baseline here is <see cref="StringVsByteArray"/>, so the ratio column compares the other
+    /// shapes against the mixed case *within one build*. Comparing an implementation against its predecessor
+    /// means running this on both commits and lining the two tables up by hand; there is no in-run before and
+    /// after.
+    /// </para>
+    /// </remarks>
     [Config(typeof(SlowConfig))]
     public class RedisValueEqualityBenchmarks
     {
@@ -73,7 +84,7 @@ namespace StackExchange.Redis.Benchmarks
             _other = Encoding.UTF8.GetBytes(baseline);
         }
 
-        /// <summary>String vs byte[]: the mixed case #3116 targets.</summary>
+        /// <summary>String vs byte[]: the mixed case, where one side has to be converted to meet the other.</summary>
         [Benchmark(Baseline = true)]
         public bool StringVsByteArray() => _string == _byteArray;
 

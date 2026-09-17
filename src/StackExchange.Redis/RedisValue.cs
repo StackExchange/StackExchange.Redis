@@ -548,7 +548,10 @@ namespace StackExchange.Redis
                     // what remains is a truncated sequence at the very end; decoding it as final is what
                     // yields the replacement char that the string form would have carried
                     Utf8.ToUtf16(utf8, chars, out bytesRead, out charsWritten, replaceInvalidSequences: true, isFinalBlock: true);
-                    if (bytesRead == 0 && charsWritten == 0) return false; // no progress: cannot match
+                    // Defensive, and believed unreachable: a final-block decode of a non-empty input always
+                    // yields at least the replacement character. Kept so that a future change which makes it
+                    // reachable fails the comparison rather than spinning here forever.
+                    if (bytesRead == 0 && charsWritten == 0) return false;
                 }
                 if (!AdvanceMatch(s, chars.Slice(0, charsWritten), ref matched)) return false;
                 utf8 = utf8.Slice(bytesRead);
@@ -584,6 +587,11 @@ namespace StackExchange.Redis
                         }
 
                         if (!AdvanceMatch(s, chars.Slice(0, joinedChars), ref matched)) return false;
+                        // The decoder consumed the carried prefix and possibly more, never less: `pending`
+                        // only ever holds a sequence that was incomplete but valid, and such a sequence is
+                        // consumed as a unit. Asserted because if that ever stopped holding, the slice below
+                        // would throw rather than quietly answer wrongly.
+                        Debug.Assert(joinedBytes >= pendingLength, "decoder consumed less than the carried prefix");
                         span = span.Slice(joinedBytes - pendingLength); // give back the bytes we borrowed but did not use
                         pendingLength = 0;
                         continue;
