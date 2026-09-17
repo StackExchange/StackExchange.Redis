@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.Globalization;
 using RESPite.Messages;
-using StackExchange.Redis.Server;
+using StackExchange.Redis.ManagedServer;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

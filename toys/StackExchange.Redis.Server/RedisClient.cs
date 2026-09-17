@@ -7,7 +7,7 @@ using System.Threading;
 using RESPite;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.Server
+namespace StackExchange.Redis.ManagedServer
 {
     public partial class RedisClient(RedisServer.Node node) : IDisposable
 #pragma warning disable SA1001
@@ -146,7 +146,7 @@ namespace StackExchange.Redis.Server
         {
             if ((flags & KeyFlags.NoSlotCheck) == 0 & node.CheckCrossSlot)
             {
-                var slot = RespServer.GetHashSlot(key);
+                var slot = RespServerBase.GetHashSlot(key);
                 if (_activeSlot is ServerSelectionStrategy.NoSlot)
                 {
                     _activeSlot = slot;

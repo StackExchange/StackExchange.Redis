@@ -2023,37 +2023,31 @@ Four consequences, none of them cosmetic:
       end-to-end test comparing against `IDatabase` - which has answered this correctly for years and is the
       cheapest oracle available - rather than by reasoning about the reply shape.
 
-- [ ] **`DBSIZE`, and the first server-scoped group. ATTEMPTED 2026-09-16, BACKED OUT - one naming
-      decision is yours.** Built it end to end, found two things, and reverted the group itself rather
-      than pick the name unilaterally. Everything below is measured, not predicted.
+- [x] **`DBSIZE`, and the first server-scoped group. Done 2026-09-17.** `server.Server.DatabaseSizeAsync(db)`,
+      on `IRespServerTarget` - which had been declared with nothing bound to it - reached through
+      `RespServerExtensions`, the server-side twin of `RespDatabaseExtensions`.
 
-      **1. `StackExchange.Redis.Server` cannot be a type.** A public class `Server` in the root namespace
-      collides with the **namespace** `StackExchange.Redis.Server` - `toys/StackExchange.Redis.Server`
-      has it, and so does anyone who followed the same convention. `CS0435` on every file in that project,
-      at the *generated* AsciiHash file, which is a fair warning about what a consumer would see. So the
-      group cannot simply be called `Server`, and the three ways out are not equal:
+      **The name cost a rename, and Marc authorised it.** A public type `StackExchange.Redis.Server` and a
+      namespace `StackExchange.Redis.Server` are both reachable as `Server` from inside
+      `StackExchange.Redis`, which is `CS0435` - reported, tellingly, at the *generated* AsciiHash file,
+      which is roughly what a consumer would see. The alternatives were `Servers` (consistent with the
+      plural convention, reads badly: `server.Servers.…`), a class/accessor name split (breaks the
+      one-name-per-group rule the file layout depends on), or folding `DBSIZE` into a server-scoped `Keys`.
+      Instead the toy moved: `toys/StackExchange.Redis.Server` keeps its assembly and package name and its
+      code now lives in `StackExchange.Redis.ManagedServer` - the term AGENTS.md already used for it. Its
+      `RespServer` base class became `RespServerBase` for the same reason, since `RespServer` is now the
+      group struct.
 
-      - **`Servers`**, matching the convention every other group already follows (all thirteen are plural).
-        No collision, class name still equals accessor name - but `server.Servers.DatabaseSizeAsync(0)`
-        reads badly.
-      - **Accessor `Server`, class named something else** (`ServerCommands`). Best call site, breaks the
-        one-name-per-group rule that makes the file layout navigable.
-      - **Fold it into the server-scoped `Keys`**: `server.Keys.CountAsync(database)`. This is the option
-        this queue already anticipated - "`Keys` is key-routed for `DEL` and server-scoped for
-        `KEYS`/`SCAN`" - and `DBSIZE` is literally "how many keys". It is also the option that draws the
-        two-sided-group line, which the same entry says wants drawing deliberately. Hence: not by me.
+      **The database is required, no `-1` sentinel.** `IServer.DatabaseSize` defaults it and resolves the
+      default from the multiplexer; a server context has no database at all, and `DBSIZE` *is*
+      database-scoped (`Message.RequiresDatabase`), so the choice was teach a sentinel to resolve itself or
+      ask. Asking is the model this file already recorded for `IServer`'s database-scoped members.
 
-      **2. The database is not optional, and that turned out to be the interesting part.** `IServer`
-      defaults it to `-1` and resolves that against the multiplexer's configured default; a server context
-      carries no database at all, and `DBSIZE` *is* database-scoped (`Message.RequiresDatabase` says so),
-      so `-1` reaches the pipeline as "a database is required for DBSIZE". The model this file already
-      records - "`IServer`'s own database-scoped members take the number explicitly" - says ask the caller,
-      and that is what the attempt did: `DatabaseSizeAsync(int database)` with no default, throwing on a
-      negative.
-
-      **3. It is blocked on nothing now.** Asking the question is what found the `WithDatabase` routing bug
-      (above), which was the only real obstacle: the group needs to move a context onto a database, and
-      until today that silently did not work. With that fixed the whole group is a name away.
+      **Pinned with two dedicated databases, one flushed and one holding exactly one key**, compared
+      against `IServer` as the oracle. Mutation-checked both ways: dropping `WithDatabase` throws
+      ("A target database is required for DBSIZE"), and pinning it to database 0 returns 124,447 where 0
+      was expected. The ambient-count version of this test passed for the wrong reason first time, which is
+      why it counts a database whose contents are known rather than one that merely differs.
 
 ## Later / decide first
 

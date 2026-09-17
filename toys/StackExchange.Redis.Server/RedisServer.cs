@@ -11,9 +11,9 @@ using System.Threading;
 using RESPite;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.Server
+namespace StackExchange.Redis.ManagedServer
 {
-    public abstract partial class RedisServer : RespServer
+    public abstract partial class RedisServer : RespServerBase
     {
         public const int DefaultDatabaseCount = 16;
 

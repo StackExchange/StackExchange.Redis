@@ -25,7 +25,7 @@ Example usage:
 using System;
 using System.Net;
 using System.Threading.Tasks;
-using StackExchange.Redis.Server;
+using StackExchange.Redis.ManagedServer;
 
 static class Program
 {

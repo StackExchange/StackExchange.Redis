@@ -4,7 +4,7 @@ using System.Diagnostics;
 using RESPite;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.Server
+namespace StackExchange.Redis.ManagedServer
 {
     public readonly ref struct RedisRequest
     {

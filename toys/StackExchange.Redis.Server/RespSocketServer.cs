@@ -3,12 +3,12 @@ using System.Net;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 
-namespace StackExchange.Redis.Server
+namespace StackExchange.Redis.ManagedServer
 {
     public sealed class RespSocketServer : SocketServer
     {
-        private readonly RespServer _server;
-        public RespSocketServer(RespServer server)
+        private readonly RespServerBase _server;
+        public RespSocketServer(RespServerBase server)
         {
             _server = server ?? throw new ArgumentNullException(nameof(server));
             server.Shutdown.ContinueWith((_, o) => ((SocketServer)o).Dispose(), this);

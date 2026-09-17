@@ -13,7 +13,7 @@ public class ClusterHandshakeNodesUnitTests(ITestOutputHelper log)
         using var server = new InProcessTestServer() { ServerType = ServerType.Cluster };
         var a = server.DefaultEndPoint;
         var b = server.AddEmptyNode();
-        var c = server.AddEmptyNode(Server.RedisServer.NodeFlags.Handshake);
+        var c = server.AddEmptyNode(ManagedServer.RedisServer.NodeFlags.Handshake);
         await using var conn = await server.ConnectAsync(defaultOnly: true); // defaultOnly: only connect to a initially
 
         log.WriteLine($"a: {Format.ToString(a)}, b: {Format.ToString(b)}, c: {Format.ToString(c)}");
@@ -35,7 +35,7 @@ public class ClusterHandshakeNodesUnitTests(ITestOutputHelper log)
         using var server = new InProcessTestServer() { ServerType = ServerType.Cluster };
         var a = server.DefaultEndPoint;
         var b = server.AddEmptyNode();
-        var c = server.AddEmptyNode(Server.RedisServer.NodeFlags.Handshake);
+        var c = server.AddEmptyNode(ManagedServer.RedisServer.NodeFlags.Handshake);
         await using var conn = await server.ConnectAsync(defaultOnly: true); // defaultOnly: only connect to a initially
 
         // check we can still *fetch* handshake nodes via the admin API

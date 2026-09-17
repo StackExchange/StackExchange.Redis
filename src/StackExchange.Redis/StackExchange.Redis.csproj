@@ -82,6 +82,7 @@
     <Compile Update="Groups\Lists.*.cs" DependentUpon="Lists.cs" />
     <Compile Update="Groups\Scripts.*.cs" DependentUpon="Scripts.cs" />
     <Compile Update="Groups\Sets.*.cs" DependentUpon="Sets.cs" />
+    <Compile Update="Groups\Server.*.cs" DependentUpon="Server.cs" />
     <Compile Update="Groups\SortedSets.*.cs" DependentUpon="SortedSets.cs" />
     <Compile Update="Groups\Streams.*.cs" DependentUpon="Streams.cs" />
     <Compile Update="Groups\Strings.*.cs" DependentUpon="Strings.cs" />

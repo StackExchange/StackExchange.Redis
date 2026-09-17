@@ -15,7 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Streams;
 using StackExchange.Redis.Configuration;
-using StackExchange.Redis.Server;
+using StackExchange.Redis.ManagedServer;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -437,8 +437,8 @@ public class InProcessTestServer : MemoryCacheRedisServer
 
     /*
 
-    private readonly RespServer _server;
-    public RespSocketServer(RespServer server)
+    private readonly RespServerBase _server;
+    public RespSocketServer(RespServerBase server)
     {
         _server = server ?? throw new ArgumentNullException(nameof(server));
         server.Shutdown.ContinueWith((_, o) => ((SocketServer)o).Dispose(), this);

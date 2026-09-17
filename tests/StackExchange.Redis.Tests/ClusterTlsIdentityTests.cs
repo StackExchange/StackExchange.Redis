@@ -3,7 +3,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
-using static StackExchange.Redis.Server.RedisServer;
+using static StackExchange.Redis.ManagedServer.RedisServer;
 
 namespace StackExchange.Redis.Tests;
 

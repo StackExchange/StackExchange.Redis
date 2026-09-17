@@ -8,7 +8,7 @@ using System.Runtime.Caching;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace StackExchange.Redis.Server
+namespace StackExchange.Redis.ManagedServer
 {
     public class MemoryCacheRedisServer : RedisServer
     {

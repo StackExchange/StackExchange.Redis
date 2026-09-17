@@ -530,4 +530,35 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var value = await surface.Strings.GetAsync(key);
         Assert.Equal("from-one", value);
     }
+
+    [Fact]
+    public async Task TheServerGroupCountsTheDatabaseItIsAskedAbout()
+    {
+        NoConcurrentRuntime();
+
+        var emptyDb = TestConfig.GetDedicatedDB();
+        var oneKeyDb = TestConfig.GetDedicatedDB();
+
+        await using var conn = Create(allowAdmin: true);
+        Skip.IfMissingDatabase(conn, emptyDb);
+        Skip.IfMissingDatabase(conn, oneKeyDb);
+
+        var server = GetAnyPrimary(conn);
+        await server.FlushDatabaseAsync(emptyDb);
+        await server.FlushDatabaseAsync(oneKeyDb);
+        await conn.GetDatabase(oneKeyDb).StringSetAsync(Me(), "x");
+
+        // DBSIZE takes no operand, so a count that lands on the wrong database is a plausible-looking
+        // number rather than an error; two databases with KNOWN and DIFFERENT contents is what makes the
+        // difference observable at all
+        Assert.Equal(0, await server.Server.DatabaseSizeAsync(emptyDb));
+        Assert.Equal(1, await server.Server.DatabaseSizeAsync(oneKeyDb));
+
+        // and against IServer, which has answered this correctly for years
+        Assert.Equal(await server.DatabaseSizeAsync(emptyDb), await server.Server.DatabaseSizeAsync(emptyDb));
+        Assert.Equal(await server.DatabaseSizeAsync(oneKeyDb), await server.Server.DatabaseSizeAsync(oneKeyDb));
+
+        // no sentinel: a server context has no database of its own, so there is nothing for -1 to mean
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await server.Server.DatabaseSizeAsync(-1));
+    }
 }
