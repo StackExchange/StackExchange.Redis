@@ -299,11 +299,28 @@ namespace StackExchange.Redis.Server
         /// existing key, so it cannot produce a node whose identity form differs from its peers'.
         /// </summary>
         public EndPoint AddEmptyNode(EndPoint endpoint, NodeFlags flags = NodeFlags.None)
+            => AddEmptyNodeCore(endpoint, flags, announced: null);
+
+        /// <summary>
+        /// Add an empty node, fixing what it announces as its own address before it becomes visible.
+        /// </summary>
+        /// <remarks>
+        /// Setting this afterwards, via <see cref="SetAnnouncedAddress"/>, leaves a window in which a topology
+        /// read can observe the node still announcing an address - which is enough to make a client route
+        /// straight to it rather than take the redirect a test was trying to provoke.
+        /// </remarks>
+        public EndPoint AddEmptyNode(EndPoint endpoint, AnnouncedAddress announced, NodeFlags flags = NodeFlags.None)
+            => AddEmptyNodeCore(endpoint, flags, announced);
+
+        private EndPoint AddEmptyNodeCore(EndPoint endpoint, NodeFlags flags, AnnouncedAddress? announced)
         {
             if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
             var node = new Node(this, endpoint, flags);
+            if (announced is { } value) node.Announced = value;
             node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
             ApplyNameOnlyIdentity(endpoint, node);
+
+            // published last, so nothing above is observable in a half-configured state
             if (!_nodes.TryAdd(endpoint, node))
             {
                 throw new ArgumentException($"Node already exists: {Format.ToString(endpoint)}", nameof(endpoint));

@@ -48,7 +48,10 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.Empty(arr);
 
         var now = await server.TimeAsync();
-        server.Execute("debug", "sleep", "0.5"); // cause something to be slow
+        // via IDatabase, not IServer: DEBUG is not in Message.RequiresDatabase's exclusion list, so
+        // IServer.Execute - which has no database to offer - refuses it outright. There is only one
+        // endpoint in this configuration, so this still lands on the server being measured.
+        conn.GetDatabase().Execute("debug", "sleep", "0.5"); // cause something to be slow
 
         arr = await server.LatencyLatestAsync();
         var item = Assert.Single(arr);
@@ -71,7 +74,10 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.Empty(arr);
 
         var now = await server.TimeAsync();
-        server.Execute("debug", "sleep", "0.5"); // cause something to be slow
+        // via IDatabase, not IServer: DEBUG is not in Message.RequiresDatabase's exclusion list, so
+        // IServer.Execute - which has no database to offer - refuses it outright. There is only one
+        // endpoint in this configuration, so this still lands on the server being measured.
+        conn.GetDatabase().Execute("debug", "sleep", "0.5"); // cause something to be slow
 
         arr = await server.LatencyHistoryAsync("command");
         var item = Assert.Single(arr);
