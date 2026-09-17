@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -30,6 +32,9 @@ namespace StackExchange.Redis.Tests;
 [Collection(NonParallelCollection.Name)]
 public class ConnectFailureRefreshTests(ITestOutputHelper log)
 {
+    /// <summary>Pulls the failure tally out of "Re-reading topology after {Failures} consecutive connect failures".</summary>
+    private static readonly Regex ConsecutiveFailures = new(@"after (\d+) consecutive connect failures", RegexOptions.Compiled);
+
     /// <summary>Counts inbound <c>CLUSTER</c> commands, so a test can see a topology read happen.</summary>
     private sealed class CountingServer(ITestOutputHelper log) : InProcessTestServer(log)
     {
@@ -111,12 +116,30 @@ public class ConnectFailureRefreshTests(ITestOutputHelper log)
 
             await Task.Delay(TimeSpan.FromSeconds(WindowSeconds), TestContext.Current.CancellationToken);
 
-            var attempts = logger.Matching("Resurrecting").Count;
-            var refreshes = logger.Matching("consecutive connect failures").Count;
+            var reads = logger.Matching("consecutive connect failures");
+            var refreshes = reads.Count;
+
+            // The failure count comes out of the read's own message - "Re-reading topology after {Failures}
+            // consecutive connect failures" - rather than from counting retries directly.
+            //
+            // Counting "Resurrecting" instead does not work, and failed on Windows while passing on Linux: it
+            // is logged only by the *heartbeat* retry path, and that is not the only one. The connect-failure
+            // callback re-dials directly and logs nothing, so which of the two drives the loop is a matter of
+            // timing, and on Windows it was consistently the silent one - 0 resurrects, while topology reads
+            // showed the failures had happened all along. The tally here is the bridge's own
+            // consecutive-failure count, which resets only on a fully established connection - so for an
+            // endpoint that never connects it is the running total, whichever path did the dialling.
+            var attempts = reads
+                .Select(m => ConsecutiveFailures.Match(m))
+                .Where(m => m.Success)
+                .Select(m => int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
+                .DefaultIfEmpty(0)
+                .Max();
+
             log.WriteLine($"{attempts} connect attempts, {refreshes} topology reads in {WindowSeconds}s");
 
             // the ratio is the assertion: many failures, few reads. The bound is generous because the
-            // heartbeat that drives both is only ~1s accurate, but it is nowhere near one-read-per-failure.
+            // heartbeat is only ~1s accurate, but it is nowhere near one-read-per-failure.
             Assert.True(attempts >= 5, $"expected the endpoint to be retried repeatedly, but saw {attempts} attempts");
             var permitted = (WindowSeconds / ConfigCheckSeconds) + 2;
             Assert.True(refreshes <= permitted, $"expected at most {permitted} rate-limited reads, but saw {refreshes}");
