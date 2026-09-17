@@ -25,6 +25,13 @@ No registration call, no connection handed to a builder, no `RegisterProfiler`. 
 profiler" — stops existing**, because there is nothing left to register. Same for the seven
 `AddRedisInstrumentation` overloads in the contrib package and its DI deferral dance.
 
+> Throughout these notes, **"the contrib package"** means
+> [`OpenTelemetry.Instrumentation.StackExchangeRedis`](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/tree/main/src/OpenTelemetry.Instrumentation.StackExchangeRedis),
+> which lives in `opentelemetry-dotnet-contrib` — the OpenTelemetry .NET SIG's repository for
+> instrumenting libraries outside the core distribution. It is the package that instruments us
+> today, from the outside, via `RegisterProfiler` and reflection. Where the *people* are meant, they
+> are named as its maintainers.
+
 ### What is *not* public
 
 No `public static class RedisTelemetry { public const string ActivitySourceName = ... }`. The name
@@ -119,9 +126,9 @@ Additive is always fine. Changing the value or meaning of something that already
    not squatting their name. Anyone calling `AddRedisInstrumentation()` sees nothing — the
    extension just changes which source it adds — but anyone who hand-wrote
    `AddSource("OpenTelemetry.Instrumentation.StackExchangeRedis")` has to edit one string. Document
-   it prominently; consider asking contrib to add *both* names for a transition window.
+   it prominently; consider asking its maintainers to add *both* names for a transition window.
 2. **`Filter` and `Enrich`.** Callbacks on their options object with no obvious in-box equivalent.
-   `ActivityListener.Sample` is the better home for filtering — see open question 3.
+   `ActivityListener.Sample` is the better home for filtering — see open question 4.
 
 ### On starting from their implementation
 
@@ -233,9 +240,9 @@ package reference, and independent versioning of the telemetry. If we decide tha
 unacceptable, the split is what buys it — and nothing else.
 
 And on the OpenTelemetry-typed wrapper specifically: Npgsql needed a second package because nobody
-else was going to write `AddNpgsql()` for them. **We do not have that problem** — contrib already
-owns `AddRedisInstrumentation`, already has a maintainer, and would be reduced to precisely those
-four lines. That is the conversation to have with them.
+else was going to write `AddNpgsql()` for them. **We do not have that problem** — the contrib
+package already owns `AddRedisInstrumentation`, already has a maintainer, and would be reduced to
+precisely those four lines. That is the conversation to have with them.
 
 ## Target frameworks
 
@@ -300,7 +307,7 @@ shippable.
 
 Expose the statement string so the contrib package can stop emitting `DynamicMethod` field getters
 against our privates, on 3.x, today. This is worth doing *whatever* we decide about the rest:
-contrib has to support 3.x for years regardless.
+the contrib package has to support 3.x for years regardless.
 
 `IProfiledCommand` is a public interface, so adding a member to it is a break for implementers
 (realistically only test doubles — `ProfiledCommand` is internal sealed — but a break). Preferred
@@ -382,8 +389,8 @@ Worth putting to @martincostello directly, since he offered to collaborate:
    `SER00x` machinery in `src/RESPite/Shared/Experiments.cs`), or do we accept that our stable
    package emits attributes that may be renamed under us? This is the strongest argument for the
    middle ground and we should hear it argued before dismissing it.
-2. **Does contrib want to become a one-liner, or keep producing spans?** If we go native, does the
-   package retire, or keep an `AddRedisInstrumentation()` that calls `AddSource` plus the old
+2. **Do its maintainers want the package to become a one-liner, or to keep producing spans?** If we
+   go native, does it retire, or keep an `AddRedisInstrumentation()` that calls `AddSource` plus the old
    `Filter`/`Enrich` knobs? Those two callbacks are the only features that do not obviously survive
    the transition. Either way, ask them to add our source name — and ideally to keep adding their
    own for a window, so existing hand-written `AddSource` calls do not break.

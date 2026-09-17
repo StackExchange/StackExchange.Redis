@@ -9,7 +9,13 @@ The conversation this came out of is [#1044](https://github.com/StackExchange/St
 ## 1. What the OpenTelemetry bridge does today, and what it costs
 
 `OpenTelemetry.Instrumentation.StackExchangeRedis` is a community package in
-[opentelemetry-dotnet-contrib](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/tree/main/src/OpenTelemetry.Instrumentation.StackExchangeRedis).
+[opentelemetry-dotnet-contrib](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/tree/main/src/OpenTelemetry.Instrumentation.StackExchangeRedis),
+the OpenTelemetry .NET SIG's repository for instrumentation of libraries outside the core
+distribution. **These notes call that package "the contrib package" throughout** — the OpenTelemetry
+project uses "contrib" for the repository, and it is shorter than writing the package name out
+thirty times. Where the *people* are meant rather than the package, they are named as its
+maintainers.
+
 It has exactly one hook into us: `IConnectionMultiplexer.RegisterProfiler`.
 
 Everything else it does is machinery to reconstruct, after the fact, causality that we already
@@ -267,7 +273,7 @@ That is the template: **the telemetry is in-box; the OpenTelemetry-shaped conven
 separate, near-empty package** — and in our case that package already exists and already has a
 maintainer, so the wrapper need not be ours at all.
 
-## 8. What contrib emits today — the compatibility baseline
+## 8. What the contrib package emits today — the compatibility baseline
 
 If we intend to replace the package (see `plan.md`), this is the inventory we have to match. Read
 off contrib `main` as of 2026-09-17, package version 1.18.0-beta.3.
@@ -338,7 +344,7 @@ and the script text. This is the reflection payload from §1.
 **User-facing options:** `FlushInterval` (default 10s), `SetVerboseDatabaseStatements` (false),
 `EnrichActivityWithTimingEvents` (true), `Filter`, `Enrich`.
 
-**Licensing:** contrib is Apache-2.0 (SPDX headers on every file); this repo is MIT. Code owner is
+**Licensing:** the contrib repository is Apache-2.0 (SPDX headers on every file); this repo is MIT. Code owner is
 @matt-hensley.
 
 ## 9. Npgsql's public surface, in full
