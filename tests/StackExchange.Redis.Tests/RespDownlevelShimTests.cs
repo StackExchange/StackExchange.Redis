@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
-using StackExchange.Redis.Interpolated;
-using StackExchange.Redis.Interpolated.Downlevel;
+using StackExchange.Redis.Downlevel;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

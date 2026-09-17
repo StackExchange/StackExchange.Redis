@@ -780,7 +780,7 @@ namespace StackExchange.Redis
             }
 
             var options = cache.Options;
-            var broadcast = options.TrackingMode == Interpolated.CacheTrackingMode.Broadcast;
+            var broadcast = options.TrackingMode == CacheTrackingMode.Broadcast;
             var prefixes = options.Prefixes;
 
             // CLIENT TRACKING ON [BCAST] [PREFIX p]...

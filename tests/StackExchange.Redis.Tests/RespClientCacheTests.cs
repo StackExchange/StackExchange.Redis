@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using StackExchange.Redis.Interpolated;
-using Xunit;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 

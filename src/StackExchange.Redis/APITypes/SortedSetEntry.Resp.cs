@@ -1,9 +1,10 @@
 ﻿using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;
 
-public readonly partial struct SortedSetEntry : Interpolated.IRespArgument
+public readonly partial struct SortedSetEntry : IRespArgument
 {
     /// <inheritdoc/>
     /// <remarks>
@@ -18,7 +19,7 @@ public readonly partial struct SortedSetEntry : Interpolated.IRespArgument
     /// hole, where a whole run of entries is one <c>{values}</c>.
     /// </para>
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
     {
         handler.AppendFormatted((RedisValue)score);
         handler.AppendFormatted(element);

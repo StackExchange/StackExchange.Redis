@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Text;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 using Xunit;
 using static StackExchange.Redis.Tests.RespLiterals;
 

@@ -2261,6 +2261,34 @@ Four consequences, none of them cosmetic:
 
 ## Done
 
+- [x] **The `.Interpolated` namespace is gone, and the surface is split by audience — 2026-09-17.**
+      Marc: *"we kinda fell into there because this branch started as a spike into interpolated strings
+      that just went really, really well"* - the namespace named the technique, not the thing.
+
+      **Root `StackExchange.Redis`** now holds the primary API: `RespContext`, the three target
+      interfaces, `RespDatabase`, `IRespHandler<T>`/`RespHandlers`, `RespExecutor`, `RespCommand`(s), the
+      cache options and `RespScriptCache`. **`StackExchange.Redis.Protocol`** holds the frame machinery:
+      `RespRequestBuilder`, `RespRequestFrame`/`KeyRange`, `RespRequest`, `RespPayload`, `RespFragment`/
+      `RespAttribute`, `RespAppend`, `RespFrameWriter`, `RespReplyHandler<T>`, `IRespArgument`. Marc on
+      the cost: *"extenders are niche - they can eat a using"*.
+
+      **The constraint that shaped it:** anything hosting extension methods has to be where callers
+      already are, because extensions bind by namespace - `RespExecutor` (`SendAsync`), `RespCommands`
+      (`"X".Command()`), `RespSurface` (`ExecuteAsync`) and every group class are therefore root by
+      necessity, not by preference. `.Protocol` rather than `.Requests` because `RespPayload` is a
+      *reply*, and a namespace called Requests holding the reply type would be its own small lie.
+
+      **Two latent bugs surfaced while doing it**, both of the same species - a string naming a type,
+      which fails silently when the type is renamed:
+
+      - `RespInterpolationAnalyzer` was matching `StackExchange.Redis.Interpolated.RespCommandHandler`.
+        That type became `RespRequestBuilder` days ago, so **SER309 had been reporting nothing at all**
+        since the rename, and would have gone on reporting nothing. Now correct, with a comment saying
+        the match is a string and therefore fails quiet.
+      - `RespFragmentGenerator` named `RespAttribute` and `RespFragment` by full string too, and broke
+        loudly (`CS9248`, partial property with no implementation) the moment the namespace changed -
+        which is the better failure mode, and only luck that it is the loud one.
+
 - [x] **`WithDatabase` sent to the wrong database - found and fixed 2026-09-16.** Found while costing the
       server group: `DBSIZE` takes a database, so the question "how does a context change database?" had
       to be answered, and the answer was "it does not". The database is **not part of the rendered frame** -

@@ -5,7 +5,7 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. A cached response body, held as a pooled blob rather than as parsed objects, so

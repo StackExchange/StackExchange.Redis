@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// <c>SORT</c>, where it has moved to the RESP context surface.

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="index">The array index.</param>
 /// <param name="value">The value at this index.</param>
-public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) : IEquatable<RedisArrayEntry>, Interpolated.IRespArgument
+public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) : IEquatable<RedisArrayEntry>, IRespArgument
 {
     private readonly RedisArrayIndex _index = index;
     private readonly RedisValue _value = value;
@@ -36,7 +37,7 @@ public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) 
     /// place it means anything. Two arguments, so a span of these renders as a run through the handler's
     /// open span hole rather than needing an overload of its own.
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
     {
         handler.AppendFormatted(_index);
         handler.AppendFormatted(_value);

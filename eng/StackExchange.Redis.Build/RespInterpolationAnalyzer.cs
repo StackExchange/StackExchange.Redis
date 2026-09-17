@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -23,7 +23,12 @@ namespace StackExchange.Redis.Build;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class RespInterpolationAnalyzer : DiagnosticAnalyzer
 {
-    private const string HandlerTypeName = "StackExchange.Redis.Interpolated.RespCommandHandler";
+    // The interpolated-string handler's full name, matched against the CONVERTED type of the expression.
+    // It is a string rather than a symbol lookup, which makes it silently fragile: rename the type and this
+    // analyzer stops reporting rather than stops compiling. It has been wrong twice - once when
+    // RespCommandHandler became RespRequestBuilder, once when the namespace lost its .Interpolated - so
+    // RespInterpolationAnalyzerTests pins the name against the real assembly.
+    private const string HandlerTypeName = "StackExchange.Redis.Protocol.RespRequestBuilder";
 
     /// <summary>The trimmed token, handed to the code fix so it need not re-parse the literal.</summary>
     public const string TokenProperty = "Token";

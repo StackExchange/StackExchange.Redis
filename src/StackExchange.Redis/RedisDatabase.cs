@@ -24,7 +24,7 @@ namespace StackExchange.Redis
 
         public int Database { get; }
 
-        private Interpolated.RespContext _context;
+        private RespContext _context;
         private bool _haveContext;
 
         /// <inheritdoc/>
@@ -33,17 +33,17 @@ namespace StackExchange.Redis
         /// property access would allocate on a path meant to allocate nothing. The context itself is a
         /// struct, so callers copy rather than share.
         /// </remarks>
-        public new Interpolated.RespContext Context
+        public new RespContext Context
         {
             get
             {
                 if (!_haveContext)
                 {
-                    _context = new Interpolated.RespContext(
+                    _context = new RespContext(
                         multiplexer.CommandMap,
                         database: Database,
                         serverType: multiplexer.ServerSelectionStrategy.ServerType)
-                        .WithExecutor(new Interpolated.RespMessageExecutor(this, Database))
+                        .WithExecutor(new RespMessageExecutor(this, Database))
                         .WithCache(multiplexer.ClientCache)
                         .WithServices(new ServerFeatureProbe(this));
                     _haveContext = true;
@@ -55,7 +55,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Lets the context surface ask what the receiving server can do, which is the one thing a context
-        /// cannot know for itself; see <see cref="Interpolated.IRespServerFeatures"/>.
+        /// cannot know for itself; see <see cref="IRespServerFeatures"/>.
         /// </summary>
         /// <remarks>
         /// A thin adapter over <see cref="RedisBase.GetFeatures"/> rather than a second copy of the rule -

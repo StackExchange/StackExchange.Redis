@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -9,7 +10,7 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="start">The start index.</param>
 /// <param name="end">The end index.</param>
-public readonly struct RedisArrayRange(RedisArrayIndex start, RedisArrayIndex end) : IEquatable<RedisArrayRange>, Interpolated.IRespArgument
+public readonly struct RedisArrayRange(RedisArrayIndex start, RedisArrayIndex end) : IEquatable<RedisArrayRange>, IRespArgument
 {
     private readonly RedisArrayIndex _start = start;
     private readonly RedisArrayIndex _end = end;
@@ -30,7 +31,7 @@ public readonly struct RedisArrayRange(RedisArrayIndex start, RedisArrayIndex en
     /// place it means anything. Two arguments, so a span of these renders as a run through the handler's
     /// open span hole rather than needing an overload of its own.
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
     {
         handler.AppendFormatted(_start);
         handler.AppendFormatted(_end);

@@ -1,4 +1,5 @@
-﻿namespace StackExchange.Redis.Interpolated
+﻿using StackExchange.Redis.Protocol;
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. The keyword arguments the command surface writes, pre-framed.

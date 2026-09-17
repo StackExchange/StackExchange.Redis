@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated.Downlevel
+namespace StackExchange.Redis.Downlevel
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. The command groups as <b>methods</b>, for compilers older than C# 14.

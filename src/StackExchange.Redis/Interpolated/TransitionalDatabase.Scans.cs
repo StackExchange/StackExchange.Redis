@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace StackExchange.Redis.Interpolated;
+namespace StackExchange.Redis;
 
 // Streaming cursor scans (IEnumerable / IAsyncEnumerable) are deferred-execution and do not fit the
 // capture-and-replay shape, so [AutoDatabase] skips them by category - they are the one part of the

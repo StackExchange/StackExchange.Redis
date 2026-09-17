@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

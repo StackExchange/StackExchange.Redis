@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text;
 using RESPite.Messages;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Benchmarks;
 

@@ -1,11 +1,12 @@
 ﻿using System;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Configures the expiration behaviour of a command.
 /// </summary>
-public readonly struct Expiration : Interpolated.IRespArgument
+public readonly struct Expiration : IRespArgument
 {
     /*
      Redis expiration supports different modes:
@@ -319,7 +320,7 @@ public readonly struct Expiration : Interpolated.IRespArgument
     /// to a dedicated overload: if the extension mechanism is good enough for other libraries' types it is
     /// good enough for ours, and this is the proof.
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
     {
         var operand = OperandResp;
         if (operand.IsEmpty) return; // Expiration.Default contributes no arguments
@@ -329,12 +330,12 @@ public readonly struct Expiration : Interpolated.IRespArgument
         // the MessageWriter path (OperandResp), so the claim is as checked as it can be - and they are
         // ALREADY framed, so AppendBulk, which frames what it is given, is not the right primitive.
 #pragma warning disable SER011
-        handler.AppendFormatted(new Interpolated.RespFragment(operand));
+        handler.AppendFormatted(new RespFragment(operand));
         if (HasExpirationValue)
         {
             handler.AppendFormatted((RedisValue)Value);
             var enx = ExpireIfNotExistsResp;
-            if (!enx.IsEmpty) handler.AppendFormatted(new Interpolated.RespFragment(enx));
+            if (!enx.IsEmpty) handler.AppendFormatted(new RespFragment(enx));
         }
 #pragma warning restore SER011
     }

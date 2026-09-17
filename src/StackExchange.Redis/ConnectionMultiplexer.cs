@@ -13,7 +13,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using StackExchange.Redis.Interpolated;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis

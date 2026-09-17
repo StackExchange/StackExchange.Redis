@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 

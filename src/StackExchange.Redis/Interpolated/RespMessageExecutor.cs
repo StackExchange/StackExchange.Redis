@@ -4,8 +4,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Sends a pre-rendered frame through the existing message pipeline.

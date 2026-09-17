@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="value">The array index.</param>
 [method: CLSCompliant(false)]
-public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex>, Interpolated.IRespArgument
+public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex>, IRespArgument
 {
     private readonly ulong value = value;
 
@@ -57,7 +58,7 @@ public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex
     /// One argument, which is what makes a <c>ReadOnlySpan&lt;RedisArrayIndex&gt;</c> render as a run of
     /// indices through the handler's open span hole rather than needing an overload of its own.
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
         => handler.AppendFormatted(value);
 
     /// <summary>

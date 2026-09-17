@@ -3,8 +3,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. The root of the context-based surface: one member, from which everything else

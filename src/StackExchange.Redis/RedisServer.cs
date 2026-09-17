@@ -28,7 +28,7 @@ namespace StackExchange.Redis
             this.server = server; // definitely can't be null because .Multiplexer in base call
         }
 
-        private Interpolated.RespContext _context;
+        private RespContext _context;
         private bool _haveContext;
 
         /// <inheritdoc/>
@@ -51,17 +51,17 @@ namespace StackExchange.Redis
         /// inheritance that makes a batch's context queue rather than send.
         /// </para>
         /// </remarks>
-        public new Interpolated.RespContext Context
+        public new RespContext Context
         {
             get
             {
                 if (!_haveContext)
                 {
-                    _context = new Interpolated.RespContext(
+                    _context = new RespContext(
                         multiplexer.CommandMap,
                         database: -1,
                         serverType: server.ServerType)
-                        .WithExecutor(new Interpolated.RespMessageExecutor(this, -1))
+                        .WithExecutor(new RespMessageExecutor(this, -1))
                         .WithServices(new ServerFeatureProbe(this));
                     _haveContext = true;
                 }

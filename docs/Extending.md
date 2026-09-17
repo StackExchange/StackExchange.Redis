@@ -62,7 +62,6 @@ If you are shipping more than a couple of commands, give them a home. The shape 
 ```csharp
 using RESPite.Messages;
 using StackExchange.Redis;
-using StackExchange.Redis.Interpolated;
 
 // 1. the group: a context plus a name, and nothing else
 public readonly struct ContosoCommands(in RespContext context)
@@ -98,6 +97,8 @@ RedisValue value = await db.Contoso().SubstringAsync(key, 0, 4);
 ```
 
 `IRespKeyspaceTarget` is carried by `IDatabase`, `IBatch` and `ITransaction`, so one accessor covers all three; `IRespServerTarget` is the `IServer` counterpart, for commands that belong to a node rather than a key. Everything reaches the connection through `Context`.
+
+Everything above is in the `StackExchange.Redis` namespace, which your callers already have. One extra `using` shows up later: `StackExchange.Redis.Protocol` holds the request-building types - `RespRequestFrame`, `RespFragment`, `IRespArgument` - which you name when you write a command factory and never otherwise. That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which.
 
 > On C# 14 the accessor can be an extension **property** (`extension(IRespKeyspaceTarget target) { public ContosoCommands Contoso => new(target.Context); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
 

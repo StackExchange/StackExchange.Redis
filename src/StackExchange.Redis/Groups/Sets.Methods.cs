@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
-using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis;
 

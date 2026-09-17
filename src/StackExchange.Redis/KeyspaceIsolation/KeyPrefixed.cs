@@ -25,7 +25,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         /// context-based surface gets from this single line - and it sits on the shared base, so a prefixed
         /// batch and a prefixed transaction get it too rather than only a prefixed database.
         /// </remarks>
-        public Interpolated.RespContext Context => Inner.Context.AppendKeyPrefix(Prefix);
+        public RespContext Context => Inner.Context.AppendKeyPrefix(Prefix);
 
         public IConnectionMultiplexer Multiplexer => Inner.Multiplexer;
 

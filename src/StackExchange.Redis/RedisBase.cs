@@ -12,7 +12,7 @@ namespace StackExchange.Redis
         /// against a minimal implementation first (<c>RespDatabase</c>); wiring it to a live multiplexer
         /// means routing a rendered frame through the existing message pipeline, which is separate work.
         /// </remarks>
-        public Interpolated.RespContext Context
+        public RespContext Context
             => throw new NotImplementedException(
                 "The context surface is not yet wired to a live connection; see RespDatabase.");
 
@@ -22,7 +22,7 @@ namespace StackExchange.Redis
         /// it <i>more</i>: <c>RedisServer.GetFeatures</c> answers from its own endpoint, so the probe
         /// reports an observation rather than the guess a database has to make before a server is selected.
         /// </remarks>
-        internal sealed class ServerFeatureProbe(RedisBase target) : Interpolated.IRespServerFeatures
+        internal sealed class ServerFeatureProbe(RedisBase target) : IRespServerFeatures
         {
             public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
             {

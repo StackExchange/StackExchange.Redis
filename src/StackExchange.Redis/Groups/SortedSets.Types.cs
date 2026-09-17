@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 

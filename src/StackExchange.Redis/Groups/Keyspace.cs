@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
-using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis;
 

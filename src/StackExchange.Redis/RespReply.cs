@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite;
 using RESPite.Messages;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 

@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using RESPite.Buffers;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. A rendered RESP frame, plus the routing and invalidation metadata that was

@@ -8,8 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. A client-side cache built as two independent lookups rather than a cross-indexed

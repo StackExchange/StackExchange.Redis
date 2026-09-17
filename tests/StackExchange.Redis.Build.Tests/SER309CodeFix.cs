@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Testing;
 using StackExchange.Redis.CodeFixes;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Build.Tests;
@@ -22,7 +23,6 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
     private const string Declarations = """
         #pragma warning disable SER011
         using StackExchange.Redis;
-        using StackExchange.Redis.Interpolated;
 
         internal static partial class RespLiterals
         {

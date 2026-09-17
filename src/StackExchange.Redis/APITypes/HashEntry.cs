@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes a hash-field (a name/value pair).
 /// </summary>
-public readonly struct HashEntry : IEquatable<HashEntry>, Interpolated.IRespArgument
+public readonly struct HashEntry : IEquatable<HashEntry>, IRespArgument
 {
     internal readonly RedisValue name, value;
 
@@ -68,7 +69,7 @@ public readonly struct HashEntry : IEquatable<HashEntry>, Interpolated.IRespArgu
     /// <see cref="Expiration"/> for the same arrangement.
     /// </para>
     /// </remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
     {
         handler.AppendFormatted(name);
         handler.AppendFormatted(value);

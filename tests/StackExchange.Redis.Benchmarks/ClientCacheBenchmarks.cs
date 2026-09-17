@@ -2,7 +2,7 @@
 using System.Text;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Benchmarks;
 

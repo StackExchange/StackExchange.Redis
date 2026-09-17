@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// The stream commands, where they have moved to the RESP context surface.

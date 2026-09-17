@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Appending to a command already being built, so a conditional fragment is

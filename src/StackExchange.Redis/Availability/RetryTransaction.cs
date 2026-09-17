@@ -34,7 +34,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     private readonly RetryController _controller;
 
     /// <inheritdoc cref="RetryDatabase.Context"/>
-    public Interpolated.RespContext Context
+    public RespContext Context
         => throw new NotImplementedException(
             "The context surface does not yet support retry; a retry executor is separate work, and "
             + "forwarding the inner context here would silently drop the retry.");

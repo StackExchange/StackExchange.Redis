@@ -16,7 +16,6 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
 {
     private const string Using = """
         using StackExchange.Redis;
-        using StackExchange.Redis.Interpolated;
         """;
 
     [Fact]

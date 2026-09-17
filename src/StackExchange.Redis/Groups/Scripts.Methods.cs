@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
-using StackExchange.Redis.Interpolated;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -70,7 +70,7 @@ public static partial class Scripts
         {
             var eval = readOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL;
             return context.SendAsync<RespResult>(
-                $"{eval}{(RedisValue)script}{(RedisValue)keys.Length}{keys}{args}",
+                $"{eval}{script.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}",
                 flags);
         }
 
@@ -79,7 +79,7 @@ public static partial class Scripts
         {
             // no registry: render the preamble afresh, which is correct and wasteful
             var hash = Sha1Hex(script);
-            var fresh = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
+            var fresh = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{script.AsRedisValue()}");
             try
             {
                 // a gate per call here, where the registry keeps one per script: without a registry
@@ -136,7 +136,7 @@ public static partial class Scripts
         IRespPreambleGate gate)
     {
         var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
-        var request = context.Render($"{command}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
+        var request = context.Render($"{command}{hash.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
         try
         {
             return context.SendWithPreambleAsync(
@@ -164,7 +164,7 @@ public static partial class Scripts
         IRespPreambleGate gate)
     {
         var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
-        var request = context.Render($"{command}{(RedisValue)hash}{(RedisValue)keys.Length}{keys}{args}");
+        var request = context.Render($"{command}{hash.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
         try
         {
             return context.SendWithPreambleAsync(

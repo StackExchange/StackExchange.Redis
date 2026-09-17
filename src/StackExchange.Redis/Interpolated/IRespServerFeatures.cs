@@ -1,4 +1,4 @@
-﻿namespace StackExchange.Redis.Interpolated
+﻿namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Answers "what can the server that would receive this actually do?" - the one

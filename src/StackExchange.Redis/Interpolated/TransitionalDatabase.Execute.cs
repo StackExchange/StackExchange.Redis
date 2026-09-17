@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// The ad-hoc escape hatch, where it has moved to the RESP context surface.

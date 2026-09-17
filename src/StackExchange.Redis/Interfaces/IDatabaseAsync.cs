@@ -14,7 +14,7 @@ namespace StackExchange.Redis
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Carries <see cref="Interpolated.IRespKeyspaceTarget"/></b>, which is what lets a batch or a
+    /// <b>Carries <see cref="IRespKeyspaceTarget"/></b>, which is what lets a batch or a
     /// transaction offer the command groups by name - <c>tran.Strings.SetAsync(...)</c> - rather than only
     /// through a cast. That makes <c>Context</c> a required member for anyone implementing this interface,
     /// including mocks and wrappers, and it is a deliberate break: adding to this family has historically
@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     /// meant to be the last time.
     /// </para>
     /// </remarks>
-    public partial interface IDatabaseAsync : IRedisAsync, Interpolated.IRespKeyspaceTarget
+    public partial interface IDatabaseAsync : IRedisAsync, IRespKeyspaceTarget
     {
         /// <inheritdoc cref="IDatabase.Database" />
         int Database { get; }

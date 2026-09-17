@@ -7,6 +7,7 @@ using System.Text;
 using RESPite;
 using RESPite.Internal;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -18,7 +19,7 @@ internal readonly ref struct MessageWriter
     // Non-null only when rendering into a RespFrameWriter, which is the transition path that lets the
     // existing Message surface feed the interpolated/cache pipeline. Resolved once per writer rather than
     // per key, so the cost on the normal path is a null check against an already-loaded field.
-    private readonly Interpolated.RespFrameWriter? _recorder;
+    private readonly RespFrameWriter? _recorder;
 
     public MessageWriter(byte[]? channelPrefix, CommandMap? map, IBufferWriter<byte> writer)
     {
@@ -26,7 +27,7 @@ internal readonly ref struct MessageWriter
         _map = map ?? CommandMap.Default;
         _channelPrefix = channelPrefix;
         _writer = writer;
-        _recorder = writer as Interpolated.RespFrameWriter;
+        _recorder = writer as RespFrameWriter;
     }
 
     public static IBufferWriter<byte> BlockBuffer => BlockBufferSerializer.Shared;

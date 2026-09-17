@@ -7,13 +7,14 @@ using System.IO.Hashing;
 using System.Runtime.CompilerServices;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents a check for an existing value - this could be existence (NX/XX), equality (IFEQ/IFNE), or digest equality (IFDEQ/IFDNE).
 /// </summary>
-public readonly struct ValueCondition : Interpolated.IRespArgument
+public readonly struct ValueCondition : IRespArgument
 {
     internal enum ConditionKind : byte
     {
@@ -303,13 +304,13 @@ public readonly struct ValueCondition : Interpolated.IRespArgument
 
     /// <inheritdoc/>
     /// <remarks>See <see cref="Expiration"/> for why this is an explicit implementation.</remarks>
-    void Interpolated.IRespArgument.WriteTo(scoped ref Interpolated.RespRequestBuilder handler)
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
     {
         var keyword = KeywordResp;
         if (keyword.IsEmpty) return; // ValueCondition.Always contributes no arguments
 
 #pragma warning disable SER011 // pre-framed constants owned by this type; see Expiration for the reasoning
-        handler.AppendFormatted(new Interpolated.RespFragment(keyword));
+        handler.AppendFormatted(new RespFragment(keyword));
 #pragma warning restore SER011
         if (IsValueTest)
         {

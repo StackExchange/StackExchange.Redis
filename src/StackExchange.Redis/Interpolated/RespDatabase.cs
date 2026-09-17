@@ -2,7 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. A minimal <see cref="IRespTarget"/>: a context, and nothing else.

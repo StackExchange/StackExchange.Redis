@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using StackExchange.Redis.Interpolated;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

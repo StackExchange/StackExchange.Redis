@@ -4,8 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
+using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Transient state for a RESP operation: everything the writer needs in order to

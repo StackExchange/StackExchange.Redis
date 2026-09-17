@@ -5,8 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Something that can issue a rendered request.

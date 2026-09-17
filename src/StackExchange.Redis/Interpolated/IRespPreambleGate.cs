@@ -1,4 +1,4 @@
-﻿namespace StackExchange.Redis.Interpolated
+﻿namespace StackExchange.Redis
 {
     /// <summary>
     /// A condition that a composed preamble establishes, so the pair can skip sending it when it already

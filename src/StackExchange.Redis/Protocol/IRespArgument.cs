@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Implemented by a type that knows how to write itself as one or more RESP

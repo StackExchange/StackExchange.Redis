@@ -15,7 +15,7 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     : IDatabase, IInternalDatabaseAsync
 {
     /// <inheritdoc/>
-    public Interpolated.RespContext Context
+    public RespContext Context
         => throw new NotImplementedException("The context surface is not yet wired for multi-group.");
 
     public object? AsyncState => asyncState;

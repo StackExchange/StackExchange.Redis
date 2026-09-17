@@ -2,7 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. An already-framed run of one or more RESP bulk strings, written verbatim.

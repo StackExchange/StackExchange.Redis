@@ -4,8 +4,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite;
 using RESPite.Buffers;
+using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. The rendered <c>SCRIPT LOAD</c> for a script, and its hash, kept so the body is
@@ -93,7 +94,7 @@ namespace StackExchange.Redis.Interpolated
         {
             Interlocked.Increment(ref _rendered);
 
-            var frame = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{(RedisValue)script}");
+            var frame = context.Render($"{RedisCommand.SCRIPT}{RespLiterals.Load}{script.AsRedisValue()}");
             try
             {
                 return new Entry(script, Scripts.Sha1Hex(script), frame.Span.ToArray(), frame.ArgCount);

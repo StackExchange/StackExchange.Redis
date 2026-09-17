@@ -29,8 +29,8 @@ namespace StackExchange.Redis.Build;
 [Generator(LanguageNames.CSharp)]
 public class RespFragmentGenerator : IIncrementalGenerator
 {
-    private const string RespAttributeName = "StackExchange.Redis.Interpolated.RespAttribute";
-    private const string FragmentType = "global::StackExchange.Redis.Interpolated.RespFragment";
+    private const string RespAttributeName = "StackExchange.Redis.Protocol.RespAttribute";
+    private const string FragmentType = "global::StackExchange.Redis.Protocol.RespFragment";
 
     /// <summary>u8 literals need C# 11; below that we say so rather than emitting code that cannot compile.</summary>
     private const LanguageVersion MinimumLanguageVersion = LanguageVersions.CSharp11;
@@ -84,7 +84,7 @@ public class RespFragmentGenerator : IIncrementalGenerator
         if (context.TargetSymbol is not IPropertySymbol property) return null;
 
         var location = context.TargetNode.GetLocation();
-        if (property.Type.ToDisplayString() != "StackExchange.Redis.Interpolated.RespFragment")
+        if (property.Type.ToDisplayString() != "StackExchange.Redis.Protocol.RespFragment")
         {
             return FragmentInfo.Rejected(property.Name, location, $"its type is '{property.Type.Name}', not RespFragment");
         }

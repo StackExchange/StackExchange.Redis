@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Text;
 using RESPite.Messages;
-using StackExchange.Redis.Interpolated;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

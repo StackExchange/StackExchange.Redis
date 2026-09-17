@@ -5,7 +5,7 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. A rendered RESP request, detached from its builder: the bytes to send, and - the

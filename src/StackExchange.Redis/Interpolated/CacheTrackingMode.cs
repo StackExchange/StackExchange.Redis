@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. How the server decides which keys to tell us about.

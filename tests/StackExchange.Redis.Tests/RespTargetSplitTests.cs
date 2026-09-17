@@ -1,5 +1,4 @@
 ﻿using System.Linq;
-using StackExchange.Redis.Interpolated;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

@@ -27,7 +27,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     /// because the command still succeeds whenever nothing fails. The context surface gets retry when it
     /// gets a retry executor, which is a decorator on the executor rather than a wrapper on the database.
     /// </remarks>
-    public Interpolated.RespContext Context
+    public RespContext Context
         => throw new NotImplementedException(
             "The context surface does not yet support retry; a retry executor is separate work, and "
             + "forwarding the inner context here would silently drop the retry.");

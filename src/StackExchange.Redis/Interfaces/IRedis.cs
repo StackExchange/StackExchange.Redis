@@ -1,5 +1,4 @@
 ﻿using System;
-using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis
 {

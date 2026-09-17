@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Turns a reply into a <see cref="RespReply"/> that <b>holds the reply's

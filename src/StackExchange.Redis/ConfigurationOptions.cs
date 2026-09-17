@@ -19,7 +19,6 @@ using RESPite.Buffers;
 using RESPite.Streams;
 using StackExchange.Redis.Availability;
 using StackExchange.Redis.Configuration;
-using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis
 {

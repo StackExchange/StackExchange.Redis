@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
-using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis;
 

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
-using StackExchange.Redis.Interpolated;
 
 namespace StackExchange.Redis
 {

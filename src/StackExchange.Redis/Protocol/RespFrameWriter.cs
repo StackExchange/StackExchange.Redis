@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. An <see cref="IBufferWriter{T}"/> that turns what <c>MessageWriter</c> already

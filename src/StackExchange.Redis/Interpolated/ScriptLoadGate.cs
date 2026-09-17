@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis
 {
     /// <summary>
     /// The <see cref="IRespPreambleGate"/> for a <c>SCRIPT LOAD</c>: needed only while the endpoint this

@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using RESPite;
 
-namespace StackExchange.Redis.Interpolated
+namespace StackExchange.Redis.Protocol
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Renders a RESP command from an interpolated string, folding the cluster slot and
