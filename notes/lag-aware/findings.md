@@ -1,0 +1,303 @@
+# Lag-aware availability checks
+
+Investigation, September 2026. Does Redis Enterprise's lag-aware database-availability API belong in
+our health checks for geo-redundant failover, and if so, where?
+
+Short answer: **yes, it is the same feature every other Redis client has already shipped, and our
+abstractions already fit it — but it needs HTTP and JSON, which `src/` has neither of, and it does
+not need to live in `StackExchange.Redis` at all.**
+
+## 1. What the feature is
+
+Redis Enterprise (Redis Software) exposes a
+[database availability API](https://redis.io/docs/latest/operate/rs/monitoring/db-availability/) for
+load balancers and monitoring:
+
+```text
+GET /v1/bdbs/{uid}/availability                       # whole database
+GET /v1/local/bdbs/{uid}/endpoint/availability        # this node's local endpoint, no redirect
+```
+
+`200 OK` means available. An endpoint counts as available only if the database's primary shards are
+reachable *and* the endpoint's listener port is bound. With the OSS Cluster API enabled, the
+database form verifies **all** endpoints; otherwise at least one.
+
+The **lag-aware** extension is what makes this interesting for failover, as opposed to a liveness
+probe:
+
+```text
+GET /v1/bdbs/{uid}/availability?extend_check=lag
+GET /v1/bdbs/{uid}/availability?extend_check=lag&availability_lag_tolerance_ms=100
+```
+
+`extend_check=lag` additionally asks whether a replica is *sufficiently synchronised with the
+primary* to be a safe failover/failback target. The threshold is cluster-wide, default **100 ms**,
+changed with:
+
+```text
+PUT /v1/cluster  { "availability_lag_tolerance_ms": 100 }
+```
+
+and overridable per request via the query parameter. The REST docs say "Recommended value: 100
+milliseconds".
+
+The purpose is explicitly disaster recovery: *"reduce the risk of data inconsistencies during
+disaster recovery by … ensuring failover-failback flows only occur when databases are accessible and
+sufficiently synchronized."* This is the check that stops you failing **back** onto a region that is
+reachable but stale.
+
+### Response detail
+
+| status | meaning |
+| --- | --- |
+| 200 | available |
+| 400 | invalid schema |
+| 404 | database not found |
+| 503 | unavailable, or no quorum |
+
+Non-200 returns a JSON body with `error_code` and `description`:
+
+| form | `error_code` values |
+| --- | --- |
+| database | `no_quorum`, `db_not_found`, `bdb_unavailable` — suffixed `_shard_unreachable` and/or `_port_unbound`, e.g. `bdb_unavailable_shard_unreachable_port_unbound` |
+| endpoint | `no_quorum`, `db_not_found`, `bdb_endpoint_unavailable` |
+
+Authentication is HTTP Basic against the **cluster REST API** (default port 9443), requiring the
+`view_bdb_info` permission — roles `admin`, `cluster_member`, `cluster_viewer`, `db_member`,
+`db_viewer`, `user_manager`. Note these are *cluster management* credentials, unrelated to the Redis
+credentials in `ConfigurationOptions`.
+
+Documented known issue: **RS155734** — endpoint availability metrics are miscalculated.
+
+## 2. The reference implementation
+
+[`LagAwareStrategy`](https://github.com/redis/lettuce/blob/main/src/main/java/io/lettuce/core/failover/health/LagAwareStrategy.java)
+in Lettuce implements `HealthCheckStrategy`, whose surface is `getInterval()`, `getTimeout()`,
+`getNumProbes()`, `getPolicy()`, `getDelayInBetweenProbes()`, `doHealthCheck(RedisURI)` and
+`close()`.
+
+`doHealthCheck` is short:
+
+1. If no cached bdb id: `GET /v1/bdbs?fields=uid,endpoints`, find the first bdb whose endpoints match
+   the connection's host, cache its `uid`. No match → log and throw.
+2. `GET /v1/bdbs/{uid}/availability`, with `extend_check=lag` and
+   `availability_lag_tolerance_ms` when extended checking is on.
+3. 200 → `HEALTHY`, anything else → `UNHEALTHY`.
+4. On REST failure → **invalidate the cached bdb id** and return `UNHEALTHY`.
+
+Config (`LagAwareStrategy.Config`): `restEndpoint` (URI), `credentialsSupplier`
+(`Supplier<RedisCredentials>` — so credentials can rotate), `sslOptions`, `availabilityLagTolerance`,
+`extendedCheckEnabled`. Convenience factories `databaseAvailability(...)` (plain),
+`lagAware(...)`, `lagAwareWithTolerance(...)`.
+
+Two defaults worth noting: `EXTENDED_CHECK_DEFAULT = true` (lag-aware is on by default), and
+`AVAILABILITY_LAG_TOLERANCE_DEFAULT = Duration.ofMillis(5000)`.
+
+## 3. Every client has this, and the defaults disagree
+
+This is not a Java curiosity — it is the client-side geographic failover feature family that Redis
+has been rolling out across clients:
+
+| client | type | lag tolerance default |
+| --- | --- | --- |
+| Lettuce | `LagAwareStrategy` | **5000 ms** |
+| Jedis | `LagAwareStrategy` | (same family) |
+| redis-py | `LagAwareHealthCheck` | **100 ms** |
+| Redis Enterprise cluster | `availability_lag_tolerance_ms` | **100 ms** |
+| REST API docs | "Recommended value" | **100 ms** |
+
+**Lettuce is fifty times more permissive than everyone else, including the server's own default and
+its own documentation's recommendation.** That is either a deliberate call about real-world WAN
+replication lag or an oversight; either way we should not copy a number without deciding it, and it
+is worth asking Redis which is intended. 100 ms across a geo-replicated WAN link looks optimistic;
+5 s looks like it would permit a failback that loses seconds of writes.
+
+redis-py's other defaults are useful reference points: `rest_api_port` 9443, `verify_tls` True, with
+`auth_basic`, `ca_file`, `client_cert_file` and `client_key_file` — i.e. mTLS is supported, not just
+Basic.
+
+## 4. It fits what we already have — almost exactly
+
+`src/StackExchange.Redis/Availability/` already implements this shape, gated behind
+`[Experimental(Experiments.GeoRedundantFailover)]` (`SER007`). The correspondence with redis-py's
+model is close to one-to-one:
+
+| concept | StackExchange.Redis | redis-py | Lettuce |
+| --- | --- | --- | --- |
+| probe abstraction | `HealthCheckProbe.CheckHealthAsync(HealthCheckContext)` | `AbstractHealthCheck.check_health()` | `HealthCheckStrategy.doHealthCheck(RedisURI)` |
+| default probe | `HealthCheckProbe.Ping` | `PingHealthCheck` | ping strategy |
+| aggregation policy | `HealthCheckProbePolicy.AllSuccess` / `AnySuccess` / `MajoritySuccess` | `HEALTHY_ALL` / `HEALTHY_ANY` / `HEALTHY_MAJORITY` | `ProbingPolicy` |
+| probe count / timeout / interval | `HealthCheck.ProbeCount` / `.ProbeTimeout` / `.ProbeInterval` | `MultiDbConfig` | `getNumProbes()` / `getTimeout()` / `getInterval()` |
+| failure latch | `CircuitBreaker` | circuit breaker OPEN | — |
+| failover unit | `ConnectionGroupMember` | database in multi-db config | — |
+| failback damping | `MultiGroupOptions.FailbackDelay` | weighted selection | — |
+
+Two details that make a lag-aware probe land cleanly:
+
+- **`HealthCheckProbe` is externally subclassable today.** It is a `public abstract partial class`
+  with one `public abstract` method and *no* internal or `private protected` abstract members —
+  checked. Anyone can implement a probe outside this assembly. The only in-assembly conveniences are
+  the memoised `protected internal` result tasks, which an external probe can trivially do without.
+- **Health checks can already be configured per member.** `ConnectionGroupMember` carries nullable
+  per-member overrides of the group-wide `MultiGroupOptions`, health check included
+  (`ResolveHealthCheck(options) => HealthCheck ?? options.HealthCheck`). That matters, because each
+  geo member is a *different* Redis Enterprise cluster with its own REST endpoint, its own
+  credentials and its own bdb uid — so per-member probe configuration is exactly the shape needed,
+  and it already exists.
+
+### Where we are better placed than Lettuce
+
+`HealthCheckResult` has three states — `Healthy`, `Unhealthy`, **`Inconclusive`** — where Lettuce's
+`HealthStatus` has two.
+
+That difference is more than cosmetic here. Lettuce maps *"the REST call failed"* to `UNHEALTHY`,
+which means a Redis Enterprise **management-plane** outage (REST API down, credentials expired,
+9443 firewalled) is indistinguishable from the **data plane** being unavailable — and can therefore
+trigger a failover of a database that is serving traffic perfectly well. With `Inconclusive` we can
+say "I could not determine this" and let the policy decide, which is the honest answer and the safer
+one. `KeyWriteHealthCheckProbe` already uses `Inconclusive` this way for replicas.
+
+This is the single most valuable thing we could do differently, and it should be a deliberate,
+documented deviation rather than an accident.
+
+## 5. The awkward part: HTTP and JSON
+
+`src/` contains **no HTTP client and no JSON parser** — checked across `StackExchange.Redis` and
+`RESPite`; the only matches are in `obj/` transitive restore graphs. A lag-aware probe needs both:
+
+- **HTTP.** `System.Net.Http` is in-box on `net8.0`/`net10.0` and available on `net472` /
+  `netstandard2.0`. Manageable, but it is a new dependency class for this library, and it drags in
+  TLS configuration, proxy behaviour, timeouts and connection pooling as things we would own.
+- **JSON.** Needed only for `GET /v1/bdbs?fields=uid,endpoints` discovery and for parsing
+  `error_code` out of failure bodies. `System.Text.Json` would be a new package reference on
+  `net472`/`netstandard2.0`.
+
+**JSON is avoidable on the hot path.** The availability call itself is a *status code* check — 200
+versus not-200 — with no body parsing required for the healthy case. If the bdb uid is supplied by
+configuration rather than discovered, the required path needs no JSON at all, and `error_code` can be
+surfaced as an opaque string for diagnostics. Discovery-by-host (Lettuce's step 1) is the only part
+that genuinely needs a parser, and it is optional convenience: anyone configuring a REST endpoint,
+credentials and a tolerance already knows their database.
+
+That suggests an explicit-uid-first design, with discovery as a later, optional extra.
+
+## 6. Options
+
+**A — in `StackExchange.Redis`.** Ships a `HealthCheckProbe.LagAware(...)` alongside `Ping` and
+`StringSet`. Most discoverable; matches what Lettuce/Jedis/redis-py do (all in-box). Costs the core
+package an `HttpClient` dependency, plus TLS/proxy/credential surface, for a feature that only
+applies to one commercial deployment target.
+
+**B — a separate package.** `StackExchange.Redis.Enterprise` (or similar) subclassing the *already
+public* `HealthCheckProbe`. **This requires no change to `StackExchange.Redis` whatsoever** — the
+extension point exists and is sufficient. Keeps HTTP, JSON, TLS and cluster credentials out of the
+core package and lets the Enterprise-specific bits version on their own cadence.
+
+**C — do nothing, and document.** The extension point is public; users targeting Redis Enterprise
+can write a ~50-line probe. Cheapest, and the least good discovery story for the people who most
+need it.
+
+B looks strongest on the evidence: the feature is deployment-specific, the dependency is real, and —
+unlike the OpenTelemetry case, where a second assembly would have needed internals it could not have
+— the hook here is *already public and already sufficient*. Worth confirming that nothing in
+`HealthCheckContext` is missing for a real implementation before committing to it.
+
+## 7. Testing: the toy server can spoof this, and already has the HTTP half
+
+`toys/KestrelRedisServer` **already listens on HTTP**. From `Program.cs`, one Kestrel host serves
+both planes over the same `RedisServer` singleton:
+
+```csharp
+options.ListenLocalhost(5000);                                  // "HTTP 5000 (test/debug API only)"
+options.ListenLocalhost(ip.Port, b => b.UseConnectionHandler<RedisConnectionHandler>());  // RESP 6379
+```
+
+with a single catch-all route today (`app.Run(ctx => ctx.Response.WriteAsync(server.GetStats()))`).
+Adding `/v1/bdbs/{uid}/availability` beside that is a handful of lines, and — because the route
+closes over the *same* `RedisServer` instance the client is talking RESP to — the fake management
+plane can be made to lie **coherently with** the data plane rather than independently of it.
+
+Spoofing infrastructure for test purposes is also already the established intent of this toy; the
+file carries a commented-out block headed *"demonstrate cluster spoofing"* that flips
+`ServerType` to `Cluster`, adds an empty node and migrates a slot. A fake Redis Enterprise
+management plane is the same idea applied to a different API.
+
+What that buys is the ability to script the scenarios that decide whether the failover logic is
+correct, none of which can be produced on demand against a real cluster:
+
+- healthy (200)
+- `503 bdb_unavailable_shard_unreachable`, `503 no_quorum`, `404 db_not_found`
+- **200 for the plain check, 503 for `extend_check=lag`** — reachable but stale. *This asymmetry is
+  the entire point of the feature*, and inducing genuine cross-region replication lag to order is not
+  a thing anyone can do in CI.
+- slow responses, to exercise `HealthCheck.ProbeTimeout`
+- 401/403, to exercise credential rotation and — importantly — to check we return `Inconclusive`
+  rather than `Unhealthy` when the management plane is the thing that is broken (§4)
+
+### Two levels, and a design consequence
+
+The existing test harness points at the right answer for the cheap level — but the two planes are
+**not** symmetric, and this is the thing to get right.
+
+`InProcessTestServer` derives from `MemoryCacheRedisServer` and sets `Tunnel = new InProcTunnel(this)`.
+It **does not run as a network server at all**: there is no listener, no port, no socket. The client
+reaches it because `ConfigurationOptions.Tunnel` replaces the transport wholesale, so "connecting" is
+a method call. That is what makes those tests fast and deterministic.
+
+This is not a hack bolted on for tests — it is a first-class, public, documented extension point.
+`StackExchange.Redis.Configuration.Tunnel` is a `public abstract class` whose
+`ConnectTransportAsync(...)` returns a `RESPite.Transports.DuplexTransport`, i.e. an implementation
+**hijacks the transport layer completely**; the shipped `Tunnel.HttpProxy(...)` does the same thing
+for CONNECT proxying. `InProcTunnel` is simply another implementation of that same public seam.
+
+There is no such seam on the HTTP side. `HttpClient` resolves a URL and opens a socket, so **you
+cannot point a lag-aware probe at the in-process server — there is nothing there to point at.**
+
+So the model to copy is the one the library already has: hijack the HTTP transport completely, the
+same way `Tunnel` hijacks the RESP one. In .NET that means an injectable `HttpMessageHandler` (or our
+own abstraction over it), which is the exact analogue — `HttpMessageHandler` *is* the HTTP transport,
+and substituting it answers requests in-process with no listener, no port and no TLS.
+
+Hence the sharper version of the design consequence below: a configurable *base URL* is not enough.
+If the probe's only seam is a `Uri`, every test needs a real listener on a real port, and the cheap
+in-process level is simply unavailable. Lettuce evidently hit the same wall — its second constructor,
+`LagAwareStrategy(Config, HttpClient)`, exists so the transport can be substituted.
+
+`toys/KestrelRedisServer` then covers the other level: a real, out-of-process, full-fidelity fake with
+actual sockets on both planes, for manual exercise and end-to-end runs. Note that this is also the
+only level where the *whole* thing is exercised, because it is the only place both planes are real.
+
+The combination is what makes this worth doing: **in-process RESP fakes for several members, plus a
+stubbed management plane per member, is a complete geo-redundant failover test with no external
+infrastructure at all** — and geo-redundant failover is otherwise close to untestable, which is
+presumably why it is still behind `SER007`.
+
+The design consequence: **whatever we build must be able to hijack the HTTP transport completely,
+from day one** — an injectable `HttpMessageHandler`-shaped seam, not merely a configurable base URL.
+That is a requirement on the API shape, it falls out of testability rather than taste, and it is the
+same decision the library already made for RESP with `Tunnel`. It also argues mildly against option
+C — "document the extension point and let users write it" leaves us with no test coverage of a
+failover path we ship.
+
+## 8. Open questions
+
+1. **Which tolerance default?** 100 ms (server, docs, redis-py) or 5000 ms (Lettuce)? Worth asking
+   Redis directly; the divergence looks unintentional.
+2. **`Unhealthy` or `Inconclusive` when the REST call fails?** See §4. Recommend `Inconclusive`, but
+   note that this makes us behave differently from every other client, so it needs to be a stated
+   choice.
+3. **Which endpoint — `/v1/bdbs/{uid}/availability` or `/v1/local/bdbs/{uid}/endpoint/availability`?**
+   Lettuce uses the former. The latter does not redirect to the primary node, which may be the more
+   accurate signal when probing a specific endpoint, and is what the docs recommend for load
+   balancers under the `all-nodes` proxy policy. Note known issue RS155734 against the endpoint form.
+4. **Explicit bdb uid, discovery, or both?** Explicit avoids JSON entirely (§5).
+5. **Is `HealthCheckContext` sufficient?** It carries `IServer` and `ProbeTimeout` only. A probe
+   instance can hold its own REST configuration given per-member health checks, but if a single probe
+   instance is ever shared across members it would need to map endpoint → configuration. Worth
+   checking against a real implementation.
+6. **Credentials and rotation.** Lettuce takes a `Supplier<RedisCredentials>` so credentials can
+   rotate; redis-py supports Basic plus mTLS. Whatever we do should not bake in a static password.
+7. **How is this tested?** Largely answered in §7 — stub the HTTP seam for unit work, extend
+   `toys/KestrelRedisServer` (which already serves HTTP on 5000) for end-to-end. What remains open is
+   whether we also want *any* coverage against a real Redis Enterprise cluster, which the docker
+   compose topology in `tests/RedisConfigs` does not and realistically cannot provide.
