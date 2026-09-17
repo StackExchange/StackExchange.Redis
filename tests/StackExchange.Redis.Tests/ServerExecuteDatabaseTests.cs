@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -17,6 +17,9 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class ServerExecuteDatabaseTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
+    /// <summary>CLIENT INFO, used below to ask the server which database a connection is on, arrived in 6.2.</summary>
+    private static readonly Version ClientInfoFrom = RedisFeatures.v6_2_0;
+
     [Theory]
     // recognised, and RequiresDatabase says yes: these are the ones that regressed
     [InlineData("DBSIZE")]
@@ -33,9 +36,18 @@ public class ServerExecuteDatabaseTests(ITestOutputHelper output, SharedConnecti
     [InlineData("FUNCTION")]
     public async Task AdHocCommandsRunWithoutAnExplicitDatabase(string command)
     {
-        await using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true, require: RequiredVersion(command));
+        if (command == "DEBUG")
+        {
+            // DEBUG is disabled by default from Redis 7; the repo's own config turns it on, a stock server does not
+            await AssertDebugCommandEnabledAsync(conn);
+        }
+
         var server = GetAnyPrimary(conn);
 
+        // the assertion is simply that this does not throw - before the fix these threw "A target database
+        // is required". What the server replies with is not the point, and tightening this into a check on
+        // the reply would only couple the test to server versions
         var result = server.Execute(command, ArgsFor(command));
         Assert.NotNull(result);
 
@@ -53,7 +65,7 @@ public class ServerExecuteDatabaseTests(ITestOutputHelper output, SharedConnecti
         // Asserted by asking where the connection ended up, not by comparing key counts: other tests share
         // this server, so any count moves underneath us and two readings of one prove nothing. A private
         // connection, since this is about that connection's own selected database.
-        await using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, shared: false, require: ClientInfoFrom);
         var server = GetAnyPrimary(conn);
 
         var otherDb = TestConfig.GetDedicatedDB(conn);
@@ -80,7 +92,7 @@ public class ServerExecuteDatabaseTests(ITestOutputHelper output, SharedConnecti
     public async Task AdHocCommandFollowsAConfiguredDefaultDatabase()
     {
         var db = TestConfig.GetDedicatedDB();
-        await using var conn = Create(allowAdmin: true, defaultDatabase: db, shared: false);
+        await using var conn = Create(allowAdmin: true, defaultDatabase: db, shared: false, require: ClientInfoFrom);
         Skip.IfMissingDatabase(conn, db);
         Assert.NotEqual(0, db);
         var server = GetAnyPrimary(conn);
@@ -101,22 +113,38 @@ public class ServerExecuteDatabaseTests(ITestOutputHelper output, SharedConnecti
     }
 
     [Fact]
-    public async Task ExclusionListCommandsStillSendNoSelect()
+    public async Task CommandsNeedingNoDatabaseLeaveTheSelectionAlone()
     {
-        // CLIENT is on the exclusion list, so it travels with no database and leaves the connection's
-        // selection alone - which is exactly what makes it usable as the oracle above.
-        await using var conn = Create(allowAdmin: true, shared: false);
+        // the other half of the fix: only a command that actually requires a database may cause a SELECT.
+        // PING is recognised but on the exclusion list; ACL is not recognised at all, so it skips the check
+        // entirely - and had the fix simply always passed the default, RemoveDbIfNotRequired would not have
+        // stripped it for ACL, so an unrecognised command would have started moving the selection. CLIENT is
+        // the third case, and that is what makes it usable as the oracle in the tests above.
+        await using var conn = Create(allowAdmin: true, shared: false, require: ClientInfoFrom);
         var server = GetAnyPrimary(conn);
 
         var otherDb = TestConfig.GetDedicatedDB(conn);
         Skip.IfMissingDatabase(conn, otherDb);
+        Assert.NotEqual(0, otherDb); // otherwise "still on otherDb" holds whether or not a SELECT happened
+
         await conn.GetDatabase(otherDb).StringSetAsync(Me(), "x");
 
         try
         {
             Assert.Equal($"db={otherDb}", ReportedDatabase(server));
 
-            // ...and asking twice does not move it
+            // exclusion-list command: recognised, and RequiresDatabase says no
+            _ = server.Execute("PING");
+            Assert.Equal($"db={otherDb}", ReportedDatabase(server));
+
+            // unrecognised command: the assertion never applied to it, and must not start applying
+            if (server.Version.IsAtLeast(RedisFeatures.v6_0_0))
+            {
+                _ = server.Execute("ACL", "WHOAMI");
+                Assert.Equal($"db={otherDb}", ReportedDatabase(server));
+            }
+
+            // ...and the oracle itself does not move it
             Assert.Equal($"db={otherDb}", ReportedDatabase(server));
         }
         finally
@@ -131,6 +159,14 @@ public class ServerExecuteDatabaseTests(ITestOutputHelper output, SharedConnecti
         var info = (string?)server.Execute("CLIENT", "INFO") ?? "";
         return info.Split(' ').FirstOrDefault(x => x.StartsWith("db=", StringComparison.Ordinal)) ?? "(not reported)";
     }
+
+    /// <summary>The server version each ad-hoc command below needs, where it is not ancient.</summary>
+    private static Version? RequiredVersion(string command) => command switch
+    {
+        "ACL" => RedisFeatures.v6_0_0,
+        "FUNCTION" => RedisFeatures.v7_0_0_rc1,
+        _ => null,
+    };
 
     private static object[] ArgsFor(string command) => command switch
     {
