@@ -2393,3 +2393,26 @@ Four consequences, none of them cosmetic:
   pairs the same way, and a factory over the *text* does not capture it. Forgetting it on one of a pair
   caches a random-member reply. That belongs with `WithDefaultCategory` - derived from the command, once,
   at the send - not at the call site; queued rather than done.
+
+- **`CopyTo(IBufferWriter<char>)`, the twin of the byte overload.** Raised 2026-09-17 when the text
+  `CopyTo(Span<char>, Encoding?)` landed and left the char side with only a bounded form. Marc's call, and
+  the argument is not "niche" but **sinks**: the byte overload earns its place because .NET is full of
+  `IBufferWriter<byte>` - `PipeWriter`, `ArrayBufferWriter<byte>`, `Utf8JsonWriter`, anything
+  pipelines-shaped - whereas the only BCL type implementing `IBufferWriter<char>` is
+  `ArrayBufferWriter<char>`. The text sinks people actually hold are `TextWriter`, `StringBuilder` and
+  `string`, and none of them implement it. The overload would be a conversion step the caller has to build
+  a sink for, which is a worse deal than the `Span<char>` they already have.
+
+  Two facts from the repo, rather than taste: `IBufferWriter<char>` appears **zero** times in the
+  solution, and `CopyTo(IBufferWriter<byte>)` has **zero call sites** - only its declaration. So the
+  precedent it sets is "cheap and symmetric", not "we needed this", which argues against the twin rather
+  than for it. It would also have cost an RS0026 suppression, since two overloads with optional parameters
+  is what that rule is about; the suppression would have been *correct* (the overloads differ in a leading
+  parameter with no default, the same argument the groups use) but it is not worth buying for an unused
+  member.
+
+  **The gap it leaves, stated honestly:** the byte side has a bounded form and an unbounded one; the char
+  side has only bounded, and `CopyTo(Span<char>)` cannot resume - it always starts at the beginning of the
+  scalar - so a small buffer cannot be looped to drain a long value. The unbounded text answer is
+  `ReadString()`, which allocates. For text that is usually what the caller wanted. **If it does come up,
+  the shape to add is `CopyTo(TextWriter)`** - a type that has implementations - not the buffer writer.
