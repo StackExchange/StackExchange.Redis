@@ -107,12 +107,29 @@ nuget.org:
 | `net8.0` | in-box, same | no `PackageReference` needed |
 | `net472` | package, `lib/net462` asset | fine |
 | `netstandard2.0` | package, `lib/netstandard2.0` asset | fine |
-| `net461` | package, falls back to `lib/netstandard2.0` | **not supported** |
+| `net461` | package, falls back to `lib/netstandard2.0` | **don't** — see below |
 
 `System.Diagnostics.DiagnosticSource` dropped its `net461` asset after 6.0.1 — 8.0.x, 9.0.x and
-10.0.x ship `net462` as the lowest .NET Framework target. NuGet *will* hand a net461 project the
-`netstandard2.0` asset, but that is the combination Microsoft stopped supporting and the one that
-needs the `netstandard.dll` facade plus binding redirects to behave.
+10.0.x ship `net462` as the lowest .NET Framework target. That leaves the `netstandard2.0` asset as
+the only candidate for a net461 project, and **net461 consuming netstandard2.0 is a NuGet
+resolution rule rather than a support statement.** The
+[.NET Standard table](https://learn.microsoft.com/en-us/dotnet/standard/net-standard) does list
+.NET Framework 4.6.1 under .NET Standard 2.0, but with this footnote attached:
+
+> The versions listed here represent the rules that NuGet uses to determine whether a given .NET
+> Standard library is applicable. While NuGet considers .NET Framework 4.6.1 as supporting .NET
+> Standard 1.5 through 2.0, there are several issues with consuming .NET Standard libraries that
+> were built for those versions from .NET Framework 4.6.1 projects. For .NET Framework projects
+> that need to use such libraries, we recommend that you upgrade the project to target .NET
+> Framework 4.7.2 or higher.
+
+So the restore succeeds and the build may well succeed; whether it *works* depends on the
+`netstandard.dll` facade and binding redirects being right. 4.7.2 is the floor Microsoft actually
+stands behind — which is also why `net472` is in our target list and `net461` is the one that
+cannot be made comfortable here.
+
+Two independent reasons to leave net461 out, then: the package has no net461 asset, and the only
+fallback is the path Microsoft explicitly advises against.
 
 So: telemetry everywhere except `net461`, which compiles the instrumentation out. That matches the
 existing `VECTOR_SAFE` / `UNIX_SOCKET` idiom in `StackExchange.Redis.csproj` and costs net461 users
