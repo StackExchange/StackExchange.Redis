@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 using Microsoft.AspNetCore.Connections;
-using StackExchange.Redis.ManagedServer;
+using StackExchange.Redis.Server;
 
 namespace KestrelRedisServer
 {

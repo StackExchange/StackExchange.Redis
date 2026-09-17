@@ -4,7 +4,7 @@ using System.Net;
 using System.Threading.Tasks;
 using StackExchange.Redis.Availability;
 using Xunit;
-using static StackExchange.Redis.ManagedServer.RedisServer;
+using static StackExchange.Redis.Server.RedisServer;
 
 namespace StackExchange.Redis.Tests;
 

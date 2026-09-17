@@ -2091,11 +2091,13 @@ Four consequences, none of them cosmetic:
       holding exactly one key, against `IServer` as the oracle; mutation-checked both ways - dropping
       `WithDatabase` throws, pinning it to database 0 returns 124,447 where 0 was expected.
 
-      **Footnote on the toy rename.** `toys/StackExchange.Redis.Server` moved to the
-      `StackExchange.Redis.ManagedServer` namespace to free the name for a `Server` type. That type no
-      longer exists, so the rename is no longer *required* - it stays because a namespace and a type that
-      are both reachable as `StackExchange.Redis.Server` is a landmine for whatever wants the name next,
-      and `ManagedServer` is what AGENTS.md called it anyway.
+      **The toy rename was reverted.** `toys/StackExchange.Redis.Server` briefly moved to a
+      `StackExchange.Redis.ManagedServer` namespace, and its `RespServer` base class to
+      `RespServerBase`, to free the name for a `Server` type. That type no longer exists, so the reason
+      evaporated and the rename went back: churn in a shipped package's namespace needs a live
+      justification, not a historical one. The tree under `toys/` is now byte-identical to before it,
+      BOMs included - the rename scripts had added a BOM to seventeen test files as a side effect, which
+      is the kind of thing a revert quietly leaves behind if nobody checks.
 
 ## Later / decide first
 

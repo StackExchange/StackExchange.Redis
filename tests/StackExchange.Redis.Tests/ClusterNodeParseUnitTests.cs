@@ -118,7 +118,7 @@ public class ClusterNodeParseUnitTests(ITestOutputHelper log)
         var node = config.Nodes.Single();
         log.WriteLine(node.Raw);
 
-        ManagedServer.RedisServer.GetHost(endpoint, out var port);
+        Server.RedisServer.GetHost(endpoint, out var port);
         Assert.Equal(port + 10000, node.ClusterBusPort);
         Assert.Equal(announceHostname ? Hostname : null, node.Hostname);
         if (auxFields)

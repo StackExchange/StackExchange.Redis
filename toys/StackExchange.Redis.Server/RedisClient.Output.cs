@@ -8,7 +8,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.ManagedServer;
+namespace StackExchange.Redis.Server;
 
 public partial class RedisClient
 {

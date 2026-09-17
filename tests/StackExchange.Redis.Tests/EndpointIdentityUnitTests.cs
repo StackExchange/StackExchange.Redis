@@ -14,7 +14,7 @@ public class EndpointIdentityUnitTests(ITestOutputHelper log)
 
     private static DnsEndPoint AliasFor(EndPoint endpoint, string host = Hostname)
     {
-        ManagedServer.RedisServer.GetHost(endpoint, out var port);
+        Server.RedisServer.GetHost(endpoint, out var port);
         return new DnsEndPoint(host, port);
     }
 
@@ -92,7 +92,7 @@ public class EndpointIdentityUnitTests(ITestOutputHelper log)
         Assert.NotNull(raw);
         log.WriteLine(raw);
 
-        var host = ManagedServer.RedisServer.GetHost(canonical, out var port);
+        var host = Server.RedisServer.GetHost(canonical, out var port);
 
         // <id> <ip:port@cport,hostname> ...
         Assert.Contains($"{host}:{port}@{port + 10000},{Hostname} ", raw);
@@ -109,7 +109,7 @@ public class EndpointIdentityUnitTests(ITestOutputHelper log)
         Assert.NotNull(raw);
         log.WriteLine(raw);
 
-        var host = ManagedServer.RedisServer.GetHost(canonical, out var port);
+        var host = Server.RedisServer.GetHost(canonical, out var port);
         Assert.Contains($"{host}:{port}@{port + 10000} ", raw);
 
         // no trailing hostname on the endpoint token (the flags field has commas of its own)

@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Availability;
-using StackExchange.Redis.ManagedServer;
+using StackExchange.Redis.Server;
 using Xunit;
 
 // The whole point of this file is what a WATCH-based transaction does when EXEC is retried, so the analyzer's

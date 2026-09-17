@@ -5,14 +5,6 @@
     <Description>Basic redis server based on StackExchange.Redis</Description>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
     <AssemblyName>StackExchange.Redis.Server</AssemblyName>
-    <!--
-      The assembly and the package keep the name; the NAMESPACE cannot have it. A namespace
-      StackExchange.Redis.Server and a type StackExchange.Redis.Server are both reachable as "Server"
-      from inside StackExchange.Redis, which is CS0435 - and the type is the one the client library
-      wants, for the server-scoped command group. So the code lives in .ManagedServer, which is the
-      name AGENTS.md already uses for this thing ("a managed fake server").
-    -->
-    <RootNamespace>StackExchange.Redis.ManagedServer</RootNamespace>
     <PackageId>StackExchange.Redis.Server</PackageId>
     <PackageTags>Server;Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <OutputTypeEx>Library</OutputTypeEx>

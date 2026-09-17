@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.ManagedServer;
+namespace StackExchange.Redis.Server;
 
 public partial class RedisServer
 {

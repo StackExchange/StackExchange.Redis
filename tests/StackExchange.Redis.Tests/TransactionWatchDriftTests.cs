@@ -1,7 +1,7 @@
-﻿using System.Net;
+using System.Net;
 using System.Threading.Tasks;
 using RESPite.Messages;
-using StackExchange.Redis.ManagedServer;
+using StackExchange.Redis.Server;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

@@ -2,7 +2,7 @@
 using KestrelRedisServer;
 using Microsoft.AspNetCore.Connections;
 using StackExchange.Redis;
-using StackExchange.Redis.ManagedServer;
+using StackExchange.Redis.Server;
 
 var server = new MemoryCacheRedisServer
 {
@@ -51,7 +51,7 @@ _ = server.Shutdown.ContinueWith(
         try
         {
             // if the resp server is shutdown by a client: stop the kestrel server too
-            if (t.Result == RespServerBase.ShutdownReason.ClientInitiated)
+            if (t.Result == RespServer.ShutdownReason.ClientInitiated)
             {
                 ((IServiceProvider)s!).GetService<IHostApplicationLifetime>()?.StopApplication();
             }

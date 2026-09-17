@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
-using StackExchange.Redis.ManagedServer;
+using StackExchange.Redis.Server;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

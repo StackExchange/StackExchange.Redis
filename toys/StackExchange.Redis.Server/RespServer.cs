@@ -15,9 +15,9 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.ManagedServer
+namespace StackExchange.Redis.Server
 {
-    public abstract partial class RespServerBase : IDisposable
+    public abstract partial class RespServer : IDisposable
     {
         public enum ShutdownReason
         {
@@ -27,7 +27,7 @@ namespace StackExchange.Redis.ManagedServer
 
         private readonly TextWriter _output;
 
-        protected RespServerBase(TextWriter output = null)
+        protected RespServer(TextWriter output = null)
         {
             _output = output;
             _commands = BuildCommands(this);
@@ -43,7 +43,7 @@ namespace StackExchange.Redis.ManagedServer
             return set;
         }
 
-        private static Dictionary<AsciiHash, RespCommand> BuildCommands(RespServerBase server)
+        private static Dictionary<AsciiHash, RespCommand> BuildCommands(RespServer server)
         {
             static RedisCommandAttribute CheckSignatureAndGetAttribute(MethodInfo method)
             {
@@ -118,7 +118,7 @@ namespace StackExchange.Redis.ManagedServer
 
         private readonly struct RespCommand
         {
-            public RespCommand(RedisCommandAttribute attrib, MethodInfo method, RespServerBase server)
+            public RespCommand(RedisCommandAttribute attrib, MethodInfo method, RespServer server)
             {
                 _operation = (RespOperation)Delegate.CreateDelegate(typeof(RespOperation), server, method);
 
