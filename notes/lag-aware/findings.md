@@ -279,7 +279,83 @@ same decision the library already made for RESP with `Tunnel`. It also argues mi
 C — "document the extension point and let users write it" leaves us with no test coverage of a
 failover path we ship.
 
-## 8. Open questions
+## 8. If `Tunnel` gains an API for this
+
+mgravell has offered to add one. It is a good fit — but the *shape* decides whether it helps or
+quietly undoes §6.
+
+### Two functional arguments for `Tunnel` specifically
+
+1. **The proxy case is already right.** If Redis traffic goes through a CONNECT proxy
+   (`Tunnel.HttpProxy(...)`), the Redis Enterprise REST API is almost certainly behind the same
+   corporate proxy. Hanging the management-plane transport off the same object means that case works
+   by construction instead of needing a second, parallel proxy setting that users must remember to
+   keep in sync.
+2. **One assignment configures both planes in tests.** `InProcessTestServer` already sets
+   `Tunnel = new InProcTunnel(this)`. If the HTTP seam rides on the same object, the harness gets
+   management-plane spoofing everywhere it already gets data-plane spoofing, with no new wiring.
+
+### The shape that would be a mistake
+
+```csharp
+// don't
+public virtual HttpMessageHandler? CreateHttpMessageHandler(Uri restEndpoint);
+```
+
+That puts `System.Net.Http` types into **StackExchange.Redis's public API**, giving the core package
+a hard dependency for the sake of one commercial deployment target — exactly what option B exists to
+avoid. It would make the core-vs-package question moot by deciding it the expensive way.
+
+### The shape that works
+
+Stay transport-neutral. `Tunnel` yields a `Stream` (or `DuplexTransport`) for an endpoint, and the
+Enterprise-side package composes that into an HTTP stack itself:
+
+```csharp
+// core: no System.Net.Http anywhere
+public virtual ValueTask<Stream?> ConnectManagementStreamAsync(
+    EndPoint endpoint, CancellationToken cancellationToken) => default;
+
+// Enterprise package: hand it to SocketsHttpHandler
+new SocketsHttpHandler
+{
+    ConnectCallback = async (ctx, ct) =>
+        await tunnel.ConnectManagementStreamAsync(Resolve(ctx.DnsEndPoint), ct)
+        ?? await DefaultConnectAsync(ctx, ct),
+};
+```
+
+`SocketsHttpHandler.ConnectCallback` is `Func<SocketsHttpConnectionContext, CancellationToken,
+ValueTask<Stream>>` — a `Stream` is precisely the currency needed, so a stream-shaped `Tunnel` member
+composes into a complete HTTP hijack with no HTTP types in core at all. `Tunnel` already speaks this
+language: `BeforeAuthenticateAsync` returns `ValueTask<Stream?>` and `ConnectTransportAsync` returns
+`ValueTask<DuplexTransport?>` (itself public, gated `SER009`).
+
+Adding a **virtual** member to a public abstract class is source- and binary-safe for existing
+subclasses, so this is additive in the sense AGENTS.md requires.
+
+### Caveats worth stating
+
+- **`ConnectCallback` is net5.0+.** There is no equivalent on `HttpClientHandler`/`WinHttpHandler`,
+  so a down-level implementation would need direct handler injection instead. An Enterprise package
+  targeting `net8.0`+ sidesteps this entirely, and is defensible for a new deployment-specific
+  feature.
+- **Signature mismatch.** Existing `Tunnel` members are RESP-connection-shaped (`EndPoint` plus
+  `ConnectionType`). HTTP wants scheme, host, port and TLS — i.e. a `Uri`. Either shape is workable;
+  neither is free of a little awkwardness.
+- **It widens `Tunnel`'s remit** from "the Redis connection" to "transports this library initiates",
+  which the existing subclasses then have to have an opinion about. `HttpProxyTunnel` almost
+  certainly *should* apply to the management plane; `LoggingTunnel` probably should *not* start
+  logging REST traffic by default. Both need deciding rather than falling out.
+
+### One question this already answers
+
+Open question 5 below asked whether `HealthCheckContext` carries enough for a real probe. It does:
+`IConnectionMultiplexer.RawConfig` and `ConfigurationOptions.Tunnel` are **both public**, so an
+external probe can already reach `context.Server.Multiplexer.RawConfig.Tunnel` with no change to
+`HealthCheckContext` at all.
+
+## 9. Open questions
 
 1. **Which tolerance default?** 100 ms (server, docs, redis-py) or 5000 ms (Lettuce)? Worth asking
    Redis directly; the divergence looks unintentional.
@@ -291,10 +367,11 @@ failover path we ship.
    accurate signal when probing a specific endpoint, and is what the docs recommend for load
    balancers under the `all-nodes` proxy policy. Note known issue RS155734 against the endpoint form.
 4. **Explicit bdb uid, discovery, or both?** Explicit avoids JSON entirely (§5).
-5. **Is `HealthCheckContext` sufficient?** It carries `IServer` and `ProbeTimeout` only. A probe
-   instance can hold its own REST configuration given per-member health checks, but if a single probe
-   instance is ever shared across members it would need to map endpoint → configuration. Worth
-   checking against a real implementation.
+5. ~~**Is `HealthCheckContext` sufficient?**~~ Answered in §8 — `RawConfig` and
+   `ConfigurationOptions.Tunnel` are both public, so a probe can reach the tunnel from the context it
+   already gets. What remains: if a single probe instance is ever shared across members it still
+   needs to map endpoint → REST configuration, which per-member health checks make unnecessary but do
+   not forbid.
 6. **Credentials and rotation.** Lettuce takes a `Supplier<RedisCredentials>` so credentials can
    rotate; redis-py supports Basic plus mTLS. Whatever we do should not bake in a static password.
 7. **How is this tested?** Largely answered in §7 — stub the HTTP seam for unit work, extend
