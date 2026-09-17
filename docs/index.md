@@ -55,6 +55,7 @@ Documentation
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts, including the low-allocation `ScriptEvalLease` API
 - [Ad-hoc commands](Execute) - running commands without a dedicated API, including the low-allocation `ExecLease` API
+- [Extending the client](Extending) - for library authors: adding commands this client does not have, and migrating off `Execute(string, object[])`
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
