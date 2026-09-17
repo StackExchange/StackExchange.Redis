@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Xunit;
@@ -765,5 +767,207 @@ public class RedisValueEquivalencyUnitTests
                 head.Next = this;
             }
         }
+    }
+
+    [Fact]
+    public void DefaultComparer_MatchesTheTypesOwnEquality()
+    {
+        var comparer = RedisValue.EqualityComparer.Default;
+        foreach (var blob in EquivalenceBlobs())
+        {
+            RedisValue asBlob = blob;
+            foreach (var s in EquivalenceStrings())
+            {
+                RedisValue asString = s;
+                var because = $"'{Escape(s)}' vs {BitConverter.ToString(blob)}";
+
+                Assert.True((asString == asBlob) == comparer.Equals(asString, asBlob), because);
+                Assert.Equal(asString.GetHashCode(), comparer.GetHashCode(asString));
+                Assert.Equal(asBlob.GetHashCode(), comparer.GetHashCode(asBlob));
+            }
+        }
+    }
+
+    [Fact]
+    public void BinaryComparer_AgreesWithDefaultOnWellFormedText()
+    {
+        var binary = RedisValue.EqualityComparer.Binary;
+        foreach (var blob in EquivalenceBlobs())
+        {
+            RedisValue asBlob = blob;
+            foreach (var s in EquivalenceStrings())
+            {
+                // The two readings may differ exactly where UTF8 does not round-trip, and either side can be
+                // the culprit: a string holding an unpaired surrogate, or a blob that is not canonical UTF8
+                // (0xFF decodes to U+FFFD but re-encodes to EF BF BD). Everywhere else they must agree.
+                if (Encoding.UTF8.GetString(Encoding.UTF8.GetBytes(s)) != s) continue;
+                if (!Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(blob)).AsSpan().SequenceEqual(blob)) continue;
+
+                RedisValue asString = s;
+                Assert.True(
+                    (asString == asBlob) == binary.Equals(asString, asBlob),
+                    $"'{Escape(s)}' vs {BitConverter.ToString(blob)}");
+            }
+        }
+    }
+
+    [Fact]
+    public void BinaryComparer_DivergesOnlyWhereUtf8DoesNotRoundTrip()
+    {
+        var binary = RedisValue.EqualityComparer.Binary;
+
+        // a lone surrogate encodes to the same bytes as U+FFFD, so Binary calls them equal and the default
+        // does not - this is the documented divergence, pinned so it cannot drift silently
+        RedisValue loneSurrogate = new string([(char)0xD800]);
+        RedisValue replacement = "�";
+
+        Assert.False(loneSurrogate == replacement);
+        Assert.True(binary.Equals(loneSurrogate, replacement));
+
+        // and Binary stays self-consistent about it: equal means same hash
+        Assert.Equal(binary.GetHashCode(loneSurrogate), binary.GetHashCode(replacement));
+
+        // the other direction, where the *blob* is not canonical UTF8: 0xFF decodes to U+FFFD, so the default
+        // calls it equal to that text, while Binary sees FF against EF BF BD and does not
+        RedisValue invalidBlob = new byte[] { 0xFF };
+        Assert.True(replacement == invalidBlob);
+        Assert.False(binary.Equals(replacement, invalidBlob));
+    }
+
+    [Fact]
+    public void BinaryComparer_EqualValuesShareHashCodes()
+    {
+        var binary = RedisValue.EqualityComparer.Binary;
+        foreach (var blob in EquivalenceBlobs())
+        {
+            RedisValue asBlob = blob;
+            RedisValue asSegmented = blob.Length >= 2 ? Segmented(blob, blob.Length / 2) : asBlob;
+
+            foreach (var s in EquivalenceStrings())
+            {
+                RedisValue asString = s;
+                if (binary.Equals(asString, asBlob))
+                {
+                    Assert.True(
+                        binary.GetHashCode(asString) == binary.GetHashCode(asBlob),
+                        $"equal under Binary must share a hash: '{Escape(s)}' vs {BitConverter.ToString(blob)}");
+                }
+            }
+
+            // representation must not matter: the same bytes, contiguous or segmented
+            Assert.True(binary.Equals(asBlob, asSegmented));
+            Assert.Equal(binary.GetHashCode(asBlob), binary.GetHashCode(asSegmented));
+        }
+    }
+
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("42")]
+    public void Comparers_UntypedApiAcceptsWhateverRedisValueAccepts(string value)
+    {
+        foreach (var comparer in new[] { RedisValue.EqualityComparer.Default, RedisValue.EqualityComparer.Binary })
+        {
+            var untyped = (IEqualityComparer)comparer;
+            object asString = value;
+            object asBytes = Encoding.UTF8.GetBytes(value);
+            object asRedisValue = (RedisValue)value;
+
+            Assert.True(untyped.Equals(asString, asBytes));
+            Assert.True(untyped.Equals(asString, asRedisValue));
+            Assert.True(untyped.Equals(asBytes, asRedisValue));
+
+            Assert.Equal(untyped.GetHashCode(asString), untyped.GetHashCode(asBytes));
+            Assert.Equal(untyped.GetHashCode(asString), untyped.GetHashCode(asRedisValue));
+
+            // something it cannot read is not equal to anything, but is still reflexive and stable
+            object unreadable = new object();
+            Assert.False(untyped.Equals(unreadable, asString));
+            Assert.True(untyped.Equals(unreadable, unreadable));
+            Assert.Equal(unreadable.GetHashCode(), untyped.GetHashCode(unreadable));
+        }
+    }
+
+    // The chunked encode in Binary works 512 chars at a time, so anything shorter than that never reaches a
+    // chunk boundary - and every string in the corpus above is well under it. These put the awkward shapes
+    // exactly where the seam falls.
+    [Fact]
+    public void BinaryComparer_HandlesSurrogatesAtTheChunkBoundary()
+    {
+        var binary = RedisValue.EqualityComparer.Binary;
+        var pair = new string([(char)0xD83D, (char)0xDE00]);   // U+1F600
+        var loneHigh = new string([(char)0xD800]);
+
+        foreach (var s in new[]
+        {
+            // a pair straddling the seam, behind enough three-byte characters that taking one *more* char
+            // would also overflow the encode buffer
+            new string('你', 511) + pair + "x",
+
+            // a lone high surrogate at the seam, immediately followed by a real pair: extending the chunk
+            // would step onto the pair and split that instead
+            new string('a', 511) + loneHigh + pair + "x",
+
+            // the seam landing inside a pair from the other side
+            new string('a', 510) + pair + pair + "x",
+
+            // and a plain long value, so the multi-chunk path itself is covered
+            new string('a', 2000),
+        })
+        {
+            RedisValue asString = s;
+            RedisValue asBlob = Encoding.UTF8.GetBytes(s);
+            Assert.True(binary.Equals(asString, asBlob), $"length {s.Length}");
+            Assert.True(binary.Equals(asBlob, asString), $"length {s.Length} (reversed)");
+            Assert.Equal(binary.GetHashCode(asString), binary.GetHashCode(asBlob));
+        }
+    }
+
+    [Fact]
+    public void BinaryComparer_DivergesOnNumericText()
+    {
+        // RedisValue equality runs Simplify() first, so text that parses to the same number is equal however
+        // it was spelled. Binary compares the bytes, so it is not - which is the right answer for a byte
+        // reading, and matches how the server identifies members, but it is a divergence worth pinning.
+        var binary = RedisValue.EqualityComparer.Binary;
+        foreach (var (a, b) in new[] { ("1.0", "1.00"), ("1", "1.0"), ("0", "-0.0"), ("1e2", "100") })
+        {
+            RedisValue x = a, y = b;
+            Assert.True(x == y, $"'{a}' == '{b}' under the default rules");
+            Assert.False(binary.Equals(x, y), $"'{a}' vs '{b}' under Binary");
+        }
+
+        // identical text still agrees, of course
+        Assert.True(binary.Equals((RedisValue)"42", (RedisValue)"42"));
+    }
+
+    [Fact]
+    public void BinaryComparer_DoesNotDependOnHowAValueIsStored()
+    {
+        // Binary reads the UTF8 form of both sides, so the same text compares equal to itself however it
+        // arrived. The default rules do not manage this for every input - see #3233, where a string and the
+        // bytes of that same string can simplify differently - so this is a property worth holding onto.
+        var binary = RedisValue.EqualityComparer.Binary;
+        foreach (var text in new[] { "1,000", "(5)", " 5 ", "1,0,0,0", "1e2", "42", "hello", "" })
+        {
+            RedisValue asString = text;
+            RedisValue asBlob = Encoding.UTF8.GetBytes(text);
+
+            Assert.True(binary.Equals(asString, asBlob), $"'{text}' across storage");
+            Assert.Equal(binary.GetHashCode(asString), binary.GetHashCode(asBlob));
+        }
+    }
+
+    [Fact]
+    public void BinaryComparer_WorksAsADictionaryComparer()
+    {
+        var dictionary = new Dictionary<RedisValue, string>(RedisValue.EqualityComparer.Binary)
+        {
+            { "alpha", "one" },
+            { Encoding.UTF8.GetBytes("beta"), "two" },
+        };
+
+        Assert.Equal("one", dictionary[Encoding.UTF8.GetBytes("alpha")]);
+        Assert.Equal("two", dictionary["beta"]);
+        Assert.False(dictionary.ContainsKey("gamma"));
     }
 }

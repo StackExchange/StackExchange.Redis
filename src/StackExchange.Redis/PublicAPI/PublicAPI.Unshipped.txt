@@ -1,1 +1,6 @@
 ﻿#nullable enable
+abstract StackExchange.Redis.RedisValue.EqualityComparer.Equals(StackExchange.Redis.RedisValue x, StackExchange.Redis.RedisValue y) -> bool
+abstract StackExchange.Redis.RedisValue.EqualityComparer.GetHashCode(StackExchange.Redis.RedisValue obj) -> int
+StackExchange.Redis.RedisValue.EqualityComparer
+static StackExchange.Redis.RedisValue.EqualityComparer.Binary.get -> StackExchange.Redis.RedisValue.EqualityComparer!
+static StackExchange.Redis.RedisValue.EqualityComparer.Default.get -> StackExchange.Redis.RedisValue.EqualityComparer!
