@@ -1196,12 +1196,7 @@ namespace StackExchange.Redis
                 // spin up the connection if this is new
                 if (isNew && activate)
                 {
-                    server.Activate(ConnectionType.Interactive, log);
-                    if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                    {
-                        // Intentionally not logging the sub connection
-                        server.Activate(ConnectionType.Subscription, null);
-                    }
+                    ActivateServer(server, log);
                 }
             }
             return server;
@@ -1666,16 +1661,28 @@ namespace StackExchange.Redis
 
         private void ActivateAllServers(ILogger? log)
         {
-            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             foreach (var server in GetServerSnapshot())
             {
-                server.Activate(ConnectionType.Interactive, log);
-                // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                {
-                    // Intentionally not logging the sub connection
-                    server.Activate(ConnectionType.Subscription, null);
-                }
+                ActivateServer(server, log);
+            }
+        }
+
+        /// <summary>
+        /// Starts establishing the connections for a server, creating the bridges if they do not exist yet.
+        /// </summary>
+        /// <remarks>
+        /// Idempotent: a server that is already active keeps the bridges it has, so this is safe to call on
+        /// anything we are about to depend on being connected.
+        /// </remarks>
+        private static void ActivateServer(ServerEndPoint server, ILogger? log)
+        {
+            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
+            server.Activate(ConnectionType.Interactive, log);
+            // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            {
+                // Intentionally not logging the sub connection
+                server.Activate(ConnectionType.Subscription, null);
             }
         }
 
@@ -1790,6 +1797,14 @@ namespace StackExchange.Redis
                             var server = GetServerEndPoint(endpoints[i], ServerProvenance.ClusterTopology);
                             // server.ReportNextFailure();
                             servers[i] = server;
+
+                            // a node discovered from the cluster topology may already be registered *inert* -
+                            // addressable, but deliberately never dialled. GetServerEndPoint only activates what
+                            // it creates, so an inert one arrives here with no bridge at all, and the task below
+                            // then waits on a connection that nobody is opening: it never completes, and the
+                            // whole connect burns its ConnectTimeout before reporting the node as unresponsive.
+                            // We are about to await it, so it has to be dialled; Activate is idempotent. See #3232
+                            ActivateServer(server, log);
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
                             // (which is the reconfigure case, except second iteration which is only for newly discovered cluster members).

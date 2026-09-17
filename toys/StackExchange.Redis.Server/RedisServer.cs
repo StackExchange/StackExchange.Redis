@@ -318,6 +318,27 @@ namespace StackExchange.Redis.Server
         public EndPoint AddEmptyNode(EndPoint endpoint, AnnouncedAddress announced, NodeFlags flags = NodeFlags.None)
             => AddEmptyNodeCore(endpoint, flags, announced);
 
+        /// <summary>
+        /// Add a node that replicates <paramref name="primary"/>, so it is reported as a replica by both
+        /// <c>CLUSTER NODES</c> (as <c>slave &lt;primary-id&gt;</c>) and <c>CLUSTER SLOTS</c> (following its
+        /// primary in every slot range that primary owns).
+        /// </summary>
+        /// <remarks>
+        /// A replica serves no slots of its own, so it is invisible to a client that reads only the slot
+        /// ownership; it is the <c>SLOTS</c> entries after the primary that make it discoverable.
+        /// </remarks>
+        public EndPoint AddReplicaNode(EndPoint endpoint, EndPoint primary)
+        {
+            if (!TryGetNode(primary ?? throw new ArgumentNullException(nameof(primary)), out var primaryNode))
+            {
+                throw new ArgumentException($"No such node: {Format.ToString(primary)}", nameof(primary));
+            }
+
+            var result = AddEmptyNodeCore(endpoint, NodeFlags.Replica, announced: null);
+            _nodes[result].PrimaryId = primaryNode.Id;
+            return result;
+        }
+
         private EndPoint AddEmptyNodeCore(EndPoint endpoint, NodeFlags flags, AnnouncedAddress? announced)
         {
             if (endpoint is null) throw new ArgumentNullException(nameof(endpoint));
@@ -811,7 +832,7 @@ namespace StackExchange.Redis.Server
                 if ((node.Flags & NodeFlags.PFail) != 0) sb.Append(",fail?");
                 if ((node.Flags & NodeFlags.NoAddress) != 0) sb.Append(",noaddr");
                 if ((node.Flags & NodeFlags.NoFailover) != 0) sb.Append(",nofailover");
-                sb.Append(" - 0 0 1 connected");
+                sb.Append(" ").Append(string.IsNullOrEmpty(node.PrimaryId) ? "-" : node.PrimaryId).Append(" 0 0 1 connected");
                 foreach (var range in node.Slots)
                 {
                     sb.Append(" ").Append(range.ToString());
@@ -836,29 +857,57 @@ namespace StackExchange.Redis.Server
             foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
             {
                 var node = pair.Value;
-                GetHost(pair.Key, out int port);
+                // a slot range names its primary first and then every replica of that primary; a replica
+                // serves no ranges itself, so it is reported here or not at all
+                var replicas = GetReplicasOf(node);
                 foreach (var range in node.Slots)
                 {
                     if (index >= count) break; // someone changed things while we were working
-                    slotsSpan[index++] = TypedRedisValue.Rent(3, out var slotSpan, RespPrefix.Array);
+                    slotsSpan[index++] = TypedRedisValue.Rent(3 + replicas.Count, out var slotSpan, RespPrefix.Array);
                     slotSpan[0] = TypedRedisValue.Integer(range.From);
                     slotSpan[1] = TypedRedisValue.Integer(range.To);
-                    // the metadata element itself only exists from 7.0; older servers stop at the node id
-                    slotSpan[2] = TypedRedisValue.Rent(SupportsHostnames ? 4 : 3, out var nodeSpan, RespPrefix.Array);
-
-                    // note the first field is positionally "the endpoint" and its *content* is whichever
-                    // form is preferred, so it may well be a hostname rather than an address
-                    nodeSpan[0] = GetAnnouncedEndpoint(perspective ?? node, node);
-                    nodeSpan[1] = TypedRedisValue.Integer(port);
-                    nodeSpan[2] = TypedRedisValue.BulkString(node.Id);
-                    if (SupportsHostnames)
+                    slotSpan[2] = DescribeNode(node);
+                    for (int i = 0; i < replicas.Count; i++)
                     {
-                        nodeSpan[3] = GetEndpointMetadata(perspective ?? node, node);
+                        slotSpan[3 + i] = DescribeNode(replicas[i]);
                     }
                 }
             }
             return slots;
+
+            TypedRedisValue DescribeNode(Node node)
+            {
+                // the metadata element itself only exists from 7.0; older servers stop at the node id
+                var result = TypedRedisValue.Rent(SupportsHostnames ? 4 : 3, out var nodeSpan, RespPrefix.Array);
+
+                // note the first field is positionally "the endpoint" and its *content* is whichever
+                // form is preferred, so it may well be a hostname rather than an address
+                nodeSpan[0] = GetAnnouncedEndpoint(perspective ?? node, node);
+                nodeSpan[1] = TypedRedisValue.Integer(node.Port);
+                nodeSpan[2] = TypedRedisValue.BulkString(node.Id);
+                if (SupportsHostnames)
+                {
+                    nodeSpan[3] = GetEndpointMetadata(perspective ?? node, node);
+                }
+                return result;
+            }
         }
+
+        /// <summary>The nodes that replicate <paramref name="primary"/>, in endpoint order.</summary>
+        private List<Node> GetReplicasOf(Node primary)
+        {
+            List<Node> replicas = null;
+            if (!string.IsNullOrEmpty(primary.Id))
+            {
+                foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
+                {
+                    if (pair.Value.PrimaryId == primary.Id) (replicas ??= new List<Node>()).Add(pair.Value);
+                }
+            }
+            return replicas ?? EmptyNodes;
+        }
+
+        private static readonly List<Node> EmptyNodes = new List<Node>();
 
         // the metadata map is documented as the *complement* of the primary position: ip when the
         // preferred type is not ip, hostname when the node has one and the preferred type is not
@@ -1019,6 +1068,13 @@ namespace StackExchange.Redis.Server
 
             public int Port { get; }
             public string Id { get; } = NewId();
+
+            /// <summary>
+            /// The id of the node this one replicates, or <c>null</c> when it is a primary; this is what
+            /// <c>CLUSTER NODES</c> reports in the parent-id field, and what groups replicas under their
+            /// primary in <c>CLUSTER SLOTS</c>.
+            /// </summary>
+            public string PrimaryId { get; internal set; }
 
             private SlotRange[] _slots;
 
