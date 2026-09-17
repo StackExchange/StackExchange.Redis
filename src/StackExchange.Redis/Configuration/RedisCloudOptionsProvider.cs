@@ -59,17 +59,16 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public override string ConfigurationChannel => "";
 
-        /// <summary>
-        /// Ask for maintenance notifications, tolerating a server that doesn't offer them.
-        /// </summary>
-        /// <remarks>
-        /// This is the deployment family the feature exists for. <see cref="MaintenanceNotificationMode.Auto"/>
-        /// rather than <see cref="MaintenanceNotificationMode.Enabled"/> because a database that has not been
-        /// updated yet must keep working: the opt-in is then refused and the feature stays off, rather than the
-        /// connection being rejected.
-        /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-        public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
+        // Auto-enlistment, deliberately withheld for now; maintenance notifications ship purely opt-in, and
+        // this goes back in a follow-up once the feature has been through formal acceptance testing. Kept here
+        // commented rather than deleted so that what returns is exactly what was reviewed.
+        //
+        // This is the deployment family the feature exists for, and Auto rather than Enabled because a
+        // database that has not been updated yet must keep working: the opt-in is then refused and the feature
+        // stays off, rather than the connection being rejected.
+        //
+        // [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        // public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
 
         // Two things AzureManagedRedisOptionsProvider does that are deliberately *not* repeated here:
         //

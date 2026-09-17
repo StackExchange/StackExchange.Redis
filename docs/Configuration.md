@@ -368,8 +368,13 @@ broken connection. This requires RESP3, and the client asks for it per connectio
 | `enabled` | **Required**: ask, and reject the connection unless notifications are live. Only point this at a deployment you know supports them. |
 
 Note that `enabled` means *required*, not merely *on* - it is the cross-client name for that mode, and it will
-refuse a connection that cannot deliver notifications, including any RESP2 connection. The `amr`, `rediscloud`
-and `enterprise` providers select `auto` for you, so on those deployments you need not set anything.
+refuse a connection that cannot deliver notifications, including any RESP2 connection.
+
+**For now this is purely opt-in: you must set `maintNotifications` yourself.** The `amr`, `rediscloud` and
+`enterprise` providers are intended to select `auto` for you, so that on those deployments nothing needs
+setting - but that auto-enlistment is held back until the feature has been through formal acceptance testing,
+and is expected in a follow-up release. Naming a provider today sets its other defaults without turning
+notifications on.
 
 While a disruption has been announced, command timeouts are relaxed - raised to `maintRelaxedTimeout`, never
 lowered, so a caller with a more generous timeout keeps it. The window ends when the server says the disruption

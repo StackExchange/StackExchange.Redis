@@ -71,17 +71,16 @@ namespace StackExchange.Redis.Configuration
         /// <inheritdoc/>
         public override string ConfigurationChannel => ""; // disable on AMR
 
-        /// <summary>
-        /// Ask for maintenance notifications, tolerating a server that doesn't offer them.
-        /// </summary>
-        /// <remarks>
-        /// Pre-emptive: AMR does not emit these yet, and support is being added concurrently with this
-        /// client-side work. <see cref="MaintenanceNotificationMode.Auto"/> is what makes that safe - until
-        /// the server side ships, the opt-in is refused and the feature stays off, and it then starts working
-        /// without anybody needing to change a connection string. AMR also already prefers RESP3 here, which
-        /// the feature requires.
-        /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-        public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
+        // Auto-enlistment, deliberately withheld for now; maintenance notifications ship purely opt-in, and
+        // this goes back in a follow-up once the feature has been through formal acceptance testing. Kept here
+        // commented rather than deleted so that what returns is exactly what was reviewed.
+        //
+        // Pre-emptive: AMR does not emit these yet, and support is being added concurrently with this
+        // client-side work. Auto is what makes that safe - until the server side ships, the opt-in is refused
+        // and the feature stays off, and it then starts working without anybody needing to change a connection
+        // string. AMR also already prefers RESP3 here, which the feature requires.
+        //
+        // [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        // public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
     }
 }

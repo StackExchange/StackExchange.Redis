@@ -53,9 +53,6 @@ StackExchange.Redis.ConnectionFailureType.MaintenanceHandoff = 12 -> StackExchan
 [SER010]StackExchange.Redis.MaintenanceNotificationMode.Enabled = 1 -> StackExchange.Redis.MaintenanceNotificationMode
 [SER010]StackExchange.Redis.RedisConnectionException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
 [SER010]StackExchange.Redis.RedisTimeoutException.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
-[SER010]override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-[SER010]override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-[SER010]override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
 [SER010]override StackExchange.Redis.Maintenance.ClusterSlotMigration.ToString() -> string!
 [SER010]override StackExchange.Redis.Maintenance.PushMaintenanceEvent.ToString() -> string?
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceMovingEndpointType.get -> StackExchange.Redis.MaintenanceEndpointType

@@ -197,14 +197,17 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Theory]
-    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Auto)] // AMR asks, pre-emptively
-    [InlineData("contoso.cloud.redislabs.com", MaintenanceNotificationMode.Auto)] // and Redis Cloud, which emits them
-    [InlineData("contoso.redis.cache.windows.net", MaintenanceNotificationMode.Disabled)] // classic Azure does not
-    [InlineData("contoso.example.com", MaintenanceNotificationMode.Disabled)] // and neither does anything else
+    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Disabled)] // AMR: will be Auto
+    [InlineData("contoso.cloud.redislabs.com", MaintenanceNotificationMode.Disabled)] // Redis Cloud: will be Auto
+    [InlineData("contoso.redis.cache.windows.net", MaintenanceNotificationMode.Disabled)] // classic Azure: stays off
+    [InlineData("contoso.example.com", MaintenanceNotificationMode.Disabled)] // and so does anything unrecognized
     public void MaintenanceNotificationDefaultPerProvider(string hostName, MaintenanceNotificationMode expected)
     {
-        // Auto rather than Enabled is what makes the pre-emptive default safe: AMR does not emit these yet,
-        // so until the server side ships the opt-in is refused and the feature simply stays off
+        // Every endpoint is Disabled for now: maintenance notifications ship purely opt-in, so *nothing*
+        // enlists you and the only thing that turns them on is setting maintNotifications yourself. The
+        // providers for AMR and Redis Cloud are intended to select Auto - see the commented-out overrides on
+        // each - and this theory is what flips back when auto-enlistment lands: the first two rows become
+        // Auto, and the last two stay Disabled because nothing recognizes them either way.
         var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
         var provider = DefaultOptionsProvider.GetProvider(epc);
         Output.WriteLine($"{hostName} -> {provider.GetType().Name}");

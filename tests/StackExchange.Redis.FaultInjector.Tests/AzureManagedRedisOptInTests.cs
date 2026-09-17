@@ -81,15 +81,19 @@ public class AzureManagedRedisOptInTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task TheProviderAsksAndAmrRefusesWithoutHarm()
+    public async Task AskingAndBeingRefusedByAmrDoesNoHarm()
     {
         var (endpoint, key) = Require();
         var logs = new CapturingLoggerFactory();
         var options = Options(endpoint, key);
         options.LoggerFactory = logs;
 
-        // the defaults under test, resolved from the hostname alone
-        Assert.Equal(MaintenanceNotificationMode.Auto, options.MaintenanceNotifications);
+        // Asked for explicitly, because nothing enlists us for now: maintenance notifications ship purely
+        // opt-in and the AMR provider's Auto is commented out until auto-enlistment lands. What is under test
+        // is the refusal path - ask, get told no, carry on - which is unchanged either way; when the provider
+        // selects Auto again this line becomes an assertion on the default instead of a setting.
+        Assert.Equal(MaintenanceNotificationMode.Disabled, options.MaintenanceNotifications);
+        options.MaintenanceNotifications = MaintenanceNotificationMode.Auto;
         log.WriteLine($"provider defaults: maintNotifications={options.MaintenanceNotifications}, protocol={options.Protocol?.ToString() ?? "(unset)"}, ssl={options.Ssl}");
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
