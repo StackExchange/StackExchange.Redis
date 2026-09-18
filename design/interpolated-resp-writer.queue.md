@@ -93,6 +93,41 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **Throw helpers on `RespRequestBuilder` — DONE, 2026-09-18.** Marc asked for the house shape:
+      a method-local `static Throw()` marked `[MethodImpl(NoInlining)]`, with the guard itself inlined.
+      Seven guards moved. Measured, Release net10.0, IL bytes: `DemandCommand` 20 -> 15, `Complete`
+      219 -> 169, `AppendFormatted(RespCommand)` 214 -> 204, `AppendFormatted(RedisCommand)` 111 -> 106,
+      `AppendFormatted<T>(ReadOnlySpan<T>)` 81 -> 76.
+
+      **Two of my claims did not survive measurement.** I said the in-loop null check had "the most to
+      gain"; it was exactly IL-neutral, because passing `nameof(value)` leaves the `ldstr` at the call
+      site. Making the helper parameterless recovered the 5 bytes. And `Complete` held a verbatim copy of
+      `ThrowTooManyArguments`'s four lines, which is most of its -50.
+
+      **Should the helper `Dispose()` too?** Marc asked; yes, and not theoretically. The
+      `(literalLength, formattedCount, context)` constructor rents the buffer and *then* sets
+      `_hasCommand = false`, so `$"{key}{value}"` with no command reaches `DemandCommand` with a live
+      rented array - and no `finally` is generated around an interpolated string, so nothing else ever
+      returns it. `InterpolatedThrowHelperTests` pins all five throwing guards by priming the pool's
+      per-thread slot and checking the array comes back, with a negative control so the harness cannot
+      pass vacuously.
+
+      **Local functions can still reach `Dispose`.** My first pass made them private instance methods for
+      exactly that reason; Marc pointed out that a `static` local can take `scoped ref RespRequestBuilder
+      @this` - the same `ref this` the `IRespArgument` calls already pass - which restores the house idiom
+      *and* recovers `nameof` on the enclosing parameters. Measured identical IL at every call site, so it
+      is free. The two helpers with more than one caller stay methods.
+
+- [x] **`default(RespCommand)` framed a command called `NONE` — FIXED, 2026-09-18.** Found by the throw
+      helper tests, not by looking for it. `IsEmpty` tested `_command == RedisCommand.UNKNOWN`, which no
+      constructible value satisfies - both `UNKNOWN` constructors set `_resp` or `_name` - and which
+      `default` does not satisfy either, because an unassigned `RedisCommand` is `NONE`, which is 0.
+
+      So the property was `false` for the only empty value there is, the guard in
+      `AppendFormatted(RespCommand)` never fired, and `$"{default(RespCommand)}{key}"` rendered
+      `*2|$4|NONE|$1|k|` - a command literally named `NONE`, sent to the server, which answers with an
+      unknown-command error pointing nowhere near the cause. `RespCommandTests` now pins both halves.
+
 - [x] **A bare `string` in a hole now binds — DONE, 2026-09-18.** Found while writing the test above:
       `$"{cmd}{key}{"x"}"` did not compile. `RedisKey`, `RedisValue` and `RedisChannel` all convert
       implicitly from `string` and none is better, so it was CS0121 naming two of the three arbitrarily.

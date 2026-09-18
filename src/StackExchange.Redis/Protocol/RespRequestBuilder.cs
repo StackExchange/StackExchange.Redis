@@ -129,7 +129,7 @@ namespace StackExchange.Redis.Protocol
         /// </summary>
         public RespRequestBuilder(int literalLength, int formattedCount, RespContext context, string command)
         {
-            if (command is null) throw new ArgumentNullException(nameof(command));
+            if (command is null) Throw();
 
             var known = context.TryResolveCommand(command.AsSpan(), out var resp, out var parsed);
 
@@ -161,6 +161,12 @@ namespace StackExchange.Redis.Protocol
                 Encoding.UTF8.GetBytes(command, 0, command.Length, _buffer, _offset + payloadOffset);
                 CommitBulk(payloadOffset, nameBytes);
             }
+
+            // no @this: this one fires before anything is rented, so there is nothing to hand back.
+            // DoesNotReturn is load-bearing rather than decorative - `command` is dereferenced two lines
+            // below the guard, and without it the nullable analysis reports CS8602 there
+            [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
+            static void Throw() => throw new ArgumentNullException(nameof(command));
         }
 
         /// <summary>
@@ -275,7 +281,7 @@ namespace StackExchange.Redis.Protocol
 
         internal void AppendFormatted(RedisCommand value)
         {
-            if (_hasCommand) throw new InvalidOperationException("The command must be the first argument, and may only be given once.");
+            if (_hasCommand) Throw(ref this);
 
             _command = value; // identity, for routing and diagnostics; see the field
             var resp = _context.ResolveCommand(value);
@@ -285,6 +291,13 @@ namespace StackExchange.Redis.Protocol
             _offset += resp.Length;
             _hasCommand = true;
             CountArguments();
+
+            [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
+            static void Throw(scoped ref RespRequestBuilder @this)
+            {
+                @this.Dispose();
+                throw new InvalidOperationException("The command must be the first argument, and may only be given once.");
+            }
         }
 
         /// <summary>Append a resolved command name.</summary>
@@ -305,7 +318,7 @@ namespace StackExchange.Redis.Protocol
         /// </remarks>
         public void AppendFormatted(RespCommand value)
         {
-            if (value.IsEmpty) throw new ArgumentException("No command was supplied.", nameof(value));
+            if (value.IsEmpty) Throw(ref this);
 
             // resolution happens HERE, not at construction: a known command still has to go through this
             // context's map, which may rename or disable it
@@ -329,6 +342,13 @@ namespace StackExchange.Redis.Protocol
             if (!_hasCommand) _command = value.Command; // only the FIRST one is the command
             _hasCommand = true; // whether it was the command or merely the first thing written
             CountArguments();
+
+            [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
+            static void Throw(scoped ref RespRequestBuilder @this)
+            {
+                @this.Dispose();
+                throw new ArgumentException("No command was supplied.", nameof(value));
+            }
         }
 
         /// <summary>
@@ -478,7 +498,7 @@ namespace StackExchange.Redis.Protocol
         public void AppendFormatted<T>(T value) where T : IRespArgument
         {
             DemandCommand();
-            if (value is null) throw new ArgumentNullException(nameof(value));
+            if (value is null) ThrowValueNull();
             value.WriteTo(ref this);
         }
 
@@ -501,7 +521,7 @@ namespace StackExchange.Redis.Protocol
         public void AppendFormatted<T>(T value, string? format) where T : IRespFormattableArgument
         {
             DemandCommand();
-            if (value is null) throw new ArgumentNullException(nameof(value));
+            if (value is null) ThrowValueNull();
             value.WriteTo(ref this, format);
         }
 
@@ -633,7 +653,8 @@ namespace StackExchange.Redis.Protocol
             DemandCommand();
             foreach (ref readonly var item in value)
             {
-                if (item is null) throw new ArgumentNullException(nameof(value));
+                // the only guard here that sits inside a loop
+                if (item is null) ThrowValueNull();
                 item.WriteTo(ref this);
             }
         }
@@ -715,24 +736,16 @@ namespace StackExchange.Redis.Protocol
         /// </summary>
         public RespRequestFrame Complete()
         {
-            if (!_hasCommand)
-            {
-                Dispose(); // the buffer is rented by now, and nobody else has a reference to give back
-                throw new InvalidOperationException("No command was written.");
-            }
+            if (!_hasCommand) Throw(ref this);
 
             // the writer's own limit, applied in the writer's terms: it counts arguments WITHOUT the
             // command and adds one for the header, whereas _args already includes it. Checked here rather
             // than only at dispatch because this is where the count is final and where the '*N' is about to
             // be written - a header past the limit is a frame that is invalid by construction, and a frame
             // may never be dispatched at all (a cache lookup key, an ad-hoc composition).
-            if (_args - 1 >= MessageWriter.REDIS_MAX_ARGS)
-            {
-                var command = _command;
-                var count = _args - 1;
-                Dispose();
-                throw ExceptionFactory.TooManyArgs(command.ToString(), count);
-            }
+            // the same four lines ThrowTooManyArguments already had, so it is the same call: this used to
+            // be a second copy, and a second copy of a throw is a second thing to keep in step
+            if (_args - 1 >= MessageWriter.REDIS_MAX_ARGS) ThrowTooManyArguments();
 
             Span<byte> header = stackalloc byte[HeaderMax];
             header[0] = (byte)'*';
@@ -743,6 +756,13 @@ namespace StackExchange.Redis.Protocol
             var frame = new RespRequestFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks(), _command);
             _buffer = null!; // ownership transferred to the frame
             return frame;
+
+            [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
+            static void Throw(scoped ref RespRequestBuilder @this)
+            {
+                @this.Dispose();
+                throw new InvalidOperationException("No command was written.");
+            }
         }
 
         /// <summary>Whether the rented buffer has been handed back; for tests that assert no leak.</summary>
@@ -760,9 +780,25 @@ namespace StackExchange.Redis.Protocol
             if (buffer is not null) ArrayPool<byte>.Shared.Return(buffer);
         }
 
+        /// <summary>Refuse to write an argument before the command.</summary>
+        /// <remarks>
+        /// <b>Every <c>AppendFormatted</c> starts here</b>, so the guard has to be free when it passes. The
+        /// test is one bool; the throw is a string literal, a <c>newobj</c> and a <c>throw</c>, which is the
+        /// bulk of the IL and all of it cold. Out of line in a local function, what inlines into ten call
+        /// sites is the branch alone. Same reasoning as <see cref="ThrowTooManyArguments"/>, which had it
+        /// first.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void DemandCommand()
         {
-            if (!_hasCommand) throw new InvalidOperationException("The first argument must be a RedisCommand.");
+            if (!_hasCommand) Throw(ref this);
+
+            [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
+            static void Throw(scoped ref RespRequestBuilder @this)
+            {
+                @this.Dispose();
+                throw new InvalidOperationException("The first argument must be a RedisCommand.");
+            }
         }
 
         /// <summary>Write '$len\r\n' and return the span the payload should be written into.</summary>
@@ -826,11 +862,28 @@ namespace StackExchange.Redis.Protocol
             if (_args > MessageWriter.REDIS_MAX_ARGS) ThrowTooManyArguments();
         }
 
-        /// <remarks>
-        /// Out of line so the counting path stays small enough to inline, and it hands the buffer back
-        /// first: a throw from the middle of an append is not otherwise given one - the handler lives in the
-        /// caller's frame, and no <c>finally</c> is generated around an interpolated string.
-        /// </remarks>
+        // EVERY throw out of this type hands the buffer back first. Nothing else will: the handler lives
+        // in the CALLER's frame and no `finally` is generated around an interpolated string, so a throw
+        // from mid-append is the one path where the rented array is otherwise simply dropped. This is not
+        // theoretical - the (literalLength, formattedCount, context) constructor rents and THEN sets
+        // _hasCommand = false, so $"{key}{value}" with no command reaches DemandCommand's guard with a
+        // live array every single time it fires.
+        //
+        // The rest are the house `static void Throw()` local function, which reaches Dispose through an
+        // explicit `scoped ref RespRequestBuilder @this` - the same `ref this` the IRespArgument calls
+        // already pass - and gets `nameof` on the enclosing method's parameters into the bargain. These
+        // two are methods only because they have more than one caller each, which is also why their
+        // ArgumentNullException names "value" as a literal: all three of ThrowValueNull's callers spell
+        // the parameter that way, and passing nameof(value) in would leave an ldstr at each call site,
+        // making the extraction exactly IL-neutral (measured).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        [DoesNotReturn]
+        private void ThrowValueNull()
+        {
+            Dispose();
+            throw new ArgumentNullException("value");
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         [DoesNotReturn]
         private void ThrowTooManyArguments()
