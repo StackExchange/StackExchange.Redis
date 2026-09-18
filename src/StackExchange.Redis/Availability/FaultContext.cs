@@ -7,7 +7,6 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Provides information about a circuit-breaker test.
 /// </summary>
-[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public readonly struct FaultContext
 {
     private readonly Exception? _fault;

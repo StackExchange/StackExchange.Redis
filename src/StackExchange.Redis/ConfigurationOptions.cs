@@ -1430,7 +1430,6 @@ namespace StackExchange.Redis
         /// <see cref="ConnectionGroupMember.CircuitBreaker"/>, else this, else
         /// <see cref="MultiGroupOptions.CircuitBreaker"/>.
         /// </remarks>
-        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         public CircuitBreaker? CircuitBreaker { get; set; }
 
         /// <summary>
@@ -1440,7 +1439,6 @@ namespace StackExchange.Redis
         /// <remarks>
         /// For a member of a connection group, <see cref="MultiGroupOptions.RetryPolicy"/> applies instead.
         /// </remarks>
-        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         public RetryPolicy? RetryPolicy { get; set; }
 
         internal bool AllowSimulateConnectionFailure

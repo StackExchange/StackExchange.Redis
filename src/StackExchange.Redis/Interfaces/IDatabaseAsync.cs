@@ -24,7 +24,6 @@ namespace StackExchange.Redis
         /// <remarks>Unlike <see cref="IDatabase.CreateTransaction(object?)"/>, this offers no synchronous
         /// execution, so it is usable from async-only databases such as one created via
         /// <see cref="Availability.DatabaseExtensions.WithRetry"/>.</remarks>
-        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         ITransactionAsync CreateTransaction(object? asyncState = null);
 
         /// <summary>
@@ -194,7 +193,6 @@ namespace StackExchange.Redis
         IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.HashImport(RedisKey, HashImport, ReadOnlyMemory{RedisValue}, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
         Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.HashSet(RedisKey, HashEntry[], CommandFlags)"/>

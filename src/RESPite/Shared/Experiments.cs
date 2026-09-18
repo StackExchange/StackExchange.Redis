@@ -14,12 +14,12 @@
         //   SER002 = Server_8_4  (Redis 8.4 features)
         //   SER003 = Server_8_6  (Redis 8.6 features)
         //   SER006 = Server_8_8  (Redis 8.8 features)
+        //   SER007 = GeoRedundantFailover (multi-group connections, health checks, retry)
+        //   SER008 = Server_8_10 (Redis 8.10 features)
 
         // ReSharper disable InconsistentNaming
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
-        public const string GeoRedundantFailover = "SER007";
-        public const string Server_8_10 = "SER008";
         public const string Transport = "SER009";
 
         // ReSharper restore InconsistentNaming
