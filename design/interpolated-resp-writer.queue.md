@@ -93,6 +93,33 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [ ] **`TransitionalDatabase`: 106 throwing members — status, 2026-09-18.** Unchanged since it was
+      last counted, so no drift. SER352 reports the number on every Release build; the breakdown below
+      comes from the generated `AutoDatabase.generated.cs` (build with `/p:EmitCompilerGeneratedFiles=true`
+      to see it - it is not written to disk normally).
+
+      106 members is **30 distinct commands**; the gap between those two numbers is the whole story.
+
+      | family | members | distinct | what is missing |
+      |---|---|---|---|
+      | Streams | 66 | 15 | `Add`, `Read`, `ReadGroup`, `Claim`/`AutoClaim` (+`IdsOnly`), `Pending`/`PendingMessages`, `Info`/`GroupInfo`/`ConsumerInfo`, `Configure`, `AcknowledgeAndDelete`, `NegativeAcknowledge` |
+      | Scripts | 12 | 2 | `ScriptEvaluate`, `ScriptEvaluateReadOnly` |
+      | Locks | 8 | 4 | `LockTake`, `LockRelease`, `LockQuery`, `LockExtend` |
+      | Execute | 4 | 2 | the legacy `Execute(string, object[])` pair (`ExecuteResp` is done) |
+      | Keys | 4 | 2 | `KeyMigrate`, `KeyRestore` |
+      | one-offs | 12 | 6 | `ArrayGrep`, `DebugObject`, `HashImport`, `Ping`, `Publish`, `StringGetWithExpiry` |
+
+      **Streams is nearly two thirds of the count, and it is not untouched** - `RespStreams` already has
+      Acknowledge, CreateConsumerGroup, Delete, DeleteConsumer, DeleteConsumerGroup, Length, Range,
+      SetConsumerGroupPosition, Trim, TrimByMinId. What is left is the hard half: the commands with
+      structured replies (`XINFO` in three shapes, `XPENDING` in two, `XAUTOCLAIM`) and the ones with
+      large option surfaces - `StreamAdd` alone is 16 members and `StreamReadGroup` 14. So the member
+      count overstates the *command* work and understates the *design* work; these are exactly the
+      commands the low-alloc structured-reply question was raised for.
+
+      Every member has both a sync and an async form - there are no sync-only gaps - so each command moved
+      retires an even number.
+
 - [x] **The `Interpolated/` folder is gone — DONE, 2026-09-18.** Marc: *"we shouldn't have anything left
       in there by the end of this"*. The namespace went several commits ago; the folder name was the last
       thing still claiming this is a spike about interpolated strings. Pure file moves - every file was
