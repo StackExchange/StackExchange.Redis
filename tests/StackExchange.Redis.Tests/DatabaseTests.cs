@@ -77,9 +77,10 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
             Skip.IfMissingDatabase(conn, db2Id);
             var server = GetAnyPrimary(conn);
 
-            // NOT fire-and-forget: everything below depends on these having happened, and this connection
-            // is disposed on the next line, so nothing would wait for them. The databases are dedicated but
-            // not fresh - GetDedicatedDB restarts its counter every process, so the same index belongs to
+            // Awaited, NOT fire-and-forget, for two separate reasons: this connection is disposed on the
+            // next line, so nothing would wait for them; and the writes below happen on a *different*
+            // connection, so nothing orders them against these flushes either. The databases are dedicated
+            // but not fresh - GetDedicatedDB restarts its counter every process, so the same index belongs to
             // whichever test drew it that run, and leftovers from a previous run land in the counts below.
             await server.FlushDatabaseAsync(db1Id);
             await server.FlushDatabaseAsync(db2Id);

@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -65,6 +64,7 @@ namespace StackExchange.Redis
         private bool isDisposed, replicaReadOnly, isReplica, allowReplicaWrites;
         private bool? supportsDatabases, supportsPrimaryWrites;
         private ServerType serverType;
+        private TracerKeyCache? tracerKeyCache;
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
 
@@ -331,7 +331,22 @@ namespace StackExchange.Redis
             => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
             && (subscription?.SubscriptionCount ?? 0) == 0
             && (interactive?.SubscriptionCount ?? 0) == 0
-            && GetOutstandingCount() == 0;
+            && !HasCallerWork();
+
+        /// <summary>
+        /// Whether a *caller* is waiting on anything here, which is the only kind of work that should stop us
+        /// retiring a server.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately not <see cref="GetOutstandingCount"/>, which counts everything. A node the topology has
+        /// stopped listing still receives our autoconfigure probes on every pass, and nothing answers them, so
+        /// they accumulate in its backlog: measured at ~170 per pass, growing without bound. Counting those
+        /// made the node look busy *because* we were looking for it, so it could never be retired - the
+        /// precondition defeated itself in exactly the case pruning exists for. Keep-alive traffic has the same
+        /// property, and is excluded by the same test, since both set the internal-call flag.
+        /// </remarks>
+        internal bool HasCallerWork()
+            => interactive?.HasCallerWork() == true || subscription?.HasCallerWork() == true;
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
@@ -360,18 +375,23 @@ namespace StackExchange.Redis
             SetUnselectable(UnselectableFlags.Retiring);
             log?.LogInformationRetiringServer(new(EndPoint), reason);
 
+            // Drain what a *caller* is waiting for, not everything outstanding. Our own probes to a node that
+            // has gone away will never be answered, so draining on the total means always waiting out the full
+            // timeout before letting go - measured: a departed node accumulates our autoconfigure traffic
+            // indefinitely (500+ and climbing), so the drain never once completed early. Callers are who the
+            // drain exists for; nobody is waiting on our keep-alives.
             // Stopwatch rather than TickCount64: the latter does not exist on the down-level targets
             var watch = ValueStopwatch.StartNew();
-            int outstanding;
-            while ((outstanding = GetOutstandingCount()) > 0 && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
+            while (HasCallerWork() && watch.ElapsedMilliseconds < drainTimeout.TotalMilliseconds)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
 
-            if (outstanding > 0)
+            if (HasCallerWork())
             {
-                // deliberately reported: an abandoned command is exactly what a caller will be asking about
-                log?.LogInformationRetiringServerAbandoned(new(EndPoint), outstanding);
+                // deliberately reported: an abandoned command is exactly what a caller will be asking about.
+                // The count is the total, since that is what is actually being dropped on the floor
+                log?.LogInformationRetiringServerAbandoned(new(EndPoint), GetOutstandingCount());
             }
 
             Dispose();
@@ -514,7 +534,7 @@ namespace StackExchange.Redis
 
         public void UpdateNodeRelations(ClusterConfiguration configuration)
         {
-            var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint?.Equals(EndPoint) == true);
+            var thisNode = GetClusterNode(configuration);
             if (thisNode != null)
             {
                 Multiplexer.Trace($"Updating node relations for {Format.ToString(thisNode.EndPoint)}...");
@@ -536,6 +556,16 @@ namespace StackExchange.Redis
                 Primary = primary;
                 Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
             }
+        }
+
+        private ClusterNode? GetClusterNode(ClusterConfiguration? configuration) =>
+            configuration?[EndPoint];
+
+        internal int? GetServableSlot()
+        {
+            if (ServerType != ServerType.Cluster || GetClusterNode(ClusterConfiguration) is not { } node) return null;
+            if (node.Slots.Count == 0 && node.Parent is { } parent) node = parent;
+            return node.Slots.Count == 0 ? null : node.Slots[0].From;
         }
 
         public void SetUnselectable(UnselectableFlags flags)
@@ -675,7 +705,13 @@ namespace StackExchange.Redis
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
             }
-            else if (commandMap.IsAvailable(RedisCommand.SET) && !(helloPending || RoleKnownFromHello))
+            // Cluster replicas return MOVED rather than READONLY for writes to their primary's slots, so no
+            // hash tag can make this role probe reliable; skip it whenever cluster mode is already known.
+            // On the first handshake, serverType is seeded as Standalone until the CLUSTER NODES reply is
+            // processed, so neither this guard nor the tie-breaker GET guard below suppresses their initial probes.
+            else if (commandMap.IsAvailable(RedisCommand.SET)
+                && !(helloPending || RoleKnownFromHello)
+                && ServerType != ServerType.Cluster)
             {
                 // This is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 // (note we only get here when HELLO isn't going to tell us: the HELLO reply carries "role", and
@@ -705,7 +741,9 @@ namespace StackExchange.Redis
             }
             // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
-            if (Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
+            if (ServerType != ServerType.Cluster
+                && Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey)
+                && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
             {
                 log?.LogInformationRequestingTieBreak(new(EndPoint), tieBreakerKey);
                 msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
@@ -911,10 +949,47 @@ namespace StackExchange.Redis
             else
             {
                 map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId);
+                msg = Message.Create(0, flags, RedisCommand.EXISTS, GetTracerKey());
             }
             msg.SetInternalCall();
             return msg;
+        }
+
+        /// <summary>
+        /// The key for the <c>EXISTS</c> tracer, memoized because this runs on the heartbeat path.
+        /// </summary>
+        /// <remarks>
+        /// Cached as one object rather than as separate slot and key fields: a <see cref="RedisKey"/> is two
+        /// references, so writing one while a heartbeat on another thread reads it can hand that reader a
+        /// prefix from the new key and a value from the old. Publishing a whole new instance makes the update
+        /// a single reference write, which cannot tear. Two threads racing here both build the same key, so
+        /// the duplicated work is harmless and needs no lock.
+        /// </remarks>
+        private sealed class TracerKeyCache
+        {
+            public TracerKeyCache(int? slot, RedisKey key)
+            {
+                Slot = slot;
+                Key = key;
+            }
+
+            public int? Slot { get; }
+            public RedisKey Key { get; }
+        }
+
+        internal RedisKey GetTracerKey()
+        {
+            var slot = GetServableSlot();
+            var cache = tracerKeyCache; // one read: everything below works off this snapshot
+            if (cache is null || cache.Slot != slot)
+            {
+                RedisKey key = slot is int value
+                    ? ServerSelectionStrategy.CreateKeyForSlot(value, Multiplexer.UniqueId)
+                    : Multiplexer.UniqueId;
+                cache = new TracerKeyCache(slot, key);
+                tracerKeyCache = cache;
+            }
+            return cache.Key;
         }
 
         internal UnselectableFlags GetUnselectableFlags() => unselectableReasons;
@@ -989,6 +1064,61 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// How many consecutive failures to connect justify re-reading the topology.
+        /// </summary>
+        /// <remarks>
+        /// Three: enough to rule out a single transient refusal, few enough that recovery is seconds. The
+        /// number matters less than that there *is* one - the failure this addresses lasted 37 hours.
+        /// </remarks>
+        private const int ConnectFailuresBeforeRefresh = 3;
+
+        private int _lastConnectFailureRefreshTicks;
+
+        /// <summary>
+        /// Called when a connection attempt to this endpoint has failed, with the consecutive failure count.
+        /// </summary>
+        /// <remarks>
+        /// The gap this closes: every existing path that re-reads the topology needs somebody *else* to notice
+        /// first - a notification, a <c>MOVED</c> from a reachable node, a peer's config broadcast. A client
+        /// with quiet healthy connections and one endpoint that only ever refuses has nobody to tell it, so it
+        /// dials the dead address indefinitely. That is not hypothetical: a customer's client did exactly that
+        /// for 37 hours across a Redis Cloud node replacement.
+        /// <para>
+        /// Rate-limited to <see cref="ConfigurationOptions.ConfigCheckSeconds"/>, deliberately reusing the
+        /// knob that already means "how often may we re-read configuration" rather than inventing one. The
+        /// limit is the part that makes this safe: the existing gate exists to stop a stampede - a dead
+        /// endpoint, times a retry loop, times every client in a fleet, each issuing <c>CLUSTER NODES</c> - and
+        /// removing the gate without replacing the restraint would trade a stuck client for a thundering herd.
+        /// </para>
+        /// <para>
+        /// It repeats rather than firing once, because one refresh is not guaranteed to help: the topology may
+        /// not have been updated server-side yet. A permanently dead endpoint therefore prompts a re-read at
+        /// most once per interval until something changes, which is what makes recovery eventual rather than
+        /// lucky.
+        /// </para>
+        /// </remarks>
+        internal void OnRepeatedConnectFailure(int consecutiveFailures)
+        {
+            if (consecutiveFailures < ConnectFailuresBeforeRefresh || isDisposed) return;
+
+            // nothing to learn about an endpoint we have already decided to let go of
+            if ((unselectableReasons & UnselectableFlags.Retiring) != 0) return;
+
+            var interval = Math.Max(Multiplexer.RawConfig.ConfigCheckSeconds, 5) * 1000;
+            var now = Environment.TickCount;
+            var last = Volatile.Read(ref _lastConnectFailureRefreshTicks);
+            if (last != 0 && unchecked(now - last) < interval) return;
+
+            if (Interlocked.CompareExchange(ref _lastConnectFailureRefreshTicks, NudgeFromZeroTicks(now), last) != last) return;
+
+            Multiplexer.Logger?.LogInformationRefreshingAfterConnectFailures(new(this), consecutiveFailures);
+            Multiplexer.ReconfigureIfNeeded(EndPoint, fromBroadcast: false, $"{consecutiveFailures} consecutive connect failures");
+        }
+
+        /// <summary>Zero means "never", so a tick count that lands on it moves by one.</summary>
+        private static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
+
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             try
@@ -999,8 +1129,16 @@ namespace StackExchange.Redis
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
 
+                    // whatever a handoff pointed us at, we are connected now: resume normal resolution
+                    ClearHandoffTarget();
+
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
+
+                    if (connection is not null && bridge == interactive)
+                    {
+                        ReconcileMaintenanceNotifications(connection);
+                    }
                     if (bridge == subscription || isResp3)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
@@ -1316,6 +1454,10 @@ namespace StackExchange.Redis
                 // forget what the previous connection's HELLO told us; re-established below, if this one repeats it
                 // (the subscription handshake is deliberately left out of this: it doesn't do the discovery step)
                 RoleKnownFromHello = false;
+
+                // likewise per-connection: re-armed from this handshake's reply, if we ask
+                _maintenanceNotificationsActive = _maintenanceNotificationsRequested = false;
+                _maintenanceNotificationsRefusal = null;
             }
 
             // HELLO serves two purposes: negotiating RESP3, and reporting details we would otherwise need INFO or
@@ -1407,6 +1549,35 @@ namespace StackExchange.Redis
                 msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.ID);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
+
+                // A suppressed opt-in has to be visible: a caller who wrote maintNotifications=Enabled asked for
+                // a guarantee and is not getting it, and the alternative to saying so is a deployment where
+                // the feature is silently absent and nothing explains why.
+                if (isInteractive && Multiplexer.IsGroupMember
+                    && Multiplexer.RawConfig.MaintenanceNotifications != MaintenanceNotificationMode.Disabled)
+                {
+                    log?.LogWarningMaintenanceNotificationsSuppressedForGroup(
+                        new(this), Multiplexer.RawConfig.MaintenanceNotifications);
+                }
+
+                if (ShouldRequestMaintenanceNotifications(isInteractive, negotiateResp3))
+                {
+                    _maintenanceNotificationsRequested = true;
+                    // speculative in the same way as the AUTH above: we don't yet know what HELLO negotiated,
+                    // so we ask whenever we asked for RESP3, and ReconcileMaintenanceNotifications sorts out a
+                    // downgrade once the reply has been processed. A bare ON is explicitly valid: the server
+                    // then picks the endpoint type, which is what we want until we derive one ourselves.
+                    log?.LogInformationRequestingMaintenanceNotifications(new(this), MaintenanceMode);
+
+                    // A bare ON leaves the endpoint type to the server, and every MOVING observed that way
+                    // carried no address at all - so when a caller asks for a specific form, say so.
+                    var endpointType = MaintenanceMovingEndpointTypeLiteral(connection);
+                    msg = endpointType.IsNull
+                        ? Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON)
+                        : Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, [RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON, RedisLiterals.moving_endpoint_type, endpointType]);
+                    msg.SetInternalCall();
+                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.MaintenanceNotifications).ForAwait();
+                }
 
                 await EnableClientTrackingAsync(connection, log, negotiateResp3).ForAwait();
             }

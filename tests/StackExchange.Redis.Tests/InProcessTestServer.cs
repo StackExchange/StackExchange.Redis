@@ -53,6 +53,14 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
+    /// <summary>
+    /// The highest protocol this server will agree to; lowering it lets a test have a <c>HELLO 3</c> accepted
+    /// and answered as RESP2, which is the shape a client has to survive without being told about it.
+    /// </summary>
+    public RedisProtocol MaxProtocolVersion { get; set; } = RedisProtocol.Resp3;
+
+    protected override RedisProtocol MaxProtocol => MaxProtocolVersion;
+
     public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
         => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, defaultOnly, writeMode), log);
 
@@ -116,6 +124,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             Protocol = TestContext.Current.GetProtocol(),
             // WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };
+        TestConfig.ApplyMaintenanceDefault(config);
         if (!string.IsNullOrEmpty(Password)) config.Password = Password;
         config.Ssl = UseSsl; // explicitly, ignore provider defaults
         if (UseSsl)

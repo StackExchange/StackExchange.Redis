@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Threading.Tasks;
 
@@ -39,10 +39,10 @@ public abstract partial class HealthCheckProbe
                     key: key,
                     value: payload,
                     expiry: context.ProbeTimeout,
-                    flags: CommandFlags.FireAndForget).ForAwait();
+                    flags: CommandFlags.FireAndForget | context.ProbeFlags).ForAwait();
 
                 // release from the db if matches (otherwise, we have no clue what happened, so: leave alone)
-                var success = await database.LockReleaseAsync(key, payload).ForAwait();
+                var success = await database.LockReleaseAsync(key, payload, context.ProbeFlags).ForAwait();
                 return success ? HealthCheckResult.Healthy : HealthCheckResult.Unhealthy;
             }
             finally

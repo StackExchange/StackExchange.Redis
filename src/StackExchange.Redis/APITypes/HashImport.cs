@@ -64,7 +64,6 @@ namespace StackExchange.Redis;
 /// <c>EVALSHA</c> are lookups by name that can.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
 public sealed class HashImport : IDisposable, IAsyncDisposable
 {
     // process-wide monotonic id; deliberately not bound to any multiplexer so a single field-set can span
