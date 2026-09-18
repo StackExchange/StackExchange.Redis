@@ -262,6 +262,34 @@ Four consequences, none of them cosmetic:
       rent the stackalloc idea was aiming at. Measure before changing the cache's hash, though: the frame
       hash is also the identity used for equality, so it is correctness-sensitive.
 
+- [x] **XxHash3 for the cache key: measured, and NOT worth doing — 2026-09-18.** Marc asked for early
+      benchmarks before committing to it: the cache key could use `XxHash3.HashToUInt64` directly - one
+      static, no comparer needed - folded 64->32. `FrameHashBenchmarks` compares it against the current
+      hash over the frame sizes actually observed (a GET frame is about `25 + key`):
+
+      | frame | current | XxHash3 seeded | XxHash3 unseeded |
+      |---|---|---|---|
+      | 41 | **2.30** | 4.15 | 4.14 |
+      | 98 | **6.09** | 6.84 | 6.81 |
+      | 130 | 8.17 | 7.55 | **7.52** |
+      | 163 | 10.92 | 9.11 | **9.15** |
+      | 291 | 21.71 | 20.60 | **12.09** |
+
+      **The current hash wins below ~130 bytes** - XxHash3 carries a fixed setup cost a short frame never
+      amortises - and the crossover is around a 100-byte key. Past it the seeded saving is 1-2ns against a
+      158-176ns cache hit: under 1%. A straight swap is a regression for typical keys.
+
+      **Seeding is not free, and its cost depends on length.** At 291 bytes seeded is 20.6ns where unseeded
+      is 12.1ns. XXH3 re-derives its 192-byte secret from a custom seed on every call for long inputs,
+      where the unseeded path uses the precomputed default. Worth knowing before seeding a hash on any hot
+      path.
+
+      **And hashing is a smaller part of the probe than earlier notes here implied** - correcting that: at
+      an 8-byte key the probe is 32ns of which the hash is 2.3ns (~7%); at 256 bytes it is 61ns of 21.7ns
+      (~36%). Eliminating hashing outright caps at ~12% of a hit, and only for large keys. The probe's cost
+      is mostly the dictionary lookup, `SequenceEqual`, and the interlocked `TryRetain`/re-check - which is
+      where to look if the 31% is worth attacking.
+
 - [ ] **Hot-path measurement before the stackalloc/alt-lookup work — 2026-09-18.** Marc: *"definitely
       measure first... what the overhead of the lease rent and return is"*. `CacheHitSendBenchmarks` is now
       parameterised by key size, because the answer depends on it entirely.
