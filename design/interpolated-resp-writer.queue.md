@@ -2473,6 +2473,38 @@ Four consequences, none of them cosmetic:
 
 ## Decided against
 
+- **Passing the context by reference on the send path (`in this` + a `ref readonly` accessor).** Tried
+  2026-09-18 on Marc's hunch that `lists.Context.SendAsync(...)` copies 40 bytes per command. The hunch
+  was right about the copy and **wrong about the cure**, and so was I - measured both ways.
+
+  **The copy is real, and the JIT does not see through it.** Optimised listing (`DOTNET_TieredCompilation=0`,
+  `DOTNET_JitDisasm`), 40-byte struct, non-inlinable callee: the by-value property emits four `mov gword`
+  pairs plus a `movsq` before the call. With `in` on the callee the copy *survives* as a materialised
+  temporary (`vmovdqu ymm0` / `vmovdqu [rsp]`), because a property result is an **rvalue** and an rvalue
+  handed to `in` gets a temp. Only an **lvalue** removes it - and a `ref readonly` *instance* property is
+  `CS8170`, so the lvalue has to come from a field or from a `ref readonly` **extension** property over an
+  internal field. Microbenchmark: property+byvalue **1.478ns**, property+`in` **0.951ns**, ref-extension+`in`
+  **0.191ns**, public field+`in` **0.192ns**. A 7.7x win, apparently.
+
+  **In the real path it is 8% SLOWER.** `db.Strings.GetAsync` served from the client-side cache - the
+  synchronous path this would help, since a miss ends in microseconds of network:
+
+  | | ns |
+  |---|---|
+  | by value (today) | **121.8**, 124.8 |
+  | `in` + ref accessor | **133.3**, 132.4 |
+
+  Consistent across repeats, error bars under 0.6ns. `RespContext` is already a `readonly struct`, so this
+  is not defensive copies; it is the plain `in` trade - one copy avoided, many indirect loads added, and a
+  callee that can no longer enregister fields it reads repeatedly. `SendAsync` reads the context a lot:
+  command map, key prefix, services, executor, cache.
+
+  **The lesson is about the measurement, not the language.** The microbenchmark timed the copy in
+  isolation with a callee that touched one field, and reported a 7.7x win for a change that costs 8% where
+  it was aimed. A struct-copy microbenchmark is only predictive when the callee's field-access pattern
+  matches the real one.
+
+
 - **Errors as values on the new surface.** Decided 2026-09-15: a top-level error throws, as everywhere else
   in this library, unless somebody turns up with a concrete need. Errors-as-values makes every caller
   responsible for remembering to check, and forgetting is **silent** - the same failure class this design
