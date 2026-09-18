@@ -956,13 +956,27 @@ namespace StackExchange.Redis.Protocol
         /// </remarks>
         internal static int BulkReservation(int payloadLength) => payloadLength + MaxBulkPrefix + 2;
 
+        /// <summary>Make room for <paramref name="extra"/> more bytes, growing the buffer if needed.</summary>
+        /// <remarks>
+        /// <b>Every write starts here, and almost none of them grow.</b> The common case is one subtract,
+        /// one compare and a return; the growth is a rent, a copy and a return to the pool, which is the
+        /// bulk of the IL and is cold. Out of line it stays, so what inlines into each writer is the
+        /// check. Same reasoning as <see cref="DemandCommand"/>, and the same <c>scoped ref</c> trick to
+        /// reach the instance from a <c>static</c> local.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Ensure(int extra)
         {
-            if (_buffer.Length - _offset >= extra) return;
-            var bigger = ArrayPool<byte>.Shared.Rent(Math.Max(_buffer.Length * 2, _offset + extra));
-            Buffer.BlockCopy(_buffer, 0, bigger, 0, _offset);
-            ArrayPool<byte>.Shared.Return(_buffer);
-            _buffer = bigger;
+            if (_buffer.Length - _offset < extra) Grow(ref this, extra);
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            static void Grow(scoped ref RespRequestBuilder @this, int extra)
+            {
+                var bigger = ArrayPool<byte>.Shared.Rent(Math.Max(@this._buffer.Length * 2, @this._offset + extra));
+                Buffer.BlockCopy(@this._buffer, 0, bigger, 0, @this._offset);
+                ArrayPool<byte>.Shared.Return(@this._buffer);
+                @this._buffer = bigger;
+            }
         }
     }
 }
