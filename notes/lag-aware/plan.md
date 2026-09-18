@@ -3,18 +3,29 @@
 What we intend to do about [`findings.md`](findings.md). That file is the evidence; this one is the
 sequence.
 
-Status: **proposed, and blocked on step 0.** Nothing below has shipped.
+Status: **proposed. Step 0 is cleared; step 1 is next and needs a machine with cluster access.**
+Nothing below has shipped.
 
 > **This branch is not only a planning branch.** `marc/lag-aware-availability` carries these notes
-> now, and becomes the feature branch once step 0 clears — the implementation lands on top of the
-> same branch and the same PR, rather than the notes being merged separately and the work starting
-> again elsewhere.
+> now, and is the feature branch from here — the implementation lands on top of the same branch and
+> the same PR, rather than the notes being merged separately and the work starting again elsewhere.
 >
-> When #3191 lands, **rebase this branch onto the updated `main`** (`git rebase origin/main`); do not
-> merge `main` in. #3191 squash-merges, so merging it back would move the merge base without giving
-> us its ancestry, and the commit list here would start carrying phantoms.
+> It has been rebased onto `main` post-#3191 (`git rebase origin/main`), which is what step 0 asked
+> for; do not merge `main` in. #3191 squash-merged, so merging it back would move the merge base
+> without giving us its ancestry, and the commit list here would start carrying phantoms.
 
-## Step 0 — wait for #3191
+> **Where this can be worked on.** Step 1 needs a real Redis Enterprise deployment and the fault
+> injector, which live on a machine holding the environment directory (`~/aws` on the box that has
+> it — the AWS multi-cluster template, so `env_output.json` nests its outputs under
+> `.clusters.value[0]`, which `FaultInjectorEnvironment` already handles). Nothing in step 1 can be
+> done or verified without it, so the work continues there rather than on whichever box happens to
+> have the repo. Steps 2 onward are ordinary code and are not tied to a machine.
+
+## Step 0 — wait for #3191 ✅ cleared
+
+**Done.** #3191 merged as `dc915bbc` on 2026-09-18, and this branch has been rebased onto it, so
+`tests/StackExchange.Redis.FaultInjector.Tests` is present here now. The rest of this section records
+why the wait was worth it.
 
 [#3191](https://github.com/StackExchange/StackExchange.Redis/pull/3191) ("Server-native maintenance
 notifications") is open, 107 files, +13,160. It carries
@@ -31,9 +42,8 @@ Building any of that again on this branch would mean writing a second copy of a 
 the same cluster, and then reconciling them at merge. Not worth it for a feature whose entire
 implementation is smaller than the client that tests it.
 
-**Nothing in steps 1–6 starts before this lands**, with one exception: step 1 is manual
-investigation against a deployment and can begin whenever a cluster is available, because it produces
-notes rather than code.
+It has landed, so nothing here is gated on it any more. Step 1 is the next thing, and its only
+prerequisite is a cluster to point at.
 
 ## Step 1 — validate the API against a real deployment
 
