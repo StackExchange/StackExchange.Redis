@@ -118,6 +118,19 @@ namespace StackExchange.Redis
         private Socket? _socket;
         internal Socket? VolatileSocket => Volatile.Read(ref _socket);
 
+        /// <summary>
+        /// Whether this connection is encrypted, however that came about.
+        /// </summary>
+        /// <remarks>
+        /// Two routes, and both count: our own <see cref="SslStream"/>, or a tunnel-supplied transport that
+        /// reports it is already encrypted. Used to choose a <c>moving-endpoint-type</c>, where the question is
+        /// not "did the caller ask for TLS" but "is this connection actually encrypted" - because that is what
+        /// decides whether a certificate has to be validated against whatever address we are given next.
+        /// </remarks>
+        internal bool IsEncrypted =>
+            Volatile.Read(ref _transport)?.IsEncrypted == true
+            || Volatile.Read(ref _ioStream) is SslStream { IsEncrypted: true };
+
         // used for dummy test connections
         public PhysicalConnection(
             ConnectionType connectionType = ConnectionType.Interactive,
@@ -215,6 +228,16 @@ namespace StackExchange.Redis
             var rawConfig = bridge.Multiplexer.RawConfig;
             var tunnel = rawConfig.Tunnel;
             var connectTo = endpoint;
+
+            // A MOVING may name where to go next; prefer it over resolving the endpoint again, since not
+            // waiting for DNS is the point. Note this changes only the *socket target*: the endpoint itself is
+            // untouched, so identity, server selection and - importantly - the TLS host and SNI (derived from
+            // ServerEndPoint.EndPoint below) all stay exactly as configured.
+            if (bridge.ServerEndPoint?.HandoffTarget is { } handoffTarget)
+            {
+                Trace($"handoff: connecting to {Format.ToString(handoffTarget)} in place of {Format.ToString(endpoint)}");
+                connectTo = handoffTarget;
+            }
             if (tunnel is not null)
             {
                 // A transport tunnel replaces the socket outright (the widest form of the existing
@@ -866,6 +889,31 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Whether any message awaiting a response was issued by a *caller* rather than by us.
+        /// </summary>
+        /// <remarks>
+        /// The distinction matters wherever we ask "is anyone using this server": our own handshake,
+        /// autoconfigure and keep-alive traffic is not use, and treating it as such makes a server we are
+        /// probing look busy *because* we are probing it.
+        /// <para>
+        /// A predicate rather than a count, because every caller only asks whether the answer is zero - and
+        /// this way the common case (a caller's message at the head of the queue) costs one iteration instead
+        /// of walking a queue that a stalled server can leave thousands of entries long.
+        /// </para>
+        /// </remarks>
+        internal bool HasCallerMessagesAwaitingResponse()
+        {
+            lock (_writtenAwaitingResponse)
+            {
+                foreach (var message in _writtenAwaitingResponse)
+                {
+                    if (message.IsCallerFacing) return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Runs on every heartbeat for a bridge, timing out any commands that are overdue and returning an integer of how many we timed out.
         /// </summary>
         /// <param name="asyncTimeoutDetected">How many async commands were overdue and threw timeout exceptions.</param>
@@ -883,7 +931,9 @@ namespace StackExchange.Redis
                 {
                     var server = bridge.ServerEndPoint;
                     var multiplexer = bridge.Multiplexer;
-                    var timeout = multiplexer.AsyncTimeoutMilliseconds;
+
+                    // relaxed while this server has announced a disruption; a floor, never a reduction
+                    var timeout = server.GetEffectiveTimeoutMilliseconds(multiplexer.AsyncTimeoutMilliseconds);
                     foreach (var msg in _writtenAwaitingResponse)
                     {
                         // We only handle async timeouts here, synchronous timeouts are handled upstream.
@@ -1326,6 +1376,7 @@ namespace StackExchange.Redis
             ResetArena,
             ProcessBufferComplete,
             PubSubUnsubscribe,
+            MaintenanceNotification,
             NA = -1,
         }
 
@@ -1341,7 +1392,7 @@ namespace StackExchange.Redis
                     {
                         foreach (var item in _writtenAwaitingResponse)
                         {
-                            if (!item.IsInternalCall) return true;
+                            if (item.IsCallerFacing) return true;
                         }
                     }
                     return false;

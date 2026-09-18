@@ -1,7 +1,7 @@
 {
-  "version": "3.2",
-  "versionHeightOffset": -3,
-  "versionHeightOffsetAppliesTo": "3.2",
+  "version": "3.3",
+  "versionHeightOffset": -1,
+  "versionHeightOffsetAppliesTo": "3.3",
   "assemblyVersion": "3.0",
   "publicReleaseRefSpec": [
     "^refs/heads/main$",

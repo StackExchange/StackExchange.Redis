@@ -454,7 +454,7 @@ public abstract class TestBase : IDisposable
         log ??= localLog = new StringWriter();
         try
         {
-            var config = ConfigurationOptions.Parse(configuration);
+            var config = TestConfig.ApplyMaintenanceDefault(ConfigurationOptions.Parse(configuration));
             if (disabledCommands != null && disabledCommands.Length != 0)
             {
                 config.CommandMap = CommandMap.Create([.. disabledCommands], false);
