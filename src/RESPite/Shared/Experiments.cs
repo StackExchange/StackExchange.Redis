@@ -8,9 +8,10 @@
         // note: {0} is substituted with the DiagnosticId by the analyzer, e.g. .../exp/SER002
         public const string UrlFormat = "https://seredis.dev/exp/{0}";
 
-        // Retired experiments: these server features are now stable and no longer gated.
+        // Retired experiments: these features are now stable and no longer gated.
         // The DiagnosticIds remain reserved (do NOT reuse them) so old callers' suppressions
         // and the /docs/exp pages stay meaningful:
+        //   SER001 = vector sets
         //   SER002 = Server_8_4  (Redis 8.4 features)
         //   SER003 = Server_8_6  (Redis 8.6 features)
         //   SER006 = Server_8_8  (Redis 8.8 features)
