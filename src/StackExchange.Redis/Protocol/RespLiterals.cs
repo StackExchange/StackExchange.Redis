@@ -423,6 +423,38 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Acked { get; }
 
+        /// <summary>The <c>NOMKSTREAM</c> operand of <c>XADD</c>.</summary>
+        [Resp("NOMKSTREAM")]
+        internal static partial RespFragment NoMkStream { get; }
+
+        /// <summary>The <c>IDMP</c> operand of <c>XADD</c>; a producer id and an entry id follow it.</summary>
+        [Resp]
+        internal static partial RespFragment Idmp { get; }
+
+        /// <summary>The <c>IDMPAUTO</c> operand of <c>XADD</c>; a producer id follows it.</summary>
+        [Resp("IDMPAUTO")]
+        internal static partial RespFragment IdmpAuto { get; }
+
+        /// <summary>The <c>SILENT</c> mode of <c>XNACK</c>: released without counting a failure.</summary>
+        [Resp]
+        internal static partial RespFragment Silent { get; }
+
+        /// <summary>The <c>FAIL</c> mode of <c>XNACK</c>: released and counted as a failed delivery.</summary>
+        [Resp]
+        internal static partial RespFragment Fail { get; }
+
+        /// <summary>The <c>FATAL</c> mode of <c>XNACK</c>: released and marked a terminal failure.</summary>
+        [Resp]
+        internal static partial RespFragment Fatal { get; }
+
+        /// <summary>The <c>IDMP-DURATION</c> operand of <c>XCFGSET</c>.</summary>
+        [Resp("IDMP-DURATION")]
+        internal static partial RespFragment IdmpDuration { get; }
+
+        /// <summary>The <c>IDMP-MAXSIZE</c> operand of <c>XCFGSET</c>.</summary>
+        [Resp("IDMP-MAXSIZE")]
+        internal static partial RespFragment IdmpMaxSize { get; }
+
         /// <summary>The <c>ENCODING</c> subcommand of <c>OBJECT</c>.</summary>
         [Resp]
         internal static partial RespFragment Encoding { get; }

@@ -386,6 +386,282 @@ public static partial class Streams
             flags,
             cancellationToken: cancellationToken);
 
+    /// <summary>XADD; the id of the entry that was appended.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="name">The single field's name.</param>
+    /// <param name="value">The single field's value.</param>
+    /// <param name="options">Entry id, trimming and idempotency; the default appends with a server-assigned id.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Two overloads here against eight on <see cref="IDatabase"/>.</b> The shipped ones spell the
+    /// options out positionally - message id, max length, approximate, limit, trim mode - and then repeat
+    /// the whole run for the idempotent and options-carrying forms. <see cref="StreamAddOptions"/> already
+    /// holds every one of those, so the new surface takes it and the count collapses; the old spellings
+    /// are the transitional adapter's problem, which is where they belong.
+    /// </remarks>
+    public static ValueTask<RedisValue> AddAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue name,
+        RedisValue value,
+        in StreamAddOptions options = default,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => streams.Context.SendAsync<RedisValue>(
+            $"{RedisCommand.XADD}{key}{new AddOperand(options)}{name}{value}",
+            AddFlags(flags, in options),
+            cancellationToken: cancellationToken);
+
+    /// <summary>XADD; the id of the entry that was appended.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="fields">The entry's fields; at least one.</param>
+    /// <param name="options">Entry id, trimming and idempotency; the default appends with a server-assigned id.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <inheritdoc cref="AddAsync(in RespStreams, RedisKey, RedisValue, RedisValue, in StreamAddOptions, CommandFlags, CancellationToken)" path="/remarks"/>
+    /// <para>
+    /// <paramref name="fields"/> needs no loop at the call site: <see cref="NameValueEntry"/> is an
+    /// <c>IRespArgument</c>, so the span overload asks each pair to write its own name and value.
+    /// </para>
+    /// </remarks>
+    public static ValueTask<RedisValue> AddAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        scoped ReadOnlySpan<NameValueEntry> fields,
+        in StreamAddOptions options = default,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        if (fields.IsEmpty) throw new ArgumentOutOfRangeException(nameof(fields), "fields must contain at least one item.");
+        return streams.Context.SendAsync<RedisValue>(
+            $"{RedisCommand.XADD}{key}{new AddOperand(options)}{fields}",
+            AddFlags(flags, in options),
+            cancellationToken: cancellationToken);
+    }
+
+    /// <summary>XNACK; how many of the listed entries were released back to the group.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="mode">Whether the release counts as a failed delivery.</param>
+    /// <param name="messageId">The entry to release.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<long> NegativeAcknowledgeAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        StreamNackMode mode,
+        RedisValue messageId,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => streams.Context.SendAsync<long>(
+            $"{RedisCommand.XNACK}{key}{group}{NackModeToken(mode)}{RespLiterals.Ids}{1}{messageId}",
+            flags,
+            cancellationToken: cancellationToken);
+
+    /// <inheritdoc cref="NegativeAcknowledgeAsync(in RespStreams, RedisKey, RedisValue, StreamNackMode, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="mode">Whether the release counts as a failed delivery.</param>
+    /// <param name="messageIds">The entries to release; at least one.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<long> NegativeAcknowledgeAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        StreamNackMode mode,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        DemandAtLeastOneId(messageIds);
+        return streams.Context.SendAsync<long>(
+            $"{RedisCommand.XNACK}{key}{group}{NackModeToken(mode)}{RespLiterals.Ids}{messageIds.Length}{messageIds}",
+            flags,
+            cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// XACKDEL; per-id outcomes, so a caller can tell "acknowledged and deleted" from "was not there".
+    /// </summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="mode">What to do with entries that other consumer groups still reference.</param>
+    /// <param name="messageIds">The entries to acknowledge and delete; at least one.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <inheritdoc cref="DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)" path="/remarks"/>
+    /// <para>
+    /// <b>Only the span form, where <see cref="IDatabase"/> has a single-id one too.</b> The reply is an
+    /// array either way - the server is told <c>IDS 1</c> - so the single-id spelling buys a caller
+    /// nothing the transitional adapter cannot do with a one-element span.
+    /// </para>
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<StreamTrimResult>> AcknowledgeAndDeleteAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        StreamTrimMode mode,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = AcknowledgeAndDeleteCommand(streams.Context, key, group, mode, messageIds);
+        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<ReadOnlyLease<StreamTrimResult>>.Require(), cancellationToken);
+    }
+
+    /// <inheritdoc cref="AcknowledgeAndDeleteAsync(in RespStreams, RedisKey, RedisValue, StreamTrimMode, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="DeleteArray(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
+    internal static ValueTask<StreamTrimResult[]> AcknowledgeAndDeleteArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        StreamTrimMode mode,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = AcknowledgeAndDeleteCommand(streams.Context, key, group, mode, messageIds);
+        return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<StreamTrimResult[]>.Require(), cancellationToken);
+    }
+
+    /// <summary>Render <c>XACKDEL</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    private static RespRequestFrame AcknowledgeAndDeleteCommand(
+        in RespContext context,
+        RedisKey key,
+        RedisValue group,
+        StreamTrimMode mode,
+        scoped ReadOnlySpan<RedisValue> messageIds)
+    {
+        DemandAtLeastOneId(messageIds);
+        return context.Render(
+            $"{RedisCommand.XACKDEL}{key}{group}{TrimModeToken(mode)}{RespLiterals.Ids}{messageIds.Length}{messageIds}");
+    }
+
+    /// <summary>XCFGSET; per-stream idempotency settings.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="configuration">The settings to apply.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// An empty <paramref name="configuration"/> still sends the bare command, which the server rejects.
+    /// That is deliberate and matches the shipped behaviour: the server's message says what is wrong with
+    /// more authority than a guess made here could.
+    /// </remarks>
+    public static ValueTask ConfigureAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        StreamConfiguration configuration,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        if (configuration is null) throw new ArgumentNullException(nameof(configuration));
+        return streams.Context.SendAsync(
+            $"{RedisCommand.XCFGSET}{key}{new ConfigureOperand(configuration)}", flags, cancellationToken);
+    }
+
+    /// <summary>
+    /// Everything <c>XADD</c> writes between the key and the fields:
+    /// <c>[NOMKSTREAM] [MAXLEN|MINID [~] threshold] [LIMIT n] [mode] [IDMP...] &lt;*|id&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// One operand for the same reason as <see cref="TrimOperand"/>: the parts are ordered with respect to
+    /// one another, and the entry id has to come last however few of the others are present. Spelling that
+    /// as separate holes would put the ordering rule at every call site.
+    /// </remarks>
+    private readonly struct AddOperand(StreamAddOptions options) : IRespArgument
+    {
+        public void WriteTo(scoped ref RespRequestBuilder handler)
+        {
+            if (!options.CreateStream) handler.AppendFormatted(RespLiterals.NoMkStream);
+
+            if (options.HasThreshold)
+            {
+                var byMaxLength = options.MaxLength.HasValue;
+                handler.AppendFormatted(byMaxLength ? RespLiterals.MaxLen : RespLiterals.MinId);
+                if (options.Approximate) handler.AppendFormatted(RespLiterals.Approximate);
+                handler.AppendFormatted(byMaxLength ? (RedisValue)options.MaxLength.GetValueOrDefault() : options.MinId);
+            }
+
+            if (options.Limit.HasValue)
+            {
+                handler.AppendFormatted(RespLiterals.Limit);
+                handler.AppendFormatted((RedisValue)options.Limit.GetValueOrDefault());
+            }
+
+            // omitted when KeepReferences; see TrimOperand for why that is the server's rule and not ours
+            if (options.TrimMode != StreamTrimMode.KeepReferences) handler.AppendFormatted(TrimModeToken(options.TrimMode));
+
+            var idempotent = options.IdempotentId;
+            if (idempotent.IdempotentId.HasValue)
+            {
+                handler.AppendFormatted(RespLiterals.Idmp);
+                handler.AppendFormatted(idempotent.ProducerId);
+                handler.AppendFormatted(idempotent.IdempotentId);
+            }
+            else if (idempotent.ProducerId.HasValue)
+            {
+                handler.AppendFormatted(RespLiterals.IdmpAuto);
+                handler.AppendFormatted(idempotent.ProducerId);
+            }
+
+            handler.AppendFormatted(options.EntryId);
+        }
+    }
+
+    /// <summary>The operands of <c>XCFGSET</c>, each written only when it was set.</summary>
+    private readonly struct ConfigureOperand(StreamConfiguration configuration) : IRespArgument
+    {
+        public void WriteTo(scoped ref RespRequestBuilder handler)
+        {
+            if (configuration.IdmpDuration is { } duration)
+            {
+                handler.AppendFormatted(RespLiterals.IdmpDuration);
+                handler.AppendFormatted((RedisValue)duration);
+            }
+
+            if (configuration.IdmpMaxSize is { } maxSize)
+            {
+                handler.AppendFormatted(RespLiterals.IdmpMaxSize);
+                handler.AppendFormatted((RedisValue)maxSize);
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>XADD</c> is only safely retryable when a replay cannot append a second entry.
+    /// </summary>
+    /// <remarks>
+    /// Which is the case exactly when the caller pinned the id - a fully explicit id is rejected the
+    /// second time as "equal or smaller" - or asked for idempotency. A server-assigned id (<c>*</c>, or
+    /// the <c>&lt;ms&gt;-*</c> auto-sequence form) would append twice, so it stays uncategorised. Shared
+    /// with the classic path's rule rather than restated: see <c>RedisDatabase.IsServerAssignedId</c>.
+    /// </remarks>
+    private static CommandFlags AddFlags(CommandFlags flags, in StreamAddOptions options)
+        => options.IdempotentId.ArgCount != 0 || !RedisDatabase.IsServerAssignedId(options.EntryId)
+            ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked)
+            : flags;
+
+    /// <summary>The <c>SILENT</c>/<c>FAIL</c>/<c>FATAL</c> mode token of <c>XNACK</c>.</summary>
+    private static RespFragment NackModeToken(StreamNackMode mode) => mode switch
+    {
+        StreamNackMode.Silent => RespLiterals.Silent,
+        StreamNackMode.Fail => RespLiterals.Fail,
+        StreamNackMode.Fatal => RespLiterals.Fatal,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+    };
+
     /// <summary>
     /// The tail of an <c>XTRIM</c>: <c>[~] threshold [LIMIT n] [mode]</c>.
     /// </summary>

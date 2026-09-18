@@ -93,8 +93,36 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
-- [ ] **`TransitionalDatabase`: 106 throwing members — status, 2026-09-18.** Unchanged since it was
-      last counted, so no drift. SER352 reports the number on every Release build; the breakdown below
+- [ ] **Streams, batch 1 of 4 — DONE, 2026-09-18: 106 -> 80.** Marc: *"let's try to get streams done"*,
+      and *"some of the overloads may be reducable on a fresh clean API"*. The scalar-reply commands are
+      moved: `XADD`, `XNACK`, `XACKDEL`, `XCFGSET`.
+
+      **Eight `StreamAdd` overloads became two.** `StreamAddOptions` already holds every setting the
+      shipped overloads spell out positionally, so the new surface takes it and the rest is the adapter's
+      problem. `LegacyStreamAddOptions` is shared with the classic path rather than copied - it
+      deliberately does not validate, and only the options-carrying overloads call `ThrowIfInvalid`, an
+      asymmetry that would have been easy to lose in a reimplementation.
+
+      Likewise `XACKDEL` has only the span form here, where `IDatabase` also has a single-id one: the
+      server is told `IDS 1` either way, so the adapter passes a one-element span.
+
+      `NameValueEntry` now implements `IRespArgument` (explicitly, so no public API line), which is what
+      lets `$"{RedisCommand.XADD}{key}{fields}"` unroll a whole run without a loop at the call site.
+
+      **`RespSurfaceStreamsParityTests` is the real check.** Asserting strings I typed would only prove I
+      read the old code the way I wrote the new code; instead it drives the shipped `Message` builders
+      through `MessageWriter` and compares against the interpolated writer, over all 13 `XADD` option
+      combinations plus every `XNACK`/`XACKDEL`/`XCFGSET` shape. 39 cases, byte-identical. Three classic
+      builders went from `private` to `internal` to make that possible, which is a fair price.
+
+      The first version of that file reported "requires a scalar element" rather than a diff, because the
+      fake replied `*0` to everything and the parse failed before the comparison - so each command now
+      gets a reply its handler accepts.
+
+      Remaining: `XCLAIM`/`XAUTOCLAIM`, `XPENDING` x2, `XREAD`/`XREADGROUP`, `XINFO` x3.
+
+- [ ] **`TransitionalDatabase`: 106 throwing members — status, 2026-09-18.** (Now 80; see the streams
+      entry above.) Unchanged since it was last counted, so no drift. SER352 reports the number on every Release build; the breakdown below
       comes from the generated `AutoDatabase.generated.cs` (build with `/p:EmitCompilerGeneratedFiles=true`
       to see it - it is not written to disk normally).
 

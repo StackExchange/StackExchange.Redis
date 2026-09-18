@@ -3097,7 +3097,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        private Message GetStreamConfigureMessage(RedisKey key, StreamConfiguration configuration, CommandFlags flags)
+        internal Message GetStreamConfigureMessage(RedisKey key, StreamConfiguration configuration, CommandFlags flags)
         {
             if (key.IsNull) throw new ArgumentNullException(nameof(key));
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
@@ -4963,12 +4963,12 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XACK, key, values);
         }
 
-        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags)
+        internal Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags)
         {
             return Message.Create(Database, flags, RedisCommand.XACKDEL, key, groupName, StreamConstants.GetMode(mode), StreamConstants.Ids, 1, messageId);
         }
 
-        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags)
+        internal Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags)
         {
             if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
@@ -4994,7 +4994,7 @@ namespace StackExchange.Redis
         /// have always passed questionable combinations (<c>LIMIT</c> without a threshold, say) through to the
         /// server, and that behaviour is preserved; only the options-based overloads validate up-front.
         /// </remarks>
-        private static StreamAddOptions LegacyStreamAddOptions(RedisValue? messageId, in StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode)
+        internal static StreamAddOptions LegacyStreamAddOptions(RedisValue? messageId, in StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode)
             => new()
             {
                 MessageId = messageId,
