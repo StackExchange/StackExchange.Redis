@@ -197,17 +197,17 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Theory]
-    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Disabled)] // AMR: will be Auto
-    [InlineData("contoso.cloud.redislabs.com", MaintenanceNotificationMode.Disabled)] // Redis Cloud: will be Auto
+    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Auto)] // AMR
+    [InlineData("contoso.cloud.redislabs.com", MaintenanceNotificationMode.Auto)] // Redis Cloud
     [InlineData("contoso.redis.cache.windows.net", MaintenanceNotificationMode.Disabled)] // classic Azure: stays off
     [InlineData("contoso.example.com", MaintenanceNotificationMode.Disabled)] // and so does anything unrecognized
     public void MaintenanceNotificationDefaultPerProvider(string hostName, MaintenanceNotificationMode expected)
     {
-        // Every endpoint is Disabled for now: maintenance notifications ship purely opt-in, so *nothing*
-        // enlists you and the only thing that turns them on is setting maintNotifications yourself. The
-        // providers for AMR and Redis Cloud are intended to select Auto - see the commented-out overrides on
-        // each - and this theory is what flips back when auto-enlistment lands: the first two rows become
-        // Auto, and the last two stay Disabled because nothing recognizes them either way.
+        // The recognized hosted families enlist automatically, which is the whole point of the providers: a
+        // connection string that names nothing but the hostname gets the feature. Auto rather than Enabled so
+        // that a deployment which cannot deliver keeps working - the opt-in is refused and the feature stays
+        // off. The last two rows stay Disabled because nothing recognizes them either way, and they are what
+        // stops this test passing merely because everything returns the same answer.
         var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
         var provider = DefaultOptionsProvider.GetProvider(epc);
         Output.WriteLine($"{hostName} -> {provider.GetType().Name}");
