@@ -285,6 +285,12 @@ public class TransitionalCoverageTests
             // the cursor members are forwarded one at a time from TransitionalDatabase.Scans.cs rather than
             // moved as a group - deferred execution is not a frame - so they have no group to be tested as
             "VectorSetRangeEnumerate", "VectorSetRangeEnumerateAsync",
+
+            // sugar rather than a group: LockTake IS SET ... NX with an expiry and LockQuery IS GET, so
+            // they are covered by the String group plus TheMovedLockMembersAreSugarOverSetAndGet. Their
+            // siblings LockRelease and LockExtend are NOT here, because they have not moved - they need
+            // the transaction fallback - and so must keep failing the "implemented" test above.
+            "LockTake", "LockTakeAsync", "LockQuery", "LockQueryAsync",
         ];
 
         var uncovered = HandWritten(typeof(IDatabase)).Concat(HandWritten(typeof(IDatabaseAsync)))

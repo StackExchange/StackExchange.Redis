@@ -81,9 +81,13 @@ public class TransitionalDatabaseTests
         // the exemplar has to be a command that genuinely has not moved, so it changes as groups land -
         // KeyDelete was this until the Key group arrived, ListLeftPush until the List group did,
         // StreamLength until the stream scalars did, and ArrayLength lasted about an hour. Going stale is
-        // the point: it fails here loudly rather than silently asserting nothing. LockQuery should last:
-        // the lock group waits on transactions, which wait on the Message refactor.
-        var ex = Assert.Throws<NotImplementedException>(() => db.LockQuery("k"));
+        // the point: it fails here loudly rather than silently asserting nothing.
+        //
+        // LockQuery was the previous pick, on the reasoning that "the lock group waits on transactions".
+        // Half of that group did not: LockQuery is GET and LockTake is SET NX, so they moved as sugar over
+        // the String group. LockRelease genuinely does wait - it is one IFEQ-style message on a new enough
+        // server and a TRANSACTION otherwise - so it should outlast most of what is left.
+        var ex = Assert.Throws<NotImplementedException>(() => db.LockRelease("k", "token"));
         Assert.Contains("has not yet moved", ex.Message);
     }
 
@@ -102,6 +106,28 @@ public class TransitionalDatabaseTests
         var db = Target(new FakeExecutor("+OK\r\n"));
 
         Assert.Throws<NotImplementedException>(() => db.VectorSetRangeEnumerate("k"));
+    }
+
+    /// <summary>The two lock members that moved are the commands they always were.</summary>
+    /// <remarks>
+    /// They are sugar rather than a group - <c>LockTake</c> is <c>SET ... NX</c> with an expiry and
+    /// <c>LockQuery</c> is <c>GET</c> - so there is no lock group to test them as, and this is where the
+    /// composition is pinned instead. The null-token guard is here too, because without it <c>SET</c>
+    /// would <i>delete</i> the key and the lock would read as taken-then-vanished.
+    /// </remarks>
+    [Fact]
+    public void TheMovedLockMembersAreSugarOverSetAndGet()
+    {
+        var executor = new FakeExecutor("+OK\r\n", "$5\r\ntoken\r\n");
+        var db = Target(executor);
+
+        Assert.True(db.LockTake("k", "token", TimeSpan.FromSeconds(30)));
+        Assert.Equal("token", db.LockQuery("k"));
+
+        Assert.Equal("*6|$3|SET|$1|k|$5|token|$2|NX|$2|EX|$2|30|", executor.Sent[0]);
+        Assert.Equal("*2|$3|GET|$1|k|", executor.Sent[1]);
+
+        Assert.Throws<ArgumentNullException>(() => db.LockTake("k", RedisValue.Null, TimeSpan.FromSeconds(30)));
     }
 
     /// <summary>A ValueTask source that records whether its result was consumed.</summary>
