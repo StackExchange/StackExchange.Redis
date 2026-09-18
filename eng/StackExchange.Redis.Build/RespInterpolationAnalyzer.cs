@@ -33,8 +33,13 @@ public sealed class RespInterpolationAnalyzer : DiagnosticAnalyzer
     // The interpolated-string handler's full name, matched against the CONVERTED type of the expression.
     // It is a string rather than a symbol lookup, which makes it silently fragile: rename the type and this
     // analyzer stops reporting rather than stops compiling. It has been wrong twice - once when
-    // RespCommandHandler became RespRequestBuilder, once when the namespace lost its .Interpolated - so
-    // RespInterpolationAnalyzerTests pins the name against the real assembly.
+    // RespCommandHandler became RespRequestBuilder, once when the namespace lost its .Interpolated.
+    //
+    // This used to claim "RespInterpolationAnalyzerTests pins the name against the real assembly", and no
+    // such test has ever existed - which is how RespLiteralCodeFixProvider then went stale the same way,
+    // pointing at three .Interpolated names for months. What actually pins it is SER309 and SER309CodeFix
+    // in StackExchange.Redis.Build.Tests, whose snippets compile against the real library, and those now
+    // run in CI - which they did not when this rotted.
     private const string HandlerTypeName = "StackExchange.Redis.Protocol.RespRequestBuilder";
 
     /// <summary>The trimmed token, handed to the code fix so it need not re-parse the literal.</summary>

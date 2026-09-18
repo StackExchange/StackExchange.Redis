@@ -23,6 +23,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
     private const string Declarations = """
         #pragma warning disable SER011
         using StackExchange.Redis;
+        using StackExchange.Redis.Protocol;
 
         internal static partial class RespLiterals
         {
@@ -56,7 +57,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key} {value}{|#0: nx|}");
+                using var frame = ctx.Render("SET", $"{key} {value}{|#0: nx|}");
             }
         }
         """,
@@ -66,7 +67,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key} {value} {RespLiterals.Nx}");
+                using var frame = ctx.Render("SET", $"{key} {value} {RespLiterals.Nx}");
             }
         }
         """,
@@ -81,7 +82,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key}{|#0: nx |}{value}");
+                using var frame = ctx.Render("SET", $"{key}{|#0: nx |}{value}");
             }
         }
         """,
@@ -91,7 +92,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key} {RespLiterals.Nx} {value}");
+                using var frame = ctx.Render("SET", $"{key} {RespLiterals.Nx} {value}");
             }
         }
         """,
@@ -106,7 +107,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{key}{|#0: NX|}");
+                using var frame = ctx.Render("GET", $"{key}{|#0: NX|}");
             }
         }
         """,
@@ -116,7 +117,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{key} {RespLiterals.Nx}");
+                using var frame = ctx.Render("GET", $"{key} {RespLiterals.Nx}");
             }
         }
         """,
@@ -133,7 +134,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{key}{|#0: withsave|}");
+                using var frame = ctx.Render("GET", $"{key}{|#0: withsave|}");
             }
         }
         """,
@@ -143,7 +144,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{key} {Withsave}");
+                using var frame = ctx.Render("GET", $"{key} {Withsave}");
             }
 
             [Resp]
@@ -162,7 +163,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("CLIENT", $"{key}{|#0: lib-ver|}");
+                using var frame = ctx.Render("CLIENT", $"{key}{|#0: lib-ver|}");
             }
         }
         """,
@@ -172,7 +173,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("CLIENT", $"{key} {LibVer}");
+                using var frame = ctx.Render("CLIENT", $"{key} {LibVer}");
             }
 
             [Resp("lib-ver")]
@@ -191,7 +192,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("CLIENT", $"{key}{|#0: SETINFO|}");
+                using var frame = ctx.Render("CLIENT", $"{key}{|#0: SETINFO|}");
             }
         }
         """,
@@ -203,7 +204,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("CLIENT", $"{key} {Setinfo}");
+                using var frame = ctx.Render("CLIENT", $"{key} {Setinfo}");
             }
 
             [Resp]
@@ -222,7 +223,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{key}{|#0: nx xx|}");
+                using var frame = ctx.Render("GET", $"{key}{|#0: nx xx|}");
             }
         }
         """,
@@ -240,7 +241,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute($"{|#0:SET |}{key}{value}");
+                using var frame = ctx.Render($"{|#0:SET |}{key}{value}");
             }
         }
         """,
@@ -250,7 +251,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute($"{SetCommand} {key}{value}");
+                using var frame = ctx.Render($"{SetCommand} {key}{value}");
             }
 
             private static readonly RespCommand SetCommand = "SET".Command(preform: true);
@@ -267,7 +268,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute($"{|#0:FT.SEARCH |}{value}");
+                using var frame = ctx.Render($"{|#0:FT.SEARCH |}{value}");
             }
         }
         """,
@@ -277,7 +278,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute($"{FtSearchCommand} {value}");
+                using var frame = ctx.Render($"{FtSearchCommand} {value}");
             }
 
             private static readonly RespCommand FtSearchCommand = "FT.SEARCH".Command(preform: true);
@@ -294,7 +295,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key}{value}{|#0: nx|}");
+                using var frame = ctx.Render("SET", $"{key}{value}{|#0: nx|}");
             }
         }
         """,
@@ -304,7 +305,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key}{value} {RespLiterals.Nx}");
+                using var frame = ctx.Render("SET", $"{key}{value} {RespLiterals.Nx}");
             }
         }
         """,

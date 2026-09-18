@@ -36,9 +36,9 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
 {
     private const string LiteralNotSentId = "SER309";
     private const string TokenProperty = "Token";
-    private const string RespAttributeName = "StackExchange.Redis.Interpolated.RespAttribute";
-    private const string FragmentTypeName = "StackExchange.Redis.Interpolated.RespFragment";
-    private const string CommandTypeName = "StackExchange.Redis.Interpolated.RespCommand";
+    private const string RespAttributeName = "StackExchange.Redis.Protocol.RespAttribute";
+    private const string FragmentTypeName = "StackExchange.Redis.Protocol.RespFragment";
+    private const string CommandTypeName = "StackExchange.Redis.Protocol.RespCommand";
     private const string RedisCommandTypeName = "StackExchange.Redis.RedisCommand";
 
     /// <inheritdoc/>

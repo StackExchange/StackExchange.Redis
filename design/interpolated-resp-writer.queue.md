@@ -93,6 +93,37 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **The `Interpolated/` folder is gone — DONE, 2026-09-18.** Marc: *"we shouldn't have anything left
+      in there by the end of this"*. The namespace went several commits ago; the folder name was the last
+      thing still claiming this is a spike about interpolated strings. Pure file moves - every file was
+      already in the right namespace - into `Contexts/` (the contexts, `RespSurface`, `RespExecutor`,
+      `RespConnectionExtensions`, `IRespServerFeatures`), `Protocol/` (`RespLiterals`,
+      `IRespPreambleGate`, `ScriptLoadGate`), `Caching/` (`RespKeyTable` - invalidation is its only job)
+      and `Transitional/` (`RespMessageExecutor` and the 17 `TransitionalDatabase` parts).
+
+      `Contexts/` rather than the project root, so the new surface reads as siblings - `Contexts/`,
+      `Groups/`, `Protocol/`, `Caching/`, `Downlevel/`. Easy to flatten later if the root is preferred.
+
+- [x] **The SER309 code fix had been dead for months — FIXED, 2026-09-18.** Found by grepping for
+      surviving `Interpolated` references. `RespLiteralCodeFixProvider` resolves three types by metadata
+      name and all three still said `StackExchange.Redis.Interpolated.*`, so every lookup returned null
+      and the fix silently offered nothing. Exactly the failure mode `RespInterpolationAnalyzer`'s own
+      comment describes - *"rename the type and this analyzer stops reporting rather than stops
+      compiling"* - and that comment claimed `RespInterpolationAnalyzerTests` pinned the names. **No such
+      test has ever existed.**
+
+      **The `Build.Tests` "18 pre-existing failures" were this, not a separate problem.** All 18 were
+      SER309/SER309CodeFix: 8 because the fixtures' sample code called `RespContext.Raw`, which the
+      context refactor removed (a context *is* the raw thing now), and 10 because the fixtures declare
+      `[Resp] RespFragment` members and only imported `StackExchange.Redis`. Repointed at the public
+      `RespContext.Render(string, ref RespRequestBuilder)` and given the `.Protocol` using: **174/174
+      green.**
+
+      **And CI never ran them.** It runs `StackExchange.Redis.Tests` only - `RESPite.Tests` and
+      `Build.Tests` are built by `Build.csproj` and then never executed, which is the whole reason this
+      could rot. Both are now steps in `.github/actions/run-tests`; together they take about four seconds
+      and neither needs a server.
+
 - [x] **`RespCommand`, `RespCommands`, `RespHandlers` and `IRespHandler<T>` moved to
       `StackExchange.Redis.Protocol` — DONE, 2026-09-18.** Marc asked whether those, plus `RespExecutor`,
       `RespContext` and `IRespTarget`, belong in `.Protocol`. The answer split rather than being uniform.

@@ -5,12 +5,19 @@ using Xunit;
 namespace StackExchange.Redis.Build.Tests;
 
 /// <summary>
-/// Literal text in a RESP interpolated command, which the handler discards rather than sends.
+/// Literal text in a RESP interpolated command, which is sent, but re-parsed and re-encoded every call.
 /// </summary>
 /// <remarks>
-/// An error-severity rule, so the negative cases carry the weight: a false positive here is a broken build on
-/// working code. The interesting negatives are the single space (deliberately allowed) and an ordinary
-/// interpolated string that happens to be nearby, which must not be touched.
+/// <para>
+/// A <b>warning</b>, because this is a cost rather than a correctness problem - the text really is sent. The
+/// negative cases still carry the weight: the interesting ones are the single space (deliberately allowed)
+/// and an ordinary interpolated string that happens to be nearby, which must not be touched.
+/// </para>
+/// <para>
+/// This summary said the opposite twice over - that the handler <i>discards</i> literals, and that the rule
+/// is an error - which was true of an earlier builder whose <c>AppendLiteral</c> was empty. The same pair of
+/// stale claims was corrected on the analyzer itself and left standing here.
+/// </para>
 /// </remarks>
 public class SER309 : Verifier<RespInterpolationAnalyzer>
 {
@@ -25,7 +32,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key}{|#0: nx |}{value}");
+                using var frame = ctx.Render("SET", $"{key}{|#0: nx |}{value}");
             }
         }
         """,
@@ -38,7 +45,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{key}{|#0:  |}{key}");
+                using var frame = ctx.Render("GET", $"{key}{|#0:  |}{key}");
             }
         }
         """,
@@ -51,7 +58,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{|#0:SET |}{key}");
+                using var frame = ctx.Render("GET", $"{|#0:SET |}{key}");
             }
         }
         """,
@@ -64,7 +71,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key}{|#0: nx |}{value}{|#1: xx|}");
+                using var frame = ctx.Render("SET", $"{key}{|#0: nx |}{value}{|#1: xx|}");
             }
         }
         """,
@@ -78,7 +85,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{|#0: |}{key}");
+                using var frame = ctx.Render("GET", $"{|#0: |}{key}");
             }
         }
         """,
@@ -91,7 +98,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key)
             {
-                using var frame = ctx.Raw.Execute("GET", $"{key}{|#0: |}");
+                using var frame = ctx.Render("GET", $"{key}{|#0: |}");
             }
         }
         """,
@@ -106,7 +113,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key} {value}");
+                using var frame = ctx.Render("SET", $"{key} {value}");
             }
         }
         """);
@@ -118,7 +125,7 @@ public class SER309 : Verifier<RespInterpolationAnalyzer>
         {
             void M(RespContext ctx, RedisKey key, RedisValue value)
             {
-                using var frame = ctx.Raw.Execute("SET", $"{key}{value}");
+                using var frame = ctx.Render("SET", $"{key}{value}");
             }
         }
         """);

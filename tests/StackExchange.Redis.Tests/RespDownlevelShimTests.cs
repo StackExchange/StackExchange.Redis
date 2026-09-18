@@ -28,10 +28,11 @@ public class RespDownlevelShimTests
     /// Where a group accessor can live - <b>two places, while the surface is being split up</b>.
     /// </summary>
     /// <remarks>
-    /// Groups are moving out of the staging <c>Interpolated</c> namespace one at a time, each taking its
-    /// accessor from <c>RespSurface</c> to <see cref="RespDatabaseExtensions"/> as it goes. Looking in
-    /// both is what lets that happen a group at a time instead of in one sweep; when the last group moves,
-    /// <c>RespSurface</c> drops off this list and then out of the library.
+    /// Accessors are moving from <c>RespSurface</c> to <see cref="RespDatabaseExtensions"/> a group at a
+    /// time; looking in both is what lets that happen incrementally rather than in one sweep. When the last
+    /// group moves, <c>RespSurface</c> drops off this list and then out of the library. (This used to
+    /// describe the move as being out of a staging <c>Interpolated</c> namespace, which stopped existing
+    /// some time ago - the namespace went first, and the accessors are still catching up.)
     /// </remarks>
     private static readonly Type[] AccessorHosts = [typeof(RespSurface), typeof(RespDatabaseExtensions)];
 
