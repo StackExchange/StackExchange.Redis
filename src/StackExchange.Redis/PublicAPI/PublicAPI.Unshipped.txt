@@ -1,6 +1,6 @@
 ﻿#nullable enable
 [SER010]StackExchange.Redis.Availability.FaultContext.MaintenanceType.get -> StackExchange.Redis.Maintenance.MaintenanceNotificationType
-[SER007]StackExchange.Redis.Availability.HealthCheckContext.ProbeFlags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.Availability.HealthCheckContext.ProbeFlags.get -> StackExchange.Redis.CommandFlags
 override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Name.get -> string!
 override StackExchange.Redis.Configuration.AzureOptionsProvider.Name.get -> string!
 [SER010]virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.MaintenanceMovingEndpointType.get -> StackExchange.Redis.MaintenanceEndpointType

@@ -6,7 +6,6 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Indicates the result of a health check.
 /// </summary>
-[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public enum HealthCheckResult
 {
     /// <summary>

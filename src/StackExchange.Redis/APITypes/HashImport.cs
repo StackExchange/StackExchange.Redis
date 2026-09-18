@@ -29,7 +29,6 @@ namespace StackExchange.Redis;
 /// </para>
 /// <para>A single <see cref="HashImport"/> is safe to use concurrently and against multiple databases/multiplexers.</para>
 /// </remarks>
-[Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
 public sealed class HashImport : IDisposable, IAsyncDisposable
 {
     // process-wide monotonic id; deliberately not bound to any multiplexer so a single field-set can span

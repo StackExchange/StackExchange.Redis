@@ -66,7 +66,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// The <see cref="CircuitBreaker"/> associated with this connection detected instability.
         /// </summary>
-        [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
         CircuitBreaker,
 
         /// <summary>
