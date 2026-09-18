@@ -219,6 +219,49 @@ Four consequences, none of them cosmetic:
       `RespSurfaceStreamsParityTests.ReadRefusesNewMessagesButReadGroupDoesNot`, so whichever way this is
       settled the test says what changed.
 
+- [ ] **A commit on this branch deleted 77 files that the main merge had just brought in.** Found
+      2026-09-18 while looking for `RedisValue.EqualityComparer`, which Marc expected to be here.
+
+      `8648b429` - *"Merge main (3.3.0) into the V4 spike"* - brought main in correctly; the file was
+      present at that commit. The **next** commit, `8c8863f0` *"Review feedback: IRespArgument removes the
+      bespoke execute path"*, is single-parent, changed 176 files **+2,142 / -18,388**, and deleted 77 of
+      them under a message about something else. It reads as a bad conflict resolution rather than intent.
+
+      Lost: `RedisValue.EqualityComparer.cs` (#3230), `Maintenance/` x7 (#3191 - *main's own tip*),
+      `Configuration/RedisCloud`+`RedisEnterprise` providers, the whole `StackExchange.Redis.FaultInjector.Tests`
+      project (32 files), `toys/MaintenanceSoak` and `MaintenanceWatch`, `eng/public-api.py`,
+      `docs/exp/SER013.md`.
+
+      **Merging main does not fix it**, and this is worth knowing before anyone tries: `origin/main`
+      (`dc915bbc`) is an **ancestor** of this branch - 0 commits on main we lack, 336 of ours it lacks - so
+      `git merge origin/main` reports "Already up to date". The content has to be restored from
+      `8648b429`, which is the post-merge state including whatever conflict resolution was already done:
+
+      ```
+      git checkout 8648b429 -- $(git diff --diff-filter=D --name-only 8648b429 HEAD)
+      ```
+
+      **A false alarm to record too**, because it cost time: a text diff of `PublicAPI.Shipped.txt` against
+      main showed "328 entries missing", which is wrong. Our side carries 247 lines main lacks, reading
+      `[SER007]abstract StackExchange.Redis.Availability...` - the `Availability`/`Maintenance` API is not
+      gone, it has been re-annotated as experimental, which changes the line text. Compare annotated API
+      files by symbol, not by line.
+
+- [x] **`RedisValue.EqualityComparer` is back — DONE, 2026-09-18.** Marc: *"if you can make it available
+      without breaking main: we should do that - merge hell"*. Restored surgically rather than by taking
+      all 77 files back: the file itself (**byte-identical to main**, so there is nothing to reconcile
+      later), the one-line coupling it needs - `RedisValue` becomes `partial` - its five
+      `PublicAPI.Shipped.txt` entries inserted at main's own position so the diff is five lines rather than
+      a reordering, and its tests and benchmark. `System.IO.Hashing` was still referenced, so nothing else
+      was needed.
+
+      It matters beyond tidiness: `EqualityComparer.Binary` hashes with seeded **XxHash3**, where the cache
+      key's current hash is a serial DJB-style loop over 8-byte chunks with a carried accumulator - about
+      36 dependent iterations for a 291-byte frame. The probe is **31%** of the cache-hit path and grows
+      with key size (32ns at 8 bytes, 61ns at 256), which makes it a five-times better target than the 6%
+      rent the stackalloc idea was aiming at. Measure before changing the cache's hash, though: the frame
+      hash is also the identity used for equality, so it is correctness-sensitive.
+
 - [ ] **Hot-path measurement before the stackalloc/alt-lookup work — 2026-09-18.** Marc: *"definitely
       measure first... what the overhead of the lease rent and return is"*. `CacheHitSendBenchmarks` is now
       parameterised by key size, because the answer depends on it entirely.

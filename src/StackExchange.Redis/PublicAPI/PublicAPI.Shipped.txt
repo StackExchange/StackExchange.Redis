@@ -1811,6 +1811,11 @@ static StackExchange.Redis.RedisResult.explicit operator ulong?(StackExchange.Re
 static StackExchange.Redis.RedisResult.explicit operator ulong[]?(StackExchange.Redis.RedisResult? result) -> ulong[]?
 static StackExchange.Redis.RedisValue.CreateFrom(System.IO.MemoryStream! stream) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RedisValue.EmptyString.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.RedisValue.EqualityComparer
+static StackExchange.Redis.RedisValue.EqualityComparer.Binary.get -> StackExchange.Redis.RedisValue.EqualityComparer!
+static StackExchange.Redis.RedisValue.EqualityComparer.Default.get -> StackExchange.Redis.RedisValue.EqualityComparer!
+abstract StackExchange.Redis.RedisValue.EqualityComparer.Equals(StackExchange.Redis.RedisValue x, StackExchange.Redis.RedisValue y) -> bool
+abstract StackExchange.Redis.RedisValue.EqualityComparer.GetHashCode(StackExchange.Redis.RedisValue obj) -> int
 static StackExchange.Redis.RedisValue.explicit operator bool(StackExchange.Redis.RedisValue value) -> bool
 static StackExchange.Redis.RedisValue.explicit operator bool?(StackExchange.Redis.RedisValue value) -> bool?
 static StackExchange.Redis.RedisValue.explicit operator decimal(StackExchange.Redis.RedisValue value) -> decimal

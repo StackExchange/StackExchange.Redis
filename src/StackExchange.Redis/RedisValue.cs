@@ -19,7 +19,7 @@ namespace StackExchange.Redis
     /// Represents values that can be stored in redis.
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
+    public readonly partial struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
         // Maximum payload that fits in an inline short-blob (packed into the overlapped int64 field).
         internal const int MaxInlineBytes = sizeof(long);
