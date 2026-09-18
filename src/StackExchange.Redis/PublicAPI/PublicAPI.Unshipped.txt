@@ -192,7 +192,6 @@ StackExchange.Redis.RespDatabaseContext.AppendChannelPrefix(StackExchange.Redis.
 StackExchange.Redis.RespDatabaseContext.AppendKeyPrefix(StackExchange.Redis.RedisKey prefix) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.AsDatabase(StackExchange.Redis.IConnectionMultiplexer! multiplexer, object? asyncState = null) -> StackExchange.Redis.IDatabase!
 StackExchange.Redis.RespDatabaseContext.Database.get -> int
-StackExchange.Redis.RespDatabaseContext.Raw.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespDatabaseContext.WithDatabase(int database) -> StackExchange.Redis.RespDatabaseContext
@@ -278,7 +277,6 @@ StackExchange.Redis.RespScripts.RespScripts() -> void
 StackExchange.Redis.RespScripts.RespScripts(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.AppendChannelPrefix(StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.RespServerContext
-StackExchange.Redis.RespServerContext.Raw.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespServerContext.RespServerContext() -> void
 StackExchange.Redis.RespServerContext.RespServerContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespServerContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespServerContext
@@ -561,6 +559,7 @@ static StackExchange.Redis.ReadOnlyLease<T>.Empty.get -> StackExchange.Redis.Rea
 static StackExchange.Redis.RespConnectionExtensions.GetDatabaseContext(this StackExchange.Redis.IConnectionMultiplexer! multiplexer, int db = -1, object? asyncState = null) -> StackExchange.Redis.RespDatabaseContext
 static StackExchange.Redis.RespConnectionExtensions.GetServerContext(this StackExchange.Redis.IConnectionMultiplexer! multiplexer, System.Net.EndPoint! endpoint, object? asyncState = null) -> StackExchange.Redis.RespServerContext
 static StackExchange.Redis.RespConnectionExtensions.GetServerContext(this StackExchange.Redis.IConnectionMultiplexer! multiplexer, string! host, int port, object? asyncState = null) -> StackExchange.Redis.RespServerContext
+static StackExchange.Redis.RespDatabaseContext.explicit operator StackExchange.Redis.RespContext(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespContext
 static StackExchange.Redis.RespDatabaseExtensions.get_Arrays(in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespArrays
 static StackExchange.Redis.RespDatabaseExtensions.get_Arrays<TTarget>(TTarget target) -> StackExchange.Redis.RespArrays
 static StackExchange.Redis.RespDatabaseExtensions.get_Bitmaps(in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespBitmaps
@@ -599,6 +598,7 @@ static StackExchange.Redis.RespReaderExtensions.AsRedisValue(this in RESPite.Mes
 static StackExchange.Redis.RespReaderExtensions.ReadLease(in RESPite.Messages.RespReader reader) -> StackExchange.Redis.Lease<byte>?
 static StackExchange.Redis.RespReaderExtensions.ToLease<T>(this in RESPite.Messages.RespAggregate<T> aggregate) -> StackExchange.Redis.ReadOnlyLease<T>!
 static StackExchange.Redis.RespReaderLeaseExtensions.ReadLease(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.ReadOnlyLease<byte>?
+static StackExchange.Redis.RespServerContext.explicit operator StackExchange.Redis.RespContext(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespContext
 static StackExchange.Redis.RespServerExtensions.get_Keyspace(in StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespKeyspace
 static StackExchange.Redis.RespServerExtensions.get_Keyspace<TTarget>(TTarget target) -> StackExchange.Redis.RespKeyspace
 static StackExchange.Redis.Scripts.EvaluateAsync(this in StackExchange.Redis.RespScripts scripts, string! script, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys = default(System.ReadOnlySpan<StackExchange.Redis.RedisKey>), System.ReadOnlySpan<StackExchange.Redis.RedisValue> args = default(System.ReadOnlySpan<StackExchange.Redis.RedisValue>), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>

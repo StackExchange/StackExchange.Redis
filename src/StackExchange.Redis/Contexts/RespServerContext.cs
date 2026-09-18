@@ -29,12 +29,31 @@ namespace StackExchange.Redis
 
         /// <summary>The shared plumbing this context wraps: key prefix, services, executor.</summary>
         /// <remarks>
-        /// <b>Implementing <see cref="IRespTarget"/> and nothing narrower is the point.</b> A typed
-        /// context genuinely does carry shared state, so the ad-hoc escape hatch reaches it; but it is
-        /// NOT an <see cref="IRespKeyspaceTarget"/>, because the groups hang off the context directly and
-        /// a context that was also a target would have to be its own <c>Context</c>.
+        /// <para>
+        /// <b>An internal field, reached from outside through an explicit cast.</b> It used to be a public
+        /// property, which made <c>ctx.Raw</c> look like an ordinary part of the surface - and it is the
+        /// opposite: a naked <see cref="RespContext"/> carries no semantics, so reaching for one is
+        /// stepping out of the typed world on purpose. A cast is a thing you write deliberately and a
+        /// reader notices, where a property is neither, and <b>explicit</b> rather than implicit for the
+        /// same reason: it must never happen by accident during overload resolution.
+        /// </para>
+        /// <para>
+        /// Inside the assembly it stays a plain field, so the group accessors that wrap it pay nothing and
+        /// read as they did. <see cref="IRespTarget.Raw"/> is implemented explicitly, because the
+        /// <i>interface</i> is the extensibility seam - an extender holding an
+        /// <see cref="IRespTarget"/> genuinely does need to get at the plumbing - and that is a different
+        /// question from whether a concrete context should advertise it.
+        /// </para>
         /// </remarks>
-        public RespContext Raw { get; }
+        internal readonly RespContext Raw;
+
+        /// <summary>The shared plumbing this context wraps.</summary>
+        /// <param name="context">The context to unwrap.</param>
+        /// <remarks><inheritdoc cref="Raw" path="/remarks"/></remarks>
+        public static explicit operator RespContext(RespServerContext context) => context.Raw;
+
+        /// <inheritdoc/>
+        RespContext IRespTarget.Raw => Raw;
 
         // The scoping family returns THIS type rather than a bare context, and that is the whole reason it
         // is written out per context rather than shared: a naked context offers no groups, so a chain that

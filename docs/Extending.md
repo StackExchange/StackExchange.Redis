@@ -95,8 +95,9 @@ public static class ContosoExtensions
     private static readonly RespCommand Substr = "SUBSTR".Command(preform: true);
 
     // 2a. the accessor, on the CONTEXT - which is what carries the key prefix, the database, the
-    //     services, so it is what the commands must hang off
-    public static ContosoCommands Contoso(this in RespDatabaseContext context) => new(context.Raw);
+    //     services, so it is what the commands must hang off. The cast is how you reach the plumbing:
+    //     a bare RespContext carries no semantics, so stepping out of the typed world is deliberate
+    public static ContosoCommands Contoso(this in RespDatabaseContext context) => new((RespContext)context);
 
     // 2b. and sugar, so callers can say db.Contoso() - a target forwards to its own context
     public static ContosoCommands Contoso<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget
@@ -127,7 +128,7 @@ The contexts, the targets and `SendAsync` are all in the `StackExchange.Redis` n
 
 That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which. It is also why level 2 needs nothing extra - `db.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}")` names no protocol type, because the interpolated string is lowered into one rather than written as one.
 
-> On C# 14 either accessor can be an extension **property** (`extension(in RespDatabaseContext context) { public ContosoCommands Contoso => new(context.Raw); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
+> On C# 14 either accessor can be an extension **property** (`extension(in RespDatabaseContext context) { public ContosoCommands Contoso => new((RespContext)context); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
 >
 > Why two accessors rather than one on the target? Because a context is what can differ from the connection it came from - `db.Context.AppendKeyPrefix("t:")` is still a context, and the groups have to come off *it*. Hanging them off the target only would mean a prefixed context could not reach them.
 
