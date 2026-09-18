@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Availability;
 
@@ -16,7 +16,7 @@ public abstract partial class HealthCheckProbe
 
         public override async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context)
         {
-            await context.Server.PingAsync();
+            await context.Server.PingAsync(context.ProbeFlags);
             return HealthCheckResult.Healthy;
         }
     }

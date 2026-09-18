@@ -29,6 +29,13 @@ Client-side geographic failover provides automatic failover, failback, and intel
 3. **Circuit breakers** that *passively* monitor availability from the observed success and failure of the traffic already flowing.
 4. **Automatic retries** that let straightforward operations ride out a possibly-unstable connection — including silently transitioning to another endpoint during a failover, with no change to your calling code.
 
+> **Maintenance notifications are disabled inside a group, for now.** Server-native maintenance
+> notifications (see [ServerMaintenanceEvent](ServerMaintenanceEvent)) are not activated on a group member,
+> even if configured explicitly, and a warning is logged if you ask for them. Supporting the two together is
+> in development: a handoff moves one endpoint while the group is separately deciding whether to fail away
+> from that region, and they have to agree about who is in charge first. Use a single-group connection if you
+> need maintenance notifications today.
+
 These features are available in the `Availability` sub-namespace:
 
 ``` csharp

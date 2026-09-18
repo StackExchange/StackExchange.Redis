@@ -103,6 +103,16 @@ namespace StackExchange.Redis
         internal Availability.CircuitBreaker? GroupCircuitBreaker { get; private set; }
 
         /// <summary>
+        /// Whether this multiplexer is one member of a multi-group (geo-redundant) connection.
+        /// </summary>
+        /// <remarks>
+        /// Not the same as having a group circuit breaker: that is optional configuration, while this is
+        /// membership, and something that must not run inside a group needs to know regardless of how the
+        /// group was configured.
+        /// </remarks>
+        internal bool IsGroupMember { get; private set; }
+
+        /// <summary>
         /// The circuit-breaker that physical connections for this multiplexer should use, if any.
         /// </summary>
         internal Availability.CircuitBreaker? EffectiveCircuitBreaker => GroupCircuitBreaker ?? RawConfig.CircuitBreaker;
@@ -130,7 +140,7 @@ namespace StackExchange.Redis
             unchecked(Environment.TickCount - Volatile.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
         /// <inheritdoc cref="ConfigurationOptions.IncludeDetailInExceptions"/>
-        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.2.", error: true)]
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludeDetailInExceptions
         {
@@ -139,7 +149,7 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc cref="ConfigurationOptions.IncludePerformanceCountersInExceptions"/>
-        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 3.2.", error: true)]
+        [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludePerformanceCountersInExceptions)} instead - this will be removed in 4.0.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IncludePerformanceCountersInExceptions
         {
@@ -228,9 +238,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false)
         {
-            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints, groupCircuitBreaker);
+            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints, groupCircuitBreaker) { IsGroupMember = isGroupMember };
             connectHandler = null;
             if (log is not null)
             {
@@ -665,17 +675,18 @@ namespace StackExchange.Redis
                 return ApplyAfterConnectAsync(SentinelPrimaryConnectAsync(configuration, log), groupCircuitBreaker);
             }
 
-            return ConnectImplAsync(configuration, log, groupCircuitBreaker: groupCircuitBreaker);
+            return ConnectImplAsync(configuration, log, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: true);
 
             static async Task<ConnectionMultiplexer> ApplyAfterConnectAsync(Task<ConnectionMultiplexer> pending, Availability.CircuitBreaker? groupCircuitBreaker)
             {
                 var muxer = await pending.ForAwait();
                 muxer.GroupCircuitBreaker = groupCircuitBreaker;
+                muxer.IsGroupMember = true;
                 return muxer;
             }
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false)
         {
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
@@ -687,7 +698,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 log?.LogInformationConnectingAsync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
 
-                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker);
+                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: isGroupMember);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, log, null, "connect").ObserveErrors().ForAwait();
@@ -1242,12 +1253,7 @@ namespace StackExchange.Redis
                 // spin up the connection if this is new
                 if (isNew && activate)
                 {
-                    server.Activate(ConnectionType.Interactive, log);
-                    if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                    {
-                        // Intentionally not logging the sub connection
-                        server.Activate(ConnectionType.Subscription, null);
-                    }
+                    ActivateServer(server, log);
                 }
             }
             return server;
@@ -1378,6 +1384,57 @@ namespace StackExchange.Redis
             }
         }
 
+        private int _nextTopologyRefreshTicks; // 0 until the first heartbeat schedules one
+
+        /// <summary>How far apart two clients' refreshes are spread; not configurable, because nobody needs to tune it.</summary>
+        private const int TopologyRefreshJitterMilliseconds = 30_000;
+
+        /// <summary>
+        /// Re-reads the topology on a long timer, as a backstop for a change that nothing reported.
+        /// </summary>
+        /// <remarks>
+        /// Every other refresh path is event-driven: a redirect, an announcement, a notification, or a
+        /// connection failing. They cover almost everything between them - the case left over is an endpoint
+        /// that is reachable, completes a handshake, and is no longer part of the deployment, which produces
+        /// none of those signals and so was previously invisible for the lifetime of the multiplexer.
+        /// <para>
+        /// Two things keep the cost honest. The interval is long (30 minutes by default), and each client
+        /// picks its own phase within a 30-second jitter on every cycle, so a fleet started together does not
+        /// stay in step. Beyond that this is the ordinary refresh path, which already declines while another
+        /// is in flight.
+        /// </para>
+        /// <para>
+        /// The first interval is measured from the first heartbeat rather than from construction, so nothing
+        /// is read on behalf of a multiplexer that is created, used briefly and disposed.
+        /// </para>
+        /// </remarks>
+        private void CheckTopologyRefreshDue(int now)
+        {
+            var seconds = RawConfig.TopologyRefreshSeconds;
+            if (seconds <= 0 || _isDisposed) return;
+
+            var next = Volatile.Read(ref _nextTopologyRefreshTicks);
+            if (next == 0)
+            {
+                Interlocked.CompareExchange(ref _nextTopologyRefreshTicks, ScheduleTopologyRefresh(now, seconds), 0);
+                return;
+            }
+
+            if (unchecked(now - next) < 0) return; // not due yet
+
+            // reschedule *before* refreshing, and only if nobody else got there first: a refresh that takes
+            // longer than a heartbeat must not queue a second one behind it
+            if (Interlocked.CompareExchange(ref _nextTopologyRefreshTicks, ScheduleTopologyRefresh(now, seconds), next) != next) return;
+
+            ReconfigureIfNeeded(null, fromBroadcast: false, "periodic topology refresh");
+        }
+
+        private static int ScheduleTopologyRefresh(int now, int seconds)
+        {
+            var due = unchecked(now + (seconds * 1000) + ServerSelectionStrategy.SharedRandom.Next(TopologyRefreshJitterMilliseconds));
+            return due == 0 ? 1 : due; // zero means "not scheduled", so never land on it
+        }
+
         internal void OnHeartbeat()
         {
             try
@@ -1390,6 +1447,8 @@ namespace StackExchange.Redis
                 // dead cache entries hold their memory until something comes back for them; nothing does,
                 // for a key that is never read again. The cache decides whether it is actually due.
                 ClientCache?.SweepIfDue();
+
+                CheckTopologyRefreshDue(now);
 
                 var tmp = GetServerSnapshot();
                 int token = 0;
@@ -1716,16 +1775,35 @@ namespace StackExchange.Redis
 
         private void ActivateAllServers(ILogger? log)
         {
-            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             foreach (var server in GetServerSnapshot())
             {
-                server.Activate(ConnectionType.Interactive, log);
-                // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-                {
-                    // Intentionally not logging the sub connection
-                    server.Activate(ConnectionType.Subscription, null);
-                }
+                ActivateServer(server, log);
+            }
+        }
+
+        /// <summary>
+        /// Starts establishing the connections for a server, creating the bridges if they do not exist yet.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Idempotent: a server that is already active keeps the bridges it has, so this is safe to call on
+        /// anything we are about to depend on being connected.
+        /// </para>
+        /// <para>
+        /// Both legs, where the subscription connection is a separate one: under RESP2 the waiters registered
+        /// by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
+        /// up, so activating the interactive bridge alone leaves such a wait hanging.
+        /// </para>
+        /// </remarks>
+        internal static void ActivateServer(ServerEndPoint server, ILogger? log)
+        {
+            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
+            server.Activate(ConnectionType.Interactive, log);
+            // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            {
+                // Intentionally not logging the sub connection
+                server.Activate(ConnectionType.Subscription, null);
             }
         }
 
@@ -1840,6 +1918,26 @@ namespace StackExchange.Redis
                             var server = GetServerEndPoint(endpoints[i], ServerProvenance.ClusterTopology);
                             // server.ReportNextFailure();
                             servers[i] = server;
+
+                            // never wait on a server without making sure something is dialling it: GetServerEndPoint
+                            // only activates what it *creates*, so a server already held *inert* - addressable but
+                            // deliberately never dialled - arrives here with no bridge, and the wait below then has
+                            // nothing that can ever complete it. The whole connect burns its ConnectTimeout and then
+                            // reports the node as unresponsive, which is how #3232 presented.
+                            //
+                            // This is an invariant guard rather than the fix for that: the route that produced it -
+                            // discovery classing a slot-map node as serving nothing - is corrected at source in
+                            // GetEndpointsFromClusterNodes, and no test here fails without this line. Kept because
+                            // the cost is one idempotent call and the failure mode is a silent stall.
+                            //
+                            // ...which is also why it says when it fires. A guard that repairs the state in silence
+                            // hides any *new* route into it behind a connect that simply works; this way the log
+                            // names the endpoint, and the question "does anything still reach here?" has an answer
+                            if (server.GetBridge(ConnectionType.Interactive, create: false) is null)
+                            {
+                                log?.LogInformationActivatingUndialledServer(new(server.EndPoint));
+                            }
+                            ActivateServer(server, log);
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
                             // (which is the reconfigure case, except second iteration which is only for newly discovered cluster members).
@@ -2120,6 +2218,7 @@ namespace StackExchange.Redis
 
                 var topology = ClusterTopology.From(slots);
                 var clusterEndpoints = new EndPointCollection();
+                HashSet<EndPoint>? listedInSlots = null;
 
                 if (topology is not null)
                 {
@@ -2127,9 +2226,14 @@ namespace StackExchange.Redis
                     // connect to. Resolve through every identity first, so a node we already hold under
                     // another name is not duplicated
                     RegisterServerIdentities(topology);
+                    listedInSlots = new HashSet<EndPoint>();
                     foreach (var node in topology.Nodes)
                     {
                         if (SelectIdentity(node) is { } endpoint) clusterEndpoints.TryAdd(endpoint);
+
+                        // every name the node answers to, not just the one chosen above: NODES may well
+                        // report it under a different form than SLOTS did
+                        foreach (var identity in node.Identities) listedInSlots.Add(identity);
                     }
                 }
 
@@ -2145,7 +2249,21 @@ namespace StackExchange.Redis
                         // no usable SLOTS view (pre-4.0, or an error reply): behave exactly as before
                         clusterEndpoints.TryAdd(node.EndPoint);
                     }
-                    else if (TryResolveServerEndPoint(node.EndPoint) is null)
+                    else if (TryResolveServerEndPoint(node.EndPoint) is not null)
+                    {
+                        // already known: whatever it is, it is not ours to reclassify here
+                    }
+                    else if (listedInSlots!.Contains(node.EndPoint))
+                    {
+                        // SLOTS lists it, so it is in clusterEndpoints and we are about to connect to it and
+                        // wait for it. Only the *existence* of a server was ever checked here, which a node
+                        // in this state fails - a replica of a shard we have not reached yet is created by
+                        // its primary's genealogy pass, and that has not run. Registering it inert then left
+                        // it waited on but undialled, for the whole ConnectTimeout (#3232)
+                        log?.LogInformationRegisteringSlotMapNode(new(node.EndPoint));
+                        GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology, log);
+                    }
+                    else
                     {
                         log?.LogInformationRegisteringInertNode(new(node.EndPoint));
                         GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology, activate: false);
@@ -2547,10 +2665,17 @@ namespace StackExchange.Redis
                             throw GetException(result, message, server);
                         }
 
-                        // wait for the *completion*, not merely for a pulse; a pulse that we did not cause
-                        // must not be allowed to shorten this wait, so keep the original deadline
-                        var remaining = TimeoutMilliseconds;
+                        // Wait for the *completion*, not merely for a pulse: a pulse we did not cause must
+                        // not be allowed to shorten this wait (#3212).
+                        //
+                        // The deadline is not fixed, either. A sync caller commits to a duration when it
+                        // parks, so if maintenance relaxation begins while we are waiting we have to notice by
+                        // re-reading the budget rather than failing at the original deadline - without that, a
+                        // sync caller in flight when a MIGRATING arrives times out at the strict timeout while
+                        // its async neighbour is relaxed. It can shrink back too: when a window closes the
+                        // effective timeout drops to the configured value, and we stop at that.
                         var startedAt = Environment.TickCount;
+                        var remaining = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
                         while (true)
                         {
                             if (!Monitor.Wait(source, remaining))
@@ -2564,7 +2689,8 @@ namespace StackExchange.Redis
                                 Trace("Timely response to " + message);
                                 break;
                             }
-                            remaining = TimeoutMilliseconds - unchecked(Environment.TickCount - startedAt);
+                            var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
+                            remaining = budget - unchecked(Environment.TickCount - startedAt);
                             if (remaining <= 0)
                             {
                                 Trace("Timeout performing " + message);

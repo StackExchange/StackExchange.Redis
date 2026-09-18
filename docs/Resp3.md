@@ -1,12 +1,13 @@
-# RESP3 and StackExchange.Redis
+﻿# RESP3 and StackExchange.Redis
 
 RESP2 and RESP3 are evolutions of the Redis protocol, with RESP3 existing from Redis server version 6 onwards (v7.2+ for Redis Enterprise). The main differences are:
 
 1. RESP3 can carry out-of-band / "push" messages on a single connection, where-as RESP2 requires a separate connection for out-of-band (pub/sub) messages
     - this single connection can be of huge benefit in high-usage servers, as it halves the number of connections required
-2. RESP3 supports *additional* out-of-band messages that cannot be expressed in RESP2, which allows advanced features such as "smart client handoffs" (a family of
-   server maintenance notifications)
-    - these features (not yet implemented in SE.Redis) allow for greater stability in complex deployments
+2. RESP3 supports *additional* out-of-band messages that cannot be expressed in RESP2, which allows advanced features such as "smart client handoffs" (also called
+   "hitless upgrades"; a family of server maintenance notifications)
+    - these features allow for greater stability in complex deployments, and are implemented in SE.Redis: see
+      [ServerMaintenanceEvent](ServerMaintenanceEvent) - note they are RESP3-only, so a connection that ends up on RESP2 does not get them
 3. RESP3 can (when appropriate) convey additional semantic meaning about returned payloads inside the same result structure
     - this is *mostly* relevant to client libraries that do not explicitly interpret the results before exposing to the user, so this does not directly impact SE.Redis itself,
       but it is relevant to consumers of SE.Redis that use Lua scripts or ad-hoc commands

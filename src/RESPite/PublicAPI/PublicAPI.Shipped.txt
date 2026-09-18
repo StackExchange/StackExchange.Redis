@@ -1,67 +1,22 @@
 ﻿#nullable enable
-[SER004]const RESPite.Buffers.CycleBuffer.GetAnything = 0 -> int
-[SER004]const RESPite.Buffers.CycleBuffer.GetFullPagesOnly = -1 -> int
-[SER004]override RESPite.AsciiHash.Equals(object? other) -> bool
-[SER004]override RESPite.AsciiHash.GetHashCode() -> int
-[SER004]override RESPite.AsciiHash.ToString() -> string!
 [SER004]RESPite.AsciiHash
 [SER004]RESPite.AsciiHash.AsciiHash() -> void
+[SER004]RESPite.AsciiHash.AsciiHash(System.ReadOnlySpan<byte> value) -> void
 [SER004]RESPite.AsciiHash.AsciiHash(byte[]! arr) -> void
 [SER004]RESPite.AsciiHash.AsciiHash(byte[]! arr, int index, int length) -> void
-[SER004]RESPite.AsciiHash.AsciiHash(System.ReadOnlySpan<byte> value) -> void
-[SER004]RESPite.AsciiHash.BufferLength.get -> int
-[SER004]RESPite.AsciiHash.Equals(in RESPite.AsciiHash other) -> bool
-[SER004]RESPite.AsciiHash.IsCI(System.ReadOnlySpan<byte> value) -> bool
-[SER004]RESPite.AsciiHash.IsCS(System.ReadOnlySpan<byte> value) -> bool
-[SER004]RESPite.AsciiHash.Length.get -> int
-[SER004]RESPite.AsciiHash.Span.get -> System.ReadOnlySpan<byte>
-[SER004]RESPite.AsciiHashAttribute
-[SER004]RESPite.AsciiHashAttribute.AsciiHashAttribute(string! token = "") -> void
-[SER004]RESPite.AsciiHashAttribute.CaseSensitive.get -> bool
-[SER004]RESPite.AsciiHashAttribute.CaseSensitive.set -> void
-[SER004]RESPite.AsciiHashAttribute.Token.get -> string!
 [SER004]RESPite.AsciiHash.AsciiHash(string? value) -> void
-[SER004]RESPite.AsciiHash.IsEmpty.get -> bool
-[SER004]RESPite.Buffers.CycleBuffer
-[SER004]RESPite.Buffers.CycleBuffer.Commit(int count) -> void
-[SER004]RESPite.Buffers.CycleBuffer.CommittedIsEmpty.get -> bool
-[SER004]RESPite.Buffers.CycleBuffer.CycleBuffer() -> void
-[SER004]RESPite.Buffers.CycleBuffer.DiscardCommitted(int count) -> void
-[SER004]RESPite.Buffers.CycleBuffer.DiscardCommitted(long count) -> void
-[SER004]RESPite.Buffers.CycleBuffer.GetAllCommitted() -> System.Buffers.ReadOnlySequence<byte>
-[SER004]RESPite.Buffers.CycleBuffer.GetCommittedLength() -> long
-[SER004]RESPite.Buffers.CycleBuffer.GetUncommittedMemory(int hint = 0) -> System.Memory<byte>
-[SER004]RESPite.Buffers.CycleBuffer.GetUncommittedSpan(int hint = 0) -> System.Span<byte>
-[SER004]RESPite.Buffers.CycleBuffer.Release() -> void
-[SER004]RESPite.Buffers.CycleBuffer.TryGetCommitted(out System.ReadOnlySpan<byte> span) -> bool
-[SER004]RESPite.Buffers.CycleBuffer.TryGetFirstCommittedMemory(int minBytes, out System.ReadOnlyMemory<byte> memory) -> bool
-[SER004]RESPite.Buffers.CycleBuffer.TryGetFirstCommittedSpan(int minBytes, out System.ReadOnlySpan<byte> span) -> bool
-[SER004]RESPite.Buffers.CycleBuffer.UncommittedAvailable.get -> int
-[SER004]RESPite.Buffers.CycleBuffer.Write(in System.Buffers.ReadOnlySequence<byte> value) -> void
-[SER004]RESPite.Buffers.CycleBuffer.Write(System.ReadOnlySpan<byte> value) -> void
-[SER004]RESPite.Buffers.ICycleBufferCallback
-[SER004]RESPite.Buffers.ICycleBufferCallback.PageComplete() -> void
-RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TResult>! projection) -> void
-RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TFirst, TSecond, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TFirst>! first, RESPite.Messages.RespReader.Projection<TState, TSecond>! second, System.Func<TState, TFirst, TSecond, TResult>! combine) -> void
-RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
-RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw() -> bool
-RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
-RESPite.Messages.RespReader.AggregateIsEmpty() -> bool
-RESPite.Messages.RespReader.AggregateLengthIs(int count) -> bool
-RESPite.Messages.RespReader.Clone() -> RESPite.Messages.RespReader
-RESPite.Messages.RespReader.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
-RESPite.Messages.RespReader.Projection<TState, TResult>
-RESPite.Messages.RespReader.ReadArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
-RESPite.Messages.RespReader.ReadPastArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
-RESPite.Messages.RespReader.ScalarParser<TSource, TValue>
-RESPite.Messages.RespReader.TryParseScalar<T>(delegate*<System.ReadOnlySpan<byte>, out T, bool> parser, out T value) -> bool
-RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.ScalarParser<byte, T>! parser, out T value) -> bool
+[SER004]RESPite.AsciiHash.BufferLength.get -> int
 [SER004]static RESPite.AsciiHash.CaseInsensitiveEqualityComparer.get -> System.Collections.Generic.IEqualityComparer<RESPite.AsciiHash>!
 [SER004]static RESPite.AsciiHash.CaseSensitiveEqualityComparer.get -> System.Collections.Generic.IEqualityComparer<RESPite.AsciiHash>!
+[SER004]RESPite.AsciiHash.Equals(in RESPite.AsciiHash other) -> bool
+[SER004]override RESPite.AsciiHash.Equals(object? other) -> bool
 [SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<byte> second) -> bool
 [SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.AsciiHash.EqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
 [SER004]static RESPite.AsciiHash.EqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]override RESPite.AsciiHash.GetHashCode() -> int
 [SER004]static RESPite.AsciiHash.Hash(scoped System.ReadOnlySpan<byte> value, out long cs, out long uc) -> void
 [SER004]static RESPite.AsciiHash.Hash(scoped System.ReadOnlySpan<byte> value, out long cs0, out long uc0, out long cs1, out long uc1) -> void
 [SER004]static RESPite.AsciiHash.Hash(scoped System.ReadOnlySpan<char> value, out long cs, out long uc) -> void
@@ -74,21 +29,61 @@ RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.Scalar
 [SER004]static RESPite.AsciiHash.HashUC(scoped System.ReadOnlySpan<byte> value, out long cs0, out long cs1) -> void
 [SER004]static RESPite.AsciiHash.HashUC(scoped System.ReadOnlySpan<char> value) -> long
 [SER004]static RESPite.AsciiHash.HashUC(scoped System.ReadOnlySpan<char> value, out long cs0, out long cs1) -> void
+[SER004]RESPite.AsciiHash.IsCI(System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.AsciiHash.IsCS(System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.AsciiHash.IsEmpty.get -> bool
+[SER004]RESPite.AsciiHash.Length.get -> int
 [SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<byte> second) -> bool
 [SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.AsciiHash.SequenceEqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
 [SER004]static RESPite.AsciiHash.SequenceEqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]RESPite.AsciiHash.Span.get -> System.ReadOnlySpan<byte>
 [SER004]static RESPite.AsciiHash.ToLower(System.Span<byte> span) -> void
+[SER004]override RESPite.AsciiHash.ToString() -> string!
 [SER004]static RESPite.AsciiHash.ToUpper(System.Span<byte> span) -> void
-[SER004]const RESPite.Messages.RespScanState.MinBytes = 3 -> int
-[SER004]override RESPite.Messages.RespScanState.Equals(object? obj) -> bool
-[SER004]override RESPite.Messages.RespScanState.GetHashCode() -> int
-[SER004]override RESPite.Messages.RespScanState.ToString() -> string!
+[SER004]RESPite.AsciiHashAttribute
+[SER004]RESPite.AsciiHashAttribute.AsciiHashAttribute(string! token = "") -> void
+[SER004]RESPite.AsciiHashAttribute.CaseSensitive.get -> bool
+[SER004]RESPite.AsciiHashAttribute.CaseSensitive.set -> void
+[SER004]RESPite.AsciiHashAttribute.Token.get -> string!
+[SER004]RESPite.Buffers.CycleBuffer
+[SER004]RESPite.Buffers.CycleBuffer.Commit(int count) -> void
+[SER004]RESPite.Buffers.CycleBuffer.CommittedIsEmpty.get -> bool
+[SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, RESPite.Buffers.ICycleBufferCallback? callback = null) -> RESPite.Buffers.CycleBuffer
+[SER004]RESPite.Buffers.CycleBuffer.CycleBuffer() -> void
+[SER004]RESPite.Buffers.CycleBuffer.DiscardCommitted(int count) -> void
+[SER004]RESPite.Buffers.CycleBuffer.DiscardCommitted(long count) -> void
+[SER004]RESPite.Buffers.CycleBuffer.GetAllCommitted() -> System.Buffers.ReadOnlySequence<byte>
+[SER004]const RESPite.Buffers.CycleBuffer.GetAnything = 0 -> int
+[SER004]RESPite.Buffers.CycleBuffer.GetCommittedLength() -> long
+[SER004]const RESPite.Buffers.CycleBuffer.GetFullPagesOnly = -1 -> int
+[SER004]RESPite.Buffers.CycleBuffer.GetUncommittedMemory(int hint = 0) -> System.Memory<byte>
+[SER004]RESPite.Buffers.CycleBuffer.GetUncommittedSpan(int hint = 0) -> System.Span<byte>
+[SER004]RESPite.Buffers.CycleBuffer.Pool.get -> System.Buffers.MemoryPool<byte>!
+[SER004]RESPite.Buffers.CycleBuffer.Release() -> void
+[SER004]RESPite.Buffers.CycleBuffer.TryGetCommitted(out System.ReadOnlySpan<byte> span) -> bool
+[SER004]RESPite.Buffers.CycleBuffer.TryGetFirstCommittedMemory(int minBytes, out System.ReadOnlyMemory<byte> memory) -> bool
+[SER004]RESPite.Buffers.CycleBuffer.TryGetFirstCommittedSpan(int minBytes, out System.ReadOnlySpan<byte> span) -> bool
+[SER004]RESPite.Buffers.CycleBuffer.UncommittedAvailable.get -> int
+[SER004]RESPite.Buffers.CycleBuffer.Write(System.ReadOnlySpan<byte> value) -> void
+[SER004]RESPite.Buffers.CycleBuffer.Write(in System.Buffers.ReadOnlySequence<byte> value) -> void
+[SER004]RESPite.Buffers.CycleBufferPool<T>
+[SER004]RESPite.Buffers.CycleBufferPool<T>.CycleBufferPool() -> void
+[SER004]virtual RESPite.Buffers.CycleBufferPool<T>.Rent(in System.Buffers.ReadOnlySequence<T> existing) -> System.Buffers.IMemoryOwner<T>!
+[SER004]RESPite.Buffers.ICycleBufferCallback
+[SER004]RESPite.Buffers.ICycleBufferCallback.PageComplete() -> void
 RESPite.Messages.RespAttributeReader<T>
+virtual RESPite.Messages.RespAttributeReader<T>.Read(ref RESPite.Messages.RespReader reader, ref T value) -> void
+virtual RESPite.Messages.RespAttributeReader<T>.ReadKeyValuePair(scoped System.ReadOnlySpan<byte> key, ref RESPite.Messages.RespReader reader, ref T value) -> bool
+virtual RESPite.Messages.RespAttributeReader<T>.ReadKeyValuePairs(ref RESPite.Messages.RespReader reader, ref T value) -> int
 RESPite.Messages.RespAttributeReader<T>.RespAttributeReader() -> void
 [SER004]RESPite.Messages.RespFrameScanner
-[SER004]RESPite.Messages.RespFrameScanner.TryRead(ref RESPite.Messages.RespScanState state, in System.Buffers.ReadOnlySequence<byte> data) -> System.Buffers.OperationStatus
+[SER004]static RESPite.Messages.RespFrameScanner.Default.get -> RESPite.Messages.RespFrameScanner!
+[SER004]static RESPite.Messages.RespFrameScanner.Subscription.get -> RESPite.Messages.RespFrameScanner!
 [SER004]RESPite.Messages.RespFrameScanner.TryRead(ref RESPite.Messages.RespScanState state, System.ReadOnlySpan<byte> data) -> System.Buffers.OperationStatus
+[SER004]RESPite.Messages.RespFrameScanner.TryRead(ref RESPite.Messages.RespScanState state, in System.Buffers.ReadOnlySequence<byte> data) -> System.Buffers.OperationStatus
 [SER004]RESPite.Messages.RespFrameScanner.ValidateRequest(in System.Buffers.ReadOnlySequence<byte> message) -> void
 RESPite.Messages.RespPrefix
 RESPite.Messages.RespPrefix.Array = 42 -> RESPite.Messages.RespPrefix
@@ -116,25 +111,35 @@ RESPite.Messages.RespReader.AggregateEnumerator.AggregateEnumerator() -> void
 RESPite.Messages.RespReader.AggregateEnumerator.AggregateEnumerator(scoped in RESPite.Messages.RespReader reader) -> void
 RESPite.Messages.RespReader.AggregateEnumerator.DemandNext() -> void
 RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TFirst, TSecond, TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TFirst>! first, RESPite.Messages.RespReader.Projection<TSecond>! second, System.Func<TFirst, TSecond, TResult>! combine) -> void
+RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TResult>! projection) -> void
+RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TFirst, TSecond, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TFirst>! first, RESPite.Messages.RespReader.Projection<TState, TSecond>! second, System.Func<TState, TFirst, TSecond, TResult>! combine) -> void
+RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 RESPite.Messages.RespReader.AggregateEnumerator.GetEnumerator() -> RESPite.Messages.RespReader.AggregateEnumerator
 RESPite.Messages.RespReader.AggregateEnumerator.MoveNext() -> bool
 RESPite.Messages.RespReader.AggregateEnumerator.MoveNext(RESPite.Messages.RespPrefix prefix) -> bool
 RESPite.Messages.RespReader.AggregateEnumerator.MoveNext<T>(RESPite.Messages.RespPrefix prefix, RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw() -> bool
+RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
 RESPite.Messages.RespReader.AggregateEnumerator.MovePast(out RESPite.Messages.RespReader reader) -> void
 RESPite.Messages.RespReader.AggregateEnumerator.ReadOne<T>(RESPite.Messages.RespReader.Projection<T>! projection) -> T
 RESPite.Messages.RespReader.AggregateEnumerator.Value -> RESPite.Messages.RespReader
+RESPite.Messages.RespReader.AggregateIsEmpty() -> bool
 RESPite.Messages.RespReader.AggregateLength() -> int
+RESPite.Messages.RespReader.AggregateLengthIs(int count) -> bool
 RESPite.Messages.RespReader.BytesConsumed.get -> long
-RESPite.Messages.RespReader.CopyTo(scoped System.Span<byte> target) -> int
+RESPite.Messages.RespReader.Clone() -> RESPite.Messages.RespReader
+RESPite.Messages.RespReader.CopyRawTo(scoped System.Span<byte> target) -> int
 RESPite.Messages.RespReader.CopyTo(System.Buffers.IBufferWriter<byte>! target) -> int
+RESPite.Messages.RespReader.CopyTo(scoped System.Span<byte> target) -> int
 RESPite.Messages.RespReader.DemandAggregate() -> void
 RESPite.Messages.RespReader.DemandEnd() -> void
 RESPite.Messages.RespReader.DemandNotNull() -> void
 RESPite.Messages.RespReader.DemandScalar() -> void
 RESPite.Messages.RespReader.FillAll<T>(scoped System.Span<T> target, RESPite.Messages.RespReader.Projection<T>! projection) -> void
-RESPite.Messages.RespReader.Is(byte value) -> bool
+RESPite.Messages.RespReader.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 RESPite.Messages.RespReader.Is(System.ReadOnlySpan<byte> value) -> bool
 RESPite.Messages.RespReader.Is(System.ReadOnlySpan<char> value) -> bool
+RESPite.Messages.RespReader.Is(byte value) -> bool
 RESPite.Messages.RespReader.IsAggregate.get -> bool
 RESPite.Messages.RespReader.IsAttribute.get -> bool
 RESPite.Messages.RespReader.IsError.get -> bool
@@ -149,10 +154,13 @@ RESPite.Messages.RespReader.MoveNextAggregate() -> void
 RESPite.Messages.RespReader.MoveNextScalar() -> void
 RESPite.Messages.RespReader.Prefix.get -> RESPite.Messages.RespPrefix
 RESPite.Messages.RespReader.Projection<T>
+virtual RESPite.Messages.RespReader.Projection<T>.Invoke(ref RESPite.Messages.RespReader value) -> T
+RESPite.Messages.RespReader.Projection<TState, TResult>
+virtual RESPite.Messages.RespReader.Projection<TState, TResult>.Invoke(ref TState state, ref RESPite.Messages.RespReader value) -> TResult
 RESPite.Messages.RespReader.ProtocolBytesRemaining.get -> long
 RESPite.Messages.RespReader.ReadArray<TResult>(RESPite.Messages.RespReader.Projection<TResult>! projection, bool scalar = false) -> TResult[]?
+RESPite.Messages.RespReader.ReadArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
 RESPite.Messages.RespReader.ReadBoolean() -> bool
-RESPite.Messages.RespReader.TryReadBoolean(out bool value) -> bool
 RESPite.Messages.RespReader.ReadByteArray() -> byte[]?
 RESPite.Messages.RespReader.ReadDecimal() -> decimal
 RESPite.Messages.RespReader.ReadDouble() -> double
@@ -161,11 +169,12 @@ RESPite.Messages.RespReader.ReadInt32() -> int
 RESPite.Messages.RespReader.ReadInt64() -> long
 RESPite.Messages.RespReader.ReadPairArray<TFirst, TSecond, TResult>(RESPite.Messages.RespReader.Projection<TFirst>! first, RESPite.Messages.RespReader.Projection<TSecond>! second, System.Func<TFirst, TSecond, TResult>! combine, bool scalar = true) -> TResult[]?
 RESPite.Messages.RespReader.ReadPastArray<TResult>(RESPite.Messages.RespReader.Projection<TResult>! projection, bool scalar = false) -> TResult[]?
+RESPite.Messages.RespReader.ReadPastArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
 RESPite.Messages.RespReader.ReadString() -> string?
 RESPite.Messages.RespReader.ReadString(out string! prefix) -> string?
 RESPite.Messages.RespReader.RespReader() -> void
-RESPite.Messages.RespReader.RespReader(scoped in System.Buffers.ReadOnlySequence<byte> value) -> void
 RESPite.Messages.RespReader.RespReader(System.ReadOnlySpan<byte> value) -> void
+RESPite.Messages.RespReader.RespReader(scoped in System.Buffers.ReadOnlySequence<byte> value) -> void
 RESPite.Messages.RespReader.ScalarChunks() -> RESPite.Messages.RespReader.ScalarEnumerator
 RESPite.Messages.RespReader.ScalarEnumerator
 RESPite.Messages.RespReader.ScalarEnumerator.Current.get -> System.ReadOnlySpan<byte>
@@ -179,59 +188,50 @@ RESPite.Messages.RespReader.ScalarIsEmpty() -> bool
 RESPite.Messages.RespReader.ScalarLength() -> int
 RESPite.Messages.RespReader.ScalarLengthIs(int count) -> bool
 RESPite.Messages.RespReader.ScalarLongLength() -> long
+RESPite.Messages.RespReader.ScalarParser<TSource, TValue>
+virtual RESPite.Messages.RespReader.ScalarParser<TSource, TValue>.Invoke(scoped System.ReadOnlySpan<TSource> value, out TValue result) -> bool
+RESPite.Messages.RespReader.Serialize() -> byte[]!
 RESPite.Messages.RespReader.SkipChildren() -> void
 RESPite.Messages.RespReader.StartsWith(System.ReadOnlySpan<byte> value) -> bool
+RESPite.Messages.RespReader.TryGetRawSpan(out System.ReadOnlySpan<byte> value) -> bool
 RESPite.Messages.RespReader.TryGetSpan(out System.ReadOnlySpan<byte> value) -> bool
 RESPite.Messages.RespReader.TryMoveNext() -> bool
-RESPite.Messages.RespReader.TryMoveNext(bool checkError) -> bool
 RESPite.Messages.RespReader.TryMoveNext(RESPite.Messages.RespPrefix prefix) -> bool
+RESPite.Messages.RespReader.TryMoveNext(bool checkError) -> bool
 RESPite.Messages.RespReader.TryMoveNext<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.ScalarParser<byte, T>! parser, out T value) -> bool
+RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.ScalarParser<char, T>! parser, out T value) -> bool
+RESPite.Messages.RespReader.TryParseScalar<T>(delegate*<System.ReadOnlySpan<byte>, out T, bool> parser, out T value) -> bool
+RESPite.Messages.RespReader.TryReadBoolean(out bool value) -> bool
 RESPite.Messages.RespReader.TryReadDouble(out double value, bool allowTokens = true) -> bool
 RESPite.Messages.RespReader.TryReadInt32(out int value) -> bool
 RESPite.Messages.RespReader.TryReadInt64(out long value) -> bool
 RESPite.Messages.RespReader.TryReadNext() -> bool
 [SER004]RESPite.Messages.RespScanState
+[SER004]override RESPite.Messages.RespScanState.Equals(object? obj) -> bool
+[SER004]override RESPite.Messages.RespScanState.GetHashCode() -> int
 [SER004]RESPite.Messages.RespScanState.IsComplete.get -> bool
+[SER004]const RESPite.Messages.RespScanState.MinBytes = 3 -> int
 [SER004]RESPite.Messages.RespScanState.Prefix.get -> RESPite.Messages.RespPrefix
 [SER004]RESPite.Messages.RespScanState.RespScanState() -> void
+[SER004]override RESPite.Messages.RespScanState.ToString() -> string!
 [SER004]RESPite.Messages.RespScanState.TotalBytes.get -> long
+[SER004]RESPite.Messages.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
 [SER004]RESPite.Messages.RespScanState.TryRead(in System.Buffers.ReadOnlySequence<byte> value, out long bytesRead) -> bool
 [SER004]RESPite.Messages.RespScanState.TryRead(ref RESPite.Messages.RespReader reader, out long bytesRead) -> bool
-[SER004]RESPite.Messages.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
 RESPite.RespException
 RESPite.RespException.RespException(string! message) -> void
-[SER004]static RESPite.Messages.RespFrameScanner.Default.get -> RESPite.Messages.RespFrameScanner!
-[SER004]static RESPite.Messages.RespFrameScanner.Subscription.get -> RESPite.Messages.RespFrameScanner!
-virtual RESPite.Messages.RespAttributeReader<T>.Read(ref RESPite.Messages.RespReader reader, ref T value) -> void
-virtual RESPite.Messages.RespAttributeReader<T>.ReadKeyValuePair(scoped System.ReadOnlySpan<byte> key, ref RESPite.Messages.RespReader reader, ref T value) -> bool
-virtual RESPite.Messages.RespAttributeReader<T>.ReadKeyValuePairs(ref RESPite.Messages.RespReader reader, ref T value) -> int
-virtual RESPite.Messages.RespReader.Projection<T>.Invoke(ref RESPite.Messages.RespReader value) -> T
-virtual RESPite.Messages.RespReader.Projection<TState, TResult>.Invoke(ref TState state, ref RESPite.Messages.RespReader value) -> TResult
-virtual RESPite.Messages.RespReader.ScalarParser<TSource, TValue>.Invoke(scoped System.ReadOnlySpan<TSource> value, out TValue result) -> bool
-RESPite.Messages.RespReader.Serialize() -> byte[]!
-RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.ScalarParser<char, T>! parser, out T value) -> bool
-[SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<char> second) -> bool
-[SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<byte> second) -> bool
-[SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<char> second) -> bool
-[SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<byte> second) -> bool
-[SER004]virtual RESPite.Buffers.CycleBufferPool<T>.Rent(in System.Buffers.ReadOnlySequence<T> existing) -> System.Buffers.IMemoryOwner<T>!
-[SER004]RESPite.Buffers.CycleBuffer.Pool.get -> System.Buffers.MemoryPool<byte>!
-[SER004]RESPite.Buffers.CycleBufferPool<T>
-[SER004]RESPite.Buffers.CycleBufferPool<T>.CycleBufferPool() -> void
-[SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, RESPite.Buffers.ICycleBufferCallback? callback = null) -> RESPite.Buffers.CycleBuffer
 [SER009]RESPite.Transports.DuplexTransport
-[SER009]RESPite.Transports.DuplexTransport.DuplexTransport() -> void
 [SER009]abstract RESPite.Transports.DuplexTransport.Advance(int count) -> void
 [SER009]abstract RESPite.Transports.DuplexTransport.DisposeAsync() -> System.Threading.Tasks.ValueTask
+[SER009]RESPite.Transports.DuplexTransport.DuplexTransport() -> void
 [SER009]abstract RESPite.Transports.DuplexTransport.Flush() -> bool
 [SER009]abstract RESPite.Transports.DuplexTransport.GetMemory(int sizeHint = 0) -> System.Memory<byte>
 [SER009]virtual RESPite.Transports.DuplexTransport.GetSpan(int sizeHint = 0) -> System.Span<byte>
-[SER009]abstract RESPite.Transports.DuplexTransport.Start(RESPite.Transports.TransportReceiver! receiver) -> void
 [SER009]virtual RESPite.Transports.DuplexTransport.IsEncrypted.get -> bool
+[SER009]abstract RESPite.Transports.DuplexTransport.Start(RESPite.Transports.TransportReceiver! receiver) -> void
 [SER009]RESPite.Transports.TransportReceiver
-[SER009]RESPite.Transports.TransportReceiver.TransportReceiver() -> void
-[SER009]abstract RESPite.Transports.TransportReceiver.OnReceived(System.ReadOnlySpan<byte> payload) -> bool
 [SER009]virtual RESPite.Transports.TransportReceiver.OnBatchEnd() -> void
 [SER009]virtual RESPite.Transports.TransportReceiver.OnClosed(System.Exception? fault) -> void
-RESPite.Messages.RespReader.TryGetRawSpan(out System.ReadOnlySpan<byte> value) -> bool
-RESPite.Messages.RespReader.CopyRawTo(scoped System.Span<byte> target) -> int
+[SER009]abstract RESPite.Transports.TransportReceiver.OnReceived(System.ReadOnlySpan<byte> payload) -> bool
+[SER009]RESPite.Transports.TransportReceiver.TransportReceiver() -> void

@@ -12,7 +12,6 @@ namespace StackExchange.Redis.Availability;
 /// Instances are immutable and safe to share; use <see cref="Builder"/> to configure the standard policy, or
 /// derive from this type and override <see cref="CanRetry"/> to make the decision yourself.
 /// </remarks>
-[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public class RetryPolicy
 {
     internal const int DefaultMaxAttempts = 3;
@@ -207,7 +206,6 @@ public class RetryPolicy
     /// <summary>
     /// Allows configuration of the standard <see cref="RetryPolicy"/> implementation.
     /// </summary>
-    [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
     public sealed class Builder
     {
         /// <summary>

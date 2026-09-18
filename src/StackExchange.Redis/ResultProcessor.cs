@@ -85,6 +85,7 @@ namespace StackExchange.Redis
             TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
+            MaintenanceNotifications = new MaintenanceNotificationsProcessor(),
             BackgroundSaveStarted = new ExpectBasicStringProcessor(Literals.background_saving_started.Hash, startsWith: true),
             BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(Literals.background_aof_rewriting_started.Hash, startsWith: true);
 
@@ -3242,6 +3243,44 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Handles the reply to the maintenance-notification opt-in, which we send speculatively: a server that
+        /// doesn't know the subcommand replies with an error, and that is an expected outcome rather than a
+        /// fault. So the error is absorbed here rather than going through the common error path, which would
+        /// raise an <see cref="ConnectionMultiplexer.ErrorMessage"/> to the consumer for something we asked for
+        /// on their behalf.
+        /// </summary>
+        private sealed class MaintenanceNotificationsProcessor : ResultProcessor<bool>
+        {
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                reader.MovePastBof();
+                var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+                if (reader.IsError)
+                {
+                    server?.OnMaintenanceNotificationsRefused(connection, reader.ReadString() ?? "declined");
+                    SetResult(message, false);
+                    return true;
+                }
+
+                if (reader.IsScalar && Literals.OK.Hash.IsCS(reader.TryGetSpan(out var span) ? span : reader.Buffer(stackalloc byte[16])))
+                {
+                    server?.OnMaintenanceNotificationsAccepted(connection);
+                    SetResult(message, true);
+                    return true;
+                }
+
+                // anything else: treat as "not available" rather than a protocol fault; being liberal in what
+                // we accept matters more here than pinning an unverifiable reply shape
+                server?.OnMaintenanceNotificationsRefused(connection, $"unexpected reply: {reader.GetOverview()}");
+                SetResult(message, false);
+                return true;
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+                => throw new NotSupportedException(); // SetResult is fully overridden
+        }
+
         private sealed class TracerProcessor(bool establishConnection) : ResultProcessor<bool>
         {
             public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -3252,12 +3291,35 @@ namespace StackExchange.Redis
 
                 connection.BridgeCouldBeNull?.ServerEndPoint?.SetLatency(message.CreatedDateTime);
                 connection.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{reader.Prefix}' for '{message.CommandAndKey}' on '{connection}'");
-                var final = base.SetResult(connection, message, ref reader);
 
-                if (isError)
+                var errorKind = isError ? RedisErrorKindMetadata.Classify(copy) : RedisErrorKind.None;
+
+                // A redirect answers the only question a tracer asks - is this server up, speaking RESP, and
+                // talking to us - so it completes the handshake rather than failing it.
+                //
+                // This matters because the keyed EXISTS fallback, reached when ECHO, PING and TIME are all
+                // disabled, cannot target a slot the node owns during its first handshake: the CLUSTER NODES
+                // reply that would say which slots those are is still in flight in the same pipeline batch,
+                // so ServerType is still the seeded Standalone when the key is chosen. Treating the resulting
+                // MOVED as a protocol failure tore the connection down, and on an OSS cluster that left nodes
+                // unestablished while the connect burned its whole ConnectTimeout. See #2970.
+                bool redirected = errorKind is RedisErrorKind.Moved or RedisErrorKind.Ask;
+
+                bool final;
+                if (redirected)
+                {
+                    connection.BridgeCouldBeNull?.Multiplexer.Trace($"Tracer redirected ({errorKind}); the server answered, so the connection stands", ToString());
+                    SetResult(message, true);
+                    final = true;
+                }
+                else
+                {
+                    final = base.SetResult(connection, message, ref reader);
+                }
+
+                if (isError && !redirected)
                 {
                     reader = copy; // rewind and re-parse
-                    var errorKind = RedisErrorKindMetadata.Classify(reader);
                     if (errorKind is RedisErrorKind.NotPermitted or RedisErrorKind.NoAuth)
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(reader.GetOverview() + " Verify if the Redis password provided is correct. Attempted command: " + message.Command));

@@ -73,6 +73,8 @@
 
     <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
+    <Compile Update="RedisValue.*.cs" DependentUpon="RedisValue.cs" />
+    <Compile Update="ServerEndPoint.*.cs" DependentUpon="ServerEndPoint.cs" />
     <Compile Update="Groups\Arrays.*.cs" DependentUpon="Arrays.cs" />
     <Compile Update="Groups\Bitmaps.*.cs" DependentUpon="Bitmaps.cs" />
     <Compile Update="Groups\Geospatial.*.cs" DependentUpon="Geospatial.cs" />
@@ -104,6 +106,9 @@
     <InternalsVisibleTo Include="StackExchange.Redis.Benchmarks" />
     <InternalsVisibleTo Include="StackExchange.Redis.Server" />
     <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
+    <InternalsVisibleTo Include="StackExchange.Redis.FaultInjector.Tests" />
+    <!-- the soak asserts on internal state: relaxed windows, the dedup ring, handoff flags -->
+    <InternalsVisibleTo Include="StackExchange.Redis.MaintenanceSoak" />
   </ItemGroup>
 
   <ItemGroup>

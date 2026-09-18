@@ -12,7 +12,6 @@ namespace StackExchange.Redis.Availability;
 /// default, and can be overridden per-member by the matching property on <see cref="ConnectionGroupMember"/>
 /// (where one exists); the effective value is "member override, else group default".
 /// </remarks>
-[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public sealed class MultiGroupOptions
 {
     internal static readonly TimeSpan DefaultHealthCheckInterval = TimeSpan.FromSeconds(5);
@@ -78,7 +77,6 @@ public sealed class MultiGroupOptions
     /// <summary>
     /// Allows configuration of <see cref="MultiGroupOptions"/>.
     /// </summary>
-    [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
     public sealed class Builder
     {
         /// <summary>
