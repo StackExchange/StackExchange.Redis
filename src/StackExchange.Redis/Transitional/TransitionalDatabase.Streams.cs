@@ -290,5 +290,36 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public Task<RedisValue[]> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
             => _inner.Streams.ClaimIdsOnlyArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags).AsTask();
+
+        // ---- XPENDING -------------------------------------------------------------------------------
+        // Two extended overloads collapse to one on the new surface; the older simply lacks the idle
+        // filter, which is an optional argument there.
+
+        /// <inheritdoc/>
+        public StreamPendingInfo StreamPending(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.PendingInfo(key, groupName, flags));
+
+        /// <inheritdoc/>
+        public Task<StreamPendingInfo> StreamPendingAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.PendingInfo(key, groupName, flags).AsTask();
+
+        /// <inheritdoc/>
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId, RedisValue? maxId, CommandFlags flags)
+            => StreamPendingMessages(key, groupName, count, consumerName, minId, maxId, null, flags);
+
+        /// <inheritdoc/>
+        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId, RedisValue? maxId, CommandFlags flags)
+            => StreamPendingMessagesAsync(key, groupName, count, consumerName, minId, maxId, null, flags);
+
+        /// <inheritdoc/>
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.PendingMessagesArray(key, groupName, count, consumerName, minId, maxId, AsIdleTime(minIdleTimeInMs), flags));
+
+        /// <inheritdoc/>
+        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.PendingMessagesArray(key, groupName, count, consumerName, minId, maxId, AsIdleTime(minIdleTimeInMs), flags).AsTask();
+
+        private static TimeSpan? AsIdleTime(long? milliseconds)
+            => milliseconds.HasValue ? TimeSpan.FromMilliseconds(milliseconds.GetValueOrDefault()) : null;
     }
 }

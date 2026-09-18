@@ -109,6 +109,232 @@ public static partial class Streams
     }
 
     /// <summary>
+    /// The reply to an <c>XPENDING</c> summary: the group's pending count, its id bounds, and a
+    /// per-consumer breakdown walked on demand.
+    /// </summary>
+    /// <remarks>
+    /// <b>A reply object where the shipped surface has a plain struct</b>, because
+    /// <see cref="StreamPendingInfo.Consumers"/> is a <see cref="StreamConsumer"/><c>[]</c> - and a naked
+    /// array is exactly what this surface does not hand out. The three scalars are read eagerly here,
+    /// since a window over an integer costs more than the integer.
+    /// </remarks>
+    public sealed class RespPendingReply : RespReply
+    {
+        private readonly RespAggregate<RespStreamConsumer> _consumers;
+        private readonly long _count;
+        private readonly RespValue _lowestId, _highestId;
+
+        /// <summary>Read an <c>XPENDING</c> summary reply from a payload.</summary>
+        /// <param name="payload">The reply's bytes, with one reference already taken on this reply's behalf.</param>
+        public RespPendingReply(RespPayload payload) : base(payload)
+        {
+            // one reader, walked forward through the four children - the same shape as
+            // RespStreamEntry.Projection, where TryCaptureNext does the MoveNext into each child itself
+            var reader = GetReader();
+            if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return;
+
+            if (reader.TryMoveNext()) reader.TryReadInt64(out _count);
+            RespValue.TryCaptureNext(Payload, ref reader, out _lowestId);
+            RespValue.TryCaptureNext(Payload, ref reader, out _highestId);
+            RespAggregate<RespStreamConsumer>.TryCaptureNext(Payload, ref reader, RespStreamConsumer.Projection, out _consumers);
+        }
+
+        /// <summary>How many entries the group has pending in total.</summary>
+        public long PendingMessageCount => _count;
+
+        /// <summary>The lowest pending id, or null when nothing is pending.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespValue LowestPendingMessageId
+        {
+            get
+            {
+                _ = Payload;
+                return _lowestId;
+            }
+        }
+
+        /// <summary>The highest pending id, or null when nothing is pending.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespValue HighestPendingMessageId
+        {
+            get
+            {
+                _ = Payload;
+                return _highestId;
+            }
+        }
+
+        /// <summary>The per-consumer breakdown; empty when the group has no consumers yet.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespAggregate<RespStreamConsumer> Consumers
+        {
+            get
+            {
+                _ = Payload;
+                return _consumers;
+            }
+        }
+
+        /// <summary>Materialise the whole reply into the struct the older surface promises.</summary>
+        /// <remarks><inheritdoc cref="RespRangeReply.ToArray" path="/remarks/para[2]"/></remarks>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public StreamPendingInfo ToStreamPendingInfo()
+        {
+            var reader = GetReader();
+            reader.MoveNext();
+            return ResultProcessor.TryParseStreamPendingInfo(ref reader, out var value) ? value : default;
+        }
+
+        /// <inheritdoc/>
+        public override string ToString()
+            => IsDisposed ? "(disposed)" : $"({_count} pending, {_consumers.Count} consumer{(_consumers.Count == 1 ? "" : "s")})";
+    }
+
+    /// <summary>One consumer's share of a group's pending entries, as a window.</summary>
+    /// <remarks><inheritdoc cref="RespStreamEntry" path="/remarks"/></remarks>
+    public readonly struct RespStreamConsumer
+    {
+        /// <summary>Reads one <c>[name, count]</c> pair; handed a reader positioned before it.</summary>
+        internal static readonly RespReader.Projection<object?, RespStreamConsumer> Projection =
+            static (ref object? owner, ref RespReader reader) =>
+            {
+                if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return default;
+
+                RespValue.TryCaptureNext(owner, ref reader, out var name);
+
+                // read rather than captured: a window over a small integer costs more than the integer,
+                // and the server sends this one as a bulk string, which is why it is not TryReadInt64
+                long count = 0;
+                if (reader.TryMoveNext()) reader.TryReadInt64(out count);
+
+                return new RespStreamConsumer(name, count);
+            };
+
+        private readonly RespValue _name;
+        private readonly long _pendingMessageCount;
+
+        private RespStreamConsumer(RespValue name, long pendingMessageCount)
+        {
+            _name = name;
+            _pendingMessageCount = pendingMessageCount;
+        }
+
+        /// <summary>The consumer's name.</summary>
+        public RespValue Name => _name;
+
+        /// <summary>How many entries this consumer has pending.</summary>
+        public long PendingMessageCount => _pendingMessageCount;
+
+        /// <inheritdoc/>
+        public override string ToString() => $"{_name}: {_pendingMessageCount}";
+    }
+
+    /// <summary>
+    /// The reply to an extended <c>XPENDING</c>: one record per pending entry, walked on demand.
+    /// </summary>
+    /// <remarks><inheritdoc cref="RespRangeReply" path="/remarks"/></remarks>
+    public sealed class RespPendingMessagesReply : RespReply
+    {
+        private readonly RespAggregate<RespStreamPendingMessage> _messages;
+
+        /// <summary>Read an extended <c>XPENDING</c> reply from a payload.</summary>
+        /// <param name="payload">The reply's bytes, with one reference already taken on this reply's behalf.</param>
+        public RespPendingMessagesReply(RespPayload payload) : base(payload)
+        {
+            var reader = GetReader();
+            RespAggregate<RespStreamPendingMessage>.TryCaptureNext(Payload, ref reader, RespStreamPendingMessage.Projection, out _messages);
+        }
+
+        /// <summary>The pending entries, in the order the server returned them.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespAggregate<RespStreamPendingMessage> Messages
+        {
+            get
+            {
+                _ = Payload;
+                return _messages;
+            }
+        }
+
+        /// <summary>How many records the reply carries.</summary>
+        public int Count => _messages.Count;
+
+        /// <summary>Materialise the whole reply into the array shape the older surface promises.</summary>
+        /// <remarks><inheritdoc cref="RespRangeReply.ToArray" path="/remarks/para[2]"/></remarks>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public StreamPendingMessageInfo[] ToArray()
+        {
+            var reader = GetReader();
+            reader.MoveNext();
+            return ResultProcessor.ParseStreamPendingMessages(ref reader);
+        }
+
+        /// <inheritdoc/>
+        public override string ToString()
+            => IsDisposed ? "(disposed)" : $"({Count} pending message{(Count == 1 ? "" : "s")})";
+    }
+
+    /// <summary>One pending entry's record, as a window.</summary>
+    /// <remarks><inheritdoc cref="RespStreamEntry" path="/remarks"/></remarks>
+    public readonly struct RespStreamPendingMessage
+    {
+        /// <summary>
+        /// Reads one <c>[id, consumer, idle-ms, delivery-count]</c> record; handed a reader positioned
+        /// before it.
+        /// </summary>
+        internal static readonly RespReader.Projection<object?, RespStreamPendingMessage> Projection =
+            static (ref object? owner, ref RespReader reader) =>
+            {
+                if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return default;
+
+                RespValue.TryCaptureNext(owner, ref reader, out var id);
+                RespValue.TryCaptureNext(owner, ref reader, out var consumer);
+
+                long idleMs = 0, deliveries = 0;
+                if (reader.TryMoveNext()) reader.TryReadInt64(out idleMs);
+                if (reader.TryMoveNext()) reader.TryReadInt64(out deliveries);
+
+                return new RespStreamPendingMessage(id, consumer, TimeSpan.FromMilliseconds(idleMs), ResultProcessor.ParseStreamDeliveryCount(deliveries));
+            };
+
+        private readonly RespValue _id, _consumer;
+        private readonly TimeSpan _idleTime;
+        private readonly int _deliveryCount;
+
+        private RespStreamPendingMessage(RespValue id, RespValue consumer, TimeSpan idleTime, int deliveryCount)
+        {
+            _id = id;
+            _consumer = consumer;
+            _idleTime = idleTime;
+            _deliveryCount = deliveryCount;
+        }
+
+        /// <summary>The pending entry's id.</summary>
+        public RespValue MessageId => _id;
+
+        /// <summary>The consumer currently holding it.</summary>
+        public RespValue ConsumerName => _consumer;
+
+        /// <summary>How long since it was last delivered.</summary>
+        /// <remarks>
+        /// A <see cref="TimeSpan"/> where <see cref="StreamPendingMessageInfo.IdleTimeInMilliseconds"/> is
+        /// a number, for the same reason <c>ClaimAsync</c> takes one: a duration is a duration.
+        /// </remarks>
+        public TimeSpan IdleTime => _idleTime;
+
+        /// <summary>How many times it has been delivered.</summary>
+        public int DeliveryCount => _deliveryCount;
+
+        /// <summary>Materialise this record, so it outlives the reply it came from.</summary>
+        /// <remarks><b><c>To</c>, not <c>As</c></b>: the id and the consumer name are copied out.</remarks>
+        public StreamPendingMessageInfo ToStreamPendingMessageInfo()
+            => new(_id.AsRedisValue(), _consumer.AsRedisValue(), (long)_idleTime.TotalMilliseconds, _deliveryCount);
+
+        /// <inheritdoc/>
+        public override string ToString() => $"{_id} ({_consumer}, {_deliveryCount} deliver{(_deliveryCount == 1 ? "y" : "ies")})";
+    }
+
+    /// <summary>
     /// One stream entry, as a window: an id and a field list, both pointing into the reply that produced
     /// them.
     /// </summary>

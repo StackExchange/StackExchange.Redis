@@ -2912,81 +2912,140 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Parse an <c>XPENDING</c> summary reply; <see langword="false"/> if it is not that shape.
+        /// </summary>
+        /// <remarks>
+        /// Shared, not copied: the deferred <c>Streams.RespPendingReply</c> materialises through this, so
+        /// the two shapes are two call sites of one parse - the same arrangement
+        /// <see cref="ParseRedisStreamEntries(ref RespReader, bool)"/> already has.
+        /// </remarks>
+        internal static bool TryParseStreamPendingInfo(ref RespReader reader, out StreamPendingInfo value)
+        {
+                // Example:
+            // > XPENDING mystream mygroup
+            // 1) (integer)2
+            // 2) 1526569498055 - 0
+            // 3) 1526569506935 - 0
+            // 4) 1) 1) "Bob"
+            //       2) "2"
+            // 5) 1) 1) "Joe"
+            //       2) "8"
+            value = default;
+            if (!(reader.IsAggregate && reader.AggregateLengthIs(4)))
+            {
+                return false;
+            }
+
+            var iter = reader.AggregateChildren();
+
+            // Element 0: pending message count
+            iter.DemandNext();
+            if (!iter.Value.TryReadInt64(out var pendingMessageCount))
+            {
+                return false;
+            }
+
+            // Element 1: lowest ID
+            iter.DemandNext();
+            var lowestId = iter.Value.ReadRedisValue();
+
+            // Element 2: highest ID
+            iter.DemandNext();
+            var highestId = iter.Value.ReadRedisValue();
+
+            // Element 3: consumers array (may be null)
+            iter.DemandNext();
+            StreamConsumer[]? consumers = null;
+
+            // If there are no consumers as of yet for the given group, the last
+            // item in the response array will be null.
+            if (iter.Value.IsAggregate && !iter.Value.IsNull)
+            {
+                consumers = iter.Value.ReadPastArray(
+                    static (ref RespReader consumerReader) =>
+                    {
+                        if (!(consumerReader.IsAggregate && consumerReader.AggregateLengthIs(2)))
+                        {
+                            throw new InvalidOperationException("Expected array of 2 elements for consumer");
+                        }
+
+                        var consumerIter = consumerReader.AggregateChildren();
+
+                        consumerIter.DemandNext();
+                        var name = consumerIter.Value.ReadRedisValue();
+
+                        consumerIter.DemandNext();
+                        if (!consumerIter.Value.TryReadInt64(out var count))
+                        {
+                            throw new InvalidOperationException("Expected integer for pending message count");
+                        }
+
+                        return new StreamConsumer(
+                            name: name,
+                            pendingMessageCount: checked((int)count));
+                    },
+                    scalar: false);
+            }
+
+            value = new StreamPendingInfo(
+                pendingMessageCount: checked((int)pendingMessageCount),
+                lowestId: lowestId,
+                highestId: highestId,
+                consumers: consumers ?? []);
+            return true;
+        }
+
+        /// <summary>Parse an <c>XPENDING</c> extended reply.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static StreamPendingMessageInfo[] ParseStreamPendingMessages(ref RespReader reader)
+        {
+            if (!reader.IsAggregate) return [];
+
+            return reader.ReadPastArray(
+                static (ref RespReader itemReader) =>
+                {
+                    if (!(itemReader.IsAggregate && itemReader.AggregateLengthIs(4)))
+                    {
+                        throw new InvalidOperationException("Expected array of 4 elements for pending message");
+                    }
+
+                    if (!itemReader.TryMoveNext())
+                    {
+                        throw new InvalidOperationException("Expected message ID");
+                    }
+                    var messageId = itemReader.ReadRedisValue();
+
+                    if (!itemReader.TryMoveNext())
+                    {
+                        throw new InvalidOperationException("Expected consumer name");
+                    }
+                    var consumerName = itemReader.ReadRedisValue();
+
+                    if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var idleTimeInMs))
+                    {
+                        throw new InvalidOperationException("Expected integer for idle time");
+                    }
+
+                    if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var deliveryCount))
+                    {
+                        throw new InvalidOperationException("Expected integer for delivery count");
+                    }
+
+                    return new StreamPendingMessageInfo(
+                        messageId: messageId,
+                        consumerName: consumerName,
+                        idleTimeInMs: idleTimeInMs,
+                        deliveryCount: ParseStreamDeliveryCount(deliveryCount));
+                },
+                scalar: false) ?? [];
+        }
+
         internal sealed class StreamPendingInfoProcessor : ResultProcessor<StreamPendingInfo>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Example:
-                // > XPENDING mystream mygroup
-                // 1) (integer)2
-                // 2) 1526569498055 - 0
-                // 3) 1526569506935 - 0
-                // 4) 1) 1) "Bob"
-                //       2) "2"
-                // 5) 1) 1) "Joe"
-                //       2) "8"
-                if (!(reader.IsAggregate && reader.AggregateLengthIs(4)))
-                {
-                    return false;
-                }
-
-                var iter = reader.AggregateChildren();
-
-                // Element 0: pending message count
-                iter.DemandNext();
-                if (!iter.Value.TryReadInt64(out var pendingMessageCount))
-                {
-                    return false;
-                }
-
-                // Element 1: lowest ID
-                iter.DemandNext();
-                var lowestId = iter.Value.ReadRedisValue();
-
-                // Element 2: highest ID
-                iter.DemandNext();
-                var highestId = iter.Value.ReadRedisValue();
-
-                // Element 3: consumers array (may be null)
-                iter.DemandNext();
-                StreamConsumer[]? consumers = null;
-
-                // If there are no consumers as of yet for the given group, the last
-                // item in the response array will be null.
-                if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                {
-                    consumers = iter.Value.ReadPastArray(
-                        static (ref RespReader consumerReader) =>
-                        {
-                            if (!(consumerReader.IsAggregate && consumerReader.AggregateLengthIs(2)))
-                            {
-                                throw new InvalidOperationException("Expected array of 2 elements for consumer");
-                            }
-
-                            var consumerIter = consumerReader.AggregateChildren();
-
-                            consumerIter.DemandNext();
-                            var name = consumerIter.Value.ReadRedisValue();
-
-                            consumerIter.DemandNext();
-                            if (!consumerIter.Value.TryReadInt64(out var count))
-                            {
-                                throw new InvalidOperationException("Expected integer for pending message count");
-                            }
-
-                            return new StreamConsumer(
-                                name: name,
-                                pendingMessageCount: checked((int)count));
-                        },
-                        scalar: false);
-                }
-
-                var pendingInfo = new StreamPendingInfo(
-                    pendingMessageCount: checked((int)pendingMessageCount),
-                    lowestId: lowestId,
-                    highestId: highestId,
-                    consumers: consumers ?? []);
-
+                if (!TryParseStreamPendingInfo(ref reader, out var pendingInfo)) return false;
                 SetResult(message, pendingInfo);
                 return true;
             }
@@ -2996,50 +3055,8 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (!reader.IsAggregate)
-                {
-                    return false;
-                }
-
-                var messageInfoArray = reader.ReadPastArray(
-                    static (ref RespReader itemReader) =>
-                    {
-                        if (!(itemReader.IsAggregate && itemReader.AggregateLengthIs(4)))
-                        {
-                            throw new InvalidOperationException("Expected array of 4 elements for pending message");
-                        }
-
-                        if (!itemReader.TryMoveNext())
-                        {
-                            throw new InvalidOperationException("Expected message ID");
-                        }
-                        var messageId = itemReader.ReadRedisValue();
-
-                        if (!itemReader.TryMoveNext())
-                        {
-                            throw new InvalidOperationException("Expected consumer name");
-                        }
-                        var consumerName = itemReader.ReadRedisValue();
-
-                        if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var idleTimeInMs))
-                        {
-                            throw new InvalidOperationException("Expected integer for idle time");
-                        }
-
-                        if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var deliveryCount))
-                        {
-                            throw new InvalidOperationException("Expected integer for delivery count");
-                        }
-
-                        return new StreamPendingMessageInfo(
-                            messageId: messageId,
-                            consumerName: consumerName,
-                            idleTimeInMs: idleTimeInMs,
-                            deliveryCount: ParseStreamDeliveryCount(deliveryCount));
-                    },
-                    scalar: false);
-
-                SetResult(message, messageInfoArray!);
+                if (!reader.IsAggregate) return false;
+                SetResult(message, ParseStreamPendingMessages(ref reader));
                 return true;
             }
         }

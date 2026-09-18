@@ -314,11 +314,27 @@ StackExchange.Redis.Scripts
 StackExchange.Redis.Sets
 StackExchange.Redis.SortedSets
 StackExchange.Redis.Streams
+StackExchange.Redis.Streams.RespPendingMessagesReply
+StackExchange.Redis.Streams.RespPendingMessagesReply.Count.get -> int
+StackExchange.Redis.Streams.RespPendingMessagesReply.Messages.get -> RESPite.Messages.RespAggregate<StackExchange.Redis.Streams.RespStreamPendingMessage>
+StackExchange.Redis.Streams.RespPendingMessagesReply.RespPendingMessagesReply(StackExchange.Redis.Protocol.RespPayload! payload) -> void
+StackExchange.Redis.Streams.RespPendingMessagesReply.ToArray() -> StackExchange.Redis.StreamPendingMessageInfo[]!
+StackExchange.Redis.Streams.RespPendingReply
+StackExchange.Redis.Streams.RespPendingReply.Consumers.get -> RESPite.Messages.RespAggregate<StackExchange.Redis.Streams.RespStreamConsumer>
+StackExchange.Redis.Streams.RespPendingReply.HighestPendingMessageId.get -> RESPite.Messages.RespValue
+StackExchange.Redis.Streams.RespPendingReply.LowestPendingMessageId.get -> RESPite.Messages.RespValue
+StackExchange.Redis.Streams.RespPendingReply.PendingMessageCount.get -> long
+StackExchange.Redis.Streams.RespPendingReply.RespPendingReply(StackExchange.Redis.Protocol.RespPayload! payload) -> void
+StackExchange.Redis.Streams.RespPendingReply.ToStreamPendingInfo() -> StackExchange.Redis.StreamPendingInfo
 StackExchange.Redis.Streams.RespRangeReply
 StackExchange.Redis.Streams.RespRangeReply.Count.get -> int
 StackExchange.Redis.Streams.RespRangeReply.Entries.get -> RESPite.Messages.RespAggregate<StackExchange.Redis.Streams.RespStreamEntry>
 StackExchange.Redis.Streams.RespRangeReply.RespRangeReply(StackExchange.Redis.Protocol.RespPayload! payload) -> void
 StackExchange.Redis.Streams.RespRangeReply.ToArray() -> StackExchange.Redis.StreamEntry[]!
+StackExchange.Redis.Streams.RespStreamConsumer
+StackExchange.Redis.Streams.RespStreamConsumer.Name.get -> RESPite.Messages.RespValue
+StackExchange.Redis.Streams.RespStreamConsumer.PendingMessageCount.get -> long
+StackExchange.Redis.Streams.RespStreamConsumer.RespStreamConsumer() -> void
 StackExchange.Redis.Streams.RespStreamEntry
 StackExchange.Redis.Streams.RespStreamEntry.DeliveryCount.get -> int
 StackExchange.Redis.Streams.RespStreamEntry.Fields.get -> RESPite.Messages.RespPairAggregate<StackExchange.Redis.RespNameValueEntry>
@@ -326,6 +342,13 @@ StackExchange.Redis.Streams.RespStreamEntry.Id.get -> RESPite.Messages.RespValue
 StackExchange.Redis.Streams.RespStreamEntry.IdleTime.get -> System.TimeSpan?
 StackExchange.Redis.Streams.RespStreamEntry.RespStreamEntry() -> void
 StackExchange.Redis.Streams.RespStreamEntry.ToStreamEntry() -> StackExchange.Redis.StreamEntry
+StackExchange.Redis.Streams.RespStreamPendingMessage
+StackExchange.Redis.Streams.RespStreamPendingMessage.ConsumerName.get -> RESPite.Messages.RespValue
+StackExchange.Redis.Streams.RespStreamPendingMessage.DeliveryCount.get -> int
+StackExchange.Redis.Streams.RespStreamPendingMessage.IdleTime.get -> System.TimeSpan
+StackExchange.Redis.Streams.RespStreamPendingMessage.MessageId.get -> RESPite.Messages.RespValue
+StackExchange.Redis.Streams.RespStreamPendingMessage.RespStreamPendingMessage() -> void
+StackExchange.Redis.Streams.RespStreamPendingMessage.ToStreamPendingMessageInfo() -> StackExchange.Redis.StreamPendingMessageInfo
 StackExchange.Redis.Strings
 StackExchange.Redis.VectorSets
 [SER011]StackExchange.Redis.Protocol.RespFragment.RespFragment(System.ReadOnlySpan<byte> bytes, int argCount = 1) -> void
@@ -334,8 +357,12 @@ override StackExchange.Redis.Protocol.RespRequest.Equals(object? obj) -> bool
 override StackExchange.Redis.Protocol.RespRequest.GetHashCode() -> int
 override StackExchange.Redis.Protocol.RespRequest.ToString() -> string!
 override StackExchange.Redis.RespNameValueEntry.ToString() -> string!
+override StackExchange.Redis.Streams.RespPendingMessagesReply.ToString() -> string!
+override StackExchange.Redis.Streams.RespPendingReply.ToString() -> string!
 override StackExchange.Redis.Streams.RespRangeReply.ToString() -> string!
+override StackExchange.Redis.Streams.RespStreamConsumer.ToString() -> string!
 override StackExchange.Redis.Streams.RespStreamEntry.ToString() -> string!
+override StackExchange.Redis.Streams.RespStreamPendingMessage.ToString() -> string!
 static StackExchange.Redis.Arrays.CountAsync(this in StackExchange.Redis.RespArrays arrays, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RedisArrayIndex>
 static StackExchange.Redis.Arrays.DeleteAsync(this in StackExchange.Redis.RespArrays arrays, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.Arrays.DeleteAsync(this in StackExchange.Redis.RespArrays arrays, StackExchange.Redis.RedisKey key, System.ReadOnlySpan<StackExchange.Redis.RedisArrayIndex> indices, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
@@ -617,6 +644,8 @@ static StackExchange.Redis.Streams.DeleteConsumerGroupAsync(this in StackExchang
 static StackExchange.Redis.Streams.LengthAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Streams.NegativeAcknowledgeAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue group, StackExchange.Redis.StreamNackMode mode, StackExchange.Redis.RedisValue messageId, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Streams.NegativeAcknowledgeAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue group, StackExchange.Redis.StreamNackMode mode, scoped System.ReadOnlySpan<StackExchange.Redis.RedisValue> messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
+static StackExchange.Redis.Streams.PendingAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue group, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Streams.RespPendingReply!>
+static StackExchange.Redis.Streams.PendingMessagesAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue group, int count, StackExchange.Redis.RedisValue consumer = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue? minId = null, StackExchange.Redis.RedisValue? maxId = null, System.TimeSpan? minIdleTime = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Streams.RespPendingMessagesReply!>
 static StackExchange.Redis.Streams.RangeAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue? minId = null, StackExchange.Redis.RedisValue? maxId = null, int? count = null, StackExchange.Redis.Order messageOrder = StackExchange.Redis.Order.Ascending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.Streams.RespRangeReply!>
 static StackExchange.Redis.Streams.SetConsumerGroupPositionAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue group, StackExchange.Redis.RedisValue position, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.Streams.TrimAsync(this in StackExchange.Redis.RespStreams streams, StackExchange.Redis.RedisKey key, long maxLength, bool approximate = false, long? limit = null, StackExchange.Redis.StreamTrimMode mode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>

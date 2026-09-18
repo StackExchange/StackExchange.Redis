@@ -5214,7 +5214,7 @@ namespace StackExchange.Redis
         /// Gets a message for <see href="https://redis.io/commands/xpending/"/>.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, long? minIdleTimeInMs, CommandFlags flags)
+        internal Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, long? minIdleTimeInMs, CommandFlags flags)
         {
             // > XPENDING mystream mygroup [IDLE min-idle-time] - + 10 [consumer name]
             // 1) 1) 1526569498055 - 0

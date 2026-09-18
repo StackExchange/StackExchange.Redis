@@ -82,6 +82,10 @@ public class RespSurfaceStreamsParityTests
     private const string IntReply = ":1\r\n";              // XNACK: how many were released
     private const string TrimArrayReply = "*2\r\n:1\r\n:1\r\n"; // XACKDEL: one outcome per id
     private const string OkReply = "+OK\r\n";              // XCFGSET
+    private const string PendingSummaryReply =           // XPENDING: count, low, high, [[consumer, count]]
+        "*4\r\n:2\r\n$3\r\n1-1\r\n$3\r\n9-9\r\n*1\r\n*2\r\n$3\r\nbob\r\n$1\r\n2\r\n";
+    private const string PendingMessagesReply =          // XPENDING extended: [id, consumer, idle, deliveries]
+        "*1\r\n*4\r\n$3\r\n1-1\r\n$3\r\nbob\r\n:1234\r\n:3\r\n";
     private const string IdsReply = "*1\r\n$3\r\n1-1\r\n";     // XCLAIM JUSTID: a flat run of ids
     private const string EntriesReply =                  // XCLAIM: one entry, one field
         "*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n";
@@ -223,6 +227,35 @@ public class RespSurfaceStreamsParityTests
             db => db.GetStreamClaimMessage("s", "g", "c", 1500, [(RedisValue)"1-1"], returnJustIds: false, CommandFlags.None),
             ctx => Discard(ctx.Streams.ClaimAsync("s", "g", "c", TimeSpan.FromTicks(TimeSpan.TicksPerMillisecond * 1500 + 9999), [(RedisValue)"1-1"])),
             EntriesReply);
+
+    [Fact]
+    public void PendingSummaryMatches()
+        => AssertSame(
+            db => Message.Create(0, CommandFlags.None, RedisCommand.XPENDING, (RedisKey)"s", (RedisValue)"g"),
+            ctx => Discard(ctx.Streams.PendingAsync("s", "g")),
+            PendingSummaryReply);
+
+    public static TheoryData<string, RedisValue, RedisValue?, RedisValue?, long?> PendingMessageCases() => new()
+    {
+        { "all consumers", RedisValue.Null, null, null, null },
+        { "one consumer", "c1", null, null, null },
+        { "bounded", RedisValue.Null, "1-1", "9-9", null },
+        { "idle filter", RedisValue.Null, null, null, 5000L },
+        { "everything", "c1", "1-1", "9-9", 5000L },
+    };
+
+    [Theory]
+    [MemberData(nameof(PendingMessageCases))]
+    public void PendingMessagesMatches(string name, RedisValue consumer, RedisValue? minId, RedisValue? maxId, long? idleMs)
+    {
+        _ = name;
+        AssertSame(
+            db => db.GetStreamPendingMessagesMessage("s", "g", minId, maxId, 10, consumer, idleMs, CommandFlags.None),
+            ctx => Discard(ctx.Streams.PendingMessagesAsync("s", "g", 10, consumer, minId, maxId, AsIdle(idleMs))),
+            PendingMessagesReply);
+    }
+
+    private static TimeSpan? AsIdle(long? ms) => ms.HasValue ? TimeSpan.FromMilliseconds(ms.GetValueOrDefault()) : null;
 
     private static async ValueTask Discard<T>(ValueTask<T> pending)
     {

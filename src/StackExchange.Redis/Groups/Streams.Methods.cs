@@ -155,9 +155,18 @@ public static partial class Streams
     /// how the existing multi-interface handlers read.
     /// </para>
     /// </remarks>
-    private sealed class StreamTypesHandler : IRespHandler<StreamEntry[]>
+    private sealed class StreamTypesHandler :
+        IRespHandler<StreamEntry[]>,
+        IRespHandler<StreamPendingInfo>,
+        IRespHandler<StreamPendingMessageInfo[]>
     {
         private static readonly StreamTypesHandler Instance = new();
+
+        /// <summary>An <c>XPENDING</c> summary as the struct the older surface promises.</summary>
+        internal static IRespHandler<StreamPendingInfo> PendingInfo => Instance;
+
+        /// <summary>An extended <c>XPENDING</c> as the array the older surface promises.</summary>
+        internal static IRespHandler<StreamPendingMessageInfo[]> PendingMessages => Instance;
 
         /// <summary>An <c>XRANGE</c>-shaped reply as the array shape the older surface promises.</summary>
         /// <remarks>
@@ -168,6 +177,12 @@ public static partial class Streams
 
         StreamEntry[] IRespHandler<StreamEntry[]>.Parse(ref RespReader reader)
             => ResultProcessor.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
+
+        StreamPendingInfo IRespHandler<StreamPendingInfo>.Parse(ref RespReader reader)
+            => ResultProcessor.TryParseStreamPendingInfo(ref reader, out var value) ? value : default;
+
+        StreamPendingMessageInfo[] IRespHandler<StreamPendingMessageInfo[]>.Parse(ref RespReader reader)
+            => ResultProcessor.ParseStreamPendingMessages(ref reader);
     }
 
     private static readonly RespReplyHandler<RespRangeReply> RangeReplyHandler
@@ -567,6 +582,112 @@ public static partial class Streams
     private static CommandFlags JustIdFlags(CommandFlags flags)
         => flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked);
 
+    /// <summary>XPENDING; the group's pending summary, with a per-consumer breakdown.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    public static ValueTask<RespPendingReply> PendingAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = streams.Context.Render($"{RedisCommand.XPENDING}{key}{group}");
+        return streams.Context.SendAsync(ref cmd, flags, PendingReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="PendingAsync(in RespStreams, RedisKey, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamPendingInfo> PendingInfo(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = streams.Context.Render($"{RedisCommand.XPENDING}{key}{group}");
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.PendingInfo, cancellationToken);
+    }
+
+    /// <summary>XPENDING with a range; one record per pending entry.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="count">How many records to return at most; must be positive.</param>
+    /// <param name="consumer">Only this consumer's entries; all consumers when null.</param>
+    /// <param name="minId">The lowest id to include; the start of the stream when omitted.</param>
+    /// <param name="maxId">The highest id to include; the end of the stream when omitted.</param>
+    /// <param name="minIdleTime">Only entries idle for at least this long; all of them when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <remarks>
+    /// <b>Two <c>IDatabase</c> overloads become one</b>: the older of them simply lacks
+    /// <paramref name="minIdleTime"/>, which is an optional argument here.
+    /// </remarks>
+    public static ValueTask<RespPendingMessagesReply> PendingMessagesAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        int count,
+        RedisValue consumer = default,
+        RedisValue? minId = null,
+        RedisValue? maxId = null,
+        TimeSpan? minIdleTime = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = PendingMessagesCommand(streams.Context, key, group, count, consumer, minId, maxId, minIdleTime);
+        return streams.Context.SendAsync(ref cmd, flags, PendingMessagesReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="PendingMessagesAsync(in RespStreams, RedisKey, RedisValue, int, RedisValue, RedisValue?, RedisValue?, TimeSpan?, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamPendingMessageInfo[]> PendingMessagesArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        int count,
+        RedisValue consumer = default,
+        RedisValue? minId = null,
+        RedisValue? maxId = null,
+        TimeSpan? minIdleTime = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = PendingMessagesCommand(streams.Context, key, group, count, consumer, minId, maxId, minIdleTime);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.PendingMessages, cancellationToken);
+    }
+
+    /// <summary>Render the extended <c>XPENDING</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    private static RespRequestFrame PendingMessagesCommand(
+        in RespContext context,
+        RedisKey key,
+        RedisValue group,
+        int count,
+        RedisValue consumer,
+        RedisValue? minId,
+        RedisValue? maxId,
+        TimeSpan? minIdleTime)
+    {
+        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
+
+        var idle = minIdleTime.HasValue ? (long?)minIdleTime.GetValueOrDefault().TotalMilliseconds : null;
+        return context.Render(
+            $"{RedisCommand.XPENDING}{key}{group}{RespLiterals.Idle.When(idle)}{idle}{minId ?? StreamConstants.ReadMinValue}{maxId ?? StreamConstants.ReadMaxValue}{count}{new OptionalValue(consumer)}");
+    }
+
+    private static readonly RespReplyHandler<RespPendingReply> PendingReplyHandler
+        = new(static payload => new RespPendingReply(payload));
+
+    private static readonly RespReplyHandler<RespPendingMessagesReply> PendingMessagesReplyHandler
+        = new(static payload => new RespPendingMessagesReply(payload));
+
     /// <summary>XNACK; how many of the listed entries were released back to the group.</summary>
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream.</param>
@@ -785,6 +906,21 @@ public static partial class Streams
         StreamNackMode.Fatal => RespLiterals.Fatal,
         _ => throw new ArgumentOutOfRangeException(nameof(mode)),
     };
+
+    /// <summary>A value written only when it is not null; omitted entirely otherwise.</summary>
+    /// <remarks>
+    /// <b>Omitted, not empty - and the difference is a real one.</b> <c>AppendFormatted(RedisValue)</c>
+    /// writes <c>$0</c> for a null, which for <c>XPENDING</c>'s trailing consumer means "the consumer
+    /// whose name is the empty string" rather than "all consumers". A parity test caught exactly that;
+    /// the classic path had always tested <c>consumerName != RedisValue.Null</c> and skipped the argument.
+    /// </remarks>
+    private readonly struct OptionalValue(RedisValue value) : IRespArgument
+    {
+        public void WriteTo(scoped ref RespRequestBuilder handler)
+        {
+            if (!value.IsNull) handler.AppendFormatted(value);
+        }
+    }
 
     /// <summary>
     /// The tail of an <c>XTRIM</c>: <c>[~] threshold [LIMIT n] [mode]</c>.
