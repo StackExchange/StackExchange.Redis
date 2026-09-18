@@ -423,6 +423,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Acked { get; }
 
+        /// <summary>The <c>JUSTID</c> operand of <c>XCLAIM</c>/<c>XAUTOCLAIM</c>: ids without fields.</summary>
+        [Resp("JUSTID")]
+        internal static partial RespFragment JustId { get; }
+
         /// <summary>The <c>NOMKSTREAM</c> operand of <c>XADD</c>.</summary>
         [Resp("NOMKSTREAM")]
         internal static partial RespFragment NoMkStream { get; }

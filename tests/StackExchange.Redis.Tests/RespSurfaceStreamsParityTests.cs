@@ -82,6 +82,9 @@ public class RespSurfaceStreamsParityTests
     private const string IntReply = ":1\r\n";              // XNACK: how many were released
     private const string TrimArrayReply = "*2\r\n:1\r\n:1\r\n"; // XACKDEL: one outcome per id
     private const string OkReply = "+OK\r\n";              // XCFGSET
+    private const string IdsReply = "*1\r\n$3\r\n1-1\r\n";     // XCLAIM JUSTID: a flat run of ids
+    private const string EntriesReply =                  // XCLAIM: one entry, one field
+        "*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n";
 
     public static TheoryData<string, StreamAddOptions> AddOptions() => new()
     {
@@ -186,6 +189,40 @@ public class RespSurfaceStreamsParityTests
             ctx => ctx.Streams.ConfigureAsync("s", configuration),
             OkReply);
     }
+
+    [Fact]
+    public void ClaimMatches()
+    {
+        RedisValue[] ids = ["1-1", "2-2"];
+        AssertSame(
+            db => db.GetStreamClaimMessage("s", "g", "c", 5000, ids, returnJustIds: false, CommandFlags.None),
+            ctx => Discard(ctx.Streams.ClaimAsync("s", "g", "c", TimeSpan.FromSeconds(5), ids)),
+            EntriesReply);
+    }
+
+    [Fact]
+    public void ClaimIdsOnlyMatches()
+    {
+        RedisValue[] ids = ["1-1", "2-2"];
+        AssertSame(
+            db => db.GetStreamClaimMessage("s", "g", "c", 5000, ids, returnJustIds: true, CommandFlags.None),
+            ctx => Discard(ctx.Streams.ClaimIdsOnlyAsync("s", "g", "c", TimeSpan.FromSeconds(5), ids)),
+            IdsReply);
+    }
+
+    /// <summary>
+    /// A fractional <see cref="TimeSpan"/> truncates, which is what the wire can carry.
+    /// </summary>
+    /// <remarks>
+    /// Worth pinning rather than assuming: the shipped signature takes whole milliseconds, so the only
+    /// way the TimeSpan spelling can be wrong is by rounding somewhere the old one could not.
+    /// </remarks>
+    [Fact]
+    public void ClaimTruncatesSubMillisecondIdleTime()
+        => AssertSame(
+            db => db.GetStreamClaimMessage("s", "g", "c", 1500, [(RedisValue)"1-1"], returnJustIds: false, CommandFlags.None),
+            ctx => Discard(ctx.Streams.ClaimAsync("s", "g", "c", TimeSpan.FromTicks(TimeSpan.TicksPerMillisecond * 1500 + 9999), [(RedisValue)"1-1"])),
+            EntriesReply);
 
     private static async ValueTask Discard<T>(ValueTask<T> pending)
     {

@@ -443,6 +443,130 @@ public static partial class Streams
             cancellationToken: cancellationToken);
     }
 
+    /// <summary>
+    /// XCLAIM; takes ownership of the listed pending entries and returns them.
+    /// </summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="consumer">The consumer taking ownership.</param>
+    /// <param name="minIdleTime">Only claim entries idle for at least this long.</param>
+    /// <param name="messageIds">The entries to claim; at least one.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <remarks>
+    /// <b>A <see cref="TimeSpan"/> where <c>IDatabase.StreamClaim</c> takes <c>long minIdleTimeInMs</c>.</b>
+    /// A duration is a duration; the millisecond spelling is the shipped signature's, and the adapter is
+    /// where it belongs. <c>IDatabase.StreamReadGroup</c> already takes a <see cref="TimeSpan"/> for the
+    /// same quantity, so the old surface is not even consistent with itself here.
+    /// </remarks>
+    public static ValueTask<RespRangeReply> ClaimAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ClaimCommand(streams.Context, key, group, consumer, minIdleTime, messageIds, justId: false);
+        return streams.Context.SendAsync(ref cmd, flags, RangeReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="ClaimAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamEntry[]> ClaimArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ClaimCommand(streams.Context, key, group, consumer, minIdleTime, messageIds, justId: false);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.Entries, cancellationToken);
+    }
+
+    /// <summary>
+    /// XCLAIM JUSTID; claims the listed entries and returns only their ids.
+    /// </summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="consumer">The consumer taking ownership.</param>
+    /// <param name="minIdleTime">Only claim entries idle for at least this long.</param>
+    /// <param name="messageIds">The entries to claim; at least one.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Not merely a cheaper <see cref="ClaimAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>.</b>
+    /// <c>JUSTID</c> also tells the server not to bump each entry's delivery counter, which is what makes
+    /// this form safely retryable where the full one is not - see <c>WithJustIdCategory</c>.
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<RedisValue>> ClaimIdsOnlyAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ClaimCommand(streams.Context, key, group, consumer, minIdleTime, messageIds, justId: true);
+        return streams.Context.SendAsync(ref cmd, JustIdFlags(flags), RespHandlers.Inbuilt<ReadOnlyLease<RedisValue>>.Require(), cancellationToken);
+    }
+
+    /// <inheritdoc cref="ClaimIdsOnlyAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<RedisValue[]> ClaimIdsOnlyArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ClaimCommand(streams.Context, key, group, consumer, minIdleTime, messageIds, justId: true);
+        return streams.Context.SendAsync(ref cmd, JustIdFlags(flags), RespHandlers.Inbuilt<RedisValue[]>.Require(), cancellationToken);
+    }
+
+    /// <summary>Render <c>XCLAIM</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    private static RespRequestFrame ClaimCommand(
+        in RespContext context,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        scoped ReadOnlySpan<RedisValue> messageIds,
+        bool justId)
+    {
+        DemandAtLeastOneId(messageIds);
+        var idleMs = (long)minIdleTime.TotalMilliseconds;
+        return justId
+            ? context.Render($"{RedisCommand.XCLAIM}{key}{group}{consumer}{idleMs}{messageIds}{RespLiterals.JustId}")
+            : context.Render($"{RedisCommand.XCLAIM}{key}{group}{consumer}{idleMs}{messageIds}");
+    }
+
+    /// <summary>
+    /// <c>JUSTID</c> makes a claim a clean conditional write; without it, it is not.
+    /// </summary>
+    /// <remarks>
+    /// Reassigning ownership is itself idempotent, but <c>XCLAIM</c>/<c>XAUTOCLAIM</c> bump the entry's
+    /// delivery counter every call - except under <c>JUSTID</c>, which explicitly does not. Without it the
+    /// per-command default stands, since the counter is group bookkeeping rather than caller data. The
+    /// same rule as <c>RedisDatabase.WithJustIdCategory</c>, which is where it is explained in full.
+    /// </remarks>
+    private static CommandFlags JustIdFlags(CommandFlags flags)
+        => flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked);
+
     /// <summary>XNACK; how many of the listed entries were released back to the group.</summary>
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream.</param>

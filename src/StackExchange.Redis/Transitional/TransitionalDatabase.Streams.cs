@@ -270,5 +270,25 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public Task StreamConfigureAsync(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None)
             => _inner.Streams.ConfigureAsync(key, configuration, flags).AsTask();
+
+        // ---- XCLAIM ---------------------------------------------------------------------------------
+        // The milliseconds become a TimeSpan here, which is the whole of the difference: the new surface
+        // spells a duration as a duration, and this is the seam that keeps the shipped signature honest.
+
+        /// <inheritdoc/>
+        public StreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.ClaimArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags));
+
+        /// <inheritdoc/>
+        public Task<StreamEntry[]> StreamClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.ClaimArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags).AsTask();
+
+        /// <inheritdoc/>
+        public RedisValue[] StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.ClaimIdsOnlyArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags));
+
+        /// <inheritdoc/>
+        public Task<RedisValue[]> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.ClaimIdsOnlyArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags).AsTask();
     }
 }
