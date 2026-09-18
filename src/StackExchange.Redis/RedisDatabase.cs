@@ -1420,7 +1420,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        private sealed class KeyMigrateCommandMessage : Message.CommandKeyBase // MIGRATE is atypical
+        internal sealed class KeyMigrateCommandMessage : Message.CommandKeyBase // MIGRATE is atypical
         {
             private readonly MigrateOptions migrateOptions;
             private readonly int timeoutMilliseconds;
@@ -4696,7 +4696,7 @@ namespace StackExchange.Redis
             return ("(" + Format.ToString(value)).AsRedisValue(); // '(' prefix means exclusive
         }
 
-        private Message GetRestoreMessage(RedisKey key, byte[] value, TimeSpan? expiry, CommandFlags flags)
+        internal Message GetRestoreMessage(RedisKey key, byte[] value, TimeSpan? expiry, CommandFlags flags)
         {
             long pttl = (expiry == null || expiry.Value == TimeSpan.MaxValue) ? 0 : (expiry.Value.Ticks / TimeSpan.TicksPerMillisecond);
             return Message.Create(Database, flags, RedisCommand.RESTORE, key, pttl, value);

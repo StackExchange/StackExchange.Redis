@@ -439,6 +439,14 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Claim { get; }
 
+        /// <summary>The <c>OBJECT</c> subcommand of <c>DEBUG</c>.</summary>
+        [Resp("OBJECT")]
+        internal static partial RespFragment DebugObject { get; }
+
+        /// <summary>The <c>COPY</c> operand of <c>MIGRATE</c>: keep the key on the source too.</summary>
+        [Resp]
+        internal static partial RespFragment Copy { get; }
+
         /// <summary>The <c>NOVALUES</c> operand of <c>HSCAN</c>: field names without their values.</summary>
         [Resp("NOVALUES")]
         internal static partial RespFragment NoValues { get; }

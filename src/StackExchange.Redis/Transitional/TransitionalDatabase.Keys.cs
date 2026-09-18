@@ -224,5 +224,50 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
             => _inner.Keys.IdleTimeAsync(key, flags).AsTask();
-}
+
+        // ---- RESTORE / MIGRATE / DEBUG OBJECT ----------------------------------------------------
+        // The array and the EndPoint are the shipped spellings; the new surface takes a span and a
+        // host/port, so this is where each is unpicked - the same division of labour as elsewhere here.
+
+        /// <inheritdoc/>
+        public void KeyRestore(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags));
+
+        /// <inheritdoc/>
+        public Task KeyRestoreAsync(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags).AsTask();
+
+        /// <inheritdoc/>
+        public void KeyMigrate(RedisKey key, System.Net.EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
+            => Wait(Migrate(key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags));
+
+        /// <inheritdoc/>
+        public Task KeyMigrateAsync(RedisKey key, System.Net.EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
+            => Migrate(key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags).AsTask();
+
+        /// <summary>Unpick the endpoint and apply the multiplexer's default timeout.</summary>
+        /// <remarks>
+        /// Both halves are the shipped behaviour: a non-positive timeout means "use the connection's", and
+        /// an endpoint that is not host-and-port is rejected here rather than sent.
+        /// </remarks>
+        private ValueTask Migrate(RedisKey key, System.Net.EndPoint toServer, int toDatabase, int timeoutMilliseconds, MigrateOptions options, CommandFlags flags)
+        {
+            if (toServer is null) throw new ArgumentNullException(nameof(toServer));
+            if (!Format.TryGetHostPort(toServer, out string? host, out int? port))
+            {
+                throw new ArgumentException($"Couldn't get host and port from {toServer}", nameof(toServer));
+            }
+
+            if (timeoutMilliseconds <= 0) timeoutMilliseconds = multiplexer.TimeoutMilliseconds;
+            return _inner.Keys.MigrateAsync(key, host!, port!.Value, toDatabase, TimeSpan.FromMilliseconds(timeoutMilliseconds), options, flags);
+        }
+
+        /// <inheritdoc/>
+        public RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Keys.DebugObjectAsync(key, flags));
+
+        /// <inheritdoc/>
+        public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => _inner.Keys.DebugObjectAsync(key, flags).AsTask();
+    }
 }

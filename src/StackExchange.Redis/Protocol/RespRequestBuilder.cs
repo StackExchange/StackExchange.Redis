@@ -659,6 +659,21 @@ namespace StackExchange.Redis.Protocol
             }
         }
 
+        /// <summary>Append raw bytes as one value: <c>$"{command}{key}{payload}"</c>.</summary>
+        /// <param name="value">The payload, framed here - so it must NOT already carry a <c>$len</c> prefix.</param>
+        /// <remarks>
+        /// <b>One argument, not a run.</b> The other span overloads write an argument per element;
+        /// <see cref="byte"/> is the case where the span <i>is</i> the argument, which is what commands
+        /// taking an opaque blob want - <c>RESTORE</c>'s dump payload, a serialised value. Without it the
+        /// caller has to reach for <see cref="AppendBulk"/> by hand and lose the interpolated spelling, or
+        /// copy the bytes into a <see cref="RedisValue"/> for no reason.
+        /// </remarks>
+        public void AppendFormatted(scoped ReadOnlySpan<byte> value)
+        {
+            DemandCommand();
+            AppendBulk(value);
+        }
+
         /// <summary>Append a value; not a key, and not marked as one.</summary>
         /// <param name="value">The value to append.</param>
         public void AppendFormatted(RedisValue value)

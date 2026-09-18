@@ -375,4 +375,89 @@ public static partial class Keys
             ? (expiry.IsMilliseconds ? RedisCommand.PEXPIREAT : RedisCommand.EXPIREAT)
             : (expiry.IsMilliseconds ? RedisCommand.PEXPIRE : RedisCommand.EXPIRE);
     }
+
+    /// <summary>RESTORE; recreate a key from the payload <c>DUMP</c> produced.</summary>
+    /// <param name="keys">The key command group.</param>
+    /// <param name="key">The key to create.</param>
+    /// <param name="value">The serialised value, as <c>DUMP</c> returned it.</param>
+    /// <param name="expiry">How long the key should live; no expiry when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>A span where <c>IDatabase.KeyRestore</c> takes a <c>byte[]</c>.</b> The payload is written
+    /// straight into the frame, so nothing about this command needs an array: the shipped signature's
+    /// array is the adapter's problem, and a caller who has the bytes in a buffer or a slice pays nothing
+    /// to hand them over.
+    /// </remarks>
+    public static ValueTask RestoreAsync(
+        this in RespKeys keys,
+        RedisKey key,
+        scoped ReadOnlySpan<byte> value,
+        TimeSpan? expiry = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        // zero means "no expiry" to RESTORE, and TimeSpan.MaxValue is how the shipped surface spells that
+        var ttl = expiry is { } actual && actual != TimeSpan.MaxValue ? actual.Ticks / TimeSpan.TicksPerMillisecond : 0;
+        return keys.Context.SendAsync($"{RedisCommand.RESTORE}{key}{ttl}{value}", flags, cancellationToken);
+    }
+
+    /// <summary>MIGRATE; move a key to another server.</summary>
+    /// <param name="keys">The key command group.</param>
+    /// <param name="key">The key to move.</param>
+    /// <param name="host">The destination host.</param>
+    /// <param name="port">The destination port.</param>
+    /// <param name="toDatabase">The destination database index.</param>
+    /// <param name="timeout">How long the destination may take before the move is abandoned.</param>
+    /// <param name="options">Whether to keep the source copy, and whether to overwrite the destination.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Host and port, not an <c>EndPoint</c>.</b> The shipped signature takes one and immediately picks
+    /// it apart with <c>Format.TryGetHostPort</c>, throwing for anything that is not host-and-port - so the
+    /// <c>EndPoint</c> buys a conversion and a failure mode rather than expressiveness. The adapter does
+    /// that unpicking, which is where it belongs.
+    /// </para>
+    /// <para>
+    /// <b>The key is the third argument</b>, which is why this is spelled out rather than following the
+    /// usual command-then-key shape: <c>MIGRATE</c> is atypical. It is still written as a key, so routing,
+    /// prefixing and invalidation all see it.
+    /// </para>
+    /// </remarks>
+    public static ValueTask MigrateAsync(
+        this in RespKeys keys,
+        RedisKey key,
+        string host,
+        int port,
+        int toDatabase = 0,
+        TimeSpan timeout = default,
+        MigrateOptions options = MigrateOptions.None,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        if (host is null) throw new ArgumentNullException(nameof(host));
+        var timeoutMs = (long)timeout.TotalMilliseconds;
+        return keys.Context.SendAsync(
+            $"{RedisCommand.MIGRATE}{host}{port}{key}{toDatabase}{timeoutMs}{RespLiterals.Copy.When((options & MigrateOptions.Copy) != 0)}{RespLiterals.Replace.When((options & MigrateOptions.Replace) != 0)}",
+            flags,
+            cancellationToken);
+    }
+
+    /// <summary>DEBUG OBJECT; the server's internal description of a key.</summary>
+    /// <param name="keys">The key command group.</param>
+    /// <param name="key">The key to describe.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// A diagnostic, and the reply is a human-readable line rather than anything structured - so it stays a
+    /// <see cref="RedisValue"/> rather than growing a parsed shape that the server is free to change.
+    /// </remarks>
+    public static ValueTask<RedisValue> DebugObjectAsync(
+        this in RespKeys keys,
+        RedisKey key,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => keys.Context.SendAsync<RedisValue>(
+            $"{RedisCommand.DEBUG}{RespLiterals.DebugObject}{key}", flags, cancellationToken: cancellationToken);
 }
