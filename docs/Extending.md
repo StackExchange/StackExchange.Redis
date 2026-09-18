@@ -74,8 +74,13 @@ public static class ContosoExtensions
     // rendered once, not per call: the name is a constant, and `preform` keeps its RESP bulk string ready
     private static readonly RespCommand Substr = "SUBSTR".Command(preform: true);
 
-    // 2. the accessor, so callers say db.Contoso()
-    public static ContosoCommands Contoso(this IRespKeyspaceTarget target) => new(target.Context);
+    // 2a. the accessor, on the CONTEXT - which is what carries the key prefix, the database, the
+    //     services, so it is what the commands must hang off
+    public static ContosoCommands Contoso(this in RespDatabaseContext context) => new(context.Raw);
+
+    // 2b. and sugar, so callers can say db.Contoso() - a target forwards to its own context
+    public static ContosoCommands Contoso<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget
+        => target.Context.Contoso();
 
     // 3. the command
     public static ValueTask<RedisValue> SubstringAsync(
@@ -100,7 +105,9 @@ RedisValue value = await db.Contoso().SubstringAsync(key, 0, 4);
 
 Everything above is in the `StackExchange.Redis` namespace, which your callers already have. One extra `using` shows up later: `StackExchange.Redis.Protocol` holds the request-building types - `RespRequestFrame`, `RespFragment`, `IRespArgument` - which you name when you write a command factory and never otherwise. That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which.
 
-> On C# 14 the accessor can be an extension **property** (`extension(IRespKeyspaceTarget target) { public ContosoCommands Contoso => new(target.Context); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
+> On C# 14 either accessor can be an extension **property** (`extension(in RespDatabaseContext context) { public ContosoCommands Contoso => new(context.Raw); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
+>
+> Why two accessors rather than one on the target? Because a context is what can differ from the connection it came from - `db.Context.AppendKeyPrefix("t:")` is still a context, and the groups have to come off *it*. Hanging them off the target only would mean a prefixed context could not reach them.
 
 ### The interpolated string is not a string
 
