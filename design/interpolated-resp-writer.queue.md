@@ -394,6 +394,35 @@ Four consequences, none of them cosmetic:
       `$0`-instead-of-omitted bug `XPENDING`'s consumer had, caught the same way, and writing it a third
       time was clearly next.
 
+- [ ] **PROPOSAL: `RespContext` should be a sealed class, memoising the hot pieces.** Marc, 2026-09-18:
+      *"all our flavoured contexts are really just a reference with an accent"*.
+
+      Today it is a 40-byte `readonly struct` with six fields - `_services`, `_commandMap`, `_keyPrefix`,
+      `Executor`, `ServerType`, `_database` - and two of the things the send path needs most are **not**
+      fields at all: `Cache` and `MaxCacheAgeTicks` are `TryGetService` lookups, consulted on *every* send.
+      A lookup walks a `ServiceLink` chain calling `Type.IsInstanceOfType` per node - a reflection type
+      test, not an `is T` the JIT turns into a cast check - and a database context built by the multiplexer
+      has three services in that chain. `Database` is likewise `Executor?.Database ?? _database`, an
+      interface call per read.
+
+      **The design case is strong on its own**: `??=` replaces the `_haveContext` bool in `RedisDatabase`
+      and `RedisServer`; the fourteen group structs shrink from 40 bytes to 8, which matters because they
+      are copied on every `this in` extension call; and `KeyPrefixed.GetContext()` - which today rebuilds
+      `Inner.Raw.AppendKeyPrefix(Prefix)` on *every access* - becomes memoisable.
+
+      **Costs to weigh**: every wither allocates, so `KeyPrefixed` must memoise rather than rebuild or it
+      regresses from free to an allocation per call; `new RespContext()` is a valid sentinel today and used
+      widely in tests, so a class needs a `Default` or null discipline; and identity/equality semantics
+      change.
+
+      **I could not measure the service-lookup cost and should not pretend otherwise.** Two microbenchmarks
+      gave sub-nanosecond figures for a chain of reflection type tests - about one and a half cycles, so
+      not a measurement of anything - and the second *inverted*, reporting three services faster than none.
+      Defeating the hoist with an indexed array did not fix it. This is the third time today a
+      microbenchmark of a piece of this path has misled (the `in`/ref-accessor experiment measured 7.7x
+      faster in isolation and 8% *slower* in the real path). The only trustworthy route is to prototype the
+      memoisation and re-run `CacheHitSendBenchmarks`, which measures a whole operation.
+
 - [ ] **`TransitionalDatabase`: 71 unimplemented members — status, 2026-09-18.** Was 106 generated at the
       start of the day, now **58** generated plus **13 hand-written scans that SER352 cannot see**. Marc
       spotted the gap: *"make sure we add scans to the list, because I think we're cheating on that"*.
