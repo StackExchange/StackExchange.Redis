@@ -32,14 +32,18 @@ namespace StackExchange.Redis;
 /// </remarks>
 public readonly struct RespKeyspace
 {
-    private readonly RespContext _context;
-
     /// <summary>Group the keyspace commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespKeyspace(in RespContext context) => _context = context;
+    public RespKeyspace(in RespContext context) => Context = context;
 
-    /// <summary>The underlying context.</summary>
-    public RespContext Context => _context;
+    /// <summary>The context these commands are sent through.</summary>
+    /// <remarks>
+    /// <b>An internal field, not a public property.</b> A group is a context plus a name, and the name is
+    /// the whole point: handing the bare <see cref="RespContext"/> back out would undo it, the same way a
+    /// public <c>Raw</c> did on the typed contexts. Inside the assembly it stays a plain field, so every
+    /// command method reads exactly as it did.
+    /// </remarks>
+    internal readonly RespContext Context;
 }
 
 /// <summary>

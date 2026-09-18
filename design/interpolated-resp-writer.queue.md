@@ -93,6 +93,30 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **The command groups no longer hand their context back — DONE, 2026-09-18.** Marc: *"I was
+      expecting all of those to become internal readonly fields"*. All fourteen - `RespStrings`,
+      `RespBitmaps`, `RespHashes`, `RespKeys`, `RespKeyspace`, `RespLists`, `RespSets`, `RespSortedSets`,
+      `RespStreams`, `RespScripts`, `RespArrays`, `RespGeospatial`, `RespHyperLogLog`, `RespVectorSets` -
+      swapped `private readonly RespContext _context` plus `public RespContext Context => _context` for a
+      single `internal readonly RespContext Context`. Fourteen lines out of the public API, and not one
+      command method changed: the field kept the name the methods already used.
+
+      **Nothing outside the assembly wanted it.** Checked before removing: no test, toy or doc reaches for
+      `group.Context`, and `docs/Extending.md`'s level-3 sample uses the *extender's own* group type, whose
+      `Context` is theirs to make public.
+
+      **On whether we need a way back.** Marc, thinking aloud, suggested the groups could implement
+      `IRespTarget` explicitly with a `GetContext<T>() where T : IRespTarget` helper. Recommend not, unless
+      a need actually turns up: `IRespTarget.Context` is public, so implementing it would re-expose the
+      naked context with a cast in front of it - the same thing the typed contexts just stopped doing. If
+      a need does turn up, the consistent answer is the one already taken there, a
+      `public static explicit operator RespContext(RespStrings)`, which is additive and costs nothing now.
+
+      `RespContextConversionTests.NoGroupExposesItsContext` sweeps every group by reflection rather than
+      naming them, because the failure that matters is a *new* group being added with the old public
+      property - which nothing at compile time would catch, and which would reopen the hole on one type
+      only.
+
 - [x] **`IRespTarget.Raw` is now `Context`, hidden by the derived interfaces — DONE, 2026-09-18.**
       Marc: *"I really don't like the public Raw"*. Renaming the base member and letting
       `IRespKeyspaceTarget`/`IRespServerTarget` hide it with `new` means `db.Context` is the typed context,

@@ -97,6 +97,31 @@ public class RespContextConversionTests
         RespContext IRespTarget.Context => context;
     }
 
+    /// <summary>
+    /// And a command group hands nothing back either: it is a context plus a name, and the name is the
+    /// point.
+    /// </summary>
+    /// <remarks>
+    /// Checked by reflection over every group at once, because the interesting failure is a new group
+    /// being added with the old public <c>Context</c> property - which no compile-time check would catch
+    /// and which would quietly reopen the hole on that one type.
+    /// </remarks>
+    [Fact]
+    public void NoGroupExposesItsContext()
+    {
+        var groups = typeof(RespStrings).Assembly.GetExportedTypes()
+            .Where(t => t.IsValueType && t.Name.StartsWith("Resp", StringComparison.Ordinal) && t.Name != nameof(RespContext))
+            .Where(t => t.GetField("Context", BindingFlags.NonPublic | BindingFlags.Instance) is not null)
+            .ToArray();
+
+        Assert.NotEmpty(groups); // a reflection typo would otherwise pass vacuously
+        Assert.All(groups, t =>
+        {
+            Assert.Null(t.GetProperty("Context", BindingFlags.Public | BindingFlags.Instance));
+            Assert.Null(t.GetField("Context", BindingFlags.Public | BindingFlags.Instance));
+        });
+    }
+
     [Fact]
     public void TheCastRoundTrips()
     {
