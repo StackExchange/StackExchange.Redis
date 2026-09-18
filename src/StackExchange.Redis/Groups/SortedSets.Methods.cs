@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -1052,4 +1053,99 @@ public static partial class SortedSets
 
     /// <summary>The <c>AGGREGATE mode</c> pair; SUM is the server's default and writes nothing.</summary>
     private static RespAggregate AsFragment(Aggregate aggregate) => new(aggregate);
+
+    /// <summary>ZSCAN, one page at a time: the raw cursor API.</summary>
+    /// <param name="sortedSets">The sorted set command group.</param>
+    /// <param name="key">The sorted set to scan.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pattern">Only return members matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns>A page that must be disposed; see <see cref="RespScanPage{T}"/>.</returns>
+    /// <remarks>
+    /// <inheritdoc cref="RespScanPage{T}" path="/remarks/para[1]"/>
+    /// <para>
+    /// The <see cref="RespScanPage{T}.Cursor"/> of the reply is what to pass back here, and <b>only a zero
+    /// cursor ends the scan</b> - an empty page does not.
+    /// </para>
+    /// </remarks>
+    public static ValueTask<RespScanPage<SortedSetEntry>> ScanPageAsync(
+        this in RespSortedSets sortedSets,
+        RedisKey key,
+        long cursor = 0,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = RespScan.Command(sortedSets.Context, RedisCommand.ZSCAN, key, cursor, pattern, pageSize);
+
+        // the retry category depends on the cursor: resuming mid-scan is not the same risk as starting one
+        return sortedSets.Context.SendAsync(ref cmd, flags.WithScanCursorCategory(cursor), SortedSetScanHandler, cancellationToken);
+    }
+
+    /// <summary>ZSCAN as a sequence, driving the cursor for you.</summary>
+    /// <param name="sortedSets">The sorted set command group.</param>
+    /// <param name="key">The sorted set to scan.</param>
+    /// <param name="pattern">Only return members matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pageOffset">How far into the first page to start, for resuming mid-page.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">
+    /// Cancels the scan <b>between pages</b>; see <c>RespScanEnumerable.GetAsyncEnumerator</c> for how it
+    /// combines with the enumerator's own token.
+    /// </param>
+    /// <remarks><inheritdoc cref="Sets.ScanAsync" path="/remarks"/></remarks>
+    public static IAsyncEnumerable<SortedSetEntry> ScanAsync(
+        this in RespSortedSets sortedSets,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => ScanCore(sortedSets, key, pattern, pageSize, cursor, pageOffset, flags, cancellationToken);
+
+    /// <summary>
+    /// The concrete scan, which is <b>both</b> sequences at once.
+    /// </summary>
+    /// <remarks>
+    /// Internal because the shipped contract needs the concrete type: <c>IDatabase</c> exposes the same
+    /// scan as an <see cref="IEnumerable{T}"/> and an <see cref="IAsyncEnumerable{T}"/>, and the
+    /// transitional adapter hands the one object to both - which is what <c>CursorEnumerable</c> has always
+    /// done. The public member above returns the async face, because the context surface is async.
+    /// </remarks>
+    internal static RespScanEnumerable<SortedSetEntry> ScanCore(
+        this in RespSortedSets sortedSets,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var context = sortedSets.Context;
+        return new RespScanEnumerable<SortedSetEntry>(
+            (position, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return new RespSortedSets(context).ScanPageAsync(key, position, pattern, pageSize, flags);
+            },
+            position =>
+            {
+                // the synchronous face uses the synchronous send, rather than blocking on the async one
+                var frame = RespScan.Command(context, RedisCommand.ZSCAN, key, position, pattern, pageSize);
+                return context.Send(ref frame, flags.WithScanCursorCategory(position), SortedSetScanHandler, default);
+            },
+            cursor,
+            pageSize ?? RespScan.DefaultPageSize,
+            pageOffset,
+            cancellationToken);
+    }
+
+    private static readonly RespScanPagePairHandler<SortedSetEntry> SortedSetScanHandler = new(ResultProcessor.SortedSetWithScores);
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -28,21 +29,51 @@ namespace StackExchange.Redis;
 /// ours. That is also what lets the enumerator own the linked token source and dispose it.
 /// </para>
 /// </remarks>
-internal sealed class RespScanEnumerable<T> : IAsyncEnumerable<T>, IScanningCursor
+internal sealed class RespScanEnumerable<T> : IAsyncEnumerable<T>, IEnumerable<T>, IScanningCursor
 {
     /// <summary>Fetch one page, starting at <paramref name="cursor"/>.</summary>
     internal delegate ValueTask<RespScanPage<T>> PageFetcher(long cursor, CancellationToken cancellationToken);
+
+    /// <summary>Fetch one page synchronously.</summary>
+    /// <remarks>
+    /// <b>A real synchronous send, not a blocking wait on the asynchronous one.</b> The context surface
+    /// has both, so the sync face can use <c>Send</c> rather than parking a thread on a <c>ValueTask</c> -
+    /// which is what makes offering both faces honest rather than a sync-over-async trap.
+    /// </remarks>
+    internal delegate RespScanPage<T> SyncPageFetcher(long cursor);
 
     private readonly PageFetcher _fetch;
     private readonly long _initialCursor;
     private readonly int _pageSize, _initialOffset;
     private readonly CancellationToken _cancellationToken;
+    private readonly SyncPageFetcher _fetchSync;
     private volatile IScanningCursor? _active;
 
-    internal RespScanEnumerable(PageFetcher fetch, long cursor, int pageSize, int pageOffset, CancellationToken cancellationToken)
+    /// <summary>Start a scan that fetches pages through <paramref name="fetch"/>.</summary>
+    /// <param name="fetch">Fetches one page from a cursor.</param>
+    /// <param name="cursor">Where to start.</param>
+    /// <param name="pageSize">Reported by <see cref="IScanningCursor.PageSize"/>.</param>
+    /// <param name="pageOffset">How far into the first page to begin.</param>
+    /// <param name="cancellationToken">The scan-level token.</param>
+    /// <param name="fetchSync">Fetches one page synchronously.</param>
+    /// <remarks>
+    /// <b>Both faces, always.</b> The shipped surface lets a caller cast either way - <c>HashTests.ScanAsync</c>
+    /// enumerates <c>HashScan</c> as an <see cref="IAsyncEnumerable{T}"/> <i>and</i> <c>HashScanAsync</c> as
+    /// an <see cref="IEnumerable{T}"/> - so which method produced the sequence cannot decide which
+    /// interfaces work. Taking both fetchers is what keeps that true without one face blocking on the
+    /// other.
+    /// </remarks>
+    internal RespScanEnumerable(
+        PageFetcher fetch,
+        SyncPageFetcher fetchSync,
+        long cursor,
+        int pageSize,
+        int pageOffset,
+        CancellationToken cancellationToken)
     {
         if (pageOffset < 0) throw new ArgumentOutOfRangeException(nameof(pageOffset));
         _fetch = fetch;
+        _fetchSync = fetchSync;
         _initialCursor = cursor;
         _pageSize = pageSize;
         _initialOffset = pageOffset;
@@ -106,8 +137,13 @@ internal sealed class RespScanEnumerable<T> : IAsyncEnumerable<T>, IScanningCurs
         return new Enumerator(this, effective, linked);
     }
 
+    /// <summary>The synchronous face, for the shipped <see cref="IEnumerable{T}"/> signatures.</summary>
+    public IEnumerator<T> GetEnumerator() => new Enumerator(this, _cancellationToken, null);
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
     private sealed class Enumerator(RespScanEnumerable<T> parent, CancellationToken cancellationToken, CancellationTokenSource? linked)
-        : IAsyncEnumerator<T>, IScanningCursor
+        : IAsyncEnumerator<T>, IEnumerator<T>, IScanningCursor
     {
         private RespScanPage<T> _page;
         private bool _hasPage, _finished;
@@ -133,29 +169,69 @@ internal sealed class RespScanEnumerable<T> : IAsyncEnumerable<T>, IScanningCurs
             parent._active = this;
             while (true)
             {
-                if (_hasPage && ++_index < _page.Count) return true;
-
-                // an empty page does NOT mean the end: only a zero cursor does, and a scan can hand back
-                // any number of empty pages on the way through a sparse keyspace
-                if (_finished) return false;
+                if (TryAdvance(out var more)) return more;
 
                 cancellationToken.ThrowIfCancellationRequested();
-
                 var cursor = _nextCursor;
-                var next = await parent._fetch(cursor, cancellationToken).ForAwait();
-                if (_hasPage) _page.Dispose();
-
-                _page = next;
-                _hasPage = true;
-                _activeCursor = cursor;
-                _nextCursor = next.Cursor;
-                _finished = next.IsComplete;
-
-                // the first page starts at the requested offset, so a resumed scan does not repeat what
-                // the caller already saw; every page after it starts at the beginning
-                _index = (cursor == parent._initialCursor ? parent._initialOffset : 0) - 1;
+                Accept(cursor, await parent._fetch(cursor, cancellationToken).ForAwait());
             }
         }
+
+        /// <summary>The same walk, blocking on each page.</summary>
+        /// <remarks>
+        /// One loop body, two ways of getting a page: the bookkeeping that decides when the scan is over
+        /// lives in <c>TryAdvance</c>/<c>Accept</c> and is shared, so the sync and async faces cannot
+        /// disagree about it - which is the same reason the sequence is built on the raw page API rather
+        /// than beside it.
+        /// </remarks>
+        public bool MoveNext()
+        {
+            parent._active = this;
+            while (true)
+            {
+                if (TryAdvance(out var more)) return more;
+
+                cancellationToken.ThrowIfCancellationRequested();
+                var cursor = _nextCursor;
+                Accept(cursor, parent._fetchSync(cursor));
+            }
+        }
+
+        /// <summary>Move within the current page; false when another page is needed.</summary>
+        private bool TryAdvance(out bool more)
+        {
+            if (_hasPage && ++_index < _page.Count)
+            {
+                more = true;
+                return true;
+            }
+
+            // an empty page does NOT mean the end: only a zero cursor does, and a scan can hand back any
+            // number of empty pages on the way through a sparse keyspace
+            more = false;
+            return _finished;
+        }
+
+        private void Accept(long cursor, RespScanPage<T> next)
+        {
+            if (_hasPage) _page.Dispose();
+
+            _page = next;
+            _hasPage = true;
+            _activeCursor = cursor;
+            _nextCursor = next.Cursor;
+            _finished = next.IsComplete;
+
+            // the first page starts at the requested offset, so a resumed scan does not repeat what the
+            // caller already saw; every page after it starts at the beginning
+            _index = (cursor == parent._initialCursor ? parent._initialOffset : 0) - 1;
+        }
+
+        object? IEnumerator.Current => Current;
+
+        void IEnumerator.Reset() => throw new NotSupportedException();
+
+        public void Dispose() => DisposeAsync().GetAwaiter().GetResult();
 
         public ValueTask DisposeAsync()
         {

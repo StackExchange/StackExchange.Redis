@@ -1,57 +1,90 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
 
-// Streaming cursor scans (IEnumerable / IAsyncEnumerable) are deferred-execution and do not fit the
-// capture-and-replay shape, so [AutoDatabase] skips them by category - they are the one part of the
-// interface that does have to be listed by hand, and the only part of this type that a new command could
-// oblige someone to touch.
-//
-// Like the generated members, these throw unless a fallback was supplied; see TransitionalDatabase._fallback.
+/// <summary>
+/// The cursor scans, over the context surface.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>These are hand-written because <c>[AutoDatabase]</c> skips them</b>, and it skips them for a real
+/// reason: deferred execution does not fit capture-and-replay, so an <see cref="IEnumerable{T}"/>-returning
+/// member cannot be generated. That also means the generator cannot see whether they are implemented, so
+/// SER352 has never counted them - <c>TransitionalScanGapTests</c> is what watches this file instead.
+/// </para>
+/// <para>
+/// <b>Each pair of members returns the same object</b>, because the shipped contract says a scan is both
+/// sequences at once: <c>HashTests.ScanAsync</c> enumerates <c>HashScan</c> as an
+/// <see cref="IAsyncEnumerable{T}"/> and <c>HashScanAsync</c> as an <see cref="IEnumerable{T}"/>, so which
+/// method produced it cannot decide which interfaces work. <c>RespScanEnumerable</c> carries a fetcher for
+/// each, so neither face blocks on the other.
+/// </para>
+/// </remarks>
 internal sealed partial class TransitionalDatabase
 {
-    private IDatabase Scans => _fallback ?? throw NotMoved();
+    // ---- HSCAN --------------------------------------------------------------------------------------
 
-    private static NotImplementedException NotMoved()
-        => new("This command has not yet moved to the RESP context surface.");
-
+    /// <inheritdoc/>
     public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        => Scans.HashScan(key, pattern, pageSize, flags);
+        => HashScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
 
+    /// <inheritdoc/>
     public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.HashScan(key, pattern, pageSize, cursor, pageOffset, flags);
+        => _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
 
-    public IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.HashScanNoValues(key, pattern, pageSize, cursor, pageOffset, flags);
-
-    public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        => Scans.SetScan(key, pattern, pageSize, flags);
-
-    public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.SetScan(key, pattern, pageSize, cursor, pageOffset, flags);
-
-    public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        => Scans.SortedSetScan(key, pattern, pageSize, flags);
-
-    public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.SortedSetScan(key, pattern, pageSize, cursor, pageOffset, flags);
-
-    public IEnumerable<RedisValue> VectorSetRangeEnumerate(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => Scans.VectorSetRangeEnumerate(key, start, end, count, exclude, flags);
-
+    /// <inheritdoc/>
     public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.HashScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+        => _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
 
+    /// <inheritdoc/>
+    public IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        => _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags);
+
+    /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.HashScanNoValuesAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+        => _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags);
 
+    // ---- SSCAN --------------------------------------------------------------------------------------
+
+    /// <inheritdoc/>
+    public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
+        => SetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
+
+    /// <inheritdoc/>
+    public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        => _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+
+    /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.SetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+        => _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
 
+    // ---- ZSCAN --------------------------------------------------------------------------------------
+
+    /// <inheritdoc/>
+    public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
+        => SortedSetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
+
+    /// <inheritdoc/>
+    public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        => _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+
+    /// <inheritdoc/>
     public IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => Scans.SortedSetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+        => _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
 
+    // ---- VectorSetRangeEnumerate --------------------------------------------------------------------
+    // NOT a cursor scan, and the shipped code says so: "intentionally not using scan naming in case a
+    // VSCAN command is added later". It is keyset pagination over VRANGE - take a page, then ask again
+    // from the last member with the start excluded - so it needs none of the machinery above.
+
+    /// <inheritdoc/>
+    public IEnumerable<RedisValue> VectorSetRangeEnumerate(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        => Fallback<RedisValue>().VectorSetRangeEnumerate(key, start, end, count, exclude, flags);
+
+    /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => Scans.VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
+        => Fallback<RedisValue>().VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
 }

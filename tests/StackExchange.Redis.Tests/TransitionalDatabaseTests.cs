@@ -87,14 +87,21 @@ public class TransitionalDatabaseTests
         Assert.Contains("has not yet moved", ex.Message);
     }
 
+    /// <summary>
+    /// The streaming members are hand-written, and this is what stops that becoming "forgotten".
+    /// </summary>
+    /// <remarks>
+    /// <c>[AutoDatabase]</c> skips them by category, so the generator neither writes them nor counts them
+    /// in SER352. The cursor scans have since moved to the context surface - <c>TransitionalScanGapTests</c>
+    /// covers those - and what is left in this family is the vector-set enumerate, which is not a cursor
+    /// scan at all.
+    /// </remarks>
     [Fact]
     public void AnUnmovedStreamingCommandThrowsToo()
     {
-        // the scans are the one part [AutoDatabase] skips by category, so they are hand-written; this is
-        // here so that "hand-written" does not quietly become "forgotten"
         var db = Target(new FakeExecutor("+OK\r\n"));
 
-        Assert.Throws<NotImplementedException>(() => db.HashScan("k"));
+        Assert.Throws<NotImplementedException>(() => db.VectorSetRangeEnumerate("k"));
     }
 
     /// <summary>A ValueTask source that records whether its result was consumed.</summary>

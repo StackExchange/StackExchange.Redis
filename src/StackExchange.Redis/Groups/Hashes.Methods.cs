@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -886,4 +887,195 @@ public static partial class Hashes
     /// <typeparam name="T">The return type of the call site, which never receives a value.</typeparam>
     private static T ThrowWhen<T>(When when)
         => throw new ArgumentOutOfRangeException(nameof(when), when, "This command does not support that condition.");
+
+    /// <summary>HSCAN, one page at a time: the raw cursor API.</summary>
+    /// <param name="hashes">The hash command group.</param>
+    /// <param name="key">The hash to scan.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pattern">Only return fields matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns>A page that must be disposed; see <see cref="RespScanPage{T}"/>.</returns>
+    /// <remarks>
+    /// <inheritdoc cref="RespScanPage{T}" path="/remarks/para[1]"/>
+    /// <para>
+    /// The <see cref="RespScanPage{T}.Cursor"/> of the reply is what to pass back here, and <b>only a zero
+    /// cursor ends the scan</b> - an empty page does not.
+    /// </para>
+    /// </remarks>
+    public static ValueTask<RespScanPage<HashEntry>> ScanPageAsync(
+        this in RespHashes hashes,
+        RedisKey key,
+        long cursor = 0,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = RespScan.Command(hashes.Context, RedisCommand.HSCAN, key, cursor, pattern, pageSize);
+
+        // the retry category depends on the cursor: resuming mid-scan is not the same risk as starting one
+        return hashes.Context.SendAsync(ref cmd, flags.WithScanCursorCategory(cursor), HashScanHandler, cancellationToken);
+    }
+
+    /// <summary>HSCAN as a sequence, driving the cursor for you.</summary>
+    /// <param name="hashes">The hash command group.</param>
+    /// <param name="key">The hash to scan.</param>
+    /// <param name="pattern">Only return fields matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pageOffset">How far into the first page to start, for resuming mid-page.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">
+    /// Cancels the scan <b>between pages</b>; see <c>RespScanEnumerable.GetAsyncEnumerator</c> for how it
+    /// combines with the enumerator's own token.
+    /// </param>
+    /// <remarks><inheritdoc cref="Sets.ScanAsync" path="/remarks"/></remarks>
+    public static IAsyncEnumerable<HashEntry> ScanAsync(
+        this in RespHashes hashes,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => ScanCore(hashes, key, pattern, pageSize, cursor, pageOffset, flags, cancellationToken);
+
+    /// <summary>
+    /// The concrete scan, which is <b>both</b> sequences at once.
+    /// </summary>
+    /// <remarks>
+    /// Internal because the shipped contract needs the concrete type: <c>IDatabase</c> exposes the same
+    /// scan as an <see cref="IEnumerable{T}"/> and an <see cref="IAsyncEnumerable{T}"/>, and the
+    /// transitional adapter hands the one object to both - which is what <c>CursorEnumerable</c> has always
+    /// done. The public member above returns the async face, because the context surface is async.
+    /// </remarks>
+    internal static RespScanEnumerable<HashEntry> ScanCore(
+        this in RespHashes hashes,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var context = hashes.Context;
+        return new RespScanEnumerable<HashEntry>(
+            (position, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return new RespHashes(context).ScanPageAsync(key, position, pattern, pageSize, flags);
+            },
+            position =>
+            {
+                // the synchronous face uses the synchronous send, rather than blocking on the async one
+                var frame = RespScan.Command(context, RedisCommand.HSCAN, key, position, pattern, pageSize);
+                return context.Send(ref frame, flags.WithScanCursorCategory(position), HashScanHandler, default);
+            },
+            cursor,
+            pageSize ?? RespScan.DefaultPageSize,
+            pageOffset,
+            cancellationToken);
+    }
+
+    /// <summary>HSCAN NOVALUES, one page at a time: the raw cursor API.</summary>
+    /// <param name="hashes">The hash command group.</param>
+    /// <param name="key">The hash to scan.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pattern">Only return fields matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns>A page that must be disposed; see <see cref="RespScanPage{T}"/>.</returns>
+    /// <remarks>
+    /// <inheritdoc cref="RespScanPage{T}" path="/remarks/para[1]"/>
+    /// <para>
+    /// The <see cref="RespScanPage{T}.Cursor"/> of the reply is what to pass back here, and <b>only a zero
+    /// cursor ends the scan</b> - an empty page does not.
+    /// </para>
+    /// </remarks>
+    public static ValueTask<RespScanPage<RedisValue>> ScanNoValuesPageAsync(
+        this in RespHashes hashes,
+        RedisKey key,
+        long cursor = 0,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = RespScan.Command(hashes.Context, RedisCommand.HSCAN, key, cursor, pattern, pageSize, noValues: true);
+
+        // the retry category depends on the cursor: resuming mid-scan is not the same risk as starting one
+        return hashes.Context.SendAsync(ref cmd, flags.WithScanCursorCategory(cursor), ValueScanHandler, cancellationToken);
+    }
+
+    /// <summary>HSCAN NOVALUES as a sequence, driving the cursor for you.</summary>
+    /// <param name="hashes">The hash command group.</param>
+    /// <param name="key">The hash to scan.</param>
+    /// <param name="pattern">Only return fields matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pageOffset">How far into the first page to start, for resuming mid-page.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">
+    /// Cancels the scan <b>between pages</b>; see <c>RespScanEnumerable.GetAsyncEnumerator</c> for how it
+    /// combines with the enumerator's own token.
+    /// </param>
+    /// <remarks><inheritdoc cref="Sets.ScanAsync" path="/remarks"/></remarks>
+    public static IAsyncEnumerable<RedisValue> ScanNoValuesAsync(
+        this in RespHashes hashes,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => ScanNoValuesCore(hashes, key, pattern, pageSize, cursor, pageOffset, flags, cancellationToken);
+
+    /// <summary>
+    /// The concrete scan, which is <b>both</b> sequences at once.
+    /// </summary>
+    /// <remarks>
+    /// Internal because the shipped contract needs the concrete type: <c>IDatabase</c> exposes the same
+    /// scan as an <see cref="IEnumerable{T}"/> and an <see cref="IAsyncEnumerable{T}"/>, and the
+    /// transitional adapter hands the one object to both - which is what <c>CursorEnumerable</c> has always
+    /// done. The public member above returns the async face, because the context surface is async.
+    /// </remarks>
+    internal static RespScanEnumerable<RedisValue> ScanNoValuesCore(
+        this in RespHashes hashes,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var context = hashes.Context;
+        return new RespScanEnumerable<RedisValue>(
+            (position, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return new RespHashes(context).ScanNoValuesPageAsync(key, position, pattern, pageSize, flags);
+            },
+            position =>
+            {
+                // the synchronous face uses the synchronous send, rather than blocking on the async one
+                var frame = RespScan.Command(context, RedisCommand.HSCAN, key, position, pattern, pageSize, noValues: true);
+                return context.Send(ref frame, flags.WithScanCursorCategory(position), ValueScanHandler, default);
+            },
+            cursor,
+            pageSize ?? RespScan.DefaultPageSize,
+            pageOffset,
+            cancellationToken);
+    }
+
+    private static readonly RespScanPagePairHandler<HashEntry> HashScanHandler = new(ResultProcessor.HashEntryArray);
+
+    private static readonly RespScanPageHandler<RedisValue> ValueScanHandler
+        = new(static (ref RespReader r) => r.ReadRedisValue());
 }

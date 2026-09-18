@@ -439,6 +439,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Claim { get; }
 
+        /// <summary>The <c>NOVALUES</c> operand of <c>HSCAN</c>: field names without their values.</summary>
+        [Resp("NOVALUES")]
+        internal static partial RespFragment NoValues { get; }
+
         /// <summary>The <c>IDLE</c> operand of <c>XPENDING</c>; a millisecond count follows it.</summary>
         [Resp]
         internal static partial RespFragment Idle { get; }

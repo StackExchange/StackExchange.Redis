@@ -339,7 +339,7 @@ Four consequences, none of them cosmetic:
       Order suggested: settle the capacity estimate first (one line, measurable, no TFM gating), then
       re-measure, then decide whether the remaining rent justifies the ref-struct surgery.
 
-- [ ] **Scans: the dual API, proved on `SSCAN` — 2026-09-18.** Marc's shape: a *raw* value-task cursor
+- [x] **Scans: the dual API, DONE for every cursor scan — 2026-09-18.** Marc's shape: a *raw* value-task cursor
       API returning a lease, and a utility `IAsyncEnumerable` **on top of** it rather than beside it, so
       the cursor loop exists once. Done for sets; hashes (with and without values) and sorted sets are the
       same shape with a different element projection, and `VectorSetRangeEnumerate` is not a cursor scan
@@ -347,10 +347,13 @@ Four consequences, none of them cosmetic:
 
       - `RespScanPage<T>` - cursor plus `ReadOnlyLease<T>`, disposable. `IsComplete` is `Cursor == 0`
         and is documented as *not* "the page was empty", because that is the scan bug everyone writes once.
-      - `Sets.ScanPageAsync` - one page, for a caller who wants to checkpoint or bound work per tick.
-      - `Sets.ScanAsync` - `IAsyncEnumerable<RedisValue>`, and an `IScanningCursor`, so an interrupted scan
-        reports where it reached and a later one resumes. `Cursor` is the **active** page's, as the shipped
-        interface specifies, not the pending one.
+      - `ScanPageAsync` - one page, for a caller who wants to checkpoint or bound work per tick.
+      - `ScanAsync` - the sequence, and an `IScanningCursor`, so an interrupted scan reports where it
+        reached and a later one resumes. `Cursor` is the **active** page's, as the shipped interface
+        specifies, not the pending one.
+      - All four: `SSCAN`, `HSCAN`, `HSCAN NOVALUES`, `ZSCAN`. The pair-shaped replies (`HSCAN`, `ZSCAN`)
+        reuse the same `ValuePairInterleavedProcessorBase` shapes the classic path uses, which is also what
+        copes with RESP3 turning some of those replies jagged.
 
       **The enumerator is hand-written, and that is forced.** It has to implement `IScanningCursor`, and a
       compiler-generated async iterator cannot implement an interface of ours - which also means
@@ -372,6 +375,20 @@ Four consequences, none of them cosmetic:
       The delegate still carries the token, so this becomes a one-word change when the pipeline can honour
       one. Found by a test, not by reading: the first version propagated the token and every cancellation
       test failed with `NotImplementedException`.
+
+      **The shipped contract is stronger than it looks, and a test caught me assuming otherwise.**
+      `HashTests.ScanAsync` enumerates `HashScan` as an `IAsyncEnumerable<T>` *and* `HashScanAsync` as an
+      `IEnumerable<T>` - so which method produced a scan cannot decide which interfaces work. My first
+      design made the sync face optional, and those inherited tests failed with "this scan is asynchronous
+      only". `RespScanEnumerable` now carries a fetcher for **each** face, and the sync one is a real
+      synchronous `Send` rather than a blocking wait on the async one - so offering both is honest rather
+      than sync-over-async. The transitional adapter hands the one object to both members of each pair,
+      exactly as `CursorEnumerable` always has.
+
+      `VectorSetRangeEnumerate` stays deferred, and is the only member of the family left. It is not a
+      cursor scan: it is keyset pagination over `VRANGE`, and the shipped code says it avoids "scan" naming
+      "in case a VSCAN command is added later". It is in this family only because it happens to return
+      `IEnumerable<T>` and so falls in the same skipped bucket.
 
       Also hoisted `OptionalValue` into `Protocol/` while doing this - `SSCAN`'s `MATCH` had the same
       `$0`-instead-of-omitted bug `XPENDING`'s consumer had, caught the same way, and writing it a third

@@ -341,7 +341,7 @@ public static partial class Sets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        var cmd = ScanCommand(sets.Context, key, cursor, pattern, pageSize);
+        var cmd = RespScan.Command(sets.Context, RedisCommand.SSCAN, key, cursor, pattern, pageSize);
 
         // the retry category depends on the cursor: resuming mid-scan is not the same risk as starting one
         return sets.Context.SendAsync(ref cmd, flags.WithScanCursorCategory(cursor), ValueScanHandler, cancellationToken);
@@ -385,6 +385,26 @@ public static partial class Sets
         int pageOffset = 0,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
+        => ScanCore(sets, key, pattern, pageSize, cursor, pageOffset, flags, cancellationToken);
+
+    /// <summary>
+    /// The concrete scan, which is <b>both</b> sequences at once.
+    /// </summary>
+    /// <remarks>
+    /// Internal because the shipped contract needs the concrete type: <c>IDatabase</c> exposes the same
+    /// scan as an <see cref="IEnumerable{T}"/> and an <see cref="IAsyncEnumerable{T}"/>, and the
+    /// transitional adapter hands the one object to both - which is what <c>CursorEnumerable</c> has always
+    /// done. The public member above returns the async face, because the context surface is async.
+    /// </remarks>
+    internal static RespScanEnumerable<RedisValue> ScanCore(
+        this in RespSets sets,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
     {
         // the context is copied into the closure once per enumeration, which is the cost of the convenient
         // shape; the raw API is there for callers who will not pay it
@@ -397,24 +417,16 @@ public static partial class Sets
                 token.ThrowIfCancellationRequested();
                 return new RespSets(context).ScanPageAsync(key, position, pattern, pageSize, flags);
             },
+            position =>
+            {
+                // the synchronous face uses the synchronous send, rather than blocking on the async one
+                var frame = RespScan.Command(context, RedisCommand.SSCAN, key, position, pattern, pageSize);
+                return context.Send(ref frame, flags.WithScanCursorCategory(position), ValueScanHandler, default);
+            },
             cursor,
-            pageSize ?? RedisBase.CursorUtils.DefaultRedisPageSize,
+            pageSize ?? RespScan.DefaultPageSize,
             pageOffset,
             cancellationToken);
-    }
-
-    /// <summary>Render <c>SSCAN</c> - the one place the command is composed.</summary>
-    /// <remarks>
-    /// <c>MATCH</c> is omitted for a nil-or-<c>*</c> pattern and <c>COUNT</c> when the caller did not ask,
-    /// matching the shipped writer: both are hints, and sending the default explicitly is a wire cost for
-    /// nothing.
-    /// </remarks>
-    private static RespRequestFrame ScanCommand(in RespContext context, RedisKey key, long cursor, RedisValue pattern, int? pageSize)
-    {
-        if (pageSize is <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
-        var match = RedisBase.CursorUtils.IsNil(pattern) ? RedisValue.Null : pattern;
-        return context.Render(
-            $"{RedisCommand.SSCAN}{key}{cursor}{RespLiterals.Match.When(match.HasValue)}{new OptionalValue(match)}{RespLiterals.Count.When(pageSize)}{pageSize}");
     }
 
     private static readonly RespScanPageHandler<RedisValue> ValueScanHandler

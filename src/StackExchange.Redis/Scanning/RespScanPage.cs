@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
@@ -67,6 +67,14 @@ internal sealed class RespScanPageHandler<T>(RespReader.Projection<T> projection
 {
     public RespScanPage<T> Parse(ref RespReader reader)
     {
+        var cursor = ReadCursor(ref reader, out var items);
+        return new RespScanPage<T>(cursor, RespHandlers.ReadScalarLease(ref items, projection));
+    }
+
+    /// <summary>Read the cursor and hand back a reader positioned on the item array.</summary>
+    /// <remarks>Shared with the pair handler, so the two cannot disagree about the envelope.</remarks>
+    internal static long ReadCursor(ref RespReader reader, out RespReader items)
+    {
         if (!reader.IsAggregate || !reader.AggregateLengthIs(2))
         {
             throw new InvalidOperationException("Expected a two-element scan reply of [cursor, items].");
@@ -80,7 +88,54 @@ internal sealed class RespScanPageHandler<T>(RespReader.Projection<T> projection
         }
 
         iter.DemandNext();
-        var items = RespHandlers.ReadScalarLease(ref iter.Value, projection);
-        return new RespScanPage<T>(cursor, items);
+        items = iter.Value;
+        return cursor;
     }
+}
+
+/// <summary>
+/// Reads a <c>[cursor, [items]]</c> scan reply whose items are <b>interleaved pairs</b>.
+/// </summary>
+/// <typeparam name="T">The element type of the scan.</typeparam>
+/// <remarks>
+/// The twin of <see cref="RespScanPageHandler{T}"/> for <c>HSCAN</c> and <c>ZSCAN</c>, whose item arrays
+/// are <c>field, value, field, value, ...</c> rather than a run of scalars - so each element consumes two
+/// children and a per-element projection cannot express it. The shape comes from the same
+/// <c>ValuePairInterleavedProcessorBase</c> the classic path uses, which is also what handles RESP3
+/// turning some of these replies jagged.
+/// </remarks>
+internal sealed class RespScanPagePairHandler<T>(ResultProcessor.ValuePairInterleavedProcessorBase<T> shape) : IRespHandler<RespScanPage<T>>
+{
+    public RespScanPage<T> Parse(ref RespReader reader)
+    {
+        var cursor = RespScanPageHandler<T>.ReadCursor(ref reader, out var items);
+        return new RespScanPage<T>(cursor, RespHandlers.ReadPairLease(ref items, shape));
+    }
+}
+
+/// <summary>Renders a cursor scan; shared by every group that has one.</summary>
+/// <remarks>
+/// <c>MATCH</c> is omitted for a nil-or-<c>*</c> pattern and <c>COUNT</c> when the caller did not ask,
+/// matching the shipped writer: both are hints, and sending the default explicitly is a wire cost for
+/// nothing. <c>NOVALUES</c> goes last, as <c>HSCAN</c> requires.
+/// </remarks>
+internal static class RespScan
+{
+    internal static RespRequestFrame Command(
+        in RespContext context,
+        RedisCommand command,
+        RedisKey key,
+        long cursor,
+        RedisValue pattern,
+        int? pageSize,
+        bool noValues = false)
+    {
+        if (pageSize is <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        var match = RedisBase.CursorUtils.IsNil(pattern) ? RedisValue.Null : pattern;
+        return context.Render(
+            $"{command}{key}{cursor}{RespLiterals.Match.When(match.HasValue)}{new OptionalValue(match)}{RespLiterals.Count.When(pageSize)}{pageSize}{RespLiterals.NoValues.When(noValues)}");
+    }
+
+    /// <summary>The default <c>COUNT</c> the server applies, used as the enumerable's page size.</summary>
+    internal static int DefaultPageSize => RedisBase.CursorUtils.DefaultRedisPageSize;
 }
