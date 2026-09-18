@@ -93,6 +93,22 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **`RespScriptCache` is internal — DONE, 2026-09-18.** Marc: *"internal, I think"*. The type, plus
+      `RespContext.ScriptCache` and `WithScriptCache` on all three contexts: nine lines out of
+      `PublicAPI.Unshipped.txt`.
+
+      **This is safe because the absent case was already the designed one.** `Scripts.Methods` reads
+      `context.ScriptCache` and, when it is null, renders the `SCRIPT LOAD` preamble afresh - its own
+      comment calls that "correct and wasteful". So an external caller loses an optimisation, not a
+      behaviour.
+
+      **But note what it makes true**: nothing in the library ever *puts* a `RespScriptCache` into a
+      context's services. The only writer was the `WithScriptCache` that is now internal, so outside the
+      test suite the wasteful path is the only path. Whether a script cache should be seeded from the
+      connection - the way `CacheOptions` is, via `ConfigurationOptions.ClientCache` - is the open
+      question this leaves behind, and it is a lifetime question (per multiplexer? per endpoint?) rather
+      than a mechanical one.
+
 - [x] **Caching into `StackExchange.Redis.Caching`, and `CacheTrackingMode.Default` — DONE, 2026-09-18.**
       Six files moved out of the root: `CacheOptions`, `CachePolicy`, `CacheTrackingMode`,
       `RespScriptCache` (public) and `RespClientCache`, `RespCacheConnectionExtensions` (already internal).

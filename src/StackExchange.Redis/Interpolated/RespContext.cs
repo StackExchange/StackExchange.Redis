@@ -211,7 +211,7 @@ namespace StackExchange.Redis
         /// where that holds <i>responses</i> and is invalidated constantly. Sharing a type would mean one
         /// of the two lying about its lifetime.
         /// </remarks>
-        public RespScriptCache? ScriptCache => TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
+        internal RespScriptCache? ScriptCache => TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
 
         private readonly CommandMap? _commandMap;
 
@@ -446,7 +446,7 @@ namespace StackExchange.Redis
         /// <param name="scripts">The registry to use, or <c>null</c> for none.</param>
         /// <remarks>Without one, a script's <c>SCRIPT LOAD</c> is rendered afresh on every call - correct,
         /// and wasteful for anything used more than once.</remarks>
-        public RespContext WithScriptCache(RespScriptCache? scripts)
+        internal RespContext WithScriptCache(RespScriptCache? scripts)
             => scripts is null ? WithoutService(typeof(RespScriptCache)) : WithServices(scripts);
 
         /// <summary>

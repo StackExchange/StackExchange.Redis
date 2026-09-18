@@ -54,7 +54,7 @@ namespace StackExchange.Redis
 
         /// <summary>A copy of this context using <paramref name="scripts"/> to remember loaded scripts.</summary>
         /// <param name="scripts">The script cache, or <see langword="null"/> for none.</param>
-        public RespServerContext WithScriptCache(RespScriptCache? scripts) => new(Raw.WithScriptCache(scripts));
+        internal RespServerContext WithScriptCache(RespScriptCache? scripts) => new(Raw.WithScriptCache(scripts));
 
         /// <summary>A copy of this context whose channels carry <paramref name="channelPrefix"/>.</summary>
         /// <param name="channelPrefix">The prefix to append to whatever is already in force.</param>

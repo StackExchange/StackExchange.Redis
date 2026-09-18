@@ -34,11 +34,6 @@ StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Default = 0 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.PerKey = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
-StackExchange.Redis.Caching.RespScriptCache
-StackExchange.Redis.Caching.RespScriptCache.Bytes.get -> long
-StackExchange.Redis.Caching.RespScriptCache.Count.get -> int
-StackExchange.Redis.Caching.RespScriptCache.Rendered.get -> long
-StackExchange.Redis.Caching.RespScriptCache.RespScriptCache() -> void
 StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlagsExtensions
 StackExchange.Redis.ConfigurationOptions.ClientCache.get -> StackExchange.Redis.Caching.CacheOptions?
@@ -185,12 +180,10 @@ StackExchange.Redis.RespContext.KeyPrefix.get -> StackExchange.Redis.RedisKey
 StackExchange.Redis.RespContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespContext.Render(string! command, ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespContext.RespContext() -> void
-StackExchange.Redis.RespContext.ScriptCache.get -> StackExchange.Redis.Caching.RespScriptCache?
 StackExchange.Redis.RespContext.ServerType.get -> StackExchange.Redis.ServerType
 StackExchange.Redis.RespContext.TryGetService<T>(out T? service) -> bool
 StackExchange.Redis.RespContext.WithDatabase(int database) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespContext
-StackExchange.Redis.RespContext.WithScriptCache(StackExchange.Redis.Caching.RespScriptCache? scripts) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespContext.WithServices(object? services) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespContext.WithoutCache() -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespDatabaseContext
@@ -203,7 +196,6 @@ StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespDatabaseContext.WithDatabase(int database) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespDatabaseContext
-StackExchange.Redis.RespDatabaseContext.WithScriptCache(StackExchange.Redis.Caching.RespScriptCache? scripts) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithServices(object? services) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithoutCache() -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseExtensions
@@ -290,7 +282,6 @@ StackExchange.Redis.RespServerContext.Raw.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespServerContext.RespServerContext() -> void
 StackExchange.Redis.RespServerContext.RespServerContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespServerContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespServerContext
-StackExchange.Redis.RespServerContext.WithScriptCache(StackExchange.Redis.Caching.RespScriptCache? scripts) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithServices(object? services) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithoutCache() -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerExtensions

@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Caching
     /// its rendering. A well-behaved application has a handful of scripts.
     /// </para>
     /// </remarks>
-    public sealed class RespScriptCache
+    internal sealed class RespScriptCache
     {
         private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
 
