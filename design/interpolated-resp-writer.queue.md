@@ -93,6 +93,22 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **A bare `string` in a hole now binds — DONE, 2026-09-18.** Found while writing the test above:
+      `$"{cmd}{key}{"x"}"` did not compile. `RedisKey`, `RedisValue` and `RedisChannel` all convert
+      implicitly from `string` and none is better, so it was CS0121 naming two of the three arbitrarily.
+      Marc: *"maybe we should just add an explicit string overload"* / *"to be clear: we should assume
+      non-key"*.
+
+      `AppendFormatted(string? value)` is an exact match, and a standard conversion beats every
+      user-defined one, so it wins outright - `OverloadResolutionPriority` was considered and is not
+      needed. It forwards to the `RedisValue` overload, so a string is a plain argument: no key prefix,
+      no slot, no invalidation. A key living in a `string` must still be cast.
+
+      `docs/Extending.md` already *asserted* this behaviour ("the trap to know about: `$"{someString}"`
+      binds to the **`RedisValue`** overload") while the code refused to compile it - the doc described
+      the design and the implementation had not caught up. `InterpolatedStringHoleTests` pins all four
+      facts now, null included (`$0`, an empty argument, not an absent one).
+
 - [x] **The `ReadOnlyMemory<RedisKeyOrValue>` execute is gone from the public surface — DONE, 2026-09-18.**
       Marc: *"this should not exist - that signature is only needed for the old code; our new Execute API
       will use the RespRequestBuilder"*. `RespContext.ExecuteAsync(string, ReadOnlyMemory<RedisKeyOrValue>,

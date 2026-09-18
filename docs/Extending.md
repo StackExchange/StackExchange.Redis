@@ -141,7 +141,7 @@ $"{Substr}{key}{start}{end}"    // key: routed, prefixed, tracked
 $"{Substr}{(RedisValue)key}"    // NOT a key: no slot, no prefix, no invalidation
 ```
 
-The hole's **type** decides. `RedisKey` binds to the key overload; `RedisValue`, `long`, `double` and friends bind to value overloads. The trap to know about: `$"{someString}"` binds to the **`RedisValue`** overload, because that is what a `string` converts to - so a key held as a `string` must be spelled `(RedisKey)someString`, or it silently loses its prefix and its slot. If you hold a key as bytes or a span, `RespKey` is the no-allocation spelling.
+The hole's **type** decides. `RedisKey` binds to the key overload; `RedisValue`, `long`, `double` and friends bind to value overloads. The trap to know about: `$"{someString}"` binds to the **`RedisValue`** overload - there is an explicit `string` overload that makes sure of it, because a bare string converts equally well to `RedisKey`, `RedisValue` and `RedisChannel` and would otherwise be ambiguous. So a key held as a `string` must be spelled `(RedisKey)someString`, or it silently loses its prefix and its slot. If you hold a key as bytes or a span, `RespKey` is the no-allocation spelling.
 
 Getting this wrong is invisible on a single non-clustered server with no key prefix, and wrong everywhere else. If your library has one test, make it this one: run a command through a prefixed context and check the server saw the prefix.
 

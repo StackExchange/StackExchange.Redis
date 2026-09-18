@@ -108,7 +108,7 @@ public class RespAdHocExecuteTests
 
         var viaHoles = new FakeExecutor("$3\r\nabc\r\n");
         RedisKey key = "k";
-        var result = await Context(viaHoles).SendAsync<string?>($"{SomeCommand}{key}{(RedisValue)"x"}");
+        var result = await Context(viaHoles).SendAsync<string?>($"{SomeCommand}{key}{"x"}");
 
         Assert.Equal(Assert.Single(viaCollection.Sent), Assert.Single(viaHoles.Sent));
         Assert.Equal(Assert.Single(viaCollection.Keys), Assert.Single(viaHoles.Keys)); // and key-ness survives both

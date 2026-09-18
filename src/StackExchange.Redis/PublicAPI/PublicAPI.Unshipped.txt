@@ -117,6 +117,7 @@ StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(long? value) -> 
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(scoped System.ReadOnlySpan<StackExchange.Redis.RedisKey> value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(scoped System.ReadOnlySpan<StackExchange.Redis.RedisValue> value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(scoped System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>> value) -> void
+StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(string? value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted<T>(T value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted<T>(T value, string? format) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted<T>(scoped System.ReadOnlySpan<T> value) -> void

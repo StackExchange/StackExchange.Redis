@@ -652,6 +652,30 @@ namespace StackExchange.Redis.Protocol
             CountArguments();
         }
 
+        /// <summary>Append a string as a value; <b>not a key</b>, and not marked as one.</summary>
+        /// <param name="value">The value to append; <see langword="null"/> writes an empty argument.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>This overload exists to break a tie, and the tie is the interesting part.</b> A bare string
+        /// hole - <c>$"{cmd}{key}{s}"</c> - converts implicitly to <see cref="RedisKey"/>,
+        /// <see cref="RedisValue"/> <i>and</i> <see cref="RedisChannel"/>, none better than the others, so
+        /// it did not compile at all: CS0121 naming two of the three, which tells a caller nothing about
+        /// why. A <see cref="string"/> parameter is an exact match, and a standard conversion beats every
+        /// user-defined one, so this wins outright - no
+        /// <see cref="OverloadResolutionPriorityAttribute"/> needed.
+        /// </para>
+        /// <para>
+        /// <b>Value, not key, is a deliberate choice and a silent one</b>, so it is worth being explicit:
+        /// a string written into a hole is sent as a plain argument, which means no key prefix, no slot for
+        /// routing, and nothing for the client-side cache to invalidate on. That is right because
+        /// <see cref="RedisKey"/> is a distinct type and code that has a key has a <see cref="RedisKey"/> -
+        /// the strings left over are arguments. If a key of yours is living in a <see cref="string"/>,
+        /// cast it: <c>$"{cmd}{(RedisKey)s}"</c>. This is the same rule as
+        /// <see cref="RedisKeyOrValue"/> on the ad-hoc path, arrived at from the other direction.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted(string? value) => AppendFormatted(value.AsRedisValue());
+
         /// <summary>
         /// Append an optional number: the value when it has one, and <b>nothing at all</b> when it does
         /// not - no argument, and nothing added to the argument count.
