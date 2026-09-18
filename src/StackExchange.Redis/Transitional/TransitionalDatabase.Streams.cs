@@ -321,5 +321,23 @@ namespace StackExchange.Redis
 
         private static TimeSpan? AsIdleTime(long? milliseconds)
             => milliseconds.HasValue ? TimeSpan.FromMilliseconds(milliseconds.GetValueOrDefault()) : null;
+
+        // ---- XAUTOCLAIM -----------------------------------------------------------------------------
+
+        /// <inheritdoc/>
+        public StreamAutoClaimResult StreamAutoClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.AutoClaimResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags));
+
+        /// <inheritdoc/>
+        public Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.AutoClaimResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags).AsTask();
+
+        /// <inheritdoc/>
+        public StreamAutoClaimIdsOnlyResult StreamAutoClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.AutoClaimIdsOnlyResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags));
+
+        /// <inheritdoc/>
+        public Task<StreamAutoClaimIdsOnlyResult> StreamAutoClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.AutoClaimIdsOnlyResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags).AsTask();
     }
 }

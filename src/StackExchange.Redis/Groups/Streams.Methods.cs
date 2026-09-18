@@ -158,7 +158,9 @@ public static partial class Streams
     private sealed class StreamTypesHandler :
         IRespHandler<StreamEntry[]>,
         IRespHandler<StreamPendingInfo>,
-        IRespHandler<StreamPendingMessageInfo[]>
+        IRespHandler<StreamPendingMessageInfo[]>,
+        IRespHandler<StreamAutoClaimResult>,
+        IRespHandler<StreamAutoClaimIdsOnlyResult>
     {
         private static readonly StreamTypesHandler Instance = new();
 
@@ -167,6 +169,12 @@ public static partial class Streams
 
         /// <summary>An extended <c>XPENDING</c> as the array the older surface promises.</summary>
         internal static IRespHandler<StreamPendingMessageInfo[]> PendingMessages => Instance;
+
+        /// <summary>An <c>XAUTOCLAIM</c> as the struct the older surface promises.</summary>
+        internal static IRespHandler<StreamAutoClaimResult> AutoClaim => Instance;
+
+        /// <summary>An <c>XAUTOCLAIM JUSTID</c> as the struct the older surface promises.</summary>
+        internal static IRespHandler<StreamAutoClaimIdsOnlyResult> AutoClaimIdsOnly => Instance;
 
         /// <summary>An <c>XRANGE</c>-shaped reply as the array shape the older surface promises.</summary>
         /// <remarks>
@@ -183,6 +191,14 @@ public static partial class Streams
 
         StreamPendingMessageInfo[] IRespHandler<StreamPendingMessageInfo[]>.Parse(ref RespReader reader)
             => ResultProcessor.ParseStreamPendingMessages(ref reader);
+
+        StreamAutoClaimResult IRespHandler<StreamAutoClaimResult>.Parse(ref RespReader reader)
+            => ResultProcessor.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
+                ? value : StreamAutoClaimResult.Null;
+
+        StreamAutoClaimIdsOnlyResult IRespHandler<StreamAutoClaimIdsOnlyResult>.Parse(ref RespReader reader)
+            => ResultProcessor.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
+                ? value : StreamAutoClaimIdsOnlyResult.Null;
     }
 
     private static readonly RespReplyHandler<RespRangeReply> RangeReplyHandler
@@ -581,6 +597,118 @@ public static partial class Streams
     /// </remarks>
     private static CommandFlags JustIdFlags(CommandFlags flags)
         => flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked);
+
+    /// <summary>
+    /// XAUTOCLAIM; claims whatever has been idle too long, starting from a cursor.
+    /// </summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="consumer">The consumer taking ownership.</param>
+    /// <param name="minIdleTime">Only claim entries idle for at least this long.</param>
+    /// <param name="startAtId">Where to start scanning; the cursor from the previous call.</param>
+    /// <param name="count">How many entries to attempt at most; the server's default when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    public static ValueTask<RespAutoClaimReply> AutoClaimAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        RedisValue startAtId,
+        int? count = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = AutoClaimCommand(streams.Context, key, group, consumer, minIdleTime, startAtId, count, justId: false);
+        return streams.Context.SendAsync(ref cmd, flags, AutoClaimReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="AutoClaimAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, RedisValue, int?, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamAutoClaimResult> AutoClaimResult(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        RedisValue startAtId,
+        int? count = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = AutoClaimCommand(streams.Context, key, group, consumer, minIdleTime, startAtId, count, justId: false);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.AutoClaim, cancellationToken);
+    }
+
+    /// <summary>XAUTOCLAIM JUSTID; the same, returning ids rather than entries.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="consumer">The consumer taking ownership.</param>
+    /// <param name="minIdleTime">Only claim entries idle for at least this long.</param>
+    /// <param name="startAtId">Where to start scanning; the cursor from the previous call.</param>
+    /// <param name="count">How many entries to attempt at most; the server's default when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks><inheritdoc cref="ClaimIdsOnlyAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
+    public static ValueTask<RespAutoClaimIdsOnlyReply> AutoClaimIdsOnlyAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        RedisValue startAtId,
+        int? count = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = AutoClaimCommand(streams.Context, key, group, consumer, minIdleTime, startAtId, count, justId: true);
+        return streams.Context.SendAsync(ref cmd, JustIdFlags(flags), AutoClaimIdsOnlyReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="AutoClaimIdsOnlyAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, RedisValue, int?, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamAutoClaimIdsOnlyResult> AutoClaimIdsOnlyResult(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        RedisValue startAtId,
+        int? count = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = AutoClaimCommand(streams.Context, key, group, consumer, minIdleTime, startAtId, count, justId: true);
+        return streams.Context.SendAsync(ref cmd, JustIdFlags(flags), StreamTypesHandler.AutoClaimIdsOnly, cancellationToken);
+    }
+
+    /// <summary>Render <c>XAUTOCLAIM</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    private static RespRequestFrame AutoClaimCommand(
+        in RespContext context,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        TimeSpan minIdleTime,
+        RedisValue startAtId,
+        int? count,
+        bool justId)
+    {
+        var idleMs = (long)minIdleTime.TotalMilliseconds;
+        return justId
+            ? context.Render($"{RedisCommand.XAUTOCLAIM}{key}{group}{consumer}{idleMs}{startAtId}{RespLiterals.Count.When(count)}{count}{RespLiterals.JustId}")
+            : context.Render($"{RedisCommand.XAUTOCLAIM}{key}{group}{consumer}{idleMs}{startAtId}{RespLiterals.Count.When(count)}{count}");
+    }
+
+    private static readonly RespReplyHandler<RespAutoClaimReply> AutoClaimReplyHandler
+        = new(static payload => new RespAutoClaimReply(payload));
+
+    private static readonly RespReplyHandler<RespAutoClaimIdsOnlyReply> AutoClaimIdsOnlyReplyHandler
+        = new(static payload => new RespAutoClaimIdsOnlyReply(payload));
 
     /// <summary>XPENDING; the group's pending summary, with a per-consumer breakdown.</summary>
     /// <param name="streams">The stream command group.</param>

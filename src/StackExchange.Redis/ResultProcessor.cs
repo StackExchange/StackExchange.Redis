@@ -2512,105 +2512,96 @@ namespace StackExchange.Redis
         /// <summary>
         /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *without* the <see cref="StreamConstants.JustId"/> option.
         /// </summary>
+        /// <summary>Read a flat run of ids from an <c>XAUTOCLAIM</c> reply element.</summary>
+        /// <remarks>
+        /// Tolerates a non-aggregate or null, because the trailing "deleted ids" element is absent on 6.2
+        /// - which is why the callers check the aggregate length before asking for it at all.
+        /// </remarks>
+        private static RedisValue[] ReadIdList(ref RespReader reader)
+            => reader.IsAggregate && !reader.IsNull
+                ? reader.ReadPastArray(static (ref RespReader r) => r.ReadRedisValue(), scalar: true)!
+                : [];
+
+        /// <summary>Parse an <c>XAUTOCLAIM</c> reply; <see langword="false"/> if it is not that shape.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static bool TryParseStreamAutoClaim(ref RespReader reader, bool allowJaggedFields, out StreamAutoClaimResult value)
+        {
+            // See https://redis.io/commands/xautoclaim for command documentation.
+            // Note that the result should never be null, so intentionally treating it as a failure to parse here
+            value = default;
+            if (!reader.IsAggregate || reader.IsNull) return false;
+
+            var length = reader.AggregateLength();
+            if (length is not (2 or 3)) return false;
+
+            var iter = reader.AggregateChildren();
+
+            // [0] The next start ID.
+            iter.DemandNext();
+            var nextStartId = iter.Value.ReadRedisValue();
+
+            // [1] The array of StreamEntry's.
+            iter.DemandNext();
+            var entries = ParseRedisStreamEntries(ref iter.Value, allowJaggedFields);
+
+            // [2] The array of message IDs deleted from the stream that were in the PEL; absent on 6.2.
+            RedisValue[] deletedIds = [];
+            if (length == 3)
+            {
+                iter.DemandNext();
+                deletedIds = ReadIdList(ref iter.Value);
+            }
+
+            value = new StreamAutoClaimResult(nextStartId, entries, deletedIds);
+            return true;
+        }
+
+        /// <summary>Parse an <c>XAUTOCLAIM JUSTID</c> reply.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static bool TryParseStreamAutoClaimIdsOnly(ref RespReader reader, out StreamAutoClaimIdsOnlyResult value)
+        {
+            value = default;
+            if (!reader.IsAggregate || reader.IsNull) return false;
+
+            var length = reader.AggregateLength();
+            if (length is not (2 or 3)) return false;
+
+            var iter = reader.AggregateChildren();
+
+            iter.DemandNext();
+            var nextStartId = iter.Value.ReadRedisValue();
+
+            iter.DemandNext();
+            var claimedIds = ReadIdList(ref iter.Value);
+
+            RedisValue[] deletedIds = [];
+            if (length == 3)
+            {
+                iter.DemandNext();
+                deletedIds = ReadIdList(ref iter.Value);
+            }
+
+            value = new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds);
+            return true;
+        }
+
         internal sealed class StreamAutoClaimProcessor : ResultProcessor<StreamAutoClaimResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // See https://redis.io/commands/xautoclaim for command documentation.
-                // Note that the result should never be null, so intentionally treating it as a failure to parse here
-                if (reader.IsAggregate && !reader.IsNull)
-                {
-                    int length = reader.AggregateLength();
-                    if (!(length == 2 || length == 3))
-                    {
-                        return false;
-                    }
-
-                    var iter = reader.AggregateChildren();
-                    var protocol = connection.Protocol.GetValueOrDefault();
-
-                    // [0] The next start ID.
-                    iter.DemandNext();
-                    var nextStartId = iter.Value.ReadRedisValue();
-
-                    // [1] The array of StreamEntry's.
-                    iter.DemandNext();
-                    var entries = ParseRedisStreamEntries(ref iter.Value, protocol);
-
-                    // [2] The array of message IDs deleted from the stream that were in the PEL.
-                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    RedisValue[] deletedIds = [];
-                    if (length == 3)
-                    {
-                        iter.DemandNext();
-                        if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                        {
-                            deletedIds = iter.Value.ReadPastArray(
-                                static (ref RespReader r) => r.ReadRedisValue(),
-                                scalar: true)!;
-                        }
-                    }
-
-                    SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
-                    return true;
-                }
-
-                return false;
+                if (!TryParseStreamAutoClaim(ref reader, AllowJaggedStreamFields(connection.Protocol.GetValueOrDefault()), out var value)) return false;
+                SetResult(message, value);
+                return true;
             }
         }
 
-        /// <summary>
-        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *with* the <see cref="StreamConstants.JustId"/> option.
-        /// </summary>
         internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // See https://redis.io/commands/xautoclaim for command documentation.
-                // Note that the result should never be null, so intentionally treating it as a failure to parse here
-                if (reader.IsAggregate && !reader.IsNull)
-                {
-                    int length = reader.AggregateLength();
-                    if (!(length == 2 || length == 3))
-                    {
-                        return false;
-                    }
-
-                    var iter = reader.AggregateChildren();
-
-                    // [0] The next start ID.
-                    iter.DemandNext();
-                    var nextStartId = iter.Value.ReadRedisValue();
-
-                    // [1] The array of claimed message IDs.
-                    iter.DemandNext();
-                    RedisValue[] claimedIds = [];
-                    if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                    {
-                        claimedIds = iter.Value.ReadPastArray(
-                            static (ref RespReader r) => r.ReadRedisValue(),
-                            scalar: true)!;
-                    }
-
-                    // [2] The array of message IDs deleted from the stream that were in the PEL.
-                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    RedisValue[] deletedIds = [];
-                    if (length == 3)
-                    {
-                        iter.DemandNext();
-                        if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                        {
-                            deletedIds = iter.Value.ReadPastArray(
-                                static (ref RespReader r) => r.ReadRedisValue(),
-                                scalar: true)!;
-                        }
-                    }
-
-                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
-                    return true;
-                }
-
-                return false;
+                if (!TryParseStreamAutoClaimIdsOnly(ref reader, out var value)) return false;
+                SetResult(message, value);
+                return true;
             }
         }
 

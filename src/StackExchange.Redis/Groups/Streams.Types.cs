@@ -109,6 +109,166 @@ public static partial class Streams
     }
 
     /// <summary>
+    /// The reply to an <c>XAUTOCLAIM</c>: a resume cursor, the claimed entries, and the ids that turned
+    /// out to be gone.
+    /// </summary>
+    /// <remarks>
+    /// <b>Three elements, or two.</b> The trailing deleted-id list arrived in 7.0, so a 6.2 server sends a
+    /// two-element reply and <see cref="DeletedIds"/> is simply empty - the same defensiveness the shipped
+    /// processor has always had, kept because it is a server fact rather than a taste.
+    /// </remarks>
+    public sealed class RespAutoClaimReply : RespReply
+    {
+        private readonly RespValue _nextStartId;
+        private readonly RespAggregate<RespStreamEntry> _entries;
+        private readonly RespAggregate<RespValue> _deletedIds;
+
+        /// <summary>Read an <c>XAUTOCLAIM</c> reply from a payload.</summary>
+        /// <param name="payload">The reply's bytes, with one reference already taken on this reply's behalf.</param>
+        public RespAutoClaimReply(RespPayload payload) : base(payload)
+        {
+            var reader = GetReader();
+            if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return;
+
+            var length = reader.AggregateLength();
+            RespValue.TryCaptureNext(Payload, ref reader, out _nextStartId);
+            RespAggregate<RespStreamEntry>.TryCaptureNext(Payload, ref reader, RespStreamEntry.Projection, out _entries);
+            if (length >= 3)
+            {
+                RespAggregate<RespValue>.TryCaptureNext(Payload, ref reader, RespValueProjection, out _deletedIds);
+            }
+        }
+
+        /// <summary>Where to resume from on the next call.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespValue NextStartId
+        {
+            get
+            {
+                _ = Payload;
+                return _nextStartId;
+            }
+        }
+
+        /// <summary>The entries this call took ownership of.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespAggregate<RespStreamEntry> ClaimedEntries
+        {
+            get
+            {
+                _ = Payload;
+                return _entries;
+            }
+        }
+
+        /// <summary>Ids that were pending but no longer exist; empty before 7.0.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespAggregate<RespValue> DeletedIds
+        {
+            get
+            {
+                _ = Payload;
+                return _deletedIds;
+            }
+        }
+
+        /// <summary>Materialise the whole reply into the struct the older surface promises.</summary>
+        /// <remarks><inheritdoc cref="RespRangeReply.ToArray" path="/remarks/para[2]"/></remarks>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public StreamAutoClaimResult ToStreamAutoClaimResult()
+        {
+            var reader = GetReader();
+            reader.MoveNext();
+            return ResultProcessor.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
+                ? value : StreamAutoClaimResult.Null;
+        }
+
+        /// <inheritdoc/>
+        public override string ToString()
+            => IsDisposed ? "(disposed)" : $"({_entries.Count} claimed, next {_nextStartId})";
+    }
+
+    /// <summary>The reply to an <c>XAUTOCLAIM JUSTID</c>: the same shape, with ids where the entries were.</summary>
+    /// <remarks><inheritdoc cref="RespAutoClaimReply" path="/remarks"/></remarks>
+    public sealed class RespAutoClaimIdsOnlyReply : RespReply
+    {
+        private readonly RespValue _nextStartId;
+        private readonly RespAggregate<RespValue> _claimedIds, _deletedIds;
+
+        /// <summary>Read an <c>XAUTOCLAIM JUSTID</c> reply from a payload.</summary>
+        /// <param name="payload">The reply's bytes, with one reference already taken on this reply's behalf.</param>
+        public RespAutoClaimIdsOnlyReply(RespPayload payload) : base(payload)
+        {
+            var reader = GetReader();
+            if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return;
+
+            var length = reader.AggregateLength();
+            RespValue.TryCaptureNext(Payload, ref reader, out _nextStartId);
+            RespAggregate<RespValue>.TryCaptureNext(Payload, ref reader, RespValueProjection, out _claimedIds);
+            if (length >= 3)
+            {
+                RespAggregate<RespValue>.TryCaptureNext(Payload, ref reader, RespValueProjection, out _deletedIds);
+            }
+        }
+
+        /// <summary>Where to resume from on the next call.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespValue NextStartId
+        {
+            get
+            {
+                _ = Payload;
+                return _nextStartId;
+            }
+        }
+
+        /// <summary>The ids this call took ownership of.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespAggregate<RespValue> ClaimedIds
+        {
+            get
+            {
+                _ = Payload;
+                return _claimedIds;
+            }
+        }
+
+        /// <summary>Ids that were pending but no longer exist; empty before 7.0.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespAggregate<RespValue> DeletedIds
+        {
+            get
+            {
+                _ = Payload;
+                return _deletedIds;
+            }
+        }
+
+        /// <summary>Materialise the whole reply into the struct the older surface promises.</summary>
+        /// <remarks><inheritdoc cref="RespRangeReply.ToArray" path="/remarks/para[2]"/></remarks>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public StreamAutoClaimIdsOnlyResult ToStreamAutoClaimIdsOnlyResult()
+        {
+            var reader = GetReader();
+            reader.MoveNext();
+            return ResultProcessor.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
+                ? value : StreamAutoClaimIdsOnlyResult.Null;
+        }
+
+        /// <inheritdoc/>
+        public override string ToString()
+            => IsDisposed ? "(disposed)" : $"({_claimedIds.Count} claimed, next {_nextStartId})";
+    }
+
+    /// <summary>Captures one scalar as a window, for the flat id runs <c>XAUTOCLAIM</c> returns.</summary>
+    private static readonly RespReader.Projection<object?, RespValue> RespValueProjection =
+        static (ref object? owner, ref RespReader reader) =>
+        {
+            RespValue.TryCaptureNext(owner, ref reader, out var value);
+            return value;
+        };
+
+    /// <summary>
     /// The reply to an <c>XPENDING</c> summary: the group's pending count, its id bounds, and a
     /// per-consumer breakdown walked on demand.
     /// </summary>

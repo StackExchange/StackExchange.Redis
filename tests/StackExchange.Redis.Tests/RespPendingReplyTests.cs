@@ -125,6 +125,59 @@ public class RespPendingReplyTests
         Assert.Equal(3, copied.DeliveryCount);
     }
 
+    private const string AutoClaim =
+        "*3\r\n$3\r\n0-0\r\n*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n*1\r\n$3\r\n7-7\r\n";
+
+    /// <summary>A 6.2 server sends two elements, not three.</summary>
+    private const string AutoClaimNoDeleted =
+        "*2\r\n$3\r\n0-0\r\n*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n";
+
+    private const string AutoClaimIds = "*3\r\n$3\r\n0-0\r\n*2\r\n$3\r\n1-1\r\n$3\r\n2-2\r\n*1\r\n$3\r\n7-7\r\n";
+
+    [Fact]
+    public async Task AutoClaimWalksAndMaterialisesTheSame()
+    {
+        using var reply = await Context(AutoClaim).Streams.AutoClaimAsync("s", "g", "c", TimeSpan.Zero, "0-0");
+        var materialised = reply.ToStreamAutoClaimResult();
+
+        Assert.Equal("0-0", reply.NextStartId.ToString());
+        Assert.Equal(reply.NextStartId.ToString(), materialised.NextStartId.ToString());
+        Assert.Equal(
+            reply.ClaimedEntries.ToArray().Select(e => e.Id.ToString()),
+            materialised.ClaimedEntries.Select(e => e.Id.ToString()));
+        Assert.Equal(
+            reply.DeletedIds.ToArray().Select(v => v.ToString()),
+            materialised.DeletedIds.Select(v => v.ToString()));
+        Assert.Equal("7-7", Assert.Single(materialised.DeletedIds));
+    }
+
+    /// <summary>
+    /// The pre-7.0 two-element reply reads as "no deleted ids" rather than as an error.
+    /// </summary>
+    [Fact]
+    public async Task AutoClaimToleratesAMissingDeletedList()
+    {
+        using var reply = await Context(AutoClaimNoDeleted).Streams.AutoClaimAsync("s", "g", "c", TimeSpan.Zero, "0-0");
+
+        Assert.Equal("0-0", reply.NextStartId.ToString());
+        Assert.Single(reply.ClaimedEntries.ToArray());
+        Assert.Empty(reply.DeletedIds.ToArray());
+        Assert.Empty(reply.ToStreamAutoClaimResult().DeletedIds);
+    }
+
+    [Fact]
+    public async Task AutoClaimIdsOnlyWalksAndMaterialisesTheSame()
+    {
+        using var reply = await Context(AutoClaimIds).Streams.AutoClaimIdsOnlyAsync("s", "g", "c", TimeSpan.Zero, "0-0");
+        var materialised = reply.ToStreamAutoClaimIdsOnlyResult();
+
+        Assert.Equal(
+            reply.ClaimedIds.ToArray().Select(v => v.ToString()),
+            materialised.ClaimedIds.Select(v => v.ToString()));
+        Assert.Equal(["1-1", "2-2"], materialised.ClaimedIds.Select(v => v.ToString()));
+        Assert.Equal("7-7", Assert.Single(materialised.DeletedIds).ToString());
+    }
+
     /// <summary>And the windows really are dead once the reply is.</summary>
     [Fact]
     public async Task ReadingAfterDisposalThrows()

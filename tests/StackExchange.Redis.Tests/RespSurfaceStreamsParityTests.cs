@@ -82,6 +82,10 @@ public class RespSurfaceStreamsParityTests
     private const string IntReply = ":1\r\n";              // XNACK: how many were released
     private const string TrimArrayReply = "*2\r\n:1\r\n:1\r\n"; // XACKDEL: one outcome per id
     private const string OkReply = "+OK\r\n";              // XCFGSET
+    private const string AutoClaimReply =                // XAUTOCLAIM: cursor, entries, deleted ids
+        "*3\r\n$3\r\n0-0\r\n*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n*0\r\n";
+    private const string AutoClaimIdsReply =             // XAUTOCLAIM JUSTID
+        "*3\r\n$3\r\n0-0\r\n*1\r\n$3\r\n1-1\r\n*0\r\n";
     private const string PendingSummaryReply =           // XPENDING: count, low, high, [[consumer, count]]
         "*4\r\n:2\r\n$3\r\n1-1\r\n$3\r\n9-9\r\n*1\r\n*2\r\n$3\r\nbob\r\n$1\r\n2\r\n";
     private const string PendingMessagesReply =          // XPENDING extended: [id, consumer, idle, deliveries]
@@ -254,6 +258,19 @@ public class RespSurfaceStreamsParityTests
             ctx => Discard(ctx.Streams.PendingMessagesAsync("s", "g", 10, consumer, minId, maxId, AsIdle(idleMs))),
             PendingMessagesReply);
     }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(25, false)]
+    [InlineData(null, true)]
+    [InlineData(25, true)]
+    public void AutoClaimMatches(int? count, bool idsOnly)
+        => AssertSame(
+            db => db.GetStreamAutoClaimMessage("s", "g", "c", 5000, "0-0", count, idsOnly, CommandFlags.None),
+            ctx => idsOnly
+                ? Discard(ctx.Streams.AutoClaimIdsOnlyAsync("s", "g", "c", TimeSpan.FromSeconds(5), "0-0", count))
+                : Discard(ctx.Streams.AutoClaimAsync("s", "g", "c", TimeSpan.FromSeconds(5), "0-0", count)),
+            idsOnly ? AutoClaimIdsReply : AutoClaimReply);
 
     private static TimeSpan? AsIdle(long? ms) => ms.HasValue ? TimeSpan.FromMilliseconds(ms.GetValueOrDefault()) : null;
 
