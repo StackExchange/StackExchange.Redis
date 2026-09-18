@@ -15,7 +15,10 @@ namespace StackExchange.Redis
     internal sealed partial class RedisServer : RedisBase, IServer
     {
         /// <inheritdoc/>
-        public RespServerContext Context => new(Raw);
+        public RespServerContext Context => new(GetContext());
+
+        /// <inheritdoc/>
+        RespContext IRespTarget.Context => GetContext();
         // Several server commands are a single RedisCommand covering wildly different verbs (CLIENT, CLUSTER,
         // CONFIG, SCRIPT, SLOWLOG, LATENCY, MEMORY), so the whole-command default has to assume the most
         // side-effecting subcommand. Where we know the subcommand we can be accurate instead. Everything here
@@ -53,24 +56,21 @@ namespace StackExchange.Redis
         /// inheritance that makes a batch's context queue rather than send.
         /// </para>
         /// </remarks>
-        public override RespContext Raw
+        protected override RespContext GetContext()
         {
-            get
+            if (!_haveContext)
             {
-                if (!_haveContext)
-                {
-                    _context = new RespContext(
-                        multiplexer.CommandMap,
-                        database: -1,
-                        serverType: server.ServerType)
-                        .WithExecutor(new RespMessageExecutor(this, -1))
-                        .WithScriptCache(multiplexer.ScriptCache)
-                        .WithServices(new ServerFeatureProbe(this));
-                    _haveContext = true;
-                }
-
-                return _context;
+                _context = new RespContext(
+                    multiplexer.CommandMap,
+                    database: -1,
+                    serverType: server.ServerType)
+                    .WithExecutor(new RespMessageExecutor(this, -1))
+                    .WithScriptCache(multiplexer.ScriptCache)
+                    .WithServices(new ServerFeatureProbe(this));
+                _haveContext = true;
             }
+
+            return _context;
         }
 
         int IServer.DatabaseCount => server.Databases;

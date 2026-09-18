@@ -18,18 +18,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Prefix = keyPrefix;
         }
 
-        /// <inheritdoc/>
+        /// <summary>Build the prefixed context; one clone of the inner one.</summary>
         /// <remarks>
         /// The worked example from design notes section 8.4: the entire write half of key-prefixing is one
         /// context clone. Everything this class does by forwarding ~2600 lines of overrides, the
         /// context-based surface gets from this single line - and it sits on the shared base, so a prefixed
         /// batch and a prefixed transaction get it too rather than only a prefixed database.
         /// </remarks>
-        public RespContext Raw => Inner.Raw.AppendKeyPrefix(Prefix);
+        private RespContext GetContext() => Inner.Raw.AppendKeyPrefix(Prefix);
 
         /// <inheritdoc/>
-        /// <remarks>Derived from <see cref="Raw"/>, so a prefixed target cannot disagree with itself.</remarks>
-        public RespDatabaseContext Context => new(Raw);
+        RespContext IRespTarget.Context => GetContext();
+
+        /// <inheritdoc/>
+        /// <remarks>Both come from one builder, so a prefixed target cannot disagree with itself.</remarks>
+        public RespDatabaseContext Context => new(GetContext());
 
         public IConnectionMultiplexer Multiplexer => Inner.Multiplexer;
 

@@ -15,11 +15,13 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     : IDatabase, IInternalDatabaseAsync
 {
     /// <inheritdoc/>
-    public RespDatabaseContext Context => new(Raw);
+    public RespDatabaseContext Context => new(GetContext());
+
+    private static RespContext GetContext()
+        => throw new NotImplementedException("The context surface is not yet wired for multi-group.");
 
     /// <inheritdoc/>
-    public RespContext Raw
-        => throw new NotImplementedException("The context surface is not yet wired for multi-group.");
+    RespContext IRespTarget.Context => GetContext();
 
     public object? AsyncState => asyncState;
     public int Database => database < 0 ? GetActiveDatabase().Database : database;

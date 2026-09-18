@@ -51,19 +51,50 @@ public class RespContextConversionTests
     }
 
     /// <summary>
-    /// The interface still exposes it, because the interface is the extensibility seam.
+    /// The base interface still exposes the plain context, because it is the extensibility seam.
     /// </summary>
     /// <remarks>
-    /// An extender holding an <see cref="IRespTarget"/> - an <see cref="IDatabase"/>, say - genuinely does
-    /// need the plumbing, and that is a different question from whether a concrete context advertises it.
+    /// An extender holding an <see cref="IRespTarget"/> genuinely does need the plumbing, and that is a
+    /// different question from whether a concrete context advertises it.
     /// </remarks>
     [Fact]
-    public void TheInterfaceStillExposesIt()
+    public void TheBaseInterfaceStillExposesThePlainContext()
     {
-        Assert.NotNull(typeof(IRespTarget).GetProperty("Raw"));
+        Assert.Equal(typeof(RespContext), typeof(IRespTarget).GetProperty("Context")!.PropertyType);
 
         IRespTarget target = new RespDatabaseContext(new RespContext().WithDatabase(4));
-        Assert.Equal(4, target.Raw.Database);
+        Assert.Equal(4, target.Context.Database);
+    }
+
+    /// <summary>
+    /// The derived interfaces <b>hide</b> it, so the typed context is what a caller gets by default.
+    /// </summary>
+    /// <remarks>
+    /// This is the whole point of the <c>new</c>: <c>db.Context</c> should be the thing that knows whether
+    /// <c>Strings</c> makes sense, and the plain one should take deliberately asking for the base
+    /// interface. A reflection check alone would pass if the hiding were removed and the members merely
+    /// coexisted, so the assignments below are the real assertion - they only compile while it holds.
+    /// </remarks>
+    [Fact]
+    public void TheDerivedInterfacesHideItWithTheTypedOne()
+    {
+        Assert.Equal(typeof(RespDatabaseContext), typeof(IRespKeyspaceTarget).GetProperty("Context")!.PropertyType);
+        Assert.Equal(typeof(RespServerContext), typeof(IRespServerTarget).GetProperty("Context")!.PropertyType);
+
+        IRespKeyspaceTarget keyspace = new RespDatabaseContextTarget(new RespContext().WithDatabase(9));
+        RespDatabaseContext typed = keyspace.Context; // would not compile if the base member won
+        Assert.Equal(9, typed.Database);
+
+        IRespTarget asBase = keyspace;
+        Assert.Equal(9, asBase.Context.Database);
+    }
+
+    /// <summary>A minimal keyspace target, standing in for IDatabase without needing a connection.</summary>
+    private sealed class RespDatabaseContextTarget(RespContext context) : IRespKeyspaceTarget
+    {
+        public RespDatabaseContext Context => new(context);
+
+        RespContext IRespTarget.Context => context;
     }
 
     [Fact]

@@ -10,7 +10,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     // IRedisArgsMutator <==== if we ever want to support key-mapping
 {
     /// <inheritdoc/>
-    public RespDatabaseContext Context => new(Raw);
+    public RespDatabaseContext Context => new(GetContextCore());
     // Note: we very deliberately do not include synchronous support for retry; it is inherently delay-ish
 
     // Note that only transient faults result in retries; this is defined by the RetryPolicy, along with
@@ -21,7 +21,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     // never: we refuse to wrap a database that carries one (see Validate)
     object? IInternalDatabaseAsync.AsyncState => null;
 
-    /// <inheritdoc/>
+    /// <summary>Refuse to build a context, saying why.</summary>
     /// <remarks>
     /// <b>Deliberately not forwarded.</b> Handing back the inner context would compile, read naturally and
     /// be wrong: commands composed from it go through the <i>inner</i> executor, so every call through the
@@ -29,10 +29,13 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     /// because the command still succeeds whenever nothing fails. The context surface gets retry when it
     /// gets a retry executor, which is a decorator on the executor rather than a wrapper on the database.
     /// </remarks>
-    public RespContext Raw
+    internal static RespContext GetContextCore()
         => throw new NotImplementedException(
             "The context surface does not yet support retry; a retry executor is separate work, and "
             + "forwarding the inner context here would silently drop the retry.");
+
+    /// <inheritdoc/>
+    RespContext IRespTarget.Context => GetContextCore();
 
     /// <inheritdoc/>
     public override string ToString() => this.BuildString();

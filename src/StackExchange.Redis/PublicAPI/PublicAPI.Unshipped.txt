@@ -47,7 +47,7 @@ StackExchange.Redis.IRespKeyspaceTarget.Context.get -> StackExchange.Redis.RespD
 StackExchange.Redis.IRespServerTarget
 StackExchange.Redis.IRespServerTarget.Context.get -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.IRespTarget
-StackExchange.Redis.IRespTarget.Raw.get -> StackExchange.Redis.RespContext
+StackExchange.Redis.IRespTarget.Context.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.Keys
 StackExchange.Redis.Keyspace
 StackExchange.Redis.Lists
@@ -304,6 +304,7 @@ StackExchange.Redis.RespStrings.Context.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespStrings.RespStrings() -> void
 StackExchange.Redis.RespStrings.RespStrings(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespSurface
+StackExchange.Redis.RespSurface.extension<TTarget>(TTarget)
 StackExchange.Redis.RespVectorSets
 StackExchange.Redis.RespVectorSets.Context.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespVectorSets.RespVectorSets() -> void

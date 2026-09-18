@@ -21,10 +21,12 @@ namespace StackExchange.Redis
     /// <b>This carries the shared plumbing; the SEMANTIC context lives on the derived interfaces.</b>
     /// <see cref="IRespKeyspaceTarget.Context"/> is a <see cref="RespDatabaseContext"/> and
     /// <see cref="IRespServerTarget.Context"/> is a <see cref="RespServerContext"/>, which is what decides
-    /// whether <c>Strings</c> or <c>Keyspace</c> is on offer. <see cref="Raw"/> is what both of them wrap.
+    /// whether <c>Strings</c> or <c>Keyspace</c> is on offer. <see cref="Context"/> here is what both of
+    /// them wrap, and the derived interfaces hide it with <c>new</c> - so <c>db.Context</c> is the typed
+    /// one and only a caller who has asked for an <see cref="IRespTarget"/> sees the plain one.
     /// </para>
     /// <para>
-    /// <see cref="Raw"/> returns <b>by value</b>. A <c>ref readonly</c> would save a copy of roughly
+    /// <see cref="Context"/> returns <b>by value</b>. A <c>ref readonly</c> would save a copy of roughly
     /// four registers, and cost the ability to use the result in an <c>async</c> method - which is the only
     /// kind of method this surface has.
     /// </para>
@@ -33,13 +35,14 @@ namespace StackExchange.Redis
     {
         /// <summary>The shared plumbing every context wraps: command map, key prefix, services, executor.</summary>
         /// <remarks>
-        /// <b>Named <c>Raw</c> because <c>Context</c> means the semantic one now.</b> A database's context
-        /// is a <see cref="RespDatabaseContext"/> and a server's is a <see cref="RespServerContext"/> -
-        /// that is what says which groups make sense - and this is the thing both of them wrap. You need
-        /// it when composing a command by hand and essentially never otherwise; <c>Raw</c> is the spelling
-        /// <c>IServer.InfoRaw</c> and <c>ClusterNodesRaw</c> already use for "the underlying form".
+        /// <b>Called <c>Context</c>, and hidden by the derived interfaces.</b> It was <c>Raw</c>, which put
+        /// the word on every target that carries one - so <c>db.Raw</c> read as an ordinary part of the
+        /// surface when it is the opposite. Naming it <c>Context</c> and letting
+        /// <see cref="IRespKeyspaceTarget"/> and <see cref="IRespServerTarget"/> hide it with <c>new</c>
+        /// means the typed context is what you get by default, and the plain one only when you have gone
+        /// out of your way to hold an <see cref="IRespTarget"/>.
         /// </remarks>
-        RespContext Raw { get; }
+        RespContext Context { get; }
     }
 
     /// <summary>
@@ -64,7 +67,12 @@ namespace StackExchange.Redis
     public interface IRespKeyspaceTarget : IRespTarget
     {
         /// <summary>The keyspace context: the entry point to the database command groups.</summary>
-        RespDatabaseContext Context { get; }
+        /// <remarks>
+        /// <c>new</c>, hiding <see cref="IRespTarget.Context"/>: a target that knows it is key-routed
+        /// answers with the context that says so, and the plain one stays reachable through the base
+        /// interface for the code that genuinely wants it.
+        /// </remarks>
+        new RespDatabaseContext Context { get; }
     }
 
     /// <summary>
@@ -84,7 +92,8 @@ namespace StackExchange.Redis
     public interface IRespServerTarget : IRespTarget
     {
         /// <summary>The server context: the entry point to the server-scoped command groups.</summary>
-        RespServerContext Context { get; }
+        /// <remarks><inheritdoc cref="IRespKeyspaceTarget.Context" path="/remarks"/></remarks>
+        new RespServerContext Context { get; }
     }
 
     /// <summary>
@@ -132,6 +141,25 @@ namespace StackExchange.Redis
     [SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Extension members on distinct group types; see the comment above")]
     public static partial class RespSurface
     {
+        /// <summary>The shared plumbing behind a target, whatever kind of target it is.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Internal, and a synonym for <see cref="IRespTarget.Context"/>.</b> It exists to say which
+        /// <c>Context</c> is meant at the call sites that want the plain one - a wrapper reaching into the
+        /// thing it wraps, say - where writing <c>((IRespTarget)inner).Context</c> would be noise and
+        /// <c>inner.Context</c> would silently pick the typed one.
+        /// </para>
+        /// <para>
+        /// <b>Not public</b>, deliberately. Making it public would put <c>Raw</c> back on every target and
+        /// on the typed contexts, which is what moving to <c>Context</c> plus an explicit cast was for.
+        /// Outside this assembly the base interface is the way to ask.
+        /// </para>
+        /// </remarks>
+        extension<TTarget>(TTarget target) where TTarget : IRespTarget
+        {
+            internal RespContext Raw => target.Context;
+        }
+
         /// <summary>The <c>NX</c>/<c>XX</c>/<c>GT</c>/<c>LT</c> token for an expiry condition.</summary>
         /// <param name="when">The condition to render.</param>
         /// <remarks>

@@ -6,13 +6,22 @@ namespace StackExchange.Redis
 {
     internal abstract partial class RedisBase : IRedis
     {
-        /// <summary>The context commands are composed and sent through.</summary>
+        /// <summary>Build the context commands are composed and sent through.</summary>
         /// <remarks>
-        /// Not yet implemented for connection-backed types. The context surface is being brought up
-        /// against a minimal implementation first (<c>RespDatabaseContext</c>); wiring it to a live multiplexer
-        /// means routing a rendered frame through the existing message pipeline, which is separate work.
+        /// <para>
+        /// <b>A method rather than the interface property</b>, and <c>protected</c> rather than public.
+        /// <see cref="IRespTarget.Context"/> is hidden by the derived interfaces, so every implementer has
+        /// to supply two members that differ only in return type - the plain context and the typed one -
+        /// and neither can be the other's override. One overridable builder here is what both of them
+        /// call, so a subclass says how its context is made in exactly one place and nothing has to
+        /// remember to keep the two in step.
+        /// </para>
+        /// <para>
+        /// Not implemented here: a bare <see cref="RedisBase"/> has no context. The subclasses that can
+        /// build one override this; the rest inherit a throw that names the reason.
+        /// </para>
         /// </remarks>
-        public virtual RespContext Raw
+        protected virtual RespContext GetContext()
             => throw new NotImplementedException(
                 "The context surface is not yet wired to a live connection; see RespDatabaseContext.");
 

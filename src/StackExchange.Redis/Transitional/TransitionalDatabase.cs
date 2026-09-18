@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         : IDatabase
     {
         /// <inheritdoc/>
-        public RespDatabaseContext Context => new(Raw);
+        public RespDatabaseContext Context => _inner;
         private readonly RespDatabaseContext _inner = inner;
 
         /// <summary>
@@ -58,13 +58,13 @@ namespace StackExchange.Redis
         private readonly IDatabase? _fallback = fallback;
 
         /// <inheritdoc/>
-        public RespContext Raw => _inner.Raw;
+        RespContext IRespTarget.Context => _inner.Raw;
 
         /// <summary>The async state carried by tasks this database produces.</summary>
         public object? AsyncState => asyncState;
 
         /// <inheritdoc/>
-        public int Database => Raw.Database;
+        public int Database => _inner.Database;
 
         /// <inheritdoc/>
         public IConnectionMultiplexer Multiplexer => multiplexer;

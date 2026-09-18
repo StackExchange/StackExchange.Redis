@@ -144,6 +144,13 @@ namespace StackExchange.Redis
     /// </remarks>
     internal sealed class RedisSubscriber : RedisBase, ISubscriber
     {
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Straight through to <see cref="RedisBase.GetContext"/>, which for a subscriber is still the
+        /// throw: nothing about pub/sub composes through the context surface yet.
+        /// </remarks>
+        RespContext IRespTarget.Context => GetContext();
+
         internal RedisSubscriber(ConnectionMultiplexer multiplexer, object? asyncState) : base(multiplexer, asyncState)
         {
         }

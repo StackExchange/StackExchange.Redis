@@ -39,7 +39,7 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// Inside the assembly it stays a plain field, so the group accessors that wrap it pay nothing and
-        /// read as they did. <see cref="IRespTarget.Raw"/> is implemented explicitly, because the
+        /// read as they did. <see cref="IRespTarget.Context"/> is implemented explicitly, because the
         /// <i>interface</i> is the extensibility seam - an extender holding an
         /// <see cref="IRespTarget"/> genuinely does need to get at the plumbing - and that is a different
         /// question from whether a concrete context should advertise it.
@@ -49,11 +49,10 @@ namespace StackExchange.Redis
 
         /// <summary>The shared plumbing this context wraps.</summary>
         /// <param name="context">The context to unwrap.</param>
-        /// <remarks><inheritdoc cref="Raw" path="/remarks"/></remarks>
         public static explicit operator RespContext(RespServerContext context) => context.Raw;
 
         /// <inheritdoc/>
-        RespContext IRespTarget.Raw => Raw;
+        RespContext IRespTarget.Context => Raw;
 
         // The scoping family returns THIS type rather than a bare context, and that is the whole reason it
         // is written out per context rather than shared: a naked context offers no groups, so a chain that

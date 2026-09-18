@@ -15,7 +15,10 @@ namespace StackExchange.Redis
     internal partial class RedisDatabase : RedisBase, IDatabase, IInternalDatabaseAsync
     {
         /// <inheritdoc/>
-        public RespDatabaseContext Context => new(Raw);
+        public RespDatabaseContext Context => new(GetContext());
+
+        /// <inheritdoc/>
+        RespContext IRespTarget.Context => GetContext();
         internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object? asyncState)
             : base(multiplexer, asyncState)
         {
@@ -35,25 +38,22 @@ namespace StackExchange.Redis
         /// property access would allocate on a path meant to allocate nothing. The context itself is a
         /// struct, so callers copy rather than share.
         /// </remarks>
-        public override RespContext Raw
+        protected override RespContext GetContext()
         {
-            get
+            if (!_haveContext)
             {
-                if (!_haveContext)
-                {
-                    _context = new RespContext(
-                        multiplexer.CommandMap,
-                        database: Database,
-                        serverType: multiplexer.ServerSelectionStrategy.ServerType)
-                        .WithExecutor(new RespMessageExecutor(this, Database))
-                        .WithCache(multiplexer.ClientCache)
-                        .WithScriptCache(multiplexer.ScriptCache)
-                        .WithServices(new ServerFeatureProbe(this));
-                    _haveContext = true;
-                }
-
-                return _context;
+                _context = new RespContext(
+                    multiplexer.CommandMap,
+                    database: Database,
+                    serverType: multiplexer.ServerSelectionStrategy.ServerType)
+                    .WithExecutor(new RespMessageExecutor(this, Database))
+                    .WithCache(multiplexer.ClientCache)
+                    .WithScriptCache(multiplexer.ScriptCache)
+                    .WithServices(new ServerFeatureProbe(this));
+                _haveContext = true;
             }
+
+            return _context;
         }
 
         /// <summary>

@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Availability;
 internal sealed partial class MultiGroupSubscriber(MultiGroupMultiplexer parent, object? asyncState) : ISubscriber
 {
     /// <inheritdoc/>
-    public RespContext Raw
+    RespContext IRespTarget.Context
         => throw new NotImplementedException("The context surface is not yet wired for multi-group.");
 
     // for a lot of things, we can defer through to the active implementation
