@@ -219,6 +219,55 @@ Four consequences, none of them cosmetic:
       `RespSurfaceStreamsParityTests.ReadRefusesNewMessagesButReadGroupDoesNot`, so whichever way this is
       settled the test says what changed.
 
+- [ ] **Hot-path measurement before the stackalloc/alt-lookup work — 2026-09-18.** Marc: *"definitely
+      measure first... what the overhead of the lease rent and return is"*. `CacheHitSendBenchmarks` is now
+      parameterised by key size, because the answer depends on it entirely.
+
+      **The initial rent does not depend on the key.** It is `HeaderMax + 64 + literalLength +
+      (formattedCount * 24)` - an estimate that counts *holes, not content* - which for `$"{GET}{key}"` is
+      126 bytes whatever the key is. A GET frame needs about `25 + key`, so:
+
+      | key bytes | frame needs | vs the 126-byte rent |
+      |---|---|---|
+      | 8 | 41 | fits |
+      | 64 | 98 | fits |
+      | 96 | 130 | **grows** |
+      | 128 | 163 | **grows** |
+      | 256 | 291 | **grows** |
+
+      So at the sizes Marc called the common hot path - 128, 256 - **every cache hit already does two
+      rents, a copy and two returns**.
+
+      **Attribution at a 128-byte key** (short job, in-process; full hit = 158.6ns):
+
+      | | ns | share |
+      |---|---|---|
+      | render (incl. rent+grow) | 59 | 37% |
+      | cache probe | 49 | 31% |
+      | reply parse | 37 | 23% |
+      | group layer | 7 | 4% |
+      | ValueTask | ~0 | ~0 |
+
+      **Rent+return in isolation is 7.5ns, flat across key size** - about 6% of the hit path, roughly double
+      where it grows. That is the honest ceiling on what deferring the buffer can save, and it is a lot
+      less than the 56% "render+hash+probe" bucket recorded earlier, which was three things in a trenchcoat.
+
+      **The cheap experiment beat the expensive plan.** Widening the slack from 64 to 192 - one character -
+      took the 128-byte case from 158.6ns to **143.7ns (-9.4%)**, render -15%. At 256 it changed nothing
+      (still grows: needs 291). At 8 and 64 bytes it was within noise. Reverted, not committed: it trades a
+      256-byte bucket for every command against a 128-byte one, which is a pool-footprint decision that
+      wants its own measurement.
+
+      **What this means for the idea.** The stackalloc is *more* attractive than the 6% suggests, because a
+      256-byte stack buffer skips **both** rents and the copy for the common case, not just the first rent.
+      But the alternate-lookup half does not reduce the probe (49ns, 31%): hashing and `SequenceEqual` over
+      the frame bytes is inherent, and grows with key size (32ns at 8 bytes, 61ns at 256). What it buys is
+      the ability to probe *without materialising a frame at all* - which is only reachable if the
+      stackalloc render exists. The two are coupled; neither pays alone.
+
+      Order suggested: settle the capacity estimate first (one line, measurable, no TFM gating), then
+      re-measure, then decide whether the remaining rent justifies the ref-struct surgery.
+
 - [ ] **Scans: the dual API, proved on `SSCAN` — 2026-09-18.** Marc's shape: a *raw* value-task cursor
       API returning a lease, and a utility `IAsyncEnumerable` **on top of** it rather than beside it, so
       the cursor loop exists once. Done for sets; hashes (with and without values) and sorted sets are the
