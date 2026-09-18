@@ -48,7 +48,7 @@ public class RespCacheExclusionTests
     {
         using var cache = new RespClientCache();
         var executor = new FakeExecutor(reply);
-        var context = new RespContext().WithExecutor(executor).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         await command(context);
         await command(context);

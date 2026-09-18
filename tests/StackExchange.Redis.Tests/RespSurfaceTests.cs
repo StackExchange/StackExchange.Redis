@@ -115,16 +115,16 @@ public class RespSurfaceTests
     [Fact]
     public void ChannelPrefixesComposeAndCannotBeEscaped()
     {
-        var tenant = new RespContext().AppendChannelPrefix(RedisChannel.Literal("app:"));
+        var tenant = new RespDatabaseContext(new RespContext().AppendChannelPrefix(RedisChannel.Literal("app:")));
 
         // the point of the test: a second prefix appends to the first, it does not take its place. Anything
         // else lets code that was handed a tenant-scoped context quietly publish outside that tenant.
         var nested = tenant.AppendChannelPrefix(RedisChannel.Literal("v2:"));
-        Assert.Equal("app:v2:", (string?)nested.ChannelPrefix);
+        Assert.Equal("app:v2:", (string?)nested.Raw.ChannelPrefix);
 
         // and there is no reset: null adds nothing rather than clearing what is already in force
-        Assert.Equal("app:", (string?)tenant.AppendChannelPrefix(default).ChannelPrefix);
-        Assert.Equal("app:v2:", (string?)nested.AppendChannelPrefix(default).ChannelPrefix);
+        Assert.Equal("app:", (string?)tenant.AppendChannelPrefix(default).Raw.ChannelPrefix);
+        Assert.Equal("app:v2:", (string?)nested.AppendChannelPrefix(default).Raw.ChannelPrefix);
 
         // which is exactly what the key prefix does, and what nesting the KeyPrefixed* decorators does;
         // the two halves of keyspace isolation must not disagree about this
@@ -147,14 +147,14 @@ public class RespSurfaceTests
         // a context is built up in stages by callers who do not know each other - the multiplexer attaches
         // a cache, someone downstream adds a probe - so an assigning slot would drop the cache here, with
         // nothing to see but cache misses much later. That bug was real; this is what caught it.
-        var ctx = new RespContext().WithCache(cache).WithServices(probe);
+        var ctx = new RespDatabaseContext(new RespContext().WithCache(cache).WithServices(probe));
 
-        Assert.Same(cache, ctx.Cache);
-        Assert.True(ctx.TryGetService<Marker>(out var found));
+        Assert.Same(cache, ctx.Raw.Cache);
+        Assert.True(ctx.Raw.TryGetService<Marker>(out var found));
         Assert.Same(probe, found);
 
         // and nothing is not something: adding it leaves the context alone rather than emptying the slot
-        Assert.Same(cache, ctx.WithServices(null).Cache);
+        Assert.Same(cache, ctx.WithServices(null).Raw.Cache);
     }
 
     [Fact]
@@ -197,10 +197,10 @@ public class RespSurfaceTests
     {
         // the common shape in tests and in any optional-cache wiring: opting out on a context that has no
         // services at all should not allocate a veto to shadow something that is not there
-        var ctx = new RespContext().WithoutCache().WithScriptCache(null);
+        var ctx = new RespDatabaseContext(new RespContext().WithoutCache().WithScriptCache(null));
 
-        Assert.Null(ctx.Cache);
-        Assert.False(ctx.TryGetService<Marker>(out _));
+        Assert.Null(ctx.Raw.Cache);
+        Assert.False(ctx.Raw.TryGetService<Marker>(out _));
     }
 
     private sealed class Marker;
@@ -208,11 +208,11 @@ public class RespSurfaceTests
     [Fact]
     public void ChannelPrefixSurvivesUnrelatedClones()
     {
-        var ctx = new RespContext().AppendChannelPrefix(RedisChannel.Literal("app:")).WithDatabase(4).AppendKeyPrefix("t7:");
+        var ctx = new RespDatabaseContext(new RespContext().AppendChannelPrefix(RedisChannel.Literal("app:")).WithDatabase(4).AppendKeyPrefix("t7:"));
 
         // it travels in services now, so every With* has to carry it without naming it
-        Assert.Equal("app:", (string?)ctx.ChannelPrefix);
-        Assert.Equal(4, ctx.Database);
+        Assert.Equal("app:", (string?)ctx.Raw.ChannelPrefix);
+        Assert.Equal(4, ctx.Raw.Database);
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public class RespSurfaceTests
         // an executor decides where a request lands; the database is not in the frame. So a context that
         // cannot move its executor must not hand back one that merely CLAIMS a different database - that
         // shape read database 0 while reporting database 1, with nothing to see.
-        var ctx = new RespContext().WithExecutor(new FakeExecutor("+OK\r\n"));
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor("+OK\r\n")));
 
         Assert.Equal(0, ctx.WithDatabase(0).Database); // already there: allowed, and nothing changes
         var ex = Assert.Throws<NotSupportedException>(() => ctx.WithDatabase(1));
@@ -258,7 +258,7 @@ public class RespSurfaceTests
     public async Task TheHandlerCanBeOmitted()
     {
         var executor = new FakeExecutor("$5\r\nhello\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         // no handler named: resolved from TResult, which is what lets a command surface be one expression
         Assert.Equal("hello", await ctx.Raw.SendAsync<RedisValue>(
@@ -269,7 +269,7 @@ public class RespSurfaceTests
     public async Task AnUnregisteredResultTypeSaysSoAtTheCallSite()
     {
         var executor = new FakeExecutor("$5\r\nhello\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ctx.Raw.SendAsync<Uri>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly));
@@ -302,7 +302,7 @@ public class RespSurfaceTests
     {
         // both shapes exist: from the root object, and from a context someone already holds
         var executor = new FakeExecutor("$5\r\nhello\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
         Assert.Equal("hello", await ctx.Strings.GetAsync("mykey"));
     }
 
@@ -370,7 +370,7 @@ public class RespSurfaceTests
         // IRedis carries the member, so IDatabase/IServer/ISubscriber all have it - but wiring it to a live
         // multiplexer is separate work, so those throw while RespDatabaseContext is what actually runs
         IRespTarget target = (IRespTarget)(object)new RespDatabaseContext(new RespContext());
-        Assert.Equal(0, target.Database); // the minimal one works
+        Assert.Equal(0, target.Raw.Database); // the minimal one works
     }
 
     [Fact]

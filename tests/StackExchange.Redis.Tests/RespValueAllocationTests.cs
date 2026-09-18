@@ -112,7 +112,7 @@ public class RespValueAllocationTests(ITestOutputHelper log)
         // returns, so the values are only readable afterwards because the lease took one of its own.
         var executor = new OneReply(Reply());
         using var cache = new RespClientCache();
-        var ctx = new RespContext().WithExecutor(executor).WithCache(cache);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         RedisKey[] keys = ["k1", "k2"];
 

@@ -25,7 +25,7 @@ public class InterpolatedWriterBenchmarks
     private readonly RedisKey _key = "user:1";
     private readonly RedisValue _value = "marc";
     private readonly Reusable _target = new();
-    private RespDatabaseContext _ctx;
+    private RespContext _ctx;
     private object[] _adhocArgs = null!;
     private RedisValue[] _multiValues = null!;
 

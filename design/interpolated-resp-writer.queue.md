@@ -67,59 +67,34 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-- [ ] **Typed contexts: the library half is done, THE TESTS DO NOT COMPILE.** Pushed deliberately for
-      eyeballs; `tests/StackExchange.Redis.Tests` has **232 errors**, identical on net10.0 and net8.0.
-      The library is clean on both, analyzers included.
+- [x] **Typed contexts — GREEN, 2026-09-18.** Build and tests pass in Debug and Release;
+      7,669 + 1,886 tests, no failures.
 
-      **What the design now says.** A context is the thing that carries what can differ from upstream -
-      the key prefix, the database, the services - so the groups hang off the *context*
-      (`extension(in RespDatabaseContext context)`), and a target merely forwards to its own
-      (`db.Strings => db.Context.Strings`). That killed the circular `Context => this` that came from
-      hanging groups off the target and then making the context pretend to be one. `IRespTarget.Context`
-      became `Raw`; `IRespKeyspaceTarget.Context` is a `RespDatabaseContext` and
-      `IRespServerTarget.Context` a `RespServerContext`, each derived from `Raw` by its implementor so a
-      target cannot disagree with itself. `ExecuteAsync` diverges as Marc asked: the database context
-      takes `(command, args, flags)`, the server context has that *and* `(database, command, args, flags)`
-      with the database first and required - the shape `IServer.Execute(int?, ...)` has had for years.
+      **The shape.** A context carries what can differ from upstream - key prefix, database, services -
+      so the groups hang off the *context* (`extension(in RespDatabaseContext context)`) and a target
+      forwards to its own (`db.Strings => db.Context.Strings`). `IRespTarget.Context` became `Raw`;
+      `IRespKeyspaceTarget.Context` is a `RespDatabaseContext`, `IRespServerTarget.Context` a
+      `RespServerContext`, each derived from `Raw` by its implementor. The typed contexts implement
+      `IRespTarget` and nothing narrower: they do carry shared state, so the ad-hoc escape hatch reaches
+      them, but they are not keyspace targets, which is what stops a context being its own `Context`.
 
-      **Two things still open, and one is Marc's to decide:**
+      **What the review changed.** `RedisKeyOrValue : IRespArgument`, so a span of them writes through
+      the ordinary interpolated form and the bespoke execute path is gone from the public surface.
+      `Render` came off the typed contexts - it returns a frame, not a context, so there is no chain to
+      preserve and it is plumbing: `Raw.Render`. Marc's catches, both right.
 
-      1. **`Database` is a delegating property, not the field it should be.** Marc: *"the database number
-         is part of the RespDatabaseContext, not some upstream thing"* - agreed, and not done. The field
-         move needs the *frame* to carry the database: `Render` runs with the context in hand and the frame
-         already captures the command and the cluster slot, so it can capture this the same way,
-         `Detach`/`AsLookupKey` carry it into the request, and the executor and cache read `request.Database`
-         instead of `executor.Database`. That deletes `IRespExecutor.Database` rather than keeping a second
-         copy in sync, and needs no changes to the 30 executor fakes. **Wants eyeballs before doing.**
-      2. **`Raw` may not need a name.** Held deliberately: if `RespContext` is demoted to shared state that
-         both typed contexts embed, `Raw` disappears and the naming question with it. Do that first, then
-         see whether anything still needs a public name.
+      **Two deliberately left.** `Database` on `RespDatabaseContext` is still a property reading through
+      to the shared state rather than a field; doing it properly means the frame carries the database,
+      which then deletes `IRespExecutor.Database` instead of syncing two copies - flagged for eyeballs
+      before building. And whether `Raw` needs a public name at all depends on demoting `RespContext` to
+      embedded shared state, which is the next question rather than this one.
 
-      **Review feedback applied 2026-09-18.** `RedisKeyOrValue` now implements `IRespArgument`, which is
-      the trick that removes the bespoke execute path: a span of them writes through the ordinary
-      interpolated form (`$"{command}{args}"`) with routing, prefixing and invalidation intact, because the
-      key/value decision is made once by the same `IsKey` test everything else uses. The typed contexts
-      therefore expose **no** `ExecuteAsync` taking `ReadOnlyMemory<RedisKeyOrValue>` - that shape exists
-      only to satisfy `IDatabase.ExecuteResp`, and the transitional bridge reaches it through `Raw`.
-      Marc: *"the new contexts should not have Execute with the RedisKeyOrValue on the public API"*.
-
-      Also: the tests' `((IRespTarget)db).Raw` casts are gone. They were mine, mechanically rewritten from
-      `.Context`, but the ORIGINAL cast was load-bearing - it proved interface dispatch landed on
-      `RedisDatabase.Context` rather than the throwing `RedisBase.Context`, which mattered because the
-      derived member HID the base one with `new`. The split made `Raw` virtual/override, so dispatch
-      cannot land on the base and the cast proved nothing; the comment explaining it went too, rewritten
-      to say why it is no longer needed.
-
-      And `RespInterpolationAnalyzer`'s class comment claimed literal text is *discarded* and the rule is
-      *error* severity - describing an earlier builder whose `AppendLiteral` was empty. Neither is true:
-      the text is tokenized and sent, and SER309 is a warning about re-parsing cost. Corrected, with the
-      staleness itself recorded, because it had already misled a reader into repeating it.
-
-      **What is left mechanically:** 232 test errors in four shapes - a typed context passed where shared
-      state is wanted, a naked context reaching a group, the ad-hoc `Execute` move, and cascading inference.
-      They want doing **by hand, not by regex**: the same expression (`db.ExecuteAsync(...)`,
-      `ctx.Send(...)`) is the legacy API in some tests and the new one in others, and a blanket pass
-      "fixed" ten files of legacy `IDatabase.ExecuteAsync` into `db.Raw.ExecuteAsync` before being undone.
+      **A note on method, because it cost hours.** The test pass went 232 -> 0 by fixing *helper
+      signatures and declarations*, not call sites: retype the thing that produces a context and the
+      hundreds of `ctx.Strings.…` lines below it never move. Every blanket regex over call sites made it
+      worse and had to be undone - twice, once turning ten files of legacy `IDatabase.ExecuteAsync` into
+      `db.Raw.ExecuteAsync`. Fixing precisely the positions the compiler reports is reliable; guessing at
+      receivers by name is not.
 
 - [ ] **Nothing should extend a naked `RespContext` - HALF DONE 2026-09-17.** Marc: *"the .Lists etc
       extension properties (and fallback methods) should be against the semantic-carrying structs... it

@@ -193,7 +193,6 @@ StackExchange.Redis.RespDatabaseContext.AppendKeyPrefix(StackExchange.Redis.Redi
 StackExchange.Redis.RespDatabaseContext.AsDatabase(StackExchange.Redis.IConnectionMultiplexer! multiplexer, object? asyncState = null) -> StackExchange.Redis.IDatabase!
 StackExchange.Redis.RespDatabaseContext.Database.get -> int
 StackExchange.Redis.RespDatabaseContext.Raw.get -> StackExchange.Redis.RespContext
-StackExchange.Redis.RespDatabaseContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder request) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespDatabaseContext.WithDatabase(int database) -> StackExchange.Redis.RespDatabaseContext
@@ -287,7 +286,6 @@ StackExchange.Redis.RespScripts.RespScripts(in StackExchange.Redis.RespContext c
 StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.AppendChannelPrefix(StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.Raw.get -> StackExchange.Redis.RespContext
-StackExchange.Redis.RespServerContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder request) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespServerContext.RespServerContext() -> void
 StackExchange.Redis.RespServerContext.RespServerContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespServerContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespServerContext
@@ -378,18 +376,31 @@ static StackExchange.Redis.Bitmaps.SetAsync(this in StackExchange.Redis.RespBitm
 static StackExchange.Redis.CacheOptions.Default.get -> StackExchange.Redis.CacheOptions!
 static StackExchange.Redis.CachePolicy.Default.get -> StackExchange.Redis.CachePolicy!
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
+static StackExchange.Redis.Downlevel.RespGroups.Arrays(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespArrays
 static StackExchange.Redis.Downlevel.RespGroups.Arrays<TTarget>(this TTarget target) -> StackExchange.Redis.RespArrays
+static StackExchange.Redis.Downlevel.RespGroups.Bitmaps(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespBitmaps
 static StackExchange.Redis.Downlevel.RespGroups.Bitmaps<TTarget>(this TTarget target) -> StackExchange.Redis.RespBitmaps
+static StackExchange.Redis.Downlevel.RespGroups.Geospatial(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespGeospatial
 static StackExchange.Redis.Downlevel.RespGroups.Geospatial<TTarget>(this TTarget target) -> StackExchange.Redis.RespGeospatial
+static StackExchange.Redis.Downlevel.RespGroups.Hashes(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespHashes
 static StackExchange.Redis.Downlevel.RespGroups.Hashes<TTarget>(this TTarget target) -> StackExchange.Redis.RespHashes
+static StackExchange.Redis.Downlevel.RespGroups.HyperLogLog(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespHyperLogLog
 static StackExchange.Redis.Downlevel.RespGroups.HyperLogLog<TTarget>(this TTarget target) -> StackExchange.Redis.RespHyperLogLog
+static StackExchange.Redis.Downlevel.RespGroups.Keys(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespKeys
 static StackExchange.Redis.Downlevel.RespGroups.Keys<TTarget>(this TTarget target) -> StackExchange.Redis.RespKeys
+static StackExchange.Redis.Downlevel.RespGroups.Lists(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespLists
 static StackExchange.Redis.Downlevel.RespGroups.Lists<TTarget>(this TTarget target) -> StackExchange.Redis.RespLists
+static StackExchange.Redis.Downlevel.RespGroups.Scripts(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespScripts
 static StackExchange.Redis.Downlevel.RespGroups.Scripts<TTarget>(this TTarget target) -> StackExchange.Redis.RespScripts
+static StackExchange.Redis.Downlevel.RespGroups.Sets(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespSets
 static StackExchange.Redis.Downlevel.RespGroups.Sets<TTarget>(this TTarget target) -> StackExchange.Redis.RespSets
+static StackExchange.Redis.Downlevel.RespGroups.SortedSets(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespSortedSets
 static StackExchange.Redis.Downlevel.RespGroups.SortedSets<TTarget>(this TTarget target) -> StackExchange.Redis.RespSortedSets
+static StackExchange.Redis.Downlevel.RespGroups.Streams(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespStreams
 static StackExchange.Redis.Downlevel.RespGroups.Streams<TTarget>(this TTarget target) -> StackExchange.Redis.RespStreams
+static StackExchange.Redis.Downlevel.RespGroups.Strings(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespStrings
 static StackExchange.Redis.Downlevel.RespGroups.Strings<TTarget>(this TTarget target) -> StackExchange.Redis.RespStrings
+static StackExchange.Redis.Downlevel.RespGroups.VectorSets(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespVectorSets
 static StackExchange.Redis.Downlevel.RespGroups.VectorSets<TTarget>(this TTarget target) -> StackExchange.Redis.RespVectorSets
 static StackExchange.Redis.ExtensionMethods.AsStream(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, bool ownsLease = true) -> System.IO.Stream?
 static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, System.Text.Encoding? encoding = null) -> string?

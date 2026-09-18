@@ -136,8 +136,8 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
         for (var i = 0; i < 2; i++)
         {
             var key = i == 0 ? k1 : k2;
-            var preamble = ctx.Render($"{RedisCommand.HIMPORT}{Tokens.Prepare}{fieldSet}{Tokens.NameAndAge}");
-            var request = ctx.Render($"{RedisCommand.HIMPORT}{Tokens.Set}{(RedisKey)key}{fieldSet}{(RedisValue)("user" + i)}{(RedisValue)(30 + i)}");
+            var preamble = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Prepare}{fieldSet}{Tokens.NameAndAge}");
+            var request = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Set}{(RedisKey)key}{fieldSet}{(RedisValue)("user" + i)}{(RedisValue)(30 + i)}");
             try
             {
                 // Boolean rather than Result: +OK is the reply, and a typed handler is what a real command
@@ -206,8 +206,8 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
                 var index = i;
                 pending[i] = Task.Run(() =>
                 {
-                    var preamble = ctx.Render($"{RedisCommand.HIMPORT}{Tokens.Prepare}{fieldSet}{Tokens.NameAndAge}");
-                    var request = ctx.Render($"{RedisCommand.HIMPORT}{Tokens.Set}{(RedisKey)($"{prefix}:{mode}:{index}")}{fieldSet}{(RedisValue)("user" + index)}{(RedisValue)index}");
+                    var preamble = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Prepare}{fieldSet}{Tokens.NameAndAge}");
+                    var request = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Set}{(RedisKey)($"{prefix}:{mode}:{index}")}{fieldSet}{(RedisValue)("user" + index)}{(RedisValue)index}");
                     try
                     {
                         gun.SignalAndWait();

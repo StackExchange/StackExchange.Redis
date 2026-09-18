@@ -51,7 +51,7 @@ public class RespSurfaceGeospatialTests
         return (new RespDatabaseContext(new RespContext().WithExecutor(executor)), executor);
     }
 
-    private static RespDatabaseContext Server(in RespContext context, int major, int minor = 0)
+    private static RespDatabaseContext Server(in RespDatabaseContext context, int major, int minor = 0)
         => context.WithServices(new FakeFeatures(new RedisFeatures(new Version(major, minor))));
 
     [Fact]

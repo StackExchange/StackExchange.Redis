@@ -51,7 +51,7 @@ public class RespSurfaceHyperLogLogTests
         return (new RespDatabaseContext(new RespContext().WithExecutor(executor)), executor);
     }
 
-    private static RespContext Server(in RespContext context, int major, int minor, int build)
+    private static RespDatabaseContext Server(in RespDatabaseContext context, int major, int minor, int build)
         => context.WithServices(new FakeFeatures(new RedisFeatures(new Version(major, minor, build))));
 
     [Fact]

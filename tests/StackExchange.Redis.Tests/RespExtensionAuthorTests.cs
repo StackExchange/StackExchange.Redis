@@ -71,7 +71,7 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         await db.KeyDeleteAsync("p:" + key);
         await db.StringSetAsync("p:" + key, "hello world");
 
-        var prefixed = new RespDatabaseContext(db.Context.AppendKeyPrefix("p:"));
+        var prefixed = db.Context.AppendKeyPrefix("p:");
         Assert.Equal("hello", await prefixed.Contoso().SubstringAsync(key, 0, 4));
     }
 
@@ -96,7 +96,7 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         // module command, so it assumes the worst - the command is not replayed after a reconnect, and
         // not cached. That is a safe default, not a free one; saying the category is opting IN.
         var executor = new FlagRecordingExecutor("$5\r\nhello\r\n");
-        var db = new RespContext().WithExecutor(executor);
+        var db = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         await db.Contoso().SubstringAsync("k", 0, 4);
         Assert.Equal(CommandFlags.CommandRetryNever, executor.Flags[0] & Message.MaskRetryCategory);
@@ -142,8 +142,17 @@ public static class ContosoExtensions
     // rendered once, not per call: "SUBSTR" is a constant, and preform keeps its RESP bulk string ready
     private static readonly RespCommand Substr = "SUBSTR".Command(preform: true);
 
-    /// <summary>The Contoso commands.</summary>
-    public static ContosoCommands Contoso(this IRespKeyspaceTarget target) => new(target.Context.Raw);
+    /// <summary>The Contoso commands, off a database context.</summary>
+    /// <remarks>
+    /// <b>The context, not the target</b> - the same shape this client's own groups use. A context is
+    /// what carries the local differences (the key prefix, the database), so the commands must come off
+    /// it; the target overload below is sugar that forwards to whatever context the target holds.
+    /// </remarks>
+    public static ContosoCommands Contoso(this in RespDatabaseContext context) => new(context.Raw);
+
+    /// <inheritdoc cref="Contoso(in RespDatabaseContext)"/>
+    public static ContosoCommands Contoso<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget
+        => target.Context.Contoso();
 
     /// <summary>SUBSTR: the substring between two inclusive offsets.</summary>
     public static ValueTask<RedisValue> SubstringAsync(
@@ -153,7 +162,7 @@ public static class ContosoExtensions
         long end,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => contoso.Raw.SendAsync<RedisValue>(
+        => contoso.Context.SendAsync<RedisValue>(
             $"{Substr}{key}{start}{end}", flags, cancellationToken: cancellationToken);
 
     /// <summary>The same command, read by a handler of the library's own.</summary>
@@ -164,7 +173,7 @@ public static class ContosoExtensions
         long end,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => contoso.Raw.SendAsync(
+        => contoso.Context.SendAsync(
             $"{Substr}{key}{start}{end}", flags, LengthHandler.Instance, cancellationToken: cancellationToken);
 
     /// <summary>Reads the reply without materialising it: the length of the blob, not the blob.</summary>

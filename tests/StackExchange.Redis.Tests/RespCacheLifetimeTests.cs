@@ -34,7 +34,7 @@ public class RespCacheLifetimeTests
 
     private const CommandFlags Readable = CommandFlags.CommandRetryReadOnly;
 
-    private static ValueTask<RedisValue> Get(RespContext context)
+    private static ValueTask<RedisValue> Get(RespDatabaseContext context)
         => context.SendAsync<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
 
     [Fact]
@@ -48,7 +48,7 @@ public class RespCacheLifetimeTests
         // and a fresh entry is genuinely served from cache under it
         using var cache = new RespClientCache();
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        var context = new RespContext().WithExecutor(executor).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         Assert.Equal("a", await Get(context));
         Assert.Equal("a", await Get(context));
@@ -60,7 +60,7 @@ public class RespCacheLifetimeTests
     {
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        var context = new RespContext().WithExecutor(executor).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         Assert.Equal("a", await Get(context));
         Assert.Equal("a", await Get(context));    // still fresh
@@ -80,7 +80,7 @@ public class RespCacheLifetimeTests
         // one that could not be added to IDatabase at all without a binary break
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        var relaxed = new RespContext().WithExecutor(executor).WithCache(cache);
+        var relaxed = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
         var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMilliseconds(50));
 
         Assert.Equal("a", await Get(relaxed));
@@ -102,7 +102,7 @@ public class RespCacheLifetimeTests
         // being duplicated once per distinct lifetime
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
         var executor = new CountingExecutor("$1\r\na\r\n");
-        var relaxed = new RespContext().WithExecutor(executor).WithCache(cache);
+        var relaxed = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
         var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMinutes(30));
 
         Assert.Equal("a", await Get(relaxed));
@@ -118,8 +118,8 @@ public class RespCacheLifetimeTests
         // narrows, never widens: the deployment's lifetime is a ceiling
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) } });
         var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        var context = new RespContext().WithExecutor(executor).WithCache(cache)
-            .WithMaxCacheAge(TimeSpan.FromHours(1));
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache)
+            .WithMaxCacheAge(TimeSpan.FromHours(1)));
 
         Assert.Equal("a", await Get(context));
         await Task.Delay(200);

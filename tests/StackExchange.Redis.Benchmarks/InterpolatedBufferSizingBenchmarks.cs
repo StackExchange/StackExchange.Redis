@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Benchmarks;
 // Kept as a regression guard: if the cliff moves down into realistic key sizes, this shows it.
 public class InterpolatedBufferSizingBenchmarks
 {
-    private RespDatabaseContext _ctx;
+    private RespContext _ctx;
     private RedisKey _key;
     private RedisValue _value;
 

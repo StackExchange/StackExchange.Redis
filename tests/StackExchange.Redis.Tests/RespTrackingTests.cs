@@ -84,7 +84,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
     /// concrete. Any assertion counting invalidations is then counting the whole suite's traffic, and these
     /// tests duly failed at random until the prefix went in. It also exercises <c>PREFIX</c> for free.
     /// </remarks>
-    private async Task<(TrackingExecutor Executor, RespClientCache Cache, RespContext Context)> Tracked(string prefix)
+    private async Task<(TrackingExecutor Executor, RespClientCache Cache, RespDatabaseContext Context)> Tracked(string prefix)
     {
         var cache = new RespClientCache();
         TrackingExecutor executor;
@@ -100,7 +100,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
             throw;
         }
 
-        return (executor, cache, new RespContext().WithExecutor(executor).WithCache(cache));
+        return (executor, cache, new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache)));
     }
 
     [Fact]

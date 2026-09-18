@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis
 {
@@ -22,13 +20,19 @@ namespace StackExchange.Redis
     /// target, so passing one does not box it.
     /// </para>
     /// </remarks>
-    public readonly struct RespServerContext
+    public readonly struct RespServerContext : IRespTarget
     {
         /// <summary>Create a server context over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
         public RespServerContext(in RespContext context) => Raw = context;
 
         /// <summary>The shared plumbing this context wraps: key prefix, services, executor.</summary>
+        /// <remarks>
+        /// <b>Implementing <see cref="IRespTarget"/> and nothing narrower is the point.</b> A typed
+        /// context genuinely does carry shared state, so the ad-hoc escape hatch reaches it; but it is
+        /// NOT an <see cref="IRespKeyspaceTarget"/>, because the groups hang off the context directly and
+        /// a context that was also a target would have to be its own <c>Context</c>.
+        /// </remarks>
         public RespContext Raw { get; }
 
         // The scoping family returns THIS type rather than a bare context, and that is the whole reason it
@@ -54,10 +58,5 @@ namespace StackExchange.Redis
         /// <summary>A copy of this context whose channels carry <paramref name="channelPrefix"/>.</summary>
         /// <param name="channelPrefix">The prefix to append to whatever is already in force.</param>
         public RespServerContext AppendChannelPrefix(RedisChannel channelPrefix) => new(Raw.AppendChannelPrefix(channelPrefix));
-
-        /// <inheritdoc cref="RespContext.Render(ref RespRequestBuilder)"/>
-        /// <param name="request">The command, written as an interpolated string.</param>
-        public RespRequestFrame Render([InterpolatedStringHandlerArgument("")] ref RespRequestBuilder request)
-            => Raw.Render(ref request);
     }
 }

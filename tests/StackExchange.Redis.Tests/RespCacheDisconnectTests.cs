@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -45,7 +45,7 @@ public class RespCacheDisconnectTests
         new Exception("boom"),
         "physical");
 
-    private static ValueTask<RedisValue> Get(RespContext context)
+    private static ValueTask<RedisValue> Get(RespDatabaseContext context)
         => context.SendAsync<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.CommandRetryReadOnly);
 
     [Fact]
@@ -56,7 +56,7 @@ public class RespCacheDisconnectTests
         using var _ = cache.FlushOnDisconnect(multiplexer);
 
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        var context = new RespContext().WithExecutor(executor).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         Assert.Equal("a", await Get(context));
         Assert.Equal("a", await Get(context));
@@ -78,7 +78,7 @@ public class RespCacheDisconnectTests
         using var cache = new RespClientCache();
 
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        var context = new RespContext().WithExecutor(executor).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         Assert.Equal("a", await Get(context));
         multiplexer.ConnectionFailed += Raise.EventWith(multiplexer, Failure(multiplexer));
@@ -95,7 +95,7 @@ public class RespCacheDisconnectTests
         var subscription = cache.FlushOnDisconnect(multiplexer);
 
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        var context = new RespContext().WithExecutor(executor).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         Assert.Equal("a", await Get(context));
         subscription.Dispose();

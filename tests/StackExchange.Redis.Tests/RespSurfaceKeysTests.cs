@@ -244,7 +244,7 @@ public class RespSurfaceKeysTests
         {
             using var cache = new RespClientCache();
             var executor = new FakeExecutor(reply);
-            var ctx = new RespContext().WithExecutor(executor).WithCache(cache);
+            var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
             await go(ctx);
             await go(ctx);
             return (executor.Sent.Count == 1, cache.RefusedByFlags);

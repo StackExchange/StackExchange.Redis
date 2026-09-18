@@ -72,7 +72,7 @@ public class RespSurfaceScriptsTests
     public async Task ThePairIsScriptLoadThenEvalSha()
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"], [(RedisValue)"a"]);
 
@@ -95,7 +95,7 @@ public class RespSurfaceScriptsTests
     public async Task TheScriptBodyIsSentOnce()
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         using var result = await ctx.Scripts.EvaluateAsync(Script);
 
@@ -120,7 +120,7 @@ public class RespSurfaceScriptsTests
     public async Task AnExecutorWithoutPairingStillSendsBothInOrder()
     {
         var executor = new FakeExecutor("+OK\r\n", "$3\r\nabc\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]);
 
@@ -138,7 +138,7 @@ public class RespSurfaceScriptsTests
     public async Task TheKeysAreMarkedOnTheRequest()
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k1", (RedisKey)"k2"]);
 
@@ -150,7 +150,7 @@ public class RespSurfaceScriptsTests
     public async Task KeysArePrefixedLikeAnyOthers()
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
-        var ctx = new RespContext().WithExecutor(executor).AppendKeyPrefix("t:");
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).AppendKeyPrefix("t:"));
 
         using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]);
 
@@ -179,7 +179,7 @@ public class RespSurfaceScriptsTests
     public async Task TheSendKeepsOwnershipOfBothBuffers()
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n") { ParkRequests = true };
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         using (var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]))
         {
@@ -218,7 +218,7 @@ public class RespSurfaceScriptsTests
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var registry = new RespScriptCache();
-        var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithScriptCache(registry));
 
         for (var i = 0; i < 5; i++)
         {
@@ -257,7 +257,7 @@ public class RespSurfaceScriptsTests
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var registry = new RespScriptCache();
-        var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithScriptCache(registry));
 
         (await ctx.Scripts.EvaluateAsync(Script)).Dispose();
 
@@ -281,7 +281,7 @@ public class RespSurfaceScriptsTests
     {
         var executor = new PairingExecutor("$3\r\nabc\r\n");
         var registry = new RespScriptCache();
-        var ctx = new RespContext().WithExecutor(executor).WithScriptCache(registry);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithScriptCache(registry));
 
         (await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"], flags: CommandFlags.NoScriptCache)).Dispose();
 
@@ -297,7 +297,7 @@ public class RespSurfaceScriptsTests
     public async Task NoRegistryStillWorks()
     {
         var executor = new PairingExecutor("+OK\r\n", "$3\r\nabc\r\n");
-        var ctx = new RespContext().WithExecutor(executor);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         (await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"])).Dispose();
         (await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"])).Dispose();

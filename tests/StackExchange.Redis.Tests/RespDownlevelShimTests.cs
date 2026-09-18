@@ -82,13 +82,22 @@ public class RespDownlevelShimTests
         Assert.Equal(accessors, ShimNames(typeof(IRespKeyspaceTarget)));
     }
 
-    /// <summary>The same for a bare context, which is how a caller holding one reaches the groups.</summary>
+    /// <summary>
+    /// The same for a <b>typed</b> context, which is how a caller holding one reaches the groups.
+    /// </summary>
+    /// <remarks>
+    /// It used to be the bare <see cref="RespContext"/>, and that is exactly what changed: nothing
+    /// extends a naked context any more, because a context with no semantics cannot say whether
+    /// <c>Strings</c> or <c>Keyspace</c> is a sensible thing to offer. The groups hang off
+    /// <see cref="RespDatabaseContext"/>, so the shims must too - otherwise a down-level caller can hold
+    /// the type the surface hands them and still not reach a command.
+    /// </remarks>
     [Fact]
     public void EveryContextGroupHasAMethodShim()
     {
-        var accessors = AccessorNames(typeof(RespContext).MakeByRefType());
+        var accessors = AccessorNames(typeof(RespDatabaseContext).MakeByRefType());
         Assert.NotEmpty(accessors);
-        Assert.Equal(accessors, ShimNames(typeof(RespContext).MakeByRefType()));
+        Assert.Equal(accessors, ShimNames(typeof(RespDatabaseContext).MakeByRefType()));
     }
 
     /// <summary>And the shim really does reach a command, not merely exist.</summary>
@@ -97,7 +106,7 @@ public class RespDownlevelShimTests
     {
         var ctx = new RespDatabaseContext(new RespContext());
         Assert.Equal(
-            ctx.Strings().Raw.Database,
-            ctx.Database); // the group carries the context it was made from
+            ctx.Strings().Context.Database,
+            ctx.Raw.Database); // the group carries the context it was made from
     }
 }

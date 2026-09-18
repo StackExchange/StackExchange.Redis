@@ -573,15 +573,15 @@ public class RespSurfaceStringsTests
     public void TheFeatureProbeSeesBothPrefixesAndNeitherWhenThereIsNoKey()
     {
         var probe = new FakeFeatures(new RedisFeatures(new Version(7, 0)));
-        var ctx = new RespContext().WithServices(probe).AppendKeyPrefix("t:");
+        var ctx = new RespDatabaseContext(new RespContext().WithServices(probe).AppendKeyPrefix("t:"));
 
         // a key may ALREADY carry a prefix of its own; the two compose rather than one winning, exactly as
         // AppendFormatted composes them when writing
-        ctx.TryGetFeatures(RedisCommand.BITFIELD_RO, ((RedisKey)"k").Prepend("inner:"), CommandFlags.None, out _);
+        ctx.Raw.TryGetFeatures(RedisCommand.BITFIELD_RO, ((RedisKey)"k").Prepend("inner:"), CommandFlags.None, out _);
 
         // and a null key means "routes to no particular key"; prefixing that would invent a key made only
         // of the prefix, and route on it
-        ctx.TryGetFeatures(RedisCommand.PING, default, CommandFlags.None, out _);
+        ctx.Raw.TryGetFeatures(RedisCommand.PING, default, CommandFlags.None, out _);
 
         Assert.Equal(new RedisKey[] { "t:inner:k", default }, probe.Keys);
     }
@@ -630,7 +630,7 @@ public class RespSurfaceStringsTests
 
         // not decoration: the pipeline decides primary-vs-replica routing from Message.Command, and a
         // profiler reports it. A frame that only knew its bytes reported every command as UNKNOWN.
-        using var frame = ctx.Render($"{RedisCommand.GETRANGE}{(RedisKey)"k"}{(RedisValue)0}{(RedisValue)(-1)}");
+        using var frame = ctx.Raw.Render($"{RedisCommand.GETRANGE}{(RedisKey)"k"}{(RedisValue)0}{(RedisValue)(-1)}");
         Assert.Equal(RedisCommand.GETRANGE, frame.Command);
 
         await Task.CompletedTask;

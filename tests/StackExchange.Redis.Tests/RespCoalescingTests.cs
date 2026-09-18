@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,7 +45,7 @@ public class RespCoalescingTests
 
     private const CommandFlags Readable = CommandFlags.CommandRetryReadOnly;
 
-    private static ValueTask<RedisValue> Get(RespContext context, RedisKey key)
+    private static ValueTask<RedisValue> Get(RespDatabaseContext context, RedisKey key)
         => context.SendAsync<RedisValue>($"{RedisCommand.GET}{key}", Readable);
 
     [Fact]
@@ -53,7 +53,7 @@ public class RespCoalescingTests
     {
         using var cache = new RespClientCache();
         var gated = new GatedExecutor("$5\r\nhello\r\n");
-        var context = new RespContext().WithExecutor(gated.Interface).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(gated.Interface).WithCache(cache));
 
         // the probe and the registration happen synchronously, before the first await - so by the time
         // this returns, the second caller has something to attach to
@@ -82,7 +82,7 @@ public class RespCoalescingTests
         // reply that is never coming - and the registration would linger, catching later callers too
         using var cache = new RespClientCache();
         var gated = new GatedExecutor("$5\r\nhello\r\n");
-        var context = new RespContext().WithExecutor(gated.Interface).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(gated.Interface).WithCache(cache));
 
         var first = Get(context, "k");
         var second = Get(context, "k");
@@ -104,7 +104,7 @@ public class RespCoalescingTests
         // must NOT be given it - it fetches for itself instead. Same invariant that guards the store.
         using var cache = new RespClientCache();
         var gated = new GatedExecutor("$5\r\nhello\r\n");
-        var context = new RespContext().WithExecutor(gated.Interface).WithCache(cache);
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(gated.Interface).WithCache(cache));
 
         var first = Get(context, "k");
         Assert.Equal(1, cache.InFlightCount);

@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using RESPite;
-using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis
 {
@@ -25,13 +23,19 @@ namespace StackExchange.Redis
     /// the entire argument of design notes section 9.4, made concrete.
     /// </para>
     /// </remarks>
-    public readonly struct RespDatabaseContext
+    public readonly struct RespDatabaseContext : IRespTarget
     {
         /// <summary>Create a database over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
         public RespDatabaseContext(in RespContext context) => Raw = context;
 
         /// <summary>The shared plumbing this context wraps: key prefix, services, executor.</summary>
+        /// <remarks>
+        /// <b>Implementing <see cref="IRespTarget"/> and nothing narrower is the point.</b> A typed
+        /// context genuinely does carry shared state, so the ad-hoc escape hatch reaches it; but it is
+        /// NOT an <see cref="IRespKeyspaceTarget"/>, because the groups hang off the context directly and
+        /// a context that was also a target would have to be its own <c>Context</c>.
+        /// </remarks>
         public RespContext Raw { get; }
 
         /// <summary>The database index these commands run against.</summary>
@@ -66,11 +70,6 @@ namespace StackExchange.Redis
         /// <summary>A copy of this context whose channels carry <paramref name="channelPrefix"/>.</summary>
         /// <param name="channelPrefix">The prefix to append to whatever is already in force.</param>
         public RespDatabaseContext AppendChannelPrefix(RedisChannel channelPrefix) => new(Raw.AppendChannelPrefix(channelPrefix));
-
-        /// <inheritdoc cref="RespContext.Render(ref RespRequestBuilder)"/>
-        /// <param name="request">The command, written as an interpolated string.</param>
-        public RespRequestFrame Render([InterpolatedStringHandlerArgument("")] ref RespRequestBuilder request)
-            => Raw.Render(ref request);
 
         /// <summary>A database for the same connection, with <paramref name="prefix"/> appended to whatever
         /// key prefix is already in force.</summary>

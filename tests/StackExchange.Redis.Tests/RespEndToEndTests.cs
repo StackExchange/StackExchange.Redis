@@ -223,7 +223,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await using var conn = Create();
         var surface = NewSurface(conn, 0);
 
-        using var result = await surface.Context.Scripts.EvaluateAsync("return 41 + 1");
+        using var result = await surface.Scripts.EvaluateAsync("return 41 + 1");
         Assert.Equal(42, result.ReadScalar().ReadInt32());
     }
 
@@ -255,13 +255,13 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         server.FlushScriptCache();
         Assert.False(server.IsScriptLoaded(script));
 
-        (await surface.Context.Scripts.EvaluateAsync(script)).Dispose();
+        (await surface.Scripts.EvaluateAsync(script)).Dispose();
         Assert.True(server.IsScriptLoaded(script), "the first evaluation did not load the script");
 
         // now it is believed loaded, the gate must decline - and the call must still work, which is the
         // half that matters: declining the preamble writes the EVALSHA alone
-        (await surface.Context.Scripts.EvaluateAsync(script)).Dispose();
-        using var third = await surface.Context.Scripts.EvaluateAsync(script);
+        (await surface.Scripts.EvaluateAsync(script)).Dispose();
+        using var third = await surface.Scripts.EvaluateAsync(script);
         Assert.Equal(Me(), third.ReadScalar().ReadString());
     }
 
@@ -281,7 +281,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await conn.GetDatabase(0).KeyDeleteAsync(key);
 
         var surface = NewSurface(conn, Db);
-        using var result = await surface.Context.Scripts.EvaluateAsync(
+        using var result = await surface.Scripts.EvaluateAsync(
             "return redis.call('GET', KEYS[1])", [(RedisKey)key]);
 
         Assert.Equal("in-three", result.ReadScalar().ReadString());
@@ -330,7 +330,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     {
         await using var conn = Create();
         var db = conn.GetDatabase();
-        var ctx = db.Context.Raw;
+        var ctx = db.Context;
         var key = Me();
         await db.KeyDeleteAsync(key);
 
@@ -372,7 +372,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     {
         await using var conn = Create();
         var db = conn.GetDatabase();
-        var ctx = db.Context.Raw;
+        var ctx = db.Context;
         var key = Me();
 
         await db.KeyDeleteAsync(key);
@@ -497,7 +497,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var script = $"return '{Me()}'";
 
         sep.FlushScriptCache();
-        (await surface.Context.Scripts.EvaluateAsync(script)).Dispose();
+        (await surface.Scripts.EvaluateAsync(script)).Dispose();
         Assert.True(sep.IsScriptLoaded(script), "the first call should have loaded it");
 
         // the server forgets, behind the client's back
@@ -506,7 +506,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         // the call that meets the stale belief now recovers by itself: the NOSCRIPT is noticed, the belief
         // dropped, and the message re-issued from the read path - so the caller never sees the failure
-        using var recovered = await surface.Context.Scripts.EvaluateAsync(script);
+        using var recovered = await surface.Scripts.EvaluateAsync(script);
         Assert.Equal(Me(), recovered.ReadScalar().ReadString());
         Assert.True(sep.IsScriptLoaded(script), "the retry should have re-loaded it");
     }
@@ -591,7 +591,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var viaExtension = conn.GetServerContext(endpoint);
 
         // a server context carries no database of its own; both spellings agree on that
-        Assert.Equal(viaServer.Database, viaExtension.Database);
+        Assert.Equal(viaServer.Raw.Database, viaExtension.Raw.Database);
 
         // and the typed context reaches the server groups, which is the whole point of it being typed:
         // the accessor is constrained to IRespServerTarget, so a bare RespContext would not compile here

@@ -38,7 +38,7 @@ public class RespStaleWhileRevalidateTests
 
     private const CommandFlags Readable = CommandFlags.CommandRetryReadOnly;
 
-    private static ValueTask<RedisValue> Get(RespContext context)
+    private static ValueTask<RedisValue> Get(RespDatabaseContext context)
         => context.SendAsync<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
 
     /// <summary>The refresh runs on the thread pool, so wait for it rather than guessing at a delay.</summary>
@@ -163,7 +163,7 @@ public class RespStaleWhileRevalidateTests
         Assert.Equal("a", await Get(context));
 
         // hold our own reference to the first reply so we can watch what the cache does with its one
-        Assert.True(cache.TryGet(RenderKey(context), 0, long.MaxValue, out var firstReply));
+        Assert.True(cache.TryGet(RenderKey(context.Raw), 0, long.MaxValue, out var firstReply));
         Assert.Equal(2, firstReply!.RefCount);   // the cache holds one, TryGet retained another for us
 
         await Task.Delay(120);
