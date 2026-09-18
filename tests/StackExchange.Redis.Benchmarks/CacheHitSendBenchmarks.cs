@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using StackExchange.Redis;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Benchmarks;

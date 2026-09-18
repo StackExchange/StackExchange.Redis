@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using StackExchange.Redis.Caching;
 
 namespace StackExchange.Redis
 {

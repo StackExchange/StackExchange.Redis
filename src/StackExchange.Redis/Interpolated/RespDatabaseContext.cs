@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using RESPite;
+using StackExchange.Redis.Caching;
 
 namespace StackExchange.Redis
 {

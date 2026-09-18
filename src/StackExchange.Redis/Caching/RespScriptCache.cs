@@ -6,7 +6,7 @@ using RESPite;
 using RESPite.Buffers;
 using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Caching
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. The rendered <c>SCRIPT LOAD</c> for a script, and its hash, kept so the body is

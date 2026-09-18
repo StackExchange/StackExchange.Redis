@@ -93,6 +93,32 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **Caching into `StackExchange.Redis.Caching`, and `CacheTrackingMode.Default` — DONE, 2026-09-18.**
+      Six files moved out of the root: `CacheOptions`, `CachePolicy`, `CacheTrackingMode`,
+      `RespScriptCache` (public) and `RespClientCache`, `RespCacheConnectionExtensions` (already internal).
+      `.Caching` rather than `.Cache` because a namespace is a category, not a thing - and it leaves the
+      name `Cache` free.
+
+      `CacheTrackingMode` gained `Default = 0`, pushing `Broadcast` to 1 and `PerKey` to 2. Zero was
+      `Broadcast`, which is the thing this type's own remarks argue against: it says an unset value is a
+      considered choice, and makes "asked for broadcasting" indistinguishable from "never thought about
+      it", so the library could never change its mind without silently overriding the first caller. One
+      internal `CacheOptions.ResolvedTrackingMode` maps `Default` to the answer; both consumers read that
+      rather than comparing against `Broadcast`, so the choice lives in exactly one place.
+
+      Two stale docs fell out: `Broadcast` claimed to be "The default" while `PerKey`'s summary opened
+      "Default mode:" (it meant *Redis's* default) - directly contradictory, sitting three lines apart.
+
+- [x] **`RespSurface.Downlevel.cs` was not part of `RespSurface` — FIXED, 2026-09-18.** It holds
+      `RespGroups`, in namespace `StackExchange.Redis.Downlevel`, and the csproj nested it under
+      `RespSurface.cs` in the IDE via `Interpolated\RespSurface.*.cs`. Now `Downlevel/RespGroups.cs` with
+      that `DependentUpon` line deleted (it matched nothing else). Its remarks still told down-level
+      consumers to import `StackExchange.Redis.Interpolated`, which has not existed for several commits.
+
+      Kept the class name `RespGroups` rather than Marc's suggested `DownlevelExtensions`: the namespace
+      already says "downlevel", so `Downlevel.RespGroups` says what it holds where
+      `Downlevel.DownlevelExtensions` repeats itself. Trivial to overrule.
+
 - [x] **Throw helpers on `RespRequestBuilder` — DONE, 2026-09-18.** Marc asked for the house shape:
       a method-local `static Throw()` marked `[MethodImpl(NoInlining)]`, with the guard itself inlined.
       Seven guards moved. Measured, Release net10.0, IL bytes: `DemandCommand` 20 -> 15, `Complete`

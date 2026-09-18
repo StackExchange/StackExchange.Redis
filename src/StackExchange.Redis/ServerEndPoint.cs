@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Availability;
+using StackExchange.Redis.Caching;
 using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
@@ -780,7 +781,7 @@ namespace StackExchange.Redis
             }
 
             var options = cache.Options;
-            var broadcast = options.TrackingMode == CacheTrackingMode.Broadcast;
+            var broadcast = options.ResolvedTrackingMode == CacheTrackingMode.Broadcast;
             var prefixes = options.Prefixes;
 
             // CLIENT TRACKING ON [BCAST] [PREFIX p]...

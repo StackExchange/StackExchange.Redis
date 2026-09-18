@@ -86,7 +86,6 @@
     <Compile Update="Groups\Streams.*.cs" DependentUpon="Streams.cs" />
     <Compile Update="Groups\Strings.*.cs" DependentUpon="Strings.cs" />
     <Compile Update="Groups\VectorSets.*.cs" DependentUpon="VectorSets.cs" />
-    <Compile Update="Interpolated\RespSurface.*.cs" DependentUpon="RespSurface.cs" />
     <Compile Update="Interpolated\TransitionalDatabase.*.cs" DependentUpon="TransitionalDatabase.cs" />
   </ItemGroup>
 

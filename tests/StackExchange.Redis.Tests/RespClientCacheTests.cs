@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Protocol;
 using Xunit;
 

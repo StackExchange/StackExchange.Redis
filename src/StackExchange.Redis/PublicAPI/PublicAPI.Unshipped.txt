@@ -2,40 +2,46 @@
 *REMOVED*static StackExchange.Redis.RespReaderExtensions.ReadLease(this in RESPite.Messages.RespReader reader) -> StackExchange.Redis.Lease<byte>?
 StackExchange.Redis.Arrays
 StackExchange.Redis.Bitmaps
-StackExchange.Redis.CacheOptions
-StackExchange.Redis.CacheOptions.CacheOptions() -> void
-StackExchange.Redis.CacheOptions.DefaultPolicy.get -> StackExchange.Redis.CachePolicy!
-StackExchange.Redis.CacheOptions.DefaultPolicy.init -> void
-StackExchange.Redis.CacheOptions.Enabled.get -> bool
-StackExchange.Redis.CacheOptions.Enabled.init -> void
-StackExchange.Redis.CacheOptions.EvictionSampleSize.get -> int
-StackExchange.Redis.CacheOptions.EvictionSampleSize.init -> void
-StackExchange.Redis.CacheOptions.MaxBytes.get -> long?
-StackExchange.Redis.CacheOptions.MaxBytes.init -> void
-StackExchange.Redis.CacheOptions.MaxEntries.get -> int?
-StackExchange.Redis.CacheOptions.MaxEntries.init -> void
-StackExchange.Redis.CacheOptions.MaxPayloadBytes.get -> int?
-StackExchange.Redis.CacheOptions.MaxPayloadBytes.init -> void
-StackExchange.Redis.CacheOptions.Prefixes.get -> System.Collections.Generic.IReadOnlyList<string!>!
-StackExchange.Redis.CacheOptions.Prefixes.init -> void
-StackExchange.Redis.CacheOptions.SweepInterval.get -> System.TimeSpan
-StackExchange.Redis.CacheOptions.SweepInterval.init -> void
-StackExchange.Redis.CacheOptions.TrackingMode.get -> StackExchange.Redis.CacheTrackingMode
-StackExchange.Redis.CacheOptions.TrackingMode.init -> void
-StackExchange.Redis.CachePolicy
-StackExchange.Redis.CachePolicy.CachePolicy() -> void
-StackExchange.Redis.CachePolicy.InvalidationGracePeriod.get -> System.TimeSpan
-StackExchange.Redis.CachePolicy.InvalidationGracePeriod.init -> void
-StackExchange.Redis.CachePolicy.RefreshAfter.get -> System.TimeSpan
-StackExchange.Redis.CachePolicy.RefreshAfter.init -> void
-StackExchange.Redis.CachePolicy.TimeToLive.get -> System.TimeSpan
-StackExchange.Redis.CachePolicy.TimeToLive.init -> void
-StackExchange.Redis.CacheTrackingMode
-StackExchange.Redis.CacheTrackingMode.Broadcast = 0 -> StackExchange.Redis.CacheTrackingMode
-StackExchange.Redis.CacheTrackingMode.PerKey = 1 -> StackExchange.Redis.CacheTrackingMode
+StackExchange.Redis.Caching.CacheOptions
+StackExchange.Redis.Caching.CacheOptions.CacheOptions() -> void
+StackExchange.Redis.Caching.CacheOptions.DefaultPolicy.get -> StackExchange.Redis.Caching.CachePolicy!
+StackExchange.Redis.Caching.CacheOptions.DefaultPolicy.init -> void
+StackExchange.Redis.Caching.CacheOptions.Enabled.get -> bool
+StackExchange.Redis.Caching.CacheOptions.Enabled.init -> void
+StackExchange.Redis.Caching.CacheOptions.EvictionSampleSize.get -> int
+StackExchange.Redis.Caching.CacheOptions.EvictionSampleSize.init -> void
+StackExchange.Redis.Caching.CacheOptions.MaxBytes.get -> long?
+StackExchange.Redis.Caching.CacheOptions.MaxBytes.init -> void
+StackExchange.Redis.Caching.CacheOptions.MaxEntries.get -> int?
+StackExchange.Redis.Caching.CacheOptions.MaxEntries.init -> void
+StackExchange.Redis.Caching.CacheOptions.MaxPayloadBytes.get -> int?
+StackExchange.Redis.Caching.CacheOptions.MaxPayloadBytes.init -> void
+StackExchange.Redis.Caching.CacheOptions.Prefixes.get -> System.Collections.Generic.IReadOnlyList<string!>!
+StackExchange.Redis.Caching.CacheOptions.Prefixes.init -> void
+StackExchange.Redis.Caching.CacheOptions.SweepInterval.get -> System.TimeSpan
+StackExchange.Redis.Caching.CacheOptions.SweepInterval.init -> void
+StackExchange.Redis.Caching.CacheOptions.TrackingMode.get -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheOptions.TrackingMode.init -> void
+StackExchange.Redis.Caching.CachePolicy
+StackExchange.Redis.Caching.CachePolicy.CachePolicy() -> void
+StackExchange.Redis.Caching.CachePolicy.InvalidationGracePeriod.get -> System.TimeSpan
+StackExchange.Redis.Caching.CachePolicy.InvalidationGracePeriod.init -> void
+StackExchange.Redis.Caching.CachePolicy.RefreshAfter.get -> System.TimeSpan
+StackExchange.Redis.Caching.CachePolicy.RefreshAfter.init -> void
+StackExchange.Redis.Caching.CachePolicy.TimeToLive.get -> System.TimeSpan
+StackExchange.Redis.Caching.CachePolicy.TimeToLive.init -> void
+StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.Default = 0 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.PerKey = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.RespScriptCache
+StackExchange.Redis.Caching.RespScriptCache.Bytes.get -> long
+StackExchange.Redis.Caching.RespScriptCache.Count.get -> int
+StackExchange.Redis.Caching.RespScriptCache.Rendered.get -> long
+StackExchange.Redis.Caching.RespScriptCache.RespScriptCache() -> void
 StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlagsExtensions
-StackExchange.Redis.ConfigurationOptions.ClientCache.get -> StackExchange.Redis.CacheOptions?
+StackExchange.Redis.ConfigurationOptions.ClientCache.get -> StackExchange.Redis.Caching.CacheOptions?
 StackExchange.Redis.ConfigurationOptions.ClientCache.set -> void
 StackExchange.Redis.Downlevel.RespGroups
 StackExchange.Redis.Geospatial
@@ -179,12 +185,12 @@ StackExchange.Redis.RespContext.KeyPrefix.get -> StackExchange.Redis.RedisKey
 StackExchange.Redis.RespContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespContext.Render(string! command, ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespContext.RespContext() -> void
-StackExchange.Redis.RespContext.ScriptCache.get -> StackExchange.Redis.RespScriptCache?
+StackExchange.Redis.RespContext.ScriptCache.get -> StackExchange.Redis.Caching.RespScriptCache?
 StackExchange.Redis.RespContext.ServerType.get -> StackExchange.Redis.ServerType
 StackExchange.Redis.RespContext.TryGetService<T>(out T? service) -> bool
 StackExchange.Redis.RespContext.WithDatabase(int database) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespContext
-StackExchange.Redis.RespContext.WithScriptCache(StackExchange.Redis.RespScriptCache? scripts) -> StackExchange.Redis.RespContext
+StackExchange.Redis.RespContext.WithScriptCache(StackExchange.Redis.Caching.RespScriptCache? scripts) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespContext.WithServices(object? services) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespContext.WithoutCache() -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespDatabaseContext
@@ -197,7 +203,7 @@ StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespDatabaseContext.WithDatabase(int database) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespDatabaseContext
-StackExchange.Redis.RespDatabaseContext.WithScriptCache(StackExchange.Redis.RespScriptCache? scripts) -> StackExchange.Redis.RespDatabaseContext
+StackExchange.Redis.RespDatabaseContext.WithScriptCache(StackExchange.Redis.Caching.RespScriptCache? scripts) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithServices(object? services) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithoutCache() -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseExtensions
@@ -274,11 +280,6 @@ StackExchange.Redis.RespReply.GetReader() -> RESPite.Messages.RespReader
 StackExchange.Redis.RespReply.IsDisposed.get -> bool
 StackExchange.Redis.RespReply.Payload.get -> StackExchange.Redis.Protocol.RespPayload!
 StackExchange.Redis.RespReply.RespReply(StackExchange.Redis.Protocol.RespPayload! payload) -> void
-StackExchange.Redis.RespScriptCache
-StackExchange.Redis.RespScriptCache.Bytes.get -> long
-StackExchange.Redis.RespScriptCache.Count.get -> int
-StackExchange.Redis.RespScriptCache.Rendered.get -> long
-StackExchange.Redis.RespScriptCache.RespScriptCache() -> void
 StackExchange.Redis.RespScripts
 StackExchange.Redis.RespScripts.Context.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespScripts.RespScripts() -> void
@@ -289,7 +290,7 @@ StackExchange.Redis.RespServerContext.Raw.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespServerContext.RespServerContext() -> void
 StackExchange.Redis.RespServerContext.RespServerContext(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespServerContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespServerContext
-StackExchange.Redis.RespServerContext.WithScriptCache(StackExchange.Redis.RespScriptCache? scripts) -> StackExchange.Redis.RespServerContext
+StackExchange.Redis.RespServerContext.WithScriptCache(StackExchange.Redis.Caching.RespScriptCache? scripts) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithServices(object? services) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithoutCache() -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerExtensions
@@ -373,8 +374,8 @@ static StackExchange.Redis.Bitmaps.GetAsync(this in StackExchange.Redis.RespBitm
 static StackExchange.Redis.Bitmaps.OperationAsync(this in StackExchange.Redis.RespBitmaps bitmaps, StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Bitmaps.PositionAsync(this in StackExchange.Redis.RespBitmaps bitmaps, StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.StringIndexType indexType = StackExchange.Redis.StringIndexType.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Bitmaps.SetAsync(this in StackExchange.Redis.RespBitmaps bitmaps, StackExchange.Redis.RedisKey key, long offset, bool bit, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
-static StackExchange.Redis.CacheOptions.Default.get -> StackExchange.Redis.CacheOptions!
-static StackExchange.Redis.CachePolicy.Default.get -> StackExchange.Redis.CachePolicy!
+static StackExchange.Redis.Caching.CacheOptions.Default.get -> StackExchange.Redis.Caching.CacheOptions!
+static StackExchange.Redis.Caching.CachePolicy.Default.get -> StackExchange.Redis.Caching.CachePolicy!
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
 static StackExchange.Redis.Downlevel.RespGroups.Arrays(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespArrays
 static StackExchange.Redis.Downlevel.RespGroups.Arrays<TTarget>(this TTarget target) -> StackExchange.Redis.RespArrays

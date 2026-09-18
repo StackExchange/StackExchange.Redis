@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
+using StackExchange.Redis.Caching;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

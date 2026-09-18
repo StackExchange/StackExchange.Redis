@@ -10,7 +10,7 @@ using RESPite;
 using RESPite.Messages;
 using StackExchange.Redis.Protocol;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Caching
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. A client-side cache built as two independent lookups rather than a cross-indexed

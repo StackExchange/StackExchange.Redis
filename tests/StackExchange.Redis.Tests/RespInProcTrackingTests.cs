@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Server;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;

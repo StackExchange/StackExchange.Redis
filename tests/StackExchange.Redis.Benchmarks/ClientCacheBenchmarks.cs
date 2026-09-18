@@ -2,6 +2,7 @@
 using System.Text;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Benchmarks;

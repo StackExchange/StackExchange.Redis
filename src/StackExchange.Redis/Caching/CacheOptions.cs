@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using RESPite;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Caching
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Everything about a client-side cache that is settled once, when the connection
@@ -39,11 +39,26 @@ namespace StackExchange.Redis
 
         /// <summary>How the server decides which keys to tell us about.</summary>
         /// <remarks>
-        /// <see cref="CacheTrackingMode.Broadcast"/> by default: it costs the server nothing to remember,
-        /// and what it costs us - hearing about keys we never asked for - is the part we can bound, with
-        /// <see cref="Prefixes"/>.
+        /// <see cref="CacheTrackingMode.Default"/> unless you say otherwise, which resolves to
+        /// <see cref="CacheTrackingMode.Broadcast"/> today: it costs the server nothing to remember, and
+        /// what it costs us - hearing about keys we never asked for - is the part we can bound, with
+        /// <see cref="Prefixes"/>. Read <see cref="ResolvedTrackingMode"/> rather than this one when you
+        /// need the mode that will actually be negotiated.
         /// </remarks>
-        public CacheTrackingMode TrackingMode { get; init; } = CacheTrackingMode.Broadcast;
+        public CacheTrackingMode TrackingMode { get; init; }
+
+        /// <summary>
+        /// <see cref="TrackingMode"/> with <see cref="CacheTrackingMode.Default"/> resolved to the mode it
+        /// actually means.
+        /// </summary>
+        /// <remarks>
+        /// <b>The one place the choice is made.</b> Every consumer reads this rather than comparing against
+        /// <see cref="CacheTrackingMode.Broadcast"/> itself, so changing what "no opinion" means is an edit
+        /// here and nowhere else - and so that no caller can accidentally treat an unset mode as a third
+        /// behaviour.
+        /// </remarks>
+        internal CacheTrackingMode ResolvedTrackingMode =>
+            TrackingMode == CacheTrackingMode.Default ? CacheTrackingMode.Broadcast : TrackingMode;
 
         /// <summary>How entries behave, unless a caller says otherwise.</summary>
         public CachePolicy DefaultPolicy { get; init; } = CachePolicy.Default;
@@ -251,7 +266,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal void Validate()
         {
-            if (HasPrefixes && TrackingMode != CacheTrackingMode.Broadcast)
+            if (HasPrefixes && ResolvedTrackingMode != CacheTrackingMode.Broadcast)
             {
                 throw new ArgumentException(
                     $"Cache prefixes require {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.Broadcast)};"

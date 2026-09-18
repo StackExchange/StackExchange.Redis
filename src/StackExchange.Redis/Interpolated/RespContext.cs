@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis

@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Caching
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. How a client-side cache behaves: how long an entry may be served, and what to do

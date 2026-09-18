@@ -23,8 +23,10 @@ namespace StackExchange.Redis.Downlevel
     /// scope.
     /// </para>
     /// <para>
-    /// Note that a down-level consumer imports <i>both</i> namespaces: this one for the groups, and
-    /// <c>StackExchange.Redis.Interpolated</c> for the commands that hang off them.
+    /// A down-level consumer imports <i>both</i> namespaces: this one for the groups, and
+    /// <c>StackExchange.Redis</c> itself for the commands that hang off them. (That used to say
+    /// <c>StackExchange.Redis.Interpolated</c>, which no longer exists - the context surface moved to the
+    /// root, because it is the primary API.)
     /// </para>
     /// </remarks>
     public static class RespGroups

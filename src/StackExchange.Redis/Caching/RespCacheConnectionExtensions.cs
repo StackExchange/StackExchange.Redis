@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using RESPite;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Caching
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. Tying a client-side cache to the connection whose invalidations keep it honest.

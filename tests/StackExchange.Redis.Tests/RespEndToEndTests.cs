@@ -1,10 +1,11 @@
-﻿using NSubstitute;
-﻿using System;
-using System.Text;
+﻿using System.Text;
 using System.Threading.Tasks;
+using NSubstitute;
 using StackExchange.Redis.Availability;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
+﻿using System;
 
 namespace StackExchange.Redis.Tests;
 

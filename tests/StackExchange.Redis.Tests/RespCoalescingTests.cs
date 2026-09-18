@@ -2,6 +2,7 @@
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Protocol;
 using Xunit;
 

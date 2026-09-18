@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Caching
 {
     /// <summary>
     /// EXPERIMENTAL SPIKE. How the server decides which keys to tell us about.
@@ -21,12 +21,33 @@ namespace StackExchange.Redis
     public enum CacheTrackingMode
     {
         /// <summary>
+        /// Let the library choose; today that is <see cref="Broadcast"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Zero means "no opinion", not "broadcast".</b> Which of the two modes is cheaper depends on
+        /// whose resource is scarce - the remarks on this type say the library cannot know that - and
+        /// wiring a real mode to zero says the opposite: that an unset value is a considered choice. It
+        /// also makes the two indistinguishable, so the library can never tell a caller who asked for
+        /// broadcasting from one who never thought about it, and can never change its mind without
+        /// silently overriding the first.
+        /// </para>
+        /// <para>
+        /// So the answer this resolves to may move - if server or client heuristics make one clearly
+        /// better, or if it starts depending on what else is configured. Name the mode explicitly if you
+        /// need it pinned.
+        /// </para>
+        /// </remarks>
+        Default = 0,
+
+        /// <summary>
         /// <c>BCAST</c>: the server announces every changed key matching
         /// <see cref="CacheOptions.Prefixes"/>, whoever changed it, without remembering what we read.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// The default, because the cost lands on the side that can see it. The server keeps no per-client
+        /// What <see cref="Default"/> resolves to today, because the cost lands on the side that can see
+        /// it. The server keeps no per-client
         /// key table at all, so it cannot run out of room for one; what we pay instead is being told about
         /// keys we never asked for, which <see cref="CacheOptions.Prefixes"/> exists to bound.
         /// </para>
@@ -35,10 +56,11 @@ namespace StackExchange.Redis
         /// never cached either - see <see cref="RespClientCache.RefusedNotTracked"/>.
         /// </para>
         /// </remarks>
-        Broadcast = 0,
+        Broadcast = 1,
 
         /// <summary>
-        /// Default mode: the server remembers which keys <i>we</i> read, and announces only those.
+        /// <c>CLIENT TRACKING</c> without <c>BCAST</c>: the server remembers which keys <i>we</i> read,
+        /// and announces only those.
         /// </summary>
         /// <remarks>
         /// <para>
@@ -58,6 +80,6 @@ namespace StackExchange.Redis
         /// they are absent from this enum rather than present and throwing.
         /// </para>
         /// </remarks>
-        PerKey = 1,
+        PerKey = 2,
     }
 }
