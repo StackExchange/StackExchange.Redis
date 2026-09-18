@@ -219,6 +219,44 @@ Four consequences, none of them cosmetic:
       `RespSurfaceStreamsParityTests.ReadRefusesNewMessagesButReadGroupDoesNot`, so whichever way this is
       settled the test says what changed.
 
+- [ ] **Scans: the dual API, proved on `SSCAN` — 2026-09-18.** Marc's shape: a *raw* value-task cursor
+      API returning a lease, and a utility `IAsyncEnumerable` **on top of** it rather than beside it, so
+      the cursor loop exists once. Done for sets; hashes (with and without values) and sorted sets are the
+      same shape with a different element projection, and `VectorSetRangeEnumerate` is not a cursor scan
+      at all.
+
+      - `RespScanPage<T>` - cursor plus `ReadOnlyLease<T>`, disposable. `IsComplete` is `Cursor == 0`
+        and is documented as *not* "the page was empty", because that is the scan bug everyone writes once.
+      - `Sets.ScanPageAsync` - one page, for a caller who wants to checkpoint or bound work per tick.
+      - `Sets.ScanAsync` - `IAsyncEnumerable<RedisValue>`, and an `IScanningCursor`, so an interrupted scan
+        reports where it reached and a later one resumes. `Cursor` is the **active** page's, as the shipped
+        interface specifies, not the pending one.
+
+      **The enumerator is hand-written, and that is forced.** It has to implement `IScanningCursor`, and a
+      compiler-generated async iterator cannot implement an interface of ours - which also means
+      `[EnumeratorCancellation]` would be a no-op here (CS8424) and is absent. The token still arrives,
+      through the interface method, which is what `WithCancellation` passes anyway; the attribute only ever
+      automated getting it somewhere this code already is.
+
+      **Two tokens, combined once.** The enumerator's and the one given to `ScanAsync`. If they are the
+      same token - which happens the moment anyone writes `ScanAsync(key, cancellationToken: ct)
+      .WithCancellation(ct)` - they are used directly rather than linked: `CreateLinkedTokenSource`
+      allocates a source and registers on *each* side, so one cancellation walks the chain twice for
+      nothing. `CancellationToken` compares by its underlying source, so the check is exact, and it catches
+      both-`None` for free.
+
+      **Cancellation lands between pages, and the reason is worth knowing.** `RespExecutor` does not ignore
+      a live token - it *throws* `NotImplementedException`, because the pipeline cannot cancel a request in
+      flight. So the token is checked before each fetch and `default` is passed to the send. For a scan
+      that is the granularity that matters: what a caller stops is the loop, and one page is bounded work.
+      The delegate still carries the token, so this becomes a one-word change when the pipeline can honour
+      one. Found by a test, not by reading: the first version propagated the token and every cancellation
+      test failed with `NotImplementedException`.
+
+      Also hoisted `OptionalValue` into `Protocol/` while doing this - `SSCAN`'s `MATCH` had the same
+      `$0`-instead-of-omitted bug `XPENDING`'s consumer had, caught the same way, and writing it a third
+      time was clearly next.
+
 - [ ] **`TransitionalDatabase`: 71 unimplemented members — status, 2026-09-18.** Was 106 generated at the
       start of the day, now **58** generated plus **13 hand-written scans that SER352 cannot see**. Marc
       spotted the gap: *"make sure we add scans to the list, because I think we're cheating on that"*.

@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -311,4 +313,110 @@ public static partial class Sets
             flags,
             cancellationToken: cancellationToken);
     }
+
+    /// <summary>
+    /// SSCAN, one page at a time: the raw cursor API.
+    /// </summary>
+    /// <param name="sets">The set command group.</param>
+    /// <param name="key">The set to scan.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pattern">Only return members matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns>A page that must be disposed; see <see cref="RespScanPage{T}"/>.</returns>
+    /// <remarks>
+    /// <inheritdoc cref="RespScanPage{T}" path="/remarks/para[1]"/>
+    /// <para>
+    /// The <see cref="RespScanPage{T}.Cursor"/> of the reply is what to pass back here, and <b>only a zero
+    /// cursor ends the scan</b> - an empty page does not.
+    /// </para>
+    /// </remarks>
+    public static ValueTask<RespScanPage<RedisValue>> ScanPageAsync(
+        this in RespSets sets,
+        RedisKey key,
+        long cursor = 0,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ScanCommand(sets.Context, key, cursor, pattern, pageSize);
+
+        // the retry category depends on the cursor: resuming mid-scan is not the same risk as starting one
+        return sets.Context.SendAsync(ref cmd, flags.WithScanCursorCategory(cursor), ValueScanHandler, cancellationToken);
+    }
+
+    /// <summary>
+    /// SSCAN as a sequence, driving the cursor for you.
+    /// </summary>
+    /// <param name="sets">The set command group.</param>
+    /// <param name="key">The set to scan.</param>
+    /// <param name="pattern">Only return members matching this glob; all of them when omitted.</param>
+    /// <param name="pageSize">The <c>COUNT</c> hint; the server's default when omitted.</param>
+    /// <param name="cursor">Where to resume; zero starts a new scan.</param>
+    /// <param name="pageOffset">How far into the first page to start, for resuming mid-page.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">
+    /// Cancels the scan <b>between pages</b>. Combined with the enumerator's own token when they differ,
+    /// and used as-is when they do not - see <c>RespScanEnumerable.GetAsyncEnumerator</c>.
+    /// </param>
+    /// <remarks>
+    /// <b>The utility half</b>, built on
+    /// <see cref="ScanPageAsync(in RespSets, RedisKey, long, RedisValue, int?, CommandFlags, CancellationToken)"/>
+    /// rather than beside it: it asks for another page when it runs out, so the cursor loop exists once.
+    /// The result is also an <see cref="IScanningCursor"/>, so an interrupted scan can report where it had
+    /// got to and a later one resume from there.
+    /// <para>
+    /// <b>Cancellation lands between pages, and that is not a compromise here.</b> The executor refuses a
+    /// live token outright - it throws, because the pipeline cannot cancel a request already in flight -
+    /// so the token is checked before each fetch and <c>default</c> is passed to the send. For a scan that
+    /// is the granularity that matters: what a caller wants to stop is the <i>loop</i>, and a single page
+    /// is bounded work. The delegate still carries the token, so when the pipeline can honour one this
+    /// becomes a one-word change rather than a redesign.
+    /// </para>
+    /// </remarks>
+    public static IAsyncEnumerable<RedisValue> ScanAsync(
+        this in RespSets sets,
+        RedisKey key,
+        RedisValue pattern = default,
+        int? pageSize = null,
+        long cursor = 0,
+        int pageOffset = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        // the context is copied into the closure once per enumeration, which is the cost of the convenient
+        // shape; the raw API is there for callers who will not pay it
+        var context = sets.Context;
+        return new RespScanEnumerable<RedisValue>(
+            (position, token) =>
+            {
+                // checked here, and NOT handed to the send: RespExecutor refuses a cancellable token
+                // outright today. The enumerator checks it too, before it ever asks for a page.
+                token.ThrowIfCancellationRequested();
+                return new RespSets(context).ScanPageAsync(key, position, pattern, pageSize, flags);
+            },
+            cursor,
+            pageSize ?? RedisBase.CursorUtils.DefaultRedisPageSize,
+            pageOffset,
+            cancellationToken);
+    }
+
+    /// <summary>Render <c>SSCAN</c> - the one place the command is composed.</summary>
+    /// <remarks>
+    /// <c>MATCH</c> is omitted for a nil-or-<c>*</c> pattern and <c>COUNT</c> when the caller did not ask,
+    /// matching the shipped writer: both are hints, and sending the default explicitly is a wire cost for
+    /// nothing.
+    /// </remarks>
+    private static RespRequestFrame ScanCommand(in RespContext context, RedisKey key, long cursor, RedisValue pattern, int? pageSize)
+    {
+        if (pageSize is <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        var match = RedisBase.CursorUtils.IsNil(pattern) ? RedisValue.Null : pattern;
+        return context.Render(
+            $"{RedisCommand.SSCAN}{key}{cursor}{RespLiterals.Match.When(match.HasValue)}{new OptionalValue(match)}{RespLiterals.Count.When(pageSize)}{pageSize}");
+    }
+
+    private static readonly RespScanPageHandler<RedisValue> ValueScanHandler
+        = new(static (ref RespReader r) => r.ReadRedisValue());
 }

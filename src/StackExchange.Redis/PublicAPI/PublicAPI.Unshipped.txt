@@ -265,6 +265,13 @@ StackExchange.Redis.RespReply.GetReader() -> RESPite.Messages.RespReader
 StackExchange.Redis.RespReply.IsDisposed.get -> bool
 StackExchange.Redis.RespReply.Payload.get -> StackExchange.Redis.Protocol.RespPayload!
 StackExchange.Redis.RespReply.RespReply(StackExchange.Redis.Protocol.RespPayload! payload) -> void
+StackExchange.Redis.RespScanPage<T>
+StackExchange.Redis.RespScanPage<T>.Count.get -> int
+StackExchange.Redis.RespScanPage<T>.Cursor.get -> long
+StackExchange.Redis.RespScanPage<T>.Dispose() -> void
+StackExchange.Redis.RespScanPage<T>.IsComplete.get -> bool
+StackExchange.Redis.RespScanPage<T>.Items.get -> StackExchange.Redis.ReadOnlyLease<T>!
+StackExchange.Redis.RespScanPage<T>.RespScanPage() -> void
 StackExchange.Redis.RespScripts
 StackExchange.Redis.RespScripts.RespScripts() -> void
 StackExchange.Redis.RespScripts.RespScripts(in StackExchange.Redis.RespContext context) -> void
@@ -361,6 +368,7 @@ override StackExchange.Redis.Protocol.RespRequest.Equals(object? obj) -> bool
 override StackExchange.Redis.Protocol.RespRequest.GetHashCode() -> int
 override StackExchange.Redis.Protocol.RespRequest.ToString() -> string!
 override StackExchange.Redis.RespNameValueEntry.ToString() -> string!
+override StackExchange.Redis.RespScanPage<T>.ToString() -> string!
 override StackExchange.Redis.Streams.RespAutoClaimIdsOnlyReply.ToString() -> string!
 override StackExchange.Redis.Streams.RespAutoClaimReply.ToString() -> string!
 override StackExchange.Redis.Streams.RespPendingMessagesReply.ToString() -> string!
@@ -608,6 +616,8 @@ static StackExchange.Redis.Sets.RandomMemberAsync(this in StackExchange.Redis.Re
 static StackExchange.Redis.Sets.RandomMembersAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<RESPite.Messages.RespValue>!>
 static StackExchange.Redis.Sets.RemoveAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.Sets.RemoveAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.RedisKey key, System.ReadOnlySpan<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
+static StackExchange.Redis.Sets.ScanAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue pattern = default(StackExchange.Redis.RedisValue), int? pageSize = null, long cursor = 0, int pageOffset = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<StackExchange.Redis.RedisValue>!
+static StackExchange.Redis.Sets.ScanPageAsync(this in StackExchange.Redis.RespSets sets, StackExchange.Redis.RedisKey key, long cursor = 0, StackExchange.Redis.RedisValue pattern = default(StackExchange.Redis.RedisValue), int? pageSize = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespScanPage<StackExchange.Redis.RedisValue>>
 static StackExchange.Redis.SortedSets.AddAsync(this in StackExchange.Redis.RespSortedSets sortedSets, StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, double score, StackExchange.Redis.SortedSetWhen when = StackExchange.Redis.SortedSetWhen.Always, bool change = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.SortedSets.AddAsync(this in StackExchange.Redis.RespSortedSets sortedSets, StackExchange.Redis.RedisKey key, System.ReadOnlySpan<StackExchange.Redis.SortedSetEntry> entries, StackExchange.Redis.SortedSetWhen when = StackExchange.Redis.SortedSetWhen.Always, bool change = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.SortedSets.CombineAndStoreAsync(this in StackExchange.Redis.RespSortedSets sortedSets, StackExchange.Redis.SetOperation operation, StackExchange.Redis.RedisKey destination, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys, System.ReadOnlySpan<double> weights = default(System.ReadOnlySpan<double>), StackExchange.Redis.Aggregate aggregate = StackExchange.Redis.Aggregate.Sum, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>

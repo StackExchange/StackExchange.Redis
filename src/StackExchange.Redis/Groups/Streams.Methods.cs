@@ -1181,21 +1181,6 @@ public static partial class Streams
         _ => throw new ArgumentOutOfRangeException(nameof(mode)),
     };
 
-    /// <summary>A value written only when it is not null; omitted entirely otherwise.</summary>
-    /// <remarks>
-    /// <b>Omitted, not empty - and the difference is a real one.</b> <c>AppendFormatted(RedisValue)</c>
-    /// writes <c>$0</c> for a null, which for <c>XPENDING</c>'s trailing consumer means "the consumer
-    /// whose name is the empty string" rather than "all consumers". A parity test caught exactly that;
-    /// the classic path had always tested <c>consumerName != RedisValue.Null</c> and skipped the argument.
-    /// </remarks>
-    private readonly struct OptionalValue(RedisValue value) : IRespArgument
-    {
-        public void WriteTo(scoped ref RespRequestBuilder handler)
-        {
-            if (!value.IsNull) handler.AppendFormatted(value);
-        }
-    }
-
     /// <summary>
     /// The tail of an <c>XTRIM</c>: <c>[~] threshold [LIMIT n] [mode]</c>.
     /// </summary>
