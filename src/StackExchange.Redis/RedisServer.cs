@@ -64,6 +64,7 @@ namespace StackExchange.Redis
                         database: -1,
                         serverType: server.ServerType)
                         .WithExecutor(new RespMessageExecutor(this, -1))
+                        .WithScriptCache(multiplexer.ScriptCache)
                         .WithServices(new ServerFeatureProbe(this));
                     _haveContext = true;
                 }

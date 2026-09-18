@@ -68,6 +68,32 @@ namespace StackExchange.Redis
         internal RespClientCache? ClientCache { get; }
 
         /// <summary>
+        /// EXPERIMENTAL SPIKE. The rendered <c>SCRIPT LOAD</c> for every script this connection has sent.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Per multiplexer, and deliberately not per endpoint.</b> An entry is the bytes of
+        /// <c>SCRIPT LOAD &lt;body&gt;</c> plus the script's SHA - pure functions of the script text and
+        /// the <see cref="CommandMap"/>, which is fixed for a multiplexer's life and cannot be changed
+        /// from outside it. So every endpoint of this multiplexer would render byte-identical entries:
+        /// scoping this to an endpoint or a bridge would mean N copies of the same arrays and N renders of
+        /// the same script, buying nothing.
+        /// </para>
+        /// <para>
+        /// <b>The per-endpoint half already exists and is somewhere else.</b> Whether a given server holds
+        /// a script is <c>ServerEndPoint.IsScriptLoaded</c>, consulted at write time through
+        /// <c>ScriptLoadGate</c> and reset by <c>FlushScriptCache</c> and the <c>RunId</c> check. That is
+        /// the only part that can go stale, which is exactly why this part never invalidates.
+        /// </para>
+        /// <para>
+        /// Unconditional, unlike <see cref="ClientCache"/>: there is nothing to configure, since an entry
+        /// cannot be wrong. A connection that never sends a script keeps an empty dictionary, and
+        /// <see cref="CommandFlags.NoScriptCache"/> is what keeps generated-per-call scripts out of it.
+        /// </para>
+        /// </remarks>
+        internal RespScriptCache ScriptCache { get; } = new();
+
+        /// <summary>
         /// When this multiplexer is a member of a connection group, the group resolves the effective
         /// circuit-breaker (member override, else this member's own configuration, else the group default)
         /// and supplies it here. This deliberately does *not* write back into <see cref="RawConfig"/>: callers

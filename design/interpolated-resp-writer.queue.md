@@ -93,6 +93,32 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **The script cache is seeded from the multiplexer — DONE, 2026-09-18.** Marc asked what the
+      logical scope is, and whether the endpoint or bridge is the place to hook it.
+
+      **It is the multiplexer, and the endpoint would be wrong.** An entry is the bytes of
+      `SCRIPT LOAD <body>` plus the script's SHA, which are pure functions of the script text and the
+      `CommandMap`. The map is fixed for a multiplexer's life and cannot be changed from outside it - only
+      the internal `RespContext(CommandMap?, ...)` constructor takes one, and only the parameterless
+      constructor is public. So every endpoint of one multiplexer renders byte-identical entries: an
+      endpoint- or bridge-scoped cache would be N copies of the same arrays and N renders of the same
+      script, buying nothing.
+
+      **The per-endpoint half already exists, and is already in the right place.** Whether a given server
+      holds a script is `ServerEndPoint.IsScriptLoaded`, consulted at write time by `ScriptLoadGate` and
+      reset by `FlushScriptCache` and the `RunId` check. That is the only part that can go stale, which is
+      exactly why this part never invalidates - the type's own remarks said so, and they are what settles
+      the scope question.
+
+      So: `ConnectionMultiplexer.ScriptCache`, alongside `ClientCache` and for the same stated reason,
+      attached in `RedisDatabase.Raw` and `RedisServer.Raw`. Unconditional rather than config-gated,
+      because an entry cannot be wrong and an unused one is an empty dictionary;
+      `CommandFlags.NoScriptCache` is what keeps generated-per-call scripts out.
+
+      `RespScriptCacheWiringTests` pins presence *and* scope - shared across databases and the server
+      context, not shared across multiplexers - because presence alone would not have caught the original
+      gap either.
+
 - [x] **`RespScriptCache` is internal — DONE, 2026-09-18.** Marc: *"internal, I think"*. The type, plus
       `RespContext.ScriptCache` and `WithScriptCache` on all three contexts: nine lines out of
       `PublicAPI.Unshipped.txt`.
@@ -102,12 +128,8 @@ Four consequences, none of them cosmetic:
       comment calls that "correct and wasteful". So an external caller loses an optimisation, not a
       behaviour.
 
-      **But note what it makes true**: nothing in the library ever *puts* a `RespScriptCache` into a
-      context's services. The only writer was the `WithScriptCache` that is now internal, so outside the
-      test suite the wasteful path is the only path. Whether a script cache should be seeded from the
-      connection - the way `CacheOptions` is, via `ConfigurationOptions.ClientCache` - is the open
-      question this leaves behind, and it is a lifetime question (per multiplexer? per endpoint?) rather
-      than a mechanical one.
+      **It also exposed that nothing ever wired one up** - the only writer was that `WithScriptCache`, so
+      every real application took the wasteful branch. Now seeded from the multiplexer; see below.
 
 - [x] **Caching into `StackExchange.Redis.Caching`, and `CacheTrackingMode.Default` — DONE, 2026-09-18.**
       Six files moved out of the root: `CacheOptions`, `CachePolicy`, `CacheTrackingMode`,
