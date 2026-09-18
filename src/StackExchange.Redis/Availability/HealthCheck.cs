@@ -12,6 +12,7 @@ namespace StackExchange.Redis.Availability;
 /// a custom check. Note that <em>how often</em> checks run is a group-level concern, configured via
 /// <see cref="MultiGroupOptions.HealthCheckInterval"/>, not a property of the check itself.
 /// </remarks>
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public sealed partial class HealthCheck
 {
     internal const int DefaultProbeCount = 3;
@@ -99,6 +100,7 @@ public sealed partial class HealthCheck
     /// <summary>
     /// Allows configuration of a <see cref="HealthCheck"/>.
     /// </summary>
+    [Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
     public sealed class Builder
     {
         /// <summary>

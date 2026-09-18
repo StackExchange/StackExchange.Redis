@@ -95,6 +95,26 @@ Four consequences, none of them cosmetic:
          both typed contexts embed, `Raw` disappears and the naming question with it. Do that first, then
          see whether anything still needs a public name.
 
+      **Review feedback applied 2026-09-18.** `RedisKeyOrValue` now implements `IRespArgument`, which is
+      the trick that removes the bespoke execute path: a span of them writes through the ordinary
+      interpolated form (`$"{command}{args}"`) with routing, prefixing and invalidation intact, because the
+      key/value decision is made once by the same `IsKey` test everything else uses. The typed contexts
+      therefore expose **no** `ExecuteAsync` taking `ReadOnlyMemory<RedisKeyOrValue>` - that shape exists
+      only to satisfy `IDatabase.ExecuteResp`, and the transitional bridge reaches it through `Raw`.
+      Marc: *"the new contexts should not have Execute with the RedisKeyOrValue on the public API"*.
+
+      Also: the tests' `((IRespTarget)db).Raw` casts are gone. They were mine, mechanically rewritten from
+      `.Context`, but the ORIGINAL cast was load-bearing - it proved interface dispatch landed on
+      `RedisDatabase.Context` rather than the throwing `RedisBase.Context`, which mattered because the
+      derived member HID the base one with `new`. The split made `Raw` virtual/override, so dispatch
+      cannot land on the base and the cast proved nothing; the comment explaining it went too, rewritten
+      to say why it is no longer needed.
+
+      And `RespInterpolationAnalyzer`'s class comment claimed literal text is *discarded* and the rule is
+      *error* severity - describing an earlier builder whose `AppendLiteral` was empty. Neither is true:
+      the text is tokenized and sent, and SER309 is a warning about re-parsing cost. Corrected, with the
+      staleness itself recorded, because it had already misled a reader into repeating it.
+
       **What is left mechanically:** 232 test errors in four shapes - a typed context passed where shared
       state is wanted, a naked context reaching a group, the ad-hoc `Execute` move, and cascading inference.
       They want doing **by hand, not by regex**: the same expression (`db.ExecuteAsync(...)`,

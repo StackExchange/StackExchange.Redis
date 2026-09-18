@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
@@ -7,6 +7,7 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Provides information about a circuit-breaker test.
 /// </summary>
+[Experimental(Experiments.GeoRedundantFailover, UrlFormat = Experiments.UrlFormat)]
 public readonly struct FaultContext
 {
     private readonly Exception? _fault;
@@ -38,13 +39,11 @@ public readonly struct FaultContext
                 kind = RedisErrorKind.ConnectionFault;
                 flags = connection.Flags;
                 status = connection.CommandStatus;
-                MaintenanceType = connection.MaintenanceType;
                 break;
             case RedisTimeoutException timeout:
                 kind = RedisErrorKind.Timeout;
                 flags = timeout.Flags;
                 status = timeout.Commandstatus;
-                MaintenanceType = timeout.MaintenanceType;
                 break;
             case TimeoutException:
                 kind = RedisErrorKind.Timeout;
@@ -118,18 +117,6 @@ public readonly struct FaultContext
     /// The connection failure type associated with the fault, if any.
     /// </summary>
     public ConnectionFailureType ConnectionFailureType => _connectionFailureType;
-
-    /// <summary>
-    /// The maintenance notification in force when this fault happened, if any.
-    /// </summary>
-    /// <remarks>
-    /// Useful to a circuit breaker: a fault during announced maintenance is expected and transient, and
-    /// counting it towards a trip that then withdraws a whole server is the opposite of what the notification
-    /// was for. Left to policy rather than acted on here, since "ignore faults during maintenance" is a
-    /// judgement about the deployment, not about the protocol.
-    /// </remarks>
-    [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-    public Maintenance.MaintenanceNotificationType MaintenanceType { get; }
 
     private static bool IsKnownNotApplied(RedisErrorKind kind, CommandStatus status)
     {

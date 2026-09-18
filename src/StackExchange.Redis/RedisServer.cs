@@ -109,9 +109,9 @@ namespace StackExchange.Redis
             var guid = Guid.NewGuid();
             if (server.ServerType is ServerType.Cluster)
             {
-                var slot = server.GetServableSlot();
-                if (slot is null) return RedisKey.Null;
-                return ServerSelectionStrategy.CreateKeyForSlot(slot.Value, guid.ToString()).Prepend(prefix);
+                var hashTag = multiplexer.ServerSelectionStrategy.GetHashTag(server);
+                if (string.IsNullOrEmpty(hashTag)) return RedisKey.Null;
+                return prefix.Append($"{guid}:{{{hashTag}}}");
             }
             return prefix.Append(guid.ToString());
         }
@@ -1130,7 +1130,7 @@ namespace StackExchange.Redis
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, DatabaseForAdHoc(command), flags, command, args);
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -1138,34 +1138,9 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, DatabaseForAdHoc(command), flags, command, args);
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
-
-        /// <summary>
-        /// The database an ad-hoc command should run against when the caller named a server but no database.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// A command that needs one gets the configured default, exactly as the database-taking overload of
-        /// <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/> does for a null database, and
-        /// as <see cref="DatabaseSize(int, CommandFlags)"/> and its siblings already do. Anything else is left
-        /// alone at -1, so no <c>SELECT</c> is emitted and the connection's current database is undisturbed.
-        /// </para>
-        /// <para>
-        /// Without this these commands are simply refused: ad-hoc commands used to travel as
-        /// <see cref="RedisCommand.UNKNOWN"/> and so skipped the database assertion entirely, until they
-        /// started being recognised for the sake of <see cref="CommandMap"/> aliasing. The sibling path from
-        /// <c>IDatabase</c> got a matching allowance at the time (it strips a database that is not needed);
-        /// this is the other half of it.
-        /// </para>
-        /// </remarks>
-        private int DatabaseForAdHoc(string command)
-            => RedisCommandMetadata.TryParseCI(command, out var known)
-                && known is not RedisCommand.UNKNOWN
-                && Message.RequiresDatabase(known)
-                    ? multiplexer.ApplyDefaultDatabase(-1)
-                    : -1;
 
         public RedisResult Execute(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {

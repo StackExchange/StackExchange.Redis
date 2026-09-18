@@ -148,7 +148,7 @@ public class TransitionalDatabaseTests
         Assert.Equal("*2|$3|GET|$6|user:1|", Assert.Single(executor.Sent));
 
         // and back again, to the same context
-        Assert.Same(executor, ((IRespTarget)legacy).Raw.Executor);
+        Assert.Same(executor, legacy.Context.Raw.Executor);
     }
 
     [Fact]

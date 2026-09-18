@@ -7,13 +7,20 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace StackExchange.Redis.Build;
 
 /// <summary>
-/// Reports literal text inside a RESP interpolated command, which the handler discards rather than sends.
+/// Reports literal text inside a RESP interpolated command, which is resolved afresh on every call.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The handler deliberately has no runtime check - <c>AppendLiteral</c> is empty, so the JIT can drop it -
-/// which makes this rule the only thing standing between <c>$"{key} nx {val}"</c> and a command that quietly
-/// omits <c>nx</c>. Hence error severity: the code cannot do what it plainly says.
+/// <b>The text IS sent</b> - <c>AppendLiteral</c> tokenizes it into arguments, with a leading token taken
+/// as the command - so this is a cost, not a correctness problem, and the severity is warning. A token
+/// written as a literal is parsed and UTF-8 encoded on every call, where a <c>[Resp]</c> fragment or a
+/// <c>.Command()</c> field is prepared once. A single space between holes is a separator and is exempt.
+/// </para>
+/// <para>
+/// <b>This description was wrong for a while, and the way it was wrong is worth keeping.</b> It used to
+/// say the handler <i>discarded</i> literals and that the rule carried error severity - true of an earlier
+/// builder whose <c>AppendLiteral</c> was empty, and left behind when that changed. A stale comment on an
+/// analyzer is worse than none: it tells a reader the opposite of what the rule does.
 /// </para>
 /// <para>
 /// Detection is by converted type rather than by <c>OperationKind.InterpolatedStringHandlerCreation</c>, which

@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -82,9 +82,9 @@ public class ProductVariantUnitTests(ITestOutputHelper log)
             ServerType = serverType;
         }
 
-        protected override void Info(StringBuilder sb, string section, Server.RedisClient? client = null)
+        protected override void Info(StringBuilder sb, string section)
         {
-            base.Info(sb, section, client);
+            base.Info(sb, section);
             if (section is "Server")
             {
                 switch (_variant)

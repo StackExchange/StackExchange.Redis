@@ -72,26 +72,18 @@ jobs:
           Write-Output "Computed package version: $version"
       # Restore is ~80s of the build step on a cold runner, and the package set changes rarely.
       #
-      # The key globs the whole workspace for **/*.csproj, so it must only ever be computed against a
-      # still tree. Two things disturb one: the sixteen redis processes writing through DrvFs once the
-      # servers are up - rdb files into RedisConfigs/Temp, nodes-*.conf into RedisConfigs/Cluster, and
-      # BGSAVE's temp-<pid>.rdb appearing and being renamed under the walk - and, later, every bin/ and
-      # obj/ the build produces. Enumerating a tree that is changing underneath you is how you get an
-      # intermittent "hashFiles(...) failed. Fail to hash files under directory ...".
-      #
-      # Hashing here, straight after checkout, keeps the restore safe; but actions/cache re-evaluates
-      # `key` in its post step to decide what to save, and that runs at the end of the job when the
-      # churn is at its worst. So resolve it *once*, into an output, and hand the cache action a plain
-      # string it can reuse at both ends.
-      - name: Compute NuGet cache key
-        id: nuget-cache-key
-        run: |
-          "value=${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}" >> $env:GITHUB_OUTPUT
+      # Keep this immediately after checkout, and *before* the WSL/redis steps. The key globs the whole
+      # workspace for **/*.csproj, and once the servers are up there are sixteen redis processes writing
+      # into that same tree through DrvFs - rdb files into RedisConfigs/Temp, nodes-*.conf into
+      # RedisConfigs/Cluster, and BGSAVE's temp-<pid>.rdb appearing and being renamed under the walk.
+      # Enumerating a tree that is changing underneath you is how you get an intermittent
+      # "hashFiles(...) failed. Fail to hash files under directory ...", which is exactly what this job
+      # started doing. Nothing here needs redis, so hash a still checkout instead.
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ steps.nuget-cache-key.outputs.value }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
           restore-keys: ${{ runner.os }}-nuget-
       - uses: Vampire/setup-wsl@v7 # v7 is the first version running on Node 24
         with:

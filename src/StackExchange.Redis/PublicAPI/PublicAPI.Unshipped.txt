@@ -192,7 +192,6 @@ StackExchange.Redis.RespDatabaseContext.AppendChannelPrefix(StackExchange.Redis.
 StackExchange.Redis.RespDatabaseContext.AppendKeyPrefix(StackExchange.Redis.RedisKey prefix) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.AsDatabase(StackExchange.Redis.IConnectionMultiplexer! multiplexer, object? asyncState = null) -> StackExchange.Redis.IDatabase!
 StackExchange.Redis.RespDatabaseContext.Database.get -> int
-StackExchange.Redis.RespDatabaseContext.ExecuteAsync(string! command, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
 StackExchange.Redis.RespDatabaseContext.Raw.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespDatabaseContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder request) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
@@ -287,8 +286,6 @@ StackExchange.Redis.RespScripts.RespScripts() -> void
 StackExchange.Redis.RespScripts.RespScripts(in StackExchange.Redis.RespContext context) -> void
 StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.AppendChannelPrefix(StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.RespServerContext
-StackExchange.Redis.RespServerContext.ExecuteAsync(int database, string! command, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
-StackExchange.Redis.RespServerContext.ExecuteAsync(string! command, System.ReadOnlyMemory<StackExchange.Redis.RedisKeyOrValue> args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RespResult!>
 StackExchange.Redis.RespServerContext.Raw.get -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespServerContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder request) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespServerContext.RespServerContext() -> void

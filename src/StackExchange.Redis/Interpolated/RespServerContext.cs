@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using StackExchange.Redis.Protocol;
@@ -23,10 +22,6 @@ namespace StackExchange.Redis
     /// target, so passing one does not box it.
     /// </para>
     /// </remarks>
-    // RS0026 warns that overloads with optional parameters can become ambiguous. Not here: the two
-    // ExecuteAsync overloads are told apart by their FIRST parameter - a database or a command name -
-    // and neither has a default, so a call can only ever bind to one of them.
-    [SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Overloads differ in a leading parameter that has no default; see the comment above")]
     public readonly struct RespServerContext
     {
         /// <summary>Create a server context over a context.</summary>
@@ -35,33 +30,6 @@ namespace StackExchange.Redis
 
         /// <summary>The shared plumbing this context wraps: key prefix, services, executor.</summary>
         public RespContext Raw { get; }
-
-        /// <summary>Run an arbitrary keyless command against this server and return the raw reply.</summary>
-        /// <param name="command">The command name.</param>
-        /// <param name="args">The arguments, each already known to be a key or a value.</param>
-        /// <param name="flags">The command's flags.</param>
-        /// <remarks>
-        /// The escape hatch, diverging from the database one on purpose: this is keyless and node-pinned,
-        /// so there is no database to assume; the overload below takes one when a command needs it.
-        /// </remarks>
-        public ValueTask<RespResult> ExecuteAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-            => Raw.ExecuteAsync(command, args, flags);
-
-        /// <summary>Run an arbitrary command against one database on this server.</summary>
-        /// <param name="database">The database to run against; a server context has none of its own.</param>
-        /// <param name="command">The command name.</param>
-        /// <param name="args">The arguments, each already known to be a key or a value.</param>
-        /// <param name="flags">The command's flags.</param>
-        /// <remarks>
-        /// The database comes first, as it does on <c>IServer.Execute(int?, string, ...)</c>, and it is
-        /// required rather than defaulted: a server context cannot supply one, so a sentinel here would
-        /// only be a way to not answer the question.
-        /// </remarks>
-        public ValueTask<RespResult> ExecuteAsync(int database, string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-        {
-            if (database < 0) throw new ArgumentOutOfRangeException(nameof(database), "A database is required; a server context has none of its own.");
-            return Raw.WithDatabase(database).ExecuteAsync(command, args, flags);
-        }
 
         // The scoping family returns THIS type rather than a bare context, and that is the whole reason it
         // is written out per context rather than shared: a naked context offers no groups, so a chain that

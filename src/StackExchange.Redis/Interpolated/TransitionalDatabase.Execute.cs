@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -21,10 +21,10 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.ExecuteAsync(command, args, flags));
+            => Wait(Raw.ExecuteAsync(command, args, flags));
 
         /// <inheritdoc/>
         public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-            => Context.ExecuteAsync(command, args, flags).AsTask();
+            => Raw.ExecuteAsync(command, args, flags).AsTask();
     }
 }

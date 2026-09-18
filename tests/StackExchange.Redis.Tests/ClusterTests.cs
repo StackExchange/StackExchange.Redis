@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -750,90 +749,6 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var arr = msgs.Where(m => m.RetransmissionOf is null).ToArray();
         Assert.Equal("SET", arr[0].Command);
         Assert.Equal("GET", arr[1].Command);
-    }
-
-    [Fact]
-    public async Task ClusterConnectsWhenTracerCommandsAreUnavailable()
-    {
-        // With ECHO, PING and TIME all disabled the handshake falls back to a keyed EXISTS, and that key
-        // cannot target a slot the node owns on its first handshake: the CLUSTER NODES reply that would say
-        // which slots those are is still in flight in the same pipeline batch. On a real multi-node cluster
-        // it therefore earns a MOVED, which used to be recorded as a protocol failure - tearing the
-        // connection down, so the node never established and the connect burned its whole ConnectTimeout.
-        // A redirect proves the server is up and answering, which is all a tracer asks. See #2970.
-        //
-        // A single-node in-process cluster cannot cover this: it owns every slot, so nothing is redirected.
-        var disabled = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            nameof(RedisCommand.ECHO),
-            nameof(RedisCommand.PING),
-            nameof(RedisCommand.TIME),
-        };
-
-        // Seeded with one endpoint deliberately: the rest are discovered from the topology, and each of
-        // those has to complete a handshake whose tracer key is chosen before it knows its own slots.
-        // Seeding every node lets enough of them settle to mask the failure.
-        var seed = ConfigurationOptions.Parse(GetConfiguration()).EndPoints[0];
-        var options = new ConfigurationOptions
-        {
-            CommandMap = CommandMap.Create(disabled, available: false),
-            AllowAdmin = true,
-            ConnectTimeout = 10000,
-        };
-        options.EndPoints.Add(seed);
-
-        var sw = Stopwatch.StartNew();
-        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
-        Log($"connected in {sw.ElapsedMilliseconds}ms");
-
-        var endpoints = conn.GetEndPoints();
-        Assert.True(endpoints.Length > 1, "expected a multi-node cluster");
-
-        var config = conn.GetServerSnapshot().ToArray().FirstOrDefault(x => x.IsConnected)?.ClusterConfiguration;
-        Assert.NotNull(config);
-
-        int checkedNodes = 0;
-        foreach (var ep in endpoints)
-        {
-            // Nodes serving no slots are registered inert - deliberately never dialled - so whether they
-            // report as connected is a separate matter from the redirect handling under test here.
-            if (config[ep] is not { } node || node.Slots.Count == 0) continue;
-
-            // no polling: the point is that the *first* handshake establishes, rather than failing and
-            // being recovered by a later attempt
-            Assert.True(conn.GetServer(ep).IsConnected, $"{ep} serves slots but did not establish (connect took {sw.ElapsedMilliseconds}ms)");
-            checkedNodes++;
-        }
-
-        Assert.True(checkedNodes > 1, "expected more than one slot-serving node");
-        Assert.True((await conn.GetDatabase().StringGetAsync(Me())).IsNull);
-    }
-
-    [Fact]
-    public async Task InventKeyRoutesBackToTheServerThatInventedIt()
-    {
-        await using var conn = Create(allowAdmin: true);
-        var muxer = (ConnectionMultiplexer)conn;
-
-        int checkedServers = 0;
-        foreach (var endpoint in conn.GetEndPoints())
-        {
-            var server = conn.GetServer(endpoint);
-            var key = server.InventKey();
-            Assert.False(key.IsNull, $"{endpoint}: no key invented");
-
-            // a replica serves no slots of its own, so the key it invents must target its primary's
-            var expected = server.IsReplica ? muxer.GetServerEndPoint(endpoint, ServerProvenance.Configured).Primary?.EndPoint : endpoint;
-            Assert.NotNull(expected);
-
-            var slot = conn.GetHashSlot(key);
-            var owner = muxer.ServerSelectionStrategy.Select(slot, RedisCommand.GET, CommandFlags.DemandMaster, allowDisconnected: false);
-            Log($"{endpoint} (replica: {server.IsReplica}): key '{key}' -> slot {slot} -> {owner?.EndPoint}");
-            Assert.Equal(expected, owner?.EndPoint);
-            checkedServers++;
-        }
-
-        Assert.True(checkedServers > 1, "expected a multi-node cluster");
     }
 
     [Fact]

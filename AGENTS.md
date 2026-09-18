@@ -95,19 +95,9 @@ Expected servers (defaults in `tests/StackExchange.Redis.Tests/Helpers/TestConfi
 - `7000`-`7005` cluster nodes
 - `7010`/`7011` + `26379`-`26381` sentinel
 
-Tests skip as *inconclusive* when their required server is absent (e.g. cluster tests skip with "Unable to connect to server"). Override hosts/ports for local runs by editing `tests/StackExchange.Redis.Tests/RedisTestConfig.json` — note that it is **tracked**, and is read as an *embedded resource* rather than from disk, so changes need a rebuild and show up as a dirty working tree rather than acting as a private override. `RunLongRunning` there also unlocks the tests gated behind `Skip.UnlessLongRunning()`, which CI never runs. A stray container squatting on `6379` is a common failure: it makes the primary reachable but leaves no replica/cluster, so replica/cluster tests fail or skip — clear it before bringing the compose up.
+Tests skip as *inconclusive* when their required server is absent (e.g. cluster tests skip with "Unable to connect to server"). Override hosts/ports for local runs with a `tests/StackExchange.Redis.Tests/TestConfig.json` (gitignored). A stray container squatting on `6379` is a common failure: it makes the primary reachable but leaves no replica/cluster, so replica/cluster tests fail or skip — clear it before bringing the compose up.
 
 To probe these servers ad hoc, the local user may have `resp-cli` installed — a `dotnet` global tool that is functionally similar to `redis-cli` (same basic flags: `-p`, `-a`, `-n`, `--tls`, `-3`). Prefer `resp-cli` when it's available; fall back to `redis-cli` otherwise.
-
-### Scenario tests (the fault-injector tier)
-
-`tests/StackExchange.Redis.FaultInjector.Tests/` drives a **real Redis Enterprise deployment** through the cross-client fault-injector service, instead of the docker topology: maintenance notifications and handoffs, topology changes, and Active-Active geographic failover. `net10.0` only, and every test self-skips unless the environment is both present and explicitly opted into:
-
-- `SER_FI_CONFIG_DIR` (or `FI_CONSOLE_CONFIG_DIR`) — the directory mounted into the injector as `/app/config`; it holds `endpoints.json` (the cross-client format, shared with Jedis et al.), `env_output.json` (cluster credentials) and the CA certificate. One path is the whole configuration.
-- `E2E_SCENARIO_TESTS=true` — required, because these tests create and delete databases.
-- `FAULT_INJECTION_API_URL` — optional; defaults to `http://127.0.0.1:20324`.
-
-Absent or not opted in, tests **skip**; configured, opted in, and broken, they **fail** — a tier that skips on a broken environment reports success for tests that never ran. Some scenarios sit behind a second gate (`SER_FI_DESTRUCTIVE`, `SER_FI_CLUSTER_FAILURE`, `SER_FI_RETENTION_AGE_MINUTES`). Classes are tagged `[Trait("tier", "fault-injector")]` plus a `scenario` family, and the assembly disables test parallelization because the injector queues actions. `Build.csproj` globs the project so CI compiles it, but CI's `dotnet test` names only `tests/StackExchange.Redis.Tests`, so the tier never executes there. See `tests/StackExchange.Redis.FaultInjector.Tests/README.md`.
 
 ## Agent skills
 

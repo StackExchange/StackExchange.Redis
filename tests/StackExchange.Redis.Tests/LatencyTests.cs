@@ -41,18 +41,14 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Skip.UnlessLongRunning();
         await using var conn = Create(allowAdmin: true);
 
-        var server = GetAnyPrimary(conn);
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
         server.ConfigSet("latency-monitor-threshold", 50);
         server.LatencyReset();
         var arr = server.LatencyLatest();
         Assert.Empty(arr);
 
         var now = await server.TimeAsync();
-        // Via IDatabase, not IServer: DEBUG is not in Message.RequiresDatabase's exclusion list, so
-        // IServer.Execute - which has no database to offer - refuses it outright (see #3236).
-        // DemandMaster so this provably lands on the same node being measured above, rather than
-        // relying on the test topology happening to expose a single endpoint.
-        conn.GetDatabase().Execute("debug", ["sleep", "0.5"], CommandFlags.DemandMaster); // cause something to be slow
+        server.Execute("debug", "sleep", "0.5"); // cause something to be slow
 
         arr = await server.LatencyLatestAsync();
         var item = Assert.Single(arr);
@@ -68,18 +64,14 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Skip.UnlessLongRunning();
         await using var conn = Create(allowAdmin: true);
 
-        var server = GetAnyPrimary(conn);
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
         server.ConfigSet("latency-monitor-threshold", 50);
         server.LatencyReset();
         var arr = server.LatencyHistory("command");
         Assert.Empty(arr);
 
         var now = await server.TimeAsync();
-        // Via IDatabase, not IServer: DEBUG is not in Message.RequiresDatabase's exclusion list, so
-        // IServer.Execute - which has no database to offer - refuses it outright (see #3236).
-        // DemandMaster so this provably lands on the same node being measured above, rather than
-        // relying on the test topology happening to expose a single endpoint.
-        conn.GetDatabase().Execute("debug", ["sleep", "0.5"], CommandFlags.DemandMaster); // cause something to be slow
+        server.Execute("debug", "sleep", "0.5"); // cause something to be slow
 
         arr = await server.LatencyHistoryAsync("command");
         var item = Assert.Single(arr);

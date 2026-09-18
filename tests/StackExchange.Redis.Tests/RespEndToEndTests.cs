@@ -35,10 +35,10 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var db = conn.GetDatabase();
         await db.KeyDeleteAsync(key);
 
-        // RedisDatabase.Context HIDES the throwing RedisBase.Context with 'new', so the interface mapping
-        // has to land on the derived one - if it ever landed on the base, every extension member would
-        // throw, since they all reach the context through IRespTarget
-        Assert.NotNull(((IRespTarget)db).Raw.Executor);
+        // RedisBase.Raw is virtual and RedisDatabase overrides it, so dispatch cannot land on the
+        // throwing base - this used to need a cast to IRespTarget to prove that, back when the derived
+        // member HID the base one with 'new'
+        Assert.NotNull(db.Context.Raw.Executor);
 
         // no casts, no executor, no context construction - GetDatabase() is already an IRespTarget
         Assert.True(await db.Strings.SetAsync(key, "marc"));
@@ -180,7 +180,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await db.KeyDeleteAsync(key);
 
         const CommandFlags Flags = CommandFlags.CommandRetryWriteLastWins | CommandFlags.FireAndForget;
-        var context = ((IRespTarget)db).Raw;
+        var context = db.Context.Raw;
         var frame = context.Render($"{RedisCommand.SET}{(RedisKey)key}{(RedisValue)"marc"}");
         Assert.False(context.Send(ref frame, Flags, RespHandlers.Boolean, default));
 
@@ -330,7 +330,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     {
         await using var conn = Create();
         var db = conn.GetDatabase();
-        var ctx = ((IRespTarget)db).Raw;
+        var ctx = db.Context.Raw;
         var key = Me();
         await db.KeyDeleteAsync(key);
 
@@ -372,7 +372,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     {
         await using var conn = Create();
         var db = conn.GetDatabase();
-        var ctx = ((IRespTarget)db).Raw;
+        var ctx = db.Context.Raw;
         var key = Me();
 
         await db.KeyDeleteAsync(key);

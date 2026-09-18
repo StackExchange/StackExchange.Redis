@@ -807,6 +807,7 @@ namespace StackExchange.Redis
         /// <para>Not supported inside a transaction (the connection-local <c>PREPARE</c> cannot be staged in <c>MULTI</c>/<c>EXEC</c>).</para>
         /// <para><seealso href="https://redis.io/commands/himport"/></para>
         /// </remarks>
+        [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
         void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

@@ -43,20 +43,6 @@ namespace StackExchange.Redis
         /// </remarks>
         public int Database => Raw.Database;
 
-        /// <summary>Run an arbitrary command against this database and return the raw reply.</summary>
-        /// <param name="command">The command name.</param>
-        /// <param name="args">The arguments, each already known to be a key or a value.</param>
-        /// <param name="flags">The command's flags.</param>
-        /// <remarks>
-        /// <b>The escape hatch, and it diverges from the server one on purpose.</b> A database already
-        /// knows which database it is, so this does not ask; <see cref="RespServerContext"/>'s twin does,
-        /// because a node-pinned command has to say. That split is not new - <c>IServer.Execute</c> has
-        /// carried an <c>int?</c> database overload for years and <c>IDatabase.Execute</c> never needed
-        /// one - it is just being said in the types now rather than in overloads.
-        /// </remarks>
-        public ValueTask<RespResult> ExecuteAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-            => Raw.ExecuteAsync(command, args, flags);
-
         // The scoping family returns THIS type rather than a bare context, and that is the whole reason it
         // is written out per context rather than shared: a naked context offers no groups, so a chain that
         // dropped back to one - db.Context.WithKeyPrefix("x:").Strings - would stop compiling halfway

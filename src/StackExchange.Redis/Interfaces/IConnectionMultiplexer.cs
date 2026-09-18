@@ -86,7 +86,7 @@ public interface IConnectionMultiplexer : IDisposable, IAsyncDisposable
     /// <summary>
     /// Should exceptions include identifiable details? (key names, additional <see cref="Exception.Data"/> annotations).
     /// </summary>
-    [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 4.0.", error: true)]
+    [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.2.", error: true)]
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     bool IncludeDetailInExceptions { get; set; }
 

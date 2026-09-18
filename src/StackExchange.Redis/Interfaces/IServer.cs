@@ -41,7 +41,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets whether the connected server is a replica.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead, this will be removed in 4.0.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool IsSlave { get; }
 
@@ -53,7 +53,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Explicitly opt in for replica writes on writable replica.
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(AllowReplicaWrites) + " instead, this will be removed in 4.0.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(AllowReplicaWrites) + " instead, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool AllowSlaveWrites { get; set; }
 
@@ -261,8 +261,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack
-        /// a direct API. Commands that require a database run against the configured default database;
-        /// to choose a different one, use <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/>.
+        /// a direct API.
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
@@ -278,10 +277,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack
-        /// a direct API. Commands that require a database run against the configured default database, and
-        /// commands that do not are sent without one, leaving the connection's current database alone. To
-        /// choose a specific database, use <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/>
-        /// (passing <see langword="null"/> for the configured default).
+        /// a direct API. The command is assumed to be not database-specific. If this is not the case,
+        /// <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/> should be used to
+        /// specify the database (using <langword>null</langword> to use the configured default database).
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
@@ -402,7 +400,7 @@ namespace StackExchange.Redis
         Task<DateTime> LastSaveAsync(CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="MakePrimaryAsync(ReplicationChangeOptions, TextWriter?)"/>
-        [Obsolete("Please use " + nameof(MakePrimaryAsync) + ", this will be removed in 4.0.", error: true)]
+        [Obsolete("Please use " + nameof(MakePrimaryAsync) + ", this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null);
 
@@ -505,17 +503,17 @@ namespace StackExchange.Redis
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="ReplicaOfAsync(System.Net.EndPoint,CommandFlags)"/>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 4.0.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="ReplicaOfAsync(System.Net.EndPoint,CommandFlags)"/>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 4.0.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="ReplicaOfAsync(System.Net.EndPoint,CommandFlags)"/>
-        [Obsolete("Please use " + nameof(ReplicaOfAsync) + ", this will be removed in 4.0.", error: true)]
+        [Obsolete("Please use " + nameof(ReplicaOfAsync) + ", this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
@@ -770,12 +768,12 @@ namespace StackExchange.Redis
         Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="SentinelReplicas(string, CommandFlags)"/>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead, this will be removed in 4.0.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="SentinelReplicas(string, CommandFlags)"/>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead, this will be removed in 4.0.", error: true)]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead, this will be removed in 3.2.", error: true)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 

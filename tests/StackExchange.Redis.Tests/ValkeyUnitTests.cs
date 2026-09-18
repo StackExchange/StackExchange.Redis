@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -24,9 +24,9 @@ public class ValkeyUnitTests(ITestOutputHelper log)
         // see https://github.com/StackExchange/StackExchange.Redis/pull/3050
         protected override string ServerModeKey => "server_mode";
 
-        protected override void Info(StringBuilder sb, string section, Server.RedisClient? client = null)
+        protected override void Info(StringBuilder sb, string section)
         {
-            base.Info(sb, section, client);
+            base.Info(sb, section);
             if (section is "Server")
             {
                 sb.AppendLine("valkey_version:8.1")

@@ -11,9 +11,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-#if NET
-using System.Text.Unicode;
-#endif
 using RESPite;
 
 namespace StackExchange.Redis
@@ -22,7 +19,7 @@ namespace StackExchange.Redis
     /// Represents values that can be stored in redis.
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public readonly partial struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
+    public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
         // Maximum payload that fits in an inline short-blob (packed into the overlapped int64 field).
         internal const int MaxInlineBytes = sizeof(long);
@@ -480,156 +477,9 @@ namespace StackExchange.Redis
             // memory / short-blob / sequence) compare by raw bytes in any combination
             if (IsBlob(xType) && IsBlob(yType)) return BlobSequenceEqual(x, y);
 
-            // otherwise: exactly one side is a string and the other is byte-backed (everything else has
-            // been dealt with above). The relation is unchanged - "the blob, read as UTF-8 text, equals the
-            // string" - but it is answered without materialising that text: see StringEqualsBlob.
-            return xType == StorageType.String
-                ? StringEqualsBlob(x.RawString(), in y)
-                : StringEqualsBlob(y.RawString(), in x);
+            // otherwise (anything involving a string), compare as strings
+            return (string?)x == (string?)y;
         }
-
-        /// <summary>
-        /// Compares a string against the UTF-8 text of a byte-backed value, without decoding it into a string.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Identical in meaning to <c>s == (string)blob</c>, deliberately: equality here is defined by
-        /// decoding the blob, and <see cref="GetHashCode(RedisValue)"/> hashes the same decoded form. Comparing
-        /// the other way around - encoding the string and matching bytes - is *not* the same relation, because
-        /// UTF-8 does not round-trip strings holding unpaired surrogates, and it would put equal values in
-        /// different hash buckets.
-        /// </para>
-        /// <para>
-        /// The decode runs a chunk at a time into a small stack buffer, so a long value costs no allocation
-        /// (the previous form allocated a transient string, which for values over ~42k chars landed on the
-        /// large object heap), and a mismatch stops at the chunk that contains it rather than after decoding
-        /// the whole payload.
-        /// </para>
-        /// </remarks>
-        private static bool StringEqualsBlob(string s, in RedisValue blob)
-        {
-            // Bounds, before touching any content: UTF-8 never yields more chars than it has bytes, and never
-            // spends more than 3 bytes per char (4-byte sequences produce 2 chars, i.e. 2 bytes per char).
-            int byteLength = blob.BlobLength;
-            if (s.Length > byteLength || (long)s.Length * 3 < byteLength) return false;
-
-#if NET
-            if (blob.Type == StorageType.Sequence)
-            {
-                var seq = blob.RawSequence();
-                if (!seq.IsSingleSegment) return StringEqualsUtf8(s, seq);
-                return StringEqualsUtf8(s, seq.First.Span);
-            }
-            return StringEqualsUtf8(s, blob.UnsafeRawSpan(out _));
-#else
-            // no System.Text.Unicode.Utf8 on the down-level targets; keep the original behaviour there
-            return s == (string?)blob;
-#endif
-        }
-
-#if NET
-        /// <summary>Chars decoded per pass; small enough that the stack cost is irrelevant.</summary>
-        private const int CompareChunkChars = 128;
-
-        /// <summary>Longest UTF-8 sequence, i.e. the most that can be left pending at a segment boundary.</summary>
-        private const int MaxUtf8SequenceLength = 4;
-
-        private static bool StringEqualsUtf8(string s, scoped ReadOnlySpan<byte> utf8)
-        {
-            Span<char> chars = stackalloc char[CompareChunkChars];
-            int matched = 0;
-            while (!utf8.IsEmpty)
-            {
-                // isFinalBlock: false - a chunk boundary landing mid-sequence must be resumed on the next
-                // pass, not reported as invalid data
-                Utf8.ToUtf16(utf8, chars, out int bytesRead, out int charsWritten, replaceInvalidSequences: true, isFinalBlock: false);
-                if (bytesRead == 0 && charsWritten == 0)
-                {
-                    // what remains is a truncated sequence at the very end; decoding it as final is what
-                    // yields the replacement char that the string form would have carried
-                    Utf8.ToUtf16(utf8, chars, out bytesRead, out charsWritten, replaceInvalidSequences: true, isFinalBlock: true);
-                    // Defensive, and believed unreachable: a final-block decode of a non-empty input always
-                    // yields at least the replacement character. Kept so that a future change which makes it
-                    // reachable fails the comparison rather than spinning here forever.
-                    if (bytesRead == 0 && charsWritten == 0) return false;
-                }
-                if (!AdvanceMatch(s, chars.Slice(0, charsWritten), ref matched)) return false;
-                utf8 = utf8.Slice(bytesRead);
-            }
-            return matched == s.Length;
-        }
-
-        private static bool StringEqualsUtf8(string s, scoped in ReadOnlySequence<byte> utf8)
-        {
-            Span<char> chars = stackalloc char[CompareChunkChars];
-            Span<byte> pending = stackalloc byte[MaxUtf8SequenceLength];
-            int pendingLength = 0, matched = 0;
-
-            foreach (var segment in utf8)
-            {
-                var span = segment.Span;
-                while (!span.IsEmpty)
-                {
-                    if (pendingLength != 0)
-                    {
-                        // a sequence split across segments: top it up from this one and decode just that
-                        int take = Math.Min(MaxUtf8SequenceLength - pendingLength, span.Length);
-                        span.Slice(0, take).CopyTo(pending.Slice(pendingLength));
-                        int available = pendingLength + take;
-
-                        Utf8.ToUtf16(pending.Slice(0, available), chars, out int joinedBytes, out int joinedChars, replaceInvalidSequences: true, isFinalBlock: false);
-                        if (joinedBytes == 0)
-                        {
-                            // still short: absorb what we took and look to the next segment
-                            pendingLength = available;
-                            span = span.Slice(take);
-                            continue;
-                        }
-
-                        if (!AdvanceMatch(s, chars.Slice(0, joinedChars), ref matched)) return false;
-                        // The decoder consumed the carried prefix and possibly more, never less: `pending`
-                        // only ever holds a sequence that was incomplete but valid, and such a sequence is
-                        // consumed as a unit. Asserted because if that ever stopped holding, the slice below
-                        // would throw rather than quietly answer wrongly.
-                        Debug.Assert(joinedBytes >= pendingLength, "decoder consumed less than the carried prefix");
-                        span = span.Slice(joinedBytes - pendingLength); // give back the bytes we borrowed but did not use
-                        pendingLength = 0;
-                        continue;
-                    }
-
-                    Utf8.ToUtf16(span, chars, out int bytesRead, out int charsWritten, replaceInvalidSequences: true, isFinalBlock: false);
-                    if (bytesRead == 0 && charsWritten == 0)
-                    {
-                        // trailing partial sequence: carry it into the next segment
-                        span.CopyTo(pending);
-                        pendingLength = span.Length;
-                        break;
-                    }
-
-                    if (!AdvanceMatch(s, chars.Slice(0, charsWritten), ref matched)) return false;
-                    span = span.Slice(bytesRead);
-                }
-            }
-
-            if (pendingLength != 0)
-            {
-                // truncated at the end of the payload
-                Utf8.ToUtf16(pending.Slice(0, pendingLength), chars, out _, out int finalChars, replaceInvalidSequences: true, isFinalBlock: true);
-                if (!AdvanceMatch(s, chars.Slice(0, finalChars), ref matched)) return false;
-            }
-
-            return matched == s.Length;
-        }
-
-        /// <summary>Matches freshly decoded chars against the next part of the string; false ends the compare.</summary>
-        private static bool AdvanceMatch(string s, scoped ReadOnlySpan<char> decoded, ref int matched)
-        {
-            if (matched + decoded.Length > s.Length) return false;
-            if (!decoded.SequenceEqual(s.AsSpan(matched, decoded.Length))) return false;
-            matched += decoded.Length;
-            return true;
-        }
-#endif
 
         /// <summary>
         /// See <see cref="object.Equals(object)"/>.
