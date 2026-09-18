@@ -4564,7 +4564,10 @@ namespace StackExchange.Redis
                 if (claimMinIdleTime.HasValue)
                 {
                     writer.WriteRaw("$5\r\nCLAIM\r\n"u8);
-                    writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
+
+                    // whole milliseconds: TotalMilliseconds is a double, and a fractional TimeSpan used to
+                    // put "CLAIM 1500.5" on the wire, which the server rejects as not an integer
+                    writer.WriteBulkString((long)claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
                 writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
@@ -5383,7 +5386,9 @@ namespace StackExchange.Redis
                 if (claimMinIdleTime.HasValue)
                 {
                     writer.WriteRaw("$5\r\nCLAIM\r\n"u8);
-                    writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
+
+                    // whole milliseconds; see the multi-stream writer for why
+                    writer.WriteBulkString((long)claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
                 writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);

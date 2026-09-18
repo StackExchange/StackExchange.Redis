@@ -724,6 +724,62 @@ namespace StackExchange.Redis.Protocol
             if (value is long actual) AppendFormatted((RedisValue)actual);
         }
 
+        /// <summary>Append a duration in the unit the command asks for: <c>$"{idle:ms}"</c>.</summary>
+        /// <param name="value">The duration.</param>
+        /// <param name="format">The unit: <c>ms</c> for milliseconds, <c>s</c> for seconds.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>There is deliberately no unit-less overload.</b> <see cref="TimeSpan"/> does not implement
+        /// <see cref="IRespArgument"/> and cannot - it is a BCL type - so <c>$"{idle}"</c> does not
+        /// compile, and a duration can only be written by saying which unit the server wants. Redis uses
+        /// both, sometimes on the same command, and a wrong unit is a silent factor of a thousand.
+        /// </para>
+        /// <para>
+        /// <b>Truncates</b>, matching every hand-rolled <c>(long)x.TotalMilliseconds</c> this replaces.
+        /// That matters more than it looks: the shipped <c>XREADGROUP</c> writers passed
+        /// <c>TotalMilliseconds</c> - a <see cref="double"/> - straight through, so
+        /// <c>TimeSpan.FromMilliseconds(1500.5)</c> put <c>CLAIM 1500.5</c> on the wire and the server
+        /// answered "value is not an integer". Going through a unit-bearing hole is what stops that
+        /// happening again somewhere else.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="ArgumentOutOfRangeException">If <paramref name="format"/> is not a known unit.</exception>
+        public void AppendFormatted(TimeSpan value, string? format)
+            => AppendFormatted((RedisValue)ToUnits(value, format));
+
+        /// <summary>
+        /// Append an optional duration: the value when it has one, and <b>nothing at all</b> when it does
+        /// not.
+        /// </summary>
+        /// <param name="value">The duration, or <see langword="null"/> to write nothing.</param>
+        /// <param name="format">The unit: <c>ms</c> for milliseconds, <c>s</c> for seconds.</param>
+        /// <remarks>
+        /// The <see cref="TimeSpan"/> counterpart of <see cref="AppendFormatted(long?)"/>, and pairs with
+        /// <c>RespFragment.When</c> the same way: <c>$"{RespLiterals.Claim.When(idle)}{idle:ms}"</c>
+        /// writes both arguments or neither.
+        /// </remarks>
+        /// <exception cref="ArgumentOutOfRangeException">If <paramref name="format"/> is not a known unit.</exception>
+        public void AppendFormatted(TimeSpan? value, string? format)
+        {
+            if (value is TimeSpan actual) AppendFormatted(actual, format);
+        }
+
+        /// <summary>Convert a duration to whole units of <paramref name="format"/>.</summary>
+        /// <remarks>
+        /// An unknown unit throws rather than guessing. A duration written in the wrong unit is still a
+        /// valid command, so the server cannot catch it and neither can a test that only checks the shape
+        /// - which makes this one of the few places where being loud at the call site is the whole value.
+        /// </remarks>
+        private static long ToUnits(TimeSpan value, string? format) => format switch
+        {
+            "ms" => (long)value.TotalMilliseconds,
+            "s" => (long)value.TotalSeconds,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(format),
+                format,
+                "Unknown duration unit; use 'ms' for milliseconds or 's' for seconds."),
+        };
+
         /// <inheritdoc cref="AppendFormatted(long?)"/>
         public void AppendFormatted(double? value)
         {

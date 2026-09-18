@@ -321,6 +321,30 @@ public class RespSurfaceStreamsParityTests
         Assert.Contains("|$1|>|", viaGroup);
     }
 
+    /// <summary>
+    /// A fractional CLAIM is whole milliseconds on both sides now.
+    /// </summary>
+    /// <remarks>
+    /// This case would have failed before the fix in either direction: the shipped writer passed
+    /// TimeSpan.TotalMilliseconds - a double - so it put <c>CLAIM 1500.5</c> on the wire, which the server
+    /// rejects as not an integer. Both paths truncate now, so the assertion is both that they agree and
+    /// that what they agree on is sendable.
+    /// </remarks>
+    [Fact]
+    public void ReadGroupClaimIsWholeMilliseconds()
+    {
+        var claim = TimeSpan.FromTicks((TimeSpan.TicksPerMillisecond * 1500) + 5000);
+        var rendered = Modern(ctx => Discard(ctx.Streams.ReadGroupAsync("s", "g", "c", null, null, false, claim)), NamedEntriesReply);
+
+        Assert.Contains("|$5|CLAIM|$4|1500|", rendered);
+        Assert.DoesNotContain("1500.5", rendered);
+
+        AssertSame(
+            db => db.GetStreamReadGroupMessage("s", "g", "c", StreamPosition.Resolve(StreamPosition.NewMessages, RedisCommand.XREADGROUP), null, false, claim, CommandFlags.None),
+            ctx => Discard(ctx.Streams.ReadGroupAsync("s", "g", "c", null, null, false, claim)),
+            NamedEntriesReply);
+    }
+
     private static TimeSpan? AsIdle(long? ms) => ms.HasValue ? TimeSpan.FromMilliseconds(ms.GetValueOrDefault()) : null;
 
     private static async ValueTask Discard<T>(ValueTask<T> pending)

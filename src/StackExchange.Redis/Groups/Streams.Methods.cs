@@ -603,10 +603,9 @@ public static partial class Streams
         bool justId)
     {
         DemandAtLeastOneId(messageIds);
-        var idleMs = (long)minIdleTime.TotalMilliseconds;
         return justId
-            ? context.Render($"{RedisCommand.XCLAIM}{key}{group}{consumer}{idleMs}{messageIds}{RespLiterals.JustId}")
-            : context.Render($"{RedisCommand.XCLAIM}{key}{group}{consumer}{idleMs}{messageIds}");
+            ? context.Render($"{RedisCommand.XCLAIM}{key}{group}{consumer}{minIdleTime:ms}{messageIds}{RespLiterals.JustId}")
+            : context.Render($"{RedisCommand.XCLAIM}{key}{group}{consumer}{minIdleTime:ms}{messageIds}");
     }
 
     /// <summary>
@@ -735,11 +734,8 @@ public static partial class Streams
         DemandPositiveCount(count);
         var after = StreamPosition.Resolve(position ?? StreamPosition.NewMessages, RedisCommand.XREADGROUP);
 
-        // the CLAIM operand is written as the DOUBLE the shipped writer writes, not as whole milliseconds:
-        // WriteBulkString(TimeSpan.TotalMilliseconds) is a double, and matching it is the point
-        var claimMs = claimMinIdleTime.HasValue ? (double?)claimMinIdleTime.GetValueOrDefault().TotalMilliseconds : null;
         return context.Render(
-            $"{RedisCommand.XREADGROUP}{RespLiterals.Group}{group}{consumer}{RespLiterals.Count.When(count)}{count}{RespLiterals.NoAck.When(noAck)}{RespLiterals.Claim.When(claimMs)}{claimMs}{RespLiterals.StreamsKeyword}{key}{after}");
+            $"{RedisCommand.XREADGROUP}{RespLiterals.Group}{group}{consumer}{RespLiterals.Count.When(count)}{count}{RespLiterals.NoAck.When(noAck)}{RespLiterals.Claim.When(claimMinIdleTime)}{claimMinIdleTime:ms}{RespLiterals.StreamsKeyword}{key}{after}");
     }
 
     private static readonly RespReplyHandler<RespReadReply> ReadReplyHandler
@@ -850,10 +846,9 @@ public static partial class Streams
         int? count,
         bool justId)
     {
-        var idleMs = (long)minIdleTime.TotalMilliseconds;
         return justId
-            ? context.Render($"{RedisCommand.XAUTOCLAIM}{key}{group}{consumer}{idleMs}{startAtId}{RespLiterals.Count.When(count)}{count}{RespLiterals.JustId}")
-            : context.Render($"{RedisCommand.XAUTOCLAIM}{key}{group}{consumer}{idleMs}{startAtId}{RespLiterals.Count.When(count)}{count}");
+            ? context.Render($"{RedisCommand.XAUTOCLAIM}{key}{group}{consumer}{minIdleTime:ms}{startAtId}{RespLiterals.Count.When(count)}{count}{RespLiterals.JustId}")
+            : context.Render($"{RedisCommand.XAUTOCLAIM}{key}{group}{consumer}{minIdleTime:ms}{startAtId}{RespLiterals.Count.When(count)}{count}");
     }
 
     private static readonly RespReplyHandler<RespAutoClaimReply> AutoClaimReplyHandler
@@ -957,9 +952,8 @@ public static partial class Streams
     {
         if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
 
-        var idle = minIdleTime.HasValue ? (long?)minIdleTime.GetValueOrDefault().TotalMilliseconds : null;
         return context.Render(
-            $"{RedisCommand.XPENDING}{key}{group}{RespLiterals.Idle.When(idle)}{idle}{minId ?? StreamConstants.ReadMinValue}{maxId ?? StreamConstants.ReadMaxValue}{count}{new OptionalValue(consumer)}");
+            $"{RedisCommand.XPENDING}{key}{group}{RespLiterals.Idle.When(minIdleTime)}{minIdleTime:ms}{minId ?? StreamConstants.ReadMinValue}{maxId ?? StreamConstants.ReadMaxValue}{count}{new OptionalValue(consumer)}");
     }
 
     private static readonly RespReplyHandler<RespPendingReply> PendingReplyHandler

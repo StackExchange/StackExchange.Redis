@@ -120,6 +120,8 @@ StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(StackExchange.Re
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(StackExchange.Redis.RedisKey value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(StackExchange.Redis.RedisValue value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(StackExchange.Redis.RespKey value) -> void
+StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(System.TimeSpan value, string? format) -> void
+StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(System.TimeSpan? value, string? format) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(double? value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(long? value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(scoped System.ReadOnlySpan<StackExchange.Redis.RedisKey> value) -> void

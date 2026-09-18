@@ -142,7 +142,7 @@ Four consequences, none of them cosmetic:
 
       Remaining: `XCLAIM`/`XAUTOCLAIM`, `XPENDING` x2, `XREAD`/`XREADGROUP`, `XINFO` x3.
 
-- [ ] **BUG (shipped): `XREADGROUP CLAIM` sends a non-integer for a fractional `TimeSpan`.** Found while
+- [x] **BUG (shipped): `XREADGROUP CLAIM` sent a non-integer for a fractional `TimeSpan` — FIXED, 2026-09-18.** Found while
       moving the stream reads, 2026-09-18; Marc asked for it to be logged rather than folded into that work.
 
       Both writers - `MultiStreamReadGroupCommandMessage` (`RedisDatabase.cs:4567`) and
@@ -158,9 +158,28 @@ Four consequences, none of them cosmetic:
       double is ever involved. It is specific to `XREADGROUP`, where the parameter is a `TimeSpan`, and any
       caller passing sub-millisecond precision - `TimeSpan.FromSeconds(1.0005)`, say - hits it.
 
-      The new surface **reproduces** this on purpose so the parity tests hold byte-for-byte. The fix is to
-      truncate in both paths at once, after which the parity test asserts the new agreement rather than the
-      old one. Truncate rather than round, to match every other millisecond conversion here.
+      Both paths now truncate, and `RespSurfaceStreamsParityTests.ReadGroupClaimIsWholeMilliseconds`
+      asserts both that they agree and that what they agree on is sendable.
+
+      **The real fix is the hole, not the cast.** Marc: *"we should be able to use something like
+      `{minIdleTime:ms}` - if we can't, we've screwed up somewhere"*. We could not: `TimeSpan` is a BCL
+      type and can never implement `IRespArgument`, and nothing implemented `IRespFormattableArgument`
+      either, so every site was writing `(long)x.TotalMilliseconds` by hand - four of them on the new
+      surface - and the shipped writers were passing the `double` straight through.
+      `RespRequestBuilder.AppendFormatted(TimeSpan, string?)` now takes the unit, with a `TimeSpan?` twin
+      that writes nothing when null.
+
+      Two properties fall out. A unit-less `$"{ttl}"` **does not compile** - CS0315, no conversion to
+      `IRespArgument` - so a duration cannot reach the wire without someone naming the unit. And an
+      unrecognised unit throws: they are our tokens, not `TimeSpan`'s, and a duration in the wrong unit is
+      still a *valid* command, so the call site is the only place it can be caught.
+
+      Not affected, and worth writing down because it is the same question asked of the commands that
+      really do offer both: `EX`/`PX` down-levelling already happens, inside `Expiration`, which truncates
+      to whole milliseconds and then drops to seconds when `millis % 1000 == 0`. Every TTL parameter on
+      the new surface is an `Expiration` rather than a `TimeSpan`, so that choice is made by the type that
+      writes the operand instead of at each call site - which is why there is no `{x:s}` anywhere in
+      `src`. The `{x:ms}` holes are all commands whose unit the protocol fixes.
 
 - [ ] **BUG (shipped): multi-stream `XREAD` accepts `StreamPosition.NewMessages`; single-stream refuses
       it.** Found 2026-09-18; Marc: *"log that, we should come back to it"*.
