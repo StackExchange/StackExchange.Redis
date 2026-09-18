@@ -48,15 +48,16 @@ public static partial class Scripts
         ReadOnlySpan<RedisValue> args = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => Evaluate(in scripts, script, keys, args, flags, readOnly: false);
+        => Evaluate(in scripts, script, keys, args, flags, readOnly: false, RespHandlers.Result);
 
-    private static ValueTask<RespResult> Evaluate(
+    private static ValueTask<TResult> Evaluate<TResult>(
         in RespScripts scripts,
         string script,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
         CommandFlags flags,
-        bool readOnly)
+        bool readOnly,
+        IRespHandler<TResult> handler)
     {
         if (script is null) throw new ArgumentNullException(nameof(script));
 
@@ -69,9 +70,8 @@ public static partial class Scripts
         if ((flags & CommandFlags.NoScriptCache) != 0)
         {
             var eval = readOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL;
-            return context.SendAsync<RespResult>(
-                $"{eval}{script.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}",
-                flags);
+            var cmd = context.Render($"{eval}{script.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
+            return context.SendAsync(ref cmd, flags, handler);
         }
 
         var registry = context.ScriptCache;
@@ -84,7 +84,7 @@ public static partial class Scripts
             {
                 // a gate per call here, where the registry keeps one per script: without a registry
                 // there is nowhere to keep it, and the skip is worth more than the allocation
-                return SendPair(in context, ref fresh, hash, keys, args, flags, readOnly, new ScriptLoadGate(script, hash));
+                return SendPair(in context, ref fresh, hash, keys, args, flags, readOnly, new ScriptLoadGate(script, hash), handler);
             }
             finally
             {
@@ -93,7 +93,7 @@ public static partial class Scripts
         }
 
         var preamble = registry.GetPreamble(in context, script, out var known, out var gate);
-        return SendPair(in context, preamble, known, keys, args, flags, readOnly, gate);
+        return SendPair(in context, preamble, known, keys, args, flags, readOnly, gate, handler);
     }
 
     /// <summary>EVALSHA_RO, preceded by SCRIPT LOAD; the read-only form of <c>Evaluate</c>.</summary>
@@ -122,10 +122,10 @@ public static partial class Scripts
         ReadOnlySpan<RedisValue> args = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => Evaluate(in scripts, script, keys, args, flags, readOnly: true);
+        => Evaluate(in scripts, script, keys, args, flags, readOnly: true, RespHandlers.Result);
 
     /// <summary>Render the EVALSHA and send it behind the preamble.</summary>
-    private static ValueTask<RespResult> SendPair(
+    private static ValueTask<TResult> SendPair<TResult>(
         in RespContext context,
         ref RespRequestFrame preamble,
         string hash,
@@ -133,14 +133,15 @@ public static partial class Scripts
         ReadOnlySpan<RedisValue> args,
         CommandFlags flags,
         bool readOnly,
-        IRespPreambleGate gate)
+        IRespPreambleGate gate,
+        IRespHandler<TResult> handler)
     {
         var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
         var request = context.Render($"{command}{hash.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
         try
         {
             return context.SendWithPreambleAsync(
-                ref preamble, ref request, flags, RespHandlers.Result, gate);
+                ref preamble, ref request, flags, handler, gate);
         }
         finally
         {
@@ -148,12 +149,12 @@ public static partial class Scripts
         }
     }
 
-    /// <inheritdoc cref="SendPair(in RespContext, ref RespRequestFrame, string, ReadOnlySpan{RedisKey}, ReadOnlySpan{RedisValue}, CommandFlags, bool, IRespPreambleGate)"/>
+    /// <summary>Render the EVALSHA and send it behind a preamble the registry already owns.</summary>
     /// <remarks>
     /// The registry's preamble owns nothing poolable - it is a fixed array that is never returned - so
     /// it needs no disposal and can be handed over directly.
     /// </remarks>
-    private static ValueTask<RespResult> SendPair(
+    private static ValueTask<TResult> SendPair<TResult>(
         in RespContext context,
         RespRequest preamble,
         string hash,
@@ -161,14 +162,15 @@ public static partial class Scripts
         ReadOnlySpan<RedisValue> args,
         CommandFlags flags,
         bool readOnly,
-        IRespPreambleGate gate)
+        IRespPreambleGate gate,
+        IRespHandler<TResult> handler)
     {
         var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
         var request = context.Render($"{command}{hash.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
         try
         {
             return context.SendWithPreambleAsync(
-                preamble, ref request, flags, RespHandlers.Result, gate);
+                preamble, ref request, flags, handler, gate);
         }
         finally
         {
@@ -204,5 +206,135 @@ public static partial class Scripts
         }
 
         return new string(chars);
+    }
+
+    /// <summary>
+    /// EVALSHA against a hash the caller already holds, with no <c>SCRIPT LOAD</c> preamble.
+    /// </summary>
+    /// <param name="scripts">The scripting command group.</param>
+    /// <param name="hash">The script's SHA1, as <c>SCRIPT LOAD</c> returned it.</param>
+    /// <param name="keys">The keys the script accesses; these route the command.</param>
+    /// <param name="args">Everything else the script needs.</param>
+    /// <param name="readOnly">Whether to use the read-only form, which requires 7.0 or later.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>No preamble, and that is the caller's problem by design.</b> Every other entry point here can
+    /// recover from a script the server has forgotten, because it holds the body and can re-load it. A
+    /// caller who has only a hash cannot, so a <c>NOSCRIPT</c> error surfaces rather than being repaired -
+    /// which is exactly what <c>IDatabase.ScriptEvaluate(byte[] hash, ...)</c> has always done.
+    /// </remarks>
+    public static ValueTask<RespResult> EvaluateHashAsync(
+        this in RespScripts scripts,
+        scoped ReadOnlySpan<byte> hash,
+        ReadOnlySpan<RedisKey> keys = default,
+        ReadOnlySpan<RedisValue> args = default,
+        bool readOnly = false,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => EvaluateHash(in scripts, hash, keys, args, readOnly, flags, RespHandlers.Result, cancellationToken);
+
+    private static ValueTask<TResult> EvaluateHash<TResult>(
+        in RespScripts scripts,
+        scoped ReadOnlySpan<byte> hash,
+        ReadOnlySpan<RedisKey> keys,
+        ReadOnlySpan<RedisValue> args,
+        bool readOnly,
+        CommandFlags flags,
+        IRespHandler<TResult> handler,
+        CancellationToken cancellationToken)
+    {
+        if (hash.IsEmpty) throw new ArgumentException("A script hash is required.", nameof(hash));
+
+        var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
+        var cmd = scripts.Context.Render($"{command}{hash}{(RedisValue)keys.Length}{keys}{args}");
+        return scripts.Context.SendAsync(ref cmd, flags, handler, cancellationToken);
+    }
+
+    /// <summary>The shipped <see cref="RedisResult"/> shape, for <c>IDatabase.ScriptEvaluate</c>.</summary>
+    /// <remarks>
+    /// <b>Permanent, not scaffolding</b>, and internal for the same reason the <c>*Array</c> shims are:
+    /// <see cref="RedisResult"/> materialises the whole reply, which is what the low-allocation
+    /// <see cref="RespResult"/> exists to avoid, so new code must not be able to pick it by accident.
+    /// It is the same parse either way - the handler reuses <c>RedisResult.TryCreate</c> - so the two
+    /// shapes cannot drift.
+    /// </remarks>
+    internal static ValueTask<RedisResult> EvaluateResult(
+        this in RespScripts scripts,
+        string script,
+        ReadOnlySpan<RedisKey> keys,
+        ReadOnlySpan<RedisValue> args,
+        bool readOnly,
+        CommandFlags flags)
+        => Evaluate(in scripts, script, keys, args, flags, readOnly, RedisResultHandler.Instance);
+
+    /// <inheritdoc cref="EvaluateResult"/>
+    internal static ValueTask<RedisResult> EvaluateHashResult(
+        this in RespScripts scripts,
+        scoped ReadOnlySpan<byte> hash,
+        ReadOnlySpan<RedisKey> keys,
+        ReadOnlySpan<RedisValue> args,
+        bool readOnly,
+        CommandFlags flags)
+        => EvaluateHash(in scripts, hash, keys, args, readOnly, flags, RedisResultHandler.Instance, default);
+
+    /// <summary>
+    /// EVAL or EVALSHA exactly as the shipped <c>IDatabase.ScriptEvaluate</c> sends it: one command, no
+    /// preamble, no caching.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Deliberately not <see cref="EvaluateAsync"/>, and the difference is user-visible.</b> The shipped
+    /// string overload chooses <c>EVALSHA</c> when the string looks like a SHA1 and otherwise sends
+    /// <c>EVAL</c> with the body - every call, uncached. The context surface instead does <c>SCRIPT LOAD</c>
+    /// then <c>EVALSHA</c>, which is better but is not the same thing on the wire: it adds a load to the
+    /// first call and leaves the script in the server's non-evictable cache.
+    /// </para>
+    /// <para>
+    /// Changing that for existing callers is a decision rather than a translation, so the adapter keeps
+    /// what they have. New code gets the caching path by calling <see cref="EvaluateAsync"/> directly.
+    /// </para>
+    /// </remarks>
+    internal static ValueTask<RedisResult> EvaluateDirectResult(
+        this in RespScripts scripts,
+        RedisValue scriptOrHash,
+        ReadOnlySpan<RedisKey> keys,
+        ReadOnlySpan<RedisValue> args,
+        bool isHash,
+        bool readOnly,
+        CommandFlags flags)
+        => EvaluateDirect(in scripts, scriptOrHash, keys, args, isHash, readOnly, flags, RedisResultHandler.Instance);
+
+    /// <inheritdoc cref="EvaluateDirectResult"/>
+    /// <remarks>
+    /// The <see cref="RespResult"/> twin, for <c>IDatabase.ScriptEvaluateResp</c> - which is the shipped
+    /// surface's own low-allocation shape and so wants the same uncached send, not a different one.
+    /// </remarks>
+    internal static ValueTask<RespResult> EvaluateDirectResp(
+        this in RespScripts scripts,
+        RedisValue scriptOrHash,
+        ReadOnlySpan<RedisKey> keys,
+        ReadOnlySpan<RedisValue> args,
+        bool isHash,
+        bool readOnly,
+        CommandFlags flags)
+        => EvaluateDirect(in scripts, scriptOrHash, keys, args, isHash, readOnly, flags, RespHandlers.Result);
+
+    private static ValueTask<TResult> EvaluateDirect<TResult>(
+        in RespScripts scripts,
+        RedisValue scriptOrHash,
+        ReadOnlySpan<RedisKey> keys,
+        ReadOnlySpan<RedisValue> args,
+        bool isHash,
+        bool readOnly,
+        CommandFlags flags,
+        IRespHandler<TResult> handler)
+    {
+        var command = isHash
+            ? (readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA)
+            : (readOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL);
+
+        var cmd = scripts.Context.Render($"{command}{scriptOrHash}{(RedisValue)keys.Length}{keys}{args}");
+        return scripts.Context.SendAsync(ref cmd, flags, handler);
     }
 }
