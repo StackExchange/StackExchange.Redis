@@ -219,32 +219,35 @@ Four consequences, none of them cosmetic:
       `RespSurfaceStreamsParityTests.ReadRefusesNewMessagesButReadGroupDoesNot`, so whichever way this is
       settled the test says what changed.
 
-- [ ] **`TransitionalDatabase`: 106 throwing members — status, 2026-09-18.** (Now 80; see the streams
-      entry above.) Unchanged since it was last counted, so no drift. SER352 reports the number on every Release build; the breakdown below
-      comes from the generated `AutoDatabase.generated.cs` (build with `/p:EmitCompilerGeneratedFiles=true`
-      to see it - it is not written to disk normally).
+- [ ] **`TransitionalDatabase`: 71 unimplemented members — status, 2026-09-18.** Was 106 generated at the
+      start of the day, now **58** generated plus **13 hand-written scans that SER352 cannot see**. Marc
+      spotted the gap: *"make sure we add scans to the list, because I think we're cheating on that"*.
 
-      106 members is **30 distinct commands**; the gap between those two numbers is the whole story.
+      **Why the scans are invisible.** `[AutoDatabase]`'s `SkipMethod` drops every `IEnumerable<T>` and
+      `IAsyncEnumerable<T>` member, because deferred execution does not fit capture-and-replay. So they
+      are written by hand in `TransitionalDatabase.Scans.cs`, where they forward to the test fallback and
+      throw without one - exactly like a generated stub. The generator has no way to tell a real
+      implementation from a forwarding throw; to it they are simply "declared". **So every SER352 number
+      quoted in this file has been short by 13.**
 
-      | family | members | distinct | what is missing |
-      |---|---|---|---|
-      | Streams | 66 | 15 | `Add`, `Read`, `ReadGroup`, `Claim`/`AutoClaim` (+`IdsOnly`), `Pending`/`PendingMessages`, `Info`/`GroupInfo`/`ConsumerInfo`, `Configure`, `AcknowledgeAndDelete`, `NegativeAcknowledge` |
-      | Scripts | 12 | 2 | `ScriptEvaluate`, `ScriptEvaluateReadOnly` |
-      | Locks | 8 | 4 | `LockTake`, `LockRelease`, `LockQuery`, `LockExtend` |
-      | Execute | 4 | 2 | the legacy `Execute(string, object[])` pair (`ExecuteResp` is done) |
-      | Keys | 4 | 2 | `KeyMigrate`, `KeyRestore` |
-      | one-offs | 12 | 6 | `ArrayGrep`, `DebugObject`, `HashImport`, `Ping`, `Publish`, `StringGetWithExpiry` |
+      Fixing the generator is not on: it cannot know. `TransitionalScanGapTests` is the tripwire in the one
+      place that can see it - it sweeps the enumerable-returning members by reflection, asserts each still
+      throws, and pins the count, so implementing one forces the number to be updated.
 
-      **Streams is nearly two thirds of the count, and it is not untouched** - `RespStreams` already has
-      Acknowledge, CreateConsumerGroup, Delete, DeleteConsumer, DeleteConsumerGroup, Length, Range,
-      SetConsumerGroupPosition, Trim, TrimByMinId. What is left is the hard half: the commands with
-      structured replies (`XINFO` in three shapes, `XPENDING` in two, `XAUTOCLAIM`) and the ones with
-      large option surfaces - `StreamAdd` alone is 16 members and `StreamReadGroup` 14. So the member
-      count overstates the *command* work and understates the *design* work; these are exactly the
-      commands the low-alloc structured-reply question was raised for.
+      | family | members | what is left |
+      |---|---|---|
+      | Streams | 18 | multi-stream `XREAD`/`XREADGROUP`, and `XINFO` STREAM/GROUPS/CONSUMERS |
+      | **Scans** | **13** | `HashScan` x3, `SetScan` x3, `SortedSetScan` x3, `HashScanNoValues` x2, `VectorSetRangeEnumerate` x2 - *uncounted by SER352* |
+      | Scripts | 12 | `ScriptEvaluate`, `ScriptEvaluateReadOnly` |
+      | Locks | 8 | `LockTake`, `LockRelease`, `LockQuery`, `LockExtend` |
+      | Execute | 4 | the legacy `Execute(string, object[])` pair |
+      | Keys | 4 | `KeyMigrate`, `KeyRestore` |
+      | one-offs | 12 | `ArrayGrep`, `DebugObject`, `HashImport`, `Ping`, `Publish`, `StringGetWithExpiry` |
 
-      Every member has both a sync and an async form - there are no sync-only gaps - so each command moved
-      retires an even number.
+      The scans are also the only family that needs a **shape** decision rather than a translation: the old
+      surface returns `IEnumerable<T>`/`IAsyncEnumerable<T>` over a cursor, and what the context surface
+      should answer - the same, or something that owns its pages the way `ReadOnlyLease<T>` does - has not
+      been settled. That is the reason they were deferred, and it has not gone away.
 
 - [x] **The `Interpolated/` folder is gone — DONE, 2026-09-18.** Marc: *"we shouldn't have anything left
       in there by the end of this"*. The namespace went several commits ago; the folder name was the last
