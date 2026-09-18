@@ -484,7 +484,7 @@ namespace StackExchange.Redis
         /// so composition finishes synchronously and only the reply is awaited.
         /// </para>
         /// </remarks>
-        public ValueTask<RespResult> ExecuteAsync(
+        internal ValueTask<RespResult> ExecuteAsync(
             string command,
             ReadOnlyMemory<RedisKeyOrValue> args,
             CommandFlags flags = CommandFlags.None)
@@ -499,19 +499,11 @@ namespace StackExchange.Redis
             var handler = new RespRequestBuilder(0, args.Length, this, command);
             try
             {
-                foreach (var arg in args)
-                {
-                    // the key/value distinction is the whole reason this signature exists; losing it here
-                    // would quietly cost routing and invalidation
-                    if (arg.IsKey)
-                    {
-                        handler.AppendFormatted(arg.Key);
-                    }
-                    else
-                    {
-                        handler.AppendFormatted(arg.Value);
-                    }
-                }
+                // the key/value distinction is the whole reason this signature exists, and RedisKeyOrValue
+                // now makes it itself: it is an IRespArgument, so the span overload asks each one to write
+                // itself as a key or a value. This was a foreach with the branch spelled out again here -
+                // the same decision, made in a second place.
+                handler.AppendFormatted(args);
 
                 return handler.Complete();
             }

@@ -93,19 +93,25 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
-- [ ] **The `ReadOnlyMemory<RedisKeyOrValue>` execute is STILL public in two places.** Marc, 2026-09-18:
-      *"this should not exist - that signature is only needed for the old code; our new Execute API will
-      use the RespRequestBuilder"*. I removed it from the typed contexts and stopped there; it remains on
-      `RespContext.ExecuteAsync(string, ReadOnlyMemory<RedisKeyOrValue>, CommandFlags)` and on
-      `RespSurface.ExecuteAsync(this IRespTarget, ...)` - both public API lines. The only caller that needs
-      that shape is `IDatabase.ExecuteResp`/`ExecuteRespAsync`, so it should be internal, and the new
-      ad-hoc path should be the interpolated builder.
+- [x] **The `ReadOnlyMemory<RedisKeyOrValue>` execute is gone from the public surface — DONE, 2026-09-18.**
+      Marc: *"this should not exist - that signature is only needed for the old code; our new Execute API
+      will use the RespRequestBuilder"*. `RespContext.ExecuteAsync(string, ReadOnlyMemory<RedisKeyOrValue>,
+      CommandFlags)` is now `internal`, and `RespSurface.ExecuteAsync(this IRespTarget, ...)` is deleted
+      outright - two lines out of `PublicAPI.Unshipped.txt`. The only callers that need the collection
+      shape are `IDatabase.ExecuteResp`/`ExecuteRespAsync`, which live inside the assembly.
 
-- [ ] **`RespContext.Render(string, ReadOnlySpan<RedisKeyOrValue>)` still hand-rolls the loop.** It
-      `foreach`es and branches on `arg.IsKey` to call `AppendFormatted(arg.Key)` or
-      `AppendFormatted(arg.Value)`. Now that `RedisKeyOrValue` implements `IRespArgument`, the existing
-      `AppendFormatted<T>(ReadOnlySpan<T>) where T : IRespArgument` does exactly that unroll - so the whole
-      body is `handler.AppendFormatted(args)`. Marc spotted it; the loop predates the interface.
+      The new ad-hoc path is the interpolated builder, and `RespAdHocExecuteTests.
+      TheInterpolatedFormRendersTheSameRequest` pins that it is not a downgrade: the collection form and
+      `$"{SomeCommand}{key}{(RedisValue)"x"}"` render byte-identical requests and mark the same key. So the
+      removal takes away the allocation and the wrapping, not a capability. `docs/Extending.md` level 2 was
+      rewritten to match - it described the removed method.
+
+- [x] **`RespContext.Render(string, ReadOnlySpan<RedisKeyOrValue>)` no longer hand-rolls the loop —
+      DONE, 2026-09-18.** It `foreach`ed and branched on `arg.IsKey`, which was the key/value decision
+      made in a second place. Now that `RedisKeyOrValue` implements `IRespArgument`, the whole body is
+      `handler.AppendFormatted(args)` - the existing `AppendFormatted<T>(ReadOnlySpan<T>) where T :
+      IRespArgument` does the unroll and asks each argument to write itself. Marc spotted it; the loop
+      predates the interface.
 
 - [x] **Typed contexts — GREEN, 2026-09-18.** Build and tests pass in Debug and Release;
       7,669 + 1,886 tests, no failures.

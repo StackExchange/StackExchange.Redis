@@ -8,7 +8,7 @@ There are three levels, and they are not alternatives so much as a progression. 
 | | you write | you get | since |
 |---|---|---|---|
 | **1. Ad-hoc** | `db.ExecuteResp("JSON.GET", args)` | one call, raw reply | 3.2 |
-| **2. Ad-hoc, on a context** | `db.ExecuteAsync("JSON.GET", args)` | the same, reached from a `RespContext` | 4.0 |
+| **2. Ad-hoc, interpolated** | `db.SendAsync<RedisValue>($"JSON.GET {key} {path}")` | typed reply, nothing allocated | 4.0 |
 | **3. Your own surface** | `db.Json().GetAsync(key, path)` | your API, no `object[]`, no per-call allocation | 4.0 |
 
 Level 3 is what the rest of this page is about, but start at level 1: if a command is used once, it does not need a surface - and level 1 works on 3.2, so a library that must support both majors has somewhere to stand.
@@ -53,6 +53,25 @@ string? s = (string?)reply.ReadScalar().ReadRedisValue();
 | keys invisible to the client | keys routed, prefixed, and invalidated | correctness on cluster and with key prefixes |
 
 The one behavioural difference worth reading twice: **`RespResult` is leased**. It is valid until you dispose it, and everything you read out of it that is not a copy dies with it. `using` is not decoration.
+
+Level 2: the same thing, without the argument array
+---
+
+On 4.0 the request is built by the same interpolated writer the built-in commands use, so an occasional
+command needs no argument collection at all - and the reply comes back typed rather than as a raw
+`RespResult` you have to read yourself:
+
+```csharp
+RedisValue value = await db.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}");
+```
+
+Each hole is written straight into a pooled buffer as UTF-8; `key` is a `RedisKey` so it is marked as a
+key, which is the same thing the `RedisKeyOrValue` wrapping bought at level 1 - only here the type system
+already knows, so there is nothing to wrap. Literal text between the holes is tokenized, so `SUBSTR` is
+the command name.
+
+This is level 3's command body with the surface left off. If you find yourself writing the same
+interpolation in several places, that is the signal to go one level further.
 
 Level 3: your own command surface
 ---

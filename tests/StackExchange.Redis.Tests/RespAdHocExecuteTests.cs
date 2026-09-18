@@ -12,8 +12,17 @@ namespace StackExchange.Redis.Tests;
 /// The ad-hoc escape hatch: run a command this library does not model, get the raw reply back.
 /// </summary>
 /// <remarks>
-/// How another library's commands reach this surface. The argument type is the interesting part - see
-/// <see cref="ArgumentsKeepTheirKeyNess"/>.
+/// <para>
+/// <b>This path is internal, and that is the point.</b> It exists to satisfy
+/// <see cref="IDatabase.ExecuteResp(string, System.ReadOnlyMemory{RedisKeyOrValue}, CommandFlags)" /> and
+/// the other shipped signatures that hand over a pre-built argument collection. New code does not need
+/// one: <c>db.SendAsync&lt;RedisValue&gt;($"JSON.GET {key} {path}")</c> writes the same request with
+/// nothing to allocate and nothing to wrap, so exposing the collection form on the new surface would have
+/// been offering the worse of the two.
+/// </para>
+/// <para>
+/// The argument type is still the interesting part - see <see cref="ArgumentsKeepTheirKeyNess"/>.
+/// </para>
 /// </remarks>
 public class RespAdHocExecuteTests
 {
@@ -49,6 +58,13 @@ public class RespAdHocExecuteTests
             => new(Send(request));
     }
 
+    /// <summary>The same name the collection form passes as a string, prepared once.</summary>
+    /// <remarks>
+    /// SER309 is what pushes this out of the interpolation - a literal there is tokenized and encoded on
+    /// every call, and the analyzer says so rather than letting the slower spelling look equivalent.
+    /// </remarks>
+    private static readonly RespCommand SomeCommand = "SOME.COMMAND".Command(preform: true);
+
     private static RespDatabaseContext Context(FakeExecutor executor, RespClientCache? cache = null)
         => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
@@ -78,16 +94,25 @@ public class RespAdHocExecuteTests
         Assert.Equal("thekey", Assert.Single(executor.Keys));
     }
 
+    /// <summary>The collection form and the interpolated form render the same bytes.</summary>
+    /// <remarks>
+    /// Which is what makes dropping the collection form from the public surface a simplification rather
+    /// than a loss: the caller who would have built the array writes the holes instead.
+    /// </remarks>
     [Fact]
-    public async Task ItIsReachableFromAnythingCarryingAContext()
+    public async Task TheInterpolatedFormRendersTheSameRequest()
     {
-        // one extension on IRespTarget, and every database gets it without being touched
-        var executor = new FakeExecutor("$3\r\nabc\r\n");
-        IRespTarget target = Context(executor);
+        var viaCollection = new FakeExecutor("$3\r\nabc\r\n");
+        RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("k"), RedisKeyOrValue.FromValue("x")];
+        (await Context(viaCollection).Raw.ExecuteAsync("SOME.COMMAND", args)).Dispose();
 
-        using var result = await target.Raw.ExecuteAsync("SOME.COMMAND", new[] { RedisKeyOrValue.FromValue("x") });
+        var viaHoles = new FakeExecutor("$3\r\nabc\r\n");
+        RedisKey key = "k";
+        var result = await Context(viaHoles).SendAsync<string?>($"{SomeCommand}{key}{(RedisValue)"x"}");
 
-        Assert.Equal("abc", result.ReadScalar().ReadString());
+        Assert.Equal(Assert.Single(viaCollection.Sent), Assert.Single(viaHoles.Sent));
+        Assert.Equal(Assert.Single(viaCollection.Keys), Assert.Single(viaHoles.Keys)); // and key-ness survives both
+        Assert.Equal("abc", result);
     }
 
     [Fact]

@@ -1120,27 +1120,6 @@ namespace StackExchange.Redis
     [SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Extension members on distinct group types; see the comment above")]
     public static partial class RespSurface
     {
-        /// <summary>
-        /// Run an arbitrary command and return the raw reply - the escape hatch, reachable from anything
-        /// that can produce a context.
-        /// </summary>
-        /// <param name="target">The database, or anything else carrying a context.</param>
-        /// <param name="command">The command name.</param>
-        /// <param name="args">The arguments, each already known to be a key or a value.</param>
-        /// <param name="flags">The command's flags.</param>
-        /// <remarks>
-        /// One extension method, and <c>RespDatabaseContext</c>, <c>IDatabase</c> and anything else implementing
-        /// <see cref="IRespTarget"/> all gain it without being touched - which is section 9.4's argument
-        /// working rather than being asserted. See <see cref="RespContext.ExecuteAsync"/> for why the
-        /// argument type matters.
-        /// </remarks>
-        public static ValueTask<RespResult> ExecuteAsync(
-            this IRespTarget target,
-            string command,
-            ReadOnlyMemory<RedisKeyOrValue> args,
-            CommandFlags flags = CommandFlags.None)
-            => target.Raw.ExecuteAsync(command, args, flags);
-
         /// <summary>The <c>NX</c>/<c>XX</c>/<c>GT</c>/<c>LT</c> token for an expiry condition.</summary>
         /// <param name="when">The condition to render.</param>
         /// <remarks>
