@@ -297,5 +297,39 @@ namespace StackExchange.Redis
         /// <typeparam name="T">The element type.</typeparam>
         private static T[] Required<T>(T[] values, string name)
             => values ?? throw new ArgumentNullException(name);
+
+        // ---- locks ---------------------------------------------------------------------------------
+        // Two of the four are sugar, and the shipped implementation says so: LockTake IS StringSet with
+        // When.NotExists, and LockQuery IS StringGet. So they compose over commands the context surface
+        // already has, and deliberately do NOT become methods on it - a lock is a pattern over SET and
+        // GET, not a command, and the new surface should not pretend otherwise.
+        //
+        // LockRelease and LockExtend are a different matter and stay unmoved: each is a single IFEQ-style
+        // message on a new enough server and a TRANSACTION otherwise, falling back again to a plain DELETE
+        // where transactions are unavailable (twemproxy). The context surface has no transactions yet, so
+        // moving them would mean either dropping the fallback or reimplementing it - see the queue.
+
+        /// <inheritdoc/>
+        public bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+            => Wait(TakeLock(key, value, expiry, flags));
+
+        /// <inheritdoc/>
+        public Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+            => TakeLock(key, value, expiry, flags).AsTask();
+
+        private ValueTask<bool> TakeLock(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags)
+        {
+            // a null token would make the lock unreleasable: SET would delete the key instead of taking it
+            if (value.IsNull) throw new ArgumentNullException(nameof(value));
+            return _inner.Strings.SetAsync(key, value, new Expiration(expiry), ValueCondition.NotExists, flags);
+        }
+
+        /// <inheritdoc/>
+        public RedisValue LockQuery(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Strings.GetAsync(key, flags));
+
+        /// <inheritdoc/>
+        public Task<RedisValue> LockQueryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => _inner.Strings.GetAsync(key, flags).AsTask();
     }
 }
