@@ -69,7 +69,18 @@ namespace StackExchange.Redis
         internal RedisCommand Command => _command;
 
         /// <summary>Whether this instance names anything at all.</summary>
-        public bool IsEmpty => _command == RedisCommand.UNKNOWN && _resp is null && _name is null;
+        /// <remarks>
+        /// <b><c>NONE</c> has to be here, and used not to be.</b> The test was <c>_command ==
+        /// UNKNOWN</c>, which is true of no constructible value - the two <c>UNKNOWN</c> constructors both
+        /// set <c>_resp</c> or <c>_name</c> - and false of the one value that really is empty, because
+        /// <c>default(RespCommand)</c> leaves <c>_command</c> at <c>RedisCommand.NONE</c>, which is 0. So
+        /// this answered <see langword="false"/> for <c>default</c>, the guard in
+        /// <c>RespRequestBuilder.AppendFormatted(RespCommand)</c> never fired, and
+        /// <c>$"{default(RespCommand)}{key}"</c> rendered <c>*2|$4|NONE|$1|k|</c> - a frame naming a
+        /// command called <c>NONE</c>, sent to the server.
+        /// </remarks>
+        public bool IsEmpty => _resp is null && _name is null
+            && _command is RedisCommand.UNKNOWN or RedisCommand.NONE;
 
         /// <summary>Whether the RESP bytes were built once, rather than encoded on each use.</summary>
         public bool IsPreformed => _resp is not null;

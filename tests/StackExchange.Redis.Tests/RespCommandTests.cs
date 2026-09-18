@@ -111,6 +111,41 @@ public class RespCommandTests
         Assert.Equal("*2|$5|FETCH|$1|k|", Text(frame));
     }
 
+    /// <summary>The default instance names nothing, and has to say so.</summary>
+    /// <remarks>
+    /// <para>
+    /// <c>IsEmpty</c> tested <c>_command == RedisCommand.UNKNOWN</c>, which no constructible value
+    /// satisfies - both <c>UNKNOWN</c> constructors set <c>_resp</c> or <c>_name</c> - and which
+    /// <c>default</c> does not satisfy either, because an unassigned <c>RedisCommand</c> is <c>NONE</c>,
+    /// not <c>UNKNOWN</c>. The property was therefore false for the only empty value there is.
+    /// </para>
+    /// <para>
+    /// The consequence was not a wrong answer from a property nobody reads: it is the guard the builder
+    /// uses, so the command hole accepted <c>default</c> and framed it. See
+    /// <see cref="ADefaultCommandIsRefusedRatherThanFramedAsNONE"/> for what went on the wire.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ADefaultCommandIsEmpty()
+    {
+        Assert.True(default(RespCommand).IsEmpty);
+        Assert.False("GET".Command().IsEmpty);
+        Assert.False("NO.SUCH.COMMAND".Command().IsEmpty);
+        Assert.False("NO.SUCH.COMMAND".Command(preform: true).IsEmpty);
+    }
+
+    [Fact]
+    public void ADefaultCommandIsRefusedRatherThanFramedAsNONE()
+    {
+        // it used to render *2|$4|NONE|$1|k| - a command literally named NONE, sent to the server, which
+        // answers with an error about an unknown command rather than anything pointing back to here
+        var ctx = new RespContext();
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using var frame = ctx.Render($"{default(RespCommand)}{(RedisKey)"k"}");
+        });
+    }
+
     internal static partial class RespLiterals
     {
 #pragma warning disable SER011 // stands in for the generator
