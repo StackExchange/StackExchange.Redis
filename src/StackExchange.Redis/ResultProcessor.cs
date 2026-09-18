@@ -2291,6 +2291,42 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Read the entries of the single stream in an <c>XREAD</c>/<c>XREADGROUP</c> reply, past the
+        /// stream-name wrapper the server puts around them.
+        /// </summary>
+        /// <param name="reader">The reply, positioned on its root.</param>
+        /// <param name="isMap">Whether the root is a map, which is how RESP3 spells this.</param>
+        /// <param name="allowJaggedFields">Whether an entry's fields may arrive as nested pairs.</param>
+        /// <remarks>
+        /// <para><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></para>
+        /// <para>
+        /// <b><paramref name="isMap"/> is a parameter rather than a protocol.</b> The classic path knows
+        /// the connection and passes <c>protocol == Resp3</c>; a reply object has no connection, so it
+        /// passes <c>Prefix == RespPrefix.Map</c> - which is the fact that actually decides the shape, and
+        /// is what <see cref="MultiStreamProcessor"/> has always tested. Keeping it a parameter means the
+        /// shipped path's behaviour is untouched.
+        /// </para>
+        /// </remarks>
+        internal static StreamEntry[] ParseStreamWithNameSkip(ref RespReader reader, bool isMap, bool allowJaggedFields)
+        {
+            if (isMap)
+            {
+                // map: skip the key, read the value
+                reader.MoveNext();
+                reader.MoveNext();
+                return ParseRedisStreamEntries(ref reader, allowJaggedFields);
+            }
+
+            // array: the first element is [name, entries]
+            var iter = reader.AggregateChildren();
+            if (!iter.MoveNext()) return [];
+            var streamIter = iter.Value.AggregateChildren();
+            streamIter.DemandNext(); // skip the stream name
+            streamIter.DemandNext(); // the entries array
+            return ParseRedisStreamEntries(ref streamIter.Value, allowJaggedFields);
+        }
+
         internal sealed class SingleStreamProcessor : ResultProcessor<StreamEntry[]>
         {
             private readonly bool skipStreamName;
@@ -2361,23 +2397,7 @@ namespace StackExchange.Redis
                              6) "46"
                         */
 
-                    if (protocol == RedisProtocol.Resp3)
-                    {
-                        // RESP3: map - skip the key, read the value
-                        reader.MoveNext(); // skip key
-                        reader.MoveNext(); // move to value
-                        entries = ParseRedisStreamEntries(ref reader, protocol);
-                    }
-                    else
-                    {
-                        // RESP2: array - first element is array with [name, entries]
-                        var iter = reader.AggregateChildren();
-                        iter.DemandNext(); // first stream
-                        var streamIter = iter.Value.AggregateChildren();
-                        streamIter.DemandNext(); // skip stream name
-                        streamIter.DemandNext(); // entries array
-                        entries = ParseRedisStreamEntries(ref streamIter.Value, protocol);
-                    }
+                    entries = ParseStreamWithNameSkip(ref reader, protocol == RedisProtocol.Resp3, AllowJaggedStreamFields(protocol));
                 }
                 else
                 {

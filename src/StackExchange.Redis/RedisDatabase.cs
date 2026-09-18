@@ -5394,7 +5394,7 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags) =>
+        internal Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags) =>
             new SingleStreamReadCommandMessage(Database, flags, key, afterId, count);
 
         private sealed class SingleStreamReadCommandMessage : Message.CommandKeyBase // XREAD with a single stream. Example: XREAD COUNT 2 STREAMS mystream 0-0

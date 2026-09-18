@@ -423,6 +423,22 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Acked { get; }
 
+        /// <summary>The <c>STREAMS</c> keyword of <c>XREAD</c>/<c>XREADGROUP</c>; keys then ids follow it.</summary>
+        [Resp("STREAMS")]
+        internal static partial RespFragment StreamsKeyword { get; }
+
+        /// <summary>The <c>GROUP</c> operand of <c>XREADGROUP</c>; a group and a consumer follow it.</summary>
+        [Resp]
+        internal static partial RespFragment Group { get; }
+
+        /// <summary>The <c>NOACK</c> operand of <c>XREADGROUP</c>.</summary>
+        [Resp("NOACK")]
+        internal static partial RespFragment NoAck { get; }
+
+        /// <summary>The <c>CLAIM</c> operand of <c>XREADGROUP</c>; a millisecond count follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Claim { get; }
+
         /// <summary>The <c>IDLE</c> operand of <c>XPENDING</c>; a millisecond count follows it.</summary>
         [Resp]
         internal static partial RespFragment Idle { get; }

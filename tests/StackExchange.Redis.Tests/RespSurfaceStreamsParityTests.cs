@@ -82,6 +82,8 @@ public class RespSurfaceStreamsParityTests
     private const string IntReply = ":1\r\n";              // XNACK: how many were released
     private const string TrimArrayReply = "*2\r\n:1\r\n:1\r\n"; // XACKDEL: one outcome per id
     private const string OkReply = "+OK\r\n";              // XCFGSET
+    private const string NamedEntriesReply =             // XREAD: [[name, [entries]]]
+        "*1\r\n*2\r\n$1\r\ns\r\n*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n";
     private const string AutoClaimReply =                // XAUTOCLAIM: cursor, entries, deleted ids
         "*3\r\n$3\r\n0-0\r\n*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n*0\r\n";
     private const string AutoClaimIdsReply =             // XAUTOCLAIM JUSTID
@@ -271,6 +273,53 @@ public class RespSurfaceStreamsParityTests
                 ? Discard(ctx.Streams.AutoClaimIdsOnlyAsync("s", "g", "c", TimeSpan.FromSeconds(5), "0-0", count))
                 : Discard(ctx.Streams.AutoClaimAsync("s", "g", "c", TimeSpan.FromSeconds(5), "0-0", count)),
             idsOnly ? AutoClaimIdsReply : AutoClaimReply);
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(5)]
+    public void ReadMatches(int? count)
+        => AssertSame(
+            db => db.GetSingleStreamReadMessage("s", StreamPosition.Resolve("0-0", RedisCommand.XREAD), count, CommandFlags.None),
+            ctx => Discard(ctx.Streams.ReadAsync("s", "0-0", count)),
+            NamedEntriesReply);
+
+    public static TheoryData<string, int?, bool, long?> ReadGroupCases() => new()
+    {
+        { "bare", null, false, null },
+        { "count", 5, false, null },
+        { "noack", null, true, null },
+        { "claim", null, false, 5000L },
+        { "everything", 5, true, 5000L },
+    };
+
+    [Theory]
+    [MemberData(nameof(ReadGroupCases))]
+    public void ReadGroupMatches(string name, int? count, bool noAck, long? claimMs)
+    {
+        _ = name;
+        var claim = claimMs.HasValue ? TimeSpan.FromMilliseconds(claimMs.GetValueOrDefault()) : (TimeSpan?)null;
+        AssertSame(
+            db => db.GetStreamReadGroupMessage("s", "g", "c", StreamPosition.Resolve(StreamPosition.NewMessages, RedisCommand.XREADGROUP), count, noAck, claim, CommandFlags.None),
+            ctx => Discard(ctx.Streams.ReadGroupAsync("s", "g", "c", null, count, noAck, claim)),
+            NamedEntriesReply);
+    }
+
+    /// <summary>
+    /// <c>$</c> is refused for <c>XREAD</c>, which does not block, and accepted for <c>XREADGROUP</c>.
+    /// </summary>
+    /// <remarks>
+    /// The shipped rule, from <c>StreamPosition.Resolve</c>; pinned here because the new surface resolves
+    /// the position itself rather than being handed an already-resolved one.
+    /// </remarks>
+    [Fact]
+    public void ReadRefusesNewMessagesButReadGroupDoesNot()
+    {
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor(NamedEntriesReply)));
+        Assert.Throws<InvalidOperationException>(() => ctx.Streams.ReadAsync("s", StreamPosition.NewMessages));
+
+        var viaGroup = Modern(c => Discard(c.Streams.ReadGroupAsync("s", "g", "c", StreamPosition.NewMessages)), NamedEntriesReply);
+        Assert.Contains("|$1|>|", viaGroup);
+    }
 
     private static TimeSpan? AsIdle(long? ms) => ms.HasValue ? TimeSpan.FromMilliseconds(ms.GetValueOrDefault()) : null;
 

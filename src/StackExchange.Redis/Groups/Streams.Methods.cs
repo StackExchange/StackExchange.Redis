@@ -176,6 +176,11 @@ public static partial class Streams
         /// <summary>An <c>XAUTOCLAIM JUSTID</c> as the struct the older surface promises.</summary>
         internal static IRespHandler<StreamAutoClaimIdsOnlyResult> AutoClaimIdsOnly => Instance;
 
+        /// <summary>
+        /// A single-stream <c>XREAD</c>/<c>XREADGROUP</c> as the array the older surface promises.
+        /// </summary>
+        internal static IRespHandler<StreamEntry[]> NamedEntries => NamedEntriesHandler.Instance;
+
         /// <summary>An <c>XRANGE</c>-shaped reply as the array shape the older surface promises.</summary>
         /// <remarks>
         /// The same <c>ParseRedisStreamEntries</c> the reply object's <c>ToArray</c> calls, so the
@@ -199,6 +204,24 @@ public static partial class Streams
         StreamAutoClaimIdsOnlyResult IRespHandler<StreamAutoClaimIdsOnlyResult>.Parse(ref RespReader reader)
             => ResultProcessor.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
                 ? value : StreamAutoClaimIdsOnlyResult.Null;
+    }
+
+    /// <summary>
+    /// The name-skipping twin of <see cref="StreamTypesHandler"/>, for the read commands.
+    /// </summary>
+    /// <remarks>
+    /// A separate class only because <c>IRespHandler&lt;StreamEntry[]&gt;</c> can be implemented once per
+    /// type, and the two parse differently: <c>XRANGE</c> answers a bare run, the reads answer one inside
+    /// a per-stream envelope.
+    /// </remarks>
+    private sealed class NamedEntriesHandler : IRespHandler<StreamEntry[]>
+    {
+        internal static readonly NamedEntriesHandler Instance = new();
+
+        StreamEntry[] IRespHandler<StreamEntry[]>.Parse(ref RespReader reader)
+            => reader.IsAggregate && !reader.IsNull
+                ? ResultProcessor.ParseStreamWithNameSkip(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true)
+                : [];
     }
 
     private static readonly RespReplyHandler<RespRangeReply> RangeReplyHandler
@@ -597,6 +620,135 @@ public static partial class Streams
     /// </remarks>
     private static CommandFlags JustIdFlags(CommandFlags flags)
         => flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked);
+
+    /// <summary>XREAD against one stream; the entries after <paramref name="position"/>.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream to read.</param>
+    /// <param name="position">Read entries after this id.</param>
+    /// <param name="count">How many entries to return at most; the server's default when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <remarks>
+    /// <b><see cref="StreamPosition.NewMessages"/> is rejected here</b>, because <c>$</c> means "entries
+    /// added after this call blocks" and this call does not block. That is the shipped rule, enforced by
+    /// <c>StreamPosition.Resolve</c>, and it is worth knowing that the multi-stream overload does
+    /// <i>not</i> enforce it - see the remarks there.
+    /// </remarks>
+    public static ValueTask<RespReadReply> ReadAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue position,
+        int? count = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ReadCommand(streams.Context, key, position, count);
+        return streams.Context.SendAsync(ref cmd, flags, ReadReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="ReadAsync(in RespStreams, RedisKey, RedisValue, int?, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamEntry[]> ReadArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue position,
+        int? count = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ReadCommand(streams.Context, key, position, count);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.NamedEntries, cancellationToken);
+    }
+
+    /// <summary>Render the single-stream <c>XREAD</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    private static RespRequestFrame ReadCommand(in RespContext context, RedisKey key, RedisValue position, int? count)
+    {
+        DemandPositiveCount(count);
+        var after = StreamPosition.Resolve(position, RedisCommand.XREAD);
+        return context.Render($"{RedisCommand.XREAD}{RespLiterals.Count.When(count)}{count}{RespLiterals.StreamsKeyword}{key}{after}");
+    }
+
+    /// <summary>XREADGROUP against one stream; the entries the group has for this consumer.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream to read.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="consumer">The consumer reading.</param>
+    /// <param name="position">Read after this id; undelivered messages (<c>&gt;</c>) when omitted.</param>
+    /// <param name="count">How many entries to return at most; the server's default when omitted.</param>
+    /// <param name="noAck">Whether the server should skip adding these to the pending list.</param>
+    /// <param name="claimMinIdleTime">Also claim entries idle for at least this long.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <remarks>
+    /// <b>Three <c>IDatabase</c> overloads become one</b>: the older two simply lack
+    /// <paramref name="noAck"/> and <paramref name="claimMinIdleTime"/>, which are optional here.
+    /// </remarks>
+    public static ValueTask<RespReadReply> ReadGroupAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        RedisValue? position = null,
+        int? count = null,
+        bool noAck = false,
+        TimeSpan? claimMinIdleTime = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ReadGroupCommand(streams.Context, key, group, consumer, position, count, noAck, claimMinIdleTime);
+        return streams.Context.SendAsync(ref cmd, flags, ReadReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="ReadGroupAsync(in RespStreams, RedisKey, RedisValue, RedisValue, RedisValue?, int?, bool, TimeSpan?, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamEntry[]> ReadGroupArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        RedisValue? position = null,
+        int? count = null,
+        bool noAck = false,
+        TimeSpan? claimMinIdleTime = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ReadGroupCommand(streams.Context, key, group, consumer, position, count, noAck, claimMinIdleTime);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.NamedEntries, cancellationToken);
+    }
+
+    /// <summary>Render the single-stream <c>XREADGROUP</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    private static RespRequestFrame ReadGroupCommand(
+        in RespContext context,
+        RedisKey key,
+        RedisValue group,
+        RedisValue consumer,
+        RedisValue? position,
+        int? count,
+        bool noAck,
+        TimeSpan? claimMinIdleTime)
+    {
+        DemandPositiveCount(count);
+        var after = StreamPosition.Resolve(position ?? StreamPosition.NewMessages, RedisCommand.XREADGROUP);
+
+        // the CLAIM operand is written as the DOUBLE the shipped writer writes, not as whole milliseconds:
+        // WriteBulkString(TimeSpan.TotalMilliseconds) is a double, and matching it is the point
+        var claimMs = claimMinIdleTime.HasValue ? (double?)claimMinIdleTime.GetValueOrDefault().TotalMilliseconds : null;
+        return context.Render(
+            $"{RedisCommand.XREADGROUP}{RespLiterals.Group}{group}{consumer}{RespLiterals.Count.When(count)}{count}{RespLiterals.NoAck.When(noAck)}{RespLiterals.Claim.When(claimMs)}{claimMs}{RespLiterals.StreamsKeyword}{key}{after}");
+    }
+
+    private static readonly RespReplyHandler<RespReadReply> ReadReplyHandler
+        = new(static payload => new RespReadReply(payload));
+
+    private static void DemandPositiveCount(int? count)
+    {
+        if (count.HasValue && count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
+    }
 
     /// <summary>
     /// XAUTOCLAIM; claims whatever has been idle too long, starting from a cursor.

@@ -109,6 +109,70 @@ public static partial class Streams
     }
 
     /// <summary>
+    /// The reply to a single-stream <c>XREAD</c>/<c>XREADGROUP</c>: the entries, past the stream-name
+    /// wrapper the server puts around them.
+    /// </summary>
+    /// <remarks>
+    /// <b>A separate type from <see cref="RespRangeReply"/> because the wire shape is different</b>, not
+    /// because the contents are: <c>XRANGE</c> answers a bare run of entries, while these answer one
+    /// stream's worth inside a per-stream envelope - an array of <c>[name, entries]</c> on RESP2, a map on
+    /// RESP3. Reading that envelope is the whole of the difference, and guessing it from the reply rather
+    /// than from a protocol is what lets a reply object do it at all.
+    /// </remarks>
+    public sealed class RespReadReply : RespReply
+    {
+        private readonly RespAggregate<RespStreamEntry> _entries;
+
+        /// <summary>Read a single-stream read reply from a payload.</summary>
+        /// <param name="payload">The reply's bytes, with one reference already taken on this reply's behalf.</param>
+        public RespReadReply(RespPayload payload) : base(payload)
+        {
+            var reader = GetReader();
+            if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return;
+
+            if (reader.Prefix == RespPrefix.Map)
+            {
+                if (!reader.TryMoveNext()) return; // the stream name
+            }
+            else
+            {
+                if (!reader.TryMoveNext() || !reader.IsAggregate) return; // the [name, entries] pair
+                if (!reader.TryMoveNext()) return;                        // the stream name
+            }
+
+            RespAggregate<RespStreamEntry>.TryCaptureNext(Payload, ref reader, RespStreamEntry.Projection, out _entries);
+        }
+
+        /// <summary>The entries, in the order the server returned them.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespAggregate<RespStreamEntry> Entries
+        {
+            get
+            {
+                _ = Payload;
+                return _entries;
+            }
+        }
+
+        /// <summary>How many entries the reply carries.</summary>
+        public int Count => _entries.Count;
+
+        /// <summary>Materialise the whole reply into the array shape the older surface promises.</summary>
+        /// <remarks><inheritdoc cref="RespRangeReply.ToArray" path="/remarks/para[2]"/></remarks>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public StreamEntry[] ToArray()
+        {
+            var reader = GetReader();
+            if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return [];
+            return ResultProcessor.ParseStreamWithNameSkip(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
+        }
+
+        /// <inheritdoc/>
+        public override string ToString()
+            => IsDisposed ? "(disposed)" : $"({Count} entr{(Count == 1 ? "y" : "ies")})";
+    }
+
+    /// <summary>
     /// The reply to an <c>XAUTOCLAIM</c>: a resume cursor, the claimed entries, and the ids that turned
     /// out to be gone.
     /// </summary>

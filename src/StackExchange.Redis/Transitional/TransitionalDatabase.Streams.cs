@@ -339,5 +339,40 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public Task<StreamAutoClaimIdsOnlyResult> StreamAutoClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
             => _inner.Streams.AutoClaimIdsOnlyResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags).AsTask();
+
+        // ---- XREAD / XREADGROUP, single stream -------------------------------------------------------
+        // Three XREADGROUP overloads collapse to one; the older two simply lack noAck and claimMinIdleTime.
+
+        /// <inheritdoc/>
+        public StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.ReadArray(key, position, count, flags));
+
+        /// <inheritdoc/>
+        public Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.ReadArray(key, position, count, flags).AsTask();
+
+        /// <inheritdoc/>
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+            => StreamReadGroup(key, groupName, consumerName, position, count, noAck: false, claimMinIdleTime: null, flags);
+
+        /// <inheritdoc/>
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+            => StreamReadGroupAsync(key, groupName, consumerName, position, count, noAck: false, claimMinIdleTime: null, flags);
+
+        /// <inheritdoc/>
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, bool noAck, CommandFlags flags)
+            => StreamReadGroup(key, groupName, consumerName, position, count, noAck, claimMinIdleTime: null, flags);
+
+        /// <inheritdoc/>
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, bool noAck, CommandFlags flags)
+            => StreamReadGroupAsync(key, groupName, consumerName, position, count, noAck, claimMinIdleTime: null, flags);
+
+        /// <inheritdoc/>
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.ReadGroupArray(key, groupName, consumerName, position, count, noAck, claimMinIdleTime, flags));
+
+        /// <inheritdoc/>
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.ReadGroupArray(key, groupName, consumerName, position, count, noAck, claimMinIdleTime, flags).AsTask();
     }
 }
