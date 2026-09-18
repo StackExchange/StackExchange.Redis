@@ -67,6 +67,20 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **The `ReadOnlyMemory<RedisKeyOrValue>` execute is STILL public in two places.** Marc, 2026-09-18:
+      *"this should not exist - that signature is only needed for the old code; our new Execute API will
+      use the RespRequestBuilder"*. I removed it from the typed contexts and stopped there; it remains on
+      `RespContext.ExecuteAsync(string, ReadOnlyMemory<RedisKeyOrValue>, CommandFlags)` and on
+      `RespSurface.ExecuteAsync(this IRespTarget, ...)` - both public API lines. The only caller that needs
+      that shape is `IDatabase.ExecuteResp`/`ExecuteRespAsync`, so it should be internal, and the new
+      ad-hoc path should be the interpolated builder.
+
+- [ ] **`RespContext.Render(string, ReadOnlySpan<RedisKeyOrValue>)` still hand-rolls the loop.** It
+      `foreach`es and branches on `arg.IsKey` to call `AppendFormatted(arg.Key)` or
+      `AppendFormatted(arg.Value)`. Now that `RedisKeyOrValue` implements `IRespArgument`, the existing
+      `AppendFormatted<T>(ReadOnlySpan<T>) where T : IRespArgument` does exactly that unroll - so the whole
+      body is `handler.AppendFormatted(args)`. Marc spotted it; the loop predates the interface.
+
 - [x] **Typed contexts — GREEN, 2026-09-18.** Build and tests pass in Debug and Release;
       7,669 + 1,886 tests, no failures.
 

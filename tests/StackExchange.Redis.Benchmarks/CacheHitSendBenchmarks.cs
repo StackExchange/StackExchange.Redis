@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,6 +51,48 @@ public class CacheHitSendBenchmarks
     public void Cleanup() => _cache.Dispose();
 
     /// <summary>The whole group-method path, served locally.</summary>
-    [Benchmark(Description = "db.Strings.GetAsync - cache hit")]
+    [Benchmark(Baseline = true, Description = "4. full  db.Strings.GetAsync")]
     public RedisValue GroupGet() => _context.Strings.GetAsync("k", Readable).GetAwaiter().GetResult();
+
+    // ---- the same path, taken apart, so the total can be attributed rather than guessed at ----
+
+    /// <summary>Just composing the frame: rent, write RESP, compute the slot and key marks, return it.</summary>
+    [Benchmark(Description = "1. render only")]
+    public int RenderOnly()
+    {
+        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        return frame.ArgCount;
+    }
+
+    /// <summary>The same, consuming nothing from the frame - isolating what reading a field costs.</summary>
+    [Benchmark(Description = "1b. render, consume nothing")]
+    public int RenderConsumeNothing()
+    {
+        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        return 0;
+    }
+
+    /// <summary>Render and read Slot instead of ArgCount, in case the member matters.</summary>
+    [Benchmark(Description = "1c. render, read Slot")]
+    public int RenderReadSlot()
+    {
+        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        return frame.Slot;
+    }
+
+    /// <summary>Render, then borrow it as a lookup key - which is where the payload is hashed.</summary>
+    [Benchmark(Description = "2. + AsLookupKey (hashes the bytes)")]
+    public int RenderAndHash()
+    {
+        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        return frame.AsLookupKey(Readable).GetHashCode();
+    }
+
+    /// <summary>Render, hash, and probe the dictionary - everything but reading the reply.</summary>
+    [Benchmark(Description = "3. + cache probe")]
+    public bool RenderHashProbe()
+    {
+        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        return _cache.TryGet(frame.AsLookupKey(Readable), 0, out _);
+    }
 }
