@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Connections;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace RESPite.Benchmark;
 

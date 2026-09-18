@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
 using StackExchange.Redis.Caching;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 

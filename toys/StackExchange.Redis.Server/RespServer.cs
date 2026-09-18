@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Server
 {

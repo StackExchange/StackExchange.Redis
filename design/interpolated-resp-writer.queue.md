@@ -93,6 +93,26 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **`RespCommand`, `RespCommands`, `RespHandlers` and `IRespHandler<T>` moved to
+      `StackExchange.Redis.Protocol` — DONE, 2026-09-18.** Marc asked whether those, plus `RespExecutor`,
+      `RespContext` and `IRespTarget`, belong in `.Protocol`. The answer split rather than being uniform.
+
+      **Moved**, because they are named only when writing a command: `RespCommand`/`RespCommands` -
+      `"SUBSTR".Command(preform: true)` is request-building, which is exactly what `docs/Extending.md`
+      already defines `.Protocol` as - and `RespHandlers`/`IRespHandler<T>`, which are reply-parsing and
+      only named for a shape the defaults do not cover. The latter also fixes a real inconsistency:
+      `RespReplyHandler<TReply>` was already in `.Protocol` *implementing an interface in the root*.
+
+      **Stayed**, because they are the primary API: `RespContext`, `IRespTarget` and kin (Marc's own
+      earlier ruling - the context pieces are the root), and `RespExecutor`, because `SendAsync` is the
+      verb on the primary type and is level 2 in the docs. `db.SendAsync<RedisValue>($"...")` names no
+      protocol type at all, since the interpolated string is *lowered* into a builder rather than written
+      as one - so the ad-hoc path still needs no extra `using`, which is the whole point of level 2.
+
+      Six files needed the new using; everything else already had it. `docs/Extending.md` had gone stale
+      in the doing: its level-3 sample uses `RespCommand`, so the two-using preamble no longer compiled,
+      and the prose still said the `.Protocol` import "shows up later".
+
 - [x] **The script cache is seeded from the multiplexer — DONE, 2026-09-18.** Marc asked what the
       logical scope is, and whether the endpoint or bridge is the place to hook it.
 

@@ -4,6 +4,7 @@ using NSubstitute;
 using StackExchange.Redis.Availability;
 using StackExchange.Redis.Caching;
 using StackExchange.Redis.KeyspaceIsolation;
+using StackExchange.Redis.Protocol;
 using Xunit;
 ﻿using System;
 

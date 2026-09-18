@@ -81,6 +81,7 @@ If you are shipping more than a couple of commands, give them a home. The shape 
 ```csharp
 using RESPite.Messages;
 using StackExchange.Redis;
+using StackExchange.Redis.Protocol;   // RespCommand lives here; see below
 
 // 1. the group: a context plus a name, and nothing else
 public readonly struct ContosoCommands(in RespContext context)
@@ -122,7 +123,9 @@ RedisValue value = await db.Contoso().SubstringAsync(key, 0, 4);
 
 `IRespKeyspaceTarget` is carried by `IDatabase`, `IBatch` and `ITransaction`, so one accessor covers all three; `IRespServerTarget` is the `IServer` counterpart, for commands that belong to a node rather than a key. Everything reaches the connection through `Context`.
 
-Everything above is in the `StackExchange.Redis` namespace, which your callers already have. One extra `using` shows up later: `StackExchange.Redis.Protocol` holds the request-building types - `RespRequestFrame`, `RespFragment`, `IRespArgument` - which you name when you write a command factory and never otherwise. That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which.
+The contexts, the targets and `SendAsync` are all in the `StackExchange.Redis` namespace, which your callers already have. The second `using` above is the other half of the split: `StackExchange.Redis.Protocol` holds the request- and reply-building types - `RespCommand`, `RespRequestFrame`, `RespFragment`, `IRespArgument`, and `RespHandlers`/`IRespHandler<T>` for a reply shape the defaults do not cover. You name those when you write a command, and never otherwise.
+
+That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which. It is also why level 2 needs nothing extra - `db.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}")` names no protocol type, because the interpolated string is lowered into one rather than written as one.
 
 > On C# 14 either accessor can be an extension **property** (`extension(in RespDatabaseContext context) { public ContosoCommands Contoso => new(context.Raw); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
 >
