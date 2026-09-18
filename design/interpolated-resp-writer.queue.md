@@ -93,6 +93,27 @@ Four consequences, none of them cosmetic:
       deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
       here.
 
+- [x] **`IRespTarget.Raw` is now `Context`, hidden by the derived interfaces — DONE, 2026-09-18.**
+      Marc: *"I really don't like the public Raw"*. Renaming the base member and letting
+      `IRespKeyspaceTarget`/`IRespServerTarget` hide it with `new` means `db.Context` is the typed context,
+      and the plain one only turns up for a caller who has deliberately taken an `IRespTarget`.
+
+      **`RedisBase.GetContext()` is what made it tractable.** With the hiding, every implementer owes two
+      members that differ only in return type and neither can override the other; one `protected virtual`
+      builder is what both of them call, so a subclass says how its context is made once and the two
+      cannot drift. Every implementer took the same shape - `RedisDatabase`, `RedisServer`, `KeyPrefixed`,
+      `TransitionalDatabase`, `MultiGroupDatabase`, `RetryDatabase`/`RetryTransaction`, the subscribers.
+
+      The messy half Marc predicted - internal code doing `.Raw.Something()` on what it wraps - is an
+      **internal** extension property `Raw` on `IRespTarget` that is literally `=> target.Context`.
+      Internal rather than public on purpose: making it public would put `Raw` back on every target and on
+      the typed contexts, which is the thing being removed.
+
+      Earlier the same day, and what led here: the typed contexts' own `Raw` became an internal field plus
+      an **explicit** conversion operator. `RespContextConversionTests` pins both halves - explicit rather
+      than implicit, and the `new` hiding - because an implicit conversion or a lost `new` would still
+      compile every call site that exists today.
+
 - [ ] **Streams, batch 1 of 4 — DONE, 2026-09-18: 106 -> 80.** Marc: *"let's try to get streams done"*,
       and *"some of the overloads may be reducable on a fresh clean API"*. The scalar-reply commands are
       moved: `XADD`, `XNACK`, `XACKDEL`, `XCFGSET`.
@@ -120,6 +141,40 @@ Four consequences, none of them cosmetic:
       gets a reply its handler accepts.
 
       Remaining: `XCLAIM`/`XAUTOCLAIM`, `XPENDING` x2, `XREAD`/`XREADGROUP`, `XINFO` x3.
+
+- [ ] **BUG (shipped): `XREADGROUP CLAIM` sends a non-integer for a fractional `TimeSpan`.** Found while
+      moving the stream reads, 2026-09-18; Marc asked for it to be logged rather than folded into that work.
+
+      Both writers - `MultiStreamReadGroupCommandMessage` (`RedisDatabase.cs:4567`) and
+      `SingleStreamReadGroupCommandMessage` (`:5386`) - do
+      `writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds)`. `TotalMilliseconds` is a
+      **double**, so:
+
+      - `TimeSpan.FromMilliseconds(5000)` renders `CLAIM 5000` - fine, which is why nothing has noticed;
+      - `TimeSpan.FromMilliseconds(1500.5)` renders `CLAIM 1500.5`, and the server wants an integer there,
+        so it answers `ERR value is not an integer or out of range`.
+
+      `XCLAIM`/`XAUTOCLAIM` are unaffected: their `IDatabase` signatures take `long minIdleTimeInMs`, so no
+      double is ever involved. It is specific to `XREADGROUP`, where the parameter is a `TimeSpan`, and any
+      caller passing sub-millisecond precision - `TimeSpan.FromSeconds(1.0005)`, say - hits it.
+
+      The new surface **reproduces** this on purpose so the parity tests hold byte-for-byte. The fix is to
+      truncate in both paths at once, after which the parity test asserts the new agreement rather than the
+      old one. Truncate rather than round, to match every other millisecond conversion here.
+
+- [ ] **BUG (shipped): multi-stream `XREAD` accepts `StreamPosition.NewMessages`; single-stream refuses
+      it.** Found 2026-09-18; Marc: *"log that, we should come back to it"*.
+
+      `StreamPosition.Resolve` throws for `NewMessages` under `RedisCommand.XREAD` - correct, since `$`
+      means "entries added after this call blocks" and `IDatabase.StreamRead` does not block - and maps it
+      to `>` under `XREADGROUP`. But `MultiStreamReadCommandMessage.WriteImpl` resolves its positions with
+      `StreamPosition.Resolve(..., RedisCommand.XREADGROUP)` while the command being written is `XREAD`. So
+      the single-key overload throws and the multi-key one sends `>` to a command that has no consumer
+      group, which the server then rejects.
+
+      Reproduced as-is by the new surface, and both halves are pinned by
+      `RespSurfaceStreamsParityTests.ReadRefusesNewMessagesButReadGroupDoesNot`, so whichever way this is
+      settled the test says what changed.
 
 - [ ] **`TransitionalDatabase`: 106 throwing members — status, 2026-09-18.** (Now 80; see the streams
       entry above.) Unchanged since it was last counted, so no drift. SER352 reports the number on every Release build; the breakdown below
