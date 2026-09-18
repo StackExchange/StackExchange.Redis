@@ -31,7 +31,6 @@ public class CacheHitSendBenchmarks
         public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
-
     private const CommandFlags Readable = CommandFlags.CommandRetryReadOnly;
 
     private RespClientCache _cache = null!;
@@ -56,43 +55,40 @@ public class CacheHitSendBenchmarks
 
     // ---- the same path, taken apart, so the total can be attributed rather than guessed at ----
 
-    /// <summary>Just composing the frame: rent, write RESP, compute the slot and key marks, return it.</summary>
-    [Benchmark(Description = "1. render only")]
-    public int RenderOnly()
-    {
-        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
-        return frame.ArgCount;
-    }
 
-    /// <summary>The same, consuming nothing from the frame - isolating what reading a field costs.</summary>
-    [Benchmark(Description = "1b. render, consume nothing")]
-    public int RenderConsumeNothing()
-    {
-        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
-        return 0;
-    }
 
-    /// <summary>Render and read Slot instead of ArgCount, in case the member matters.</summary>
-    [Benchmark(Description = "1c. render, read Slot")]
-    public int RenderReadSlot()
-    {
-        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
-        return frame.Slot;
-    }
 
-    /// <summary>Render, then borrow it as a lookup key - which is where the payload is hashed.</summary>
-    [Benchmark(Description = "2. + AsLookupKey (hashes the bytes)")]
-    public int RenderAndHash()
-    {
-        using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
-        return frame.AsLookupKey(Readable).GetHashCode();
-    }
 
     /// <summary>Render, hash, and probe the dictionary - everything but reading the reply.</summary>
     [Benchmark(Description = "3. + cache probe")]
     public bool RenderHashProbe()
     {
         using var frame = _context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
-        return _cache.TryGet(frame.AsLookupKey(Readable), 0, out _);
+        if (!_cache.TryGet(frame.AsLookupKey(Readable), 0, out var payload)) return false;
+
+        payload.Dispose();   // TryGet retains on a hit; discarding it would leak a reference per call
+        return true;
+    }
+    // (a build-up decomposition here measured hashing 20 bytes as free and reading one field as 7.5ns)
+
+    /// <summary>Straight to the context, skipping the group accessor and its forwarding.</summary>
+    [Benchmark(Description = "5. - group layer (context.SendAsync)")]
+    public RedisValue NoGroupLayer()
+        => _context.Raw.SendAsync<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable).GetAwaiter().GetResult();
+
+    /// <summary>The synchronous twin: same work, no ValueTask to build or await.</summary>
+    [Benchmark(Description = "6. - ValueTask (context.Send)")]
+    public RedisValue NoValueTask()
+        => _context.Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
+
+    /// <summary>And with a handler that reads nothing, isolating what parsing the reply costs.</summary>
+    [Benchmark(Description = "7. - reply parse (handler returns a constant)")]
+    public int NoParse()
+        => _context.Raw.Send($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, ConstantHandler.Instance);
+
+    private sealed class ConstantHandler : IRespHandler<int>
+    {
+        public static readonly ConstantHandler Instance = new();
+        public int Parse(ref RESPite.Messages.RespReader reader) => 1;
     }
 }

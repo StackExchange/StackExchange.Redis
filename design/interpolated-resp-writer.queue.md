@@ -67,6 +67,32 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Where a cache hit's ~125ns goes — profiled 2026-09-18** (`CacheHitSendBenchmarks`, in-process,
+      zero allocation throughout). Measured **subtractively**: start from the full call and remove one
+      layer at a time, so every row is a complete operation whose result is consumed.
+
+      | removed | ns | the layer costs |
+      |---|---|---|
+      | nothing (`db.Strings.GetAsync`) | 125.9 | — |
+      | the group accessor | 116.4 | **~9** |
+      | + the `ValueTask` | 117.8 | **~0** (inside noise) |
+      | + parsing the reply into `RedisValue` | 83.7 | **~33** |
+      | everything but render + hash + probe | 71.0 | **~13** serve-the-hit |
+      | *(render + hash + dictionary probe)* | **71.0** | **56% of the total** |
+
+      **So the two places worth looking are the probe (56%) and the reply parse (26%)**, and the layers
+      people would suspect - the group sugar, the `ValueTask` - are 7% and nothing. Inside the probe,
+      `TryGet` takes an **interlocked** `TryRetain` and then re-checks validity afterwards, deliberately
+      (an invalidation between check and retain would let one stale read through); a lock-prefixed RMW is
+      typically 10-20ns, so that is plausibly a third of it, and it is there for correctness.
+
+      **A build-up decomposition of this path does not work, and the way it fails is worth recording.**
+      Measuring the stages in isolation reported *render alone* at 39ns and *render + hashing 20 bytes* at
+      30ns - impossible, reproducible three times. Isolating it: reading any field of the frame appeared to
+      cost 7.5ns while hashing appeared free. It is dead-code elimination - `Render` inlines, so the JIT
+      deletes whatever a stage does not consume. Only rows whose result is fully consumed mean anything
+      here.
+
 - [ ] **The `ReadOnlyMemory<RedisKeyOrValue>` execute is STILL public in two places.** Marc, 2026-09-18:
       *"this should not exist - that signature is only needed for the old code; our new Execute API will
       use the RespRequestBuilder"*. I removed it from the typed contexts and stopped there; it remains on
