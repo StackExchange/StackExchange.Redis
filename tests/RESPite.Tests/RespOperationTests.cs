@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
@@ -177,6 +177,54 @@ public class RespOperationTests
         Assert.Throws<IOException_>(() => indefinite.GetResult(indefinite.Token));
         Assert.Equal(0, indefinite.Recycled);
         Assert.Equal(1, indefinite.Resets); // still cleared, for GC - just not offered to a pool
+    }
+
+    [Fact]
+    public async Task AnAWAITEDOperationStillOffersTheInstanceBack()
+    {
+        // THE regression test for a bug that shipped through every other test in this file. The ones
+        // above call GetResult directly, so nothing is registered as a continuation and SetResult has
+        // nobody to run. Register one - which is what `await` does - and SetResult invokes it INLINE:
+        // the awaiter consumes the result and resets the instance before the completing code has
+        // recorded how the life ended. IsRecyclable was then false at every single GetResult, and an
+        // executor pool measured 0 hits in 56,642 sends. Results stayed correct; only allocation moved,
+        // which is why a benchmark found this and a test suite did not.
+        var message = new StringMessage().Arm();
+        var token = message.Token;
+
+        var consumer = Task.Run(async () => await new RespOperation<string?>(message));
+        while (!message.TrySetResult(token, Hello)) await Task.Yield();
+
+        Assert.Equal("hello", await consumer);
+        Assert.Equal(1, message.Recycled);
+    }
+
+    [Fact]
+    public async Task AnInlineContinuationCannotStampTheNextLife()
+    {
+        // the other half of the same bug, and the more dangerous half: marking after publishing does not
+        // merely arrive too late, it lands on whatever life the instance is on BY THEN - so a freshly
+        // armed operation would start out already flagged complete.
+        //
+        // WHAT THIS DOES AND DOES NOT PIN, because it matters if anyone tidies up later. Reverting the
+        // ordering ALONE does not fail this test: RunContinuationsAsynchronously means SetResult has no
+        // continuation to run inline, so the late mark still lands on the right life. Reverting BOTH -
+        // which is the code as it originally stood - fails here. So the async flag is the load-bearing
+        // fix and the ordering is defence in depth: for anyone who turns the flag off, for a
+        // SynchronizationContext that dispatches synchronously anyway (see the note on the flag), and
+        // for a queued continuation that simply wins the race on another core.
+        var message = new StringMessage().Arm();
+        var first = message.Token;
+
+        var consumer = Task.Run(async () => await new RespOperation<string?>(message));
+        while (!message.TrySetResult(first, Hello)) await Task.Yield();
+        Assert.Equal("hello", await consumer);
+
+        message.Arm();
+        Assert.NotEqual(first, message.Token);
+        Assert.False(message.IsRecyclable);                     // a new life is not a finished one
+        Assert.True(message.TrySetResult(message.Token, "$4\r\nnext\r\n"u8));
+        Assert.Equal("next", message.GetResult(message.Token));
     }
 
     [Fact]

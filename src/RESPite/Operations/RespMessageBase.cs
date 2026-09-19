@@ -94,7 +94,23 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         // everyone sharing the socket, which is the whole point of multiplexing.
         //
         // It is also what the existing core already does: every ResultBox completes with
-        // RunContinuationsAsynchronously. This is not a new position, just the same one restated.
+        // RunContinuationsAsynchronously. This is not a new position, just the same one restated - see
+        // docs/ThreadTheft.md, where the symptom is named (rs: CompletePendingMessage in a timeout).
+        //
+        // TWO CAVEATS, because this flag is not the whole answer:
+        //
+        //  * It does not save you from a SynchronizationContext whose Post runs the callback
+        //    synchronously - LegacyAspNetSynchronizationContext being the one that matters. The
+        //    continuation is dispatched rather than invoked, and then the dispatch runs it inline anyway.
+        //    The existing core's answer is the "preventthreadtheft" feature flag, which queues to the
+        //    thread pool pre-emptively; the new core will need the same escape hatch, and RespOperation's
+        //    OnCompleted passing UseSchedulingContext by default is where it would go.
+        //  * Marc's anecdote, worth recording because it is not discoverable: on early .NET Framework
+        //    (net45-era) the TaskCreationOptions equivalent was not reliably honoured. The library still
+        //    targets net461/net472, and downlevel this type comes from System.Threading.Tasks.Extensions
+        //    rather than the framework - so the behaviour is the package's, which is a different risk
+        //    surface from the one that bit before, but not obviously a smaller one. Worth a downlevel
+        //    test before this is load-bearing.
         _asyncCore.RunContinuationsAsynchronously = true;
     }
 
