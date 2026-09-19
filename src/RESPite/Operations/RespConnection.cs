@@ -81,11 +81,11 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     {
         if (message is null) throw new ArgumentNullException(nameof(message));
 
-        if (Volatile.Read(ref _closed) != 0)
-        {
-            message.TrySetException(message.Token, ClosedFault(), definite: false);
-            return false;
-        }
+        // NOT faulted here, deliberately: only the caller knows how to describe this failure - which
+        // command, which flags, how far it got - and a generic exception invented at this layer would
+        // win the outcome claim and lock the good one out. Close() still faults what it has already
+        // queued, because by then nobody else can.
+        if (Volatile.Read(ref _closed) != 0) return false;
 
         lock (_writeLock)
         {
@@ -97,6 +97,11 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             try
             {
+                // the counters are snapshotted BEFORE this request's own bytes: what a timeout wants to
+                // know is whether the connection moved at all while this operation waited, and including
+                // our own write in the baseline would make every command look like progress
+                message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+
                 _pending.Enqueue(message);
                 Write(payload.Span);
                 Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);

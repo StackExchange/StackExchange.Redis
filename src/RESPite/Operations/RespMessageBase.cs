@@ -115,7 +115,37 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     /// <summary>Turn a reply into the response value.</summary>
     /// <param name="reader">Positioned at the reply, or before it when the parser handles metadata.</param>
-    protected abstract TResponse Parse(ref RespReader reader);
+    /// <remarks>
+    /// Override <b>this</b> for the ordinary case - a value read out of the reply. Override
+    /// <see cref="ParseFrame(ReadOnlySpan{byte})"/> instead when the response IS the frame: a payload to
+    /// be handed on, retained, or cached, where turning the bytes into a value and back would be the
+    /// copy this design exists to avoid. Exactly one of the two.
+    /// </remarks>
+    protected virtual TResponse Parse(ref RespReader reader)
+        => throw new NotSupportedException($"{GetType().Name} must override {nameof(Parse)} or {nameof(ParseFrame)}.");
+
+    /// <summary>Turn a complete reply frame into the response value.</summary>
+    /// <param name="frame">The whole frame, including its prefix.</param>
+    /// <remarks>
+    /// The default positions a reader and defers to <see cref="Parse(ref RespReader)"/>, which is what
+    /// almost everything wants. See that method for when to override this one instead.
+    /// </remarks>
+    protected virtual TResponse ParseFrame(scoped ReadOnlySpan<byte> frame)
+    {
+        var reader = new RespReader(frame);
+        if ((Volatile.Read(ref _state) & Flag_MetadataParser) == 0) reader.MoveNext();
+        return Parse(ref reader);
+    }
+
+    /// <summary>Turn a complete reply frame, spanning several segments, into the response value.</summary>
+    /// <param name="frame">The whole frame, including its prefix.</param>
+    /// <remarks>See <see cref="ParseFrame(ReadOnlySpan{byte})"/>; this is the multi-segment twin.</remarks>
+    protected virtual TResponse ParseFrame(in ReadOnlySequence<byte> frame)
+    {
+        var reader = new RespReader(frame);
+        if ((Volatile.Read(ref _state) & Flag_MetadataParser) == 0) reader.MoveNext();
+        return Parse(ref reader);
+    }
 
     /// <summary>Called when the instance is reset, so derived state can be cleared too.</summary>
     /// <remarks>
@@ -232,6 +262,10 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     }
 
     /// <inheritdoc/>
+    public void OnEnqueued(object connection, long bytesSent, long bytesReceived)
+        => _diagnostics.OnEnqueued(connection, bytesSent, bytesReceived);
+
+    /// <inheritdoc/>
     public void ReleaseRequest()
     {
         if (!TryReleaseRequest()) Throw();
@@ -279,8 +313,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
         try
         {
-            var reader = new RespReader(response);
-            return Complete(ParseClaimed(ref reader), definite: true);
+            return Complete(ParseFrame(response), definite: true);
         }
         catch (Exception ex)
         {
@@ -296,21 +329,12 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
         try
         {
-            var reader = new RespReader(response);
-            return Complete(ParseClaimed(ref reader), definite: true);
+            return Complete(ParseFrame(in response), definite: true);
         }
         catch (Exception ex)
         {
             return Fail(ex, definite: true);
         }
-    }
-
-    private TResponse ParseClaimed(ref RespReader reader)
-    {
-        // a metadata parser wants to see the frame from the outside, including any attribute that
-        // precedes the value; everybody else wants to be positioned on the value itself
-        if ((Volatile.Read(ref _state) & Flag_MetadataParser) == 0) reader.MoveNext();
-        return Parse(ref reader);
     }
 
     /// <inheritdoc/>

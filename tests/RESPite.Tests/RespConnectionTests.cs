@@ -346,6 +346,39 @@ public class RespConnectionTests
     }
 
     [Fact]
+    public void SendingRecordsTheConnectionAndItsCountersAtThatMoment()
+    {
+        // the half of "realistic" that is easy to leave out: without this a timeout report knows the
+        // command was sent but not where, when, or whether the connection moved at all afterwards
+        var (connection, transport) = Connect();
+        var first = TextMessage.For("*1\r\n$4\r\nPING\r\n");   // 14 bytes
+        connection.Send(first);
+        transport.Receive("+PONG\r\n");                        // 7 bytes
+        first.GetResult(first.Token);
+
+        var second = TextMessage.For("*1\r\n$4\r\nPING\r\n");
+        connection.Send(second);
+
+        Assert.Same(connection, second.Diagnostics.EnqueuedTo);
+        Assert.Equal(14, second.Diagnostics.QueuedStampSent);      // what had gone out BEFORE this one
+        Assert.Equal(7, second.Diagnostics.QueuedStampReceived);
+        Assert.NotEqual(0, second.Diagnostics.WriteTickCount);
+    }
+
+    [Fact]
+    public void TheEnqueueStampExcludesTheRequestsOwnBytes()
+    {
+        // otherwise every command looks like progress on a connection that has actually stalled
+        var (connection, _) = Connect();
+        var message = TextMessage.For("*1\r\n$4\r\nPING\r\n");
+
+        connection.Send(message);
+
+        Assert.Equal(0, message.Diagnostics.QueuedStampSent);
+        Assert.Equal(14, connection.BytesSent); // the connection counted them; the stamp predates them
+    }
+
+    [Fact]
     public async Task ConcurrentSendersDoNotInterleaveTheirBytes()
     {
         // queue order must equal wire order; enqueueing outside the write lock lets two senders each be

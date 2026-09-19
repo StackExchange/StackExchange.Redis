@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks.Sources;
@@ -44,6 +44,18 @@ internal interface IRespMessage : IValueTaskSource
 
     /// <summary>Release a reference taken by <see cref="TryReserveRequest"/>.</summary>
     void ReleaseRequest();
+
+    /// <summary>Record being handed to a connection, with that connection's byte counters.</summary>
+    /// <param name="connection">The connection taking it.</param>
+    /// <param name="bytesSent">Bytes the connection had written BEFORE this request.</param>
+    /// <param name="bytesReceived">Bytes the connection had read before this request.</param>
+    /// <remarks>
+    /// On the untyped view because the connection holds operations untyped, and this is the moment only
+    /// the connection knows about. The counters are differenced at timeout to answer "did anything move
+    /// on this connection while we waited?" - which is the difference between a slow server and a stuck
+    /// one, and is why they are snapshotted rather than read later.
+    /// </remarks>
+    void OnEnqueued(object connection, long bytesSent, long bytesReceived);
 
     /// <summary>Deliver a reply held in a single span.</summary>
     /// <param name="token">The version this caller holds.</param>
