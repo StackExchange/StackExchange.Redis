@@ -1,4 +1,4 @@
-# Replacing the message core — plan
+﻿# Replacing the message core — plan
 
 **Status: planning only. Nothing here is built.** Written 2026-09-19, after the batch/transaction work
 ran into the shim rather than through it.
@@ -113,7 +113,28 @@ Two things fall out that are currently blocked:
 - **Batch across a cluster**: a batch groups by slot today because grouping by server races a reshard.
   With a slot-directing executor the grouping is the executor's, and the race is confined to it.
 
-### 3c. Batch and transaction
+### 3c. Batch and transaction — and the scope of `RespOperation`
+
+**`RespOperation` is the batch API's currency, not the whole core's.** Marc: *"maybe RespOperation
+(request/handler tuples) only apply to the batch API"*. That settles what was going to be this plan's
+hardest open question.
+
+The ordinary send is unchanged: `SendAsync<T>(context, ref frame, flags, handler, ct)` probes the cache,
+misses, hands a request to a **non-generic** executor and applies the handler above it. That path is
+already right, already fast, and already has the cache in the correct place; making the whole core speak
+in typed operations would push generics through every layer to serve the one case that needs them.
+
+The batch API takes `ReadOnlySpan<RespOperation>` where each element is (request, handler, completion) -
+so the handler travels *in*, the element completes itself, and the awkwardness that `RespBatchExecutor`
+has today (a `TaskCompletionSource` per element, a `Span<ValueTask<RespPayload>>` out-parameter, a
+scatter-back into caller positions) simply does not arise. It does not arise *anywhere else either*,
+because nowhere else needs it.
+
+This is also what makes §3d affordable: if batches are the only thing speaking in operations, then
+"batches behave differently around the cache" is a statement about one API rather than a special case
+threaded through the core.
+
+
 
 Both become connection/executor decorators over the operation list, as `BatchConnection` already is:
 
@@ -126,6 +147,46 @@ Today's `IMultiMessage` expansion runs inside the write lock, and an enumerator 
 cannot hold that lock — the reader has to make progress. So "flush point" and "pause point" are
 different things and the type must say which it means, or a transaction will silently promise adjacency
 it does not have.
+
+---
+
+## 3d. The cache, which the old design predates
+
+`origin/core-respite` is from before the client-side cache existed, so nothing in it accounts for one.
+This is the largest gap between that branch and what we need, and it cuts two ways.
+
+### The win: cache the payload, do not copy it
+
+Today `PayloadProcessor.SetResult` rents an array per reply and copies the bytes into it, wrapped in a
+`RefCountedBuffer` - the deliberate single-owner choice recorded at §6.16 of the queue. In the new core
+the operation already owns a ref-counted response buffer, so **filling the cache is a retain rather than
+a copy**. That removes a copy per reply on the cached path, and possibly on every path.
+
+That makes the response payload itself the cached artefact, which is the shape the cache already wants:
+it is keyed on the rendered frame's bytes and stores a `RespPayload`, so nothing about the cache's model
+has to change - only who allocated the buffer it holds.
+
+### The exclusion: batches and transactions do not participate
+
+Marc: *"I do not propose that cache needs to support either batches or transactions, so: different
+behaviour there may make sense."* Agreed, and it is stronger than a simplification:
+
+**The cache has no guard of its own.** Probed with a fake whose first reply was `+QUEUED`, a second
+identical read was served from the cache without a send (`sends=1`). `IsCacheableReply` rejects errors
+and nothing else, so a simple string is stored happily. Anything that ever hands back a non-final reply
+for a command - which is exactly what a queued command inside `MULTI` is - would poison the entry. That
+the current transaction path probably completes its tasks from the `EXEC` array rather than from
+`+QUEUED` makes today's behaviour accidental rather than designed.
+
+**Note this is a deliberate behaviour change.** Batched commands participate fully in the cache today,
+because the probe sits *above* the batch executor: a batched read can be served from cache, and a
+batched reply fills it.
+
+**A middle worth considering rather than all-or-nothing:** *probe on the way in, do not fill on the way
+out.* A batched command that hits is answered before it is ever queued - keeping the round trip saved,
+which is the whole value - while the batch's replies never populate the cache, which is where the
+complexity lives (in-flight coalescing across a deferred flush, and the stampede question of what a
+second caller waits on). Transactions should do neither.
 
 ---
 
@@ -224,14 +285,9 @@ Proposed order, each step independently shippable:
 
 ## 8. Open questions
 
-- **Does the operation own the parse, or does the caller?** Today the handler is applied above the
-  executor (`AwaitUncached` → `Parse(handler, payload)`), which is what lets the batch be non-generic.
-  If the operation is typed (`RespOperation<T>`) the parse moves into it and the payload copy disappears
-  — but every layer between becomes generic again. This is the same question as "carry the handler in",
-  and it should be answered once, here, rather than per feature.
 - **Where does the client-side cache probe sit?** It currently runs *above* the executor, so a cached
   command never reaches one. That ordering must survive; it is easy to lose when the send path is
-  rewritten.
+  rewritten - and under §3d it is what a batch keeps even when it stops filling.
 - **How much of `PhysicalBridge` survives?** The backlog, the write lock and the timeout sweep are
   independent of `Message`'s shape, but they are written in terms of it.
 - **Inline parsing.** `IRespMessage.AllowInlineParsing` exists on the old branch; we have no equivalent,
