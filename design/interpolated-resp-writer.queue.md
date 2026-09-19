@@ -3040,6 +3040,28 @@ Four consequences, none of them cosmetic:
       (`SwitchableBufferedStreamWriter`) across the same TFM set, so it is available down-level too. That
       would take a queued command - awaited or not - to one allocation and no task at all.
 
+- [ ] **PAUSED: transactions, batch and the run primitive — see `message-core-replacement.md`.**
+      Decided 2026-09-19. Marc: *"I strongly suspect that we're going to be tying ourselves in knots
+      trying to force that transaction / batch work into the existing Message queue, which will then need
+      to be reworked… better to leave those alone / throw NIE / whatever, and come back to them when we
+      aren't on shifting sands."*
+
+      The evidence that settled it: `origin/core-respite` (2025-08-29) already contains a
+      `BatchConnection` that is line-for-line what `RespBatchExecutor` was re-derived into this week -
+      accumulate, flush to the tail, fault the outstanding on dispose - except built on a primitive where
+      **the operation is the completion**, so it needs no `TaskCompletionSource` per element and no
+      return channel at all. Its tail already takes a run: `void Send(ReadOnlySpan<RespOperation>)`. We
+      spent a day rediscovering a worse version of a primitive designed a year ago.
+
+      **Consequences, stated plainly:** `Fallback<T>()` does not reach zero and SER352 stays at 8. Both
+      were framed as release gates in the section above. They remain gates - this defers them, and the
+      exit is the core plan rather than more composition.
+
+      Still true and still worth keeping when it resumes: a pause for a reply is a **contiguity
+      boundary**, not a flush point (`IMultiMessage` expansion holds the write lock); the per-element
+      index must be mandatory, because a `MOVED` re-dispatch reorders replies; and `OnResult` needs a
+      fault twin.
+
 - [ ] **The run/batch/transaction primitive: current thinking, 2026-09-19.** `IRespRunExecutor` as
       committed is **provisional** - see the defect below - and this is where the design got to.
 

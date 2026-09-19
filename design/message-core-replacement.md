@@ -1,0 +1,241 @@
+# Replacing the message core — plan
+
+**Status: planning only. Nothing here is built.** Written 2026-09-19, after the batch/transaction work
+ran into the shim rather than through it.
+
+---
+
+## 1. Why now, and why not carry on composing
+
+The framing in `interpolated-resp-writer.queue.md` argued — correctly, at the time — that the vexing
+commands need *composition inside the `Message` layer*, not a second write path, because that layer owns
+ordering, the backlog, retry accounting and the reconnect handshake. Two of the three frame-shaped
+participants it called for now exist and work: `FramePairMessage` (write-lock injection, for
+`SCRIPT LOAD`+`EVALSHA` and `HIMPORT PREPARE`+`SET`) and `FrameRunMessage` (`IMultiMessage`, for a batch
+written as one run).
+
+The third one — `MULTI`/`WATCH`/`EXEC` — is where it stops paying. Marc:
+
+> I strongly suspect that we're going to be tying ourselves in knots trying to force that transaction /
+> batch work into the existing Message queue, which will then need to be reworked. […] better to leave
+> those alone / throw NIE / whatever, and come back to them when we aren't on shifting sands.
+
+**The evidence that this is right is already on disk.** `origin/core-respite` (2025-08-29) contains a
+`BatchConnection` that is, line for line, the thing `RespBatchExecutor` was re-derived into this week —
+accumulate a list, flush to the tail, fault the outstanding entries on dispose — except that it is built
+on a primitive where *the operation is the completion*, so it needs no `TaskCompletionSource` per
+element, no `Span<ValueTask<RespPayload>>` out-parameter, and no scatter-back. Its tail already takes a
+run:
+
+```csharp
+void Send(ReadOnlySpan<RespOperation> message);          // IRespConnection
+```
+
+Today's `IRespRunExecutor` is a worse version of a primitive that was designed a year ago. It is marked
+provisional for an unrelated reason (its spans forbid an `async` implementation, so `RespRetryExecutor`
+cannot offer it and retry+batch silently degrades) — but the deeper reason is that it is the wrong shape
+because the thing underneath is the wrong shape.
+
+**So: stop. Leave `CreateTransaction` and the lock members throwing. Plan the core.**
+
+What that costs: `Fallback<T>()` does not reach zero, and SER352 stays at 8. Both were framed as release
+gates. They remain gates — this defers them, it does not cancel them, and the exit is this document.
+
+---
+
+## 2. What already exists, and what of it we want
+
+`origin/core-respite`, branched ~2025-08, "moved most of the machinery to RESPite; next: migrate
+testing". It is not a finished product and we do not need all of it.
+
+### Take
+
+| piece | what it is | why |
+|---|---|---|
+| `RespMessageBase<TResponse>` | `IValueTaskSource<T>` over `ManualResetValueTaskSourceCore<T>`, with `Reset(bool recycle)` | the core idea: one object that is the request, the completion and the awaitable |
+| `RespOperation` / `RespOperation<T>` | `readonly struct (IRespMessage message, short token)`, implicitly a `ValueTask` | a cheap handle; identical layout between the typed and untyped forms is load-bearing |
+| the ref-counted request | `TryReserveRequest`/`ReleaseRequest` with `Interlocked` on `_requestRefCount`, returning to an `ArrayPool<byte>` at zero | answers "who owns the bytes, and until when" once, instead of per feature |
+| cancellation | `CancellationTokenRegistration` taken at init, unregistered on any definite outcome | the current core has none at all; every `SendAsync` on the new surface takes a token it cannot honour |
+| `Wait(short token, TimeSpan timeout)` | synchronous completion off the same core | replaces the `Monitor.PulseAll` box — see §6 |
+| `BatchConnection` | accumulate, flush to the tail, fault outstanding on dispose | already correct; today's re-derivation is evidence of that |
+
+### Leave (for now)
+
+- The connection/transport plumbing on that branch (`StreamConnection`, the parser interfaces). The
+  transport story has moved on since — `DuplexTransport` is live and measured.
+- `RespContext` as it exists there. Ours has diverged a long way and is better.
+- The `Alt`/downlevel shims.
+
+### Do not copy blindly
+
+That branch predates: the retry category work, the client-side cache, key-marking on frames, and the
+high-integrity token. Every one of those touches the message's lifetime. The inventory in §5 is the
+guard against copying a design that silently lacks them.
+
+---
+
+## 3. Target shape
+
+### 3a. The operation
+
+One type replaces `Message` **and** `IResultBox`:
+
+- It is an `IValueTaskSource<T>` (and the untyped `IValueTaskSource`), so an awaited command allocates
+  **one** object, not a message plus a box plus a `Task`.
+- It carries the rendered request (ref-counted, pooled) and the outcome.
+- It is token-versioned (`_asyncCore.Version`), so a recycled instance cannot be completed twice by a
+  stale holder — a real hazard once pooling exists.
+- `RespOperation` is the handle callers hold; it converts implicitly to `ValueTask`.
+
+**This is also the answer to the question the batch work kept failing to answer.** "How does element 3
+of 5 get its result out?" — element 3 *is* a `RespOperation`, whose message is its own completion. There
+is nothing to hand back, so there is no return channel to design, no out-span, and no parallel arrays.
+
+### 3b. Executors
+
+Marc's topology, which the current `RespExecutorBase` is already shaped to host (it became an abstract
+class on 2026-09-19, so capabilities are virtuals with defaults rather than type-tested interfaces):
+
+| executor | routes by |
+|---|---|
+| server-endpoint | straight to that endpoint's connections |
+| multiplexer | slot → endpoint → connection |
+| group multiplexer | tracks the active node, then as above |
+
+This is a genuine simplification over today, where routing is spread across
+`ServerSelectionStrategy.Select`, `ServerEndPoint.GetBridge` and `PhysicalBridge`, and where a per-call
+server hint is not expressible at all — which is exactly why `Publish` (send via the subscribed
+connection) and `IsConnected`/`IdentifyEndpoint` are still on the fallback.
+
+Two things fall out that are currently blocked:
+
+- **`Publish`**: the server-endpoint executor *is* the per-call hint. Pick it, send through it.
+- **Batch across a cluster**: a batch groups by slot today because grouping by server races a reshard.
+  With a slot-directing executor the grouping is the executor's, and the race is confined to it.
+
+### 3c. Batch and transaction
+
+Both become connection/executor decorators over the operation list, as `BatchConnection` already is:
+
+- **batch** = accumulate, flush as a run, each operation completes itself.
+- **transaction** = the same, plus a preamble (`WATCH`, `MULTI`), a constraint check that may need a
+  reply before the tail is issued, and `EXEC`.
+
+**The constraint that must survive into the design:** a pause for a reply is a *contiguity boundary*.
+Today's `IMultiMessage` expansion runs inside the write lock, and an enumerator that blocks for a reply
+cannot hold that lock — the reader has to make progress. So "flush point" and "pause point" are
+different things and the type must say which it means, or a transaction will silently promise adjacency
+it does not have.
+
+---
+
+## 4. What the new token must keep
+
+The highest-risk part of this work, because it is all *diagnostics* — nothing fails a test when it goes
+missing, and it is the difference between a timeout exception that names the problem and one that says
+"it timed out".
+
+Today's `Message` carries, and the replacement needs:
+
+| on `Message` | used for |
+|---|---|
+| `CreatedDateTime`, `CreatedTimestamp` | age, and the `ProfiledCommand` timeline |
+| `Status` (`CommandStatus`: `WaitingToBeSent` → `WaitingInBacklog` → `Sent` → …) | `FaultContext.NotApplied`, which is what makes an unsent command safely retryable |
+| `_enqueuedTo` (the `PhysicalConnection`) | `TryGetHeadMessages`, `TryGetPhysicalState` |
+| `_queuedStampSent`, `_queuedStampReceived` | byte counters snapshotted at enqueue, differenced at timeout |
+| `_writeTickCount` | backlog timeout detection (`HasTimedOut`) |
+| `performance` (`ProfiledCommand`) | the profiling API |
+| `HighIntegrityToken` | the high-integrity response check |
+
+That is what produces the timeout text this library is known for — *"inst: 0, qu: 0, qs: 0, aw: False,
+bw: CheckingForTimeout, last-in: 0, cur-in: 0, lm: 18/1814/1718/78, sync-ops: 0, async-ops: 21…"*.
+
+**`Status` is not merely diagnostic.** `RetryPolicy.CanRetry` reads `FaultContext.NotApplied`, which is
+derived from it: a command known not to have been applied bypasses the side-effect cap. Lose the status
+ladder and retry silently becomes more conservative.
+
+**Pooling makes this harder, not easier.** A recycled operation must not leak a previous life's
+timestamps into a new one's timeout report. `Reset(bool recycle)` has to be exhaustive, and the
+token-version check is what turns a stale read into an exception rather than a wrong answer.
+
+---
+
+## 5. What we deliberately lose
+
+**The synchronous result box and its lock.** Today a sync caller waits on:
+
+```csharp
+lock (this) { _completed = true; Monitor.PulseAll(this); }   // SimpleResultBox.ActivateContinuations
+```
+
+…which means every synchronous command allocates a box, takes a lock on completion, and pulses. The
+replacement is `Wait(token, timeout)` on the same value-task core the async path uses: one object, one
+mechanism, no monitor. `SimpleResultBox`, `TaskResultBox` and `IResultBox` all go.
+
+That also removes the awkwardness noted during the retry and batch work — that `IResultBox` is the
+transitional layer's own plumbing and must not leak into the context surface.
+
+---
+
+## 6. Pooling policy
+
+From Marc: pool the core queue types **in the success / definite-response cases**; *"timeouts are
+undefined chaos"*.
+
+Concretely:
+
+- Recycle on a **definite** outcome: a result parsed, a server error, a cancellation observed.
+- **Do not recycle** on timeout, or on a connection fault that leaves the message possibly-still-queued.
+  The pipeline may still hold a reference it will write or complete later; handing that instance back to
+  a pool is how a reply lands on somebody else's command.
+- The token version is the backstop, not the policy. It turns a late completion into a detected error;
+  it does not make recycling safe.
+
+This is the same asymmetry `FrameMessage` already lives with: it copies for fire-and-forget precisely
+because that path completes before the bytes are used.
+
+---
+
+## 7. Phasing
+
+Big-bang is not available: the `Message` layer is load-bearing for ordering, backlog, retry and
+reconnect, and the existing `IDatabase` surface is a released API sitting on top of it.
+
+Proposed order, each step independently shippable:
+
+1. **Land the operation type in RESPite**, with pooling and cancellation, and unit tests for the token
+   lifecycle — completion, double-completion, recycle-then-stale-complete, cancellation races. No
+   consumers yet. This is the piece most worth getting right in isolation.
+2. **Port the diagnostics inventory** (§4) onto it, with a test that renders a timeout report from a
+   synthetic operation. Do this *before* any consumer, so the shape is decided while it is cheap.
+3. **One executor, one connection**: the server-endpoint executor over a real connection, behind
+   `RespExecutorBase`. The context surface already talks to that abstraction, so this is swappable.
+4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` and the endpoint-identity
+   members come off the fallback here.
+5. **Batch, then transaction**, as decorators. `RespBatchExecutor` is replaced by the `BatchConnection`
+   shape; `IRespRunExecutor` is deleted rather than fixed.
+6. **Retire the shim**: `RespMessageExecutor`, `FrameMessage`, `FramePairMessage`, `FrameRunMessage`,
+   `PayloadProcessor` and its copy-per-reply.
+
+`TransitionalDatabase` is unaffected throughout — it talks to the context surface, which talks to
+`RespExecutorBase`. That is the seam that makes this a replacement rather than a rewrite.
+
+---
+
+## 8. Open questions
+
+- **Does the operation own the parse, or does the caller?** Today the handler is applied above the
+  executor (`AwaitUncached` → `Parse(handler, payload)`), which is what lets the batch be non-generic.
+  If the operation is typed (`RespOperation<T>`) the parse moves into it and the payload copy disappears
+  — but every layer between becomes generic again. This is the same question as "carry the handler in",
+  and it should be answered once, here, rather than per feature.
+- **Where does the client-side cache probe sit?** It currently runs *above* the executor, so a cached
+  command never reaches one. That ordering must survive; it is easy to lose when the send path is
+  rewritten.
+- **How much of `PhysicalBridge` survives?** The backlog, the write lock and the timeout sweep are
+  independent of `Message`'s shape, but they are written in terms of it.
+- **Inline parsing.** `IRespMessage.AllowInlineParsing` exists on the old branch; we have no equivalent,
+  and it interacts with who owns the reply buffer.
+- **What happens to `ResultProcessor`?** The typed-parse story on the new surface is `IRespHandler<T>`;
+  the classic one is `ResultProcessor<T>`. They are two implementations of one idea and the core work is
+  the moment to collapse them — or to decide deliberately not to.
