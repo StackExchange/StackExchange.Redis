@@ -22,6 +22,15 @@ namespace StackExchange.Redis
     /// Outside cluster, the whole apparatus is one branch that is always false.
     /// </para>
     /// <para>
+    /// <b>What ordering this can promise, because it bounds everything else.</b> Per-connection FIFO is
+    /// the primitive; per-slot ordering is what can be built on it, and nothing stronger is available to
+    /// any multiplexed client - commands for different slots go to different nodes and run concurrently,
+    /// so there is no global order to preserve. Hence: in the order issued on one connection; in the
+    /// order issued for one slot, for as long as that slot's owner does not move; nothing across slots.
+    /// That is why a cross-slot command is refused here rather than split - there is no order in which to
+    /// do the halves that would mean anything.
+    /// </para>
+    /// <para>
     /// <b>Topology is read per send, never captured.</b> A multiplexer can be constructed and
     /// <c>GetDatabase()</c> called while still disconnected, and the resulting context is memoised for the
     /// life of the multiplexer - so an executor that decided its routing at construction would route a

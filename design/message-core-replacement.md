@@ -667,6 +667,27 @@ the retry layer above) is better placed to decide how long to keep trying.
 
 ### 7h. Routing, and the state that is neither true nor false
 
+#### The ordering contract, which bounds everything below
+
+**Per-connection FIFO is the primitive, and per-slot ordering is all that can ever be built on it.** Not
+"all we manage for now" — Marc's point, and it is the ceiling for any multiplexed client against a
+distributed store. Commands for different slots go to different nodes and execute concurrently; there is
+no global order to preserve and no mechanism that could preserve one. So the contract is:
+
+> Commands issued on one connection are executed in the order issued. Commands for one slot are executed
+> in the order issued **for as long as that slot's owner does not move**. Nothing is promised across
+> slots, and nothing stronger is available.
+
+Three things follow, and they explain design decisions that otherwise look unrelated:
+
+- **A cross-slot command is refused rather than split.** There is no order in which to do the halves that
+  means anything, so refusing is the honest answer — `RespMultiplexerExecutor` throws rather than guess.
+- **Redirects cannot break a guarantee that was never made across slots.** They can only damage ordering
+  *within* a slot, which is exactly why handling them in the IO loop matters and why the damage is
+  confined to the transition boundary below.
+- **A reshard is allowed to hurt.** It moves a slot's owner, which the contract explicitly does not cover.
+  That is the same reasoning as a cluster/standalone reconfiguration being allowed to bump.
+
 Phase 4's multiplexer executor makes one decision — which endpoint — and hands the whole command to that
 endpoint's executor. **The non-cluster path costs a volatile read and a field read**, and not only in the
 executor: the request never had a slot computed, because `RespRequestBuilder` consults the same topology
@@ -703,18 +724,29 @@ time helps with that. But the new core has no redirect handling today, so that i
 mechanism: those commands would surface the redirect to the caller as an error. The speculative hash
 makes the window correct *before* redirects exist, and `Unknown` is deletable once they do.
 
-**And the cost of a redirect is not a round trip, it is ordering** — Marc's point, and it is the
-strongest argument here. Within one connection, order is preserved by construction: one FIFO queue,
-replies matched in sequence. A redirected command *leaves that queue and joins a different one*, so its
-position relative to everything issued after it is lost. A caller that issues `INCR k` then `GET k` can
-have the `GET` reach the owning node and complete while the `INCR` is still being bounced to it — and
-read the value from before its own write.
+**The redirect cost is ordering — but only at the boundary.** The blunt claim ("a redirect loses
+ordering") is wrong, and the correction is Marc's: if a redirect is handled *in the IO loop*, in reply
+order, then commands redirected **together** keep their order. They were sent to the wrong node in order,
+that node answers `-MOVED` to each in the same order, and re-enqueueing as the replies arrive puts them
+on the new connection in the caller's original order. "In the IO loop" is load-bearing — resubmitting
+from arbitrary threads would lose it even here.
 
-That reframes the trade. "Route anywhere and let `-MOVED` sort it out" is not slower-but-equivalent; it
-is *weaker*, and the weakness is a read-your-own-writes violation that no amount of retrying fixes. So
-`Unknown` computing slots speculatively is not merely a stopgap until redirect handling exists — it is
-how the window keeps a guarantee that redirects cannot give back. Redirects remain necessary for
-reshards, where there is no alternative; they should not be *chosen* where there is one.
+What genuinely inverts is the **mixed** case, which is precisely the discovery boundary: one command
+issued while the topology was unknown takes the slow path — wrong node, redirect, new connection — while
+the next, issued a moment later with the answer in hand, goes straight to the owner. `INCR k` then
+`GET k` across that boundary can have the `GET` complete while the `INCR` is still in flight, and read
+the value from before its own write.
+
+**What keeps this design out of that case is an invariant, and it deserves stating rather than being
+relied on quietly:** `Unknown` means no connection has reported, which in practice means there is no
+connection — so commands issued then are *backlogged, not sent*, and drain in arrival order once the
+topology is known and their speculative slots become meaningful. No redirect, no inversion.
+
+The invariant breaks if a connection is ever brought up and used while its server type is still unset.
+So: **whoever owns an endpoint must set the topology as part of bringing a connection up, before draining
+the backlog.** That is a wiring rule the current code does not enforce — the connect delegate is
+caller-supplied — and it is the obvious next thing to fold into the handshake, which is already the place
+that asks the server what it is.
 
 ---
 

@@ -62,13 +62,30 @@ namespace StackExchange.Redis
     /// <i>before</i> that exists, and <see cref="RespClusterState.Unknown"/> is deletable once it does.
     /// </para>
     /// <para>
-    /// <b>And the cost of a redirect is not just a round trip - it is ordering.</b> Within one connection
-    /// order is preserved by construction: one FIFO queue, replies matched in sequence. A redirected
-    /// command leaves that queue and joins a different one, so its position relative to everything issued
-    /// after it is lost. A caller that issues <c>INCR k</c> then <c>GET k</c> can have the <c>GET</c> land
-    /// on the owning node and complete while the <c>INCR</c> is still being bounced to it - and read the
-    /// value from before its own write. That is not a slow path, it is a wrong answer, and it is the
-    /// strongest argument for knowing the slot before the command is sent rather than after.
+    /// <b>The redirect cost is ordering, but only at the boundary.</b> The blunt version of this claim -
+    /// "a redirect loses ordering" - is wrong, and it is worth writing down why. If a redirect is handled
+    /// <i>in the IO loop</i>, in reply order, then commands that were redirected <i>together</i> keep
+    /// their order: they were sent to the wrong node in order, that node answers <c>-MOVED</c> to each in
+    /// that same order, and re-enqueueing as the replies arrive puts them on the new connection in the
+    /// caller's original order. (Resubmitting from arbitrary threads would lose it even here, so "in the
+    /// IO loop" is doing real work in that sentence.)
+    /// </para>
+    /// <para>
+    /// What genuinely inverts is the <b>mixed</b> case, which is exactly the discovery boundary: one
+    /// command issued while the topology was unknown takes the slow path - wrong node, redirect, new
+    /// connection - while the next, issued a moment later with the answer in hand, goes straight to the
+    /// owner. A caller issuing <c>INCR k</c> then <c>GET k</c> across that boundary can have the
+    /// <c>GET</c> complete while the <c>INCR</c> is still in flight, and read the value from before its
+    /// own write.
+    /// </para>
+    /// <para>
+    /// <b>What keeps this design out of that case is an invariant, and it should be stated rather than
+    /// relied on quietly:</b> <see cref="RespClusterState.Unknown"/> means no connection has reported
+    /// yet, which in practice means there is no connection - so commands issued then are <i>backlogged,
+    /// not sent</i>, and drain in arrival order once the topology is known and their speculative slots
+    /// become meaningful. No redirect, no inversion. The invariant breaks if a connection is ever brought
+    /// up and used while its server type is still unset, so whoever owns an endpoint must set the topology
+    /// as part of bringing a connection up, <b>before</b> draining the backlog.
     /// </para>
     /// </remarks>
     internal sealed class RespTopology
