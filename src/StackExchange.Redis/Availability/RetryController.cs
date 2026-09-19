@@ -80,9 +80,10 @@ internal sealed class RetryController
     public bool CanEverRetry(CommandFlags flags) => _maxAttempts > 1 && !IsVetoed(flags);
 
     /// <summary>
-    /// Whether the command's own category forbids replay outright, whatever the policy thinks.
+    /// Whether the command itself forbids replay, whatever the policy thinks.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <b>The caller's veto, and it outranks the policy.</b> <c>CommandRetryNever</c> means the command
     /// must not be replayed - either because this library categorised it that way or because the caller
     /// said so with <c>WithRetryCategory</c> - so asking a policy whether it would like to is asking the
@@ -90,9 +91,28 @@ internal sealed class RetryController
     /// returned <see cref="RetryResult.None"/>; hoisting it here makes it a property of the <i>controller</i>
     /// rather than of one policy implementation, so an override cannot quietly lose it - and lets the
     /// decision be taken before a send rather than only after a fault.
+    /// </para>
+    /// <para>
+    /// <b>Fire-and-forget is the second veto, and it is about intent rather than safety.</b> Retry exists
+    /// to improve an outcome somebody is waiting for; <see cref="CommandFlags.FireAndForget"/> declares
+    /// that nobody is. Replaying one cannot be observed to have helped, and the cost - a backoff delay
+    /// added to a call advertised as returning immediately - is observable. <c>RespBatchExecutor</c> makes
+    /// the same point structurally: a fire-and-forget command there is answered <i>before</i> it is sent,
+    /// so by the time anything could fail there is no longer anybody to tell.
+    /// </para>
+    /// <para>
+    /// <b>Today this changes nothing, and that is worth knowing rather than discovering.</b> A
+    /// fire-and-forget message has no result box, so <c>ConnectionMultiplexer.ThrowFailed</c> swallows its
+    /// write failure and <c>ExecuteAsyncImpl</c> ignores the <c>WriteResult</c> on the synchronous path -
+    /// a fire-and-forget send cannot fault, so no retry loop ever engages for one. This says so out loud
+    /// instead of depending on it: an executor that did start faulting them would otherwise quietly begin
+    /// adding retry delays to the one call shape chosen for not having any.
+    /// </para>
     /// </remarks>
     private static bool IsVetoed(CommandFlags flags)
     {
+        if ((flags & CommandFlags.FireAndForget) != 0) return true;
+
         var category = flags & Message.MaskRetryCategory;
         return category is 0 or CommandFlags.CommandRetryNever;
     }

@@ -141,11 +141,12 @@ public class RetryPolicy
     /// <remarks>
     /// <b>Not consulted at all when the command's retry category is
     /// <see cref="CommandFlags.CommandRetryNever"/></b>, nor when it carries no category (which is read as
-    /// the same thing). That is the caller's veto rather than a policy question - the command must not be
-    /// replayed, so whether a policy would like to is moot - and it is applied before this is reached, so
-    /// an override cannot lose it and a retrying sender can decline before sending rather than only after
-    /// a fault. Everything else, including how much side effect is tolerable and whether a given fault is
-    /// transient, is this method's to decide.
+    /// the same thing), nor when it is <see cref="CommandFlags.FireAndForget"/>. Those are the caller's
+    /// vetoes rather than policy questions - the command must not be replayed, or nobody is waiting on the
+    /// outcome to improve - and they are applied before this is reached, so an override cannot lose them
+    /// and a retrying sender can decline before sending rather than only after a fault. Everything else,
+    /// including how much side effect is tolerable and whether a given fault is transient, is this
+    /// method's to decide.
     /// </remarks>
     public virtual RetryResult CanRetry(in FaultContext fault)
     {

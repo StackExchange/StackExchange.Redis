@@ -240,6 +240,35 @@ public class RespRetryExecutorTests
         Assert.Equal(2, executor.Sent.Count);
     }
 
+    /// <summary>
+    /// Fire-and-forget is not retried, because nobody is waiting for the outcome to improve.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Retry exists to improve an outcome somebody is waiting for. A replayed fire-and-forget cannot be
+    /// observed to have helped, and the cost - a backoff delay on a call advertised as returning
+    /// immediately - can. <c>RespBatchExecutor</c> makes the same point structurally: a fire-and-forget
+    /// there is answered before it is sent, so nothing that fails afterwards has anybody to tell.
+    /// </para>
+    /// <para>
+    /// <b>Against the real pipeline this changes nothing</b>, which is exactly why it is asserted here
+    /// rather than assumed: a fire-and-forget message has no result box, so
+    /// <c>ConnectionMultiplexer.ThrowFailed</c> swallows its write failure and nothing ever faults. The
+    /// fake below does fault one, which is the only way to show the veto is real - and the only way a
+    /// future executor that started faulting them would be caught quietly adding delays.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task FireAndForgetIsNotRetried()
+    {
+        var executor = new FlakyExecutor(failures: 1);
+
+        await Assert.ThrowsAsync<RedisConnectionException>(
+            async () => await Target(executor, Fast(5)).Strings.GetAsync("k", CommandFlags.FireAndForget));
+
+        Assert.Single(executor.Sent);
+    }
+
     [Fact]
     public void RetryCannotBeNested()
     {

@@ -2962,6 +2962,21 @@ Four consequences, none of them cosmetic:
       categorised `CommandRetryNever` no longer can. That category means "the caller said do not replay
       this", so the policy was answering a question that was not its to answer.
 
+      **Fire-and-forget is vetoed too.** Marc: *"this also prompts a philosophical question about F+F and
+      the retry executor; should it veto?"* Yes, on intent: retry exists to improve an outcome somebody is
+      waiting for, and `FireAndForget` declares nobody is. A replayed one cannot be observed to have
+      helped; the backoff delay it adds to a call advertised as returning immediately can.
+      `RespBatchExecutor` makes the same point structurally - a fire-and-forget there is answered *before*
+      it is sent, so nothing failing afterwards has anybody to tell.
+
+      **Against the real pipeline this changes nothing, which is the interesting part.** A fire-and-forget
+      message has no result box, so `ConnectionMultiplexer.ThrowFailed` swallows its write failure and
+      `ExecuteAsyncImpl` ignores the `WriteResult` on the synchronous path: a fire-and-forget send *cannot
+      fault*, so no retry loop was ever engaging for one. The veto says so out loud instead of depending
+      on it - an executor that started faulting them would otherwise quietly begin adding retry delays to
+      the one call shape chosen for not having any. `FireAndForgetIsNotRetried` faults one through a fake,
+      which is the only way to show the veto is real.
+
       **`RetryDatabase.Context` now works**, where it used to throw: it decorates the inner executor and
       shares the controller *and* `GetNextFailover`, so the context path gets failover too. A retrying
       **transaction** still refuses, and for a reason of its own - a transaction is replayed as a unit, and
