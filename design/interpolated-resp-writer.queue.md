@@ -3040,7 +3040,23 @@ Four consequences, none of them cosmetic:
       (`SwitchableBufferedStreamWriter`) across the same TFM set, so it is available down-level too. That
       would take a queued command - awaited or not - to one allocation and no task at all.
 
-- [ ] **The batch executor: pipelines, does not yet batch.** Raised 2026-09-19, with `RespBatchExecutor`.
+- [x] **A cluster batch groups by SLOT, and that is the answer rather than a step towards one —
+      2026-09-19.** Marc spotted that the grouping needs nothing from the topology: a request already
+      carries the slot it folded while being written, and `RespRequestBuilder` only folds one when the
+      context is a cluster - so outside cluster everything is `NoSlot`, one group, one run, and the
+      grouping costs a comparison per command.
+
+      It was written up as a compromise against grouping per *node* (fewer, larger runs, as the shipped
+      `RedisBatch.Execute` does per bridge). **That is backwards**, and Marc said why: grouping by server
+      *races a reshard*. The slot-to-node map can move between assembling the group and writing it, so a
+      run built for one node may no longer belong there. A slot is a property of the keys rather than of
+      the topology, so a group built from slots stays true however the cluster rearranges itself. Finer
+      splitting is the price and it is the cheap half of the trade.
+
+      Worth knowing rather than copying: the shipped batch has that race, because it selects a server per
+      message at `Execute` and enqueues per bridge.
+
+- [x] **The batch executor writes one run — DONE, 2026-09-19.** Was: pipelines, does not yet batch.
 
       `ExecuteAsync` issues every queued send before awaiting any of them, so the run travels without
       waiting for itself - but they are separate messages, and another caller's command may land between

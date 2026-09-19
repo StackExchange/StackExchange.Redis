@@ -348,6 +348,67 @@ public class RespBatchExecutorTests
         Assert.Equal("c", (string?)await third);
     }
 
+    /// <summary>
+    /// A cluster batch touching several slots becomes one run per slot.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A run must resolve to a single slot, so a multi-slot batch cannot be one write - and grouping needs
+    /// nothing from the topology: the request already carries the slot it folded while being written. The
+    /// three keys here use hash tags, so two of them share a slot and the third does not.
+    /// </para>
+    /// <para>
+    /// Grouping is by <b>slot</b>, not node, so this over-splits compared with the shipped batch - many
+    /// slots live on one server. Correct without asking anything about the topology, which is the trade;
+    /// grouping by node needs the multiplexer.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AClusterBatchIsSplitPerSlot()
+    {
+        var executor = new RunExecutor("$1\r\na\r\n");
+        var context = new RespDatabaseContext(
+            new RespContext(serverType: ServerType.Cluster).WithExecutor(executor));
+        using var batch = context.CreateBatch();
+
+        var first = batch.Context.Strings.GetAsync("{x}:1");
+        var second = batch.Context.Strings.GetAsync("{y}:1");
+        var third = batch.Context.Strings.GetAsync("{x}:2");
+
+        await batch.ExecuteAsync();
+
+        // two slots, so two runs - and the {x} pair travelled together, in order
+        Assert.Equal(2, executor.Runs.Count);
+        Assert.Contains(executor.Runs, run => run.Length == 2
+            && run[0] == "*2|$3|GET|$5|{x}:1|" && run[1] == "*2|$3|GET|$5|{x}:2|");
+        Assert.Contains(executor.Runs, run => run.Length == 1 && run[0] == "*2|$3|GET|$5|{y}:1|");
+
+        Assert.Equal("a", (string?)await first);
+        Assert.Equal("a", (string?)await second);
+        Assert.Equal("a", (string?)await third);
+    }
+
+    /// <summary>Outside cluster there are no slots, so there is exactly one run however many keys.</summary>
+    /// <remarks>
+    /// The property that makes the grouping free everywhere it is not needed: <c>RespRequestBuilder</c>
+    /// only folds a slot when the context is a cluster, so a standalone batch is all <c>NoSlot</c> and
+    /// falls in one group.
+    /// </remarks>
+    [Fact]
+    public async Task AStandaloneBatchIsOneRunWhateverTheKeys()
+    {
+        var executor = new RunExecutor("$1\r\na\r\n");
+        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateBatch();
+
+        _ = batch.Context.Strings.GetAsync("{x}:1");
+        _ = batch.Context.Strings.GetAsync("{y}:1");
+        _ = batch.Context.Strings.GetAsync("nohashtag");
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal(3, Assert.Single(executor.Runs).Length);
+    }
+
     /// <summary>The context it was built from is untouched, and still sends immediately.</summary>
     [Fact]
     public async Task TheSourceContextIsNotBatched()

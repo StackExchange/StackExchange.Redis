@@ -47,10 +47,11 @@ namespace StackExchange.Redis
     /// without waiting for each other, but another caller's command may land between two of them.
     /// </para>
     /// <para>
-    /// <b>A run must resolve to a single slot</b>, because one connection means one server - so this does
-    /// not yet do what <c>RedisBatch.Execute</c> does for cluster, which is group per bridge and write a
-    /// run per group. That splitting belongs above this: it needs server selection, which an executor does
-    /// not have. Queued.
+    /// <b>A run must resolve to a single slot</b>, because one connection means one server - so a cluster
+    /// batch is split by slot and written as a run per group. That needs no server selection: a request
+    /// already carries the slot it folded while being written, and one is only folded when the context is
+    /// a cluster, so outside cluster everything is <c>NoSlot</c> and there is exactly one group. Grouping
+    /// by <i>server</i> would give fewer, larger runs and would race a reshard; see <see cref="Dispatch"/>.
     /// </para>
     /// </remarks>
     internal sealed class RespBatchExecutor : IRespExecutor
@@ -143,17 +144,13 @@ namespace StackExchange.Redis
 
             if (_inner is IRespRunExecutor runner)
             {
-                // the contiguous path: one write, nothing of anybody else's between the commands
-                var run = new RespRequest[queue.Count];
-                for (var i = 0; i < queue.Count; i++) run[i] = queue[i].Request;
-
                 try
                 {
-                    _ = runner.SendAsync(run, sends, cancellationToken);
+                    Dispatch(runner, queue, sends, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    // the run is written as a unit, so it fails as one - there is no half-sent state to
+                    // a run is written as a unit, so it fails as one - there is no half-sent state to
                     // reconcile, and every caller gets the same answer
                     foreach (var pending in queue) pending.Fail(ex);
                     foreach (var pending in queue) pending.Release();
@@ -205,6 +202,78 @@ namespace StackExchange.Redis
                 // whatever happened, give back every reference this batch took of its own
                 foreach (var pending in queue) pending.Release();
             }
+        }
+
+        /// <summary>Write the queue as runs - one per slot, which is usually one in total.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Grouping by slot needs no server selection, which is why it can happen here.</b> A request
+        /// already carries the slot it folded while it was being written, and
+        /// <c>RespRequestBuilder</c> only folds one <i>when the context is a cluster</i> - so outside
+        /// cluster every request is <c>NoSlot</c>, they all fall in one group, and this costs a comparison
+        /// per command and nothing else.
+        /// </para>
+        /// <para>
+        /// <b>Slot rather than node, and node would be wrong rather than merely harder.</b> Grouping by
+        /// server gets fewer, larger runs - which is what the shipped <c>RedisBatch.Execute</c> does, per
+        /// bridge - but it races a <b>reshard</b>: the slot-to-node map can move between the grouping and
+        /// the write, and a group assembled for one node is then a run that no longer belongs to it. A
+        /// slot is a property of the keys rather than of the topology, so a group built from slots stays
+        /// true however the cluster rearranges itself underneath. Splitting more finely is the price, and
+        /// it is the cheap half of the trade.
+        /// </para>
+        /// <para>
+        /// <b>Ordering holds within a slot, not across slots</b> - which is the shipped guarantee too: a
+        /// batch spanning bridges has never promised an order between them. Commands that must be ordered
+        /// relative to each other touch the same keys, and so share a slot.
+        /// </para>
+        /// </remarks>
+        private static void Dispatch(
+            IRespRunExecutor runner,
+            List<IPendingSend> queue,
+            ValueTask<RespPayload>[] sends,
+            CancellationToken cancellationToken)
+        {
+            if (IsSingleSlot(queue))
+            {
+                var run = new RespRequest[queue.Count];
+                for (var i = 0; i < queue.Count; i++) run[i] = queue[i].Request;
+                _ = runner.SendAsync(run, sends, cancellationToken);
+                return;
+            }
+
+            // a cluster batch touching more than one slot: one run per slot, and the replies scattered
+            // back into the caller's positions so completion order stays queue order
+            var bySlot = new Dictionary<int, List<int>>();
+            for (var i = 0; i < queue.Count; i++)
+            {
+                var slot = queue[i].Request.Slot;
+                if (!bySlot.TryGetValue(slot, out var indexes)) bySlot.Add(slot, indexes = []);
+                indexes.Add(i);
+            }
+
+            foreach (var group in bySlot.Values)
+            {
+                var run = new RespRequest[group.Count];
+                for (var j = 0; j < group.Count; j++) run[j] = queue[group[j]].Request;
+
+                var replies = new ValueTask<RespPayload>[group.Count];
+                _ = runner.SendAsync(run, replies, cancellationToken);
+
+                for (var j = 0; j < group.Count; j++) sends[group[j]] = replies[j];
+            }
+        }
+
+        /// <summary>Whether the whole queue resolves to one slot, which is always so outside cluster.</summary>
+        private static bool IsSingleSlot(List<IPendingSend> queue)
+        {
+            var slot = queue[0].Request.Slot;
+            for (var i = 1; i < queue.Count; i++)
+            {
+                if (queue[i].Request.Slot != slot) return false;
+            }
+
+            return true;
         }
 
         /// <summary>Fault everything still queued, for a batch that is abandoned rather than executed.</summary>
