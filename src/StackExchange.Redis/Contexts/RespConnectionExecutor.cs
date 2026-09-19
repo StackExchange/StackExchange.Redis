@@ -33,6 +33,25 @@ namespace StackExchange.Redis
     {
         private readonly RespConnection _connection;
 
+        /// <summary>
+        /// Recycled operations, so a steady-state send allocates no operation at all.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A fixed array with <see cref="Interlocked.Exchange{T}(ref T, T)"/> on each slot, rather than a
+        /// queue: a queue allocates a node per operation, which is the thing being removed. Missing the
+        /// pool is not a failure - it allocates, exactly as before - so the pool can be small and lossy.
+        /// </para>
+        /// <para>
+        /// Only operations that reached a <b>definite</b> outcome come back here, because that is the only
+        /// case where the pipeline provably has no further use for the instance; see the pooling policy in
+        /// the design notes. A timeout or a connection fault leaves the instance alone for the GC.
+        /// </para>
+        /// </remarks>
+        private readonly PayloadMessage?[] _pool = new PayloadMessage[PoolSize];
+
+        private const int PoolSize = 64;
+
         internal RespConnectionExecutor(RespConnection connection, int database)
         {
             _connection = connection ?? throw new ArgumentNullException(nameof(connection));
@@ -63,7 +82,7 @@ namespace StackExchange.Redis
 
         private PayloadMessage Dispatch(in RespRequest request, CancellationToken cancellationToken)
         {
-            var operation = new PayloadMessage();
+            var operation = Rent();
 
             // the request's bytes are the caller's until this call completes, so the operation takes its
             // own copy rather than a reference: the connection may still be writing after we return, and
@@ -80,6 +99,28 @@ namespace StackExchange.Redis
             return operation;
         }
 
+        private PayloadMessage Rent()
+        {
+            var pool = _pool;
+            for (var i = 0; i < pool.Length; i++)
+            {
+                if (Interlocked.Exchange(ref pool[i], null) is { } reused) return reused;
+            }
+
+            return new PayloadMessage(this);
+        }
+
+        private void Return(PayloadMessage operation)
+        {
+            var pool = _pool;
+            for (var i = 0; i < pool.Length; i++)
+            {
+                if (Interlocked.CompareExchange(ref pool[i], operation, null) is null) return;
+            }
+
+            // pool full; drop it, which is why this is lossy by design rather than by accident
+        }
+
         /// <summary>An operation whose result is the reply frame itself.</summary>
         /// <remarks>
         /// <para>
@@ -94,9 +135,17 @@ namespace StackExchange.Redis
         /// of the receive buffer instead is a real win and a separate piece of work.
         /// </para>
         /// </remarks>
-        private sealed class PayloadMessage : RespMessageBase<RespPayload>
+        private sealed class PayloadMessage(RespConnectionExecutor owner) : RespMessageBase<RespPayload>
         {
             private CommandFlags _flags;
+
+            /// <inheritdoc/>
+            /// <remarks>
+            /// Called only after a definite outcome has been consumed, with the instance already reset and
+            /// its version moved on - so anything still holding the old token is locked out before this
+            /// hands the instance to the next caller.
+            /// </remarks>
+            protected override void OnRecyclable() => owner.Return(this);
 
             internal void Attach(ReadOnlySpan<byte> request, CommandFlags flags, CancellationToken cancellationToken)
             {

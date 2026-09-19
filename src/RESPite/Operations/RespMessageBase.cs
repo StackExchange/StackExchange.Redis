@@ -86,6 +86,16 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         _parseFlags = ToFlags(options);
         _state = Pack(_asyncCore.Version, _parseFlags);
+
+        // Continuations are QUEUED, not run inline, and this is a correctness decision rather than a
+        // tuning one. The thread that publishes an outcome is the connection's read loop; running a
+        // caller's continuation on it means arbitrary user code - a database call, a lock, a Thread.Sleep -
+        // sits in front of every other reply on that connection. That is head-of-line blocking for
+        // everyone sharing the socket, which is the whole point of multiplexing.
+        //
+        // It is also what the existing core already does: every ResultBox completes with
+        // RunContinuationsAsynchronously. This is not a new position, just the same one restated.
+        _asyncCore.RunContinuationsAsynchronously = true;
     }
 
     private static int ToFlags(RespParseOptions options)
@@ -366,31 +376,53 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     private bool Complete(TResponse response, bool definite)
     {
+        var pulse = Mark(definite);
         _asyncCore.SetResult(response);
-        Finish(definite);
+        Pulse(pulse);
         return true;
     }
 
     private bool Fail(Exception exception, bool definite)
     {
+        var pulse = Mark(definite);
         _asyncCore.SetException(exception);
-        Finish(definite);
+        Pulse(pulse);
         return true;
     }
 
-    private void Finish(bool definite)
+    /// <summary>
+    /// Record how this life ended, <b>before</b> the outcome is published.
+    /// </summary>
+    /// <returns>Whether a synchronous waiter still needs waking.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The ordering here is the whole of it, and getting it wrong is silent.</b> Publishing the
+    /// outcome can run an awaiting continuation <i>inline</i> - that is what
+    /// <c>ManualResetValueTaskSourceCore.SetResult</c> does when a continuation is already registered -
+    /// and that continuation calls <see cref="GetResult"/>, which reads <see cref="IsRecyclable"/> and
+    /// then <see cref="Reset"/>s. So anything recorded after publishing is recorded too late to be read,
+    /// and worse, lands on the instance's <i>next</i> life.
+    /// </para>
+    /// <para>
+    /// The first version marked afterwards. Nothing failed: every test passed, the results were correct,
+    /// and the only symptom was that pooling never engaged - <c>IsRecyclable</c> was false at every
+    /// single <c>GetResult</c>, so an executor's pool took 0 hits out of 56,642 sends. It was found by
+    /// benchmarking allocations, not by testing behaviour.
+    /// </para>
+    /// </remarks>
+    private bool Mark(bool definite)
     {
-        // read the pulse state BEFORE marking complete: a waiter that arrives after this has to see
-        // Flag_Complete and not block, and one that arrived before has to be woken
         var pulse = !HasFlag(Flag_NoPulse);
         SetFlag(definite ? (Flag_Complete | Flag_NoPulse) : (Flag_Complete | Flag_NoPulse | Flag_Indefinite));
+        return pulse;
+    }
 
-        if (pulse)
+    private void Pulse(bool pulse)
+    {
+        if (!pulse) return;
+        lock (this)
         {
-            lock (this)
-            {
-                Monitor.PulseAll(this);
-            }
+            Monitor.PulseAll(this);
         }
     }
 
@@ -441,23 +473,18 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// <inheritdoc/>
     public TResponse Wait(short token, TimeSpan timeout)
     {
-        switch (Volatile.Read(ref _state) & (Flag_Complete | Flag_Sent))
-        {
-            case Flag_Sent:
-                break; // the expected case: sent, still pending
-            case Flag_Complete | Flag_Sent:
-            case Flag_Complete:
-                return GetResult(token);
-            default:
-                ThrowNotSent();
-                break;
-        }
+        // the CORE's status, not Flag_Complete: the flag is now set before the outcome is published, so
+        // a waiter that trusted it could call GetResult on a core that has nothing in it yet
+        if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending) return GetResult(token);
+        if (!HasFlag(Flag_Sent)) ThrowNotSent();
 
         CheckToken(token);
         var timedOut = false;
         lock (this)
         {
-            switch (Volatile.Read(ref _state) & (Flag_Complete | Flag_NoPulse))
+            switch (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending
+                ? Flag_Complete
+                : Volatile.Read(ref _state) & Flag_NoPulse)
             {
                 case 0:
                     // the expected branch: not complete, and whoever completes it will pulse
