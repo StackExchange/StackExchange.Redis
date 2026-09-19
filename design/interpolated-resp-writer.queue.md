@@ -2975,6 +2975,49 @@ Four consequences, none of them cosmetic:
       that.
 
 
+- [ ] **The batch executor: pipelines, does not yet batch.** Raised 2026-09-19, with `RespBatchExecutor`.
+
+      `ExecuteAsync` issues every queued send before awaiting any of them, so the run travels without
+      waiting for itself - but they are separate messages, and another caller's command may land between
+      two of them. The shipped `RedisBatch.Execute` gets contiguity by grouping `Message`s per bridge and
+      calling `SetNoFlush()` on all but the last of each group, then `TryEnqueue`ing the group as a unit.
+      That needs the messages rather than the frames, so the route is either an `IRespBatchExecutor`
+      face on `RespMessageExecutor` that takes a run of requests, or a batch context whose target is a
+      `RedisBatch` (which already works, and is what `ATransactionContextQueuesInsteadOfSending` exercises
+      for the transaction case).
+
+      Also open, both small: **fire-and-forget in a batch** completes at execute here, where the shipped
+      batch completes it immediately; and the **public trigger** is undecided - `await using` that executes
+      on leaving would read better than an explicit call, and that is a decision rather than a translation.
+
+- [x] **The batch executor needs no generics — DONE, 2026-09-19.** Marc sketched
+      `abstract class Foo : IUntypedHandler` plus `Foo<T>(ITypedHandler<T>) : TaskCompletionSource<T>`, so
+      that the flush loop could send each element without reference to its type and the typed half could
+      proxy the result out.
+
+      **The type erasure is already done, one layer lower.** `IRespExecutor` deals in `RespPayload`: the
+      `IRespHandler<T>` that turns a payload into a `T` is applied by `RespExecutor.AwaitUncached`, above
+      the executor and after it has handed the payload back. So a queued command needs a
+      `TaskCompletionSource<RespPayload>` and nothing else - no base class, no type parameter, no proxy.
+      (The sketch as written could not have compiled anyway: a class cannot derive from both an abstract
+      base and `TaskCompletionSource<T>`.)
+
+      The good half of the sketch is kept: the pending entry **is** the completion source rather than
+      holding one, so a queued command costs a single allocation.
+      `TaskCreationOptions.RunContinuationsAsynchronously` is load-bearing - without it, executing a batch
+      of a thousand would run all thousand callers' continuations inline on the flushing thread.
+
+- [x] **The request-lifetime contract, stated — 2026-09-19.** Two features in a row asked the same
+      question, so it is worth having an answer rather than a case analysis:
+
+      > **An executor may use a request until the task it returned completes, and no longer.** The caller
+      > holds exactly one reference and releases it then.
+
+      That is why neither retry nor batch needs to retain: a retry's task completes after the last attempt,
+      and a batched send's completes after execute, which is after the bytes were written. The one path
+      that completes *before* the bytes are used is fire-and-forget - which is precisely why
+      `FrameMessage` copies for that case and only that case.
+
 - [ ] **Should the existing `ResultProcessor` path copy too?** (§6.16). Sharing there is *correct* — it is
       single-owner — so this is a policy change, not a fix, and it would strand `TryReservePayload`,
       `IPayloadReservationProvider` and `PayloadReservation` as dead code now that `ReadLease` (read-only)
