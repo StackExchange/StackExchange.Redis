@@ -425,9 +425,9 @@ Four consequences, none of them cosmetic:
       faster in isolation and 8% *slower* in the real path). The only trustworthy route is to prototype the
       memoisation and re-run `CacheHitSendBenchmarks`, which measures a whole operation.
 
-- [ ] **`TransitionalDatabase`: 43 unimplemented members — status, 2026-09-19.** 106 at the start of
-      2026-09-18, then 71; now **36** generated (the SER352 number) plus **7 hand-written members that
-      forward to the legacy fallback**, which SER352 cannot see. Marc spotted that class of gap:
+- [ ] **`TransitionalDatabase`: 19 unimplemented members — status, 2026-09-19.** 106 at the start of
+      2026-09-18, then 71, then 43; now **12** generated (the SER352 number) plus **7 hand-written members
+      that forward to the legacy fallback**, which SER352 cannot see. Marc spotted that class of gap:
       *"make sure we add scans to the list, because I think we're cheating on that"*.
 
       **Why the hand-written ones are invisible.** `[AutoDatabase]`'s `SkipMethod` drops every
@@ -442,21 +442,25 @@ Four consequences, none of them cosmetic:
       enumerable half - it sweeps those members by reflection, asserts each still throws, and pins the
       count, so implementing one forces the number to be updated.
 
-      | family | members | what is left |
-      |---|---|---|
-      | Streams | 18 | multi-stream `XREAD` x4 / `XREADGROUP` x8, and `XINFO` STREAM/GROUPS/CONSUMERS x6 |
-      | one-offs | 10 | `ArrayGrep`, `HashImport`, `Ping`, `Publish`, `StringGetWithExpiry` - a pair each |
-      | Execute | 4 | the legacy `Execute(string, object[])` pair; `RedisResultHandler` now exists, so this is a rendering problem, not a parsing one |
-      | Locks | 4 | `LockRelease`, `LockExtend` - blocked on a transaction surface over the context |
-      | **Batch/transaction** | **2** | `CreateBatch`, `CreateTransaction` - *uncounted by SER352* |
-      | **Endpoint identity** | **3** | `IsConnected`, `IdentifyEndpoint`, `IdentifyEndpointAsync` - *uncounted* |
-      | **VectorSetRangeEnumerate** | **2** | keyset pagination over VRANGE, not a cursor scan - *uncounted* |
+      **Everything that is left has unusual routing or unusual semantics**, which is the line Marc drew on
+      2026-09-19: *"the stream, execute, and anything else that doesn't have unusual routing / semantics
+      (transactions, batch, identity, etc): I have a plan for those"*. So this list is now waiting on that
+      plan rather than on effort.
 
-      The cursor scans came off this list on 2026-09-18 (`HashScan` x3, `SetScan` x3, `SortedSetScan` x3,
-      `HashScanNoValues` x2 - they route to `RespScanEnumerable` now, dual-faced so either cast works), and
-      so did `Scripts` x12 and `Keys` x4. `VectorSetRangeEnumerate` stayed behind because it is not a
-      cursor scan and needs none of that machinery: the shipped code says so outright - *"intentionally not
-      using scan naming in case a VSCAN command is added later"*.
+      | family | members | why it is still here |
+      |---|---|---|
+      | Locks | 4 | `LockRelease`, `LockExtend` - WATCH/MULTI, so they need a transaction over the context |
+      | **Batch/transaction** | **2** | `CreateBatch`, `CreateTransaction` - the same blocker, *uncounted by SER352* |
+      | **Endpoint identity** | **3** | `IsConnected`, `IdentifyEndpoint`, `IdentifyEndpointAsync` - server selection from a context, *uncounted* |
+      | Publish | 2 | routes to `multiplexer.GetSubscribedServer(channel)`; the executor has no per-call server hint, and only `RespServerContext` pins one |
+      | HashImport | 2 | `HIMPORT` needs its `PREPARE` injected on the same physical connection, like `SELECT` - and is refused inside `MULTI` for the same reason |
+      | StringGetWithExpiry | 2 | ONE message that writes `GET` **and** `PTTL`/`TTL`, with a processor that reads both replies; it is a pair, not a frame, and it refuses inside a batch |
+      | Ping | 2 | the duration is measured from `TimerMessage.StartedWritingTimestamp`, inside the write path - a frame has no equivalent hook, and measuring around the send instead would report a different thing |
+      | **VectorSetRangeEnumerate** | **2** | keyset pagination over `VRANGE`, not a cursor scan - *uncounted* |
+
+      Done on 2026-09-19: the **stream family** (multi-stream `XREAD` x4 / `XREADGROUP` x8, `XINFO`
+      STREAM/GROUPS/CONSUMERS x6), the **`Execute` family** (the `object`-argument pair and their async
+      twins), and **`ARGREP`**. Done on 2026-09-18: the cursor scans, `Scripts` x12, `Keys` x4.
 
 - [x] **The `Interpolated/` folder is gone — DONE, 2026-09-18.** Marc: *"we shouldn't have anything left
       in there by the end of this"*. The namespace went several commits ago; the folder name was the last
