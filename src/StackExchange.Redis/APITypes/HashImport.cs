@@ -134,6 +134,20 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
         writer.WriteBulkString(name);
     }
 
+    /// <summary>The same opaque name, written through the interpolated builder.</summary>
+    /// <remarks>
+    /// A second spelling rather than a shared one, as <c>ArrayGrepRequest</c>'s predicates are: the two
+    /// writers have no common interface. The bytes are identical by construction - both blit the same
+    /// <see cref="long"/> - which is the property that matters, since the name is what ties a
+    /// <c>PREPARE</c>, its <c>SET</c>s and its <c>DISCARD</c> together.
+    /// </remarks>
+    internal void WriteName(scoped ref Protocol.RespRequestBuilder handler)
+    {
+        Span<byte> name = stackalloc byte[8];
+        Unsafe.WriteUnaligned(ref name[0], _id);
+        handler.AppendFormatted(name);
+    }
+
     // rejects use of a disposed field-set before anything is sent; a disposed field-set may already have been DISCARDed
     // on the server, so a SET against it would silently mis-behave (and would never be cleaned up).
     internal void ThrowIfDisposed()

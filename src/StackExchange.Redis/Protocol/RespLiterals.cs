@@ -427,6 +427,14 @@ namespace StackExchange.Redis
         [Resp("STREAMS")]
         internal static partial RespFragment StreamsKeyword { get; }
 
+        /// <summary>The <c>PREPARE</c> subcommand of <c>HIMPORT</c>; a field-set name and its fields follow it.</summary>
+        [Resp("PREPARE")]
+        internal static partial RespFragment Prepare { get; }
+
+        /// <summary>The <c>SET</c> subcommand of <c>HIMPORT</c>; a key, a field-set name and values follow it.</summary>
+        [Resp("SET")]
+        internal static partial RespFragment SetKeyword { get; }
+
         /// <summary>The <c>EXACT</c> predicate of <c>ARGREP</c>; a value follows it.</summary>
         [Resp("EXACT")]
         internal static partial RespFragment Exact { get; }

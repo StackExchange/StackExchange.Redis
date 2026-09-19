@@ -92,20 +92,72 @@ public class TransitionalDatabaseTests
     }
 
     /// <summary>
-    /// The streaming members are hand-written, and this is what stops that becoming "forgotten".
+    /// <c>HIMPORT</c> is a pair: a <c>PREPARE</c> that declares the field-set, then the <c>SET</c>.
     /// </summary>
     /// <remarks>
-    /// <c>[AutoDatabase]</c> skips them by category, so the generator neither writes them nor counts them
-    /// in SER352. The cursor scans have since moved to the context surface - <c>TransitionalScanGapTests</c>
-    /// covers those - and what is left in this family is the vector-set enumerate, which is not a cursor
-    /// scan at all.
+    /// <para>
+    /// <b>The gate is not exercised here, and cannot be.</b> It answers "has THIS connection prepared
+    /// this field-set?", and a fake executor has no connection - so this takes
+    /// <c>RespExecutor.AwaitPair</c>'s sequential fallback, which sends both and consults nothing. What
+    /// that still pins is the part a fake can see: two frames, in that order, with the same opaque
+    /// field-set name in both. The name is what ties a <c>PREPARE</c> to its <c>SET</c>s, so a rendering
+    /// that disagreed about it would produce a server error on every import.
+    /// </para>
+    /// <para>
+    /// The name is the field-set's id blitted to eight bytes, so it differs per field-set and cannot be
+    /// asserted literally; that both frames carry the same one is the property that matters.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void AnUnmovedStreamingCommandThrowsToo()
+    public void HashImportSendsThePrepareAndThenTheSet()
     {
+        using var fieldSet = HashImport.Create("f1", "f2");
+        var executor = new FakeExecutor("+OK\r\n");
+        var db = Target(executor);
+
+        db.HashImport("k", fieldSet, new RedisValue[] { "v1", "v2" });
+
+        Assert.Equal(2, executor.Sent.Count);
+        var prepare = executor.Sent[0];
+        var set = executor.Sent[1];
+
+        Assert.StartsWith("*5|$7|HIMPORT|$7|PREPARE|$8|", prepare);
+        Assert.EndsWith("|$2|f1|$2|f2|", prepare);
+
+        Assert.StartsWith("*6|$7|HIMPORT|$3|SET|$1|k|$8|", set);
+        Assert.EndsWith("|$2|v1|$2|v2|", set);
+
+        // the same eight-byte name in both, which is the whole of what makes them a pair
+        Assert.Equal(NameOf(prepare, "$7|PREPARE|$8|"), NameOf(set, "$1|k|$8|"));
+
+        // the id is a counter blitted to eight bytes, so its upper bytes are zero and none of them is a
+        // '|' - which is what lets this split on the separator the executor substituted for CRLF
+        static string NameOf(string frame, string after)
+        {
+            var start = frame.IndexOf(after, StringComparison.Ordinal) + after.Length;
+            return frame.Substring(start, frame.IndexOf('|', start) - start);
+        }
+    }
+
+    /// <summary>The counts have to line up, and saying so beats a server error.</summary>
+    [Fact]
+    public void HashImportDemandsAValuePerField()
+    {
+        using var fieldSet = HashImport.Create("f1", "f2");
         var db = Target(new FakeExecutor("+OK\r\n"));
 
-        Assert.Throws<NotImplementedException>(() => db.VectorSetRangeEnumerate("k"));
+        Assert.Throws<ArgumentException>(() => db.HashImport("k", fieldSet, new RedisValue[] { "v1" }));
+    }
+
+    /// <summary>A disposed field-set may already have been discarded on the server.</summary>
+    [Fact]
+    public void HashImportRefusesADisposedFieldSet()
+    {
+        var fieldSet = HashImport.Create("f1");
+        fieldSet.Dispose();
+        var db = Target(new FakeExecutor("+OK\r\n"));
+
+        Assert.Throws<ObjectDisposedException>(() => db.HashImport("k", fieldSet, new RedisValue[] { "v1" }));
     }
 
     /// <summary>The two lock members that moved are the commands they always were.</summary>

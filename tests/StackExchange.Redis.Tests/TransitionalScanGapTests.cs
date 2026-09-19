@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -11,7 +11,7 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
-/// The cursor scans on <see cref="IDatabase"/>, which SER352 cannot see.
+/// The deferred-execution members on <see cref="IDatabase"/>, which SER352 cannot see.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -64,27 +64,124 @@ public class TransitionalScanGapTests
     [Fact]
     public void TheScanFamilyIsThisBig() => Assert.Equal(13, ScanMembers().Count());
 
+    /// <summary>Nothing in the uncounted family forwards to the fallback any more.</summary>
+    /// <remarks>
+    /// The whole reason this file exists, now asserted positively rather than by listing what still
+    /// throws: every member here is invoked with its defaults against a fake executor, and reaching a
+    /// <see cref="NotImplementedException"/> means it took the fallback - which has no database to
+    /// forward to - rather than the context surface. The vector-set enumerates were the last two.
+    /// </remarks>
+    [Fact]
+    public void NothingInTheScanFamilyStillForwards()
+    {
+        var unmoved = new List<string>();
+        foreach (var method in ScanMembers())
+        {
+            var args = method.GetParameters()
+                .Select(p => p.HasDefaultValue ? p.DefaultValue : Activator.CreateInstance(p.ParameterType))
+                .ToArray();
+
+            try
+            {
+                // the sequences are lazy, so this only proves the CALL does not throw - which is exactly
+                // what a forwarding member does, before anything is enumerated
+                method.Invoke(Target(Page(0)), args);
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException is NotImplementedException)
+            {
+                unmoved.Add(method.Name);
+            }
+        }
+
+        Assert.Empty(unmoved);
+    }
+
     /// <summary>
-    /// What is still deferred: the vector-set enumerates, which are not cursor scans at all.
+    /// The vector-set walk is keyset paging, and pages by the last member it saw.
     /// </summary>
     /// <remarks>
-    /// They are keyset pagination over <c>VRANGE</c> - the shipped code says it avoids "scan" naming "in
-    /// case a VSCAN command is added later" - so they need none of the cursor machinery and were not moved
-    /// with it. They are in this list only because they happen to return <see cref="IEnumerable{T}"/> and
-    /// so fall in the same skipped bucket.
+    /// <para>
+    /// Not a cursor scan - the shipped code avoids "scan" naming <i>"in case a VSCAN command is added
+    /// later"</i> - so there is no cursor in the reply to follow. The next page is asked for from the last
+    /// member with the start excluded, which is why the second request carries <c>(b</c> rather than
+    /// <c>[b</c>: an inclusive re-ask would yield <c>b</c> twice.
+    /// </para>
+    /// <para>
+    /// A short page ends the walk without a further round trip, which is what the third reply being
+    /// unnecessary demonstrates.
+    /// </para>
     /// </remarks>
-    [Theory]
-    [InlineData(nameof(IDatabase.VectorSetRangeEnumerate))]
-    [InlineData(nameof(IDatabaseAsync.VectorSetRangeEnumerateAsync))]
-    public void TheVectorSetEnumeratesStillThrow(string name)
+    [Fact]
+    public void TheVectorSetWalkPagesByTheLastMember()
     {
-        var method = ScanMembers().Single(m => m.Name == name);
-        var args = method.GetParameters()
-            .Select(p => p.HasDefaultValue ? p.DefaultValue : Activator.CreateInstance(p.ParameterType))
-            .ToArray();
+        var executor = new RecordingExecutor(Flat("a", "b"), Flat("c"));
+        IDatabase db = new TransitionalDatabase(
+            new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
-        var ex = Assert.Throws<TargetInvocationException>(() => method.Invoke(Target(Page(0)), args));
-        Assert.IsType<NotImplementedException>(ex.InnerException);
+        Assert.Equal(
+            ["a", "b", "c"],
+            db.VectorSetRangeEnumerate("k", count: 2).Select(v => v.ToString()));
+
+        Assert.Equal(
+            [
+                "*5|$6|VRANGE|$1|k|$1|-|$1|+|$1|2|",   // the first page: both bounds open
+                "*5|$6|VRANGE|$1|k|$2|(b|$1|+|$1|2|", // resumed from the last member, exclusively
+            ],
+            executor.Sent);
+    }
+
+    /// <summary>Reaching the requested end stops without asking for a page that could only be empty.</summary>
+    [Fact]
+    public void TheVectorSetWalkStopsAtTheEndBound()
+    {
+        var executor = new RecordingExecutor(Flat("a", "b"));
+        IDatabase db = new TransitionalDatabase(
+            new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
+
+        Assert.Equal(["a", "b"], db.VectorSetRangeEnumerate("k", end: "b", count: 2).Select(v => v.ToString()));
+        Assert.Single(executor.Sent); // a full page, but it ended ON the bound
+    }
+
+    /// <summary>The asynchronous face walks the same way.</summary>
+    [Fact]
+    public async Task TheVectorSetWalkIsAlsoAsynchronous()
+    {
+        var executor = new RecordingExecutor(Flat("a", "b"), Flat("c"));
+        IDatabase db = new TransitionalDatabase(
+            new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
+
+        var seen = new List<string>();
+        await foreach (var item in db.VectorSetRangeEnumerateAsync("k", count: 2)) seen.Add(item.ToString());
+
+        Assert.Equal(["a", "b", "c"], seen);
+        Assert.Equal(2, executor.Sent.Count);
+    }
+
+    /// <summary>A flat array reply, which is what <c>VRANGE</c> answers.</summary>
+    private static string Flat(params string[] items)
+    {
+        var sb = new StringBuilder($"*{items.Length}\r\n");
+        foreach (var item in items) sb.Append($"${item.Length}\r\n{item}\r\n");
+        return sb.ToString();
+    }
+
+    /// <summary>As <see cref="PageExecutor"/>, but remembers what it was asked.</summary>
+    private sealed class RecordingExecutor(params string[] replies) : IRespExecutor
+    {
+        private int _next;
+
+        public List<string> Sent { get; } = [];
+
+        public int Database => 0;
+
+        public RespPayload Send(in RespRequest request)
+        {
+            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
+            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
+        }
+
+        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+            => new(Send(request));
     }
 
     /// <summary>And the four that have moved really do read through the context surface.</summary>

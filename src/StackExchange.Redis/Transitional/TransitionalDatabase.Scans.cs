@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,13 +78,17 @@ internal sealed partial class TransitionalDatabase
     // ---- VectorSetRangeEnumerate --------------------------------------------------------------------
     // NOT a cursor scan, and the shipped code says so: "intentionally not using scan naming in case a
     // VSCAN command is added later". It is keyset pagination over VRANGE - take a page, then ask again
-    // from the last member with the start excluded - so it needs none of the machinery above.
+    // from the last member with the start excluded - so it needs none of the machinery above, and has
+    // RespKeysetEnumerable of its own instead.
+    //
+    // The old signature's `count` is a PAGE size, not a total; the name is kept here because the
+    // signature is shipped, and spelled `pageSize` on the context surface where it is not.
 
     /// <inheritdoc/>
     public IEnumerable<RedisValue> VectorSetRangeEnumerate(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => Fallback<RedisValue>().VectorSetRangeEnumerate(key, start, end, count, exclude, flags);
+        => _inner.VectorSets.RangeEnumerateCore(key, start, end, count, exclude, flags);
 
     /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => Fallback<RedisValue>().VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
+        => _inner.VectorSets.RangeEnumerateCore(key, start, end, count, exclude, flags);
 }

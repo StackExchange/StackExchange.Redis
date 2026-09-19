@@ -1078,4 +1078,128 @@ public static partial class Hashes
 
     private static readonly RespScanPageHandler<RedisValue> ValueScanHandler
         = new(static (ref RespReader r) => r.ReadRedisValue());
+
+    /// <summary>
+    /// <c>HIMPORT SET</c>: write a row against a pre-declared field-set, so the field names travel once
+    /// rather than once per row.
+    /// </summary>
+    /// <param name="hashes">The hash command group.</param>
+    /// <param name="key">The hash to write.</param>
+    /// <param name="fieldSet">The field-set the values line up with.</param>
+    /// <param name="values">One value per field, in the field-set's order.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>A pair, and the reason the preamble machinery exists beyond scripts.</b> The field-set is
+    /// connection-local state that a <c>HIMPORT PREPARE</c> establishes, and which connection this row
+    /// lands on is not known until the write - so the <c>PREPARE</c> is composed every time and
+    /// <see cref="HashImportPrepareGate"/> decides, inside the write lock, whether it is actually sent.
+    /// Exactly the arrangement <c>EVALSHA</c> has with <c>SCRIPT LOAD</c>; only the scope differs, and
+    /// that is the gate's business rather than this method's.
+    /// </para>
+    /// <para>
+    /// <b>Refused inside a transaction, structurally.</b> The pair declares that it cannot be written
+    /// without expanding, and a <c>MULTI</c> cannot take an injected <c>PREPARE</c>: every queued command
+    /// adds a slot to the positional <c>EXEC</c> array, and one the transaction did not account for would
+    /// desync every following result. That is the same reason <c>SELECT</c>-injection is forbidden there.
+    /// Batches are fine - an ordered pipeline with no <c>EXEC</c> aggregate.
+    /// </para>
+    /// </remarks>
+    public static ValueTask ImportAsync(
+        this in RespHashes hashes,
+        RedisKey key,
+        HashImport fieldSet,
+        scoped ReadOnlySpan<RedisValue> values,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        if (fieldSet is null) throw new ArgumentNullException(nameof(fieldSet));
+        fieldSet.ThrowIfDisposed();
+        if (values.Length != fieldSet.FieldCount)
+        {
+            throw new ArgumentException(
+                $"{values.Length} value(s) were supplied but the field-set defines {fieldSet.FieldCount} field(s); the counts must match.",
+                nameof(values));
+        }
+
+        var context = hashes.Context;
+        var preamble = ImportPrepareCommand(context, fieldSet);
+        try
+        {
+            var request = ImportSetCommand(context, key, fieldSet, values);
+            try
+            {
+                var pending = context.SendWithPreambleAsync(
+                    ref preamble,
+                    ref request,
+                    flags,
+                    RespHandlers.Success,
+                    new HashImportPrepareGate(fieldSet, context.Database),
+                    cancellationToken);
+
+                return pending.IsCompletedSuccessfully ? default : Awaited(pending);
+            }
+            finally
+            {
+                request.Dispose(); // a no-op once SendWithPreambleAsync has detached it
+            }
+        }
+        finally
+        {
+            preamble.Dispose();
+        }
+
+        static async ValueTask Awaited(ValueTask<bool> pending) => await pending.ConfigureAwait(false);
+    }
+
+    /// <summary>Render the <c>HIMPORT PREPARE</c> that declares a field-set on a connection.</summary>
+    /// <remarks>
+    /// <b>Composed on every call, and discarded unsent on most of them.</b> The gate can only answer once
+    /// a connection is chosen, which is after rendering - so the alternative is not "render it less", it
+    /// is "cache it". That is worth doing for a bulk import and is queued; it needs a key that notices a
+    /// different command map, because the map can rename <c>HIMPORT</c> and a cached rendering would not.
+    /// </remarks>
+    private static RespRequestFrame ImportPrepareCommand(RespContext context, HashImport fieldSet)
+    {
+        var fields = fieldSet.Fields.Span;
+        var cmd = context.Compose(RedisCommand.HIMPORT, 2 + fields.Length);
+        try
+        {
+            cmd.AppendFormatted(RespLiterals.Prepare);
+            fieldSet.WriteName(ref cmd);
+            cmd.AppendFormatted(fields);
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        return cmd.Complete();
+    }
+
+    /// <summary>Render the <c>HIMPORT SET</c> that writes one row.</summary>
+    private static RespRequestFrame ImportSetCommand(
+        RespContext context,
+        RedisKey key,
+        HashImport fieldSet,
+        scoped ReadOnlySpan<RedisValue> values)
+    {
+        var cmd = context.Compose(RedisCommand.HIMPORT, 3 + values.Length);
+        try
+        {
+            cmd.AppendFormatted(RespLiterals.SetKeyword);
+            cmd.AppendFormatted(key);
+            fieldSet.WriteName(ref cmd);
+            cmd.AppendFormatted(values);
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        return cmd.Complete();
+    }
 }

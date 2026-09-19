@@ -15,9 +15,10 @@ namespace StackExchange.Redis
     /// <c>persist</c>/<c>keepTtl</c> parameters were spelling out between them.
     /// </para>
     /// <para>
-    /// <c>HashScan</c> stays in <c>TransitionalDatabase.Scans.cs</c>. <c>HashImport</c> stays with the
-    /// generated members, and the reason is worth stating precisely because the obvious version of it is
-    /// wrong: see <see cref="HashImport"/>.
+    /// <c>HashScan</c> stays in <c>TransitionalDatabase.Scans.cs</c>. <c>HashImport</c> is here now: it
+    /// needs its <c>PREPARE</c> injected on the connection the <c>SET</c> lands on, which is what the
+    /// preamble machinery behind <c>EVALSHA</c>/<c>SCRIPT LOAD</c> already does - see
+    /// <see cref="HashImportPrepareGate"/>.
     /// </para>
     /// </remarks>
     internal sealed partial class TransitionalDatabase
@@ -346,5 +347,13 @@ namespace StackExchange.Redis
         /// set never reaches the server, and reports the same "nothing was written" it would have.
         /// </summary>
         private static RedisValue AsValue(bool written) => written ? 1 : 0;
+
+        /// <inheritdoc/>
+        public void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Hashes.ImportAsync(key, fieldSet, values.Span, flags));
+
+        /// <inheritdoc/>
+        public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => _inner.Hashes.ImportAsync(key, fieldSet, values.Span, flags).AsTask();
     }
 }

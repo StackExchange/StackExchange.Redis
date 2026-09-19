@@ -451,10 +451,10 @@ Four consequences, none of them cosmetic:
       matters. `IRedis.Ping` has always documented its result as "the observed latency", which is this
       reading rather than the other one, so the shipped docs need no change either.
 
-- [ ] **`TransitionalDatabase`: 17 unimplemented members — status, 2026-09-19.** 106 at the start of
-      2026-09-18, then 71, then 43; now **10** generated (the SER352 number) plus **7 hand-written members
-      that forward to the legacy fallback**, which SER352 cannot see. Marc spotted that class of gap:
-      *"make sure we add scans to the list, because I think we're cheating on that"*.
+- [ ] **`TransitionalDatabase`: 13 unimplemented members — status, 2026-09-19.** 106 at the start of
+      2026-09-18, then 71, then 43, then 17; now **8** generated (the SER352 number) plus **5 hand-written
+      members that forward to the legacy fallback**, which SER352 cannot see. Marc spotted that class of
+      gap: *"make sure we add scans to the list, because I think we're cheating on that"*.
 
       **Why the hand-written ones are invisible.** `[AutoDatabase]`'s `SkipMethod` drops every
       `IEnumerable<T>` and `IAsyncEnumerable<T>` member, because deferred execution does not fit
@@ -462,31 +462,42 @@ Four consequences, none of them cosmetic:
       are hand-written for their own reasons. Either way they live in the `Transitional/` partials and
       forward to `Fallback<T>()`, throwing without one - exactly like a generated stub. The generator has
       no way to tell a real implementation from a forwarding throw; to it they are simply "declared".
-      **So every SER352 number is short by however many of those are still forwarding.**
+      **So every SER352 number is short by however many of those are still forwarding.** The
+      enumerable half is now clean, and `TransitionalScanGapTests.NothingInTheScanFamilyStillForwards`
+      asserts that positively rather than by listing what still throws.
 
-      Fixing the generator is not on: it cannot know. `TransitionalScanGapTests` is the tripwire for the
-      enumerable half - it sweeps those members by reflection, asserts each still throws, and pins the
-      count, so implementing one forces the number to be updated.
-
-      **Everything that is left has unusual routing or unusual semantics**, which is the line Marc drew on
-      2026-09-19: *"the stream, execute, and anything else that doesn't have unusual routing / semantics
-      (transactions, batch, identity, etc): I have a plan for those"*. So this list is now waiting on that
-      plan rather than on effort.
+      **Everything left needs either a transaction or a routing affordance the context surface has not
+      got**, which is the line Marc drew on 2026-09-19: *"the stream, execute, and anything else that
+      doesn't have unusual routing / semantics (transactions, batch, identity, etc): I have a plan for
+      those"*.
 
       | family | members | why it is still here |
       |---|---|---|
       | Locks | 4 | `LockRelease`, `LockExtend` - WATCH/MULTI, so they need a transaction over the context |
       | **Batch/transaction** | **2** | `CreateBatch`, `CreateTransaction` - the same blocker, *uncounted by SER352* |
       | **Endpoint identity** | **3** | `IsConnected`, `IdentifyEndpoint`, `IdentifyEndpointAsync` - server selection from a context, *uncounted* |
-      | Publish | 2 | routes to `multiplexer.GetSubscribedServer(channel)`; the executor has no per-call server hint, and only `RespServerContext` pins one |
-      | HashImport | 2 | `HIMPORT` needs its `PREPARE` injected on the same physical connection, like `SELECT` - and is refused inside `MULTI` for the same reason |
-      | StringGetWithExpiry | 2 | ONE message that writes `GET` **and** `PTTL`/`TTL`, with a processor that reads both replies; it is a pair, not a frame, and it refuses inside a batch |
-      | **VectorSetRangeEnumerate** | **2** | keyset pagination over `VRANGE`, not a cursor scan - *uncounted* |
+      | Publish | 2 | routes to `multiplexer.GetSubscribedServer(channel)`; the executor has no per-call server hint, and only `RespServerContext` pins one - so this needs the affordance, or a decision to drop the affinity |
+      | StringGetWithExpiry | 2 | ONE message that writes `GET` **and** `PTTL`/`TTL`, with a processor that reads both replies. The pair primitive exists but discards the head's reply by design, so this needs a variant that keeps both - small, but new |
 
       Done on 2026-09-19: the **stream family** (multi-stream `XREAD` x4 / `XREADGROUP` x8, `XINFO`
-      STREAM/GROUPS/CONSUMERS x6), the **`Execute` family** (the `object`-argument pair and their async
-      twins), **`ARGREP`**, and **`Ping`** - the last with a caveat, recorded above. Done on 2026-09-18:
-      the cursor scans, `Scripts` x12, `Keys` x4.
+      STREAM/GROUPS/CONSUMERS x6), the **`Execute` family**, **`ARGREP`**, **`Ping`**,
+      **`VectorSetRangeEnumerate`** and **`HashImport`**. Done on 2026-09-18: the cursor scans,
+      `Scripts` x12, `Keys` x4.
+
+- [ ] **Cache the `HIMPORT PREPARE` rendering.** Raised 2026-09-19, with `HashImport`.
+
+      The pair is composed on every call and the preamble is discarded unsent on all but the first per
+      connection - the gate can only answer once a connection is chosen, which is after rendering. For a
+      per-row bulk-import API that is the wrong way round, and the fix is the one `RespScriptCache`
+      already makes for `SCRIPT LOAD`: render once and pass the detached form to
+      `SendWithPreambleAsync`'s `RespRequest` overload, which exists for exactly this.
+
+      **The cache key is the part to get right.** A rendering bakes in the command map's spelling of
+      `HIMPORT`, so a cache hanging off the `HashImport` object would be wrong the moment two contexts
+      with different maps shared a field-set. Comparing the `CommandMap` by reference is enough and is
+      cheap; the alternative is a per-context cache as the script one is. Measure first - the render is a
+      rent plus one write per field, so this is worth doing if a bulk import is the shape people use, and
+      not otherwise.
 
 - [x] **The `Interpolated/` folder is gone — DONE, 2026-09-18.** Marc: *"we shouldn't have anything left
       in there by the end of this"*. The namespace went several commits ago; the folder name was the last

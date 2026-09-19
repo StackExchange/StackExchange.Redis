@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -233,6 +234,107 @@ public static partial class VectorSets
                 $"{RedisCommand.VRANGE}{key}{from}{to}", flags, cancellationToken: cancellationToken)
             : sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
                 $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>VRANGE</c>, paged: the members in a range, a page at a time, for as long as they are read.
+    /// </summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="start">The lower bound, or default for "from the beginning".</param>
+    /// <param name="end">The upper bound, or default for "to the end".</param>
+    /// <param name="pageSize">How many to ask the server for per round trip.</param>
+    /// <param name="exclude">Which bounds to treat as exclusive; it applies to the FIRST page only.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">
+    /// Cancels the walk <b>between pages</b>. Combined with the enumerator's own token when they differ -
+    /// see <c>RespKeysetEnumerable.GetAsyncEnumerator</c>.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// <b>Keyset pagination, not a cursor scan</b>, and the shipped code is emphatic about the difference:
+    /// <i>"intentionally not using scan naming in case a VSCAN command is added later"</i>. There is no
+    /// server-side cursor - the next page starts from the last member returned, with the start excluded -
+    /// so this is not resumable the way a scan is, and does not pretend to be an
+    /// <see cref="IScanningCursor"/>.
+    /// </para>
+    /// <para>
+    /// <b>The utility half</b>, built on <see cref="RangeAsync"/>'s command rather than beside it. Two
+    /// round trips are avoided that the naive loop would make: a page shorter than
+    /// <paramref name="pageSize"/> means the server had no more, and reaching <paramref name="end"/> means
+    /// there is nothing left to ask for.
+    /// </para>
+    /// </remarks>
+    public static IAsyncEnumerable<RedisValue> RangeEnumerateAsync(
+        this in RespVectorSets sets,
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long pageSize = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => RangeEnumerateCore(sets, key, start, end, pageSize, exclude, flags, cancellationToken);
+
+    /// <summary>The concrete walk, which is <b>both</b> sequences at once.</summary>
+    /// <remarks><inheritdoc cref="Sets.ScanCore" path="/remarks"/></remarks>
+    internal static RespKeysetEnumerable<RedisValue> RangeEnumerateCore(
+        this in RespVectorSets sets,
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long pageSize = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize), "pageSize must be greater than 0.");
+
+        // the context is copied into the closure once per enumeration, which is the cost of the convenient
+        // shape; RangeAsync is there for callers who will not pay it
+        var context = sets.Context;
+        var endExcluded = (exclude & Exclude.Stop) != 0;
+
+        return new RespKeysetEnumerable<RedisValue>(
+            (from, excludeStart, token) =>
+            {
+                // checked here and NOT handed to the send, as the scans do: RespExecutor refuses a
+                // cancellable token outright, and one page is bounded work
+                token.ThrowIfCancellationRequested();
+                var cmd = RangePageCommand(context, key, from, end, pageSize, excludeStart, endExcluded);
+                return context.SendAsync(ref cmd, flags, RespHandlers.ValueLease, default);
+            },
+            (from, excludeStart) =>
+            {
+                // the synchronous face uses the synchronous send, rather than blocking on the async one
+                var cmd = RangePageCommand(context, key, from, end, pageSize, excludeStart, endExcluded);
+                return context.Send(ref cmd, flags, RespHandlers.ValueLease, default);
+            },
+            static (in RedisValue item) => item, // the member IS the marker
+            start,
+            end,
+            (exclude & Exclude.Start) != 0,
+            pageSize,
+            cancellationToken);
+    }
+
+    /// <summary>Render one page of a <c>VRANGE</c> walk.</summary>
+    /// <remarks>
+    /// The bound spelling is <see cref="RedisDatabase.VectorSetBound"/>'s, as <see cref="RangeAsync"/>
+    /// uses - so a page of the walk and a one-shot range agree on what a bracket means.
+    /// </remarks>
+    private static RespRequestFrame RangePageCommand(
+        RespContext context,
+        RedisKey key,
+        RedisValue start,
+        RedisValue end,
+        long pageSize,
+        bool excludeStart,
+        bool excludeEnd)
+    {
+        var from = RedisDatabase.VectorSetBound(start, excludeStart ? Exclude.Start : Exclude.None, isStart: true);
+        var to = RedisDatabase.VectorSetBound(end, excludeEnd ? Exclude.Stop : Exclude.None, isStart: false);
+        return context.Render($"{RedisCommand.VRANGE}{key}{from}{to}{pageSize}");
     }
 
     /// <summary>Render <c>VLINKS ... WITHSCORES</c>.</summary>
