@@ -144,6 +144,181 @@ public class TransitionalVectorSetTests(ITestOutputHelper output)
         => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
 }
 
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalStreamTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : StreamTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalBasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : BasicOpsTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalKeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : KeyTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : ExpiryTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalScanTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : ScanTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalHashImportTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : HashImportTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalMultiAddTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : MultiAddTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalSortedSetWhenTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : SortedSetWhenTest(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalLexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : LexTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalFloatingPointTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : FloatingPointTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalCopyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : CopyTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalMSetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : MSetTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalIncrexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : IncrexIntegrationTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalDigestTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : DigestIntegrationTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalOverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : OverloadCompatTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+// ScriptingTests is deliberately NOT re-run here, and the reason generalises.
+//
+// TestBase.Me() puts the class name in every key, which is what lets a suite and its transitional twin
+// run side by side against one server. The SCRIPT cache is not keyed: it is server-global state, shared
+// by SCRIPT LOAD, SCRIPT FLUSH, EVALSHA and NOSCRIPT recovery. Running two copies of ScriptingTests
+// concurrently therefore has them flushing each other's scripts, and both copies fail intermittently -
+// observed as NOSCRIPT in one class or the other on successive full-suite runs, while passing every time
+// the two are run in isolation.
+//
+// So the rule for adding to this list: a suite can be re-run if its state is key-scoped. Anything that
+// mutates server-global state - the script cache, CONFIG, CLIENT settings, the keyspace at large -
+// cannot, and needs the moved commands proving some other way.
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalQueuedResultTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : QueuedResultTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalKeyIdleTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : KeyIdleTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="TransitionalSurfaceFixture"/>
+[RunPerProtocol]
+public class TransitionalKeyIdleAsyncTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : KeyIdleAsyncTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => TransitionalSurfaceFixture.Wrap(conn, db, asyncState);
+}
+
 /// <summary>
 /// That the re-runs above are actually re-running anything.
 /// </summary>
