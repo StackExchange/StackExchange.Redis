@@ -2919,7 +2919,49 @@ Four consequences, none of them cosmetic:
       required-member break on a shipped interface is invisible to the API tracker. A test catches it; the
       file does not.
 
-- [ ] **The retry executor** (`WithRetry`). Prerequisites in place; no design written.
+- [x] **The retry executor (`WithRetry`) — DONE, 2026-09-19.** Marc: *"what we need is a method on the
+      database context that returns another database context, having wrapped the executor... It should be
+      a lot simpler than the original, as we no longer need to capture any argument state or deal with
+      keys etc."* It is: `RespRetryExecutor` is one loop, borrowed whole from `RetryDatabase.ExecuteAsync`,
+      and every decision in it is `RetryController`'s - which both paths now share, so they cannot
+      disagree about policy.
+
+      **Nothing needs capturing, and that is the whole saving.** `RetryDatabase` replays a *method call*,
+      so it generates a state struct per argument signature, owns pooled copies of any `Memory<T>` the
+      caller might reuse, and disposes the capture when the last attempt is done. Here the thing replayed
+      is a rendered frame that already exists.
+
+      **On the reference count.** Marc wondered whether the loop should retain per attempt and release on
+      the way out. It should not, and the code says why: `RespExecutor.AwaitUncached` holds one reference
+      and disposes it in a `finally` *after* `executor.SendAsync` completes - which, for a retrying
+      executor, is after the last attempt. So the single caller reference already spans every attempt; an
+      unmatched retain per attempt would leak, and a matched one would be a no-op.
+
+      The hazard that *would* need a retain is a message still holding the request after its task has
+      faulted - it would write a buffer already back in the pool, inside the write lock. The backlog
+      discipline closes it: `CheckBacklogForTimeouts` **dequeues** every timed-out message before
+      completing it, and a message that was already written no longer needs the buffer (`WriteImpl` copies
+      into the pipe). Worth re-checking if either of those changes.
+
+      **Early exit.** Marc: *"can we also detect 'definitely do not retry' scenarios early, and avoid an
+      async method entirely"*. Yes, on one exact signal: `RetryController.CanEverRetry` (`MaxAttempts > 1`),
+      because the attempt cap is tested *before* the policy is consulted. The bigger short-circuit -
+      reading the command's retry category and skipping `CommandRetryNever` - is **not** safe, because
+      `RetryPolicy.CanRetry` is virtual and a derived policy may ignore the category. A send that
+      completes synchronously and successfully is also handed back untouched.
+
+      **`RetryDatabase.Context` now works**, where it used to throw: it decorates the inner executor and
+      shares the controller *and* `GetNextFailover`, so the context path gets failover too. A retrying
+      **transaction** still refuses, and for a reason of its own - a transaction is replayed as a unit, and
+      a per-frame retry executor would re-send individual frames inside a `MULTI`.
+
+      **Still open:** a synchronous send through a retrying context throws (every pause is a `Task.Delay`,
+      and the shipped retrying database declines synchronous callers by implementing only
+      `IDatabaseAsync`). And `WithRetry` on a context cannot resolve the configured policy the way the
+      `IDatabaseAsync` overload does, because a context carries no multiplexer - so it takes
+      `RetryPolicy.Default` unless told otherwise. Attaching the policy as a context service would fix
+      that.
+
 
 - [ ] **Should the existing `ResultProcessor` path copy too?** (§6.16). Sharing there is *correct* — it is
       single-owner — so this is a policy change, not a fix, and it would strand `TryReservePayload`,

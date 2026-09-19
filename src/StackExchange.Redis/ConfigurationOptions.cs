@@ -1721,7 +1721,7 @@ namespace StackExchange.Redis
         public CircuitBreaker? CircuitBreaker { get; set; }
 
         /// <summary>
-        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry"/> for databases
+        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry(IDatabaseAsync, RetryPolicy?)"/> for databases
         /// obtained from this connection; when <c>null</c>, <see cref="RetryPolicy.Default"/> is used.
         /// </summary>
         /// <remarks>

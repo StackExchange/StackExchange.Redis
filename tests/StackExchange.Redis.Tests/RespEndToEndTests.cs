@@ -431,22 +431,56 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     /// <summary>
-    /// Retry refuses rather than forwarding, because forwarding would drop the retry silently.
+    /// A retrying database's context carries the retry, rather than dropping it or refusing.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The one implementer that must not just hand back its inner context: commands composed from it go
     /// through the inner executor, so the group surface would lose the retry - and lose it invisibly,
-    /// since the command still succeeds whenever nothing fails.
+    /// since the command still succeeds whenever nothing fails. It threw for exactly that reason until
+    /// <c>RespRetryExecutor</c> existed; now it decorates the inner executor instead.
+    /// </para>
+    /// <para>
+    /// The <b>synchronous</b> refusal survives, because that one is not a gap: every pause a retry takes
+    /// is asynchronous, and the shipped retrying database declines synchronous callers by implementing
+    /// only <see cref="IDatabaseAsync"/>.
+    /// </para>
     /// </remarks>
     [Fact]
-    public async Task RetryRefusesTheContextRatherThanDroppingTheRetry()
+    public async Task RetryReachesTheContextSurface()
+    {
+        await using var conn = Create();
+        var key = Me();
+        var retrying = conn.GetDatabase().WithRetry(
+            new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero });
+
+        var context = retrying.Context;
+        await context.Strings.SetAsync(key, "abc");
+        Assert.Equal("abc", (string?)await context.Strings.GetAsync(key));
+
+        // the retry really is in the chain, rather than the inner executor having been handed back
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => context.Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)key}", CommandFlags.None));
+        Assert.Contains("no synchronous send", ex.Message);
+    }
+
+    /// <summary>A retrying TRANSACTION still refuses, and for a reason of its own.</summary>
+    /// <remarks>
+    /// A retrying database replays one operation, so decorating its executor reproduces it exactly. A
+    /// retrying transaction replays the whole recorded unit - conditions, queued operations and
+    /// <c>EXEC</c> together - which a per-frame retry executor cannot express: it would re-send individual
+    /// frames inside a transaction, retrying something nobody asked for.
+    /// </remarks>
+    [Fact]
+    public async Task ARetryingTransactionStillRefusesAContext()
     {
         await using var conn = Create();
         var retrying = conn.GetDatabase().WithRetry(
             new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero });
 
-        var ex = Assert.Throws<NotImplementedException>(() => retrying.Context);
-        Assert.Contains("silently drop the retry", ex.Message);
+        var tran = retrying.CreateTransaction();
+        var ex = Assert.Throws<NotImplementedException>(() => ((IRespKeyspaceTarget)tran).Context);
+        Assert.Contains("replayed as a unit", ex.Message);
     }
 
     /// <summary>And so does a transaction's, for an ordinary single-frame command.</summary>

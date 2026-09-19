@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -63,6 +63,19 @@ internal sealed class RetryController
     /// attempt and the failover threshold sits below the attempt cap.
     /// </summary>
     public bool TracksFailover => _maxAttempts > 1 & _maxBeforeFailover < _maxAttempts;
+
+    /// <summary>
+    /// Whether <see cref="CanRetry"/> could ever answer <see langword="true"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Exact, and policy-independent</b>, which is what makes it safe to short-circuit on: the attempt
+    /// cap is tested <i>before</i> the policy is consulted, so a single-attempt controller refuses every
+    /// fault without asking - including one a custom <see cref="RetryPolicy"/> would have retried. Any
+    /// cheaper-looking test that reads the command's retry category is <b>not</b> safe in the same way:
+    /// <see cref="RetryPolicy.CanRetry"/> is virtual, and a derived policy may ignore the category
+    /// entirely.
+    /// </remarks>
+    public bool CanEverRetry => _maxAttempts > 1;
 
     public bool CanRetry(
         int attempt,

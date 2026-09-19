@@ -34,7 +34,7 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state to set on the created transaction.</param>
         /// <remarks>Unlike <see cref="IDatabase.CreateTransaction(object?)"/>, this offers no synchronous
         /// execution, so it is usable from async-only databases such as one created via
-        /// <see cref="Availability.DatabaseExtensions.WithRetry"/>.</remarks>
+        /// <see cref="Availability.DatabaseExtensions.WithRetry(IDatabaseAsync, Availability.RetryPolicy?)"/>.</remarks>
         ITransactionAsync CreateTransaction(object? asyncState = null);
 
         /// <summary>
