@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -21,19 +21,19 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespSurfaceKeysParityTests
 {
-    private sealed class FakeExecutor(string reply) : IRespExecutor
+    private sealed class FakeExecutor(string reply) : RespExecutorBase
     {
         public string? Sent { get; private set; }
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sent = Text(request.Span);
             return RespPayload.Create(Encoding.UTF8.GetBytes(reply));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -93,15 +93,15 @@ public class RespHandlerRegistryTests
     }
 }
 
-internal sealed class RespHandlerRegistryExecutor(params string[] replies) : IRespExecutor
+internal sealed class RespHandlerRegistryExecutor(params string[] replies) : RespExecutorBase
 {
     private int _next;
 
-    public int Database => 0;
+    public override int Database => 0;
 
-    public RespPayload Send(in RespRequest request)
+    public override RespPayload Send(in RespRequest request)
         => RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
 
-    public ValueTask<RespPayload> SendAsync(RespRequest request, System.Threading.CancellationToken cancellationToken = default)
+    public override ValueTask<RespPayload> SendAsync(RespRequest request, System.Threading.CancellationToken cancellationToken = default)
         => new(Send(request));
 }

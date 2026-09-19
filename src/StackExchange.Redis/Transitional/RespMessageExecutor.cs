@@ -31,7 +31,7 @@ namespace StackExchange.Redis
     /// arrive already framed, there is one shape.
     /// </para>
     /// </remarks>
-    internal sealed class RespMessageExecutor : IRespExecutor, IRespPreambleExecutor, IRespRunExecutor
+    internal sealed class RespMessageExecutor : RespExecutorBase, IRespRunExecutor
     {
         private readonly RedisBase _target;
 
@@ -41,7 +41,7 @@ namespace StackExchange.Redis
             Database = database;
         }
 
-        public int Database { get; }
+        public override int Database { get; }
 
         /// <summary>The same target, sending to a different database.</summary>
         /// <param name="database">The database index.</param>
@@ -61,7 +61,7 @@ namespace StackExchange.Redis
         /// twin below has always passed it straight back. Without the distinction this threw
         /// <c>"No reply."</c> at every synchronous fire-and-forget command on this surface.
         /// </remarks>
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             var message = new FrameMessage(Database, request);
             var reply = _target.ExecuteSync(message, PayloadProcessor.Instance);
@@ -73,7 +73,7 @@ namespace StackExchange.Redis
             return reply!; // null only for fire-and-forget, which every consumer already tests for
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             // the existing pipeline has no cancellation; the token is observed by the caller's await, which
             // is the model settled in design notes section 6.11 - the request completes by itself
@@ -204,7 +204,11 @@ namespace StackExchange.Redis
         /// through it rather than around it means the pair inherits ordering, the backlog, retry and the
         /// reconnect handshake, none of which a second write path could have shared.
         /// </remarks>
-        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+        /// <inheritdoc/>
+        /// <remarks>This is the executor that actually reaches a connection, so it is the one that can.</remarks>
+        public override bool CanWritePreamble => true;
+
+        public override ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
         {
             var message = new FramePairMessage(Database, preamble, request, gate);
             return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);

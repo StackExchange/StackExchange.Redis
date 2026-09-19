@@ -89,19 +89,19 @@ public class RespValueAllocationTests(ITestOutputHelper log)
         }
     }
 
-    private sealed class OneReply(byte[] reply) : IRespExecutor
+    private sealed class OneReply(byte[] reply) : RespExecutorBase
     {
         public int Sends { get; private set; }
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sends++;
             return RespPayload.Create(reply);
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 

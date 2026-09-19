@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests.RetryTests;
 /// <para>
 /// The last of those is worth stating precisely, because it is a lifetime question and lifetime questions
 /// in this codebase have a habit of failing far away. The caller of
-/// <c>IRespExecutor.SendAsync</c> - <c>RespExecutor.AwaitUncached</c> - holds one reference and disposes
+/// <c>RespExecutorBase.SendAsync</c> - <c>RespExecutor.AwaitUncached</c> - holds one reference and disposes
 /// it in a <c>finally</c> once the send completes; for a retrying executor that single reference spans
 /// every attempt, so no attempt has to retain and none may dispose. <c>RefCountedBuffer</c> throws on a
 /// span taken after the last reference has gone, so a replay that got this wrong would throw here rather
@@ -33,18 +33,18 @@ namespace StackExchange.Redis.Tests.RetryTests;
 public class RespRetryExecutorTests
 {
     /// <summary>Fails the first <c>failures</c> sends with a transient fault, then succeeds.</summary>
-    private sealed class FlakyExecutor(int failures, CommandStatus status = CommandStatus.WaitingToBeSent) : IRespExecutor
+    private sealed class FlakyExecutor(int failures, CommandStatus status = CommandStatus.WaitingToBeSent) : RespExecutorBase
     {
         private int _sent;
 
         /// <summary>The bytes of every attempt, so a replay can be compared with the original.</summary>
         public List<string> Sent { get; } = [];
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request) => throw new NotSupportedException();
+        public override RespPayload Send(in RespRequest request) => throw new NotSupportedException();
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             // reading the span is the point: on attempt two this is a buffer somebody could have freed
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
@@ -82,7 +82,7 @@ public class RespRetryExecutorTests
         JitterMax = TimeSpan.Zero,
     }.Create();
 
-    private static RespDatabaseContext Target(IRespExecutor executor, RetryPolicy policy)
+    private static RespDatabaseContext Target(RespExecutorBase executor, RetryPolicy policy)
         => new RespDatabaseContext(new RespContext().WithExecutor(executor)).WithRetry(policy);
 
     [Fact]

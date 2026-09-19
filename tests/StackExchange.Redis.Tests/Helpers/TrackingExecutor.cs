@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Text;
@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Tests;
 /// connection, so there is no redirect race, and broadcasting needs no server-side per-client memory.
 /// </para>
 /// </remarks>
-internal sealed class TrackingExecutor : IRespExecutor, IDisposable
+internal sealed class TrackingExecutor : RespExecutorBase, IDisposable
 {
     private readonly Socket _socket;
     private readonly NetworkStream _stream;
@@ -63,7 +63,7 @@ internal sealed class TrackingExecutor : IRespExecutor, IDisposable
     /// <summary>Pub/sub deliveries recognised as such, and therefore NOT mistaken for invalidations.</summary>
     internal int Deliveries => Volatile.Read(ref _deliveries);
 
-    public int Database => 0;
+    public override int Database => 0;
 
     private TrackingExecutor(Socket socket, RespClientCache cache)
     {
@@ -132,10 +132,10 @@ internal sealed class TrackingExecutor : IRespExecutor, IDisposable
         return await completion.Task.ConfigureAwait(false);
     }
 
-    public RespPayload Send(in RespRequest request)
+    public override RespPayload Send(in RespRequest request)
         => throw new NotSupportedException("This harness is async-only.");
 
-    public async ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+    public override async ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
     {
         var reply = await SendRawAsync(request.Span.ToArray()).ConfigureAwait(false);
         return RespPayload.Create(reply);

@@ -34,13 +34,13 @@ namespace StackExchange.Redis.Availability;
 /// than silently pretending a failover could happen.
 /// </para>
 /// </remarks>
-internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
+internal sealed class RespRetryExecutor : RespExecutorBase
 {
-    private readonly IRespExecutor _inner;
+    private readonly RespExecutorBase _inner;
     private readonly RetryController _controller;
     private readonly Func<CancellationToken>? _failoverSource;
 
-    internal RespRetryExecutor(IRespExecutor inner, RetryPolicy policy, Func<CancellationToken>? failoverSource = null)
+    internal RespRetryExecutor(RespExecutorBase inner, RetryPolicy policy, Func<CancellationToken>? failoverSource = null)
         : this(
             inner,
             new RetryController(
@@ -57,7 +57,7 @@ internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
     /// configured by the same object - including the failover feature flag, which a policy alone does not
     /// carry.
     /// </remarks>
-    internal RespRetryExecutor(IRespExecutor inner, RetryController controller, Func<CancellationToken>? failoverSource)
+    internal RespRetryExecutor(RespExecutorBase inner, RetryController controller, Func<CancellationToken>? failoverSource)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
@@ -68,13 +68,13 @@ internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
     internal RetryPolicy Policy => _controller.Policy;
 
     /// <summary>The executor underneath, so a second <c>WithRetry</c> can refuse rather than nest.</summary>
-    internal IRespExecutor Inner => _inner;
+    internal RespExecutorBase Inner => _inner;
 
-    public int Database => _inner.Database;
+    public override int Database => _inner.Database;
 
     /// <inheritdoc/>
     /// <remarks><inheritdoc cref="RespRetryExecutor" path="/remarks/para[2]"/></remarks>
-    public RespPayload Send(in RespRequest request) => throw NoSynchronousRetry();
+    public override RespPayload Send(in RespRequest request) => throw NoSynchronousRetry();
 
     internal static InvalidOperationException NoSynchronousRetry() => new(
         "A retrying context has no synchronous send: every pause a retry takes is asynchronous. "
@@ -88,7 +88,7 @@ internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
     /// So is a send that completed synchronously and successfully. Only a fault on a replayable command
     /// reaches <see cref="Awaited"/>, which is a small minority of everything a retrying context sends.
     /// </remarks>
-    public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+    public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
     {
         if (!_controller.CanEverRetry(request.Flags)) return _inner.SendAsync(request, cancellationToken);
 
@@ -100,26 +100,33 @@ internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
 
     /// <inheritdoc/>
     /// <remarks>
+    /// <b>Exactly when the one underneath can</b>, which is the answer a decorator should give and the
+    /// one it could not give while this was an interface: it either implemented it or it did not, so a
+    /// retrying executor over a preamble-capable inner had to claim the capability unconditionally and
+    /// then discover at the call whether the claim held.
+    /// </remarks>
+    public override bool CanWritePreamble => _inner.CanWritePreamble;
+
+    /// <inheritdoc/>
+    /// <remarks>
     /// <b>Forwarded rather than declined</b>, so a script or a field-set import composed from a retrying
-    /// context still travels as a pair. Without this the executor would not be an
-    /// <see cref="IRespPreambleExecutor"/> and <c>RespExecutor.AwaitPair</c> would take its sequential
-    /// fallback: still correct, but an extra round trip, and the gate is not consulted - so an
+    /// context still travels as a pair - and is retried as one. Declining would send the two in sequence
+    /// instead: still correct, but an extra round trip, and the gate is not consulted, so an
     /// <c>EVALSHA</c> would carry a <c>SCRIPT LOAD</c> it did not need on every call.
     /// </remarks>
-    public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+    public override ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
     {
-        if (_inner is not IRespPreambleExecutor pairs)
-        {
-            // the inner one cannot write a pair either; let the caller's own fallback handle it
-            throw new NotSupportedException("The inner executor does not support preambles.");
-        }
-
         // the REQUEST's flags, not the preamble's: the preamble is sent for its effect and carries
         // CommandRetryAlways, so it would veto nothing and decide nothing
-        if (!_controller.CanEverRetry(request.Flags)) return pairs.SendAsync(preamble, request, gate, cancellationToken);
+        if (!_controller.CanEverRetry(request.Flags))
+        {
+            return _inner.SendAsync(preamble, request, gate, cancellationToken);
+        }
 
-        var pending = pairs.SendAsync(preamble, request, gate, cancellationToken);
-        return pending.IsCompletedSuccessfully ? pending : AwaitedPair(pending, pairs, preamble, request, gate, cancellationToken);
+        var pending = _inner.SendAsync(preamble, request, gate, cancellationToken);
+        return pending.IsCompletedSuccessfully
+            ? pending
+            : AwaitedPair(pending, _inner, preamble, request, gate, cancellationToken);
     }
 
     /// <summary>The retry loop, borrowed whole from <see cref="RetryDatabase"/>.</summary>
@@ -157,7 +164,7 @@ internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
     /// <inheritdoc cref="Awaited"/>
     private async ValueTask<RespPayload> AwaitedPair(
         ValueTask<RespPayload> pending,
-        IRespPreambleExecutor pairs,
+        RespExecutorBase pairs,
         RespRequest preamble,
         RespRequest request,
         IRespPreambleGate? gate,

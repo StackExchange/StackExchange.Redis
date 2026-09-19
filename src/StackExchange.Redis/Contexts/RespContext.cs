@@ -47,7 +47,7 @@ namespace StackExchange.Redis
             RedisChannel channelPrefix = default,
             int database = 0,
             ServerType serverType = ServerType.Standalone,
-            IRespExecutor? executor = null,
+            RespExecutorBase? executor = null,
             object? services = null)
         {
             _commandMap = commandMap;
@@ -75,7 +75,7 @@ namespace StackExchange.Redis
         /// Behaviour composes here - a retrying or caching executor is a decorator around an inner one - while
         /// configuration composes on the context, via <see cref="WithExecutor"/>. They are not alternatives.
         /// </remarks>
-        internal IRespExecutor? Executor { get; }
+        internal RespExecutorBase? Executor { get; }
 
         private readonly object? _services;
 
@@ -411,7 +411,7 @@ namespace StackExchange.Redis
 
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>
-        internal RespContext WithExecutor(IRespExecutor? executor)
+        internal RespContext WithExecutor(RespExecutorBase? executor)
             => new(CommandMap, _keyPrefix, default, Database, ServerType, executor, _services);
 
         /// <summary>

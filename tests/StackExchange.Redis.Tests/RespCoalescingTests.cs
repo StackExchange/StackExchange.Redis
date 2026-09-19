@@ -29,13 +29,13 @@ public class RespCoalescingTests
 
         internal Task Gate => _gate.Task;
 
-        internal sealed class Executor(GatedExecutor owner, string reply) : IRespExecutor
+        internal sealed class Executor(GatedExecutor owner, string reply) : RespExecutorBase
         {
-            public int Database => 0;
+            public override int Database => 0;
 
-            public RespPayload Send(in RespRequest request) => throw new NotSupportedException("async only");
+            public override RespPayload Send(in RespRequest request) => throw new NotSupportedException("async only");
 
-            public async ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+            public override async ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             {
                 Interlocked.Increment(ref owner.Sends);
                 await owner.Gate.ConfigureAwait(false);

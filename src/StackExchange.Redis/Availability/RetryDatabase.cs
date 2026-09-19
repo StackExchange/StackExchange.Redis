@@ -42,7 +42,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
         => _inner.Raw.WithExecutor(
             new RespRetryExecutor(_inner.Raw.Executor ?? ThrowNoExecutor(), _controller, GetNextFailover));
 
-    private static IRespExecutor ThrowNoExecutor() => throw new InvalidOperationException(
+    private static RespExecutorBase ThrowNoExecutor() => throw new InvalidOperationException(
         "The inner database's context has no executor, so there is nothing to retry through.");
 
     /// <inheritdoc/>

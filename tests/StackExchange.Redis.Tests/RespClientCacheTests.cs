@@ -19,7 +19,7 @@ public class RespClientCacheTests
 {
     private static readonly RespContext Ctx = new();
 
-    private static RespDatabaseContext Via(IRespExecutor executor, RespClientCache? cache = null)
+    private static RespDatabaseContext Via(RespExecutorBase executor, RespClientCache? cache = null)
         => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
     private static RespRequestFrame Get(string key) => Ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
@@ -298,18 +298,18 @@ public class RespClientCacheTests
     }
 
     /// <summary>An executor whose reply is a fixed blob; counts how often it was actually asked.</summary>
-    private sealed class FakeExecutor(string response, Action? onSend = null) : IRespExecutor
+    private sealed class FakeExecutor(string response, Action? onSend = null) : RespExecutorBase
     {
         public int Sent { get; private set; }
 
-        public int Database => 0;
+        public override int Database => 0;
 
         /// <summary>Requests this executor retained, as a resending backlog would.</summary>
         public List<RespRequest> Parked { get; } = [];
 
         public bool ParkRequests { get; set; }
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sent++;
             if (ParkRequests && request.TryRetain(out var retained)) Parked.Add(retained);
@@ -322,7 +322,7 @@ public class RespClientCacheTests
                 : RespPayload.Create(Utf8(response));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 

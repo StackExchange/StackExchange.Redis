@@ -20,39 +20,50 @@ namespace StackExchange.Redis.Tests;
 public class RespSurfaceScriptsTests
 {
     /// <summary>An executor with no preamble support: exercises the sequential fallback.</summary>
-    private class FakeExecutor(params string[] replies) : IRespExecutor
+    private class FakeExecutor(params string[] replies) : RespExecutorBase
     {
         private int _next;
 
         public List<string> Sent { get; } = [];
 
-        public int Database => 0;
+        public override int Database => 0;
 
         /// <summary>Requests this executor retained, as a backlog awaiting a resend would.</summary>
         public List<RespRequest> Parked { get; } = [];
 
         public bool ParkRequests { get; set; }
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
             if (ParkRequests && request.TryRetain(out var retained)) Parked.Add(retained);
             return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 
     /// <summary>An executor that <i>can</i> pair them, recording that it was asked to.</summary>
-    private sealed class PairingExecutor(params string[] replies) : FakeExecutor(replies), IRespPreambleExecutor
+    private sealed class PairingExecutor(params string[] replies) : FakeExecutor(replies)
     {
         public int Pairs { get; private set; }
 
         /// <summary>The gate the surface handed over, so tests can assert one was supplied at all.</summary>
         public IRespPreambleGate? Gate { get; private set; }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// Declared, not inferred - which is the change worth noticing.
+        /// </summary>
+        /// <remarks>
+        /// While the capability was a separate interface, overriding the method WAS the declaration, so
+        /// the two could not disagree; the cost was that an executor which never thought about preambles
+        /// was silently assumed not to want them. Now the default is no and this has to say otherwise -
+        /// which is what lets a decorator answer <c>_inner.CanWritePreamble</c> and be right.
+        /// </remarks>
+        public override bool CanWritePreamble => true;
+
+        public override ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
         {
             Pairs++;
             Gate = gate;

@@ -51,17 +51,17 @@ public class StreamRangeMachineryBenchmarks
     /// what is being measured. Retaining a single payload instead balances against the release the
     /// pipeline already does, and contributes zero.
     /// </remarks>
-    private sealed class PrebuiltExecutor(RespPayload payload, bool suspend) : IRespExecutor
+    private sealed class PrebuiltExecutor(RespPayload payload, bool suspend) : RespExecutorBase
     {
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             if (!payload.TryRetain()) throw new ObjectDisposedException(nameof(RespPayload));
             return payload;
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => suspend ? Suspended() : new(Send(request));
 
         private async ValueTask<RespPayload> Suspended()

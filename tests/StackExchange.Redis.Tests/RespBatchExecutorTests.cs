@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests;
 /// <remarks>
 /// The property worth holding on to is that <b>no generics were needed</b>. A batch has to hold a
 /// heterogeneous queue and complete each caller with its own result type, which looks like it demands an
-/// untyped base and a typed proxy - but <c>IRespExecutor</c> has already erased the type: it deals in
+/// untyped base and a typed proxy - but <c>RespExecutorBase</c> has already erased the type: it deals in
 /// <see cref="RespPayload"/>, and the handler that turns one into a <c>T</c> is applied a layer above,
 /// after the executor has handed the payload back. <c>PayloadsAreCompletedTypedByTheLayerAbove</c> is
 /// where that shows.
@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests;
 public class RespBatchExecutorTests
 {
     /// <summary>Replies in order, and records when each send was actually issued.</summary>
-    private sealed class RecordingExecutor(params string[] replies) : IRespExecutor
+    private sealed class RecordingExecutor(params string[] replies) : RespExecutorBase
     {
         private int _next;
 
@@ -32,11 +32,11 @@ public class RespBatchExecutorTests
         /// <summary>Set once anything has been sent, so "nothing yet" can be asserted.</summary>
         public bool HasSent => Sent.Count != 0;
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request) => throw new NotSupportedException();
+        public override RespPayload Send(in RespRequest request) => throw new NotSupportedException();
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
             return new ValueTask<RespPayload>(
@@ -287,16 +287,16 @@ public class RespBatchExecutorTests
     /// The single-request <c>SendAsync</c> throws, so a test that passes has demonstrably taken the run
     /// path rather than merely produced the same answers by pipelining.
     /// </remarks>
-    private sealed class RunExecutor(params string[] replies) : IRespExecutor, IRespRunExecutor
+    private sealed class RunExecutor(params string[] replies) : RespExecutorBase, IRespRunExecutor
     {
         /// <summary>One entry per run, holding that run's frames - so "one write" is checkable.</summary>
         public List<string[]> Runs { get; } = [];
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request) => throw new NotSupportedException();
+        public override RespPayload Send(in RespRequest request) => throw new NotSupportedException();
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("this executor writes runs, not single commands");
 
         public ValueTask SendAsync(

@@ -22,15 +22,15 @@ namespace StackExchange.Redis.Benchmarks;
 [MemoryDiagnoser]
 public class CacheHitSendBenchmarks
 {
-    private sealed class OneReplyExecutor : IRespExecutor
+    private sealed class OneReplyExecutor : RespExecutorBase
     {
         private readonly byte[] _reply = Encoding.UTF8.GetBytes("$5\r\nhello\r\n");
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request) => RespPayload.Create(_reply);
+        public override RespPayload Send(in RespRequest request) => RespPayload.Create(_reply);
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
     private const CommandFlags Readable = CommandFlags.CommandRetryReadOnly;

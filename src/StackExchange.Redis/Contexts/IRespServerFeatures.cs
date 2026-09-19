@@ -15,7 +15,7 @@
     /// where it does not.
     /// </para>
     /// <para>
-    /// <b>A service rather than a method on <see cref="IRespExecutor"/></b>, deliberately. Executors are
+    /// <b>A service rather than a method on <see cref="RespExecutorBase"/></b>, deliberately. Executors are
     /// daisy-chained - cache in front of retry in front of dispatch - so a new interface member would have
     /// to be threaded through every decorator, including any written outside this library. A service is
     /// looked up by type from the context, so a decorator that knows nothing about it stays correct, and

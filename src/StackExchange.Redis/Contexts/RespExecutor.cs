@@ -33,47 +33,78 @@ namespace StackExchange.Redis
     /// reference held by the caller, who releases it. Whoever retains, releases.
     /// </para>
     /// </remarks>
-    internal interface IRespExecutor
+    /// <remarks>
+    /// <para>
+    /// <b>A class rather than an interface, and internal rather than public.</b> Nothing outside this
+    /// assembly implements an executor - the public surface is <see cref="RespExecutor"/>'s extension
+    /// methods over the contexts, which is all an external caller needs to issue a command - so the
+    /// abstraction can stay closed. What that buys beyond tidiness is the two capabilities below: as
+    /// <c>virtual</c> members with defaults they are a decision every executor inherits and can override,
+    /// where as separate interfaces they were type-tested at the call site, and an executor that simply
+    /// did not implement one was silently downgraded rather than asked.
+    /// </para>
+    /// </remarks>
+    internal abstract class RespExecutorBase
     {
         /// <summary>The database requests run against; part of a cached entry's identity.</summary>
-        int Database { get; }
+        public abstract int Database { get; }
 
         /// <summary>Issue the request and return the reply, with one reference held by the caller.</summary>
         /// <param name="request">The rendered request; retain it if it must outlive this call.</param>
-        RespPayload Send(in RespRequest request);
+        public abstract RespPayload Send(in RespRequest request);
 
         /// <summary>Issue the request asynchronously.</summary>
         /// <param name="request">The rendered request; retain it if it must outlive this call.</param>
         /// <param name="cancellationToken">Cancels the send.</param>
-        ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default);
+        public abstract ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default);
+
+        /// <summary>Whether <see cref="SendAsync(RespRequest, RespRequest, IRespPreambleGate?, CancellationToken)"/> does anything useful.</summary>
+        /// <remarks>
+        /// Asked rather than type-tested. The default answer is no, and the default implementation throws,
+        /// so an executor that has not thought about preambles is not quietly assumed to support them.
+        /// </remarks>
+        public virtual bool CanWritePreamble => false;
+
+        /// <summary>
+        /// Write a <b>preamble</b> immediately before a request, on the same connection and with nothing
+        /// interleaved.
+        /// </summary>
+        /// <param name="preamble">The conditional first frame.</param>
+        /// <param name="request">The request whose reply the caller wants.</param>
+        /// <param name="gate">Decides at write time whether the preamble is still needed.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <remarks>
+        /// <para>
+        /// Optional: an executor that does not offer it still works, because the caller sends the two in
+        /// sequence and waits for the first. That is a round trip worse and semantically identical, which
+        /// is the right trade for a fake in a test - nothing has to be updated for a capability it does
+        /// not need.
+        /// </para>
+        /// <para>
+        /// The motivating case is <c>SCRIPT LOAD</c> before <c>EVALSHA</c>. Note what is <b>not</b> being
+        /// asked for: the two are separate frames, each a pure function of its arguments, so the request
+        /// keeps its identity as a cache key and its routing. Only their adjacency is being requested.
+        /// </para>
+        /// </remarks>
+        public virtual ValueTask<RespPayload> SendAsync(
+            RespRequest preamble,
+            RespRequest request,
+            IRespPreambleGate? gate,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException($"{GetType().Name} cannot write a preamble.");
     }
 
-    /// <summary>
-    /// An executor that can write a <b>preamble</b> immediately before a request, on the same connection
-    /// and with nothing interleaved.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Optional, and detected the way <c>IRespPayloadHandler</c> is: an executor that does not implement it
-    /// still works, by sending the two in sequence and waiting for the first. That is a round trip worse
-    /// and semantically identical, which is the right trade for a fake in a test - nothing has to be
-    /// updated for a capability it does not need.
-    /// </para>
-    /// <para>
-    /// The motivating case is <c>SCRIPT LOAD</c> before <c>EVALSHA</c>. Note what is <b>not</b> being asked
-    /// for: the two are separate frames, each a pure function of its arguments, so the request keeps its
-    /// identity as a cache key and its routing. Only their adjacency is being requested.
-    /// </para>
-    /// </remarks>
     /// <summary>
     /// An executor that can write several requests as <b>one run</b>: consecutive, on one connection, with
     /// nothing of anybody else's between them.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Optional, and type-tested at the call site</b>, exactly as <see cref="IRespPreambleExecutor"/> is
-    /// - an executor that cannot do this simply does not implement it, and the caller sends the requests
-    /// one at a time instead. That degrades to a pipeline, which is correct but not contiguous.
+    /// <b>PROVISIONAL, and still an interface for that reason.</b> The shape is under review - the spans
+    /// forbid an <c>async</c> implementation, so <c>RespRetryExecutor</c> cannot offer it and a retrying
+    /// batch silently degrades to a pipeline; see the queue. It stays separate rather than becoming a
+    /// virtual on <see cref="RespExecutorBase"/> until the shape settles, because a member on the base is
+    /// a promise to every executor and this one is not ready to make it.
     /// </para>
     /// <para>
     /// <b>The run must resolve to a single slot.</b> One connection means one server, so every request that
@@ -118,16 +149,6 @@ namespace StackExchange.Redis
             scoped ReadOnlySpan<RespRequest> run,
             scoped Span<ValueTask<RespPayload>> replies,
             CancellationToken cancellationToken = default);
-    }
-
-    internal interface IRespPreambleExecutor
-    {
-        /// <summary>Issue <paramref name="preamble"/> and <paramref name="request"/> as one unit.</summary>
-        /// <param name="preamble">Written first; its reply is consumed and discarded.</param>
-        /// <param name="request">The request whose reply the caller wants.</param>
-        /// <param name="gate">If set, decides at write time whether the preamble is still needed.</param>
-        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
-        ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default);
     }
 
     /// <summary>
@@ -274,7 +295,7 @@ namespace StackExchange.Redis
         }
 
         private static async ValueTask<TResult> AwaitPair<TResult>(
-            IRespExecutor executor,
+            RespExecutorBase executor,
             RespRequest head,
             RespRequest body,
             IRespPreambleGate? gate,
@@ -284,9 +305,9 @@ namespace StackExchange.Redis
             try
             {
                 RespPayload? response;
-                if (executor is IRespPreambleExecutor together)
+                if (executor.CanWritePreamble)
                 {
-                    response = await together.SendAsync(head, body, gate, cancellationToken).ForAwait();
+                    response = await executor.SendAsync(head, body, gate, cancellationToken).ForAwait();
                 }
                 else
                 {
@@ -765,7 +786,7 @@ namespace StackExchange.Redis
         }
 
         [DoesNotReturn]
-        private static IRespExecutor ThrowNoExecutor(ref RespRequestFrame request)
+        private static RespExecutorBase ThrowNoExecutor(ref RespRequestFrame request)
         {
             request.Dispose();
             throw new InvalidOperationException("No executor is configured on this context.");
@@ -774,7 +795,7 @@ namespace StackExchange.Redis
         // the cache probe is identical for both, and borrows rather than detaching: on a HIT the request
         // never reaches the executor, so it never needs an owned lease
         private static bool TryServeFromCache<TResult>(
-            IRespExecutor executor,
+            RespExecutorBase executor,
             ref RespRequestFrame request,
             IRespHandler<TResult> handler,
             RespClientCache cache,
@@ -832,7 +853,7 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private static void StartRefresh(
-            IRespExecutor executor,
+            RespExecutorBase executor,
             RespRequest request,
             RespClientCache cache)
         {
@@ -876,7 +897,7 @@ namespace StackExchange.Redis
         }
 
         private static async ValueTask<TResult> AwaitFill<TResult>(
-            IRespExecutor executor,
+            RespExecutorBase executor,
             RespClientCache.RespFill fill,
             IRespHandler<TResult> handler,
             RespClientCache cache,
@@ -934,7 +955,7 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private static async ValueTask<TResult> AwaitShared<TResult>(
-            IRespExecutor executor,
+            RespExecutorBase executor,
             RespRequest owned,
             Task pending,
             IRespHandler<TResult> handler,
@@ -976,7 +997,7 @@ namespace StackExchange.Redis
         }
 
         private static async ValueTask<TResult> AwaitUncached<TResult>(
-            IRespExecutor executor,
+            RespExecutorBase executor,
             RespRequest request,
             IRespHandler<TResult> handler,
             CancellationToken cancellationToken)

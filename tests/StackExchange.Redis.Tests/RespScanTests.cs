@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,21 +21,21 @@ namespace StackExchange.Redis.Tests;
 public class RespScanTests
 {
     /// <summary>Replies with scripted pages, and records what was asked for.</summary>
-    private sealed class ScanExecutor(params string[] replies) : IRespExecutor
+    private sealed class ScanExecutor(params string[] replies) : RespExecutorBase
     {
         private int _next;
 
         public List<string> Sent { get; } = [];
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
             return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 

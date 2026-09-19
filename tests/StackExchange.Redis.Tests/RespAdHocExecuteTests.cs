@@ -27,7 +27,7 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespAdHocExecuteTests
 {
-    private sealed class FakeExecutor(params string[] replies) : IRespExecutor
+    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
     {
         private int _next;
 
@@ -36,9 +36,9 @@ public class RespAdHocExecuteTests
         /// <summary>The keys the writer marked, captured at send time - the request is recycled after.</summary>
         internal System.Collections.Generic.List<string> Keys { get; } = [];
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
 
@@ -55,7 +55,7 @@ public class RespAdHocExecuteTests
             return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 

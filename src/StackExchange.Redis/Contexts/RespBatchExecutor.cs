@@ -15,7 +15,7 @@ namespace StackExchange.Redis
     /// <b>No generics, and that is the whole shape of it.</b> The obvious design is an untyped base plus a
     /// <c>Pending&lt;T&gt; : TaskCompletionSource&lt;T&gt;</c> that proxies the typed result out - which
     /// C# would refuse anyway, since a class cannot derive from both. It is not needed:
-    /// <see cref="IRespExecutor"/> has <b>already</b> erased the type. It deals in
+    /// <see cref="RespExecutorBase"/> has <b>already</b> erased the type. It deals in
     /// <see cref="RespPayload"/>, and the <see cref="IRespHandler{TResult}"/> that turns a payload into a
     /// <c>T</c> is applied by <c>RespExecutor.AwaitUncached</c>, one layer up and after this has handed the
     /// payload back. So a queued command needs a <see cref="TaskCompletionSource{TResult}"/> of exactly one
@@ -54,16 +54,16 @@ namespace StackExchange.Redis
     /// by <i>server</i> would give fewer, larger runs and would race a reshard; see <see cref="Dispatch"/>.
     /// </para>
     /// </remarks>
-    internal sealed class RespBatchExecutor : IRespExecutor
+    internal sealed class RespBatchExecutor : RespExecutorBase
     {
-        private readonly IRespExecutor _inner;
+        private readonly RespExecutorBase _inner;
         private readonly object _sync = new();
         private List<IPendingSend>? _pending = [];
 
-        internal RespBatchExecutor(IRespExecutor inner)
+        internal RespBatchExecutor(RespExecutorBase inner)
             => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
-        public int Database => _inner.Database;
+        public override int Database => _inner.Database;
 
         /// <summary>How many commands are waiting; for tests and diagnostics.</summary>
         internal int Count
@@ -81,7 +81,7 @@ namespace StackExchange.Redis
         /// the command out of the batch. The shipped <see cref="IBatch"/> has the same shape from the other
         /// direction: it inherits <see cref="IDatabaseAsync"/> and offers no synchronous commands at all.
         /// </remarks>
-        public RespPayload Send(in RespRequest request) => throw new InvalidOperationException(
+        public override RespPayload Send(in RespRequest request) => throw new InvalidOperationException(
             "A batch has no synchronous send: nothing is sent until the batch is executed. "
             + "Use the asynchronous surface, or compose the command from a context without batching.");
 
@@ -90,7 +90,7 @@ namespace StackExchange.Redis
         /// The returned task completes when the batch is executed and this command's reply arrives - so the
         /// caller's <c>await</c> is what makes a batched command look ordinary from the call site.
         /// </remarks>
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             // fire-and-forget: answer now, and take a reference so the frame outlives the answer
             if ((request.Flags & CommandFlags.FireAndForget) != 0 && request.TryRetain(out var retained))

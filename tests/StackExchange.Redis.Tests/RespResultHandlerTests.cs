@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,21 +15,21 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class RespResultHandlerTests
 {
-    private sealed class FakeExecutor(params string[] replies) : IRespExecutor
+    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
     {
         private int _next;
 
         internal int Sends { get; private set; }
 
-        public int Database => 0;
+        public override int Database => 0;
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sends++;
             return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 

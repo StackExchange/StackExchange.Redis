@@ -17,25 +17,25 @@ namespace StackExchange.Redis.Tests;
 public class RespSurfaceTests
 {
     /// <summary>Records what was sent and replies from a script.</summary>
-    private sealed class FakeExecutor(params string[] replies) : IRespExecutor
+    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
     {
         private int _next;
 
         public List<string> Sent { get; } = [];
 
-        public int Database => 0;
+        public override int Database => 0;
 
         /// <summary>The flags each request carried, so the tests can assert what reached the wire.</summary>
         public List<CommandFlags> Flags { get; } = [];
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
             Flags.Add(request.Flags);
             return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 
@@ -384,20 +384,20 @@ public class RespSurfaceTests
     // ---- PING ---------------------------------------------------------------------------------------
 
     /// <summary>Sleeps before replying, so a measurement has something to find.</summary>
-    private sealed class SlowExecutor(TimeSpan delay) : IRespExecutor
+    private sealed class SlowExecutor(TimeSpan delay) : RespExecutorBase
     {
-        public int Database => 0;
+        public override int Database => 0;
 
         public List<string> Sent { get; } = [];
 
-        public RespPayload Send(in RespRequest request)
+        public override RespPayload Send(in RespRequest request)
         {
             Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
             Thread.Sleep(delay);
             return RespPayload.Create(Encoding.UTF8.GetBytes("+PONG\r\n"));
         }
 
-        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => new(Send(request));
     }
 
@@ -457,6 +457,6 @@ public class RespSurfaceTests
         Assert.True(second < first + TimeSpan.FromMilliseconds(80), $"first {first}, second {second}");
     }
 
-    private static RespDatabaseContext Target2(IRespExecutor executor)
+    private static RespDatabaseContext Target2(RespExecutorBase executor)
         => new(new RespContext().WithExecutor(executor));
 }

@@ -114,7 +114,7 @@ namespace StackExchange.Redis
         /// holding another. That is the failure mode SER307/SER308 exist to warn about.
         /// </para>
         /// <para>
-        /// The proper fix is routing rather than waiting: <c>IRespExecutor</c> already has a synchronous
+        /// The proper fix is routing rather than waiting: <c>RespExecutorBase</c> already has a synchronous
         /// <c>Send</c>, and <c>RespExecutor.Send</c> already uses it, so a context flag consulted by the
         /// one shared funnel would make every sync call complete inline and reduce this method to its fast
         /// path. Worth doing when sync stops being deprioritised - not before.
