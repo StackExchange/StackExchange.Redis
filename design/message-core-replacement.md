@@ -744,9 +744,16 @@ topology is known and their speculative slots become meaningful. No redirect, no
 
 The invariant breaks if a connection is ever brought up and used while its server type is still unset.
 So: **whoever owns an endpoint must set the topology as part of bringing a connection up, before draining
-the backlog.** That is a wiring rule the current code does not enforce — the connect delegate is
-caller-supplied — and it is the obvious next thing to fold into the handshake, which is already the place
-that asks the server what it is.
+the backlog.** *Done* — `RespHandshake.PerformAsync` now takes the topology cell and sets it before it
+returns, which is before the endpoint executor publishes the connection and drains anything. The rule is
+structural rather than remembered.
+
+It costs no extra round trip in the normal case: `HELLO`'s reply already carries `mode`
+(`standalone`/`sentinel`/`cluster`) alongside `proto`, so one command answers both questions. A server
+with no usable `HELLO` falls back to `CLUSTER INFO` and `cluster_enabled:1`, which is unambiguous and
+works on RESP2 — and a server where `CLUSTER` is unavailable is, by that very fact, not a cluster.
+Verified against a real cluster node as well as a standalone one, because only the cluster case proves
+the `mode` parsing and the latch to `RoutesBySlot`.
 
 ---
 

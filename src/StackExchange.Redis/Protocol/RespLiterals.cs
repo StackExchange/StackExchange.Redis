@@ -30,6 +30,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Get { get; }
 
+        /// <summary>The <c>INFO</c> sub-command, as used by <c>CLUSTER INFO</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Info { get; }
+
         /// <summary>The <c>LEN</c> operand of <c>LCS</c>.</summary>
         [Resp]
         internal static partial RespFragment Len { get; }

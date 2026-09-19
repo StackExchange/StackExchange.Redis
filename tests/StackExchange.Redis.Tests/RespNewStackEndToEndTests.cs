@@ -65,7 +65,8 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
 
         await using var owner = transport;
 
-        var protocol = await RespHandshake.PerformAsync(context, clientName: "resp-new-stack", database: 0);
+        var result = await RespHandshake.PerformAsync(context, clientName: "resp-new-stack", database: 0);
+        var protocol = result.Protocol;
 
         // the test servers are modern, so this is RESP3 - and reading it from the reply rather than
         // assuming it is the entire point of awaiting HELLO
@@ -75,6 +76,102 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         RedisKey key = Me();
         await context.Keys.DeleteAsync(key);
         Assert.Equal(1, (long)await context.Strings.IncrementAsync(key));
+    }
+
+    [Fact]
+    public async Task TheHandshakeReportsWhatTheServerIsAndSetsTheTopology()
+    {
+        // this is what turns the ordering invariant from a rule somebody has to remember into something
+        // structural: the topology is set BEFORE the handshake returns, which is before the endpoint
+        // executor publishes the connection and drains its backlog
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        var topology = new RespTopology();
+        Assert.Equal(RespClusterState.Unknown, topology.State);
+
+        var result = await RespHandshake.PerformAsync(context, topology: topology);
+
+        // the standalone test server: HELLO says mode=standalone, so no CLUSTER INFO was needed
+        Assert.Equal(ServerType.Standalone, result.ServerType);
+        Assert.Equal(RespClusterState.No, topology.State);
+        Assert.False(topology.NeedsSlots); // and hashing stops, for the life of the connection
+    }
+
+    [Fact]
+    public async Task AgainstARealClusterTheHandshakeSaysSoAndSlotsStartMattering()
+    {
+        // the half that actually matters, and the one a standalone server cannot prove: HELLO reports
+        // mode=cluster, the topology latches to Yes, and hashing switches on for every subsequent key
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync(TestConfig.Current.ClusterServer, TestConfig.Current.ClusterStartPort);
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to cluster server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        var topology = new RespTopology();
+        var clustered = new RespDatabaseContext(context.Raw.WithTopology(topology));
+
+        // before: nothing known, so slots are computed speculatively but not obeyed
+        Assert.True(topology.NeedsSlots);
+        Assert.False(topology.RoutesBySlot);
+
+        var result = await RespHandshake.PerformAsync(clustered, topology: topology);
+
+        Assert.Equal(ServerType.Cluster, result.ServerType);
+        Assert.Equal(RespClusterState.Yes, topology.State);
+        Assert.True(topology.RoutesBySlot);   // and now the slot decides
+
+        using var request = clustered.Raw.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}").Detach();
+        Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"user:1"), request.Slot);
+
+        output.WriteLine($"cluster node reported {result.ServerType} over {result.Protocol}");
+    }
+
+    [Fact]
+    public async Task TheHandshakeFallsBackToClusterInfoWithoutHello()
+    {
+        // a RESP2 server, or one with no HELLO at all, still has to yield an answer - CLUSTER INFO is
+        // unambiguous and works there. A server where CLUSTER is unavailable is, by that fact, not one.
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        var topology = new RespTopology();
+        var result = await RespHandshake.PerformAsync(context, preferResp3: false, topology: topology);
+
+        Assert.Equal(RedisProtocol.Resp2, result.Protocol);
+        Assert.Equal(ServerType.Standalone, result.ServerType);
+        Assert.Equal(RespClusterState.No, topology.State);
     }
 
     [Fact]
@@ -94,7 +191,7 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
 
         await using var owner = transport;
 
-        var protocol = await RespHandshake.PerformAsync(context, preferResp3: false);
+        var protocol = (await RespHandshake.PerformAsync(context, preferResp3: false)).Protocol;
 
         Assert.Equal(RedisProtocol.Resp2, protocol); // never asked, so never got it
         RedisKey key = Me();
@@ -150,7 +247,7 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         await using var owner = transport;
 
         RedisKey key = Me();
-        var protocol = await RespHandshake.PerformAsync(context, password: TestConfig.Current.SecurePassword);
+        var protocol = (await RespHandshake.PerformAsync(context, password: TestConfig.Current.SecurePassword)).Protocol;
         Assert.Equal(RedisProtocol.Resp3, protocol);
 
         // AUTH goes FIRST, deliberately: an authenticated server answers HELLO with NOAUTH, so asking
