@@ -2986,9 +2986,8 @@ Four consequences, none of them cosmetic:
       `RedisBatch` (which already works, and is what `ATransactionContextQueuesInsteadOfSending` exercises
       for the transaction case).
 
-      Also open, both small: **fire-and-forget in a batch** completes at execute here, where the shipped
-      batch completes it immediately; and the **public trigger** is undecided - `await using` that executes
-      on leaving would read better than an explicit call, and that is a decision rather than a translation.
+      Also open: the **public trigger** is undecided - `await using` that executes on leaving would read
+      better than an explicit call, and that is a decision rather than a translation.
 
 - [x] **The batch executor needs no generics — DONE, 2026-09-19.** Marc sketched
       `abstract class Foo : IUntypedHandler` plus `Foo<T>(ITypedHandler<T>) : TaskCompletionSource<T>`, so
@@ -3007,16 +3006,32 @@ Four consequences, none of them cosmetic:
       `TaskCreationOptions.RunContinuationsAsynchronously` is load-bearing - without it, executing a batch
       of a thousand would run all thousand callers' continuations inline on the flushing thread.
 
+      **And there IS a second type, just not a generic one.** Marc, on fire-and-forget: *"we could
+      pre-emptively TrySetResult, but I actually wonder whether two types that share an interface, with the
+      latter having a static shared completed task"*. Two types sharing `IPendingSend`, yes - and the
+      forgotten one needs no task at all, shared or otherwise: `SendAsync` answers a **default**
+      `ValueTask<RespPayload>`, which is already completed and carries a null payload, and a null payload is
+      what `RespExecutor.Parse` turns into `default(T)`. So it allocates nothing beyond the entry, and would
+      allocate nothing at all if the entry were pooled.
+
+      **That is also the one place a retain is genuinely required**, which is where Marc's original
+      incr/decr instinct belongs. Answering early hands control back to the caller, whose `finally` disposes
+      its reference while the frame is still queued - the single case that breaks the contract below. So
+      `PendingForget` retains and releases when the batch is done with it. Confirmed load-bearing by
+      removing it: three tests fail.
+
 - [x] **The request-lifetime contract, stated — 2026-09-19.** Two features in a row asked the same
       question, so it is worth having an answer rather than a case analysis:
 
       > **An executor may use a request until the task it returned completes, and no longer.** The caller
       > holds exactly one reference and releases it then.
 
-      That is why neither retry nor batch needs to retain: a retry's task completes after the last attempt,
-      and a batched send's completes after execute, which is after the bytes were written. The one path
-      that completes *before* the bytes are used is fire-and-forget - which is precisely why
-      `FrameMessage` copies for that case and only that case.
+      That is why neither retry nor an **awaited** batched send needs to retain: a retry's task completes
+      after the last attempt, and a batched send's after execute, which is after the bytes were written.
+
+      The exception is the path that completes *before* the bytes are used, and it is always the same one:
+      **fire-and-forget**. `FrameMessage` copies for it; `RespBatchExecutor.PendingForget` retains for it.
+      Anything else that learns to answer early will need one or the other, and the rule says which.
 
 - [ ] **Should the existing `ResultProcessor` path copy too?** (§6.16). Sharing there is *correct* — it is
       single-owner — so this is a policy change, not a fix, and it would strand `TryReservePayload`,

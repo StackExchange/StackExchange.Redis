@@ -182,6 +182,104 @@ public class RespBatchExecutorTests
         Assert.Contains("no synchronous send", ex.Message);
     }
 
+    // ---- fire-and-forget --------------------------------------------------------------------------
+
+    /// <summary>
+    /// A fire-and-forget command answers at once, and is still sent when the batch goes out.
+    /// </summary>
+    /// <remarks>
+    /// Nobody is waiting, so there is no promise to make: <c>SendAsync</c> hands back a default
+    /// <see cref="ValueTask{TResult}"/> carrying a null payload, and a null payload is what the layer above
+    /// turns into <c>default(T)</c> - which is what fire-and-forget has always returned. The command still
+    /// travels; only the waiting is skipped.
+    /// </remarks>
+    [Fact]
+    public void FireAndForgetCompletesImmediatelyAndStillSends()
+    {
+        var executor = new RecordingExecutor("+OK\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var pending = batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
+
+        Assert.True(pending.IsCompletedSuccessfully); // answered before anything was sent
+        Assert.False(pending.GetAwaiter().GetResult()); // default(bool), as fire-and-forget always gives
+        Assert.False(executor.HasSent);
+        Assert.Equal(1, batch.Count);
+
+        batch.ExecuteAsync().GetAwaiter().GetResult();
+        Assert.Equal(["*3|$3|SET|$1|k|$1|v|"], executor.Sent);
+    }
+
+    /// <summary>
+    /// The frame outlives the answer, which is the whole reason that entry retains.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Answering early hands control back to the caller, whose <c>finally</c> disposes its reference to the
+    /// rendered frame - while the frame is still sitting in the queue waiting to be sent. Every other path
+    /// on this surface is safe because the task completes <i>after</i> the bytes are used; this is the
+    /// exception, so the batch takes a reference of its own.
+    /// </para>
+    /// <para>
+    /// <c>RefCountedBuffer</c> throws on a span read after the last reference has gone, so without the
+    /// retain this fails inside the executor rather than reading somebody else's rent. Awaiting the send
+    /// first is what makes the caller's <c>finally</c> actually have run by the time the batch executes.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task FireAndForgetKeepsTheFrameAliveUntilItIsSent()
+    {
+        var executor = new RecordingExecutor("+OK\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        await batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
+        await Task.Yield(); // and let any continuation the caller had run
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal(["*3|$3|SET|$1|k|$1|v|"], executor.Sent);
+    }
+
+    /// <summary>A mixed batch keeps both kinds in order.</summary>
+    [Fact]
+    public async Task AwaitedAndForgottenCommandsShareTheRun()
+    {
+        var executor = new RecordingExecutor("+OK\r\n", "$1\r\na\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var forgotten = batch.Context.Strings.SetAsync("k1", "v", flags: CommandFlags.FireAndForget);
+        var awaited = batch.Context.Strings.GetAsync("k2");
+
+        Assert.True(forgotten.IsCompletedSuccessfully);
+        Assert.False(awaited.IsCompleted);
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal(2, executor.Sent.Count);
+        Assert.StartsWith("*3|$3|SET|$2|k1|", executor.Sent[0]);
+        Assert.Equal("*2|$3|GET|$2|k2|", executor.Sent[1]);
+        Assert.Equal("a", (string?)await awaited);
+    }
+
+    /// <summary>Discarding a batch releases what the forgotten commands were holding.</summary>
+    /// <remarks>
+    /// There is no task to fault for those, so the only thing abandonment can get wrong is the reference -
+    /// and a leaked one is a pooled buffer that never goes back. Nothing here can observe the count
+    /// directly; what it can observe is that disposing twice, or after executing, does not double-release.
+    /// </remarks>
+    [Fact]
+    public void DiscardingReleasesForgottenCommandsExactlyOnce()
+    {
+        var executor = new RecordingExecutor("+OK\r\n");
+        var batch = Source(executor).CreateBatch();
+
+        _ = batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
+
+        batch.Dispose();
+        batch.Dispose(); // idempotent: a second release would hand the same buffer back twice
+        Assert.False(executor.HasSent);
+    }
+
     /// <summary>The context it was built from is untouched, and still sends immediately.</summary>
     [Fact]
     public async Task TheSourceContextIsNotBatched()

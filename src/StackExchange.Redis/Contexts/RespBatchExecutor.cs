@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,11 +26,18 @@ namespace StackExchange.Redis
     /// rather than holding one - which is the good half of the sketch above, kept.
     /// </para>
     /// <para>
-    /// <b>The frame needs no retain</b>, for the reason that makes this whole layer cheap: an executor may
-    /// use a request until the task it returned completes, and the caller holds its reference until then.
-    /// A batched send completes at execute, which is after the bytes have been written. Fire-and-forget is
-    /// the documented exception - it completes before the write - which is why <c>FrameMessage</c> copies
-    /// for that case and only that case.
+    /// <b>A command nobody is awaiting costs neither.</b> Fire-and-forget answers a default
+    /// <see cref="ValueTask{TResult}"/> at once - already completed, carrying a null payload, which is what
+    /// <c>RespExecutor.Parse</c> turns into <c>default(T)</c> - so there is no promise to make and no task
+    /// to allocate. <see cref="PendingForget"/> exists only to hold the frame until the run goes out.
+    /// </para>
+    /// <para>
+    /// <b>Which is also the one place this has to take a reference of its own.</b> The rule everything else
+    /// here relies on is that an executor may use a request until the task it returned completes, and the
+    /// caller holds its reference until then - so an awaited batched send needs nothing, because its task
+    /// completes after the bytes were written. Answering <i>early</i> is exactly what breaks that: the
+    /// caller's <c>finally</c> disposes while the frame is still queued. So the fire-and-forget entry
+    /// retains, and releases when the batch is done with it.
     /// </para>
     /// <para>
     /// <b>This pipelines; it does not yet batch.</b> Executing issues every queued send before awaiting any
@@ -44,7 +51,7 @@ namespace StackExchange.Redis
     {
         private readonly IRespExecutor _inner;
         private readonly object _sync = new();
-        private List<PendingSend>? _pending = [];
+        private List<IPendingSend>? _pending = [];
 
         internal RespBatchExecutor(IRespExecutor inner)
             => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
@@ -78,14 +85,31 @@ namespace StackExchange.Redis
         /// </remarks>
         public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
-            var pending = new PendingSend(request);
-            lock (_sync)
+            // fire-and-forget: answer now, and take a reference so the frame outlives the answer
+            if ((request.Flags & CommandFlags.FireAndForget) != 0 && request.TryRetain(out var retained))
             {
-                var queue = _pending ?? throw AlreadyExecuted();
-                queue.Add(pending);
+                Enqueue(new PendingForget(retained));
+                return default; // completed, null payload - which Parse turns into default(T)
             }
 
+            var pending = new PendingSend(request);
+            Enqueue(pending);
             return new ValueTask<RespPayload>(pending.Task);
+
+            void Enqueue(IPendingSend entry)
+            {
+                lock (_sync)
+                {
+                    var queue = _pending;
+                    if (queue is null)
+                    {
+                        entry.Release(); // hand back anything we took before failing
+                        throw AlreadyExecuted();
+                    }
+
+                    queue.Add(entry);
+                }
+            }
         }
 
         /// <summary>Send everything queued, and complete each caller's task with its own reply.</summary>
@@ -97,7 +121,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal async Task ExecuteAsync(CancellationToken cancellationToken = default)
         {
-            List<PendingSend> queue;
+            List<IPendingSend> queue;
             lock (_sync)
             {
                 queue = _pending ?? throw AlreadyExecuted();
@@ -106,6 +130,9 @@ namespace StackExchange.Redis
 
             if (queue.Count == 0) return;
 
+            // the indexes whose send threw before producing a task; almost always none, so the list is
+            // not built unless one does
+            List<int>? faulted = null;
             var sends = new ValueTask<RespPayload>[queue.Count];
             for (var i = 0; i < queue.Count; i++)
             {
@@ -118,24 +145,34 @@ namespace StackExchange.Redis
                 {
                     // a send that threw synchronously never produced a task to await; fault this one and
                     // carry on issuing the rest, so one bad command does not strand the others
-                    pending.TrySetException(ex);
+                    pending.Fail(ex);
+                    faulted ??= [];
+                    faulted.Add(i);
                     sends[i] = default;
                 }
             }
 
-            for (var i = 0; i < queue.Count; i++)
+            try
             {
-                var pending = queue[i];
-                if (pending.Task.IsCompleted) continue; // faulted above
+                for (var i = 0; i < queue.Count; i++)
+                {
+                    if (faulted is not null && faulted.Contains(i)) continue;
 
-                try
-                {
-                    pending.TrySetResult(await sends[i].ConfigureAwait(false));
+                    var pending = queue[i];
+                    try
+                    {
+                        pending.Complete(await sends[i].ConfigureAwait(false));
+                    }
+                    catch (Exception ex)
+                    {
+                        pending.Fail(ex);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    pending.TrySetException(ex);
-                }
+            }
+            finally
+            {
+                // whatever happened, give back every reference this batch took of its own
+                foreach (var pending in queue) pending.Release();
             }
         }
 
@@ -147,7 +184,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal void Abandon()
         {
-            List<PendingSend>? queue;
+            List<IPendingSend>? queue;
             lock (_sync)
             {
                 queue = _pending;
@@ -155,26 +192,107 @@ namespace StackExchange.Redis
             }
 
             if (queue is null) return;
+            var fault = new InvalidOperationException(
+                "The batch was discarded without being executed, so this command was never sent.");
             foreach (var pending in queue)
             {
-                pending.TrySetException(new InvalidOperationException(
-                    "The batch was discarded without being executed, so this command was never sent."));
+                pending.Fail(fault);
+                pending.Release();
             }
         }
 
         private static InvalidOperationException AlreadyExecuted() => new(
             "This batch has already been executed; create another to send more commands.");
 
-        /// <summary>One queued command: the frame to send, and the caller waiting for its reply.</summary>
+        /// <summary>One queued command: the frame to send, and whatever is waiting for its reply.</summary>
         /// <remarks>
+        /// <b>Two implementations, because fire-and-forget is not a degenerate case of waiting - it is the
+        /// absence of it.</b> Completing a promise nobody holds still costs the promise; declining to make
+        /// one costs nothing.
+        /// </remarks>
+        private interface IPendingSend
+        {
+            /// <summary>The frame to send when the batch is executed.</summary>
+            RespRequest Request { get; }
+
+            /// <summary>Hand the reply to whoever asked for it.</summary>
+            void Complete(RespPayload? payload);
+
+            /// <summary>Report that this command did not happen.</summary>
+            void Fail(Exception fault);
+
+            /// <summary>Give back any reference this entry took of its own.</summary>
+            void Release();
+        }
+
+        /// <summary>A queued command somebody is awaiting.</summary>
+        /// <remarks>
+        /// <para>
         /// <b>It <i>is</i> the completion source</b> rather than holding one, so a queued command costs a
         /// single allocation. <see cref="TaskCreationOptions.RunContinuationsAsynchronously"/> is
         /// load-bearing: without it, executing a batch of a thousand commands would run all thousand
         /// callers' continuations inline, one after another, on whichever thread happened to flush.
+        /// </para>
+        /// <para>
+        /// <b>Releases nothing</b>: the caller's own reference covers the frame, because its <c>await</c>
+        /// does not finish until this completes. That is the ordinary contract, and the reason this layer
+        /// is nearly free.
+        /// </para>
         /// </remarks>
-        private sealed class PendingSend(RespRequest request) : TaskCompletionSource<RespPayload>(TaskCreationOptions.RunContinuationsAsynchronously)
+        private sealed class PendingSend(RespRequest request)
+            : TaskCompletionSource<RespPayload>(TaskCreationOptions.RunContinuationsAsynchronously), IPendingSend
         {
-            internal RespRequest Request { get; } = request;
+            public RespRequest Request { get; } = request;
+
+            public void Complete(RespPayload? payload) => TrySetResult(payload!);
+
+            public void Fail(Exception fault) => TrySetException(fault);
+
+            public void Release()
+            {
+            }
+        }
+
+        /// <summary>A queued command nobody is awaiting.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>No completion source and no task</b>: <c>SendAsync</c> answers a default
+        /// <see cref="ValueTask{TResult}"/>, which is already completed and carries a null payload - and a
+        /// null payload is what <c>RespExecutor.Parse</c> turns into <c>default(T)</c>, which is what
+        /// fire-and-forget has always returned. So a fire-and-forget command in a batch allocates only
+        /// this entry, and would allocate nothing at all if the entry were pooled.
+        /// </para>
+        /// <para>
+        /// <b>And this is the one place the batch must take a reference of its own.</b> Completing the
+        /// caller's task at queue time is exactly what breaks the contract the rest of this relies on: the
+        /// caller's <c>finally</c> disposes its reference immediately, while the frame is still sitting in
+        /// the queue waiting to be sent. So the entry retains, and releases when the batch is done with it.
+        /// Marc's original instinct about an increment belongs here and nowhere else.
+        /// </para>
+        /// <para>
+        /// A borrowed request cannot be retained, and one that fails to is queued the ordinary way instead
+        /// - the caller waits for execute, which is slower than it needed to be but never wrong.
+        /// </para>
+        /// </remarks>
+        private sealed class PendingForget(RespRequest retained) : IPendingSend
+        {
+            public RespRequest Request { get; } = retained;
+
+            /// <remarks>Nobody asked, so there is nobody to tell - which is what the flag means.</remarks>
+            public void Complete(RespPayload? payload)
+            {
+            }
+
+            /// <inheritdoc cref="Complete"/>
+            /// <remarks>
+            /// Including a failure: fire-and-forget declines the <i>outcome</i>, not just the value, and
+            /// the shipped path has the same shape - a message with no task has nowhere to put a fault.
+            /// </remarks>
+            public void Fail(Exception fault)
+            {
+            }
+
+            public void Release() => Request.Dispose();
         }
     }
 }
