@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Xunit;
 
@@ -11,9 +11,6 @@ public class SortedSetIncrementUnitTests
     public void InvalidValueConditionModesThrow(ValueCondition condition)
     {
         var db = new RedisDatabase(null!, 0, null);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            db.SortedSetIncrement("key", "member", 1, condition, CommandFlags.None));
 
         Assert.Throws<InvalidOperationException>(() =>
         {

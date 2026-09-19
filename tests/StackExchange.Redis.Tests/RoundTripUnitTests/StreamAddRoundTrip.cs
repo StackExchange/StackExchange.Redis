@@ -100,7 +100,7 @@ public class StreamAddRoundTrip(ITestOutputHelper log)
     [InlineData(nameof(StreamAddOptions.MessageId))]
     [InlineData("LimitWithoutThreshold")]
     [InlineData("LimitWithoutApproximate")]
-    public void InvalidCombinationsAreRejected(string scenario)
+    public async Task InvalidCombinationsAreRejected(string scenario)
     {
         var db = new RedisDatabase(null!, 0, null);
         var options = scenario switch
@@ -113,7 +113,7 @@ public class StreamAddRoundTrip(ITestOutputHelper log)
 
         // the validation is on the public entry-points, not the message builder: the shipped positional
         // overloads have always passed odd-but-legal-looking combinations to the server, and still do
-        var ex = Assert.Throws<ArgumentException>(() => db.StreamAdd("stream", "field", "value", options));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => db.StreamAddAsync("stream", "field", "value", options));
         log.WriteLine(ex.Message);
         Assert.Equal("options", ex.ParamName);
     }

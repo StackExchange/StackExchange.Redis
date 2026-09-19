@@ -1530,7 +1530,7 @@ namespace StackExchange.Redis
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
-                ? GetCachedDatabaseInstance(db) : new RedisDatabase(this, db, asyncState);
+                ? GetCachedDatabaseInstance(db) : SpikeWrap(new RedisDatabase(this, db, asyncState), asyncState);
         }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
@@ -1545,11 +1545,16 @@ namespace StackExchange.Redis
             // different instances, one of which (arbitrarily) ends up cached for later use.
             if (db == 0)
             {
-                return dbCacheZero ??= new RedisDatabase(this, 0, null);
+                return dbCacheZero ??= SpikeWrap(new RedisDatabase(this, 0, null), null);
             }
             var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
-            return arr[db - 1] ??= new RedisDatabase(this, db, null);
+            return arr[db - 1] ??= SpikeWrap(new RedisDatabase(this, db, null), null);
         }
+
+        // SPIKE: every IDatabase handed out is the new context surface, with NO fallback - anything that
+        // has not moved throws NotImplementedException naming itself. The point is to measure the true gap.
+        private IDatabase SpikeWrap(RedisDatabase inner, object? asyncState)
+            => new TransitionalDatabase(inner.Context, this, asyncState, fallback: null);
 
         /// <summary>
         /// Compute the hash-slot of a specified key.
