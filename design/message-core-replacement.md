@@ -385,8 +385,12 @@ Proposed order, each step independently shippable:
    against a real server with no `Message`, no `ResultProcessor` and no result box in it, and comes up
    properly: authenticated, protocol negotiated, named, on the right database. Outstanding before it is a
    *replacement* rather than a demonstration: reconnect, the backlog, and the profiling hooks.
-4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` and the endpoint-identity
-   members come off the fallback here.
+4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` comes off the fallback
+   here. (`IsConnected` and the endpoint-identity members came off earlier, as executor capabilities —
+   they did not need routing, only somebody to ask.) **The server-endpoint executor is done**:
+   `RespEndpointExecutor` owns a connection's whole life — connect, handshake, notice death, reconnect,
+   and hold a backlog meanwhile. That also closes phase 3's outstanding reconnect and backlog items; what
+   remains there is the profiling hooks.
 5. **Batch, then transaction**, as decorators. `RespBatchExecutor` is replaced by the `BatchConnection`
    shape; `IRespRunExecutor` is deleted rather than fixed.
 6. **Retire the shim**: `RespMessageExecutor`, `FrameMessage`, `FramePairMessage`, `FrameRunMessage`,
@@ -631,6 +635,34 @@ await, expect several of them to collapse rather than port.
 Proven against real servers, including the secure one: RESP3 negotiated, RESP2 when not asked for,
 `SELECT` isolating a key from a second connection on database 0, and `AUTH` succeeding where a control
 test confirms the server genuinely refuses an unauthenticated connection.
+
+
+### 7g. What the endpoint executor will not do for you
+
+`RespEndpointExecutor` reconnects lazily — a send finds no connection and starts one, and everybody
+arriving during that attempt waits on the same attempt rather than dialling their own. There is no
+background loop courting an endpoint nobody is using.
+
+**The interesting decision is what happens to a command that was already on the wire.** It is *not*
+replayed, and that is a deliberate refusal rather than an omission. The bytes reached a socket, so
+whether the server applied them is unknown; re-sending an `INCR` behind the caller's back would double
+it. Deciding to retry is the retry layer's job, which has the flags and the retry category and can tell
+a read from an accumulating write. This layer's job is to be *honest about what happened* — which is what
+`RespCommandStatus` and the definite/indefinite split exist for.
+
+The real-server test makes the consequence explicit rather than hiding it: kill the socket abortively,
+and a command issued in the window before the read loop notices **fails**. It is the command after that
+which succeeds, on a freshly handshaked connection. The first version of that test asserted recovery on
+the very next command and failed — correctly, and the fix was to the test, not the code.
+
+**What a backlogged command gets that an in-flight one does not** is certainty. It never reached a
+socket, so it is marked `WaitingInBacklog`, and `FaultContext.NotApplied` reads exactly that to bypass
+retry's side-effect cap. The diagnostics built in phase 2 are what make the distinction expressible; this
+is the first place that actually depends on them.
+
+A failed *connect* fails everything waiting on it rather than holding it for a later attempt: a queue
+that grows without bound while a server is down is a worse failure than a fast one, and the caller (or
+the retry layer above) is better placed to decide how long to keep trying.
 
 ---
 

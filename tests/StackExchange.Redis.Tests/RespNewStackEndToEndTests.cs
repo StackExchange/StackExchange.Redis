@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using RESPite.Operations;
@@ -177,6 +179,76 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         // the control for the test above: without the password, the server really does refuse
         var ex2 = await Assert.ThrowsAsync<RedisServerException>(async () => await context.Strings.GetAsync(Me()));
         Assert.StartsWith("NOAUTH", ex2.Message);
+    }
+
+    [Fact]
+    public async Task TheEndpointExecutorReconnectsAfterARealSocketDies()
+    {
+        // the fake-transport tests prove the state machine; this proves it against a socket that really
+        // goes away, with a real handshake on the replacement connection
+        var sockets = new List<Socket>();
+        var executor = new RespEndpointExecutor(
+            async ct =>
+            {
+                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                await socket.ConnectAsync(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
+                lock (sockets) sockets.Add(socket);
+
+                var connection = new RespConnection(new StreamDuplexTransport(new NetworkStream(socket, ownsSocket: true)));
+
+                // the replacement is handshaked too, which is the point: a reconnected connection that
+                // skipped SELECT would quietly be on the wrong database
+                var handshakeContext = new RespDatabaseContext(
+                    new RespContext().WithExecutor(new RespConnectionExecutor(connection, 0)));
+                await RespHandshake.PerformAsync(handshakeContext, database: 0, cancellationToken: ct);
+                return connection;
+            });
+
+        await using var owner = executor;
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor));
+
+        RedisKey key = Me();
+        try
+        {
+            await context.Keys.DeleteAsync(key);
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        Assert.Equal(1, (long)await context.Strings.IncrementAsync(key));
+        Assert.Equal(1, executor.Connects);
+
+        // kill it the way a network does: abortive close, no FIN
+        lock (sockets) sockets[sockets.Count - 1].Close(timeout: 0);
+
+        // A command issued in the window between the socket dying and the read loop noticing reaches the
+        // dead connection and fails. That is CORRECT and must not be smoothed over here: the bytes went
+        // to a socket, so whether the server applied them is unknown, and quietly re-sending an INCR
+        // would double it. Deciding to retry is the retry layer's job, with the flags and the category.
+        var casualties = 0;
+        long observed = 0;
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                observed = (long)await context.Strings.IncrementAsync(key);
+                break;
+            }
+            catch (Exception ex) when (ex is IOException or RedisConnectionException or SocketException)
+            {
+                casualties++;
+            }
+        }
+
+        // recovered: a new connection, freshly handshaked, and the counter moved on from 1
+        Assert.True(observed > 1, $"expected the counter to advance; saw {observed}");
+        Assert.Equal(2, executor.Connects);
+        Assert.True(executor.IsConnectedNow);
+
+        output.WriteLine($"recovered across {executor.Connects} connections, {casualties} command(s) lost to the dead socket");
     }
 
     [Fact]
