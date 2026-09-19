@@ -25,6 +25,33 @@ namespace StackExchange.Redis
         /// </summary>
         public static CommandMap Default { get; } = CreateImpl(null, null);
 
+        /// <summary>Whether two maps describe the same commands, regardless of identity.</summary>
+        /// <param name="other">The map to compare with.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Structural, and it has to be.</b> A map is usually reached by parsing a configuration
+        /// string, so two configurations that say exactly the same thing produce two distinct instances -
+        /// reference equality would report them different, which is the opposite of useful.
+        /// </para>
+        /// <para>
+        /// Internal rather than an <c>Equals</c> override: this is a narrow question asked by group
+        /// validation, and giving a shipped public type value semantics would change how it behaves in
+        /// dictionaries and comparisons for everyone, which is a much bigger promise than is wanted here.
+        /// </para>
+        /// </remarks>
+        internal bool StructurallyEquals(CommandMap? other)
+        {
+            if (ReferenceEquals(this, other)) return true;
+            if (other is null || map.Length != other.map.Length) return false;
+
+            for (var i = 0; i < map.Length; i++)
+            {
+                if (!map[i].Equals(other.map[i])) return false;
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// The commands available to <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>

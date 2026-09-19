@@ -16,21 +16,40 @@ namespace StackExchange.Redis.Tests;
 public class RespEndpointExecutorTests
 {
     /// <summary>A transport that answers on demand and can be killed.</summary>
+    /// <remarks>
+    /// <b>Locked, and it has to be.</b> The backlog drains on a thread-pool thread while the test polls
+    /// from another, so an unsynchronised buffer gives the reader a stale length and a half-written frame -
+    /// which surfaces as a test that passes alone and fails when the machine is busy. That is a defect in
+    /// the harness, not a widening-the-timeout problem, and it cost me two runs to stop treating it as one.
+    /// </remarks>
     private sealed class FakeTransport : DuplexTransport
     {
+        private readonly object _sync = new();
         private byte[] _out = new byte[1024];
         private int _length;
         private TransportReceiver? _receiver;
 
-        internal string Written => Encoding.UTF8.GetString(_out, 0, _length).Replace("\r\n", "|");
+        internal string Written
+        {
+            get
+            {
+                lock (_sync) return Encoding.UTF8.GetString(_out, 0, _length).Replace("\r\n", "|");
+            }
+        }
 
         public override Memory<byte> GetMemory(int sizeHint = 0)
         {
-            if (_length + Math.Max(sizeHint, 1) > _out.Length) Array.Resize(ref _out, _length + sizeHint + 1024);
-            return _out.AsMemory(_length);
+            lock (_sync)
+            {
+                if (_length + Math.Max(sizeHint, 1) > _out.Length) Array.Resize(ref _out, _length + sizeHint + 1024);
+                return _out.AsMemory(_length);
+            }
         }
 
-        public override void Advance(int count) => _length += count;
+        public override void Advance(int count)
+        {
+            lock (_sync) _length += count;
+        }
 
         public override bool Flush() => true;
 
@@ -48,7 +67,9 @@ public class RespEndpointExecutorTests
     {
         internal readonly List<FakeTransport> Transports = [];
 
-        internal int Attempts;
+        internal int Attempts => Volatile.Read(ref _attempts);
+
+        private int _attempts;
 
         internal Exception? FailWith;
 
@@ -56,7 +77,7 @@ public class RespEndpointExecutorTests
 
         internal async Task<RespConnection> ConnectAsync(CancellationToken cancellationToken)
         {
-            Interlocked.Increment(ref Attempts);
+            Interlocked.Increment(ref _attempts);
             if (Gate is { } gate) await gate.Task.ConfigureAwait(false);
             if (FailWith is { } fault) throw fault;
 

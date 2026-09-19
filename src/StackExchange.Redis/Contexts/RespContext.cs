@@ -64,7 +64,7 @@ namespace StackExchange.Redis
             // test rather than an `is T` the JIT turns into a cast check. Resolving once, here, turns all
             // of that into field reads; the chain remains for the niche lookups that are not worth a field.
             Database = executor?.Database ?? database;
-            Cache = TryGetService<RespClientCache>(out var cache) ? cache : null;
+            _cache = TryGetService<RespClientCache>(out var cache) ? cache : null;
             ScriptCache = TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
             ChannelPrefix = TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
             MaxCacheAgeTicks = TryGetService<MaxCacheAgeService>(out var maxAge) ? maxAge.Ticks : long.MaxValue;
@@ -222,9 +222,40 @@ namespace StackExchange.Redis
         }
 
         /// <summary>The client-side cache attached to this context, or <c>null</c> for none.</summary>
-        /// <remarks>Resolved through <see cref="TryGetService{T}"/> once, in the constructor; the send path
-        /// consults it on every command, so it must not be a service walk.</remarks>
-        internal RespClientCache? Cache { get; }
+        /// <remarks>
+        /// <para>
+        /// Resolved through <see cref="TryGetService{T}"/> once, in the constructor; the send path
+        /// consults it on every command, so it must not be a service walk.
+        /// </para>
+        /// <para>
+        /// <b>Except for a connection group, where it cannot be fixed.</b> A cached reply is only sound
+        /// while the connection that produced it is still the one being asked and its <c>CLIENT
+        /// TRACKING</c> registration is still live - so a group, whose active member changes underneath a
+        /// memoised context, has to resolve the cache per command or serve one member's values from
+        /// another. The delegate is null for everything else, which costs one predictable branch.
+        /// </para>
+        /// </remarks>
+        internal RespClientCache? Cache => _cacheResolver is null ? _cache : _cacheResolver();
+
+        private readonly RespClientCache? _cache;
+
+        private Func<RespClientCache?>? _cacheResolver;
+
+        /// <summary>The same context, resolving its cache per command rather than holding one.</summary>
+        /// <param name="resolver">Supplies the cache in force right now, or null for none.</param>
+        /// <remarks>
+        /// For a connection group, and deliberately awkward to reach: attaching a cache that outlives the
+        /// connection it belongs to is exactly the unsound thing <see cref="WithoutCache"/> exists to
+        /// prevent, and this is the one shape where the indirection is the safe option rather than the
+        /// dangerous one.
+        /// </remarks>
+        internal RespContext WithCacheResolver(Func<RespClientCache?> resolver)
+        {
+            var copy = new RespContext(CommandMap, _keyPrefix, default, Database, _serverType, Executor, _services);
+            copy.Topology = Topology;
+            copy._cacheResolver = resolver;
+            return copy;
+        }
 
         /// <summary>The rendered-script registry attached to this context, or <c>null</c> for none.</summary>
         /// <remarks>
@@ -335,6 +366,7 @@ namespace StackExchange.Redis
         private RespContext WithSameTopology(RespContext source)
         {
             Topology = source.Topology;
+            _cacheResolver = source._cacheResolver;
             return this;
         }
 

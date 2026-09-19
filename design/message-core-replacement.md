@@ -786,9 +786,46 @@ members for this type eventually leave: each exists to capture a command's argum
 member, and replay the call — and once the resolution is an executor *below* the command surface, there
 is nothing left for them to do.
 
-**One wrinkle worth keeping:** the context is memoised, but the command map can only be learned from a
-member. So if the group is fully down when someone first asks, the context is built and *not* cached,
-rather than baking `CommandMap.Default` in for the life of the multiplexer.
+**One wrinkle, and the first version of it was wrong.** I had the context skip caching when no member was
+active, on the grounds that the command map could only be learned from one. Marc: *the command map comes
+from config, not any member* — each group member is configured separately, and the group reads the map
+from that configuration, so it answers with nothing connected at all.
+
+What genuinely *does* need a member is the **database index**, when it was defaulted: `-1` means "whatever
+the active member defaults to". An explicit index needs nobody, so that context is fully determined and
+cacheable while everything is down; a defaulted one is not, and throws — which is exactly what the
+shipped `Database` property already does in that state, so the context surface invents no new failure
+mode. Both halves are pinned by tests against a group pointed at a dead port.
+
+
+### 7j. Where the client-side cache fits in a group
+
+Marc's question, and the answer turns out to be forced rather than chosen.
+
+**A cached reply is only sound while two things hold**: the connection that produced it is the one being
+asked, and that connection's `CLIENT TRACKING` registration has been continuously live. A group breaks
+the first one by design — the active member is the thing it exists to change.
+
+So **the cache is the active member's, resolved per command.** A shared group cache would serve member
+A's value while B is active, silently, and no amount of flushing makes that safe in general. The
+alternatives fall out:
+
+| option | verdict |
+|---|---|
+| one cache, shared | **wrong** — serves one member's values from another |
+| one cache, nuked on switch | correct, but throws away a warm cache on a *healthy* switch (latency, explicit failover) |
+| per-member, resolved per command | correct, and a switch is a no-op |
+
+The third needs nothing new for invalidation, which is the pleasing part: the existing rule — *flush when
+the tracking connection drops* — already covers the case that actually matters, because a failover
+usually happens **because** the old member's connection died, and that flushes its cache on the way past.
+A switch away from a healthy member leaves its cache warm for switching back.
+
+**The gap this question exposed:** the group's context was built with no cache at all, so the new surface
+over a group did no caching whatsoever. The member's own cache sits *below* the probe point — the probe
+happens in the context surface, above the executor — so delegating the send to the member's executor
+never reaches it. `WithCacheResolver` fixes it the same way topology was fixed: resolved per command, and
+`null` for every other context, which costs one predictable branch on the hot path.
 
 ---
 

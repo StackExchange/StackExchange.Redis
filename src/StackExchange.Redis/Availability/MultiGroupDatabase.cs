@@ -32,6 +32,22 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     /// to it. That is the whole of a group's job, and the reason this is short.
     /// </para>
     /// <para>
+    /// <b>The command map comes from configuration, not connection state</b> - each member is configured
+    /// separately, and the group takes the map from its members' configuration - so it answers while
+    /// every member is down. The one thing that may not is the database INDEX: <c>-1</c> means "whatever
+    /// the active member defaults to", which needs a member. An explicit index does not, and that context
+    /// is buildable and cacheable with nothing reachable at all.
+    /// </para>
+    /// <para>
+    /// <b>The cache is the active member's, resolved per command.</b> Not a shared group cache: a cached
+    /// reply is only sound while the connection that produced it is the one being asked and its
+    /// <c>CLIENT TRACKING</c> registration is still live, so serving member A's values while B is active
+    /// would be wrong - and silently so. Per-member caches make a switch a no-op for correctness, and the
+    /// existing "flush when tracking drops" rule already covers the case that actually matters, since a
+    /// failover usually happens BECAUSE the old member's connection died. A switch away from a healthy
+    /// member leaves its cache warm for switching back, which nuking a shared cache would throw away.
+    /// </para>
+    /// <para>
     /// <b>Where the 628 generated forwarding members eventually go.</b> Every one of them exists to
     /// capture a command's arguments, resolve the active member, and replay the call against it - because
     /// the decoration happens above the command surface. Once the decoration is an executor below it,
@@ -42,18 +58,18 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     {
         if (_context is { } existing) return existing;
 
-        // The command map is the deployment's, and only a member can tell us what it is - so if the group
-        // is down right now we build a context and do NOT memoise it, rather than baking the default map
-        // in for the life of the multiplexer. Everything else about the context is member-independent.
-        var active = parent.TryGetActive();
-        var context = new RespContext(
-                active?.CommandMap ?? CommandMap.Default,
-                database: Database,
+        // `database` is the constructor's, not the Database PROPERTY: the property resolves -1 by asking
+        // the active member what it defaults to, and therefore throws when the group is down. An explicit
+        // index needs no member, so that context is fully determined and can be built and memoised while
+        // nothing is reachable; a defaulted one genuinely cannot be known yet, and throwing there is what
+        // the Database property already does.
+        var resolved = database >= 0 ? database : Database;
+        return _context = new RespContext(
+                parent.CommandMap,
+                database: resolved,
                 serverType: ServerType.Standalone)
-            .WithExecutor(new RespGroupExecutor(() => ActiveExecutor, Database, DescribeUnavailable));
-
-        if (active is not null) _context = context;
-        return context;
+            .WithExecutor(new RespGroupExecutor(() => ActiveExecutor, resolved, DescribeUnavailable))
+            .WithCacheResolver(() => parent.TryGetActive()?.ClientCache);
     }
 
     private RespExecutorBase? ActiveExecutor
