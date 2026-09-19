@@ -231,7 +231,15 @@ lock (this) { _completed = true; Monitor.PulseAll(this); }   // SimpleResultBox.
 
 …which means every synchronous command allocates a box, takes a lock on completion, and pulses. The
 replacement is `Wait(token, timeout)` on the same value-task core the async path uses: one object, one
-mechanism, no monitor. `SimpleResultBox`, `TaskResultBox` and `IResultBox` all go.
+mechanism. `SimpleResultBox`, `TaskResultBox` and `IResultBox` all go.
+
+> **Correction, from building it (phase 1).** This section used to end "…one mechanism, **no monitor**".
+> That was wrong, and worth recording rather than quietly editing. A synchronous wait means blocking a
+> thread, and `ManualResetValueTaskSourceCore<T>` offers no way to do that — the alternatives are a
+> `ManualResetEventSlim` per sync call, which is the allocation we were trying to remove, or a monitor.
+> So the monitor survives; what actually goes is the **box**, which is the allocation and the indirection.
+> It is also cheaper than it reads: an async consumer's `OnCompleted` sets `Flag_NoPulse`, so completing
+> an awaited command never takes the lock at all. Only a thread genuinely parked in `Wait` pays for it.
 
 That also removes the awkwardness noted during the retry and batch work — that `IResultBox` is the
 transitional layer's own plumbing and must not leak into the context surface.
@@ -330,9 +338,11 @@ reconnect, and the existing `IDatabase` surface is a released API sitting on top
 
 Proposed order, each step independently shippable:
 
-1. **Land the operation type in RESPite**, with pooling and cancellation, and unit tests for the token
+1. ~~**Land the operation type in RESPite**, with pooling and cancellation, and unit tests for the token
    lifecycle — completion, double-completion, recycle-then-stale-complete, cancellation races. No
-   consumers yet. This is the piece most worth getting right in isolation.
+   consumers yet. This is the piece most worth getting right in isolation.~~ **Done** — `0097f414`,
+   `src/RESPite/Operations/`, 24 tests. Internal rather than public: nothing commits API until something
+   holds one. Three design changes came out of building it, in §7a below.
 2. **Port the diagnostics inventory** (§4) onto it, with a test that renders a timeout report from a
    synthetic operation. Do this *before* any consumer, so the shape is decided while it is cheap.
 3. **One executor, one connection**: the server-endpoint executor over a real connection, behind
@@ -346,6 +356,43 @@ Proposed order, each step independently shippable:
 
 `TransitionalDatabase` is unaffected throughout — it talks to the context surface, which talks to
 `RespExecutorBase`. That is the seam that makes this a replacement rather than a rewrite.
+
+
+### 7a. What phase 1 changed about the plan
+
+Three things the port did not inherit unaltered, each found by building rather than reading:
+
+**Version and flags must share one word.** Claiming the outcome has to check "nobody else has completed
+this" *and* "this caller is not holding a handle to a previous life" as one atomic step. With the two
+kept separate — as they were — a stale completer can read a matching version, be pre-empted while the
+instance completes and recycles, and then win the claim on somebody else's command. Packing the version
+into the high half of the flag word makes a single CAS cover both. A mutation removing the version check
+fails a test, so the guard is real rather than decorative.
+
+**`IsRecyclable` is not `IsCompleted`.** §6's pooling policy was prose; it is now a parameter.
+`TrySetException(token, ex, definite:)` distinguishes a server error (the command was answered — recycle)
+from a connection fault (the write may still be in flight — do not). Timeouts are never definite. Without
+this the natural implementation dooms *every* failure, which is safe but pools nothing, or recycles them
+all, which is how a reply lands on somebody else's command.
+
+**The parse capability outlives the life.** It describes the type, not the request, so `Reset` has to
+re-apply it. The straightforward implementation clears the whole flag word — and then every command after
+the first on a recycled instance silently returns `default`. This is precisely the §4 hazard ("a recycled
+operation must not leak a previous life's state into a new one") pointing the other way: the danger is not
+only *keeping* too much, it is *dropping* too much.
+
+Two smaller repairs, both in the same family — something outliving the reset that created it:
+
+- `Reset` cleared the request buffer fields outright, stranding a writer that still held a reservation:
+  its `ReleaseRequest` then had nothing to hand back, so the rented array leaked instead of pooling. It
+  now drops only its own reference, and whoever releases last clears the fields.
+- `ConfigureAwait` rebuilt the handle by re-reading `message.Token`, which would silently rebind a stale
+  handle to a later life instead of failing.
+
+**Method to carry forward:** each of these was checked by deliberately re-introducing it and confirming a
+test failed. Three mutations, two caught, one not — and the one that was not is why the writer-outlives-reset
+test exists. Worth repeating on phases 2-6, because this is diagnostics-adjacent code where nothing fails
+loudly when it is wrong.
 
 ---
 
