@@ -664,6 +664,58 @@ A failed *connect* fails everything waiting on it rather than holding it for a l
 that grows without bound while a server is down is a worse failure than a fast one, and the caller (or
 the retry layer above) is better placed to decide how long to keep trying.
 
+
+### 7h. Routing, and the state that is neither true nor false
+
+Phase 4's multiplexer executor makes one decision — which endpoint — and hands the whole command to that
+endpoint's executor. **The non-cluster path costs a volatile read and a field read**, and not only in the
+executor: the request never had a slot computed, because `RespRequestBuilder` consults the same topology
+before hashing a key. Outside cluster the whole apparatus is one branch that is always false.
+
+**The constraint that shaped it, from Marc:** a multiplexer can be constructed — and `GetDatabase()`
+called, and a context built and *memoised* — while still disconnected, so nobody knows yet whether this
+is a cluster. Anything that decided routing at that moment would be wrong for the life of the
+multiplexer. So topology is a cell the executor reads per send, never captures.
+
+**And it has three states, not two**, which is the part that is easy to get wrong. With a plain bool
+defaulting to "not a cluster", a request rendered before the answer arrived carries no slot — so when the
+answer arrives a moment later, that request cannot be routed. `Unknown` computes slots *speculatively*:
+a hash per key during the brief window before the first connection reports, in exchange for there being
+no window in which a request exists that cannot be routed.
+
+The two questions are deliberately separate properties, because they have different answers while
+unknown:
+
+| | while `Unknown` | why |
+|---|---|---|
+| `NeedsSlots` — "might this matter?" | **true** | computing a slot nobody needs is merely wasted work |
+| `RoutesBySlot` — "does this decide where it goes?" | **false** | acting on a guess is not wasted work, it is wrong |
+
+**What is *not* designed for:** a deployment genuinely changing between cluster and standalone. Marc's
+call, and the right one — that is a reconfiguration, reconfigurations are expected to be disruptive, and
+paying on every command forever to make a never-event seamless is a bad trade. In-flight commands may be
+routed on the old answer, redirected, or fail and be retried.
+
+**The alternative worth recording**, also Marc's: skip the speculation entirely, route unknown-topology
+commands anywhere, and let `-MOVED` correct them. Very likely the right end state — redirect handling is
+needed *regardless*, since a reshard moves slots under a running client and nothing done at connection
+time helps with that. But the new core has no redirect handling today, so that is a promise rather than a
+mechanism: those commands would surface the redirect to the caller as an error. The speculative hash
+makes the window correct *before* redirects exist, and `Unknown` is deletable once they do.
+
+**And the cost of a redirect is not a round trip, it is ordering** — Marc's point, and it is the
+strongest argument here. Within one connection, order is preserved by construction: one FIFO queue,
+replies matched in sequence. A redirected command *leaves that queue and joins a different one*, so its
+position relative to everything issued after it is lost. A caller that issues `INCR k` then `GET k` can
+have the `GET` reach the owning node and complete while the `INCR` is still being bounced to it — and
+read the value from before its own write.
+
+That reframes the trade. "Route anywhere and let `-MOVED` sort it out" is not slower-but-equivalent; it
+is *weaker*, and the weakness is a read-your-own-writes violation that no amount of retrying fixes. So
+`Unknown` computing slots speculatively is not merely a stopgap until redirect handling exists — it is
+how the window keeps a guarantee that redirects cannot give back. Redirects remain necessary for
+reshards, where there is no alternative; they should not be *chosen* where there is one.
+
 ---
 
 ## 8. Open questions

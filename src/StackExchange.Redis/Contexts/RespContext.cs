@@ -52,7 +52,7 @@ namespace StackExchange.Redis
         {
             _commandMap = commandMap;
             _keyPrefix = keyPrefix; // normalise to bytes ONCE; the conversion can allocate for a string-backed key
-            ServerType = serverType;
+            _serverType = serverType;
             Executor = executor;
             _services = channelPrefix.IsNull
                 ? services
@@ -307,7 +307,46 @@ namespace StackExchange.Redis
         internal int Database { get; }
 
         /// <summary>The server type; cluster slots are only computed when this is a cluster.</summary>
-        internal ServerType ServerType { get; }
+        private readonly ServerType _serverType;
+
+        /// <summary>
+        /// Learned topology, when somebody is tracking it; otherwise the fixed value given at construction.
+        /// </summary>
+        /// <remarks>
+        /// See <see cref="RespTopology"/> for why this is late-bound: a context can be built and memoised
+        /// before anyone knows whether the deployment is a cluster.
+        /// </remarks>
+        internal RespTopology? Topology { get; private set; }
+
+        /// <summary>What the server is believed to be, as of now.</summary>
+        internal ServerType ServerType => Topology is { } topology ? topology.ServerType : _serverType;
+
+        /// <summary>Whether keys need hashing to a slot; the hot-path form of <see cref="ServerType"/>.</summary>
+        /// <remarks>
+        /// <b>"Might a slot matter?", not "is this a cluster?"</b> - which is true while the topology is
+        /// still unknown, so a request rendered before the first connection reports back still carries a
+        /// slot it can be routed by. See <see cref="RespTopology"/>.
+        /// </remarks>
+        internal bool NeedsSlots
+            => Topology is { } topology ? topology.NeedsSlots : _serverType == StackExchange.Redis.ServerType.Cluster;
+
+        /// <summary>Carry this context's topology cell onto a derived copy.</summary>
+        /// <param name="source">The context being derived from.</param>
+        private RespContext WithSameTopology(RespContext source)
+        {
+            Topology = source.Topology;
+            return this;
+        }
+
+        /// <summary>The same context, tracking topology as it is learned.</summary>
+        /// <param name="topology">The cell to consult; null to go back to the fixed value.</param>
+        internal RespContext WithTopology(RespTopology? topology)
+        {
+            if (ReferenceEquals(Topology, topology)) return this;
+            var copy = new RespContext(CommandMap, _keyPrefix, default, Database, _serverType, Executor, _services);
+            copy.Topology = topology;
+            return copy;
+        }
 
         /// <summary>A copy of this context targeting a different database.</summary>
         /// <param name="database">The database index.</param>
@@ -340,7 +379,7 @@ namespace StackExchange.Redis
                     $"This context's executor ({other.GetType().Name}) runs against database {other.Database} and cannot be re-pointed at database {database}."),
             };
 
-            return new(CommandMap, KeyPrefix, default, database, ServerType, executor, _services);
+            return new RespContext(CommandMap, KeyPrefix, default, database, _serverType, executor, _services).WithSameTopology(this);
         }
 
         /// <summary>
@@ -412,7 +451,7 @@ namespace StackExchange.Redis
         /// <summary>A copy of this context that sends through <paramref name="executor"/>.</summary>
         /// <param name="executor">The executor to send through.</param>
         internal RespContext WithExecutor(RespExecutorBase? executor)
-            => new(CommandMap, _keyPrefix, default, Database, ServerType, executor, _services);
+            => new RespContext(CommandMap, _keyPrefix, default, Database, _serverType, executor, _services).WithSameTopology(this);
 
         /// <summary>
         /// A copy of this context carrying <paramref name="services"/> <i>in addition to</i> whatever it
@@ -434,7 +473,7 @@ namespace StackExchange.Redis
         internal RespContext WithServices(object? services)
             => services is null
                 ? this
-                : new(CommandMap, _keyPrefix, default, Database, ServerType, Executor, ServiceLink.Add(_services, services));
+                : new RespContext(CommandMap, _keyPrefix, default, Database, _serverType, Executor, ServiceLink.Add(_services, services)).WithSameTopology(this);
 
         /// <summary>A copy of this context where <paramref name="serviceType"/> reads as absent.</summary>
         private RespContext WithoutService(Type serviceType)

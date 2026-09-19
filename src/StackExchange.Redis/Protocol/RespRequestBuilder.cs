@@ -910,7 +910,7 @@ namespace StackExchange.Redis.Protocol
         /// </summary>
         private void FoldSlot(scoped ReadOnlySpan<byte> payload)
         {
-            if (_context.ServerType != ServerType.Cluster) return;
+            if (!_context.NeedsSlots) return; // late-bound, and speculative while unknown: see RespTopology
             _slot = ServerSelectionStrategy.CombineSlot(_slot, ServerSelectionStrategy.GetClusterSlot(payload));
         }
 
