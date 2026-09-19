@@ -131,6 +131,12 @@ namespace StackExchange.Redis.Protocol
         {
             if (command is null) Throw();
 
+            // a RESP command token never contains a space, so "ACL SETUSER x" is always a caller mistake:
+            // it frames as ONE unknown token and the server answers an opaque error. The shipped
+            // ExecuteMessage has refused it for exactly that reason; this is the same guard on the route
+            // that replaces it, so ExecuteResp stops being the one ad-hoc path that lets it through.
+            if (command.IndexOf(' ') >= 0) ThrowWhitespace();
+
             var known = context.TryResolveCommand(command.AsSpan(), out var resp, out var parsed);
 
             var nameBytes = known ? 0 : Encoding.UTF8.GetByteCount(command);
@@ -167,6 +173,10 @@ namespace StackExchange.Redis.Protocol
             // below the guard, and without it the nullable analysis reports CS8602 there
             [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
             static void Throw() => throw new ArgumentNullException(nameof(command));
+
+            // as Throw: before anything is rented, so nothing to hand back
+            [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
+            void ThrowWhitespace() => throw ExceptionFactory.CommandHasWhitespace(command);
         }
 
         /// <summary>

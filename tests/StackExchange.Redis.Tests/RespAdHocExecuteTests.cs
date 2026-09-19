@@ -159,4 +159,84 @@ public class RespAdHocExecuteTests
         Assert.Equal("*1|$4|PING|", Assert.Single(executor.Sent));
         Assert.Equal("PONG", result.ReadScalar().ReadString());
     }
+
+    // ---- the object-argument Execute ---------------------------------------------------------------
+
+    private static IDatabase LegacyDatabase(FakeExecutor executor)
+        => Context(executor).AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+
+    /// <summary>
+    /// The three-way argument branch survives the move: keys, channels and values each take their own
+    /// path.
+    /// </summary>
+    /// <remarks>
+    /// The shipped <c>ExecuteMessage.WriteImpl</c> tested each argument's runtime type for exactly this,
+    /// and it is the one thing an <see cref="object"/> collection can still express. A key that stopped
+    /// being written as a key would lose its prefix, its slot and its cache identity - and nothing about
+    /// the bytes would look wrong.
+    /// </remarks>
+    [Fact]
+    public async Task LegacyExecuteKeepsKeysChannelsAndValuesApart()
+    {
+        var executor = new FakeExecutor("$3\r\nabc\r\n");
+        var db = LegacyDatabase(executor);
+
+        var result = await db.ExecuteAsync("MODULE.DO", (RedisKey)"k", RedisChannel.Literal("c"), 42);
+
+        Assert.Equal("*4|$9|MODULE.DO|$1|k|$1|c|$2|42|", Assert.Single(executor.Sent));
+        Assert.Equal("k", Assert.Single(executor.Keys)); // the key, and only the key
+        Assert.Equal("abc", (string?)result);
+    }
+
+    /// <summary>Both prefixes reach an ad-hoc command, which is what writing them as key and channel buys.</summary>
+    [Fact]
+    public async Task LegacyExecuteAppliesBothPrefixes()
+    {
+        var executor = new FakeExecutor("$3\r\nabc\r\n");
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor))
+            .AppendKeyPrefix("app:")
+            .AppendChannelPrefix(RedisChannel.Literal("ch:"));
+        IDatabase db = context.AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+
+        (await db.ExecuteAsync("MODULE.DO", (RedisKey)"k", RedisChannel.Literal("c"))).ToString();
+
+        Assert.Equal("*3|$9|MODULE.DO|$5|app:k|$4|ch:c|", Assert.Single(executor.Sent));
+    }
+
+    /// <summary>A known command still goes through the command map.</summary>
+    [Fact]
+    public void LegacyExecuteHonoursADisabledCommand()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        var context = new RespDatabaseContext(
+            new RespContext(CommandMap.Create(new System.Collections.Generic.HashSet<string> { "GET" }, available: false))
+                .WithExecutor(executor));
+        IDatabase db = context.AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+
+        Assert.Throws<RedisCommandException>(() => db.Execute("GET", (RedisKey)"k"));
+        Assert.Empty(executor.Sent);
+    }
+
+    /// <summary>
+    /// A command name with a space is refused, on this path and on <c>ExecuteResp</c>.
+    /// </summary>
+    /// <remarks>
+    /// The guard used to live on <c>ExecuteMessage</c>, so <c>ExecuteResp</c> - which builds a different
+    /// message - let <c>"ACL SETUSER x"</c> through as one unknown token and got an opaque server error.
+    /// It moved into the builder's string constructor, which both ad-hoc routes share, so the two now
+    /// agree. <c>AdhocMessageRoundTrip.CommandWithWhitespaceThrows</c> pins the classic path.
+    /// </remarks>
+    [Theory]
+    [InlineData("ACL SETUSER x")]
+    [InlineData("GET ")]
+    public void AWhitespaceCommandIsRefusedOnBothAdHocRoutes(string command)
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        var context = Context(executor);
+        IDatabase db = context.AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+
+        Assert.Contains("whitespace", Assert.Throws<RedisCommandException>(() => db.Execute(command)).Message);
+        Assert.Contains("whitespace", Assert.Throws<RedisCommandException>(() => db.ExecuteResp(command, default)).Message);
+        Assert.Empty(executor.Sent);
+    }
 }
