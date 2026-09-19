@@ -65,17 +65,37 @@ internal sealed class RetryController
     public bool TracksFailover => _maxAttempts > 1 & _maxBeforeFailover < _maxAttempts;
 
     /// <summary>
-    /// Whether <see cref="CanRetry"/> could ever answer <see langword="true"/>.
+    /// Whether <see cref="CanRetry"/> could ever answer <see langword="true"/> for a command carrying
+    /// <paramref name="flags"/>, decided before anything is sent.
+    /// </summary>
+    /// <param name="flags">The command's flags, whose retry category is the veto.</param>
+    /// <remarks>
+    /// <b>Both halves are decided without consulting the policy, and <see cref="CanRetry"/> decides them
+    /// the same way</b> - which is what makes this a pre-check rather than a second opinion. The attempt
+    /// cap is the obvious one. The retry category is the other: <see cref="CommandFlags.CommandRetryNever"/>
+    /// is an absolute veto, and so is an unset category, because that is read as "assume the worst"
+    /// wherever it is met - <see cref="FaultContext"/> substitutes <c>CommandRetryNever</c> for a fault
+    /// that carries none.
+    /// </remarks>
+    public bool CanEverRetry(CommandFlags flags) => _maxAttempts > 1 && !IsVetoed(flags);
+
+    /// <summary>
+    /// Whether the command's own category forbids replay outright, whatever the policy thinks.
     /// </summary>
     /// <remarks>
-    /// <b>Exact, and policy-independent</b>, which is what makes it safe to short-circuit on: the attempt
-    /// cap is tested <i>before</i> the policy is consulted, so a single-attempt controller refuses every
-    /// fault without asking - including one a custom <see cref="RetryPolicy"/> would have retried. Any
-    /// cheaper-looking test that reads the command's retry category is <b>not</b> safe in the same way:
-    /// <see cref="RetryPolicy.CanRetry"/> is virtual, and a derived policy may ignore the category
-    /// entirely.
+    /// <b>The caller's veto, and it outranks the policy.</b> <c>CommandRetryNever</c> means the command
+    /// must not be replayed - either because this library categorised it that way or because the caller
+    /// said so with <c>WithRetryCategory</c> - so asking a policy whether it would like to is asking the
+    /// wrong question. The shipped <see cref="RetryPolicy.CanRetry"/> has always tested this first and
+    /// returned <see cref="RetryResult.None"/>; hoisting it here makes it a property of the <i>controller</i>
+    /// rather than of one policy implementation, so an override cannot quietly lose it - and lets the
+    /// decision be taken before a send rather than only after a fault.
     /// </remarks>
-    public bool CanEverRetry => _maxAttempts > 1;
+    private static bool IsVetoed(CommandFlags flags)
+    {
+        var category = flags & Message.MaskRetryCategory;
+        return category is 0 or CommandFlags.CommandRetryNever;
+    }
 
     public bool CanRetry(
         int attempt,
@@ -90,8 +110,14 @@ internal sealed class RetryController
             return false;
         }
 
-        // ask the retry policy for advice, and mask off the bits we know about
         FaultContext ctx = new(fault);
+        if (IsVetoed(ctx.Flags))
+        {
+            // the command says never; the policy is not asked, because it is not its call
+            return false;
+        }
+
+        // ask the retry policy for advice, and mask off the bits we know about
         var policy = _policy.CanRetry(ctx) &
                      (RetryResult.FailoverServer | RetryResult.SameServer);
         if (policy is 0)

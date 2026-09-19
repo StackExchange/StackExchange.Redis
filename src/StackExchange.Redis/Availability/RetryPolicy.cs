@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
@@ -137,9 +137,23 @@ public class RetryPolicy
     /// Controls which operations can be repeated, optionally indicating that this should progress to
     /// a new server.
     /// </summary>
+    /// <param name="fault">What went wrong, and what the command was.</param>
+    /// <remarks>
+    /// <b>Not consulted at all when the command's retry category is
+    /// <see cref="CommandFlags.CommandRetryNever"/></b>, nor when it carries no category (which is read as
+    /// the same thing). That is the caller's veto rather than a policy question - the command must not be
+    /// replayed, so whether a policy would like to is moot - and it is applied before this is reached, so
+    /// an override cannot lose it and a retrying sender can decline before sending rather than only after
+    /// a fault. Everything else, including how much side effect is tolerable and whether a given fault is
+    /// transient, is this method's to decide.
+    /// </remarks>
     public virtual RetryResult CanRetry(in FaultContext fault)
     {
         var actual = fault.Flags & Message.MaskRetryCategory;
+
+        // note the veto above this - an unset or CommandRetryNever category never reaches here through
+        // RetryController - is repeated rather than assumed, because this is public and virtual: a caller
+        // may invoke it directly, and a derived type calling base must get the same answer either way
         if (actual is 0) actual = CommandFlags.CommandRetryNever; // if not set, assume the worst (as FaultContext does)
 
         if (actual is CommandFlags.CommandRetryNever)

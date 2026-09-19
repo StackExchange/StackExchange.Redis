@@ -2944,11 +2944,23 @@ Four consequences, none of them cosmetic:
       into the pipe). Worth re-checking if either of those changes.
 
       **Early exit.** Marc: *"can we also detect 'definitely do not retry' scenarios early, and avoid an
-      async method entirely"*. Yes, on one exact signal: `RetryController.CanEverRetry` (`MaxAttempts > 1`),
-      because the attempt cap is tested *before* the policy is consulted. The bigger short-circuit -
-      reading the command's retry category and skipping `CommandRetryNever` - is **not** safe, because
-      `RetryPolicy.CanRetry` is virtual and a derived policy may ignore the category. A send that
-      completes synchronously and successfully is also handed back untouched.
+      async method entirely"*, then *"the can retry should also compare the flags"*.
+      `RetryController.CanEverRetry(CommandFlags)` answers both halves before anything is sent: the attempt
+      cap, and the command's own retry category. A send that completes synchronously and successfully is
+      handed back untouched too, so what reaches the loop is a fault on a replayable command.
+
+      **The category half needed a decision, not just a check.** It was raised as unsafe - a policy could
+      override `CanRetry` and retry a `CommandRetryNever` command, so an executor short-circuiting on the
+      category would be deciding something the policy had reserved. The fix was to stop it being reserved:
+      the veto moved out of `RetryPolicy.CanRetry` and into `RetryController.CanRetry`, above the policy
+      call, so **both** the database path and the context path apply it and an override cannot lose it.
+      `RetryPolicy.CanRetry` documents that it is not consulted for that category, and still repeats the
+      test itself because it is public and virtual - a caller may invoke it directly, and a derived type
+      calling `base` must get the same answer either way.
+
+      The behaviour change is narrow and deliberate: a custom policy that used to retry a command
+      categorised `CommandRetryNever` no longer can. That category means "the caller said do not replay
+      this", so the policy was answering a question that was not its to answer.
 
       **`RetryDatabase.Context` now works**, where it used to throw: it decorates the inner executor and
       shares the controller *and* `GetNextFailover`, so the context path gets failover too. A retrying

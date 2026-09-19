@@ -82,14 +82,15 @@ internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
 
     /// <inheritdoc/>
     /// <remarks>
-    /// <b>Two short-circuits, and both hand back the inner task untouched.</b> A controller that can never
-    /// retry is a pure forward - no loop, no state machine, nothing of this class on the path at all - and
-    /// a send that completed synchronously and successfully has nothing left to retry. Only a fault or a
-    /// real await reaches <see cref="Awaited"/>.
+    /// <b>Two short-circuits, and both hand back the inner task untouched.</b> A send that cannot be
+    /// retried - because the policy allows one attempt, or because the command's own category forbids
+    /// replay - is a pure forward, with no loop, no state machine and nothing of this class on the path.
+    /// So is a send that completed synchronously and successfully. Only a fault on a replayable command
+    /// reaches <see cref="Awaited"/>, which is a small minority of everything a retrying context sends.
     /// </remarks>
     public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
     {
-        if (!_controller.CanEverRetry) return _inner.SendAsync(request, cancellationToken);
+        if (!_controller.CanEverRetry(request.Flags)) return _inner.SendAsync(request, cancellationToken);
 
         // start the first attempt eagerly, so a send that completes synchronously and successfully - a
         // cache hit, a fake - costs no state machine at all
@@ -113,7 +114,9 @@ internal sealed class RespRetryExecutor : IRespExecutor, IRespPreambleExecutor
             throw new NotSupportedException("The inner executor does not support preambles.");
         }
 
-        if (!_controller.CanEverRetry) return pairs.SendAsync(preamble, request, gate, cancellationToken);
+        // the REQUEST's flags, not the preamble's: the preamble is sent for its effect and carries
+        // CommandRetryAlways, so it would veto nothing and decide nothing
+        if (!_controller.CanEverRetry(request.Flags)) return pairs.SendAsync(preamble, request, gate, cancellationToken);
 
         var pending = pairs.SendAsync(preamble, request, gate, cancellationToken);
         return pending.IsCompletedSuccessfully ? pending : AwaitedPair(pending, pairs, preamble, request, gate, cancellationToken);

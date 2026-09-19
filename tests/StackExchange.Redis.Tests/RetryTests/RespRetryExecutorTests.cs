@@ -204,6 +204,42 @@ public class RespRetryExecutorTests
         Assert.True(pending.IsFaulted);
     }
 
+    /// <summary>
+    /// A command whose own category forbids replay is forwarded, and the decision is taken before sending.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The fixture's fault would otherwise have been retried</b>, which is what makes this show the
+    /// request-side veto rather than the fault-side one: it is a socket failure on a message that never
+    /// left, so <c>FaultContext.NotApplied</c> would have bypassed the category cap and the policy would
+    /// have said yes. One send says the question was never asked.
+    /// </para>
+    /// <para>
+    /// <c>WithDefaultCategory</c> is caller-wins, so an explicit <c>CommandRetryNever</c> survives the
+    /// categorisation the send path applies from the command table.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ACommandThatForbidsReplayIsForwardedWithoutTheLoop()
+    {
+        var executor = new FlakyExecutor(failures: 1);
+
+        await Assert.ThrowsAsync<RedisConnectionException>(
+            async () => await Target(executor, Fast(5)).Strings.GetAsync("k", CommandFlags.CommandRetryNever));
+
+        Assert.Single(executor.Sent);
+    }
+
+    /// <summary>And the same command without that flag does retry, so the veto is what did it.</summary>
+    [Fact]
+    public async Task TheSameCommandWithoutTheVetoIsRetried()
+    {
+        var executor = new FlakyExecutor(failures: 1);
+
+        Assert.Equal("marc", (string?)await Target(executor, Fast(5)).Strings.GetAsync("k"));
+        Assert.Equal(2, executor.Sent.Count);
+    }
+
     [Fact]
     public void RetryCannotBeNested()
     {
