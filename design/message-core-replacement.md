@@ -107,6 +107,37 @@ This is a genuine simplification over today, where routing is spread across
 server hint is not expressible at all — which is exactly why `Publish` (send via the subscribed
 connection) and `IsConnected`/`IdentifyEndpoint` are still on the fallback.
 
+**The decorators are not work outstanding; they are a measurement of the wrong layer.** `[AutoDatabase]`
+generates 1,256 forwarding members across three live types — `MultiGroupDatabase` (628), `RetryDatabase`
+(314), `RetryTransaction` (314) — and none of them will ever be hand-written, because in the target shape
+the decorator *disappears*: it becomes a context wrapping an executor, surfaced through
+`TransitionalDatabase`. Look at what the funnel actually does:
+
+```csharp
+// MultiGroupDatabase
+private TResult Execute<TState, TResult>(in TState state, AutoDatabaseSyncOperation<TState, TResult> operation)
+    => operation(in state, GetActiveDatabase());   // resolve the active member, forward the COMMAND
+```
+
+That is the group executor's job done one layer too high. Resolve per-*command* and every one of 628
+signatures needs a generated capture struct to carry its arguments across the funnel; resolve per-*send*
+and there is one funnel, and the arguments never leave the frame. **The member count is the cost of
+decorating above the command surface instead of below it.**
+
+Where each actually stands, which is less than the counts suggest:
+
+| decorator | target | state |
+|---|---|---|
+| `RetryDatabase` | context + `RespRetryExecutor` | **built** — `GetContextCore()` already returns `_inner.Raw.WithExecutor(new RespRetryExecutor(...))`, with its own tests. The 314 generated members are the old path running in parallel with a working new one. |
+| `MultiGroupDatabase` | context + active-node executor | **not built** — `GetContext()` throws "The context surface is not yet wired for multi-group". This is step 4 below. |
+| `RetryTransaction` | context + retry executor + transaction | throws, and the message is the reason: *a transaction is replayed as a unit, which a per-frame retry executor cannot express*. |
+
+And a piece of scheduling that falls out: `MultiGroupDatabase` hand-writes `IsConnected`,
+`IdentifyEndpoint`, `IdentifyEndpointAsync`, `CreateBatch` and `CreateTransaction` as active-member
+delegations — **the same five still on `TransitionalDatabase`'s fallback**. So the group executor and
+those five members are one piece of work rather than two. `IsConnected` becoming a virtual on
+`RespExecutorBase` is the shape the other four want.
+
 Two things fall out that are currently blocked:
 
 - **`Publish`**: the server-endpoint executor *is* the per-call hint. Pick it, send through it.
