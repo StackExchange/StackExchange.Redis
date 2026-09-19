@@ -175,6 +175,92 @@ public static partial class Arrays
     private static RespRequestFrame ScanCommand(RespContext context, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit)
         => context.Render($"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}");
 
+    /// <summary>ARGREP; the slots in a range whose values match a predicate.</summary>
+    /// <param name="arrays">The array command group.</param>
+    /// <param name="key">The array.</param>
+    /// <param name="request">The bounds, the predicates, and the switches.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>The request decides the reply's shape</b>, which is why the handler is chosen here rather than
+    /// fixed: <see cref="ArrayGrepRequest.IncludeValues"/> asks for <c>WITHVALUES</c> and turns a flat run
+    /// of indices into index/value pairs. Same fork the shipped path makes, from the same property.
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<RedisArrayEntry>> GrepAsync(
+        this in RespArrays arrays,
+        RedisKey key,
+        ArrayGrepRequest request,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = GrepCommand(arrays.Context, key, request);
+        return request.IncludeValues
+            ? arrays.Context.SendAsync<ReadOnlyLease<RedisArrayEntry>>(ref cmd, flags, cancellationToken: cancellationToken)
+            : arrays.Context.SendAsync(ref cmd, flags, GrepIndexHandler.Lease, cancellationToken);
+    }
+
+    /// <inheritdoc cref="GrepAsync"/>
+    /// <remarks><inheritdoc cref="GrepAsync" path="/remarks"/></remarks>
+    internal static ValueTask<RedisArrayEntry[]> GrepArray(
+        this in RespArrays arrays,
+        RedisKey key,
+        ArrayGrepRequest request,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = GrepCommand(arrays.Context, key, request);
+        return request.IncludeValues
+            ? arrays.Context.SendAsync<RedisArrayEntry[]>(ref cmd, flags, cancellationToken: cancellationToken)
+            : arrays.Context.SendAsync(ref cmd, flags, GrepIndexHandler.Array, cancellationToken);
+    }
+
+    /// <summary>Render <c>ARGREP</c> - the one place the command is composed.</summary>
+    /// <remarks>
+    /// Imperative, because the request is a builder whose argument list is data: predicates in the order
+    /// they were added, and four optional switches. <see cref="ArrayGrepRequest.WriteTail"/> owns the
+    /// order so that the two writers cannot diverge without the parity test noticing.
+    /// </remarks>
+    private static RespRequestFrame GrepCommand(RespContext context, RedisKey key, ArrayGrepRequest request)
+    {
+        if (request is null) throw new ArgumentNullException(nameof(request));
+
+        var cmd = context.Compose(RedisCommand.ARGREP, request.ArgCount);
+        try
+        {
+            cmd.AppendFormatted(key);
+            request.WriteTail(ref cmd);
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        return cmd.Complete();
+    }
+
+    /// <summary>An <c>ARGREP</c> without <c>WITHVALUES</c>: a flat run of indices.</summary>
+    /// <remarks><inheritdoc cref="Streams.GroupInfoHandler" path="/remarks"/></remarks>
+    private sealed class GrepIndexHandler : IRespHandler<ReadOnlyLease<RedisArrayEntry>>, IRespHandler<RedisArrayEntry[]>
+    {
+        private static readonly GrepIndexHandler Instance = new();
+
+        internal static IRespHandler<ReadOnlyLease<RedisArrayEntry>> Lease => Instance;
+
+        internal static IRespHandler<RedisArrayEntry[]> Array => Instance;
+
+        private static readonly RespReader.Projection<RedisArrayEntry> Element =
+            static (ref RespReader reader) => ResultProcessor.TryParseArrayIndex(ref reader, out var index)
+                ? new RedisArrayEntry(index)
+                : default;
+
+        ReadOnlyLease<RedisArrayEntry> IRespHandler<ReadOnlyLease<RedisArrayEntry>>.Parse(ref RespReader reader)
+            => RespHandlers.ReadScalarLease(ref reader, Element);
+
+        RedisArrayEntry[] IRespHandler<RedisArrayEntry[]>.Parse(ref RespReader reader)
+            => reader.IsNull || !reader.IsAggregate ? [] : reader.ReadPastArray(Element) ?? [];
+    }
+
     /// <summary>AROP; an aggregate over a range of slots.</summary>
     /// <param name="arrays">The array command group.</param>
     /// <param name="key">The array.</param>

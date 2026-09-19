@@ -427,6 +427,30 @@ namespace StackExchange.Redis
         [Resp("STREAMS")]
         internal static partial RespFragment StreamsKeyword { get; }
 
+        /// <summary>The <c>EXACT</c> predicate of <c>ARGREP</c>; a value follows it.</summary>
+        [Resp("EXACT")]
+        internal static partial RespFragment Exact { get; }
+
+        /// <summary>The <c>GLOB</c> predicate of <c>ARGREP</c>; a pattern follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Glob { get; }
+
+        /// <summary>The <c>RE</c> predicate of <c>ARGREP</c>; a regular expression follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Re { get; }
+
+        /// <summary>The <c>NOCASE</c> operand of <c>ARGREP</c>.</summary>
+        [Resp("NOCASE")]
+        internal static partial RespFragment NoCase { get; }
+
+        /// <summary>The open lower bound of an <c>ARGREP</c> range.</summary>
+        [Resp("-")]
+        internal static partial RespFragment RangeStart { get; }
+
+        /// <summary>The open upper bound of an <c>ARGREP</c> range.</summary>
+        [Resp("+")]
+        internal static partial RespFragment RangeEnd { get; }
+
         /// <summary>The <c>STREAM</c> subcommand of <c>XINFO</c>; a key follows it.</summary>
         [Resp("STREAM")]
         internal static partial RespFragment StreamKeyword { get; }

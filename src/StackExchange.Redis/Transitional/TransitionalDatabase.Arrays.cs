@@ -7,9 +7,9 @@ namespace StackExchange.Redis
     /// The array commands, where they have moved to the RESP context surface.
     /// </summary>
     /// <remarks>
-    /// The whole family except <c>ARGREP</c>: <see cref="ArrayGrepRequest"/> is a builder that renders its
-    /// own predicates through the old <c>MessageWriter</c>, so moving it is a decision about that type.
-    /// Arrays become spans here, which is the adapter's job and not the new surface's.
+    /// The whole family, <c>ARGREP</c> included: <see cref="ArrayGrepRequest"/> now renders its predicates
+    /// through either writer, so the decision that was owed about that type is made. Arrays become spans
+    /// here, which is the adapter's job and not the new surface's.
     /// </remarks>
     internal sealed partial class TransitionalDatabase
     {
@@ -188,5 +188,13 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public Task<ArrayInfo> ArrayInfoAsync(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None)
             => _inner.Arrays.InfoAsync(key, full, flags).AsTask();
+
+        /// <inheritdoc/>
+        public RedisArrayEntry[] ArrayGrep(RedisKey key, ArrayGrepRequest request, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Arrays.GrepArray(key, request, flags));
+
+        /// <inheritdoc/>
+        public Task<RedisArrayEntry[]> ArrayGrepAsync(RedisKey key, ArrayGrepRequest request, CommandFlags flags = CommandFlags.None)
+            => _inner.Arrays.GrepArray(key, request, flags).AsTask();
     }
 }
