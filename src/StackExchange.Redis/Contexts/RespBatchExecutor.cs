@@ -42,9 +42,11 @@ namespace StackExchange.Redis
     /// <para>
     /// <b>This pipelines; it does not yet batch.</b> Executing issues every queued send before awaiting any
     /// of them, so they travel without waiting for each other - but they are separate messages, and
-    /// another caller's command may land between two of them. The shipped <c>RedisBatch.Execute</c> gets
-    /// contiguity by grouping <c>Message</c>s per bridge and clearing the flush flag on all but the last,
-    /// which needs the messages rather than the frames. Noted in the queue.
+    /// another caller's command may land between two of them. The contiguity guarantee wants an executor
+    /// overload that takes the whole run - <c>IRespPreambleExecutor</c> is already that shape with N=2,
+    /// since <c>FramePairMessage</c> is an <c>IMultiMessage</c> and the bridge expands one inside the
+    /// write lock. A batch may span bridges in cluster, though, which is why <c>RedisBatch.Execute</c>
+    /// groups per bridge instead of being one message; see the queue for the decided shape.
     /// </para>
     /// </remarks>
     internal sealed class RespBatchExecutor : IRespExecutor

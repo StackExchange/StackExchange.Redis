@@ -3002,6 +3002,36 @@ Four consequences, none of them cosmetic:
       that.
 
 
+- [ ] **Sending a run: decided shape, 2026-09-19.** What the batch flush should call, settled before
+      building it.
+
+      **It is an overload, not a new name.** `IRespExecutor.SendAsync(ReadOnlySpan<RespRequest>, ...)`.
+      A `SendUnit`/`SendBatch` spelling was considered and dropped - Marc: *"if the key thing is 'this must
+      resolve to a single slot', SendUnit already isn't really yelling that, so it might as well just be
+      comments"*. Right: the name was carrying a meaning it did not convey, and the overload is unambiguous
+      on its own. The existing preamble overload becomes the N=2 case of it - a preamble plus a gate is
+      just "the first frame is conditional".
+
+      **What makes it nearly free, for transactions.** `IRespPreambleExecutor` is already "N frames as one
+      unit" with N=2: `FramePairMessage` is an `IMultiMessage`, and `PhysicalBridge` expands one **inside
+      the write lock**, writing every yielded sub-command consecutively through
+      `WriteMessageToServerInsideWriteLock`. That is the contiguity guarantee, and `TransactionMessage` is
+      the same shape - so `MULTI`/`EXEC` and `SCRIPT LOAD`+`EVALSHA` are one mechanism at different N.
+
+      **What is not free, and why.** `RedisBatch.Execute` deliberately does *not* use `IMultiMessage`: it
+      groups by bridge and calls `TryEnqueue(List<Message>)` with `SetNoFlush()` on all but the last of
+      each group, because **a batch may span bridges in cluster** and so cannot be one message pinned to
+      one connection. A transaction can, by definition. So the primitive is "these go together, one
+      connection"; splitting a batch across bridges stays a layer above it.
+
+      **Do NOT build this on `IResultBox<T>`.** It was suggested as a way to drop the per-element `Task`,
+      and it aims at the wrong thing: the `Message` shim is transitional and the core is to be gutted -
+      Marc: *"unlike TransitionalDatabase, this shim is transient"*. The durable version of the same idea is
+      an `IValueTaskSource<RespPayload>`-shaped completion, which belongs to the new world and survives the
+      demolition; `ManualResetValueTaskSourceCore<T>` is already used in RESPite
+      (`SwitchableBufferedStreamWriter`) across the same TFM set, so it is available down-level too. That
+      would take a queued command - awaited or not - to one allocation and no task at all.
+
 - [ ] **The batch executor: pipelines, does not yet batch.** Raised 2026-09-19, with `RespBatchExecutor`.
 
       `ExecuteAsync` issues every queued send before awaiting any of them, so the run travels without
