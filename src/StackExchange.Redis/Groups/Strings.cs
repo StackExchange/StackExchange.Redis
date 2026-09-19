@@ -55,7 +55,7 @@ public readonly struct RespStrings
 {
     /// <summary>Group the string commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespStrings(in RespContext context) => Context = context;
+    public RespStrings(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

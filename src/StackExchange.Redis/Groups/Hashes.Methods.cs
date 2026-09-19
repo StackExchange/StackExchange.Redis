@@ -784,7 +784,7 @@ public static partial class Hashes
     /// The trailer is what makes the reply field/value pairs rather than field names, so the lease form
     /// and the array form must not be able to disagree about it.
     /// </remarks>
-    private static RespRequestFrame RandomFieldsWithValuesCommand(in RespContext context, RedisKey key, long count)
+    private static RespRequestFrame RandomFieldsWithValuesCommand(RespContext context, RedisKey key, long count)
         => context.Render($"{RedisCommand.HRANDFIELD}{key}{count}{RespLiterals.WithValues}");
 
     /// <summary>
@@ -805,7 +805,7 @@ public static partial class Hashes
     /// here answers an empty request without sending.
     /// </para>
     /// </remarks>
-    private static RespRequestFrame FieldsCommand(in RespContext context, RedisCommand command, RedisKey key, ReadOnlySpan<RedisValue> fields)
+    private static RespRequestFrame FieldsCommand(RespContext context, RedisCommand command, RedisKey key, ReadOnlySpan<RedisValue> fields)
         => context.Render($"{command}{key}{RespLiterals.Fields}{fields.Length}{fields}");
 
     /// <summary>The single-field spelling of <see cref="FieldsCommand"/>; the count is the literal 1.</summary>
@@ -813,7 +813,7 @@ public static partial class Hashes
     /// Not <c>FieldsCommand(context, command, key, new[] { field })</c>: that would allocate to say
     /// "one", and the count is known at the call rather than counted from anything.
     /// </remarks>
-    private static RespRequestFrame FieldCommand(in RespContext context, RedisCommand command, RedisKey key, RedisValue field)
+    private static RespRequestFrame FieldCommand(RespContext context, RedisCommand command, RedisKey key, RedisValue field)
         => context.Render($"{command}{key}{RespLiterals.Fields}{1}{field}");
 
     /// <summary>Render <c>HEXPIRE</c>/<c>HPEXPIRE</c>/<c>HEXPIREAT</c>/<c>HPEXPIREAT</c>.</summary>
@@ -822,7 +822,7 @@ public static partial class Hashes
     /// the operand that goes with it - <see cref="Expiration.Value"/>, in whichever unit the command
     /// implies - are decided in one place rather than at each of the two call sites.
     /// </remarks>
-    private static RespRequestFrame ExpireCommand(in RespContext context, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry, ExpireWhen when)
+    private static RespRequestFrame ExpireCommand(RespContext context, RedisKey key, ReadOnlySpan<RedisValue> fields, Expiration expiry, ExpireWhen when)
         => context.Render($"{SelectExpireCommand(expiry)}{key}{expiry.Value}{RespSurface.AsFragment(when)}{RespLiterals.Fields}{fields.Length}{fields}");
 
     /// <summary>Render <c>HGETEX</c>, whose expiry comes before the <c>FIELDS</c> trailer.</summary>
@@ -830,11 +830,11 @@ public static partial class Hashes
     /// Its own factory rather than an argument to <see cref="FieldsCommand"/>, because the expiry is not
     /// part of that shape: it sits between the key and the trailer, and only this command has it.
     /// </remarks>
-    private static RespRequestFrame GetSetExpiryCommand(in RespContext context, RedisKey key, Expiration expiry, ReadOnlySpan<RedisValue> fields)
+    private static RespRequestFrame GetSetExpiryCommand(RespContext context, RedisKey key, Expiration expiry, ReadOnlySpan<RedisValue> fields)
         => context.Render($"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{fields.Length}{fields}");
 
-    /// <summary>The single-field spelling of <see cref="GetSetExpiryCommand(in RespContext, RedisKey, Expiration, ReadOnlySpan{RedisValue})"/>.</summary>
-    private static RespRequestFrame GetSetExpiryCommand(in RespContext context, RedisKey key, Expiration expiry, RedisValue field)
+    /// <summary>The single-field spelling of <see cref="GetSetExpiryCommand(RespContext, RedisKey, Expiration, ReadOnlySpan{RedisValue})"/>.</summary>
+    private static RespRequestFrame GetSetExpiryCommand(RespContext context, RedisKey key, Expiration expiry, RedisValue field)
         => context.Render($"{RedisCommand.HGETEX}{key}{expiry}{RespLiterals.Fields}{1}{field}");
 
     /// <summary>

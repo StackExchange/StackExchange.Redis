@@ -64,7 +64,7 @@ public readonly struct RespScripts
 {
     /// <summary>Group the scripting commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespScripts(in RespContext context) => Context = context;
+    public RespScripts(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

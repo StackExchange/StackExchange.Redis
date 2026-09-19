@@ -305,25 +305,25 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
 internal static partial class RedisCommands
 {
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary Ping(this in RespContext ctx);
+    internal static partial RespParsers.ResponseSummary Ping(this RespContext ctx);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary SPop(this in RespContext ctx, string key);
+    internal static partial RespParsers.ResponseSummary SPop(this RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial int SAdd(this in RespContext ctx, string key, string payload);
+    internal static partial int SAdd(this RespContext ctx, string key, string payload);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary Set(this in RespContext ctx, string key, byte[] payload);
+    internal static partial RespParsers.ResponseSummary Set(this RespContext ctx, string key, byte[] payload);
 
     [RespCommand]
-    internal static partial int LLen(this in RespContext ctx, string key);
+    internal static partial int LLen(this RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial int LPush(this in RespContext ctx, string key, byte[] payload);
+    internal static partial int LPush(this RespContext ctx, string key, byte[] payload);
 
     [RespCommand(Formatter = LPushFormatter.Name)]
-    internal static partial int LPush(this in RespContext ctx, string key, byte[] payload, int count);
+    internal static partial int LPush(this RespContext ctx, string key, byte[] payload, int count);
 
     private sealed class LPushFormatter : IRespFormatter<(string Key, byte[] Payload, int Count)>
     {
@@ -347,57 +347,57 @@ internal static partial class RedisCommands
     }
 
     [RespCommand]
-    internal static partial int RPush(this in RespContext ctx, string key, byte[] payload);
+    internal static partial int RPush(this RespContext ctx, string key, byte[] payload);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary LPop(this in RespContext ctx, string key);
+    internal static partial RespParsers.ResponseSummary LPop(this RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary RPop(this in RespContext ctx, string key);
+    internal static partial RespParsers.ResponseSummary RPop(this RespContext ctx, string key);
 
     [RespCommand]
     internal static partial RespParsers.ResponseSummary
-        LRange(this in RespContext ctx, string key, int start, int stop);
+        LRange(this RespContext ctx, string key, int start, int stop);
 
     [RespCommand]
-    internal static partial int HSet(this in RespContext ctx, string key, string field, byte[] payload);
+    internal static partial int HSet(this RespContext ctx, string key, string field, byte[] payload);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary Ping(this in RespContext ctx, byte[] payload);
+    internal static partial RespParsers.ResponseSummary Ping(this RespContext ctx, byte[] payload);
 
     [RespCommand]
-    internal static partial int Incr(this in RespContext ctx, string key);
+    internal static partial int Incr(this RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary Del(this in RespContext ctx, string key);
+    internal static partial RespParsers.ResponseSummary Del(this RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary ZPopMin(this in RespContext ctx, string key);
+    internal static partial RespParsers.ResponseSummary ZPopMin(this RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial int ZAdd(this in RespContext ctx, string key, double score, string payload);
+    internal static partial int ZAdd(this RespContext ctx, string key, double score, string payload);
 
     [RespCommand("get")]
-    internal static partial int? GetInt32(this in RespContext ctx, string key);
+    internal static partial int? GetInt32(this RespContext ctx, string key);
 
     [RespCommand]
     internal static partial RespParsers.ResponseSummary XAdd(
-        this in RespContext ctx,
+        this RespContext ctx,
         string key,
         string id,
         string field,
         byte[] value);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary Get(this in RespContext ctx, string key);
+    internal static partial RespParsers.ResponseSummary Get(this RespContext ctx, string key);
 
     [RespCommand(Formatter = PairsFormatter.Name)] // custom command formatter
-    internal static partial bool MSet(this in RespContext ctx, (string, byte[])[] pairs);
+    internal static partial bool MSet(this RespContext ctx, (string, byte[])[] pairs);
 
-    internal static RespParsers.ResponseSummary PingInline(this in RespContext ctx, byte[] payload)
+    internal static RespParsers.ResponseSummary PingInline(this RespContext ctx, byte[] payload)
         => ctx.Command("ping"u8, payload, InlinePingFormatter.Instance).Wait(RespParsers.ResponseSummary.Parser);
 
-    internal static ValueTask<RespParsers.ResponseSummary> PingInlineAsync(this in RespContext ctx, byte[] payload)
+    internal static ValueTask<RespParsers.ResponseSummary> PingInlineAsync(this RespContext ctx, byte[] payload)
         => ctx.Command("ping"u8, payload, InlinePingFormatter.Instance)
             .Send(RespParsers.ResponseSummary.Parser);
 

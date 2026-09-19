@@ -78,7 +78,7 @@ public static partial class HyperLogLog
             $"{RedisCommand.PFMERGE}{destination}{sourceKeys}", flags, cancellationToken: cancellationToken);
 
     /// <summary>The flags a <c>PFCOUNT</c> should go out with, given what is known about the server.</summary>
-    private static CommandFlags CountFlags(in RespContext context, in RedisKey key, CommandFlags flags)
+    private static CommandFlags CountFlags(RespContext context, in RedisKey key, CommandFlags flags)
     {
         flags = flags.WithDefaultCategory(RedisCommand.PFCOUNT);
 

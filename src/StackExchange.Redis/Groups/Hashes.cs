@@ -55,7 +55,7 @@ public readonly struct RespHashes
 {
     /// <summary>Group the hash commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespHashes(in RespContext context) => Context = context;
+    public RespHashes(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

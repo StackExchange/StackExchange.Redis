@@ -33,8 +33,7 @@ namespace StackExchange.Redis
             this.server = server; // definitely can't be null because .Multiplexer in base call
         }
 
-        private RespContext _context;
-        private bool _haveContext;
+        private RespContext? _context;
 
         /// <inheritdoc/>
         /// <remarks>
@@ -57,21 +56,13 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         protected override RespContext GetContext()
-        {
-            if (!_haveContext)
-            {
-                _context = new RespContext(
-                    multiplexer.CommandMap,
-                    database: -1,
-                    serverType: server.ServerType)
-                    .WithExecutor(new RespMessageExecutor(this, -1))
-                    .WithScriptCache(multiplexer.ScriptCache)
-                    .WithServices(new ServerFeatureProbe(this));
-                _haveContext = true;
-            }
-
-            return _context;
-        }
+            => _context ??= new RespContext(
+                multiplexer.CommandMap,
+                database: -1,
+                serverType: server.ServerType)
+                .WithExecutor(new RespMessageExecutor(this, -1))
+                .WithScriptCache(multiplexer.ScriptCache)
+                .WithServices(new ServerFeatureProbe(this));
 
         int IServer.DatabaseCount => server.Databases;
 

@@ -34,7 +34,7 @@ public readonly struct RespKeyspace
 {
     /// <summary>Group the keyspace commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespKeyspace(in RespContext context) => Context = context;
+    public RespKeyspace(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

@@ -56,7 +56,7 @@ public readonly struct RespBitmaps
 {
     /// <summary>Group the bitmap commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespBitmaps(in RespContext context) => Context = context;
+    public RespBitmaps(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

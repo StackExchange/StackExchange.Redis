@@ -293,7 +293,7 @@ public static partial class Bitmaps
     /// state, and only INCRBY compounds. Only the "is the read-only command available?" input differs,
     /// because here it is answered by the command map instead of by the endpoint's version.
     /// </remarks>
-    private static RedisCommand SelectCommand(in RespContext context, in RedisKey key, ReadOnlySpan<BitFieldOperation> operations, ref CommandFlags flags)
+    private static RedisCommand SelectCommand(RespContext context, in RedisKey key, ReadOnlySpan<BitFieldOperation> operations, ref CommandFlags flags)
     {
         bool allGet = true, anyIncrement = false;
         foreach (ref readonly var operation in operations)
@@ -312,11 +312,11 @@ public static partial class Bitmaps
             }
         }
 
-        return SelectCommand(in context, key, allGet, anyIncrement, ref flags);
+        return SelectCommand(context, key, allGet, anyIncrement, ref flags);
     }
 
-    /// <inheritdoc cref="SelectCommand(in RespContext, in RedisKey, ReadOnlySpan{BitFieldOperation}, ref CommandFlags)"/>
-    private static RedisCommand SelectCommand(in RespContext context, in RedisKey key, bool allGet, bool anyIncrement, ref CommandFlags flags)
+    /// <inheritdoc cref="SelectCommand(RespContext, in RedisKey, ReadOnlySpan{BitFieldOperation}, ref CommandFlags)"/>
+    private static RedisCommand SelectCommand(RespContext context, in RedisKey key, bool allGet, bool anyIncrement, ref CommandFlags flags)
     {
         // BITFIELD_RO has to be BOTH mapped and actually present: the map is configuration, the
         // version is fact, and guessing wrong here costs an unknown-command error rather than a

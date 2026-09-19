@@ -54,7 +54,7 @@ public readonly struct RespVectorSets
 {
     /// <summary>Group the vector-set commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespVectorSets(in RespContext context) => Context = context;
+    public RespVectorSets(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

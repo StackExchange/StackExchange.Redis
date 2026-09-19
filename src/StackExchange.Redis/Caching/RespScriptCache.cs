@@ -74,11 +74,11 @@ namespace StackExchange.Redis.Caching
         /// <param name="hash">The script's SHA1, lower-case hex, as the server reports it.</param>
         /// <param name="gate">Decides at write time whether the endpoint still needs this preamble.</param>
         /// <returns>A request over the cached bytes; it owns nothing poolable, so disposing it is a no-op.</returns>
-        internal RespRequest GetPreamble(in RespContext context, string script, out string hash, out IRespPreambleGate gate)
+        internal RespRequest GetPreamble(RespContext context, string script, out string hash, out IRespPreambleGate gate)
         {
             if (!_entries.TryGetValue(script, out var entry))
             {
-                entry = Render(in context, script);
+                entry = Render(context, script);
 
                 // a race just renders twice and keeps whichever landed; both are byte-identical, and the
                 // loser is an exact array that the GC takes, not a rent that had to be given back
@@ -90,7 +90,7 @@ namespace StackExchange.Redis.Caching
             return entry.AsRequest();
         }
 
-        private Entry Render(in RespContext context, string script)
+        private Entry Render(RespContext context, string script)
         {
             Interlocked.Increment(ref _rendered);
 

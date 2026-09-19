@@ -25,7 +25,7 @@ namespace StackExchange.Redis
     {
         /// <summary>Create a server context over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
-        public RespServerContext(in RespContext context) => Raw = context;
+        public RespServerContext(RespContext context) => Raw = context;
 
         /// <summary>The shared plumbing this context wraps: key prefix, services, executor.</summary>
         /// <remarks>

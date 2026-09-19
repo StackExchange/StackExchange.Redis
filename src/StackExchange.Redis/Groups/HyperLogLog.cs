@@ -47,7 +47,7 @@ public readonly struct RespHyperLogLog
 {
     /// <summary>Group the HyperLogLog commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespHyperLogLog(in RespContext context) => Context = context;
+    public RespHyperLogLog(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

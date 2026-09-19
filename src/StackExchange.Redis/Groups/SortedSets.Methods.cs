@@ -926,7 +926,7 @@ public static partial class SortedSets
     /// </para>
     /// <para>The returned frame owns a pooled buffer and is consumed by the send, so a caller must send it.</para>
     /// </remarks>
-    private static RespRequestFrame RangeByRankCommand(in RespContext context, RedisKey key, long start, long stop, Order order, bool withScores)
+    private static RespRequestFrame RangeByRankCommand(RespContext context, RedisKey key, long start, long stop, Order order, bool withScores)
     {
         var command = order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE;
         return context.Render($"{command}{key}{start}{stop}{RespLiterals.WithScores.When(withScores)}");
@@ -937,7 +937,7 @@ public static partial class SortedSets
     /// The trailer is the whole difference between this and the plain random-member read, and it changes
     /// the reply shape; the lease form and the array form must not be able to disagree about it.
     /// </remarks>
-    private static RespRequestFrame RandomMembersWithScoresCommand(in RespContext context, RedisKey key, long count)
+    private static RespRequestFrame RandomMembersWithScoresCommand(RespContext context, RedisKey key, long count)
         => context.Render($"{RedisCommand.ZRANDMEMBER}{key}{count}{RespLiterals.WithScores}");
 
     /// <summary>ZRANGEBYSCORE and its with-scores twin, which differ only in one token and the result.</summary>

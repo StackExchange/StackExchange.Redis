@@ -322,7 +322,7 @@ namespace StackExchange.Redis.Protocol
 
             // resolution happens HERE, not at construction: a known command still has to go through this
             // context's map, which may rename or disable it
-            var resp = value.GetResp(in _context);
+            var resp = value.GetResp(_context);
             if (resp.IsEmpty)
             {
                 // an unknown command kept as a name: encode straight into the frame, no intermediate array

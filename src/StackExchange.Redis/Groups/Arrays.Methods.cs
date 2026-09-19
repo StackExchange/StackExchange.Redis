@@ -172,7 +172,7 @@ public static partial class Arrays
     /// and a decision copied per overload is a decision that drifts. The lease form and the array form
     /// differ only in what parses the reply. The returned frame owns a pooled buffer and must be sent.
     /// </remarks>
-    private static RespRequestFrame ScanCommand(in RespContext context, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit)
+    private static RespRequestFrame ScanCommand(RespContext context, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit)
         => context.Render($"{RedisCommand.ARSCAN}{key}{start}{end}{RespLiterals.Limit.When(limit)}{limit}");
 
     /// <summary>AROP; an aggregate over a range of slots.</summary>
@@ -283,7 +283,7 @@ public static partial class Arrays
     /// Render <c>ARLASTITEMS</c> - the one place the command is composed.
     /// </summary>
     /// <remarks><inheritdoc cref="ScanCommand" path="/remarks"/></remarks>
-    private static RespRequestFrame LastItemsCommand(in RespContext context, RedisKey key, int count, bool reverse)
+    private static RespRequestFrame LastItemsCommand(RespContext context, RedisKey key, int count, bool reverse)
         => context.Render($"{RedisCommand.ARLASTITEMS}{key}{count}{RespLiterals.Rev.When(reverse)}");
 
     /// <summary>ARINFO; the array's shape.</summary>

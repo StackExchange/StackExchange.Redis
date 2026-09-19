@@ -240,7 +240,7 @@ public static partial class VectorSets
     /// The trailer is what makes the reply carry distances, so the read-only lease and the writable
     /// lease behind <c>IDatabase</c> must not be able to disagree about it.
     /// </remarks>
-    private static RespRequestFrame GetLinksWithScoresCommand(in RespContext context, RedisKey key, RedisValue member)
+    private static RespRequestFrame GetLinksWithScoresCommand(RespContext context, RedisKey key, RedisValue member)
         => context.Render($"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}");
 
     // ---- the writable-lease shapes IDatabase still needs -------------------------------------------

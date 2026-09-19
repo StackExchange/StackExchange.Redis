@@ -122,7 +122,7 @@ internal sealed class RespScanPagePairHandler<T>(ResultProcessor.ValuePairInterl
 internal static class RespScan
 {
     internal static RespRequestFrame Command(
-        in RespContext context,
+        RespContext context,
         RedisCommand command,
         RedisKey key,
         long cursor,

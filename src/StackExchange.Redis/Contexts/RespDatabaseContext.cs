@@ -28,7 +28,7 @@ namespace StackExchange.Redis
     {
         /// <summary>Create a database over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
-        public RespDatabaseContext(in RespContext context) => Raw = context;
+        public RespDatabaseContext(RespContext context) => Raw = context;
 
         /// <summary>The shared plumbing this context wraps: key prefix, services, executor.</summary>
         /// <remarks>

@@ -29,32 +29,30 @@ namespace StackExchange.Redis
 
         public int Database { get; }
 
-        private RespContext _context;
-        private bool _haveContext;
+        private RespContext? _context;
 
         /// <inheritdoc/>
         /// <remarks>
+        /// <para>
         /// Built once and cached: the executor is a per-database object, and handing out a fresh one per
-        /// property access would allocate on a path meant to allocate nothing. The context itself is a
-        /// struct, so callers copy rather than share.
+        /// property access would allocate on a path meant to allocate nothing. The context is a class, so
+        /// callers share the one instance rather than copying forty bytes each time.
+        /// </para>
+        /// <para>
+        /// <c>??=</c> rather than a "have I built it" flag, which is what the reference type buys here: a
+        /// race builds a second equivalent context and discards one, where the flag had to be written after
+        /// the value and read before it.
+        /// </para>
         /// </remarks>
         protected override RespContext GetContext()
-        {
-            if (!_haveContext)
-            {
-                _context = new RespContext(
-                    multiplexer.CommandMap,
-                    database: Database,
-                    serverType: multiplexer.ServerSelectionStrategy.ServerType)
-                    .WithExecutor(new RespMessageExecutor(this, Database))
-                    .WithCache(multiplexer.ClientCache)
-                    .WithScriptCache(multiplexer.ScriptCache)
-                    .WithServices(new ServerFeatureProbe(this));
-                _haveContext = true;
-            }
-
-            return _context;
-        }
+            => _context ??= new RespContext(
+                multiplexer.CommandMap,
+                database: Database,
+                serverType: multiplexer.ServerSelectionStrategy.ServerType)
+                .WithExecutor(new RespMessageExecutor(this, Database))
+                .WithCache(multiplexer.ClientCache)
+                .WithScriptCache(multiplexer.ScriptCache)
+                .WithServices(new ServerFeatureProbe(this));
 
         /// <summary>
         /// Lets the context surface ask what the receiving server can do, which is the one thing a context

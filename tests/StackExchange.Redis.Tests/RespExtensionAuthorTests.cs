@@ -130,7 +130,7 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
 // ---------------------------------------------------------------------------------------------------
 
 /// <summary>The command group: a context plus a name, and nothing else.</summary>
-public readonly struct ContosoCommands(in RespContext context)
+public readonly struct ContosoCommands(RespContext context)
 {
     /// <summary>The context these commands are sent through.</summary>
     public RespContext Context { get; } = context;

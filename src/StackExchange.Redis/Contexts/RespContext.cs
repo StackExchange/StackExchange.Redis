@@ -29,8 +29,18 @@ namespace StackExchange.Redis
     /// (via <see cref="RedisKey.WithPrefix"/>) rather than conflict.
     /// </para>
     /// </remarks>
-    public readonly struct RespContext
+    public sealed class RespContext
     {
+        /// <summary>An empty context: no executor, no services, the default command map.</summary>
+        /// <remarks>
+        /// Explicit because a class has no implicit parameterless constructor, and <c>new RespContext()</c>
+        /// is how a caller says "nothing configured" - most often a test.
+        /// </remarks>
+        public RespContext()
+            : this(commandMap: null)
+        {
+        }
+
         internal RespContext(
             CommandMap? commandMap = null,
             RedisKey keyPrefix = default,
@@ -42,12 +52,22 @@ namespace StackExchange.Redis
         {
             _commandMap = commandMap;
             _keyPrefix = keyPrefix; // normalise to bytes ONCE; the conversion can allocate for a string-backed key
-            _database = database;
             ServerType = serverType;
             Executor = executor;
             _services = channelPrefix.IsNull
                 ? services
                 : ServiceLink.Add(services, new ChannelPrefixService(channelPrefix));
+
+            // MEMOISED, and this is the reason the type is a class at all. Every one of these was a
+            // property that walked the service chain on each read, and the executor consults two of them
+            // on EVERY send - a walk that calls Type.IsInstanceOfType per link, which is a reflection type
+            // test rather than an `is T` the JIT turns into a cast check. Resolving once, here, turns all
+            // of that into field reads; the chain remains for the niche lookups that are not worth a field.
+            Database = executor?.Database ?? database;
+            Cache = TryGetService<RespClientCache>(out var cache) ? cache : null;
+            ScriptCache = TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
+            ChannelPrefix = TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
+            MaxCacheAgeTicks = TryGetService<MaxCacheAgeService>(out var maxAge) ? maxAge.Ticks : long.MaxValue;
         }
 
         /// <summary>Where commands composed from this context are sent; <c>null</c> if none is configured.</summary>
@@ -133,7 +153,7 @@ namespace StackExchange.Redis
         /// extensible <b>without new fields</b>, so a capability that arrives later costs no API change and
         /// no growth in the struct. A cache is simply the first such service.
         /// </remarks>
-        public bool TryGetService<T>([NotNullWhen(true)] out T? service)
+        internal bool TryGetService<T>([NotNullWhen(true)] out T? service)
             where T : class
         {
             switch (_services)
@@ -202,8 +222,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>The client-side cache attached to this context, or <c>null</c> for none.</summary>
-        /// <remarks>Convenience over <see cref="TryGetService{T}"/>; the cache is not a field.</remarks>
-        internal RespClientCache? Cache => TryGetService<RespClientCache>(out var cache) ? cache : null;
+        /// <remarks>Resolved through <see cref="TryGetService{T}"/> once, in the constructor; the send path
+        /// consults it on every command, so it must not be a service walk.</remarks>
+        internal RespClientCache? Cache { get; }
 
         /// <summary>The rendered-script registry attached to this context, or <c>null</c> for none.</summary>
         /// <remarks>
@@ -211,7 +232,7 @@ namespace StackExchange.Redis
         /// where that holds <i>responses</i> and is invalidated constantly. Sharing a type would mean one
         /// of the two lying about its lifetime.
         /// </remarks>
-        internal RespScriptCache? ScriptCache => TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
+        internal RespScriptCache? ScriptCache { get; }
 
         private readonly CommandMap? _commandMap;
 
@@ -249,16 +270,16 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The command map. Note this copes with <c>default(RespContext)</c>: a struct always has an implicit
-        /// parameterless constructor that zeroes every field, and <c>new RespContext()</c> binds to THAT rather
-        /// than to the all-optional-arguments constructor below - so no field may be assumed non-null.
+        /// The command map. Null-coalesced rather than defaulted in the constructor because
+        /// <see cref="CommandMap.Default"/> is a static that a context built during type initialization
+        /// must not force; every other memoised member has no such ordering hazard.
         /// </summary>
-        public CommandMap CommandMap => _commandMap ?? CommandMap.Default;
+        internal CommandMap CommandMap => _commandMap ?? CommandMap.Default;
 
         private readonly byte[]? _keyPrefix;
 
         /// <summary>The key prefix applied to every <see cref="RedisKey"/> written through this context.</summary>
-        public RedisKey KeyPrefix => _keyPrefix;
+        internal RedisKey KeyPrefix => _keyPrefix;
 
         /// <summary>The key prefix as raw bytes, so the writer never pays a conversion per command.</summary>
         internal ReadOnlySpan<byte> KeyPrefixSpan => _keyPrefix;
@@ -267,11 +288,11 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Held as a <b>service</b> rather than a field. As a field it was a <see cref="RedisChannel"/> -
         /// 16 bytes, a quarter of the whole context - carried on every copy for pub/sub's benefit alone,
-        /// while every data-type group ignored it. Resolving it costs a type test, paid only by code that
-        /// actually writes a channel. See design notes section 3.3.
+        /// while every data-type group ignored it. It stays a service - that is where a context that has
+        /// one keeps it - but is resolved once in the constructor, so the walk is not per command.
+        /// See design notes section 3.3.
         /// </remarks>
-        public RedisChannel ChannelPrefix
-            => TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
+        internal RedisChannel ChannelPrefix { get; }
 
         /// <summary>The database index; part of cache identity, and NOT part of the rendered frame.</summary>
         /// <remarks>
@@ -279,15 +300,14 @@ namespace StackExchange.Redis
         /// routes: the cache keys on <c>executor.Database</c> and the message is built with it. Storing a
         /// second copy here and trusting it is what made <see cref="WithDatabase"/> wrong once already -
         /// it changed this value and not the executor's, so the call read database 0 and reported 1, with
-        /// nothing inconsistent to see because the cache agreed with the executor. Deferring means the two
-        /// cannot disagree; the field below is only what a context says before it has an executor at all.
+        /// nothing inconsistent to see because the cache agreed with the executor. Resolved ONCE, in the
+        /// constructor, from the executor if there is one and from the supplied index otherwise - so the
+        /// two still cannot disagree, and a send reads a field rather than chasing the executor.
         /// </remarks>
-        public int Database => Executor?.Database ?? _database;
-
-        private readonly int _database;
+        internal int Database { get; }
 
         /// <summary>The server type; cluster slots are only computed when this is a cluster.</summary>
-        public ServerType ServerType { get; }
+        internal ServerType ServerType { get; }
 
         /// <summary>A copy of this context targeting a different database.</summary>
         /// <param name="database">The database index.</param>
@@ -309,7 +329,7 @@ namespace StackExchange.Redis
         /// <exception cref="NotSupportedException">
         /// The context has an executor that runs against a different database and cannot be re-pointed.
         /// </exception>
-        public RespContext WithDatabase(int database)
+        internal RespContext WithDatabase(int database)
         {
             var executor = Executor switch
             {
@@ -345,7 +365,7 @@ namespace StackExchange.Redis
         /// error; here it is one setting among several on a context, where "adds nothing" is well defined.
         /// </para>
         /// </remarks>
-        public RespContext AppendKeyPrefix(RedisKey keyPrefix)
+        internal RespContext AppendKeyPrefix(RedisKey keyPrefix)
             => new(
                 CommandMap,
                 _keyPrefix is null ? keyPrefix : RedisKey.WithPrefix(_keyPrefix, keyPrefix),
@@ -370,7 +390,7 @@ namespace StackExchange.Redis
         /// <b>there is deliberately no way to escape a prefix already in force</b>, which matches the key
         /// prefix (you cannot un-prefix a <see cref="RedisKey"/>) and the decorators (you cannot unwrap one).
         /// </remarks>
-        public RespContext AppendChannelPrefix(RedisChannel channelPrefix)
+        internal RespContext AppendChannelPrefix(RedisChannel channelPrefix)
         {
             // nothing to add. Note this is an allocation saving, NOT what makes null a no-op: composing
             // nothing onto the existing bytes already yields the existing bytes (verified by mutation)
@@ -411,7 +431,7 @@ namespace StackExchange.Redis
         /// <c>null</c>, which shadows just that one rather than emptying the slot.
         /// </para>
         /// </remarks>
-        public RespContext WithServices(object? services)
+        internal RespContext WithServices(object? services)
             => services is null
                 ? this
                 : new(CommandMap, _keyPrefix, default, Database, ServerType, Executor, ServiceLink.Add(_services, services));
@@ -440,7 +460,7 @@ namespace StackExchange.Redis
         /// attached alongside it survives. See <see cref="WithServices"/>.
         /// </para>
         /// </remarks>
-        public RespContext WithoutCache() => WithoutService(typeof(RespClientCache));
+        internal RespContext WithoutCache() => WithoutService(typeof(RespClientCache));
 
         /// <summary>A copy of this context that renders each script only once.</summary>
         /// <param name="scripts">The registry to use, or <c>null</c> for none.</param>
@@ -527,12 +547,11 @@ namespace StackExchange.Redis
         /// one that could not be added to <c>IDatabase</c> at all without a binary break.
         /// </para>
         /// </remarks>
-        public RespContext WithMaxCacheAge(TimeSpan maxAge)
+        internal RespContext WithMaxCacheAge(TimeSpan maxAge)
             => WithServices(new MaxCacheAgeService(maxAge));
 
         /// <summary>The caller's freshness requirement, if they stated one.</summary>
-        internal long MaxCacheAgeTicks
-            => TryGetService<MaxCacheAgeService>(out var service) ? service.Ticks : long.MaxValue;
+        internal long MaxCacheAgeTicks { get; }
 
         /// <summary>
         /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into the

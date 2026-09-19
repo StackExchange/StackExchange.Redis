@@ -53,7 +53,7 @@ public readonly struct RespSortedSets
 {
     /// <summary>Group the sorted-set commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespSortedSets(in RespContext context) => Context = context;
+    public RespSortedSets(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

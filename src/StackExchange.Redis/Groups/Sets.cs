@@ -47,7 +47,7 @@ public readonly struct RespSets
 {
     /// <summary>Group the set commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespSets(in RespContext context) => Context = context;
+    public RespSets(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

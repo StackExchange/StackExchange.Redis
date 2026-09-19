@@ -119,7 +119,7 @@ public static partial class Lists
     /// surface where the copies drift. The returned frame owns a pooled buffer and must be sent.
     /// </remarks>
     private static RespRequestFrame PositionsCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         RedisValue element,
         long count,
@@ -356,7 +356,7 @@ public static partial class Lists
     /// must be sent.
     /// </remarks>
     private static RespRequestFrame MoveManyCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey sourceKey,
         RedisKey destinationKey,
         ListSide sourceSide,

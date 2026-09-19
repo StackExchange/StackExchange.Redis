@@ -84,7 +84,7 @@ public static partial class Scripts
             {
                 // a gate per call here, where the registry keeps one per script: without a registry
                 // there is nowhere to keep it, and the skip is worth more than the allocation
-                return SendPair(in context, ref fresh, hash, keys, args, flags, readOnly, new ScriptLoadGate(script, hash), handler);
+                return SendPair(context, ref fresh, hash, keys, args, flags, readOnly, new ScriptLoadGate(script, hash), handler);
             }
             finally
             {
@@ -92,8 +92,8 @@ public static partial class Scripts
             }
         }
 
-        var preamble = registry.GetPreamble(in context, script, out var known, out var gate);
-        return SendPair(in context, preamble, known, keys, args, flags, readOnly, gate, handler);
+        var preamble = registry.GetPreamble(context, script, out var known, out var gate);
+        return SendPair(context, preamble, known, keys, args, flags, readOnly, gate, handler);
     }
 
     /// <summary>EVALSHA_RO, preceded by SCRIPT LOAD; the read-only form of <c>Evaluate</c>.</summary>
@@ -126,7 +126,7 @@ public static partial class Scripts
 
     /// <summary>Render the EVALSHA and send it behind the preamble.</summary>
     private static ValueTask<TResult> SendPair<TResult>(
-        in RespContext context,
+        RespContext context,
         ref RespRequestFrame preamble,
         string hash,
         ReadOnlySpan<RedisKey> keys,
@@ -155,7 +155,7 @@ public static partial class Scripts
     /// it needs no disposal and can be handed over directly.
     /// </remarks>
     private static ValueTask<TResult> SendPair<TResult>(
-        in RespContext context,
+        RespContext context,
         RespRequest preamble,
         string hash,
         ReadOnlySpan<RedisKey> keys,

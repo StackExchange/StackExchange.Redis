@@ -109,7 +109,7 @@ public static partial class Streams
     /// </para>
     /// </remarks>
     private static RespRequestFrame RangeCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         RedisValue? minId,
         RedisValue? maxId,
@@ -326,7 +326,7 @@ public static partial class Streams
     /// <summary>Render <c>XDELEX</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
     private static RespRequestFrame DeleteExCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         ReadOnlySpan<RedisValue> messageIds,
         StreamTrimMode mode)
@@ -594,7 +594,7 @@ public static partial class Streams
     /// <summary>Render <c>XCLAIM</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
     private static RespRequestFrame ClaimCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -662,7 +662,7 @@ public static partial class Streams
 
     /// <summary>Render the single-stream <c>XREAD</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
-    private static RespRequestFrame ReadCommand(in RespContext context, RedisKey key, RedisValue position, int? count)
+    private static RespRequestFrame ReadCommand(RespContext context, RedisKey key, RedisValue position, int? count)
     {
         DemandPositiveCount(count);
         var after = StreamPosition.Resolve(position, RedisCommand.XREAD);
@@ -722,7 +722,7 @@ public static partial class Streams
     /// <summary>Render the single-stream <c>XREADGROUP</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
     private static RespRequestFrame ReadGroupCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -837,7 +837,7 @@ public static partial class Streams
     /// <summary>Render <c>XAUTOCLAIM</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
     private static RespRequestFrame AutoClaimCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -941,7 +941,7 @@ public static partial class Streams
     /// <summary>Render the extended <c>XPENDING</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
     private static RespRequestFrame PendingMessagesCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         RedisValue group,
         int count,
@@ -1056,7 +1056,7 @@ public static partial class Streams
     /// <summary>Render <c>XACKDEL</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
     private static RespRequestFrame AcknowledgeAndDeleteCommand(
-        in RespContext context,
+        RespContext context,
         RedisKey key,
         RedisValue group,
         StreamTrimMode mode,

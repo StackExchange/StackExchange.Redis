@@ -60,7 +60,7 @@ public readonly struct RespArrays
 {
     /// <summary>Group the array commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespArrays(in RespContext context) => Context = context;
+    public RespArrays(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

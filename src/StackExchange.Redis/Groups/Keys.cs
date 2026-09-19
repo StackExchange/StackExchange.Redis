@@ -59,7 +59,7 @@ public readonly struct RespKeys
 {
     /// <summary>Group the key commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespKeys(in RespContext context) => Context = context;
+    public RespKeys(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

@@ -44,7 +44,7 @@ public readonly struct RespStreams
 {
     /// <summary>Group the stream commands of a context.</summary>
     /// <param name="context">The context to send through.</param>
-    public RespStreams(in RespContext context) => Context = context;
+    public RespStreams(RespContext context) => Context = context;
 
     /// <summary>The context these commands are sent through.</summary>
     /// <remarks>

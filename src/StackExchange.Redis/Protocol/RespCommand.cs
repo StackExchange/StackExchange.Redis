@@ -87,7 +87,7 @@ namespace StackExchange.Redis.Protocol
 
         /// <summary>The RESP for this command, honouring the context's command map when it applies.</summary>
         /// <param name="context">The context being written.</param>
-        internal ReadOnlySpan<byte> GetResp(in RespContext context)
+        internal ReadOnlySpan<byte> GetResp(RespContext context)
         {
             if (_resp is not null) return _resp; // unknown, preformed: the map has no opinion on it
             if (_name is not null) return default; // unknown, per-call: the caller encodes it

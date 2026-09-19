@@ -89,17 +89,19 @@ public class InterpolatedWriterCacheKeyTests
         cache.TryAdd(stored, payload);
 
         // the render rents from the pool and returns it, the key is a struct, the payload is already
-        // allocated, and RespReader is a ref struct - so a steady-state hit should allocate nothing
-        AllocationAssert.None(() => Probe(cache), iterations: 1000, warmup: 200);
+        // allocated, and RespReader is a ref struct - so a steady-state hit should allocate nothing.
+        // The context is hoisted deliberately: it is a class, so constructing one allocates, but it is
+        // built once per database and lives for the life of the connection - it is not on this path.
+        var ctx = new RespContext();
+        AllocationAssert.None(() => Probe(ctx, cache), iterations: 1000, warmup: 200);
 
         cache.TryRemove(stored, out _);
         payload.Dispose();
         stored.Dispose();
 
-        static void Probe(ConcurrentDictionary<RespRequest, RespPayload> cache)
+        static void Probe(RespContext ctx, ConcurrentDictionary<RespRequest, RespPayload> cache)
         {
             // the HIT path borrows rather than detaching: Detach allocates a RefCountedBuffer per call
-            var ctx = new RespContext();
             using var frame = ctx.Render($"{RedisCommand.GET}{(RedisKey)"abc"}");
             if (cache.TryGetValue(frame.AsLookupKey(), out var found) && found.TryRetain())
             {

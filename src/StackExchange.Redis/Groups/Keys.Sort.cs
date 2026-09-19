@@ -149,7 +149,7 @@ public static partial class Keys
         };
 
         var context = keys.Context;
-        var command = SelectCommand(in context, in destination, in key, ref flags);
+        var command = SelectCommand(context, in destination, in key, ref flags);
 
         // these defaults mean "everything", and the server already assumes them
         var limited = skip != 0 || take != -1;
@@ -200,7 +200,7 @@ public static partial class Keys
     }
 
     /// <summary>SORT or SORT_RO, and what that means for retries and routing.</summary>
-    private static RedisCommand SelectCommand(in RespContext context, in RedisKey destination, in RedisKey key, ref CommandFlags flags)
+    private static RedisCommand SelectCommand(RespContext context, in RedisKey destination, in RedisKey key, ref CommandFlags flags)
     {
         var readOnly = destination.IsNull
             && context.CommandMap.IsAvailable(RedisCommand.SORT_RO)
