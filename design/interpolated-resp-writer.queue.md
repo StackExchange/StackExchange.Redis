@@ -3040,6 +3040,53 @@ Four consequences, none of them cosmetic:
       (`SwitchableBufferedStreamWriter`) across the same TFM set, so it is available down-level too. That
       would take a queued command - awaited or not - to one allocation and no task at all.
 
+- [ ] **The run/batch/transaction primitive: current thinking, 2026-09-19.** `IRespRunExecutor` as
+      committed is **provisional** - see the defect below - and this is where the design got to.
+
+      **Marc's shape.** `SendAsync(SomeKindOfBatchClass)`: one argument, the collection itself, with an
+      internal custom enumerator like `foreach` but also indicating **flush points**. Each request is
+      tagged to the receive queue *before* being written (the race), perhaps with its index. The batch just
+      supplies the inner values; a transaction supplies the set-up and constraints, and can block for the
+      constraint check before issuing the final part. It exposes `OnResult(frame)` - maybe with the index -
+      and pairs replies one at a time. **Not an interface**: closed to unknown implementations, and the
+      executor is tempted towards being a class for the same reason.
+
+      **Why it is right.** Everything before it passed the same information twice: the batch already holds
+      a list pairing each request with the place its result goes, and every signature so far flattened that
+      into parallel arrays of primitives, handed both across, and scattered back. Passing the object
+      removes the flattening - and, decisively, removes the spans, which is what forbids `async`.
+
+      **The defect it fixes, which is real and already shipped.** `RespRetryExecutor` **cannot** implement
+      `IRespRunExecutor`: it must `await` a delay between attempts, and the spans cannot survive that. So
+      today `ctx.WithRetry(p).CreateBatch()` finds no run executor and silently falls back to the
+      pipelined path - the batch quietly stops being a batch. No error, no failing test. That is the same
+      invisible loss we refused to ship for `RetryDatabase.Context`, arrived at from the other side.
+
+      **The constraint I would nail down first: a pause is a contiguity boundary.** `IMultiMessage`
+      expansion runs *inside the write lock*. An enumerator that can block waiting for a reply cannot hold
+      that lock across the wait - the reader has to make progress, and other writers would starve - so a
+      constraint check mid-sequence means releasing the lock, awaiting, and re-acquiring. The chunk after
+      the pause is therefore **not** contiguous with the chunk before it. For `WATCH`/`MULTI`/`EXEC` that
+      is fine, since `WATCH` is a separate round trip anyway; but "flush point" and "pause point" are two
+      different things and the type should say which it means.
+
+      **Two smaller ones.** (1) The index should be mandatory rather than "maybe": a `MOVED`/`ASK`
+      re-dispatch re-sends one element elsewhere, so its reply can arrive out of order, and positional
+      pairing survives that where a cursor does not. (2) There needs to be a fault counterpart to
+      `OnResult` - a half-written run must fail the expectations it already enqueued, which is what
+      `FramePairMessage`'s expansion-failure path does today for N=2.
+
+      **A class also collapses the capability interfaces.** `IRespPreambleExecutor` and
+      `IRespRunExecutor` exist only to be type-tested at the call site; as virtual methods on a base
+      executor they become defaults that a decorator can override, and the "did it implement it?" silent
+      downgrade stops being expressible.
+
+      **Worth preserving:** the client-side cache probe happens *above* the batch executor, so a batched
+      command that is cached is never queued. Whatever replaces this must keep that ordering.
+
+      Marc notes this may need to wait for the message-core refactor, since some paths do not have two
+      write paths to drive.
+
 - [x] **A cluster batch groups by SLOT, and that is the answer rather than a step towards one —
       2026-09-19.** Marc spotted that the grouping needs nothing from the topology: a request already
       carries the slot it folded while being written, and `RespRequestBuilder` only folds one when the
