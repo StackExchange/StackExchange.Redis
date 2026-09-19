@@ -15,24 +15,6 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class RespResultHandlerTests
 {
-    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        internal int Sends { get; private set; }
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sends++;
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     private static RespDatabaseContext Context(FakeExecutor executor, RespClientCache? cache = null)
         => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 

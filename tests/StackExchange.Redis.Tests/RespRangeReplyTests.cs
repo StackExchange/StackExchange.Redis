@@ -22,24 +22,6 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespRangeReplyTests
 {
-    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        public List<string> Sent { get; } = [];
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     /// <summary>Two entries, two fields each - the nested shape the whole exercise is about.</summary>
     private const string TwoEntries =
         "*2|" +

@@ -15,24 +15,6 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class RespCacheLifetimeTests
 {
-    private sealed class CountingExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        internal int Sends { get; private set; }
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sends++;
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     private const CommandFlags Readable = CommandFlags.CommandRetryReadOnly;
 
     private static ValueTask<RedisValue> Get(RespDatabaseContext context)
@@ -48,7 +30,7 @@ public class RespCacheLifetimeTests
 
         // and a fresh entry is genuinely served from cache under it
         using var cache = new RespClientCache();
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         Assert.Equal("a", await Get(context));
@@ -60,7 +42,7 @@ public class RespCacheLifetimeTests
     public async Task AnExpiredEntryIsNotServed()
     {
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         Assert.Equal("a", await Get(context));
@@ -80,7 +62,7 @@ public class RespCacheLifetimeTests
         // the one knob that is per-call, because freshness tolerance is a property of the caller - and the
         // one that could not be added to IDatabase at all without a binary break
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var relaxed = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
         var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMilliseconds(50));
 
@@ -102,7 +84,7 @@ public class RespCacheLifetimeTests
         // age is applied on READ, not stamped on store - so a single entry serves everybody, rather than
         // being duplicated once per distinct lifetime
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
-        var executor = new CountingExecutor("$1\r\na\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n");
         var relaxed = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
         var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMinutes(30));
 
@@ -118,7 +100,7 @@ public class RespCacheLifetimeTests
     {
         // narrows, never widens: the deployment's lifetime is a ceiling
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache)
             .WithMaxCacheAge(TimeSpan.FromHours(1)));
 

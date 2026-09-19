@@ -18,25 +18,6 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespStaleWhileRevalidateTests
 {
-    private sealed class CountingExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-        private int _sends;
-
-        internal int Sends => Volatile.Read(ref _sends);
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Interlocked.Increment(ref _sends);
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     private const CommandFlags Readable = CommandFlags.CommandRetryReadOnly;
 
     private static ValueTask<RedisValue> Get(RespDatabaseContext context)
@@ -55,7 +36,7 @@ public class RespStaleWhileRevalidateTests
         return condition();
     }
 
-    private static RespDatabaseContext Context(CountingExecutor executor, RespClientCache cache)
+    private static RespDatabaseContext Context(FakeExecutor executor, RespClientCache cache)
         => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
     [Fact]
@@ -66,7 +47,7 @@ public class RespStaleWhileRevalidateTests
             RefreshAfter = TimeSpan.FromMilliseconds(60),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -97,7 +78,7 @@ public class RespStaleWhileRevalidateTests
             RefreshAfter = TimeSpan.FromMilliseconds(50),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -118,7 +99,7 @@ public class RespStaleWhileRevalidateTests
             RefreshAfter = TimeSpan.FromMinutes(1),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -136,7 +117,7 @@ public class RespStaleWhileRevalidateTests
         Assert.Equal(TimeSpan.Zero, CachePolicy.Default.RefreshAfter);
 
         using var cache = new RespClientCache();
-        var executor = new CountingExecutor("$1\r\na\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -158,7 +139,7 @@ public class RespStaleWhileRevalidateTests
             RefreshAfter = TimeSpan.FromMilliseconds(50),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -191,7 +172,7 @@ public class RespStaleWhileRevalidateTests
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -219,7 +200,7 @@ public class RespStaleWhileRevalidateTests
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -241,7 +222,7 @@ public class RespStaleWhileRevalidateTests
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -259,7 +240,7 @@ public class RespStaleWhileRevalidateTests
         Assert.Equal(TimeSpan.Zero, CachePolicy.Default.InvalidationGracePeriod);
 
         using var cache = new RespClientCache();
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -283,7 +264,7 @@ public class RespStaleWhileRevalidateTests
         // from the cure. An error reply is refused by TryComplete, so the entry stays invalid - which is
         // precisely the hot-written-key situation the cap is for: every refresh is lost, and without a bound
         // the entry would be served stale for ever.
-        var executor = new CountingExecutor("$1\r\na\r\n", "-ERR not today\r\n", "$1\r\nc\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "-ERR not today\r\n", "$1\r\nc\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -315,7 +296,7 @@ public class RespStaleWhileRevalidateTests
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(80),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -339,7 +320,7 @@ public class RespStaleWhileRevalidateTests
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(120),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "-ERR not today\r\n", "$1\r\nc\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "-ERR not today\r\n", "$1\r\nc\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
@@ -377,7 +358,7 @@ public class RespStaleWhileRevalidateTests
             RefreshAfter = TimeSpan.FromMinutes(10),
             TimeToLive = TimeSpan.FromMilliseconds(80),
         } });
-        var executor = new CountingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));

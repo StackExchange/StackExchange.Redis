@@ -19,33 +19,28 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespSurfaceScriptsTests
 {
-    /// <summary>An executor with no preamble support: exercises the sequential fallback.</summary>
-    private class FakeExecutor(params string[] replies) : RespExecutorBase
+    /// <summary>
+    /// The shared fake plus the one thing scripts need: holding on to what it was sent.
+    /// </summary>
+    /// <remarks>
+    /// Derived rather than restated, which is what <c>OnSent</c> is for - a backlog awaiting a resend
+    /// keeps a reference to the frame, and these tests are about what happens to the buffer when it does.
+    /// </remarks>
+    private class ParkingExecutor(params string[] replies) : FakeExecutor(replies)
     {
-        private int _next;
-
-        public List<string> Sent { get; } = [];
-
-        public override int Database => 0;
-
         /// <summary>Requests this executor retained, as a backlog awaiting a resend would.</summary>
         public List<RespRequest> Parked { get; } = [];
 
         public bool ParkRequests { get; set; }
 
-        public override RespPayload Send(in RespRequest request)
+        protected override void OnSent(in RespRequest request)
         {
-            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
             if (ParkRequests && request.TryRetain(out var retained)) Parked.Add(retained);
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
         }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
     }
 
     /// <summary>An executor that <i>can</i> pair them, recording that it was asked to.</summary>
-    private sealed class PairingExecutor(params string[] replies) : FakeExecutor(replies)
+    private sealed class PairingExecutor(params string[] replies) : ParkingExecutor(replies)
     {
         public int Pairs { get; private set; }
 
@@ -131,7 +126,7 @@ public class RespSurfaceScriptsTests
     [Fact]
     public async Task AnExecutorWithoutPairingStillSendsBothInOrder()
     {
-        var executor = new FakeExecutor("+OK\r\n", "$3\r\nabc\r\n");
+        var executor = new ParkingExecutor("+OK\r\n", "$3\r\nabc\r\n");
         var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         using var result = await ctx.Scripts.EvaluateAsync(Script, [(RedisKey)"k"]);

@@ -28,27 +28,6 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespSurfaceStringsTests
 {
-    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        public List<string> Sent { get; } = [];
-
-        public List<CommandFlags> Flags { get; } = [];
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
-            Flags.Add(request.Flags);
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     /// <summary>A feature probe that answers with whatever version it was told.</summary>
     private sealed class FakeFeatures(RedisFeatures features, bool known = true) : IRespServerFeatures
     {

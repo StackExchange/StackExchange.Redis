@@ -27,38 +27,6 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespAdHocExecuteTests
 {
-    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        internal System.Collections.Generic.List<string> Sent { get; } = [];
-
-        /// <summary>The keys the writer marked, captured at send time - the request is recycled after.</summary>
-        internal System.Collections.Generic.List<string> Keys { get; } = [];
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
-
-            var count = request.KeyCount;
-            if (count > 0)
-            {
-                var ranges = new KeyRange[count];
-                if (request.TryGetKeys(ranges) == count)
-                {
-                    foreach (var range in ranges) Keys.Add(Encoding.UTF8.GetString(request.GetKey(range).ToArray()));
-                }
-            }
-
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     /// <summary>The same name the collection form passes as a string, prepared once.</summary>
     /// <remarks>
     /// SER309 is what pushes this out of the interpolation - a literal there is tokenized and encoded on
@@ -72,7 +40,7 @@ public class RespAdHocExecuteTests
     [Fact]
     public async Task AnUnmodelledCommandRoundTrips()
     {
-        var executor = new FakeExecutor("*2\r\n$3\r\ndoc\r\n:1\r\n");
+        var executor = new FakeExecutor("*2\r\n$3\r\ndoc\r\n:1\r\n") { CaptureKeys = true };
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("idx"), RedisKeyOrValue.FromValue("@title:hello")];
 
         using var result = await Context(executor).Raw.ExecuteAsync("FT.SEARCH", args);
@@ -86,7 +54,7 @@ public class RespAdHocExecuteTests
     {
         // the reason for RedisKeyOrValue rather than object[]: boxing loses key-ness, and with it routing,
         // invalidation, and any chance of caching an ad-hoc command correctly
-        var executor = new FakeExecutor("+OK\r\n");
+        var executor = new FakeExecutor("+OK\r\n") { CaptureKeys = true };
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("thekey"), RedisKeyOrValue.FromValue("thevalue")];
 
         using var _ = await Context(executor).Raw.ExecuteAsync("JSON.SET", args);
@@ -103,11 +71,11 @@ public class RespAdHocExecuteTests
     [Fact]
     public async Task TheInterpolatedFormRendersTheSameRequest()
     {
-        var viaCollection = new FakeExecutor("$3\r\nabc\r\n");
+        var viaCollection = new FakeExecutor("$3\r\nabc\r\n") { CaptureKeys = true };
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("k"), RedisKeyOrValue.FromValue("x")];
         (await Context(viaCollection).Raw.ExecuteAsync("SOME.COMMAND", args)).Dispose();
 
-        var viaHoles = new FakeExecutor("$3\r\nabc\r\n");
+        var viaHoles = new FakeExecutor("$3\r\nabc\r\n") { CaptureKeys = true };
         RedisKey key = "k";
         var result = await Context(viaHoles).SendAsync<string?>($"{SomeCommand}{key}{"x"}");
 
@@ -121,7 +89,7 @@ public class RespAdHocExecuteTests
     {
         // the payoff of keeping key-ness: an unmodelled command participates in the cache like any other
         using var cache = new RespClientCache();
-        var executor = new FakeExecutor("$3\r\nabc\r\n", "$3\r\nxyz\r\n");
+        var executor = new FakeExecutor("$3\r\nabc\r\n", "$3\r\nxyz\r\n") { CaptureKeys = true };
         var context = Context(executor, cache);
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("k")];
 
@@ -141,7 +109,7 @@ public class RespAdHocExecuteTests
     {
         // ExecuteResp's signature and the context method agree exactly, RedisKeyOrValue included - so the
         // adapter is a pass-through, and an IDatabase caller gets the key-marking behaviour for free
-        var executor = new FakeExecutor("$3\r\nabc\r\n");
+        var executor = new FakeExecutor("$3\r\nabc\r\n") { CaptureKeys = true };
         IDatabase db = Context(executor).AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
 
         using var result = await db.ExecuteRespAsync("MODULE.GET", new[] { RedisKeyOrValue.FromKey("k") });
@@ -153,7 +121,7 @@ public class RespAdHocExecuteTests
     [Fact]
     public async Task NoArgumentsIsFine()
     {
-        var executor = new FakeExecutor("+PONG\r\n");
+        var executor = new FakeExecutor("+PONG\r\n") { CaptureKeys = true };
         using var result = await Context(executor).Raw.ExecuteAsync("PING", default);
 
         Assert.Equal("*1|$4|PING|", Assert.Single(executor.Sent));
@@ -178,7 +146,7 @@ public class RespAdHocExecuteTests
     [Fact]
     public async Task LegacyExecuteKeepsKeysChannelsAndValuesApart()
     {
-        var executor = new FakeExecutor("$3\r\nabc\r\n");
+        var executor = new FakeExecutor("$3\r\nabc\r\n") { CaptureKeys = true };
         var db = LegacyDatabase(executor);
 
         var result = await db.ExecuteAsync("MODULE.DO", (RedisKey)"k", RedisChannel.Literal("c"), 42);
@@ -192,7 +160,7 @@ public class RespAdHocExecuteTests
     [Fact]
     public async Task LegacyExecuteAppliesBothPrefixes()
     {
-        var executor = new FakeExecutor("$3\r\nabc\r\n");
+        var executor = new FakeExecutor("$3\r\nabc\r\n") { CaptureKeys = true };
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor))
             .AppendKeyPrefix("app:")
             .AppendChannelPrefix(RedisChannel.Literal("ch:"));
@@ -207,7 +175,7 @@ public class RespAdHocExecuteTests
     [Fact]
     public void LegacyExecuteHonoursADisabledCommand()
     {
-        var executor = new FakeExecutor("+OK\r\n");
+        var executor = new FakeExecutor("+OK\r\n") { CaptureKeys = true };
         var context = new RespDatabaseContext(
             new RespContext(CommandMap.Create(new System.Collections.Generic.HashSet<string> { "GET" }, available: false))
                 .WithExecutor(executor));
@@ -231,7 +199,7 @@ public class RespAdHocExecuteTests
     [InlineData("GET ")]
     public void AWhitespaceCommandIsRefusedOnBothAdHocRoutes(string command)
     {
-        var executor = new FakeExecutor("+OK\r\n");
+        var executor = new FakeExecutor("+OK\r\n") { CaptureKeys = true };
         var context = Context(executor);
         IDatabase db = context.AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
 

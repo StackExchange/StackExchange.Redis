@@ -95,7 +95,7 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         // the doc's most load-bearing claim for a library author: the client has no table entry for a
         // module command, so it assumes the worst - the command is not replayed after a reconnect, and
         // not cached. That is a safe default, not a free one; saying the category is opting IN.
-        var executor = new FlagRecordingExecutor("$5\r\nhello\r\n");
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
         var db = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         await db.Contoso().SubstringAsync("k", 0, 4);
@@ -103,25 +103,6 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
 
         await db.Contoso().SubstringAsync("k", 0, 4, CommandFlags.CommandRetryReadOnly);
         Assert.Equal(CommandFlags.CommandRetryReadOnly, executor.Flags[1] & Message.MaskRetryCategory);
-    }
-
-    /// <summary>Records the flags each request carried, so the retry-category claim can be checked.</summary>
-    private sealed class FlagRecordingExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        public List<CommandFlags> Flags { get; } = [];
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Flags.Add(request.Flags);
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
     }
 }
 

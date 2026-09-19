@@ -27,22 +27,9 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class TransitionalScanGapTests
 {
-    private sealed class PageExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-            => RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     private static IDatabase Target(params string[] replies)
         => new TransitionalDatabase(
-            new RespDatabaseContext(new RespContext().WithExecutor(new PageExecutor(replies))),
+            new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor(replies))),
             null!,
             null);
 
@@ -114,7 +101,7 @@ public class TransitionalScanGapTests
     [Fact]
     public void TheVectorSetWalkPagesByTheLastMember()
     {
-        var executor = new RecordingExecutor(Flat("a", "b"), Flat("c"));
+        var executor = new FakeExecutor(Flat("a", "b"), Flat("c"));
         IDatabase db = new TransitionalDatabase(
             new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
@@ -134,7 +121,7 @@ public class TransitionalScanGapTests
     [Fact]
     public void TheVectorSetWalkStopsAtTheEndBound()
     {
-        var executor = new RecordingExecutor(Flat("a", "b"));
+        var executor = new FakeExecutor(Flat("a", "b"));
         IDatabase db = new TransitionalDatabase(
             new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
@@ -146,7 +133,7 @@ public class TransitionalScanGapTests
     [Fact]
     public async Task TheVectorSetWalkIsAlsoAsynchronous()
     {
-        var executor = new RecordingExecutor(Flat("a", "b"), Flat("c"));
+        var executor = new FakeExecutor(Flat("a", "b"), Flat("c"));
         IDatabase db = new TransitionalDatabase(
             new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
@@ -163,25 +150,6 @@ public class TransitionalScanGapTests
         var sb = new StringBuilder($"*{items.Length}\r\n");
         foreach (var item in items) sb.Append($"${item.Length}\r\n{item}\r\n");
         return sb.ToString();
-    }
-
-    /// <summary>As <see cref="PageExecutor"/>, but remembers what it was asked.</summary>
-    private sealed class RecordingExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        public List<string> Sent { get; } = [];
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
     }
 
     /// <summary>And the four that have moved really do read through the context surface.</summary>

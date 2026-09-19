@@ -15,27 +15,6 @@ namespace StackExchange.Redis.Tests;
 /// <remarks><inheritdoc cref="RespSurfaceStringsTests" path="/remarks"/></remarks>
 public class RespSurfaceHashesTests
 {
-    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        public List<string> Sent { get; } = [];
-
-        public List<CommandFlags> Flags { get; } = [];
-
-        public override int Database => 0;
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
-            Flags.Add(request.Flags);
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     private static (RespDatabaseContext Context, FakeExecutor Executor) Target(params string[] replies)
     {
         var executor = new FakeExecutor(replies.Length == 0 ? [":1\r\n"] : replies);

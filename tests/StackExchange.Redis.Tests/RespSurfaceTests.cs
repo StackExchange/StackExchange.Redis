@@ -16,29 +16,6 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class RespSurfaceTests
 {
-    /// <summary>Records what was sent and replies from a script.</summary>
-    private sealed class FakeExecutor(params string[] replies) : RespExecutorBase
-    {
-        private int _next;
-
-        public List<string> Sent { get; } = [];
-
-        public override int Database => 0;
-
-        /// <summary>The flags each request carried, so the tests can assert what reached the wire.</summary>
-        public List<CommandFlags> Flags { get; } = [];
-
-        public override RespPayload Send(in RespRequest request)
-        {
-            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
-            Flags.Add(request.Flags);
-            return RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-        }
-
-        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
-            => new(Send(request));
-    }
-
     private static RespDatabaseContext Target(FakeExecutor executor, RespClientCache? cache = null)
         => new(new RespContext().WithExecutor(executor).WithCache(cache));
 

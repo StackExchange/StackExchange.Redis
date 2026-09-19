@@ -84,24 +84,11 @@ public class RespHandlerRegistryTests
     public async Task TheResolvedHandlersStillParse()
     {
         // a spot check that the bodies survived being moved onto one object
-        var executor = new RespHandlerRegistryExecutor("$5\r\nhello\r\n", ":42\r\n", "+OK\r\n");
+        var executor = new FakeExecutor("$5\r\nhello\r\n", ":42\r\n", "+OK\r\n");
         var context = new RespContext().WithExecutor(executor);
 
         Assert.Equal("hello", await context.SendAsync<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
         Assert.Equal(42, await context.SendAsync<long>($"{RedisCommand.INCR}{(RedisKey)"k"}", CommandFlags.None));
         Assert.True(await context.SendAsync<bool>($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}", CommandFlags.None));
     }
-}
-
-internal sealed class RespHandlerRegistryExecutor(params string[] replies) : RespExecutorBase
-{
-    private int _next;
-
-    public override int Database => 0;
-
-    public override RespPayload Send(in RespRequest request)
-        => RespPayload.Create(Encoding.UTF8.GetBytes(replies[Math.Min(_next++, replies.Length - 1)]));
-
-    public override ValueTask<RespPayload> SendAsync(RespRequest request, System.Threading.CancellationToken cancellationToken = default)
-        => new(Send(request));
 }
