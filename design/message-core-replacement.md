@@ -380,6 +380,10 @@ Proposed order, each step independently shippable:
    in §7b.
 3. **One executor, one connection**: the server-endpoint executor over a real connection, behind
    `RespExecutorBase`. The context surface already talks to that abstraction, so this is swappable.
+   **3a done** — `RespConnection`, a FIFO of operations over `DuplexTransport`, 18 tests. It stands *on*
+   the existing buffered writer (sync flush, sync/async transition), which stays. **3b** is the executor
+   over it. Note there is as yet no socket-backed `DuplexTransport` in RESPite — the only implementation
+   is `LoggingTunnel`'s — so 3b is provable in-memory and a socket transport is its own step.
 4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` and the endpoint-identity
    members come off the fallback here.
 5. **Batch, then transaction**, as decorators. `RespBatchExecutor` is replaced by the `BatchConnection`
@@ -457,6 +461,29 @@ tests.
 **Only the operation's half of the report is rendered here.** The text people recognise (`inst`, `qu`,
 `qs`, `aw`, `bw`, …) is mostly multiplexer and connection counters. `Describe(StringBuilder)` emits what
 the operation itself knows and nothing else, which is what keeps the boundary honest.
+
+
+### 7c. The one that mutation testing caught, and nothing else would have
+
+Worth recording as method rather than as a bug. `RespConnection` held `RespScanState` in a **field**,
+with a comment asserting that this was what let a frame split across several reads resume instead of
+restarting. Every test passed. Mutating it — resetting the state on every read — *also* passed, and that
+is the signal: a mutation that changes nothing means the claim is untested, and here the claim was also
+simply **false**.
+
+Bytes are consumed only when a frame *completes*, so an incomplete frame leaves its bytes in the buffer.
+Re-feeding those bytes on the next read to a scan state that has already counted them double-counts the
+aggregate depth. A bulk string survives it — one length prefix and a payload — which is exactly why the
+original split-frame test passed. An aggregate does not.
+
+The replacement test splits a 3-element array at chunk sizes 2, 3, 5, 7 and 11: **all five fail** against
+the field version and pass against a fresh per-attempt state. Carrying scan state is for a reader that
+does not retain what it has scanned; this one retains.
+
+**The general rule this suggests for the rest of the phases:** a mutation that fails nothing is a finding,
+not a pass. Two of the nine mutations run so far landed there, and both times the code was wrong — once
+leaking a request buffer, once double-counting a frame. Neither would have been found by reading, because
+in both cases the comment explaining the code was the thing that was wrong.
 
 ---
 
