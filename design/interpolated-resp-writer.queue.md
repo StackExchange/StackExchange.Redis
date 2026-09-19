@@ -67,6 +67,30 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Marc's 3-way (4-way) benchmark, once the new stack can reach a real server.** Requested
+      2026-09-19, explicitly not urgent and explicitly gated on *"something that works end to end … that
+      is realistic (so: we're not cheating by omitting half the work, like timing and status)"*. A counter
+      GET, using the 8-byte `RedisValue` allocation hack for all arms, measuring ops/s **and memory
+      creep**:
+
+      1. SE.Redis 3.3.0 (or current) from NuGet
+      2. this branch, old API, no cache
+      3. this branch, new API, no cache
+      4. this branch, new API, **with** cache on a cacheable GET
+
+      **The blocker is a Stream/socket-backed `DuplexTransport`.** `RespConnection` speaks that
+      abstraction, and the only implementation in the tree is `LoggingTunnel`'s — SE.Redis's default path
+      is socket + `Stream` + `BufferedStreamWriter`, and `Tunnel.ConnectTransportAsync` yields a transport
+      only for tunnels. So arm 3 currently cannot reach a server at all, and benchmarking it against an
+      in-memory transport would be measuring the thing Marc pre-emptively ruled out.
+
+      **What "not cheating" already cost, and what it still owes.** The connection was recording status
+      but not the connection, byte stamps or write tick — fixed in `24059156`, since a timeout report that
+      knows only "sent" is exactly the half-work being warned about. Still missing from the new path, and
+      all of it has to be there before a number means anything: handshake (`HELLO`/`AUTH`/`SELECT`),
+      reconnect, the backlog, and the profiling hooks.
+
+
 - [x] **Core phase 1: the operation type is in RESPite** — `src/RESPite/Operations/`, 24 lifecycle tests,
       internal rather than public (nothing commits API until something holds one). Three design changes
       came out of building it rather than reading the old branch: version and flags must share one word so
