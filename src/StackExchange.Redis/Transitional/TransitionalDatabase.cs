@@ -178,6 +178,23 @@ namespace StackExchange.Redis
         public Task<System.Net.EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
             => Fallback<RedisKey>().IdentifyEndpointAsync(key, flags);
 
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="PingAsync" path="/remarks"/></remarks>
+        public TimeSpan Ping(CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.PingMeasureAsync(flags));
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>The number is measured from a slightly earlier instant than the shipped one.</b>
+        /// <c>TimingProcessor</c> reads <c>TimerMessage.StartedWritingTimestamp</c>, stamped inside
+        /// <c>WriteImpl</c>, so it times the server; <c>PingMeasureAsync</c>'s handler starts its clock
+        /// just before the send, so it also counts whatever the message spends queued. Identical on an
+        /// idle connection, larger under a backlog - and a handler is handed a reader and nothing else, so
+        /// it cannot see the write instant without the payload carrying it. Recorded in the queue.
+        /// </remarks>
+        public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
+            => _inner.PingMeasureAsync(flags).AsTask();
+
         // the Wait family operates on caller-supplied Tasks, not server calls
         #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
         public bool TryWait(Task task) => task.Wait(multiplexer.TimeoutMilliseconds);

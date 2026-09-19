@@ -380,4 +380,83 @@ public class RespSurfaceTests
         var target = new RespDatabaseContext(new RespContext());
         Assert.Throws<InvalidOperationException>(() => target.Strings.GetAsync("mykey"));
     }
+
+    // ---- PING ---------------------------------------------------------------------------------------
+
+    /// <summary>Sleeps before replying, so a measurement has something to find.</summary>
+    private sealed class SlowExecutor(TimeSpan delay) : IRespExecutor
+    {
+        public int Database => 0;
+
+        public List<string> Sent { get; } = [];
+
+        public RespPayload Send(in RespRequest request)
+        {
+            Sent.Add(Encoding.UTF8.GetString(request.Span.ToArray()).Replace("\r\n", "|"));
+            Thread.Sleep(delay);
+            return RespPayload.Create(Encoding.UTF8.GetBytes("+PONG\r\n"));
+        }
+
+        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+            => new(Send(request));
+    }
+
+    /// <summary>The plain ping asks for nothing back, and says so in its return type.</summary>
+    [Fact]
+    public async Task PingAsyncReturnsNothingAndSendsPING()
+    {
+        var executor = new FakeExecutor("+PONG\r\n");
+        await Target(executor).PingAsync();
+
+        Assert.Equal("*1|$4|PING|", Assert.Single(executor.Sent));
+    }
+
+    /// <summary>A synchronously-completed ping costs no task.</summary>
+    [Fact]
+    public void PingAsyncThatCompletesSynchronouslyAllocatesNoTask()
+    {
+        var pending = Target(new FakeExecutor("+PONG\r\n")).PingAsync();
+
+        Assert.True(pending.IsCompletedSuccessfully);
+        Assert.Equal(default, pending);
+    }
+
+    /// <summary>The measuring ping sends the same command and answers how long it took.</summary>
+    [Fact]
+    public async Task PingMeasureAsyncSendsPINGAndTimesIt()
+    {
+        var executor = new SlowExecutor(TimeSpan.FromMilliseconds(30));
+        var elapsed = await Target2(executor).PingMeasureAsync();
+
+        Assert.Equal("*1|$4|PING|", Assert.Single(executor.Sent));
+
+        // generous, because CI clocks are not: the assertion is that the clock ran at all, and that it
+        // ran over the round trip rather than over something shorter
+        Assert.True(elapsed >= TimeSpan.FromMilliseconds(15), $"measured {elapsed}");
+        Assert.True(elapsed < TimeSpan.FromSeconds(10), $"measured {elapsed}");
+    }
+
+    /// <summary>
+    /// Each call gets its own clock.
+    /// </summary>
+    /// <remarks>
+    /// The property that makes a per-call handler allocation the right answer rather than merely an easy
+    /// one: a shared handler would carry one start timestamp, so the second measurement would be the time
+    /// since the FIRST call - growing without bound and looking plausible the whole way.
+    /// </remarks>
+    [Fact]
+    public async Task EachPingMeasureGetsItsOwnClock()
+    {
+        var target = Target2(new SlowExecutor(TimeSpan.FromMilliseconds(30)));
+
+        var first = await target.PingMeasureAsync();
+        await Task.Delay(100);
+        var second = await target.PingMeasureAsync();
+
+        // if the clock were shared, the second would include the delay and the first ping as well
+        Assert.True(second < first + TimeSpan.FromMilliseconds(80), $"first {first}, second {second}");
+    }
+
+    private static RespDatabaseContext Target2(IRespExecutor executor)
+        => new(new RespContext().WithExecutor(executor));
 }

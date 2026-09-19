@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
@@ -158,6 +160,65 @@ namespace StackExchange.Redis
         extension<TTarget>(TTarget target) where TTarget : IRespTarget
         {
             internal RespContext Raw => target.Context;
+
+            /// <summary>
+            /// <c>PING</c>; completes when the server has answered.
+            /// </summary>
+            /// <param name="flags">Command flags.</param>
+            /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+            /// <remarks>
+            /// <b>No result, where <c>IRedis.Ping</c> answers a <see cref="TimeSpan"/>.</b> Most callers
+            /// ping to find out whether the server answers at all, and paying for a measurement to throw
+            /// it away is the wrong default; <see cref="PingMeasureAsync"/> is there for the ones that
+            /// want the number. A synchronously-completed send allocates nothing here, which a
+            /// <c>ValueTask&lt;TimeSpan&gt;</c> could also promise - the split is about what the caller
+            /// asked for, not about the task.
+            /// </remarks>
+            public ValueTask PingAsync(CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+                => target.Context.SendAsync($"{RedisCommand.PING}", flags, cancellationToken);
+
+            /// <summary>
+            /// <c>PING</c>, timed: how long the round trip took.
+            /// </summary>
+            /// <param name="flags">Command flags.</param>
+            /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+            /// <remarks>
+            /// <para>
+            /// <b>The handler is the clock</b>, and is therefore allocated per call - the one place on this
+            /// surface where a handler is not a singleton. It takes its start timestamp in its constructor
+            /// and reads the elapsed time when the reply arrives, so the duration needs no state threaded
+            /// through the send. The alternative - an <c>IRespHandler&lt;TState, TResult&gt;</c> with the
+            /// state handed to <c>Parse</c> - would put a type parameter on every handler in the library to
+            /// serve one command.
+            /// </para>
+            /// <para>
+            /// <b>This measures from just before the send, where <c>IRedis.Ping</c> measures from the
+            /// write.</b> The shipped <c>TimingProcessor</c> reads <c>TimerMessage.StartedWritingTimestamp</c>,
+            /// stamped inside <c>WriteImpl</c>, so its number excludes whatever the message spent queued -
+            /// which is exactly the time a backlog adds. A handler cannot see that instant: it is handed a
+            /// reader and nothing else. So this number is the same on an idle connection and larger on a
+            /// congested one, and it is the caller's own latency rather than the server's.
+            /// </para>
+            /// <para>
+            /// The reply itself is not inspected, which is the shipped behaviour too: a <c>PING</c> can be
+            /// spelled several ways, an error element has already thrown by the time a handler runs, and
+            /// what is being asked is how long, not what.
+            /// </para>
+            /// </remarks>
+            public ValueTask<TimeSpan> PingMeasureAsync(CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+                => target.Context.SendAsync($"{RedisCommand.PING}", flags, new PingMeasureHandler(), cancellationToken);
+        }
+
+        /// <summary>Times a round trip by being created before it and read after it.</summary>
+        /// <remarks><inheritdoc cref="PingMeasureAsync" path="/remarks/para[1]"/></remarks>
+        private sealed class PingMeasureHandler : IRespHandler<TimeSpan>
+        {
+            private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
+
+            private readonly long _started = Stopwatch.GetTimestamp();
+
+            public TimeSpan Parse(ref RespReader reader)
+                => new TimeSpan((long)(TimestampToTicks * (Stopwatch.GetTimestamp() - _started)));
         }
 
         /// <summary>The <c>NX</c>/<c>XX</c>/<c>GT</c>/<c>LT</c> token for an expiry condition.</summary>

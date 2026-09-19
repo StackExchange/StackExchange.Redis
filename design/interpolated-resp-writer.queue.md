@@ -425,8 +425,31 @@ Four consequences, none of them cosmetic:
       faster in isolation and 8% *slower* in the real path). The only trustworthy route is to prototype the
       memoisation and re-run `CacheHitSendBenchmarks`, which measures a whole operation.
 
-- [ ] **`TransitionalDatabase`: 19 unimplemented members — status, 2026-09-19.** 106 at the start of
-      2026-09-18, then 71, then 43; now **12** generated (the SER352 number) plus **7 hand-written members
+- [ ] **`Ping` now measures a slightly different thing, on purpose — decide whether to close the gap.**
+      Done 2026-09-19, on Marc's design: *"the basic Ping() should be an OK (ValueTask) response. For a
+      separate PingMeasureAsync(), I think the handler becomes an alloc, so: class PingMeasureHandle :
+      ITheWhatever that captures the initial time at creation."*
+
+      `PingMeasureHandler` takes its start timestamp in its constructor and reads the elapsed time when the
+      reply arrives, so the duration needs no state threaded through the send - which is what made the
+      alternative (`IRespHandler<TState, TResult>`, state handed to `Parse`) not worth a type parameter on
+      every handler in the library to serve one command. It is the only per-call handler on this surface.
+
+      **The number is not the same number.** `TimingProcessor` reads
+      `TimerMessage.StartedWritingTimestamp`, stamped inside `WriteImpl`, so the shipped `IRedis.Ping`
+      times the server and excludes whatever the message spent queued. A handler is handed a reader and
+      nothing else, so it starts its clock just before the send and therefore also counts the queue.
+      Identical on an idle connection; larger under a backlog. `IRedis.Ping`/`PingAsync` are wired to it,
+      so **anyone alerting on this number sees it move under congestion** - which is arguably the more
+      useful reading, and is still a change.
+
+      To get exact parity the write instant has to reach the handler, which means `RespPayload` (or the
+      request) carrying a timestamp the executor stamps - a RESPite-level change, not a large one. Worth
+      doing if the metric matters more than the plumbing; reverting the two adapter members to the
+      fallback is the other one-line option.
+
+- [ ] **`TransitionalDatabase`: 17 unimplemented members — status, 2026-09-19.** 106 at the start of
+      2026-09-18, then 71, then 43; now **10** generated (the SER352 number) plus **7 hand-written members
       that forward to the legacy fallback**, which SER352 cannot see. Marc spotted that class of gap:
       *"make sure we add scans to the list, because I think we're cheating on that"*.
 
@@ -455,12 +478,12 @@ Four consequences, none of them cosmetic:
       | Publish | 2 | routes to `multiplexer.GetSubscribedServer(channel)`; the executor has no per-call server hint, and only `RespServerContext` pins one |
       | HashImport | 2 | `HIMPORT` needs its `PREPARE` injected on the same physical connection, like `SELECT` - and is refused inside `MULTI` for the same reason |
       | StringGetWithExpiry | 2 | ONE message that writes `GET` **and** `PTTL`/`TTL`, with a processor that reads both replies; it is a pair, not a frame, and it refuses inside a batch |
-      | Ping | 2 | the duration is measured from `TimerMessage.StartedWritingTimestamp`, inside the write path - a frame has no equivalent hook, and measuring around the send instead would report a different thing |
       | **VectorSetRangeEnumerate** | **2** | keyset pagination over `VRANGE`, not a cursor scan - *uncounted* |
 
       Done on 2026-09-19: the **stream family** (multi-stream `XREAD` x4 / `XREADGROUP` x8, `XINFO`
       STREAM/GROUPS/CONSUMERS x6), the **`Execute` family** (the `object`-argument pair and their async
-      twins), and **`ARGREP`**. Done on 2026-09-18: the cursor scans, `Scripts` x12, `Keys` x4.
+      twins), **`ARGREP`**, and **`Ping`** - the last with a caveat, recorded above. Done on 2026-09-18:
+      the cursor scans, `Scripts` x12, `Keys` x4.
 
 - [x] **The `Interpolated/` folder is gone — DONE, 2026-09-18.** Marc: *"we shouldn't have anything left
       in there by the end of this"*. The namespace went several commits ago; the folder name was the last
