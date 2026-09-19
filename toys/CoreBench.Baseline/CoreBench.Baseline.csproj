@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The SAME harness as CoreBench, against the SHIPPED package rather than this branch. Only the arms
+       that use the public API can live here, which is exactly the point: it is the control. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <RootNamespace>CoreBench</RootNamespace>
+    <NoWarn>$(NoWarn);StringToRedisValue</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\CoreBench\Shared\Bench.cs" Link="Bench.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- VersionOverride because central package management pins this to 2.13.17 for TestConsoleBaseline -->
+    <PackageReference Include="StackExchange.Redis" VersionOverride="3.3.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,4 +1,4 @@
-# CoreBench
+﻿# CoreBench
 
 The old core against the new one, on a real server. Not a general benchmarking tool — `OpBench` is that.
 This exists to answer two specific questions from the queue, and to keep answering them as the new core
@@ -27,17 +27,59 @@ what the *client* does under concurrency.
 
 ## What it found
 
-**The contention hypothesis holds.** The gap is small single-threaded and opens with worker count, which
-is the predicted shape — the old core serialises every argument of every command inside its write lock
-(`message.WriteTo` runs there), while the new core renders into the caller's own buffer before the
-executor is reached, leaving only stamp/enqueue/memcpy in the critical section.
+### The four-way comparison
 
-**It also found a bug that no test could have.** Pooling was designed in phase 1 and never engaged:
-`IsRecyclable` was false at every single `GetResult`, so an executor's pool took **0 hits in 56,642
-sends**. The cause was ordering — `_asyncCore.SetResult` runs the awaiting continuation *inline*, so the
-awaiter consumed the result and reset the instance before the completing code had recorded how the life
-ended. Results were correct throughout; the only symptom was allocation. Fixing it took `exec` from
-528.8 to 320.8 bytes/op.
+Counter `INCR`, one key per worker, 3s per measurement, net10.0, server GC, local server.
+
+| arm | 1 | 4 | 16 | 64 | bytes/op |
+|---|---|---|---|---|---|
+| **3.3.0** (shipped package) | 27,929 | 79,896 | 205,505 | 426,699 | 361-383 |
+| **old** (this branch) | 26,942 | 82,188 | 204,441 | 425,607 | 361-375 |
+| **new** (this branch) | 27,626 | 86,635 | 224,965 | **553,822** | 496.1 |
+| **newcache** (cacheable `GET`) | 7,667,317 | — | 79,032,968 | 89,931,589 | **0.0** |
+
+**3.3.0 and this branch's old path are identical within noise**, at every worker count and in
+allocation. That is the control the whole comparison rests on: the new-vs-old numbers below are a valid
+proxy for new-vs-shipped, because nothing about the old path has moved.
+
+**The contention hypothesis holds**: +2.5% at one worker, +5.4% at four, +10% at sixteen, **+30% at
+sixty-four**. The predicted shape, from the mechanism written down in advance - the old core serialises
+every argument of every command inside its write lock (`message.WriteTo` runs there), while the new core
+renders into the caller's own buffer before the executor is reached, leaving stamp/enqueue/memcpy in the
+critical section.
+
+### Where the bytes go
+
+Subtractive, one worker, each row a complete operation:
+
+| arm | bytes/op | what the step adds |
+|---|---|---|
+| `noop` | 0.0 | the harness is free; every number below is real |
+| `yield` | 96.0 | **the caller's own async state machine**, for an await that genuinely suspends |
+| `render` | 48.0 | the per-request lease |
+| `direct` | 249.1 | +105 connection and operation, including the thread-pool work item |
+| `exec` | 321.1 | **+72** `RespPayload` + `RefCountedBuffer` |
+| `new` | 496.9 | **+176** the context surface's own async state machine |
+| `newcache` | 0.0 | the same surface, when nothing suspends |
+
+So of the new core's ~497 bytes:
+
+- **~96 is the caller's**, not ours - any suspending `await` boxes its state machine, and the old core
+  pays it too.
+- **~176 is the surface's async state machine** on the suspending path. `newcache` at 0.0 proves this
+  is *only* the suspending path: the same handler, parse and `ValueTask` machinery allocates nothing
+  when the executor completes synchronously. This is the largest single item and the most promising:
+  a pooled async method builder, or a shape that avoids an async frame when the executor completes
+  inline.
+- **~72 is `RespPayload.Create` copying the reply**, which that method's own comment already calls
+  scaffolding - the real answer is sharing the receive buffer's lease rather than copying out of it.
+- **~48 is the per-request lease**, which is poolable.
+- **~105 is the connection and operation path**, which includes the thread-pool work item that exists
+  *because* continuations are queued rather than run inline. That one is not a bug to fix; see below.
+
+Creep, as opposed to volume, already favours the new core: its allocation is flat at 496.1 and dies in
+gen0 (0 gen1, 0 gen2 at every worker count), where the old core varies between 322 and 383 and promotes
+- 29 gen1 and a gen2 at 64 workers.
 
 ## Reading the numbers honestly
 
