@@ -101,12 +101,25 @@ internal sealed class RetryController
     /// so by the time anything could fail there is no longer anybody to tell.
     /// </para>
     /// <para>
-    /// <b>Today this changes nothing, and that is worth knowing rather than discovering.</b> A
+    /// <b>The two habits compound, which is what makes this a safe default rather than a guess.</b>
+    /// Fire-and-forget is reached for when a command is wanted for its side effect and its answer is not -
+    /// a counter, a list push, a publish - and those are <see cref="CommandFlags.CommandRetryWriteAccumulating"/>,
+    /// which sits <i>above</i> the default cap of <see cref="CommandFlags.CommandRetryWriteLastWins"/> and
+    /// so is already refused. The commands people fire and forget and the commands the default policy
+    /// would replay barely overlap to begin with.
+    /// </para>
+    /// <para>
+    /// <b>Today it changes nothing at all, and that is worth knowing rather than discovering.</b> A
     /// fire-and-forget message has no result box, so <c>ConnectionMultiplexer.ThrowFailed</c> swallows its
     /// write failure and <c>ExecuteAsyncImpl</c> ignores the <c>WriteResult</c> on the synchronous path -
     /// a fire-and-forget send cannot fault, so no retry loop ever engages for one. This says so out loud
     /// instead of depending on it: an executor that did start faulting them would otherwise quietly begin
     /// adding retry delays to the one call shape chosen for not having any.
+    /// </para>
+    /// <para>
+    /// <b>If it ever needs to be arguable, it becomes a policy setting</b> rather than a special case here
+    /// - the same shape <see cref="RetryPolicy.MaxCommandRetryCategory"/> already has for the other veto.
+    /// Not built until somebody wants it.
     /// </para>
     /// </remarks>
     private static bool IsVetoed(CommandFlags flags)

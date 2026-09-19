@@ -2969,6 +2969,13 @@ Four consequences, none of them cosmetic:
       `RespBatchExecutor` makes the same point structurally - a fire-and-forget there is answered *before*
       it is sent, so nothing failing afterwards has anybody to tell.
 
+      **The two habits compound**, which is Marc's point and what makes it a safe default rather than a
+      guess: *"usually F+F is used for a side-effect, and usually retry is side-effect free"*. Sharper than
+      that, even - fire-and-forget is reached for when the side effect is wanted and the answer is not (a
+      counter, a list push, a publish), and those are `CommandRetryWriteAccumulating`, which sits **above**
+      the default cap of `CommandRetryWriteLastWins` and is refused already. The commands people fire and
+      forget and the commands the default policy would replay barely overlap.
+
       **Against the real pipeline this changes nothing, which is the interesting part.** A fire-and-forget
       message has no result box, so `ConnectionMultiplexer.ThrowFailed` swallows its write failure and
       `ExecuteAsyncImpl` ignores the `WriteResult` on the synchronous path: a fire-and-forget send *cannot
@@ -2976,6 +2983,11 @@ Four consequences, none of them cosmetic:
       on it - an executor that started faulting them would otherwise quietly begin adding retry delays to
       the one call shape chosen for not having any. `FireAndForgetIsNotRetried` faults one through a fake,
       which is the only way to show the veto is real.
+
+      **If anyone argues, it becomes a policy setting** rather than a special case in the controller -
+      Marc: *"if someone complains, we can make it an explicit choice on the retry-policy"*. The shape is
+      already there in `MaxCommandRetryCategory`, which is how the other veto is made configurable. Not
+      built until somebody wants it, so that the default stays the one that needs no explanation.
 
       **`RetryDatabase.Context` now works**, where it used to throw: it decorates the inner executor and
       shares the controller *and* `GetNextFailover`, so the context path gets failover too. A retrying
