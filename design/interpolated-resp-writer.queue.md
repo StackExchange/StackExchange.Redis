@@ -423,35 +423,38 @@ Four consequences, none of them cosmetic:
       faster in isolation and 8% *slower* in the real path). The only trustworthy route is to prototype the
       memoisation and re-run `CacheHitSendBenchmarks`, which measures a whole operation.
 
-- [ ] **`TransitionalDatabase`: 71 unimplemented members — status, 2026-09-18.** Was 106 generated at the
-      start of the day, now **58** generated plus **13 hand-written scans that SER352 cannot see**. Marc
-      spotted the gap: *"make sure we add scans to the list, because I think we're cheating on that"*.
+- [ ] **`TransitionalDatabase`: 43 unimplemented members — status, 2026-09-19.** 106 at the start of
+      2026-09-18, then 71; now **36** generated (the SER352 number) plus **7 hand-written members that
+      forward to the legacy fallback**, which SER352 cannot see. Marc spotted that class of gap:
+      *"make sure we add scans to the list, because I think we're cheating on that"*.
 
-      **Why the scans are invisible.** `[AutoDatabase]`'s `SkipMethod` drops every `IEnumerable<T>` and
-      `IAsyncEnumerable<T>` member, because deferred execution does not fit capture-and-replay. So they
-      are written by hand in `TransitionalDatabase.Scans.cs`, where they forward to the test fallback and
-      throw without one - exactly like a generated stub. The generator has no way to tell a real
-      implementation from a forwarding throw; to it they are simply "declared". **So every SER352 number
-      quoted in this file has been short by 13.**
+      **Why the hand-written ones are invisible.** `[AutoDatabase]`'s `SkipMethod` drops every
+      `IEnumerable<T>` and `IAsyncEnumerable<T>` member, because deferred execution does not fit
+      capture-and-replay; a few others (`CreateBatch`, `CreateTransaction`, the endpoint-identity trio)
+      are hand-written for their own reasons. Either way they live in the `Transitional/` partials and
+      forward to `Fallback<T>()`, throwing without one - exactly like a generated stub. The generator has
+      no way to tell a real implementation from a forwarding throw; to it they are simply "declared".
+      **So every SER352 number is short by however many of those are still forwarding.**
 
-      Fixing the generator is not on: it cannot know. `TransitionalScanGapTests` is the tripwire in the one
-      place that can see it - it sweeps the enumerable-returning members by reflection, asserts each still
-      throws, and pins the count, so implementing one forces the number to be updated.
+      Fixing the generator is not on: it cannot know. `TransitionalScanGapTests` is the tripwire for the
+      enumerable half - it sweeps those members by reflection, asserts each still throws, and pins the
+      count, so implementing one forces the number to be updated.
 
       | family | members | what is left |
       |---|---|---|
-      | Streams | 18 | multi-stream `XREAD`/`XREADGROUP`, and `XINFO` STREAM/GROUPS/CONSUMERS |
-      | **Scans** | **13** | `HashScan` x3, `SetScan` x3, `SortedSetScan` x3, `HashScanNoValues` x2, `VectorSetRangeEnumerate` x2 - *uncounted by SER352* |
-      | Scripts | 12 | `ScriptEvaluate`, `ScriptEvaluateReadOnly` |
-      | Locks | 8 | `LockTake`, `LockRelease`, `LockQuery`, `LockExtend` |
-      | Execute | 4 | the legacy `Execute(string, object[])` pair |
-      | Keys | 4 | `KeyMigrate`, `KeyRestore` |
-      | one-offs | 12 | `ArrayGrep`, `DebugObject`, `HashImport`, `Ping`, `Publish`, `StringGetWithExpiry` |
+      | Streams | 18 | multi-stream `XREAD` x4 / `XREADGROUP` x8, and `XINFO` STREAM/GROUPS/CONSUMERS x6 |
+      | one-offs | 10 | `ArrayGrep`, `HashImport`, `Ping`, `Publish`, `StringGetWithExpiry` - a pair each |
+      | Execute | 4 | the legacy `Execute(string, object[])` pair; `RedisResultHandler` now exists, so this is a rendering problem, not a parsing one |
+      | Locks | 4 | `LockRelease`, `LockExtend` - blocked on a transaction surface over the context |
+      | **Batch/transaction** | **2** | `CreateBatch`, `CreateTransaction` - *uncounted by SER352* |
+      | **Endpoint identity** | **3** | `IsConnected`, `IdentifyEndpoint`, `IdentifyEndpointAsync` - *uncounted* |
+      | **VectorSetRangeEnumerate** | **2** | keyset pagination over VRANGE, not a cursor scan - *uncounted* |
 
-      The scans are also the only family that needs a **shape** decision rather than a translation: the old
-      surface returns `IEnumerable<T>`/`IAsyncEnumerable<T>` over a cursor, and what the context surface
-      should answer - the same, or something that owns its pages the way `ReadOnlyLease<T>` does - has not
-      been settled. That is the reason they were deferred, and it has not gone away.
+      The cursor scans came off this list on 2026-09-18 (`HashScan` x3, `SetScan` x3, `SortedSetScan` x3,
+      `HashScanNoValues` x2 - they route to `RespScanEnumerable` now, dual-faced so either cast works), and
+      so did `Scripts` x12 and `Keys` x4. `VectorSetRangeEnumerate` stayed behind because it is not a
+      cursor scan and needs none of that machinery: the shipped code says so outright - *"intentionally not
+      using scan naming in case a VSCAN command is added later"*.
 
 - [x] **The `Interpolated/` folder is gone — DONE, 2026-09-18.** Marc: *"we shouldn't have anything left
       in there by the end of this"*. The namespace went several commits ago; the folder name was the last
