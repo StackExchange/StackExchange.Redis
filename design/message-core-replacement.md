@@ -385,8 +385,11 @@ Proposed order, each step independently shippable:
    against a real server with no `Message`, no `ResultProcessor` and no result box in it, and comes up
    properly: authenticated, protocol negotiated, named, on the right database. Outstanding before it is a
    *replacement* rather than a demonstration: reconnect, the backlog, and the profiling hooks.
-4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` comes off the fallback
-   here. (`IsConnected` and the endpoint-identity members came off earlier, as executor capabilities —
+4. ~~**Routing executors**: multiplexer (slot) and group (active node).~~ **Done** — all three of §3b now
+   exist and stack: `RespEndpointExecutor` owns a connection's life, `RespMultiplexerExecutor` picks an
+   endpoint by slot, `RespGroupExecutor` picks a member. `MultiGroupDatabase.GetContext()` no longer
+   throws — it returns a context over a group executor, verified against a real group. `Publish` is the
+   remaining fallback candidate here. (`IsConnected` and the endpoint-identity members came off earlier, as executor capabilities —
    they did not need routing, only somebody to ask.) **The server-endpoint executor is done**:
    `RespEndpointExecutor` owns a connection's whole life — connect, handshake, notice death, reconnect,
    and hold a backlog meanwhile. That also closes phase 3's outstanding reconnect and backlog items; what
@@ -754,6 +757,38 @@ with no usable `HELLO` falls back to `CLUSTER INFO` and `cluster_enabled:1`, whi
 works on RESP2 — and a server where `CLUSTER` is unavailable is, by that very fact, not a cluster.
 Verified against a real cluster node as well as a standalone one, because only the cluster case proves
 the `mode` parsing and the latch to `RoutesBySlot`.
+
+
+### 7i. Three executors, and what stacking them showed
+
+All three of §3b now exist, and the thing worth recording is how little the outer two do.
+
+| executor | its entire job |
+|---|---|
+| `RespEndpointExecutor` | own one connection's life: connect, handshake, notice death, reconnect, backlog |
+| `RespMultiplexerExecutor` | pick an endpoint — by slot when slots mean anything, otherwise the one |
+| `RespGroupExecutor` | pick a member |
+
+The outer two are a resolution and a delegation. Neither repeats anything about connecting, retrying, or
+queueing, because the thing they resolve *to* already does it. That is the structural argument for the
+topology being right, and it only becomes visible once they are stacked: a group over a multiplexer over
+an endpoint is about fifteen lines of actual decision-making end to end.
+
+**`MultiGroupDatabase.GetContext()` used to throw** *"not yet wired for multi-group"*. What it needed was
+exactly one thing: an executor that resolves the active member **per send** rather than at construction —
+because the context is built once and memoised, while the active member is the thing a group exists to
+change. That is the same property the multiplexer executor needs for topology, arrived at from a
+different direction, which is usually a sign the shape is right.
+
+It now works against a real group, proven by running the old surface and the new one against the same
+group and the same key. That is the seam through which `[AutoDatabase]`'s 628 generated forwarding
+members for this type eventually leave: each exists to capture a command's arguments, resolve the active
+member, and replay the call — and once the resolution is an executor *below* the command surface, there
+is nothing left for them to do.
+
+**One wrinkle worth keeping:** the context is memoised, but the command map can only be learned from a
+member. So if the group is fully down when someone first asks, the context is built and *not* cached,
+rather than baking `CommandMap.Default` in for the life of the multiplexer.
 
 ---
 

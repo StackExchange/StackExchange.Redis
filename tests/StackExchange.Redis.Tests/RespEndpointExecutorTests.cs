@@ -111,9 +111,13 @@ public class RespEndpointExecutorTests
 
         endpoint.Gate.SetResult(true);
         await WaitFor(() => endpoint.Transports.Count == 1);
-        await WaitFor(() => endpoint.Latest.Written.Length > 0);
 
-        Assert.Equal("*2|$3|GET|$1|a|*2|$3|GET|$1|b|*2|$3|GET|$1|c|", endpoint.Latest.Written);
+        // wait for the DRAIN to finish, not merely to start: waiting for "any bytes written" and then
+        // asserting all three is a race, and one that only shows up when the machine is busy
+        const string Expected = "*2|$3|GET|$1|a|*2|$3|GET|$1|b|*2|$3|GET|$1|c|";
+        await WaitFor(() => endpoint.Latest.Written.Length >= Expected.Length);
+
+        Assert.Equal(Expected, endpoint.Latest.Written);
         Assert.Equal(0, executor.BacklogCount);
 
         endpoint.Latest.Reply("$1\r\nA\r\n$1\r\nB\r\n$1\r\nC\r\n");

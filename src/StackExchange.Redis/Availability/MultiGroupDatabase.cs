@@ -17,8 +17,62 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     /// <inheritdoc/>
     public RespDatabaseContext Context => new(GetContext());
 
-    private static RespContext GetContext()
-        => throw new NotImplementedException("The context surface is not yet wired for multi-group.");
+    private RespContext? _context;
+
+    /// <summary>The context surface over whichever member is currently active.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This used to throw.</b> What it needed was an executor that resolves the active member per
+    /// send rather than at construction - which is what <see cref="RespGroupExecutor"/> is - because the
+    /// context is built once and memoised, while the active member is the thing a group exists to change.
+    /// </para>
+    /// <para>
+    /// Note what is <i>not</i> here: nothing about connecting, reconnecting, backlogs, slots or routing.
+    /// The active member is an entire multiplexer with its own executor chain, and this hands the command
+    /// to it. That is the whole of a group's job, and the reason this is short.
+    /// </para>
+    /// <para>
+    /// <b>Where the 628 generated forwarding members eventually go.</b> Every one of them exists to
+    /// capture a command's arguments, resolve the active member, and replay the call against it - because
+    /// the decoration happens above the command surface. Once the decoration is an executor below it,
+    /// those members have nothing left to do, and this property is the seam through which they leave.
+    /// </para>
+    /// </remarks>
+    private RespContext GetContext()
+    {
+        if (_context is { } existing) return existing;
+
+        // The command map is the deployment's, and only a member can tell us what it is - so if the group
+        // is down right now we build a context and do NOT memoise it, rather than baking the default map
+        // in for the life of the multiplexer. Everything else about the context is member-independent.
+        var active = parent.TryGetActive();
+        var context = new RespContext(
+                active?.CommandMap ?? CommandMap.Default,
+                database: Database,
+                serverType: ServerType.Standalone)
+            .WithExecutor(new RespGroupExecutor(() => ActiveExecutor, Database, DescribeUnavailable));
+
+        if (active is not null) _context = context;
+        return context;
+    }
+
+    private RespExecutorBase? ActiveExecutor
+        => TryGetActiveDatabase() is IRespTarget target ? target.Context.Executor : null;
+
+    private string DescribeUnavailable()
+    {
+        // the group's own wording rather than a second copy of it: this asks the same question the facade
+        // asks and reports the answer, so the two cannot drift apart
+        try
+        {
+            _ = parent.Active;
+            return "No connection group member is available.";
+        }
+        catch (RedisConnectionException ex)
+        {
+            return ex.Message;
+        }
+    }
 
     /// <inheritdoc/>
     RespContext IRespTarget.Context => GetContext();
