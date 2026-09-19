@@ -1,0 +1,481 @@
+using System;
+using System.Buffers;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks.Sources;
+using RESPite.Messages;
+
+namespace RESPite.Operations;
+
+/// <summary>
+/// One object that is the request, the completion, and the awaitable.
+/// </summary>
+/// <typeparam name="TResponse">What the reply parses into.</typeparam>
+/// <remarks>
+/// <para>
+/// This replaces <c>Message</c> <b>and</b> <c>IResultBox</c>. Today an awaited command allocates a
+/// message, a result box, and a <c>Task</c>; here it allocates one instance which is an
+/// <see cref="IValueTaskSource{TResult}"/> in its own right, so the caller's <c>ValueTask&lt;T&gt;</c>
+/// wraps it directly. The synchronous path uses the same core rather than a second mechanism, which is
+/// what retires <c>SimpleResultBox</c> and its <c>Monitor.PulseAll</c> box.
+/// </para>
+/// <para>
+/// <b>Version and flags share one word, and that is load-bearing.</b> Claiming the outcome has to check
+/// "nobody else has completed this" and "the caller is not holding a handle to a previous life" as a
+/// single atomic step. Two fields cannot do that: a stale completer can read a matching version, be
+/// pre-empted while the instance completes and is recycled, and then win the flag on somebody else's
+/// command. Packing the version into the same <see cref="int"/> makes the compare-and-swap cover both.
+/// </para>
+/// <para>
+/// <b>Recycling is not the same as completing.</b> A definite outcome - a reply parsed, a server error,
+/// a cancellation observed - proves the pipeline is finished with the instance. A timeout or a
+/// connection fault does not: the write may still be in flight, and handing that instance to a pool is
+/// how a reply lands on somebody else's command. Only the definite cases set <see cref="IsRecyclable"/>.
+/// </para>
+/// </remarks>
+internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSource<TResponse>
+{
+    private ManualResetValueTaskSourceCore<TResponse> _asyncCore;
+
+    /// <summary>Version in the high half, flags in the low half; see the type remarks.</summary>
+    private int _state;
+
+    /// <summary>
+    /// The parse-capability flags, which describe the <i>type</i> rather than the life.
+    /// </summary>
+    /// <remarks>
+    /// Held separately because <see cref="Reset"/> clears the flag word, and these have to survive it: a
+    /// recycled instance that forgot it had a parser would silently return <c>default</c> for every
+    /// subsequent command.
+    /// </remarks>
+    private readonly int _parseFlags;
+
+    private CancellationToken _cancellationToken;
+    private CancellationTokenRegistration _cancellationRegistration;
+
+    private ReadOnlyMemory<byte> _request;
+    private object? _requestOwner;
+    private int _requestRefCount;
+
+    private const int
+        Flag_Sent = 1 << 0,             // the request has been handed to a writer
+        Flag_OutcomeKnown = 1 << 1,     // exactly one code path gets to set an outcome; this is the claim
+        Flag_Complete = 1 << 2,         // the outcome is set and any follow-up has run
+        Flag_NoPulse = 1 << 3,          // nobody is blocked in Wait, so completing need not take the lock
+        Flag_Parser = 1 << 4,           // a parser was supplied
+        Flag_MetadataParser = 1 << 5,   // the parser wants to see attributes/metadata itself
+        Flag_InlineParser = 1 << 6,     // the parser is safe to run on the IO thread
+        Flag_Indefinite = 1 << 7;       // the outcome does not prove the pipeline is done with us
+
+    private const int FlagMask = 0xFFFF;
+
+    /// <summary>Create a message in the pending state.</summary>
+    /// <param name="options">What to do with the reply when it arrives.</param>
+    protected RespMessageBase(RespParseOptions options = RespParseOptions.Parse)
+    {
+        _parseFlags = ToFlags(options);
+        _state = Pack(_asyncCore.Version, _parseFlags);
+    }
+
+    private static int ToFlags(RespParseOptions options)
+    {
+        var flags = 0;
+        if ((options & RespParseOptions.Parse) != 0) flags |= Flag_Parser;
+        if ((options & RespParseOptions.Metadata) == RespParseOptions.Metadata) flags |= Flag_MetadataParser;
+        if ((options & RespParseOptions.Inline) == RespParseOptions.Inline) flags |= Flag_InlineParser;
+        return flags;
+    }
+
+    /// <summary>The current version; a handle taken now is valid until this instance is reset.</summary>
+    public short Token => _asyncCore.Version;
+
+    /// <inheritdoc/>
+    public bool AllowInlineParsing => HasFlag(Flag_InlineParser);
+
+    /// <summary>Whether the outcome proved the pipeline is finished with this instance.</summary>
+    /// <remarks>
+    /// The owner consults this before returning the instance to a pool. It is <see langword="false"/>
+    /// until an outcome is set, and stays <see langword="false"/> for timeouts and connection faults.
+    /// </remarks>
+    public bool IsRecyclable => (Volatile.Read(ref _state) & (Flag_Complete | Flag_Indefinite)) == Flag_Complete;
+
+    /// <summary>Turn a reply into the response value.</summary>
+    /// <param name="reader">Positioned at the reply, or before it when the parser handles metadata.</param>
+    protected abstract TResponse Parse(ref RespReader reader);
+
+    /// <summary>Called when the instance is reset, so derived state can be cleared too.</summary>
+    /// <remarks>
+    /// Exhaustive clearing matters more than it looks: a recycled instance that leaks a previous life's
+    /// timestamps produces a timeout report describing the wrong command. See design notes section 4.
+    /// </remarks>
+    protected virtual void OnReset()
+    {
+    }
+
+    /// <summary>Called after a definite outcome has been consumed, for pools to reclaim the instance.</summary>
+    protected virtual void OnRecyclable()
+    {
+    }
+
+    // ---- state helpers ------------------------------------------------------------------------------
+    private static int Pack(short version, int flags) => (version << 16) | (flags & FlagMask);
+
+    private static short VersionOf(int state) => unchecked((short)(state >> 16));
+
+    private bool HasFlag(int flag) => (Volatile.Read(ref _state) & flag) != 0;
+
+    /// <summary>Set flags, preserving the version. Returns whether this call was the one that set them.</summary>
+    private bool SetFlag(int flag)
+    {
+        Debug.Assert(flag != 0 && (flag & FlagMask) == flag, "flags live in the low half");
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if ((state & flag) == flag) return false;
+            if (Interlocked.CompareExchange(ref _state, state | flag, state) == state)
+            {
+                return true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Claim the right to set the outcome, for the holder of <paramref name="token"/>.
+    /// </summary>
+    /// <remarks>
+    /// The whole point of packing: version and claim move together, so a stale holder cannot win the
+    /// claim on a later life no matter how it is scheduled.
+    /// </remarks>
+    private bool TryClaimOutcome(short token)
+    {
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if (VersionOf(state) != token) return false;        // stale handle, or already recycled
+            if ((state & Flag_OutcomeKnown) != 0) return false;  // somebody else got there first
+            if (Interlocked.CompareExchange(ref _state, state | Flag_OutcomeKnown, state) == state)
+            {
+                UnregisterCancellation();
+                return true;
+            }
+        }
+    }
+
+    // ---- initialisation -----------------------------------------------------------------------------
+    /// <summary>Attach the rendered request and arm cancellation.</summary>
+    /// <param name="request">The rendered request bytes.</param>
+    /// <param name="owner">An <see cref="ArrayPool{T}"/> or <see cref="IDisposable"/> that owns them, if any.</param>
+    /// <param name="cancellationToken">Cancellation for this operation.</param>
+    protected void SetRequest(ReadOnlyMemory<byte> request, object? owner, CancellationToken cancellationToken)
+    {
+        Debug.Assert(_requestRefCount == 0, "the request is being set more than once");
+        _request = request;
+        _requestOwner = owner;
+        _requestRefCount = 1;
+        _cancellationToken = cancellationToken;
+        if (cancellationToken.CanBeCanceled)
+        {
+            _cancellationRegistration = cancellationToken.Register(CancellationCallback, this);
+        }
+    }
+
+    private static readonly Action<object?> CancellationCallback =
+        static state => ((IRespMessage)state!).TrySetCanceled();
+
+    private void UnregisterCancellation()
+    {
+        _cancellationRegistration.Dispose();
+        _cancellationRegistration = default;
+        _cancellationToken = default;
+    }
+
+    // ---- the request payload ------------------------------------------------------------------------
+    /// <inheritdoc/>
+    public bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true)
+    {
+        while (true)
+        {
+            var count = Volatile.Read(ref _requestRefCount);
+            if (count == 0 || Token != token)
+            {
+                payload = default;
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _requestRefCount, checked(count + 1), count) == count)
+            {
+                if (recordSent) SetFlag(Flag_Sent);
+                payload = _request;
+                return true;
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void ReleaseRequest()
+    {
+        if (!TryReleaseRequest()) Throw();
+
+        static void Throw() => throw new InvalidOperationException("The request payload has already been released.");
+    }
+
+    /// <returns>Whether there was a reference to release; <b>not</b> whether it reached zero.</returns>
+    private bool TryReleaseRequest()
+    {
+        while (true)
+        {
+            var count = Volatile.Read(ref _requestRefCount);
+            if (count == 0) return false;
+            if (Interlocked.CompareExchange(ref _requestRefCount, count - 1, count) == count)
+            {
+                if (count == 1) ReturnRequestBuffer();
+                return true;
+            }
+        }
+    }
+
+    private void ReturnRequestBuffer()
+    {
+        switch (_requestOwner)
+        {
+            case ArrayPool<byte> pool when MemoryMarshal.TryGetArray(_request, out var segment) && segment.Array is not null:
+                pool.Return(segment.Array);
+                break;
+            case IDisposable owner:
+                owner.Dispose();
+                break;
+        }
+
+        _request = default;
+        _requestOwner = null;
+    }
+
+    // ---- outcomes -----------------------------------------------------------------------------------
+    /// <inheritdoc/>
+    public bool TrySetResult(short token, scoped ReadOnlySpan<byte> response)
+    {
+        if (!TryClaimOutcome(token)) return false;
+        if ((Volatile.Read(ref _state) & Flag_Parser) == 0) return Complete(default!, definite: true);
+
+        try
+        {
+            var reader = new RespReader(response);
+            return Complete(ParseClaimed(ref reader), definite: true);
+        }
+        catch (Exception ex)
+        {
+            return Fail(ex, definite: true); // the server answered; parsing it is our problem, not the queue's
+        }
+    }
+
+    /// <inheritdoc/>
+    public bool TrySetResult(short token, in ReadOnlySequence<byte> response)
+    {
+        if (!TryClaimOutcome(token)) return false;
+        if ((Volatile.Read(ref _state) & Flag_Parser) == 0) return Complete(default!, definite: true);
+
+        try
+        {
+            var reader = new RespReader(response);
+            return Complete(ParseClaimed(ref reader), definite: true);
+        }
+        catch (Exception ex)
+        {
+            return Fail(ex, definite: true);
+        }
+    }
+
+    private TResponse ParseClaimed(ref RespReader reader)
+    {
+        // a metadata parser wants to see the frame from the outside, including any attribute that
+        // precedes the value; everybody else wants to be positioned on the value itself
+        if ((Volatile.Read(ref _state) & Flag_MetadataParser) == 0) reader.MoveNext();
+        return Parse(ref reader);
+    }
+
+    /// <inheritdoc/>
+    public bool TrySetException(short token, Exception exception, bool definite = false)
+        => TryClaimOutcome(token) && Fail(exception, definite);
+
+    /// <inheritdoc/>
+    public bool TrySetCanceled(short token, CancellationToken cancellationToken = default)
+    {
+        var named = cancellationToken.IsCancellationRequested ? cancellationToken : _cancellationToken;
+        return TryClaimOutcome(token) && Fail(new OperationCanceledException(named), definite: true);
+    }
+
+    /// <inheritdoc/>
+    void IRespMessage.TrySetCanceled()
+    {
+        // the cancellation callback races everything else; the claim decides, and losing is normal
+        var named = _cancellationToken;
+        if (TryClaimOutcome(Token)) Fail(new OperationCanceledException(named), definite: true);
+    }
+
+    /// <summary>Fail with a timeout, which is never a definite outcome.</summary>
+    /// <remarks>
+    /// Marc's rule, and the reason it is worth a named method: <i>"timeouts are undefined chaos"</i>. The
+    /// pipeline has not told us anything; it may still write the request and complete us later.
+    /// </remarks>
+    private bool TrySetTimeout()
+        => TryClaimOutcome(Token) && Fail(new TimeoutException(), definite: false);
+
+    private bool Complete(TResponse response, bool definite)
+    {
+        _asyncCore.SetResult(response);
+        Finish(definite);
+        return true;
+    }
+
+    private bool Fail(Exception exception, bool definite)
+    {
+        _asyncCore.SetException(exception);
+        Finish(definite);
+        return true;
+    }
+
+    private void Finish(bool definite)
+    {
+        // read the pulse state BEFORE marking complete: a waiter that arrives after this has to see
+        // Flag_Complete and not block, and one that arrived before has to be woken
+        var pulse = !HasFlag(Flag_NoPulse);
+        SetFlag(definite ? (Flag_Complete | Flag_NoPulse) : (Flag_Complete | Flag_NoPulse | Flag_Indefinite));
+
+        if (pulse)
+        {
+            lock (this)
+            {
+                Monitor.PulseAll(this);
+            }
+        }
+    }
+
+    // ---- consumption --------------------------------------------------------------------------------
+    /// <summary>Read the outcome, resetting the instance.</summary>
+    /// <param name="token">The version this caller holds.</param>
+    /// <remarks>
+    /// <b>The version moves immediately, not when the instance is next used.</b> Deferring it would let
+    /// a second <c>GetResult</c> appear to work for a while - fine under a local build, a cross-wired
+    /// reply under load. Moving it here turns that into an exception at the first offence.
+    /// </remarks>
+    public TResponse GetResult(short token)
+    {
+        var recyclable = IsRecyclable;
+        try
+        {
+            return _asyncCore.GetResult(token);
+        }
+        finally
+        {
+            Reset();
+            if (recyclable) OnRecyclable();
+        }
+    }
+
+    /// <summary>Clear every trace of this life and move the version on.</summary>
+    /// <remarks>
+    /// This drops <i>our</i> reference on the request and no more. Clearing the buffer fields outright
+    /// would strand a writer that still holds a reservation: its <see cref="ReleaseRequest"/> reads
+    /// those fields to find the array to return, so nulling them here leaks the buffer instead of
+    /// pooling it. The last releaser clears them, whoever that turns out to be.
+    /// </remarks>
+    private void Reset()
+    {
+        UnregisterCancellation();
+        TryReleaseRequest();
+        OnReset();
+
+        _asyncCore.Reset();
+
+        // the version and the cleared flags land together, so nothing can observe a fresh version with
+        // a previous life's claim still set; the parse capability is of the type, not the life, so it
+        // is re-applied rather than cleared
+        Volatile.Write(ref _state, Pack(_asyncCore.Version, _parseFlags));
+    }
+
+    /// <inheritdoc/>
+    public TResponse Wait(short token, TimeSpan timeout)
+    {
+        switch (Volatile.Read(ref _state) & (Flag_Complete | Flag_Sent))
+        {
+            case Flag_Sent:
+                break; // the expected case: sent, still pending
+            case Flag_Complete | Flag_Sent:
+            case Flag_Complete:
+                return GetResult(token);
+            default:
+                ThrowNotSent();
+                break;
+        }
+
+        CheckToken(token);
+        var timedOut = false;
+        lock (this)
+        {
+            switch (Volatile.Read(ref _state) & (Flag_Complete | Flag_NoPulse))
+            {
+                case 0:
+                    // the expected branch: not complete, and whoever completes it will pulse
+                    if (timeout == TimeSpan.Zero)
+                    {
+                        Monitor.Wait(this);
+                    }
+                    else if (!Monitor.Wait(this, timeout))
+                    {
+                        timedOut = true;
+                        SetFlag(Flag_NoPulse); // we are leaving; nobody need wake us
+                    }
+
+                    break;
+                case Flag_NoPulse:
+                    ThrowWillNotPulse();
+                    break;
+                default:
+                    break; // already complete
+            }
+        }
+
+        if (timedOut) TrySetTimeout();
+        return GetResult(token);
+
+        static void ThrowWillNotPulse() => throw new InvalidOperationException(
+            "This operation cannot be waited on because it entered async mode - most likely by calling AsTask().");
+    }
+
+    private void CheckToken(short token)
+    {
+        if (token != _asyncCore.Version) _ = _asyncCore.GetStatus(token); // for the consistent message
+    }
+
+    private static void ThrowNotSent() => throw new InvalidOperationException(
+        "This command has not been sent, so it cannot be awaited. If it belongs to a batch or transaction, execute that first.");
+
+    /// <summary>The status, with a guard that catches awaiting an unsent command.</summary>
+    /// <param name="token">The version this caller holds.</param>
+    /// <remarks>
+    /// Only the direct handle checks this. The <see cref="IValueTaskSource"/> implementations below do
+    /// not, because a <c>ValueTask</c> pre-checks status on paths where throwing would be wrong.
+    /// </remarks>
+    public ValueTaskSourceStatus GetStatus(short token)
+    {
+        var status = _asyncCore.GetStatus(token);
+        if (!HasFlag(Flag_Sent)) ThrowNotSent();
+        return status;
+    }
+
+    /// <inheritdoc/>
+    public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+    {
+        _asyncCore.OnCompleted(continuation, state, token, flags);
+        SetFlag(Flag_NoPulse); // an async consumer will never be blocked in Wait
+    }
+
+    ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _asyncCore.GetStatus(token);
+
+    ValueTaskSourceStatus IValueTaskSource<TResponse>.GetStatus(short token) => _asyncCore.GetStatus(token);
+
+    void IValueTaskSource.GetResult(short token) => _ = GetResult(token);
+
+    void IRespMessage.Wait(short token, TimeSpan timeout) => _ = Wait(token, timeout);
+}
