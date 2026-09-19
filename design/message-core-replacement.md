@@ -380,10 +380,11 @@ Proposed order, each step independently shippable:
    in §7b.
 3. **One executor, one connection**: the server-endpoint executor over a real connection, behind
    `RespExecutorBase`. The context surface already talks to that abstraction, so this is swappable.
-   **3a done** — `RespConnection`, a FIFO of operations over `DuplexTransport`, 18 tests. It stands *on*
-   the existing buffered writer (sync flush, sync/async transition), which stays. **3b** is the executor
-   over it. Note there is as yet no socket-backed `DuplexTransport` in RESPite — the only implementation
-   is `LoggingTunnel`'s — so 3b is provable in-memory and a socket transport is its own step.
+   **Done.** 3a `RespConnection` (a FIFO of operations over `DuplexTransport`), 3b
+   `RespConnectionExecutor`, 3c `StreamDuplexTransport`. The whole path now runs against a real server
+   with no `Message`, no `ResultProcessor` and no result box in it. Outstanding before it is a
+   *replacement* rather than a demonstration: handshake (`HELLO`/`AUTH`/`SELECT`), reconnect, the backlog,
+   and the profiling hooks.
 4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` and the endpoint-identity
    members come off the fallback here.
 5. **Batch, then transaction**, as decorators. `RespBatchExecutor` is replaced by the `BatchConnection`
@@ -484,6 +485,29 @@ does not retain what it has scanned; this one retains.
 not a pass. Two of the nine mutations run so far landed there, and both times the code was wrong — once
 leaking a request buffer, once double-counting a frame. Neither would have been found by reading, because
 in both cases the comment explaining the code was the thing that was wrong.
+
+
+### 7d. Two boundaries phase 3 settled
+
+**Error classification belongs to whoever turns a frame into a result.** This surfaced as a real
+inconsistency rather than a design question: a context over a raw executor throws RESPite's
+`RespException` for an error reply, while the same context over the message pipeline throws
+`RedisServerException`, because `ResultProcessor` converts before a payload is ever produced. Two
+producers, two answers, same surface. `RespConnectionExecutor` converts, for parity with what it
+replaces — a caller catching `RedisServerException` today keeps catching it — and that puts the rule at
+the SE.Redis/RESPite boundary, which is the only place that knows the taxonomy.
+
+**A layer must not invent a failure it cannot describe.** `RespConnection.Send` originally faulted a
+refused operation itself, with a generic `InvalidOperationException`. That exception won the outcome
+claim, so the executor's own — which knows the command, the flags, and how far it got — could never be
+set. Send now returns `false` and the caller owns the failure; `Close()` still faults what it has already
+queued, because by then nobody else can. The general form: **the outcome claim is single-winner, so the
+layer that can describe the failure best must be the one that claims it.**
+
+A corollary worth stating, because it answers the "do cached values pay for this?" question by
+construction: the diagnostics live on the *operation*, and an operation exists only once something is
+going to the pipe. A cache hit returns from `TryGet` before the executor is reached, so it stamps
+nothing. That is a property of the layering, not a flag anyone has to remember to check.
 
 ---
 
