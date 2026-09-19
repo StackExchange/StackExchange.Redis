@@ -444,6 +444,54 @@ public class RespSurfaceStreamsParityTests
         Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Streams.ReadGroupAsync(default(ReadOnlySpan<StreamPosition>), "g", "c"));
     }
 
+    // ---- XINFO -------------------------------------------------------------------------------------
+
+    private const string StreamInfoReply =               // XINFO STREAM: a flat name/value map
+        "*6\r\n$6\r\nlength\r\n:2\r\n$15\r\nradix-tree-keys\r\n:1\r\n$6\r\ngroups\r\n:1\r\n";
+    private const string GroupInfoReply =                // XINFO GROUPS: one group
+        "*1\r\n*6\r\n$4\r\nname\r\n$1\r\ng\r\n$9\r\nconsumers\r\n:1\r\n$7\r\npending\r\n:0\r\n";
+    private const string ConsumerInfoReply =             // XINFO CONSUMERS: one consumer
+        "*1\r\n*6\r\n$4\r\nname\r\n$1\r\nc\r\n$7\r\npending\r\n:0\r\n$4\r\nidle\r\n:5\r\n";
+
+    [Fact]
+    public void StreamInfoMatches() => AssertSame(
+        db => Message.Create(db.Database, CommandFlags.None, RedisCommand.XINFO, StreamConstants.Stream, (RedisKey)"s"),
+        ctx => Discard(ctx.Streams.InfoAsync("s")),
+        StreamInfoReply);
+
+    [Fact]
+    public void GroupInfoMatches() => AssertSame(
+        db => Message.Create(db.Database, CommandFlags.None, RedisCommand.XINFO, StreamConstants.Groups, (RedisKey)"s"),
+        ctx => Discard(ctx.Streams.GroupInfoAsync("s")),
+        GroupInfoReply);
+
+    /// <summary>
+    /// <c>XINFO CONSUMERS</c> agrees byte for byte, though the two routes get there differently.
+    /// </summary>
+    /// <remarks>
+    /// The shipped message passes the key as a <i>value</i> and routes with <c>CreateInKeySlot</c>; the
+    /// context surface writes it as a key. Identical bytes with no prefix in force - which is what this
+    /// compares - and the context form is the one that still works under a key prefix. See the remarks on
+    /// <c>Streams.ConsumerInfoAsync</c>.
+    /// </remarks>
+    [Fact]
+    public void ConsumerInfoMatches() => AssertSame(
+        db => Message.CreateInKeySlot(db.Database, "s", CommandFlags.None, RedisCommand.XINFO, new RedisValue[] { StreamConstants.Consumers, "s", "g" }),
+        ctx => Discard(ctx.Streams.ConsumerInfoAsync("s", "g")),
+        ConsumerInfoReply);
+
+    /// <summary>A prefixed context prefixes the key <c>XINFO CONSUMERS</c> passes as an argument.</summary>
+    /// <remarks>The half the shipped message cannot do; see <c>Streams.ConsumerInfoAsync</c>.</remarks>
+    [Fact]
+    public void ConsumerInfoAppliesAKeyPrefix()
+    {
+        var executor = new FakeExecutor(ConsumerInfoReply);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor)).AppendKeyPrefix("app:");
+        Discard(ctx.Streams.ConsumerInfoAsync("s", "g")).GetAwaiter().GetResult();
+
+        Assert.Equal("*4|$5|XINFO|$9|CONSUMERS|$5|app:s|$1|g|", Assert.Single(executor.Sent));
+    }
+
     private static TimeSpan? AsIdle(long? ms) => ms.HasValue ? TimeSpan.FromMilliseconds(ms.GetValueOrDefault()) : null;
 
     private static async ValueTask Discard<T>(ValueTask<T> pending)

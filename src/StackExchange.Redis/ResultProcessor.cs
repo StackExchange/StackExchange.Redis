@@ -2614,9 +2614,14 @@ namespace StackExchange.Redis
 
         internal sealed class StreamConsumerInfoProcessor : InterleavedStreamInfoProcessorBase<StreamConsumerInfo>
         {
-            protected override StreamConsumerInfo ParseItem(ref RespReader reader)
-            {
-                // Note: the base class passes a single consumer from the response into this method.
+            protected override StreamConsumerInfo ParseItem(ref RespReader reader) => ParseStreamConsumerInfo(ref reader);
+        }
+
+        /// <summary>Read one <c>XINFO CONSUMERS</c> item; handed a reader positioned on that item.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static StreamConsumerInfo ParseStreamConsumerInfo(ref RespReader reader)
+        {
+                // Note: the caller passes a single consumer from the response into this method.
 
                 // Response format:
                 // > XINFO CONSUMERS mystream mygroup
@@ -2669,14 +2674,18 @@ namespace StackExchange.Redis
                 }
 
                 return new StreamConsumerInfo(name!, pendingMessageCount, idleTimeInMilliseconds);
-            }
         }
 
         internal sealed class StreamGroupInfoProcessor : InterleavedStreamInfoProcessorBase<StreamGroupInfo>
         {
-            protected override StreamGroupInfo ParseItem(ref RespReader reader)
-            {
-                // Note: the base class passes a single item from the response into this method.
+            protected override StreamGroupInfo ParseItem(ref RespReader reader) => ParseStreamGroupInfo(ref reader);
+        }
+
+        /// <summary>Read one <c>XINFO GROUPS</c> item; handed a reader positioned on that item.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static StreamGroupInfo ParseStreamGroupInfo(ref RespReader reader)
+        {
+                // Note: the caller passes a single item from the response into this method.
 
                 // Response format:
                 // > XINFO GROUPS mystream
@@ -2751,7 +2760,6 @@ namespace StackExchange.Redis
                 }
 
                 return new StreamGroupInfo(name!, consumerCount, pendingMessageCount, lastDeliveredId, entriesRead, lag);
-            }
         }
 
         internal abstract class InterleavedStreamInfoProcessorBase<T> : ResultProcessor<T[]>
@@ -2800,6 +2808,21 @@ namespace StackExchange.Redis
             //        2) "banana"
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
+                if (!TryParseStreamInfo(ref reader, AllowJaggedStreamFields(connection.Protocol.GetValueOrDefault()), out var value))
+                {
+                    return false;
+                }
+
+                SetResult(message, value);
+                return true;
+            }
+        }
+
+        /// <summary>Read an <c>XINFO STREAM</c> reply; <see langword="false"/> if it is not that shape.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static bool TryParseStreamInfo(ref RespReader reader, bool allowJaggedFields, out StreamInfo value)
+        {
+                value = default;
                 if (!reader.IsAggregate)
                 {
                     return false;
@@ -2815,8 +2838,6 @@ namespace StackExchange.Redis
                     maxDeletedEntryId = Redis.RedisValue.Null,
                     recordedFirstEntryId = Redis.RedisValue.Null;
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
-
-                var protocol = connection.Protocol.GetValueOrDefault();
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
@@ -2850,10 +2871,10 @@ namespace StackExchange.Redis
                             lastGeneratedId = reader.ReadRedisValue();
                             break;
                         case StreamInfoField.FirstEntry:
-                            firstEntry = ParseRedisStreamEntry(ref reader, protocol);
+                            firstEntry = ParseRedisStreamEntry(ref reader, allowJaggedFields);
                             break;
                         case StreamInfoField.LastEntry:
-                            lastEntry = ParseRedisStreamEntry(ref reader, protocol);
+                            lastEntry = ParseRedisStreamEntry(ref reader, allowJaggedFields);
                             break;
                         // 7.0
                         case StreamInfoField.MaxDeletedEntryId:
@@ -2887,7 +2908,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                var streamInfo = new StreamInfo(
+                value = new StreamInfo(
                     length: checked((int)length),
                     radixTreeKeys: checked((int)radixTreeKeys),
                     radixTreeNodes: checked((int)radixTreeNodes),
@@ -2905,9 +2926,7 @@ namespace StackExchange.Redis
                     iidsAdded: iidsAdded,
                     iidsDuplicates: iidsDuplicates);
 
-                SetResult(message, streamInfo);
                 return true;
-            }
         }
 
         /// <summary>

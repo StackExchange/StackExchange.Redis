@@ -321,6 +321,11 @@ public class TransitionalCoverageTests
         // the control. Without this, EveryMemberOfAMovedGroupIsImplemented would pass just as happily if
         // the interface map stopped distinguishing the two kinds of member, and the coverage claim above
         // would be vacuous rather than wrong - which is the harder failure to notice.
-        Assert.NotEmpty(Generated("Stream", typeof(IDatabase)));
+        //
+        // This named "Stream" until the multi-stream reads and XINFO moved, at which point it started
+        // failing because nothing was left to be generated - the control doing its job, in the one way it
+        // is meant to. "Lock" now, because LockRelease/LockExtend need the transaction fallback and so
+        // will be the last thing standing; when they move, pick another still-generated group.
+        Assert.NotEmpty(Generated("Lock", typeof(IDatabase)));
     }
 }

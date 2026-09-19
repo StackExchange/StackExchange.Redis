@@ -375,6 +375,36 @@ namespace StackExchange.Redis
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
             => _inner.Streams.ReadGroupArray(key, groupName, consumerName, position, count, noAck, claimMinIdleTime, flags).AsTask();
 
+        // ---- XINFO ----------------------------------------------------------------------------------
+
+        /// <inheritdoc/>
+        public StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.InfoAsync(key, flags));
+
+        /// <inheritdoc/>
+        public Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.InfoAsync(key, flags).AsTask();
+
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
+        public StreamGroupInfo[] StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.GroupInfoArray(key, flags));
+
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
+        public Task<StreamGroupInfo[]> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.GroupInfoArray(key, flags).AsTask();
+
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
+        public StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.ConsumerInfoArray(key, groupName, flags));
+
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
+        public Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.ConsumerInfoArray(key, groupName, flags).AsTask();
+
         // ---- XREAD / XREADGROUP, several streams -----------------------------------------------------
         // Two XREAD overloads collapse to one and four XREADGROUP overloads collapse to one; they differ
         // only in which of maxCount/maxSize/noAck/claimMinIdleTime they expose. The array-to-span

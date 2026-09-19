@@ -161,7 +161,8 @@ public static partial class Streams
         IRespHandler<StreamPendingMessageInfo[]>,
         IRespHandler<StreamAutoClaimResult>,
         IRespHandler<StreamAutoClaimIdsOnlyResult>,
-        IRespHandler<RedisStream[]>
+        IRespHandler<RedisStream[]>,
+        IRespHandler<StreamInfo>
     {
         private static readonly StreamTypesHandler Instance = new();
 
@@ -184,6 +185,9 @@ public static partial class Streams
 
         /// <summary>A multi-stream read as the array shape the older surface promises.</summary>
         internal static IRespHandler<RedisStream[]> NamedStreams => Instance;
+
+        /// <summary>An <c>XINFO STREAM</c> as the struct the older surface promises.</summary>
+        internal static IRespHandler<StreamInfo> Info => Instance;
 
         /// <summary>An <c>XRANGE</c>-shaped reply as the array shape the older surface promises.</summary>
         /// <remarks>
@@ -211,6 +215,56 @@ public static partial class Streams
 
         RedisStream[] IRespHandler<RedisStream[]>.Parse(ref RespReader reader)
             => ResultProcessor.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
+
+        StreamInfo IRespHandler<StreamInfo>.Parse(ref RespReader reader)
+            => ResultProcessor.TryParseStreamInfo(ref reader, allowJaggedFields: true, out var value) ? value : default;
+    }
+
+    /// <summary>
+    /// <c>XINFO GROUPS</c>, as a lease and as the array the older surface promises.
+    /// </summary>
+    /// <remarks>
+    /// Two interfaces on one instance, as the geo group's handlers do: the parse is the same walk either
+    /// way, and only the storage differs. <c>ReadScalarLease</c> despite the elements being aggregates -
+    /// the name describes its usual use, not a constraint; the enumerator moves past whatever the
+    /// projection left unread.
+    /// </remarks>
+    private sealed class GroupInfoHandler : IRespHandler<ReadOnlyLease<StreamGroupInfo>>, IRespHandler<StreamGroupInfo[]>
+    {
+        private static readonly GroupInfoHandler Instance = new();
+
+        internal static IRespHandler<ReadOnlyLease<StreamGroupInfo>> Lease => Instance;
+
+        internal static IRespHandler<StreamGroupInfo[]> Array => Instance;
+
+        private static readonly RespReader.Projection<StreamGroupInfo> Element =
+            static (ref RespReader reader) => ResultProcessor.ParseStreamGroupInfo(ref reader);
+
+        ReadOnlyLease<StreamGroupInfo> IRespHandler<ReadOnlyLease<StreamGroupInfo>>.Parse(ref RespReader reader)
+            => RespHandlers.ReadScalarLease(ref reader, Element);
+
+        StreamGroupInfo[] IRespHandler<StreamGroupInfo[]>.Parse(ref RespReader reader)
+            => reader.IsNull || !reader.IsAggregate ? [] : reader.ReadPastArray(Element, scalar: false) ?? [];
+    }
+
+    /// <summary><c>XINFO CONSUMERS</c>, as a lease and as the array the older surface promises.</summary>
+    /// <remarks><inheritdoc cref="GroupInfoHandler" path="/remarks"/></remarks>
+    private sealed class ConsumerInfoHandler : IRespHandler<ReadOnlyLease<StreamConsumerInfo>>, IRespHandler<StreamConsumerInfo[]>
+    {
+        private static readonly ConsumerInfoHandler Instance = new();
+
+        internal static IRespHandler<ReadOnlyLease<StreamConsumerInfo>> Lease => Instance;
+
+        internal static IRespHandler<StreamConsumerInfo[]> Array => Instance;
+
+        private static readonly RespReader.Projection<StreamConsumerInfo> Element =
+            static (ref RespReader reader) => ResultProcessor.ParseStreamConsumerInfo(ref reader);
+
+        ReadOnlyLease<StreamConsumerInfo> IRespHandler<ReadOnlyLease<StreamConsumerInfo>>.Parse(ref RespReader reader)
+            => RespHandlers.ReadScalarLease(ref reader, Element);
+
+        StreamConsumerInfo[] IRespHandler<StreamConsumerInfo[]>.Parse(ref RespReader reader)
+            => reader.IsNull || !reader.IsAggregate ? [] : reader.ReadPastArray(Element, scalar: false) ?? [];
     }
 
     /// <summary>
@@ -1007,6 +1061,99 @@ public static partial class Streams
     {
         if (value.HasValue && value <= 0) throw new ArgumentOutOfRangeException(name, name + " must be greater than 0.");
     }
+
+    /// <summary>XINFO STREAM; what the server knows about the stream itself.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream to describe.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Materialised, where the read shapes are deferred windows</b>, and deliberately: this reply is a
+    /// flat name/value map of about a dozen counts, so a window would re-read a frame header per property
+    /// to save copying an <see cref="int"/>. The two <see cref="StreamEntry"/> members are the only part
+    /// that allocates, and the caller asked for them by calling this at all.
+    /// </remarks>
+    public static ValueTask<StreamInfo> InfoAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = streams.Context.Render($"{RedisCommand.XINFO}{RespLiterals.StreamKeyword}{key}");
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.Info, cancellationToken);
+    }
+
+    /// <summary>XINFO GROUPS; the consumer groups defined on the stream.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream to describe.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<ReadOnlyLease<StreamGroupInfo>> GroupInfoAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = GroupInfoCommand(streams.Context, key);
+        return streams.Context.SendAsync(ref cmd, flags, GroupInfoHandler.Lease, cancellationToken);
+    }
+
+    /// <inheritdoc cref="GroupInfoAsync"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamGroupInfo[]> GroupInfoArray(
+        this in RespStreams streams,
+        RedisKey key,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = GroupInfoCommand(streams.Context, key);
+        return streams.Context.SendAsync(ref cmd, flags, GroupInfoHandler.Array, cancellationToken);
+    }
+
+    private static RespRequestFrame GroupInfoCommand(RespContext context, RedisKey key)
+        => context.Render($"{RedisCommand.XINFO}{RespLiterals.Groups}{key}");
+
+    /// <summary>XINFO CONSUMERS; the consumers in one group, and what each is holding.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="key">The stream to describe.</param>
+    /// <param name="group">The consumer group to describe.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>The key is written as a key here, where the shipped message writes it as a value.</b> The old
+    /// path passes <c>key.AsRedisValue()</c> in the argument array and routes with
+    /// <c>Message.CreateInKeySlot</c>, so the slot is right but the argument never goes through the key
+    /// machinery - which was harmless only because the <c>KeyPrefixed</c> decorators prefix the key
+    /// before it ever gets there. A context applies its prefix at write time, so the argument has to be a
+    /// key for a prefixed context to reach the right stream. The bytes are identical without a prefix,
+    /// which is what the parity test compares.
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<StreamConsumerInfo>> ConsumerInfoAsync(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ConsumerInfoCommand(streams.Context, key, group);
+        return streams.Context.SendAsync(ref cmd, flags, ConsumerInfoHandler.Lease, cancellationToken);
+    }
+
+    /// <inheritdoc cref="ConsumerInfoAsync"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<StreamConsumerInfo[]> ConsumerInfoArray(
+        this in RespStreams streams,
+        RedisKey key,
+        RedisValue group,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = ConsumerInfoCommand(streams.Context, key, group);
+        return streams.Context.SendAsync(ref cmd, flags, ConsumerInfoHandler.Array, cancellationToken);
+    }
+
+    private static RespRequestFrame ConsumerInfoCommand(RespContext context, RedisKey key, RedisValue group)
+        => context.Render($"{RedisCommand.XINFO}{RespLiterals.Consumers}{key}{group}");
 
     private static readonly RespReplyHandler<RespMultiReadReply> MultiReadReplyHandler
         = new(static payload => new RespMultiReadReply(payload));

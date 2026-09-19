@@ -427,6 +427,18 @@ namespace StackExchange.Redis
         [Resp("STREAMS")]
         internal static partial RespFragment StreamsKeyword { get; }
 
+        /// <summary>The <c>STREAM</c> subcommand of <c>XINFO</c>; a key follows it.</summary>
+        [Resp("STREAM")]
+        internal static partial RespFragment StreamKeyword { get; }
+
+        /// <summary>The <c>GROUPS</c> subcommand of <c>XINFO</c>; a key follows it.</summary>
+        [Resp("GROUPS")]
+        internal static partial RespFragment Groups { get; }
+
+        /// <summary>The <c>CONSUMERS</c> subcommand of <c>XINFO</c>; a key and a group follow it.</summary>
+        [Resp("CONSUMERS")]
+        internal static partial RespFragment Consumers { get; }
+
         /// <summary>The <c>MAXCOUNT</c> operand of the multi-stream reads; an entry count follows it.</summary>
         [Resp("MAXCOUNT")]
         internal static partial RespFragment MaxCount { get; }
