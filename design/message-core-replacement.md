@@ -257,6 +257,72 @@ because that path completes before the bytes are used.
 
 ---
 
+## 6a. Measured: how much of the suite the context surface already carries
+
+Before planning any deletion, the cheapest possible experiment — one edit to `GetDatabase`, routing
+**every** `IDatabase` in the suite through `TransitionalDatabase` over the context, with the classic
+database as the fallback:
+
+```
+Failed: 110, Passed: 8051, Skipped: 163, Total: 8324   —   69 distinct tests
+```
+
+**~98.7% of the whole suite already runs through the new surface.** That is the number to plan against,
+and it was not knowable by reading. Grouped by cause:
+
+| n | cause | what it is |
+|---|---|---|
+| 27 | `Assert.Equal` values differ | genuine behavioural differences — the real work |
+| 25 | `InvalidCastException: …Transitional…` | **test coupling**, not a gap: tests casting `IDatabase` to the concrete type |
+| 14 | `RedisCommandException: disabled in the command map` | the context resolves commands through the map; these tests disable one and expect the old path's behaviour |
+| 14 | `Assert.Throws`: nothing thrown | argument validation the new surface does not do (the null-key tests) |
+| 6 | `NOSCRIPT` | script-cache belief across the two paths |
+| 3 | `A deadline is required; KEEPTTL and PERSIST are not expirations` | expiry-shape difference |
+| ~5 | pool/rent assertions | tests asserting the *shim's* buffer behaviour specifically |
+
+So of 69 distinct failures, roughly 30 are tests coupled to the old implementation rather than gaps in
+the new surface. **The genuine gap is around 40 tests**, concentrated in behaviour differences, argument
+validation, and the command map.
+
+The spike was reverted, not committed — it changes `GetDatabase` for everyone. The sanctioned mechanism
+for re-running a suite through the context surface already exists: `TransitionalSurfaceFixture.Wrap`,
+used by 12 `TransitionalXxxTests : XxxTests` classes. Widening that from 12 towards the 64 candidates is
+the non-destructive way to hold this ground permanently.
+
+---
+
+## 6b. What deleting actually buys, and what it does not
+
+Message construction, by file:
+
+| sites | file |
+|---|---|
+| 504 | `RedisDatabase` |
+| 122 | `RedisServer` |
+| 30 | `ServerEndPoint` |
+| 5 | `RedisTransaction` |
+| 5 | `PhysicalConnection` |
+| 4 | `RedisSubscriber` |
+| 3 | `ConnectionMultiplexer` |
+| **0** | `RedisBatch` |
+
+Two things follow.
+
+**The target is `RedisDatabase`'s command methods, not "the database implementations".** `RedisBatch`
+builds no messages at all; `KeyPrefixed*`, `MultiGroupDatabase`, `RetryDatabase` and `RetryTransaction`
+are decorators. Deleting them removes API and behaviour while freeing no message machinery. `RedisDatabase`
+alone is ~75% of it.
+
+**Deleting them does not let `Message` go.** ~150 sites live in `RedisServer` and `ServerEndPoint`, and
+the context surface has exactly one server group (`Keyspace`) against `IServer`'s ~70 members. The
+server surface is the long pole, and it is barely started.
+
+**And `RedisBase` must survive the cut.** `RespMessageExecutor` holds a `RedisBase` target and calls
+`_target.ExecuteAsync(message, processor)` — so the execute plumbing is what the *new* surface stands
+on. The cut is the ~504 command-building methods, not the type that owns dispatch.
+
+---
+
 ## 7. Phasing
 
 Big-bang is not available: the `Message` layer is load-bearing for ordering, backlog, retry and
