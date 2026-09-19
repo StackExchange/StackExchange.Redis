@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interfaces;
@@ -73,6 +74,11 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     /// <inheritdoc/>
     /// <remarks>Routing is the inner executor's; retrying does not change where a key lives.</remarks>
     public override bool IsConnected(in RedisKey key, CommandFlags flags) => _inner.IsConnected(in key, flags);
+
+    /// <inheritdoc/>
+    /// <remarks>Routing is the inner executor's; this layer does not change where a key lives.</remarks>
+    public override ValueTask<EndPoint?> IdentifyEndpointAsync(RedisKey key, CommandFlags flags, CancellationToken cancellationToken = default)
+        => _inner.IdentifyEndpointAsync(key, flags, cancellationToken);
 
     public override int Database => _inner.Database;
 

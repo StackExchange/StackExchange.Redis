@@ -87,6 +87,27 @@ public class TransitionalDatabaseTests
     }
 
     [Fact]
+    public async Task AnExecutorWithNoEndpointsAdmitsItRatherThanGuessing()
+    {
+        // the default is null - "no idea" - because an executor with no notion of endpoints has no honest
+        // answer, and inventing one would be worse than admitting it
+        var db = Target(new FakeExecutor());
+        Assert.Null(await db.IdentifyEndpointAsync("user:1"));
+        Assert.Null(db.IdentifyEndpoint("user:1"));
+    }
+
+    [Fact]
+    public void TheRealExecutorOverridesEndpointIdentityToo()
+    {
+        var method = typeof(RespMessageExecutor).GetMethod(
+            nameof(RespExecutorBase.IdentifyEndpointAsync),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(RespMessageExecutor), method!.DeclaringType);
+    }
+
+    [Fact]
     public void AMovedCommandReachesTheContextSurface()
     {
         // THE test for the generator change. Both a hand-written public member and a generated EXPLICIT

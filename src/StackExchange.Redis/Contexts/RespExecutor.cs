@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -76,6 +77,28 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         public virtual bool IsConnected(in RedisKey key, CommandFlags flags) => true;
+
+        /// <summary>Which endpoint would serve - or did serve - a command for the given key.</summary>
+        /// <param name="key">The key whose routing is being asked about; null means "anywhere".</param>
+        /// <param name="flags">The flags that would be used, which can steer to a replica.</param>
+        /// <param name="cancellationToken">Cancels the probe.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Unlike <see cref="IsConnected"/>, this one has to go to the wire</b>, and that is not an
+        /// implementation detail - it is the definition. The question is which connection <i>answered</i>,
+        /// so a routing prediction would be a different and weaker answer: under a cluster reshard or a
+        /// failover, what routing would have chosen and what actually replied can differ.
+        /// </para>
+        /// <para>
+        /// The default is <see langword="null"/> - "no idea" - because an executor with no notion of
+        /// endpoints has no honest answer, and inventing one would be worse than admitting it.
+        /// </para>
+        /// </remarks>
+        public virtual ValueTask<EndPoint?> IdentifyEndpointAsync(
+            RedisKey key,
+            CommandFlags flags,
+            CancellationToken cancellationToken = default)
+            => default;
 
         /// <summary>Whether <see cref="SendAsync(RespRequest, RespRequest, IRespPreambleGate?, CancellationToken)"/> does anything useful.</summary>
         /// <remarks>

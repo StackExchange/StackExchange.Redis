@@ -30,6 +30,25 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     [Fact]
+    public async Task IdentifyEndpointAgreesWithTheShippedImplementation()
+    {
+        // unlike IsConnected this one HAS to go to the wire: the question is which connection ANSWERED,
+        // and a routing prediction is a different, weaker answer - under a reshard or a failover, what
+        // routing would have chosen and what actually replied can differ
+        await using var conn = Create();
+
+        var classic = conn.GetDatabase();
+        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null, fallback: null);
+
+        RedisKey key = Me();
+        Assert.Equal(await classic.IdentifyEndpointAsync(key), await surface.IdentifyEndpointAsync(key));
+        Assert.Equal(await classic.IdentifyEndpointAsync(), await surface.IdentifyEndpointAsync());
+        Assert.NotNull(await surface.IdentifyEndpointAsync(key)); // or the agreement above is vacuous
+
+        Assert.Equal(classic.IdentifyEndpoint(key), surface.IdentifyEndpoint(key));
+    }
+
+    [Fact]
     public async Task IsConnectedRoutesThroughTheExecutorAgainstARealServer()
     {
         // the unit tests prove the plumbing with a fake router; this proves the real one. The executor

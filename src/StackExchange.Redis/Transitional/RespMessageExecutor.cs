@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -81,6 +82,25 @@ namespace StackExchange.Redis
         /// </remarks>
         public override bool IsConnected(in RedisKey key, CommandFlags flags)
             => _target.multiplexer.SelectServer(RedisCommand.PING, flags, key)?.IsConnected == true;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <c>PING</c> for a null key and <c>EXISTS</c> otherwise, matching the shipped implementation
+        /// exactly: <c>EXISTS</c> because it is a read that routes by the key and changes nothing, and
+        /// <c>PING</c> because with no key there is nothing to route by. The reply itself is discarded -
+        /// <c>ConnectionIdentity</c> reads the <i>connection</i> that answered, not the payload, which is
+        /// precisely what the new surface cannot yet express and why this still goes through a Message.
+        /// </remarks>
+        public override ValueTask<EndPoint?> IdentifyEndpointAsync(
+            RedisKey key,
+            CommandFlags flags,
+            CancellationToken cancellationToken = default)
+        {
+            var message = key.IsNull
+                ? Message.Create(-1, flags, RedisCommand.PING)
+                : Message.Create(Database, flags, RedisCommand.EXISTS, key);
+            return new(_target.ExecuteAsync(message, ResultProcessor.ConnectionIdentity));
+        }
 
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {

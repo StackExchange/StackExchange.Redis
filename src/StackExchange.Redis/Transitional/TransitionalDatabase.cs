@@ -181,11 +181,19 @@ namespace StackExchange.Redis
                 ? executor.IsConnected(in key, flags)
                 : Fallback<RedisKey>().IsConnected(key, flags);
 
+        /// <inheritdoc/>
+        /// <remarks>Off the fallback: the executor is the router, so it is the one that can answer.</remarks>
         public System.Net.EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => Fallback<RedisKey>().IdentifyEndpoint(key, flags);
+            => _inner.Raw.Executor is { } executor
+                ? Wait(executor.IdentifyEndpointAsync(key, flags))
+                : Fallback<RedisKey>().IdentifyEndpoint(key, flags);
 
+        /// <inheritdoc/>
+        /// <remarks>Off the fallback; see the synchronous twin.</remarks>
         public Task<System.Net.EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => Fallback<RedisKey>().IdentifyEndpointAsync(key, flags);
+            => _inner.Raw.Executor is { } executor
+                ? executor.IdentifyEndpointAsync(key, flags).AsTask()
+                : Fallback<RedisKey>().IdentifyEndpointAsync(key, flags);
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="PingAsync" path="/remarks"/></remarks>

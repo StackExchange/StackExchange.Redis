@@ -141,7 +141,22 @@ Four consequences, none of them cosmetic:
       key-scoped; anything mutating server-global state (script cache, CONFIG, CLIENT, the keyspace at
       large) cannot.
 
-- [ ] **`IdentifyEndpoint` / `IdentifyEndpointAsync` are blocked on the core, and it is worth knowing why.**
+- [x] **`IdentifyEndpoint` / `IdentifyEndpointAsync` are OFF the fallback** — and they were not as blocked
+      as the entry below claimed. The question *"which connection answered?"* still cannot be expressed on
+      the new surface, but the executor can be asked to answer it by whatever means it has, exactly as
+      `IsConnected` was: a virtual on `RespExecutorBase` defaulting to `null` ("no idea", because an
+      executor with no notion of endpoints has no honest answer), overridden by `RespMessageExecutor`
+      using the Message pipeline's own `ConnectionIdentity` processor. Proven against a real server by
+      agreeing with the shipped implementation, plus a non-null assertion so the agreement is not vacuous.
+
+      **Note the asymmetry with `IsConnected`, which is the interesting part:** `IsConnected` sends
+      nothing, because it asks what routing *would* do. This one has to go to the wire, because it asks
+      what *did* happen — under a reshard or a failover those differ, and the prediction is the weaker
+      answer. Two members that look like a pair and are not.
+
+      That leaves **two** on the fallback: `CreateBatch` and `CreateTransaction`.
+
+- [ ] ~~**`IdentifyEndpoint` / `IdentifyEndpointAsync` are blocked on the core, and it is worth knowing why.**~~
       `ConnectionIdentityProcessor` ignores the reply entirely and returns
       `connection.BridgeCouldBeNull?.ServerEndPoint.EndPoint` — it answers *which connection served this*,
       which `RespPayload` does not carry. That is a §4 "what the new token must keep" item, and §7 step 4

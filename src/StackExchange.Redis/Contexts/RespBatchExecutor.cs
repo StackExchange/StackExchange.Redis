@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Protocol;
@@ -68,6 +69,11 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         /// <remarks>Routing is the inner executor's; accumulating does not change where a key lives.</remarks>
         public override bool IsConnected(in RedisKey key, CommandFlags flags) => _inner.IsConnected(in key, flags);
+
+        /// <inheritdoc/>
+        /// <remarks>Routing is the inner executor's; this layer does not change where a key lives.</remarks>
+        public override ValueTask<EndPoint?> IdentifyEndpointAsync(RedisKey key, CommandFlags flags, CancellationToken cancellationToken = default)
+            => _inner.IdentifyEndpointAsync(key, flags, cancellationToken);
 
         /// <summary>How many commands are waiting; for tests and diagnostics.</summary>
         internal int Count
