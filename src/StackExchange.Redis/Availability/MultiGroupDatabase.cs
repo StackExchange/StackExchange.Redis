@@ -14,6 +14,15 @@ namespace StackExchange.Redis.Availability;
 internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, int database, object? asyncState)
     : IDatabase, IInternalDatabaseAsync
 {
+    /// <inheritdoc/>
+    public RespDatabaseContext Context => new(GetContext());
+
+    private static RespContext GetContext()
+        => throw new NotImplementedException("The context surface is not yet wired for multi-group.");
+
+    /// <inheritdoc/>
+    RespContext IRespTarget.Context => GetContext();
+
     public object? AsyncState => asyncState;
     public int Database => database < 0 ? GetActiveDatabase().Database : database;
 

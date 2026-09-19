@@ -24,7 +24,8 @@ internal abstract partial class ResultProcessor
     public static readonly ResultProcessor<ArrayInfo>
         ArrayInfo = new ArrayInfoProcessor();
 
-    private static bool TryParseArrayIndex(ref RespReader reader, out RedisArrayIndex index)
+    /// <summary>Reads an index reply; shared with the context surface's handler.</summary>
+    internal static bool TryParseArrayIndex(ref RespReader reader, out RedisArrayIndex index)
     {
         if (reader.IsScalar && !reader.IsNull)
         {
@@ -76,7 +77,7 @@ internal abstract partial class ResultProcessor
         }
     }
 
-    private sealed class RedisArrayEntryArrayProcessor : ValuePairInterleavedProcessorBase<RedisArrayEntry>
+    internal sealed class RedisArrayEntryArrayProcessor : ValuePairInterleavedProcessorBase<RedisArrayEntry>
     {
         protected override bool AllowJaggedPairs(RedisProtocol protocol) => true; // i.e. even in RESP2
 
@@ -106,11 +107,30 @@ internal abstract partial class ResultProcessor
     {
         protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (!reader.IsAggregate || reader.IsNull)
-            {
-                return false;
-            }
+            if (!TryParseArrayInfo(ref reader, out var info)) return false;
 
+            SetResult(message, info);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Reads an <c>ARINFO</c> reply: a flat map, of which the values we understand are scalars.
+    /// </summary>
+    /// <remarks>
+    /// Shared with the context surface's handler rather than written twice. Two copies of one parse is the
+    /// shape that lets the two paths disagree while every test that exercises only one of them passes; the
+    /// script pair carried that bug for exactly that reason.
+    /// </remarks>
+    internal static bool TryParseArrayInfo(ref RespReader reader, out ArrayInfo info)
+    {
+        if (!reader.IsAggregate || reader.IsNull)
+        {
+            info = default;
+            return false;
+        }
+
+        {
             var lease = ArrayPool<KeyValuePair<string, RedisValue>>.Shared.Rent(reader.AggregateLength() / 2);
             int count = 0;
             var iter = reader.AggregateChildren();
@@ -145,7 +165,7 @@ internal abstract partial class ResultProcessor
                 }
             }
 
-            SetResult(message, new ArrayInfo(new(lease, 0, count)));
+            info = new ArrayInfo(new(lease, 0, count));
             ArrayPool<KeyValuePair<string, RedisValue>>.Shared.Return(lease);
             return true;
         }

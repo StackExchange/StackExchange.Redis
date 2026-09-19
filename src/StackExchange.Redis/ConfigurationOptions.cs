@@ -18,6 +18,7 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Streams;
 using StackExchange.Redis.Availability;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -503,6 +504,7 @@ namespace StackExchange.Redis
         public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
 
 #if NET
+
         /// <summary>
         /// Supply a user certificate from a PEM file pair and enable TLS.
         /// </summary>
@@ -940,6 +942,7 @@ namespace StackExchange.Redis
         public SocketManager? SocketManager { get; set; }
 
 #if NET
+
         /// <summary>
         /// A <see cref="SslClientAuthenticationOptions"/> provider for a given host, for custom TLS connection options.
         /// Note: this overrides *all* other TLS and certificate settings, only for advanced use cases.
@@ -1127,6 +1130,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Tunnel = Tunnel,
+            ClientCache = ClientCache,
             LibraryName = LibraryName,
             _protocol = _protocol,
             _maintenanceNotifications = _maintenanceNotifications,
@@ -1349,6 +1353,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = null;
 #endif
             Tunnel = null;
+            ClientCache = null;
             _protocol = default;
             _maintenanceNotifications = default;
             _maintenanceRelaxedTimeout = _maintenanceRelaxedWindowMax = _maintenancePostEventRelaxedDuration = default;
@@ -1573,6 +1578,22 @@ namespace StackExchange.Redis
         public Tunnel? Tunnel { get; set; }
 
         /// <summary>
+        /// EXPERIMENTAL SPIKE. Enables a client-side cache on this connection, and says how it is built.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see langword="null"/> - the default - means no cache at all, which is the only safe default: a
+        /// cache changes what a read can return, and nobody should acquire that by upgrading.
+        /// </para>
+        /// <para>
+        /// Not part of the connection string. These are durations, prefixes and correctness choices rather
+        /// than a name, and round-tripping them through text would invite configuration by someone who had
+        /// not read what <see cref="CachePolicy.InvalidationGracePeriod"/> actually permits.
+        /// </para>
+        /// </remarks>
+        public CacheOptions? ClientCache { get; set; }
+
+        /// <summary>
         /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol
@@ -1700,7 +1721,7 @@ namespace StackExchange.Redis
         public CircuitBreaker? CircuitBreaker { get; set; }
 
         /// <summary>
-        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry"/> for databases
+        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry(IDatabaseAsync, RetryPolicy?)"/> for databases
         /// obtained from this connection; when <c>null</c>, <see cref="RetryPolicy.Default"/> is used.
         /// </summary>
         /// <remarks>

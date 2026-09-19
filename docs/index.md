@@ -15,7 +15,8 @@ Features
 - High performance multiplexed design, allowing for efficient use of shared connections from multiple calling threads
 - Abstraction over redis node configuration: the client can silently negotiate multiple redis servers for robustness and availability
 - Convenient access to the full redis feature-set
-- Full dual programming model both synchronous and asynchronous usage, without requiring "sync over async" usage of the [TPL][1]
+- Commands grouped by data type (`db.Strings`, `db.Hashes`, ...), asynchronous throughout, and extensible by other libraries without waiting on us
+- The original flat `IDatabase` API, synchronous and asynchronous, still fully supported
 - Support for redis "cluster"
 
 Installation
@@ -33,6 +34,7 @@ Documentation
 - [Server](Server) - running a redis server
 - [Authentication](Authentication) - connecting to a Redis server with user authentication
 - [Basic Usage](Basics) - getting started and basic usage
+- [The original `IDatabase` API](LegacyApi) - what `db.StringGet` became, and why; the old spelling is still supported
 - [Async Timeouts](AsyncTimeouts) - async timeouts and cancellation
 - [Configuration](Configuration) - options available when connecting to redis
 - [Client-side geographic failover](Failover) (Active-Active / "multi-DB client") - connecting to multiple redundant Redis endpoints for high availability
@@ -55,6 +57,7 @@ Documentation
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts, including the low-allocation `ScriptEvalLease` API
 - [Ad-hoc commands](Execute) - running commands without a dedicated API, including the low-allocation `ExecLease` API
+- [Extending the client](Extending) - for library authors: adding commands this client does not have, and migrating off `Execute(string, object[])`
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems

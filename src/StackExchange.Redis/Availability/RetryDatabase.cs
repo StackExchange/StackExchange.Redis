@@ -9,7 +9,10 @@ namespace StackExchange.Redis.Availability;
 internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     // IRedisArgsMutator <==== if we ever want to support key-mapping
 {
-    // Note: we very deliberately do not include synchronous support for retry; it is inherently delay-ish
+    /// <inheritdoc/>
+    public RespDatabaseContext Context => new(GetContextCore());
+    // Note: we very deliberately do not include synchronous support for retry; it is inherently delay-ish -
+    // which the context surface inherits: RespRetryExecutor.Send throws rather than quietly not retrying.
 
     // Note that only transient faults result in retries; this is defined by the RetryPolicy, along with
     // understanding the category. The default RetryPolicy works the same as the default CircuitBreaker.
@@ -18,6 +21,32 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
 
     // never: we refuse to wrap a database that carries one (see Validate)
     object? IInternalDatabaseAsync.AsyncState => null;
+
+    /// <summary>The inner context, with this database's retry decorating its executor.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not the inner context as it stands.</b> Handing that back would compile, read naturally and be
+    /// wrong: commands composed from it go through the <i>inner</i> executor, so every call through the
+    /// group surface would quietly lose the retry this wrapper exists to provide - invisibly, because the
+    /// command still succeeds whenever nothing fails. It threw for exactly that reason until the retry
+    /// executor existed.
+    /// </para>
+    /// <para>
+    /// <b>The controller is shared rather than rebuilt.</b> The two paths are then not merely configured
+    /// alike but configured by the same object, including the failover feature flag - which a
+    /// <see cref="RetryPolicy"/> alone does not carry, because whether failover is available is a fact
+    /// about the inner database. <see cref="GetNextFailover"/> is handed over for the same reason.
+    /// </para>
+    /// </remarks>
+    internal RespContext GetContextCore()
+        => _inner.Raw.WithExecutor(
+            new RespRetryExecutor(_inner.Raw.Executor ?? ThrowNoExecutor(), _controller, GetNextFailover));
+
+    private static RespExecutorBase ThrowNoExecutor() => throw new InvalidOperationException(
+        "The inner database's context has no executor, so there is nothing to retry through.");
+
+    /// <inheritdoc/>
+    RespContext IRespTarget.Context => GetContextCore();
 
     /// <inheritdoc/>
     public override string ToString() => this.BuildString();

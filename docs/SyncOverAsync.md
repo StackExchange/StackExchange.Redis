@@ -14,10 +14,10 @@ it is stuck.
 
 ```csharp
 // the problem
-var value = db.StringGetAsync(key).Result;
+var value = db.Strings.GetAsync(key).Result;
 
 // the fix
-var value = await db.StringGetAsync(key);
+var value = await db.Strings.GetAsync(key);
 ```
 
 There is no second option. In particular, switching to the synchronous API is **not** a fix — see below.

@@ -20,13 +20,13 @@ var db = muxer.GetDatabase();
 
 // load
 RedisKey testKey = "marc_abc";
-await db.KeyDeleteAsync(testKey);
+await db.Keys.DeleteAsync(testKey);
 Console.WriteLine("Writing...");
 for (int i = 0; i < 100; i++)
 {
     // sync every 50 iterations (pipeline the rest)
     var flags = (i % 50) == 0 ? CommandFlags.None : CommandFlags.FireAndForget;
-    await db.SetAddAsync(testKey, Guid.NewGuid().ToString(), flags);
+    await db.Sets.AddAsync(testKey, Guid.NewGuid().ToString(), flags);
 }
 
 // fetch
@@ -36,7 +36,8 @@ for (int i = 0; i < 10; i++)
 {
     // this is deliberately not using SCARD
     // (to put load on the inbound)
-    count += (await db.SetMembersAsync(testKey)).Length;
+    using var members = await db.Sets.MembersAsync(testKey);
+    count += members.Length;
 }
 Console.WriteLine("all done");
 ```

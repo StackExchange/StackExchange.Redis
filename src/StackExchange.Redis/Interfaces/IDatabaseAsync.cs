@@ -12,7 +12,18 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes functionality that is common to both standalone redis servers and redis clusters.
     /// </summary>
-    public partial interface IDatabaseAsync : IRedisAsync
+    /// <remarks>
+    /// <para>
+    /// <b>Carries <see cref="IRespKeyspaceTarget"/></b>, which is what lets a batch or a
+    /// transaction offer the command groups by name - <c>tran.Strings.SetAsync(...)</c> - rather than only
+    /// through a cast. That makes <c>Context</c> a required member for anyone implementing this interface,
+    /// including mocks and wrappers, and it is a deliberate break: adding to this family has historically
+    /// been the only way to add functionality here, which is precisely the problem the context surface
+    /// exists to end. Every addition after this one is an extension member on the context, so this is
+    /// meant to be the last time.
+    /// </para>
+    /// </remarks>
+    public partial interface IDatabaseAsync : IRedisAsync, IRespKeyspaceTarget
     {
         /// <inheritdoc cref="IDatabase.Database" />
         int Database { get; }
@@ -23,7 +34,7 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state to set on the created transaction.</param>
         /// <remarks>Unlike <see cref="IDatabase.CreateTransaction(object?)"/>, this offers no synchronous
         /// execution, so it is usable from async-only databases such as one created via
-        /// <see cref="Availability.DatabaseExtensions.WithRetry"/>.</remarks>
+        /// <see cref="Availability.DatabaseExtensions.WithRetry(IDatabaseAsync, Availability.RetryPolicy?)"/>.</remarks>
         ITransactionAsync CreateTransaction(object? asyncState = null);
 
         /// <summary>
@@ -674,6 +685,7 @@ namespace StackExchange.Redis
         Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
 #pragma warning disable RS0026 // similar overloads
+
         /// <inheritdoc cref="IDatabase.StreamAcknowledgeAndDelete(RedisKey, RedisValue, StreamTrimMode, RedisValue, CommandFlags)"/>
         Task<StreamTrimResult> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
@@ -694,6 +706,7 @@ namespace StackExchange.Redis
         Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags);
 
 #pragma warning disable RS0026 // similar overloads
+
         /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, RedisValue?, long?, bool, long?, StreamTrimMode, CommandFlags)"/>
         Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
@@ -743,6 +756,7 @@ namespace StackExchange.Redis
         Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None);
 
 #pragma warning disable RS0026
+
         /// <inheritdoc cref="IDatabase.StreamDelete(RedisKey, RedisValue[], CommandFlags)"/>
         Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 

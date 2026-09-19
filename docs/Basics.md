@@ -43,28 +43,31 @@ object asyncState = ...
 IDatabase db = redis.GetDatabase(databaseNumber, asyncState);
 ```
 
-Once you have the `IDatabase`, it is simply a case of using the [redis API](https://redis.io/commands). Note that all methods have both synchronous and asynchronous implementations. In line with Microsoft's naming guidance, the asynchronous methods all end `...Async(...)`, and are fully `await`-able etc.
+Once you have the `IDatabase`, it is simply a case of using the [redis API](https://redis.io/commands). Commands are grouped by the redis data type they belong to - `db.Strings`, `db.Hashes`, `db.Lists`, `db.Sets`, `db.SortedSets`, `db.Keys` and so on - and every command is asynchronous, ending `...Async(...)` in line with Microsoft's naming guidance.
 
 The simplest operation would be to store and retrieve a value:
 
 ```csharp
 string value = "abcdefg";
-db.StringSet("mykey", value);
+await db.Strings.SetAsync("mykey", value);
 ...
-string value = db.StringGet("mykey");
+RedisValue value = await db.Strings.GetAsync("mykey");
 Console.WriteLine(value); // writes: "abcdefg"
 ```
 
-Note that the `String...` prefix here denotes the [String redis type](https://redis.io/topics/data-types), and is largely separate to the [.NET String type][3], although both can store text data. However, redis allows raw binary data for both keys and values - the usage is identical:
+Note that the `Strings` group here denotes the [String redis type](https://redis.io/topics/data-types), and is largely separate to the [.NET String type][3], although both can store text data. However, redis allows raw binary data for both keys and values - the usage is identical:
 
 ```csharp
 byte[] key = ..., value = ...;
-db.StringSet(key, value);
+await db.Strings.SetAsync(key, value);
 ...
-byte[] value = db.StringGet(key);
+RedisValue value = await db.Strings.GetAsync(key);
+byte[] bytes = value!;
 ```
 
 The entire range of [redis database commands](https://redis.io/commands) covering all redis data types is available for use.
+
+> **Coming from an earlier version?** These were `db.StringSet` and `db.StringGet`, on one flat interface. That spelling still works and is still supported - see [The original `IDatabase` API](LegacyApi) for what changed, the full mapping, and the handful of commands that are not on the groups yet.
 
 Using redis pub/sub
 ----
@@ -131,35 +134,29 @@ DateTime lastSave = server.LastSave();
 ClientInfo[] clients = server.ClientList();
 ```
 
-Sync vs Async vs Fire-and-Forget
+Async vs Fire-and-Forget
 ---
 
-There are 3 primary usage mechanisms with StackExchange.Redis:
+There are 2 primary usage mechanisms with StackExchange.Redis:
 
-- Synchronous - where the operation completes before the methods returns to the caller (note that while this may block the caller, it absolutely **does not** block other threads: the key idea in StackExchange.Redis is that it aggressively shares the connection between concurrent callers)
-- Asynchronous - where the operation completes some time in the future, and a `Task` or `Task<T>` is returned immediately, which can later:
-    - be `.Wait()`ed (blocking the current thread until the response is available)
-    - have a continuation callback added ([`ContinueWith`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.continuewith) in the TPL)
-    - be *awaited* (which is a language-level feature that simplifies the latter, while also continuing immediately if the reply is already known)
+- Asynchronous - where the operation completes some time in the future, and a `ValueTask` or `ValueTask<T>` is returned immediately, which is then *awaited*. This is how the command groups work, and it is what you should reach for: it continues immediately if the reply is already known, and it never ties up a thread waiting for the network.
 - Fire-and-Forget - where you really aren't interested in the reply, and are happy to continue irrespective of the response
-
-The synchronous usage is already shown in the examples above. This is the simplest usage, and does not involve the [TPL][1].
-
-For asynchronous usage, the key difference is the `Async` suffix on methods, and (typically) the use of the `await` language feature. For example:
 
 ```csharp
 string value = "abcdefg";
-await db.StringSetAsync("mykey", value);
+await db.Strings.SetAsync("mykey", value);
 ...
-string value = await db.StringGetAsync("mykey");
+RedisValue value = await db.Strings.GetAsync("mykey");
 Console.WriteLine(value); // writes: "abcdefg"
 ```
 
 The fire-and-forget usage is accessed by the optional `CommandFlags flags` parameter on all methods (defaults to none). In this usage, the method returns the default value immediately (so a method that normally returns a `String` will always return `null`, and a method that normally returns an `Int64` will always return `0`). The operation will continue in the background. A typical use-case of this might be to increment page-view counts:
 
 ```csharp
-db.StringIncrement(pageKey, flags: CommandFlags.FireAndForget);
+await db.Strings.IncrementAsync(pageKey, flags: CommandFlags.FireAndForget);
 ```
+
+A third mechanism exists and is deliberately not shown here: the **synchronous** members of the original `IDatabase` API - `await db.Strings.GetAsync(key)` and friends - which block the calling thread until the reply arrives. They still work, and for a console tool or a startup path they are fine. On a server they are the single most common cause of the timeouts this library gets reported, because the thread you block is one the reply may need: see [Sync over async](SyncOverAsync), and [The original `IDatabase` API](LegacyApi) for the mapping.
 
   [1]: https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
   [2]: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.asyncstate

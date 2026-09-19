@@ -6,13 +6,15 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO.Hashing;
 using System.Runtime.CompilerServices;
 using RESPite;
+using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents a check for an existing value - this could be existence (NX/XX), equality (IFEQ/IFNE), or digest equality (IFDEQ/IFDNE).
 /// </summary>
-public readonly struct ValueCondition
+public readonly struct ValueCondition : IRespArgument
 {
     internal enum ConditionKind : byte
     {
@@ -280,34 +282,61 @@ public readonly struct ValueCondition
         _ => 0,
     };
 
+    /// <summary>
+    /// The already-framed RESP keyword for this condition - <c>NX</c>, <c>IFDEQ</c>, ... - or empty when
+    /// the condition contributes no arguments.
+    /// </summary>
+    /// <remarks>
+    /// Shared by both writers rather than restated in each; see the equivalent on <see cref="Expiration"/>.
+    /// <see cref="IsValueTest"/> and <see cref="IsDigestTest"/> say what follows it, and in which encoding -
+    /// those two stay <c>internal</c> because <c>DigestUnitTests</c> asserts on them; this does not.
+    /// </remarks>
+    private ReadOnlySpan<byte> KeywordResp => _kind switch
+    {
+        ConditionKind.Exists => "$2\r\nXX\r\n"u8,
+        ConditionKind.NotExists => "$2\r\nNX\r\n"u8,
+        ConditionKind.ValueEquals => "$4\r\nIFEQ\r\n"u8,
+        ConditionKind.ValueNotEquals => "$4\r\nIFNE\r\n"u8,
+        ConditionKind.DigestEquals => "$5\r\nIFDEQ\r\n"u8,
+        ConditionKind.DigestNotEquals => "$5\r\nIFDNE\r\n"u8,
+        _ => default,
+    };
+
+    /// <inheritdoc/>
+    /// <remarks>See <see cref="Expiration"/> for why this is an explicit implementation.</remarks>
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
+    {
+        var keyword = KeywordResp;
+        if (keyword.IsEmpty) return; // ValueCondition.Always contributes no arguments
+
+#pragma warning disable SER011 // pre-framed constants owned by this type; see Expiration for the reasoning
+        handler.AppendFormatted(new RespFragment(keyword));
+#pragma warning restore SER011
+        if (IsValueTest)
+        {
+            handler.AppendFormatted(_value);
+        }
+        else if (IsDigestTest)
+        {
+            // the wire form is hex of the big-endian digest bytes, NOT the int64 the RedisValue holds;
+            // AppendBulk takes the stack buffer directly, where a RedisValue would need a byte[]
+            handler.AppendBulk(WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]));
+        }
+    }
+
     internal void WriteTo(in MessageWriter writer)
     {
-        switch (_kind)
+        var keyword = KeywordResp;
+        if (keyword.IsEmpty) return;
+
+        writer.WriteRaw(keyword);
+        if (IsValueTest)
         {
-            case ConditionKind.Exists:
-                writer.WriteRaw("$2\r\nXX\r\n"u8);
-                break;
-            case ConditionKind.NotExists:
-                writer.WriteRaw("$2\r\nNX\r\n"u8);
-                break;
-            case ConditionKind.ValueEquals:
-                writer.WriteRaw("$4\r\nIFEQ\r\n"u8);
-                writer.WriteBulkString(_value);
-                break;
-            case ConditionKind.ValueNotEquals:
-                writer.WriteRaw("$4\r\nIFNE\r\n"u8);
-                writer.WriteBulkString(_value);
-                break;
-            case ConditionKind.DigestEquals:
-                writer.WriteRaw("$5\r\nIFDEQ\r\n"u8);
-                var written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
-                writer.WriteBulkString(written);
-                break;
-            case ConditionKind.DigestNotEquals:
-                writer.WriteRaw("$5\r\nIFDNE\r\n"u8);
-                written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
-                writer.WriteBulkString(written);
-                break;
+            writer.WriteBulkString(_value);
+        }
+        else if (IsDigestTest)
+        {
+            writer.WriteBulkString(WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]));
         }
     }
 
@@ -393,6 +422,36 @@ public readonly struct ValueCondition
 
     internal ValueCondition ThrowInvalidOperation([CallerMemberName] string? operation = null)
         => throw new InvalidOperationException($"{operation} cannot be used with a {_kind} condition.");
+
+    /// <summary>
+    /// Read a <c>DIGEST</c> reply as the condition a later write can be gated on; null for a key that
+    /// does not exist.
+    /// </summary>
+    /// <param name="reader">The reader, positioned on the reply.</param>
+    /// <param name="digest">The parsed digest, when this returns <see langword="true"/>.</param>
+    /// <remarks>
+    /// Shared by both readers - the <c>ResultProcessor</c> path and the interpolated surface's handler -
+    /// for the same reason <see cref="KeywordResp"/> is shared by both writers: one copy of the shape
+    /// knowledge, so there is nothing to fall out of step.
+    /// </remarks>
+    internal static bool TryReadDigest(in RespReader reader, out ValueCondition? digest)
+    {
+        if (reader.IsNull) // for example, key doesn't exist
+        {
+            digest = null;
+            return true;
+        }
+
+        if (reader.ScalarLengthIs(2 * DigestBytes))
+        {
+            var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[2 * DigestBytes]);
+            digest = ParseDigest(span);
+            return true;
+        }
+
+        digest = null;
+        return false;
+    }
 
     internal When AsWhen() => _kind switch
     {
