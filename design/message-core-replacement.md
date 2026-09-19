@@ -560,6 +560,36 @@ Of the new core's ~497 bytes, **~300 is addressable and none of it is the core d
   *because* continuations are queued rather than run inline. Not a bug to fix — that is thread theft's
   price, and the existing core pays it too.
 
+#### Update: the async state machine, pooled
+
+The ~176-byte item above was the state machine of the send path's awaiting tail, boxed because the await
+suspends. `[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]` on those tails
+(net6.0+; down-level keeps the ordinary builder) pools the box. Re-measured in one session, so the
+comparison is not across machine states:
+
+| arm | 1 | 4 | 16 | 64 | bytes/op |
+|---|---|---|---|---|---|
+| old | 27,891 | 83,072 | 205,099 | 447,213 | 361–375 |
+| new | 28,084 | 84,566 | 225,999 | **549,626** | **296.1** |
+
+**The new core now wins on both axes**: +23% throughput at 64 workers, and −21% allocation at every
+worker count — flat, and still dying entirely in gen0 where the old core promotes (30 gen1 and a gen2 at
+64 workers). Throughput improved slightly too, which is the opposite of what a pooling scheme usually
+costs; the box was being allocated and collected on the hot path, and not doing that is cheaper than
+doing it.
+
+**The price, stated rather than buried:** the returned `ValueTask<T>` becomes single-consumption.
+Awaiting twice now throws where a `Task`-backed one tolerated it. `ValueTask<T>` has always documented
+that awaiting more than once is illegal, so this *enforces* the existing contract rather than narrowing
+it — but it is a behaviour change for anyone who was relying on the forgiving implementation, and it is
+the sort of thing that shows up as a bug report rather than a compile error. `AsTask()` still works,
+once.
+
+Remaining after this: ~96 the caller's own (not recoverable, and not a difference — 3.3.0 pays it too),
+~72 the reply copy that `RespPayload.Create` already calls scaffolding, ~48 the per-request lease, and
+~80 in the connection and operation path including the thread-pool work item that buys us out of thread
+theft.
+
 #### Creep, which is the other half of the question
 
 The new core's allocation is **flat at 496.1 and dies in gen0** — zero gen1, zero gen2 at every worker

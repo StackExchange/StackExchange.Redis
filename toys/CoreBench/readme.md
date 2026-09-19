@@ -35,7 +35,7 @@ Counter `INCR`, one key per worker, 3s per measurement, net10.0, server GC, loca
 |---|---|---|---|---|---|
 | **3.3.0** (shipped package) | 27,929 | 79,896 | 205,505 | 426,699 | 361-383 |
 | **old** (this branch) | 26,942 | 82,188 | 204,441 | 425,607 | 361-375 |
-| **new** (this branch) | 27,626 | 86,635 | 224,965 | **553,822** | 496.1 |
+| **new** (this branch) | 28,084 | 84,566 | 225,999 | **549,626** | **296.1** |
 | **newcache** (cacheable `GET`) | 7,667,317 | — | 79,032,968 | 89,931,589 | **0.0** |
 
 **3.3.0 and this branch's old path are identical within noise**, at every worker count and in
@@ -59,7 +59,7 @@ Subtractive, one worker, each row a complete operation:
 | `render` | 48.0 | the per-request lease |
 | `direct` | 249.1 | +105 connection and operation, including the thread-pool work item |
 | `exec` | 321.1 | **+72** `RespPayload` + `RefCountedBuffer` |
-| `new` | 496.9 | **+176** the context surface's own async state machine |
+| `new` | 296.9 | the context surface's async state machine, now **pooled** (was 496.9, +176) |
 | `newcache` | 0.0 | the same surface, when nothing suspends |
 
 So of the new core's ~497 bytes:
