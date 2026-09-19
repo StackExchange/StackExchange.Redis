@@ -31,7 +31,7 @@ namespace StackExchange.Redis
     /// arrive already framed, there is one shape.
     /// </para>
     /// </remarks>
-    internal sealed class RespMessageExecutor : IRespExecutor, IRespPreambleExecutor
+    internal sealed class RespMessageExecutor : IRespExecutor, IRespPreambleExecutor, IRespRunExecutor
     {
         private readonly RedisBase _target;
 
@@ -79,6 +79,120 @@ namespace StackExchange.Redis
             // is the model settled in design notes section 6.11 - the request completes by itself
             var message = new FrameMessage(Database, request);
             return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>
+        /// <b>The same mechanism as the preamble pair, at a larger N.</b> <c>FrameRunMessage</c> is an
+        /// <see cref="IMultiMessage"/>, and <c>PhysicalBridge</c> expands one <i>inside the write lock</i>,
+        /// writing every yielded sub-command consecutively - which is the whole of the contiguity
+        /// guarantee, and what <c>TransactionMessage</c> has always used.
+        /// </para>
+        /// <para>
+        /// <b>The last request is the run message itself</b>, and the rest are yielded ahead of it. That is
+        /// not a trick for its own sake: only the messages a multi-message yields are enqueued for replies,
+        /// so a wrapper that yielded none of itself would never be written and never complete - which is
+        /// the bug <c>FramePairMessage</c> documents having hit. Yielding itself last means the outer task
+        /// is the last reply, and the last reply landing is the run being done.
+        /// </para>
+        /// <para>
+        /// <b>Each of the others carries its own result box</b>, which is how a single write produces a
+        /// task per request. The boxes are the shim's own plumbing - <c>IResultBox</c> belongs to the
+        /// <c>Message</c> world that is being replaced - and deliberately do not reach the context surface,
+        /// which sees only the <see cref="ValueTask{TResult}"/>s.
+        /// </para>
+        /// </remarks>
+        public ValueTask SendAsync(
+            scoped ReadOnlySpan<RespRequest> run,
+            scoped Span<ValueTask<RespPayload>> replies,
+            CancellationToken cancellationToken = default)
+        {
+            if (run.Length != replies.Length)
+            {
+                throw new ArgumentException("One reply slot is needed per request.", nameof(replies));
+            }
+
+            switch (run.Length)
+            {
+                case 0:
+                    return default;
+                case 1:
+                    // a run of one is a send; the multi-message would buy nothing and cost an expansion
+                    replies[0] = SendAsync(run[0], cancellationToken);
+                    return Awaited(replies[0]);
+            }
+
+            var tail = run.Length - 1;
+            var heads = new Message[tail];
+            for (var i = 0; i < tail; i++)
+            {
+                var box = TaskResultBox<RespPayload>.Create(out var source, null);
+                var message = new FrameMessage(Database, run[i]);
+                message.SetSource(box, PayloadProcessor.Instance);
+                heads[i] = message;
+                replies[i] = new ValueTask<RespPayload>(source.Task);
+            }
+
+            var last = _target.ExecuteAsync(
+                new FrameRunMessage(Database, heads, run[tail]),
+                PayloadProcessor.Instance,
+                defaultValue: null!)!;
+
+            replies[tail] = new ValueTask<RespPayload>(last);
+            return new ValueTask(last);
+
+            static async ValueTask Awaited(ValueTask<RespPayload> pending) => await pending.ForAwait();
+        }
+
+        /// <summary>A run of frames written as one unit; the last of them is this message.</summary>
+        /// <remarks><inheritdoc cref="SendAsync(ReadOnlySpan{RespRequest}, Span{ValueTask{RespPayload}}, CancellationToken)" path="/remarks"/></remarks>
+        private sealed class FrameRunMessage : Message, IMultiMessage
+        {
+            private readonly Message[] _heads;
+            private readonly RespRequest _tail;
+
+            internal FrameRunMessage(int database, Message[] heads, in RespRequest tail)
+                : base(database, tail.Flags & ~MaskRetryCategory | tail.Flags, tail.Command)
+            {
+                _heads = heads;
+                _tail = tail;
+            }
+
+            /// <remarks><inheritdoc cref="FramePairMessage.CanWriteWithoutExpansion" path="/remarks"/></remarks>
+            public bool CanWriteWithoutExpansion => false;
+
+            public override int ArgCount => _tail.ArgCount - 1;
+
+            /// <summary>
+            /// The whole run's slot, which is what makes "one connection" checkable rather than hoped for.
+            /// </summary>
+            /// <remarks>
+            /// Combining is what refuses a run that spans two slots: <c>CombineSlot</c> answers
+            /// <c>MultipleSlots</c>, and routing fails the send rather than writing half of it to one
+            /// server. A caller that wants a batch across servers has to split it first, which is exactly
+            /// what <c>RedisBatch.Execute</c> does.
+            /// </remarks>
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                var slot = _tail.Slot;
+                foreach (var head in _heads)
+                {
+                    slot = ServerSelectionStrategy.CombineSlot(slot, head.GetHashSlot(serverSelectionStrategy));
+                }
+
+                return slot;
+            }
+
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection) => Expand();
+
+            private IEnumerable<Message> Expand()
+            {
+                foreach (var head in _heads) yield return head;
+                yield return this;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer) => writer.WriteRaw(_tail.Span);
         }
 
         /// <summary>

@@ -65,6 +65,61 @@ namespace StackExchange.Redis
     /// identity as a cache key and its routing. Only their adjacency is being requested.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// An executor that can write several requests as <b>one run</b>: consecutive, on one connection, with
+    /// nothing of anybody else's between them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Optional, and type-tested at the call site</b>, exactly as <see cref="IRespPreambleExecutor"/> is
+    /// - an executor that cannot do this simply does not implement it, and the caller sends the requests
+    /// one at a time instead. That degrades to a pipeline, which is correct but not contiguous.
+    /// </para>
+    /// <para>
+    /// <b>The run must resolve to a single slot.</b> One connection means one server, so every request that
+    /// names a key has to agree about which one - the slots are combined, and a run that spans two is
+    /// refused by routing rather than silently split. That is the constraint the shape cannot express and
+    /// this paragraph has to: splitting a run across servers is the caller's problem, and is why the
+    /// shipped <c>RedisBatch.Execute</c> groups per bridge before it writes anything.
+    /// </para>
+    /// <para>
+    /// <b>Contiguity is a WRITE-side guarantee, and only that.</b> It is tempting to read "one run" as "N
+    /// replies in a row", and that is emphatically not what comes back. Between any two of this run's
+    /// replies the stream may carry a RESP3 out-of-band push (a pub/sub message, a client-side-caching
+    /// invalidation), the reply to a <c>SELECT</c> the write path injected because the connection was on
+    /// another database, a high-integrity response token, or a preamble's reply such as
+    /// <c>SCRIPT LOAD</c>'s. The n'th frame is not the n'th reply, and nothing may assume it is.
+    /// </para>
+    /// <para>
+    /// All of that is demultiplexed below, which is precisely why this hands back a <b>task per request</b>
+    /// rather than one result holding N payloads: the replies are N independent events that happen to have
+    /// been asked for together. Only the <i>writing</i> was ever a single thing. A caller that wants them
+    /// gathered can gather them - but that is a convenience built on the tasks, not a shape the wire
+    /// supports.
+    /// </para>
+    /// </remarks>
+    internal interface IRespRunExecutor
+    {
+        /// <summary>Write every request as one run, and hand back a reply task for each.</summary>
+        /// <param name="run">The requests, in the order they should reach the server.</param>
+        /// <param name="replies">Filled with one task per request, in the same order; same length as <paramref name="run"/>.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <returns>Completes when the final request has been answered.</returns>
+        /// <remarks>
+        /// <b>Two levels, because a run has two meanings.</b> Each request has its own reply and its own
+        /// caller waiting for it - that is <paramref name="replies"/>, and it is the honest one. The return
+        /// value is the convenience: replies to pipelined commands come back in order on a connection, so
+        /// the last request being answered is ordinarily the run being done. <b>Ordinarily</b>, because a
+        /// redirection can re-dispatch one command elsewhere and land its reply after the others - so a
+        /// caller that needs "all of them" should await <paramref name="replies"/>, which is what
+        /// <c>RespBatchExecutor</c> does.
+        /// </remarks>
+        ValueTask SendAsync(
+            scoped ReadOnlySpan<RespRequest> run,
+            scoped Span<ValueTask<RespPayload>> replies,
+            CancellationToken cancellationToken = default);
+    }
+
     internal interface IRespPreambleExecutor
     {
         /// <summary>Issue <paramref name="preamble"/> and <paramref name="request"/> as one unit.</summary>

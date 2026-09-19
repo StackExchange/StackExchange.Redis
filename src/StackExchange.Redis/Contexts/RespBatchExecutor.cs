@@ -40,13 +40,17 @@ namespace StackExchange.Redis
     /// retains, and releases when the batch is done with it.
     /// </para>
     /// <para>
-    /// <b>This pipelines; it does not yet batch.</b> Executing issues every queued send before awaiting any
-    /// of them, so they travel without waiting for each other - but they are separate messages, and
-    /// another caller's command may land between two of them. The contiguity guarantee wants an executor
-    /// overload that takes the whole run - <c>IRespPreambleExecutor</c> is already that shape with N=2,
-    /// since <c>FramePairMessage</c> is an <c>IMultiMessage</c> and the bridge expands one inside the
-    /// write lock. A batch may span bridges in cluster, though, which is why <c>RedisBatch.Execute</c>
-    /// groups per bridge instead of being one message; see the queue for the decided shape.
+    /// <b>It batches when the executor underneath can, and pipelines when it cannot.</b> An
+    /// <see cref="IRespRunExecutor"/> writes the whole queue as one run - consecutive, on one connection,
+    /// with nothing of anybody else's between them - which is the guarantee the shipped <see cref="IBatch"/>
+    /// gives. Without one, the commands are issued individually before any is awaited: they still travel
+    /// without waiting for each other, but another caller's command may land between two of them.
+    /// </para>
+    /// <para>
+    /// <b>A run must resolve to a single slot</b>, because one connection means one server - so this does
+    /// not yet do what <c>RedisBatch.Execute</c> does for cluster, which is group per bridge and write a
+    /// run per group. That splitting belongs above this: it needs server selection, which an executor does
+    /// not have. Queued.
     /// </para>
     /// </remarks>
     internal sealed class RespBatchExecutor : IRespExecutor
@@ -136,21 +140,46 @@ namespace StackExchange.Redis
             // not built unless one does
             List<int>? faulted = null;
             var sends = new ValueTask<RespPayload>[queue.Count];
-            for (var i = 0; i < queue.Count; i++)
+
+            if (_inner is IRespRunExecutor runner)
             {
-                var pending = queue[i];
+                // the contiguous path: one write, nothing of anybody else's between the commands
+                var run = new RespRequest[queue.Count];
+                for (var i = 0; i < queue.Count; i++) run[i] = queue[i].Request;
+
                 try
                 {
-                    sends[i] = _inner.SendAsync(pending.Request, cancellationToken);
+                    _ = runner.SendAsync(run, sends, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    // a send that threw synchronously never produced a task to await; fault this one and
-                    // carry on issuing the rest, so one bad command does not strand the others
-                    pending.Fail(ex);
-                    faulted ??= [];
-                    faulted.Add(i);
-                    sends[i] = default;
+                    // the run is written as a unit, so it fails as one - there is no half-sent state to
+                    // reconcile, and every caller gets the same answer
+                    foreach (var pending in queue) pending.Fail(ex);
+                    foreach (var pending in queue) pending.Release();
+                    return;
+                }
+            }
+            else
+            {
+                // no run support: send them one at a time, which pipelines but does not guarantee that
+                // another caller's command will not land between two of ours
+                for (var i = 0; i < queue.Count; i++)
+                {
+                    var pending = queue[i];
+                    try
+                    {
+                        sends[i] = _inner.SendAsync(pending.Request, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        // a send that threw synchronously never produced a task to await; fault this one
+                        // and carry on issuing the rest, so one bad command does not strand the others
+                        pending.Fail(ex);
+                        faulted ??= [];
+                        faulted.Add(i);
+                        sends[i] = default;
+                    }
                 }
             }
 

@@ -464,6 +464,68 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.Contains("no synchronous send", ex.Message);
     }
 
+    /// <summary>
+    /// A batch over the context surface really does write its queue as one run.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test that matters for <c>FrameRunMessage</c>: it exercises the expansion inside the bridge's
+    /// write lock, the per-request result boxes, and the combined slot - none of which a fake executor
+    /// can reach. A wrong slot or a message that never yields itself hangs here rather than failing a
+    /// byte comparison somewhere.
+    /// </para>
+    /// <para>
+    /// The keys share a hash tag so the run resolves to one slot, which is what "one connection" requires;
+    /// splitting a batch across servers is a layer above this and is not done yet.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ABatchWritesItsQueueAsOneRun()
+    {
+        await using var conn = Create();
+        var context = conn.GetDatabase().Context;
+        var key = Me();
+
+        await context.Keys.DeleteAsync([$"{{{key}}}:a", $"{{{key}}}:b", $"{{{key}}}:c"]);
+
+        using var batch = context.CreateBatch();
+        var setA = batch.Context.Strings.SetAsync($"{{{key}}}:a", "1");
+        var setB = batch.Context.Strings.SetAsync($"{{{key}}}:b", "2");
+        var getC = batch.Context.Strings.GetAsync($"{{{key}}}:c");
+
+        Assert.False(setA.IsCompleted); // nothing has gone anywhere yet
+
+        await batch.ExecuteAsync();
+
+        Assert.True(await setA);
+        Assert.True(await setB);
+        Assert.True((await getC).IsNull);
+
+        // and the writes really happened, through the run rather than being dropped
+        Assert.Equal("1", (string?)await context.Strings.GetAsync($"{{{key}}}:a"));
+        Assert.Equal("2", (string?)await context.Strings.GetAsync($"{{{key}}}:b"));
+    }
+
+    /// <summary>A single-command batch takes the ordinary send, and still works.</summary>
+    /// <remarks>
+    /// A run of one buys nothing and costs an expansion, so it is short-circuited - which is worth a test
+    /// because it is the boundary where the multi-message stops being used at all.
+    /// </remarks>
+    [Fact]
+    public async Task ABatchOfOneStillWorks()
+    {
+        await using var conn = Create();
+        var context = conn.GetDatabase().Context;
+        var key = Me();
+
+        using var batch = context.CreateBatch();
+        var set = batch.Context.Strings.SetAsync(key, "solo");
+        await batch.ExecuteAsync();
+
+        Assert.True(await set);
+        Assert.Equal("solo", (string?)await context.Strings.GetAsync(key));
+    }
+
     /// <summary>A retrying TRANSACTION still refuses, and for a reason of its own.</summary>
     /// <remarks>
     /// A retrying database replays one operation, so decorating its executor reproduces it exactly. A

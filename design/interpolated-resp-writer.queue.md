@@ -3024,6 +3024,14 @@ Four consequences, none of them cosmetic:
       one connection. A transaction can, by definition. So the primitive is "these go together, one
       connection"; splitting a batch across bridges stays a layer above it.
 
+      **The replies are NOT a block, and this is the thing to remember.** Marc: *"think RESP3, out-of-band
+      reply in between responses... also: high integrity tokens, select responses"*. Between any two of a
+      run's replies the stream may carry a RESP3 push, the reply to a `SELECT` the write path injected, a
+      high-integrity response token, or a preamble's reply. The n'th frame is not the n'th reply. So the
+      run primitive hands back **a task per request**, not a `ReadOnlyLease<RespPayload>` or anything else
+      positional - contiguity is a write-side guarantee and only that. Gathering the results is a
+      convenience built on the tasks; it is not a shape the wire supports.
+
       **Do NOT build this on `IResultBox<T>`.** It was suggested as a way to drop the per-element `Task`,
       and it aims at the wrong thing: the `Message` shim is transitional and the core is to be gutted -
       Marc: *"unlike TransitionalDatabase, this shim is transient"*. The durable version of the same idea is

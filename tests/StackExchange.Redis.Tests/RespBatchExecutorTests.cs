@@ -280,6 +280,74 @@ public class RespBatchExecutorTests
         Assert.False(executor.HasSent);
     }
 
+    // ---- the contiguous path ------------------------------------------------------------------------
+
+    /// <summary>Writes a whole run at once, and refuses to be used one command at a time.</summary>
+    /// <remarks>
+    /// The single-request <c>SendAsync</c> throws, so a test that passes has demonstrably taken the run
+    /// path rather than merely produced the same answers by pipelining.
+    /// </remarks>
+    private sealed class RunExecutor(params string[] replies) : IRespExecutor, IRespRunExecutor
+    {
+        /// <summary>One entry per run, holding that run's frames - so "one write" is checkable.</summary>
+        public List<string[]> Runs { get; } = [];
+
+        public int Database => 0;
+
+        public RespPayload Send(in RespRequest request) => throw new NotSupportedException();
+
+        public ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("this executor writes runs, not single commands");
+
+        public ValueTask SendAsync(
+            scoped ReadOnlySpan<RespRequest> run,
+            scoped Span<ValueTask<RespPayload>> replies,
+            CancellationToken cancellationToken = default)
+        {
+            var frames = new string[run.Length];
+            for (var i = 0; i < run.Length; i++)
+            {
+                frames[i] = Encoding.UTF8.GetString(run[i].Span.ToArray()).Replace("\r\n", "|");
+                replies[i] = new ValueTask<RespPayload>(
+                    RespPayload.Create(Encoding.UTF8.GetBytes(replies.Length == 0 ? "+OK\r\n" : this.replies[Math.Min(i, this.replies.Length - 1)])));
+            }
+
+            Runs.Add(frames);
+            return default;
+        }
+
+        private string[] replies { get; } = replies;
+    }
+
+    /// <summary>
+    /// When the executor can write a run, the whole batch goes out as one.
+    /// </summary>
+    /// <remarks>
+    /// This is the guarantee the shipped <see cref="IBatch"/> gives and the pipelined fallback does not:
+    /// nothing of anybody else's between two of our commands. It is a <b>write-side</b> property only -
+    /// in RESP3 an out-of-band push can still arrive between two replies, which is why each request is
+    /// answered on its own task rather than the run handing back one result holding them all.
+    /// </remarks>
+    [Fact]
+    public async Task ARunCapableExecutorGetsTheWholeQueueAtOnce()
+    {
+        var executor = new RunExecutor("$1\r\na\r\n", "$1\r\nb\r\n", "$1\r\nc\r\n");
+        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateBatch();
+
+        var first = batch.Context.Strings.GetAsync("k1");
+        var second = batch.Context.Strings.GetAsync("k2");
+        var third = batch.Context.Strings.GetAsync("k3");
+
+        await batch.ExecuteAsync();
+
+        var run = Assert.Single(executor.Runs); // ONE write, not three
+        Assert.Equal(["*2|$3|GET|$2|k1|", "*2|$3|GET|$2|k2|", "*2|$3|GET|$2|k3|"], run);
+
+        Assert.Equal("a", (string?)await first);
+        Assert.Equal("b", (string?)await second);
+        Assert.Equal("c", (string?)await third);
+    }
+
     /// <summary>The context it was built from is untouched, and still sends immediately.</summary>
     [Fact]
     public async Task TheSourceContextIsNotBatched()
