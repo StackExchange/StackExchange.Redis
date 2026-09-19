@@ -67,6 +67,33 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [x] **Core phase 1: the operation type is in RESPite** — `src/RESPite/Operations/`, 24 lifecycle tests,
+      internal rather than public (nothing commits API until something holds one). Three design changes
+      came out of building it rather than reading the old branch: version and flags must share one word so
+      the outcome claim is a single CAS; `IsRecyclable` is not `IsCompleted`, so `TrySetException` takes
+      `definite`; and the parse capability has to survive `Reset`, or every command after the first on a
+      recycled instance silently returns `default`. Written up in design notes §7a, along with the
+      correction that §5's "no monitor" was wrong — the monitor stays, the *box* is what goes.
+
+- [x] **`IsConnected` is off the fallback** — it sends nothing, so it became a routing question on
+      `RespExecutorBase`, defaulting to `true` and overridden by `RespMessageExecutor` with the shipped
+      `SelectServer(PING, flags, key)` logic. 20 of the 637 gap tests. Four members left on the fallback:
+      `CreateBatch`, `CreateTransaction`, `IdentifyEndpoint(Async)`.
+
+- [x] **The transitional re-runs went 11 classes → 29**, 683 → ~1,507 tests, full suite 8,316 → 9,145.
+      `ScriptingTests` was tried and **removed**, which is the useful half: the SCRIPT cache is
+      server-global, not key-scoped, so two copies flush each other's scripts and both fail
+      intermittently. The rule, now recorded in the file — a suite can be re-run if its state is
+      key-scoped; anything mutating server-global state (script cache, CONFIG, CLIENT, the keyspace at
+      large) cannot.
+
+- [ ] **`IdentifyEndpoint` / `IdentifyEndpointAsync` are blocked on the core, and it is worth knowing why.**
+      `ConnectionIdentityProcessor` ignores the reply entirely and returns
+      `connection.BridgeCouldBeNull?.ServerEndPoint.EndPoint` — it answers *which connection served this*,
+      which `RespPayload` does not carry. That is a §4 "what the new token must keep" item, and §7 step 4
+      already predicted these two come off the fallback there. 24 tests.
+
+
 - [ ] **Where a cache hit's ~125ns goes — profiled 2026-09-18** (`CacheHitSendBenchmarks`, in-process,
       zero allocation throughout). Measured **subtractively**: start from the full call and remove one
       layer at a time, so every row is a complete operation whose result is consumed.
