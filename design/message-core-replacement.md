@@ -343,8 +343,10 @@ Proposed order, each step independently shippable:
    consumers yet. This is the piece most worth getting right in isolation.~~ **Done** — `0097f414`,
    `src/RESPite/Operations/`, 24 tests. Internal rather than public: nothing commits API until something
    holds one. Three design changes came out of building it, in §7a below.
-2. **Port the diagnostics inventory** (§4) onto it, with a test that renders a timeout report from a
-   synthetic operation. Do this *before* any consumer, so the shape is decided while it is cheap.
+2. ~~**Port the diagnostics inventory** (§4) onto it, with a test that renders a timeout report from a
+   synthetic operation. Do this *before* any consumer, so the shape is decided while it is cheap.~~
+   **Done** — `RespOperationDiagnostics`, `RespCommandStatus`, 10 tests. The shape decision it forced is
+   in §7b.
 3. **One executor, one connection**: the server-endpoint executor over a real connection, behind
    `RespExecutorBase`. The context surface already talks to that abstraction, so this is swappable.
 4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` and the endpoint-identity
@@ -393,6 +395,37 @@ Two smaller repairs, both in the same family — something outliving the reset t
 test failed. Three mutations, two caught, one not — and the one that was not is why the writer-outlives-reset
 test exists. Worth repeating on phases 2-6, because this is diagnostics-adjacent code where nothing fails
 loudly when it is wrong.
+
+
+### 7b. What phase 2 decided
+
+**The inventory is one struct, not seven fields.** `Reset` has to be exhaustive, and §4 says why: a
+recycled operation that leaks a previous life's timestamps produces a timeout report describing the wrong
+command — which is worse than no report, because it is believed. Seven fields means seven lines and
+forgetting one is invisible; one struct means `_diagnostics = default` and the compiler owns the
+completeness. A mutation removing that line fails a test.
+
+**The split with the host is "what the write path knows".** RESPite cannot see `ProfiledCommand`,
+`PhysicalConnection` or `CommandStatus`, and should not model them. So the struct holds what the write
+path itself produces — created stamps, the status ladder, byte counters at enqueue, the write tick, the
+high-integrity token — plus two opaque `object?` slots: `EnqueuedTo` for the connection and `HostState`
+for the host's per-command object. The host composes; it does not reach in and read fields.
+
+**`RespCommandStatus` mirrors the shipped enum exactly, ordering quirk included** (`Sent` = 2 numerically
+before `WaitingInBacklog` = 3). A public shipped enum cannot be reordered, so making the mapping an
+identity beats making it a `switch` somebody has to keep correct. Pinned by a test.
+
+**`IsKnownNotApplied` splits in the middle, and the split is principled.** The status half — never handed
+to a socket, so the server cannot have applied it — is the write path's, and lives here. The error-kind
+half — which server errors describe the server's own state rather than a script that failed part-way
+through, having already written — is error taxonomy, and stays in the host's `FaultContext`. This is the
+part §4 flags as *not merely diagnostic*: `RetryPolicy` reads it to bypass the side-effect cap, so losing
+the ladder makes retry silently more conservative. A mutation dropping the `Sent` transition fails three
+tests.
+
+**Only the operation's half of the report is rendered here.** The text people recognise (`inst`, `qu`,
+`qs`, `aw`, `bw`, …) is mostly multiplexer and connection counters. `Describe(StringBuilder)` emits what
+the operation itself knows and nothing else, which is what keeps the boundary honest.
 
 ---
 

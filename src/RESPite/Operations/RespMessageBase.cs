@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -54,6 +54,16 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private CancellationToken _cancellationToken;
     private CancellationTokenRegistration _cancellationRegistration;
 
+    /// <summary>
+    /// What this operation carries for the sake of explaining itself; see §4 of the design notes.
+    /// </summary>
+    /// <remarks>
+    /// One struct rather than seven fields so that <see cref="Reset"/> clears it in a line the compiler
+    /// keeps complete. A recycled operation leaking a previous life's timestamps does not fail anything -
+    /// it produces a timeout report describing the wrong command.
+    /// </remarks>
+    private RespOperationDiagnostics _diagnostics;
+
     private ReadOnlyMemory<byte> _request;
     private object? _requestOwner;
     private int _requestRefCount;
@@ -92,6 +102,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     /// <inheritdoc/>
     public bool AllowInlineParsing => HasFlag(Flag_InlineParser);
+
+    /// <summary>What this operation carries for diagnostics; see design notes section 4.</summary>
+    public ref RespOperationDiagnostics Diagnostics => ref _diagnostics;
 
     /// <summary>Whether the outcome proved the pipeline is finished with this instance.</summary>
     /// <remarks>
@@ -170,6 +183,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     protected void SetRequest(ReadOnlyMemory<byte> request, object? owner, CancellationToken cancellationToken)
     {
         Debug.Assert(_requestRefCount == 0, "the request is being set more than once");
+        _diagnostics.OnCreated(); // per LIFE, not per instance: a recycled operation is a new command
         _request = request;
         _requestOwner = owner;
         _requestRefCount = 1;
@@ -205,7 +219,12 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
             if (Interlocked.CompareExchange(ref _requestRefCount, checked(count + 1), count) == count)
             {
-                if (recordSent) SetFlag(Flag_Sent);
+                if (recordSent)
+                {
+                    SetFlag(Flag_Sent);
+                    _diagnostics.Status = RespCommandStatus.Sent;
+                }
+
                 payload = _request;
                 return true;
             }
@@ -384,6 +403,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         UnregisterCancellation();
         TryReleaseRequest();
+        _diagnostics = default; // the whole point of keeping it in one struct
         OnReset();
 
         _asyncCore.Reset();
