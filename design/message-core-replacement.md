@@ -381,10 +381,10 @@ Proposed order, each step independently shippable:
 3. **One executor, one connection**: the server-endpoint executor over a real connection, behind
    `RespExecutorBase`. The context surface already talks to that abstraction, so this is swappable.
    **Done.** 3a `RespConnection` (a FIFO of operations over `DuplexTransport`), 3b
-   `RespConnectionExecutor`, 3c `StreamDuplexTransport`. The whole path now runs against a real server
-   with no `Message`, no `ResultProcessor` and no result box in it. Outstanding before it is a
-   *replacement* rather than a demonstration: handshake (`HELLO`/`AUTH`/`SELECT`), reconnect, the backlog,
-   and the profiling hooks.
+   `RespConnectionExecutor`, 3c `StreamDuplexTransport`, 3d `RespHandshake`. The whole path now runs
+   against a real server with no `Message`, no `ResultProcessor` and no result box in it, and comes up
+   properly: authenticated, protocol negotiated, named, on the right database. Outstanding before it is a
+   *replacement* rather than a demonstration: reconnect, the backlog, and the profiling hooks.
 4. **Routing executors**: multiplexer (slot) and group (active node). `Publish` and the endpoint-identity
    members come off the fallback here.
 5. **Batch, then transaction**, as decorators. `RespBatchExecutor` is replaced by the `BatchConnection`
@@ -572,6 +572,35 @@ is the distinction that matters for a long-lived server process.
 The new arm has no handshake, no `SELECT`, no reconnect, no backlog and no profiling hooks. None of those
 distort a steady-state loop on a healthy connection, but they are real work that the old arm does and the
 new one does not, so this is not yet a fair fight in either direction.
+
+
+### 7f. The handshake got shorter, and the reason generalises
+
+`ServerEndPoint.HandshakeAsync` sends `AUTH` and `CLIENT SETNAME` **twice** — once folded into `HELLO`,
+once standalone — and the in-source comment is explicit that this is deliberate. It writes
+fire-and-forget with no flush, so it cannot see whether `HELLO` was understood, cannot know whether the
+server needs auth, and cannot know whether `CLIENT` is even available. It hedges because it is writing
+blind.
+
+`RespHandshake` is four sequential awaits, because the new connection can *read the answer*:
+
+1. `AUTH` if a password is configured — **first**, because an authenticated server answers `HELLO` with
+   `NOAUTH`, and asking for RESP3 before authenticating declines the protocol for the wrong reason.
+2. `HELLO 3`, reading `proto` out of the reply. The server can decline two ways — an error, or a
+   perfectly successful reply saying `proto 2` — and only the reply distinguishes them.
+3. `CLIENT SETNAME`, tolerating failure: `CLIENT` can be disabled or renamed, and failing a handshake
+   over a diagnostic nicety is the wrong trade.
+4. `SELECT`, last, because it is the one step about this connection's *use* rather than its identity.
+
+**The general point, which applies well beyond the handshake:** a large amount of the old core's shape
+exists because it writes without being able to wait. Multi-message expansion inside the write lock, the
+`NoFlushFlag`, inferring the protocol from a tracer's reply, sending commands speculatively in case they
+are needed — these are all consequences of the same constraint. As pieces move onto a core that can
+await, expect several of them to collapse rather than port.
+
+Proven against real servers, including the secure one: RESP3 negotiated, RESP2 when not asked for,
+`SELECT` isolating a key from a second connection on database 0, and `AUTH` succeeding where a control
+test confirms the server genuinely refuses an unauthenticated connection.
 
 ---
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using RESPite.Operations;
@@ -26,15 +26,157 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespNewStackEndToEndTests(ITestOutputHelper output)
 {
-    private static async Task<(RespDatabaseContext Context, RespConnection Connection, StreamDuplexTransport Transport)> ConnectAsync()
+    /// <summary>A key unique to the calling test, so these can run alongside each other.</summary>
+    /// <remarks>
+    /// This class does not derive from <c>TestBase</c> - it builds its own connection rather than taking
+    /// one from the fixture, which is the whole point - so it needs its own version of <c>Me()</c>.
+    /// </remarks>
+    private static RedisKey Me([System.Runtime.CompilerServices.CallerMemberName] string caller = "")
+        => $"{nameof(RespNewStackEndToEndTests)}:{caller}";
+
+    private static async Task<(RespDatabaseContext Context, RespConnection Connection, StreamDuplexTransport Transport)> ConnectAsync(
+        string? host = null, int port = 0)
     {
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-        await socket.ConnectAsync(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
+        await socket.ConnectAsync(host ?? TestConfig.Current.PrimaryServer, port == 0 ? TestConfig.Current.PrimaryPort : port);
 
         var transport = new StreamDuplexTransport(new NetworkStream(socket, ownsSocket: true));
         var connection = new RespConnection(transport);
         var context = new RespContext().WithExecutor(new RespConnectionExecutor(connection, 0));
         return (new RespDatabaseContext(context), connection, transport);
+    }
+
+    [Fact]
+    public async Task TheHandshakeNegotiatesRESP3AgainstARealServer()
+    {
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        var protocol = await RespHandshake.PerformAsync(context, clientName: "resp-new-stack", database: 0);
+
+        // the test servers are modern, so this is RESP3 - and reading it from the reply rather than
+        // assuming it is the entire point of awaiting HELLO
+        Assert.Equal(RedisProtocol.Resp3, protocol);
+
+        // and the connection still works afterwards, which is what a handshake is for
+        RedisKey key = Me();
+        await context.Keys.DeleteAsync(key);
+        Assert.Equal(1, (long)await context.Strings.IncrementAsync(key));
+    }
+
+    [Fact]
+    public async Task TheHandshakeCanDeclineRESP3AndStillWork()
+    {
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        var protocol = await RespHandshake.PerformAsync(context, preferResp3: false);
+
+        Assert.Equal(RedisProtocol.Resp2, protocol); // never asked, so never got it
+        RedisKey key = Me();
+        await context.Keys.DeleteAsync(key);
+        Assert.Equal(1, (long)await context.Strings.IncrementAsync(key));
+    }
+
+    [Fact]
+    public async Task TheHandshakeSelectsADatabase()
+    {
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        RedisKey key = Me();
+        await RespHandshake.PerformAsync(context, database: 3);
+        await context.Keys.DeleteAsync(key);
+        await context.Strings.SetAsync(key, "in-three");
+
+        // prove it really moved: the same key on database 0, over a separate connection, is absent
+        var (other, _, otherTransport) = await ConnectAsync();
+        await using var otherOwner = otherTransport;
+        Assert.True((await other.Strings.GetAsync(key)).IsNull);
+
+        Assert.Equal("in-three", (string?)await context.Strings.GetAsync(key));
+    }
+
+    [Fact]
+    public async Task TheHandshakeAuthenticates()
+    {
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync(TestConfig.Current.SecureServer, TestConfig.Current.SecurePort);
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to secure server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        RedisKey key = Me();
+        var protocol = await RespHandshake.PerformAsync(context, password: TestConfig.Current.SecurePassword);
+        Assert.Equal(RedisProtocol.Resp3, protocol);
+
+        // AUTH goes FIRST, deliberately: an authenticated server answers HELLO with NOAUTH, so asking
+        // for RESP3 before authenticating would decline the protocol for the wrong reason
+        await context.Keys.DeleteAsync(key);
+        Assert.Equal(1, (long)await context.Strings.IncrementAsync(key));
+    }
+
+    [Fact]
+    public async Task AnUnauthenticatedConnectionToASecureServerIsRefused()
+    {
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync(TestConfig.Current.SecureServer, TestConfig.Current.SecurePort);
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to secure server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        // the control for the test above: without the password, the server really does refuse
+        var ex2 = await Assert.ThrowsAsync<RedisServerException>(async () => await context.Strings.GetAsync(Me()));
+        Assert.StartsWith("NOAUTH", ex2.Message);
     }
 
     [Fact]
