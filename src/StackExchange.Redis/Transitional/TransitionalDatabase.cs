@@ -169,8 +169,17 @@ namespace StackExchange.Redis
 
         ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Off the fallback: this asks the executor, because the executor is the router. No command is
+        /// sent - the question is what routing <i>would</i> do with this key, which is the one thing the
+        /// context cannot answer for itself. An executor with no routing says yes; see
+        /// <c>RespExecutorBase.IsConnected</c>.
+        /// </remarks>
         public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Fallback<RedisKey>().IsConnected(key, flags);
+            => _inner.Raw.Executor is { } executor
+                ? executor.IsConnected(in key, flags)
+                : Fallback<RedisKey>().IsConnected(key, flags);
 
         public System.Net.EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)
             => Fallback<RedisKey>().IdentifyEndpoint(key, flags);

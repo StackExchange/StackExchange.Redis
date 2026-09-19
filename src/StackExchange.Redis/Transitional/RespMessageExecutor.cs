@@ -73,6 +73,15 @@ namespace StackExchange.Redis
             return reply!; // null only for fire-and-forget, which every consumer already tests for
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <c>PING</c> rather than the real command, matching the shipped implementation: the question is
+        /// whether the connection that <i>would</i> take this key is up, and PING routes the same way
+        /// without implying a command that might be disabled in the map.
+        /// </remarks>
+        public override bool IsConnected(in RedisKey key, CommandFlags flags)
+            => _target.multiplexer.SelectServer(RedisCommand.PING, flags, key)?.IsConnected == true;
+
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             // the existing pipeline has no cancellation; the token is observed by the caller's await, which

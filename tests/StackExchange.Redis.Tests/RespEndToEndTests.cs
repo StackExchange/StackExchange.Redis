@@ -30,6 +30,23 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     }
 
     [Fact]
+    public async Task IsConnectedRoutesThroughTheExecutorAgainstARealServer()
+    {
+        // the unit tests prove the plumbing with a fake router; this proves the real one. The executor
+        // asks the multiplexer what would serve this key, which is exactly what the shipped
+        // implementation does - so agreeing with it is the assertion worth making.
+        await using var conn = Create();
+
+        var classic = conn.GetDatabase();
+        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null, fallback: null);
+
+        RedisKey key = Me();
+        Assert.Equal(classic.IsConnected(key), surface.IsConnected(key));
+        Assert.Equal(classic.IsConnected(default), surface.IsConnected(default));
+        Assert.True(surface.IsConnected(key)); // and the connection really is up, or the rest is vacuous
+    }
+
+    [Fact]
     public async Task TheMinimalRunNeedsNoWiringAtAll()
     {
         await using var conn = Create();

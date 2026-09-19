@@ -65,6 +65,10 @@ namespace StackExchange.Redis
 
         public override int Database => _inner.Database;
 
+        /// <inheritdoc/>
+        /// <remarks>Routing is the inner executor's; accumulating does not change where a key lives.</remarks>
+        public override bool IsConnected(in RedisKey key, CommandFlags flags) => _inner.IsConnected(in key, flags);
+
         /// <summary>How many commands are waiting; for tests and diagnostics.</summary>
         internal int Count
         {

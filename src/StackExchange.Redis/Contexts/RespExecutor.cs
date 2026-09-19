@@ -58,6 +58,25 @@ namespace StackExchange.Redis
         /// <param name="cancellationToken">Cancels the send.</param>
         public abstract ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default);
 
+        /// <summary>Whether a connected server is currently available to serve the given key.</summary>
+        /// <param name="key">The key whose routing is being asked about; may be null for "anywhere".</param>
+        /// <param name="flags">The flags that would be used, which can steer to a replica.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>A routing question, not a command.</b> Nothing is sent - this asks the router what it would
+        /// do, which is the one thing the context surface cannot work out for itself and the reason
+        /// <c>IsConnected</c> sat on the fallback. It belongs here because the executor <i>is</i> the
+        /// router: the topology in design notes section 3b is three executors that differ only in how
+        /// they resolve a key to a connection.
+        /// </para>
+        /// <para>
+        /// The default is <see langword="true"/>: an executor with no routing of its own - a fake, a
+        /// stream over one socket - can always reach the only server it has. An executor that routes and
+        /// says nothing would otherwise claim to be disconnected, which is the more damaging wrong answer.
+        /// </para>
+        /// </remarks>
+        public virtual bool IsConnected(in RedisKey key, CommandFlags flags) => true;
+
         /// <summary>Whether <see cref="SendAsync(RespRequest, RespRequest, IRespPreambleGate?, CancellationToken)"/> does anything useful.</summary>
         /// <remarks>
         /// Asked rather than type-tested. The default answer is no, and the default implementation throws,

@@ -70,6 +70,10 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     /// <summary>The executor underneath, so a second <c>WithRetry</c> can refuse rather than nest.</summary>
     internal RespExecutorBase Inner => _inner;
 
+    /// <inheritdoc/>
+    /// <remarks>Routing is the inner executor's; retrying does not change where a key lives.</remarks>
+    public override bool IsConnected(in RedisKey key, CommandFlags flags) => _inner.IsConnected(in key, flags);
+
     public override int Database => _inner.Database;
 
     /// <inheritdoc/>

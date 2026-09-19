@@ -22,6 +22,70 @@ public class TransitionalDatabaseTests
     private static IDatabase Target(FakeExecutor executor)
         => new TransitionalDatabase(new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
+    /// <summary>An executor that answers the routing question, and records that it was asked.</summary>
+    private sealed class RoutingExecutor(bool connected, params string[] replies) : FakeExecutor(replies)
+    {
+        internal int Asked;
+
+        internal CommandFlags LastFlags;
+
+        internal string? LastKey;
+
+        public override bool IsConnected(in RedisKey key, CommandFlags flags)
+        {
+            Asked++;
+            LastFlags = flags;
+            LastKey = key.ToString();
+            return connected;
+        }
+    }
+
+    [Fact]
+    public void IsConnectedAsksTheExecutorRatherThanTheFallback()
+    {
+        // it came off the fallback by becoming a routing question: the executor IS the router, so this
+        // sends nothing and asks what routing WOULD do with the key. Note the null fallback - reaching
+        // for it would throw, which is the assertion.
+        var executor = new RoutingExecutor(connected: true);
+        var db = Target(executor);
+
+        Assert.True(db.IsConnected("user:1", CommandFlags.PreferReplica));
+
+        Assert.Equal(1, executor.Asked);
+        Assert.Equal("user:1", executor.LastKey);
+        Assert.Equal(CommandFlags.PreferReplica, executor.LastFlags); // flags steer to a replica, so they travel
+        Assert.False(executor.HasSent);                               // and nothing went to the wire
+    }
+
+    [Fact]
+    public void IsConnectedReportsWhatTheRouterSays()
+    {
+        Assert.False(Target(new RoutingExecutor(connected: false)).IsConnected("user:1"));
+        Assert.True(Target(new RoutingExecutor(connected: true)).IsConnected("user:1"));
+    }
+
+    [Fact]
+    public void AnExecutorWithNoRoutingIsAlwaysConnected()
+    {
+        // the default: a fake, or a stream over one socket, can always reach the only server it has.
+        // Saying "disconnected" instead would be the more damaging wrong answer.
+        Assert.True(Target(new FakeExecutor()).IsConnected("user:1"));
+    }
+
+    [Fact]
+    public void TheRealExecutorOverridesTheRoutingQuestion()
+    {
+        // the live test in RespEndToEndTests cannot tell a routed "true" from the base class's default
+        // "true" while the server is healthy, so the override is pinned here instead: drop it and the
+        // context surface silently claims every key is reachable.
+        var method = typeof(RespMessageExecutor).GetMethod(
+            nameof(RespExecutorBase.IsConnected),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(RespMessageExecutor), method!.DeclaringType);
+    }
+
     [Fact]
     public void AMovedCommandReachesTheContextSurface()
     {
