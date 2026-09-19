@@ -105,14 +105,20 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 _pending.Enqueue(message);
                 Write(payload.Span);
                 Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
-                _transport.Flush();
-                return true;
             }
             finally
             {
                 message.ReleaseRequest();
             }
         }
+
+        // OUTSIDE the lock. The bytes are already committed to the outbound buffer in queue order, so
+        // signalling the writer is not order-sensitive; another sender flushing first simply carries ours
+        // out with theirs, which is a win rather than a race. Keeping the critical section down to
+        // "stamp, enqueue, memcpy" is the point of the whole design - the old core serialises every
+        // argument of every command inside its write lock, because that is where WriteTo runs.
+        _transport.Flush();
+        return true;
     }
 
     private void Write(ReadOnlySpan<byte> payload)

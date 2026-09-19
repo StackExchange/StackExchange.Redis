@@ -84,6 +84,25 @@ Four consequences, none of them cosmetic:
       only for tunnels. So arm 3 currently cannot reach a server at all, and benchmarking it against an
       in-memory transport would be measuring the thing Marc pre-emptively ruled out.
 
+      **Second scenario, added 2026-09-19 and arguably the more important one: contention.** N parallel
+      workers (10-20) running `INCR` loops. The new core's claim is that it moves work *out of the
+      critical section*, and that is the Kestrel-shaped workload where it should show. The mechanism is
+      concrete rather than hopeful:
+
+      | | what is inside the write lock |
+      |---|---|
+      | old core | reroute check, `_activeMessage` CAS, `SelectDatabaseInsideWriteLock`, `IMultiMessage.GetMessages` expansion, and **`message.WriteTo(physical)` — the RESP serialisation of every argument** |
+      | new core | stamp diagnostics, enqueue, `memcpy` the already-rendered frame |
+
+      The interpolated writer renders into the *caller's* buffer before the executor is reached, so
+      serialisation is off the critical path entirely. `Flush()` was moved outside the lock too
+      (`b16a...`): it does no IO — it sets a flag and wakes the writer loop — and the bytes are already
+      committed in queue order, so another sender flushing first just carries ours out with theirs.
+
+      So the prediction to test is specific: **single-threaded ops/s should be close, and the gap should
+      open with worker count.** If it does not, the hypothesis is wrong and that is worth knowing before
+      any more of this is built.
+
       **What "not cheating" already cost, and what it still owes.** The connection was recording status
       but not the connection, byte stamps or write tick — fixed in `24059156`, since a timeout report that
       knows only "sent" is exactly the half-work being warned about. Still missing from the new path, and
