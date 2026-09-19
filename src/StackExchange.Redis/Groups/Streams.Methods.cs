@@ -160,7 +160,8 @@ public static partial class Streams
         IRespHandler<StreamPendingInfo>,
         IRespHandler<StreamPendingMessageInfo[]>,
         IRespHandler<StreamAutoClaimResult>,
-        IRespHandler<StreamAutoClaimIdsOnlyResult>
+        IRespHandler<StreamAutoClaimIdsOnlyResult>,
+        IRespHandler<RedisStream[]>
     {
         private static readonly StreamTypesHandler Instance = new();
 
@@ -180,6 +181,9 @@ public static partial class Streams
         /// A single-stream <c>XREAD</c>/<c>XREADGROUP</c> as the array the older surface promises.
         /// </summary>
         internal static IRespHandler<StreamEntry[]> NamedEntries => NamedEntriesHandler.Instance;
+
+        /// <summary>A multi-stream read as the array shape the older surface promises.</summary>
+        internal static IRespHandler<RedisStream[]> NamedStreams => Instance;
 
         /// <summary>An <c>XRANGE</c>-shaped reply as the array shape the older surface promises.</summary>
         /// <remarks>
@@ -204,6 +208,9 @@ public static partial class Streams
         StreamAutoClaimIdsOnlyResult IRespHandler<StreamAutoClaimIdsOnlyResult>.Parse(ref RespReader reader)
             => ResultProcessor.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
                 ? value : StreamAutoClaimIdsOnlyResult.Null;
+
+        RedisStream[] IRespHandler<RedisStream[]>.Parse(ref RespReader reader)
+            => ResultProcessor.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
     }
 
     /// <summary>
@@ -737,6 +744,272 @@ public static partial class Streams
         return context.Render(
             $"{RedisCommand.XREADGROUP}{RespLiterals.Group}{group}{consumer}{RespLiterals.Count.When(count)}{count}{RespLiterals.NoAck.When(noAck)}{RespLiterals.Claim.When(claimMinIdleTime)}{claimMinIdleTime:ms}{RespLiterals.StreamsKeyword}{key}{after}");
     }
+
+    /// <summary>XREAD across several streams; each stream's entries after its own position.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="positions">The streams to read, each with the id to read after.</param>
+    /// <param name="countPerStream">How many entries per stream at most; the server's default when omitted.</param>
+    /// <param name="maxCount">Cap the total entries returned across all streams.</param>
+    /// <param name="maxSize">Cap the total bytes returned across all streams.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Two <c>IDatabase</c> overloads become one</b>: the older one simply lacks
+    /// <paramref name="maxCount"/> and <paramref name="maxSize"/>, which are optional here.
+    /// </para>
+    /// <para>
+    /// <b><see cref="StreamPosition.NewMessages"/> is NOT rejected here, and that is a shipped bug kept
+    /// deliberately.</b> The single-stream <c>ReadAsync</c> refuses <c>$</c> because it means "entries
+    /// added while this call blocks" and the call does not block - but the shipped multi-stream message
+    /// resolves each position against <c>XREADGROUP</c> rather than <c>XREAD</c>, which both permits it
+    /// and rewrites it to <c>&gt;</c>, the consumer-group "undelivered" token that plain <c>XREAD</c>
+    /// does not understand. Changing it here would make the two surfaces disagree about the same input;
+    /// it is logged in the queue to be fixed on both at once.
+    /// </para>
+    /// </remarks>
+    public static ValueTask<RespMultiReadReply> ReadAsync(
+        this in RespStreams streams,
+        scoped ReadOnlySpan<StreamPosition> positions,
+        int? countPerStream = null,
+        int? maxCount = null,
+        int? maxSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = MultiReadCommand(streams.Context, positions, countPerStream, maxCount, maxSize);
+        return streams.Context.SendAsync(ref cmd, flags, MultiReadReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="ReadAsync(in RespStreams, ReadOnlySpan{StreamPosition}, int?, int?, int?, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<RedisStream[]> ReadArray(
+        this in RespStreams streams,
+        scoped ReadOnlySpan<StreamPosition> positions,
+        int? countPerStream = null,
+        int? maxCount = null,
+        int? maxSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = MultiReadCommand(streams.Context, positions, countPerStream, maxCount, maxSize);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.NamedStreams, cancellationToken);
+    }
+
+    /// <summary>Render the multi-stream <c>XREAD</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="MultiStreamTail" path="/remarks"/></remarks>
+    private static RespRequestFrame MultiReadCommand(
+        RespContext context,
+        scoped ReadOnlySpan<StreamPosition> positions,
+        int? countPerStream,
+        int? maxCount,
+        int? maxSize)
+    {
+        DemandStreams(positions);
+        DemandPositiveCount(countPerStream);
+        DemandPositive(maxCount, nameof(maxCount));
+        DemandPositive(maxSize, nameof(maxSize));
+
+        var argHint = 1 + (countPerStream.HasValue ? 2 : 0) + (maxCount.HasValue ? 2 : 0)
+            + (maxSize.HasValue ? 2 : 0) + (positions.Length * 2);
+        var cmd = context.Compose(RedisCommand.XREAD, argHint);
+        try
+        {
+            if (countPerStream.HasValue)
+            {
+                cmd.AppendFormatted(RespLiterals.Count);
+                cmd.AppendFormatted((long)countPerStream.GetValueOrDefault());
+            }
+
+            MultiStreamTail(ref cmd, positions, maxCount, maxSize);
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        return cmd.Complete();
+    }
+
+    /// <summary>XREADGROUP across several streams; each stream's entries for this consumer.</summary>
+    /// <param name="streams">The stream command group.</param>
+    /// <param name="positions">The streams to read, each with the id to read after.</param>
+    /// <param name="group">The consumer group.</param>
+    /// <param name="consumer">The consumer reading.</param>
+    /// <param name="countPerStream">How many entries per stream at most; the server's default when omitted.</param>
+    /// <param name="noAck">Whether the server should skip adding these to the pending list.</param>
+    /// <param name="claimMinIdleTime">Also claim entries idle for at least this long.</param>
+    /// <param name="maxCount">Cap the total entries returned across all streams.</param>
+    /// <param name="maxSize">Cap the total bytes returned across all streams.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Four <c>IDatabase</c> overloads become one</b>: they differ only in which of
+    /// <paramref name="noAck"/>, <paramref name="claimMinIdleTime"/>, <paramref name="maxCount"/> and
+    /// <paramref name="maxSize"/> they expose, and all four are optional here.
+    /// </remarks>
+    public static ValueTask<RespMultiReadReply> ReadGroupAsync(
+        this in RespStreams streams,
+        scoped ReadOnlySpan<StreamPosition> positions,
+        RedisValue group,
+        RedisValue consumer,
+        int? countPerStream = null,
+        bool noAck = false,
+        TimeSpan? claimMinIdleTime = null,
+        int? maxCount = null,
+        int? maxSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = MultiReadGroupCommand(streams.Context, positions, group, consumer, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize);
+        return streams.Context.SendAsync(ref cmd, flags, MultiReadReplyHandler, cancellationToken);
+    }
+
+    /// <inheritdoc cref="ReadGroupAsync(in RespStreams, ReadOnlySpan{StreamPosition}, RedisValue, RedisValue, int?, bool, TimeSpan?, int?, int?, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
+    internal static ValueTask<RedisStream[]> ReadGroupArray(
+        this in RespStreams streams,
+        scoped ReadOnlySpan<StreamPosition> positions,
+        RedisValue group,
+        RedisValue consumer,
+        int? countPerStream = null,
+        bool noAck = false,
+        TimeSpan? claimMinIdleTime = null,
+        int? maxCount = null,
+        int? maxSize = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var cmd = MultiReadGroupCommand(streams.Context, positions, group, consumer, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize);
+        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.NamedStreams, cancellationToken);
+    }
+
+    /// <summary>Render the multi-stream <c>XREADGROUP</c> - the one place the command is composed.</summary>
+    /// <remarks><inheritdoc cref="MultiStreamTail" path="/remarks"/></remarks>
+    private static RespRequestFrame MultiReadGroupCommand(
+        RespContext context,
+        scoped ReadOnlySpan<StreamPosition> positions,
+        RedisValue group,
+        RedisValue consumer,
+        int? countPerStream,
+        bool noAck,
+        TimeSpan? claimMinIdleTime,
+        int? maxCount,
+        int? maxSize)
+    {
+        DemandStreams(positions);
+        DemandPositiveCount(countPerStream);
+        DemandPositive(maxCount, nameof(maxCount));
+        DemandPositive(maxSize, nameof(maxSize));
+
+        var argHint = 4 + (countPerStream.HasValue ? 2 : 0) + (maxCount.HasValue ? 2 : 0)
+            + (maxSize.HasValue ? 2 : 0) + (noAck ? 1 : 0) + (claimMinIdleTime.HasValue ? 2 : 0)
+            + (positions.Length * 2);
+        var cmd = context.Compose(RedisCommand.XREADGROUP, argHint);
+        try
+        {
+            cmd.AppendFormatted(RespLiterals.Group);
+            cmd.AppendFormatted(group);
+            cmd.AppendFormatted(consumer);
+
+            if (countPerStream.HasValue)
+            {
+                cmd.AppendFormatted(RespLiterals.Count);
+                cmd.AppendFormatted((long)countPerStream.GetValueOrDefault());
+            }
+
+            // NOACK and CLAIM sit between the caps and STREAMS, which is the shipped order; the server
+            // does not care, but the parity tests compare bytes
+            MultiStreamCaps(ref cmd, maxCount, maxSize);
+
+            if (noAck) cmd.AppendFormatted(RespLiterals.NoAck);
+            if (claimMinIdleTime.HasValue)
+            {
+                cmd.AppendFormatted(RespLiterals.Claim);
+                cmd.AppendFormatted(claimMinIdleTime.GetValueOrDefault(), "ms");
+            }
+
+            MultiStreamKeysAndIds(ref cmd, positions);
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        return cmd.Complete();
+    }
+
+    /// <summary>The caps and then <c>STREAMS keys... ids...</c>, shared by the two multi-stream reads.</summary>
+    /// <remarks>
+    /// <b>Imperative rather than interpolated, because the wire wants the span twice</b>: every key, then
+    /// every id. An interpolated hole writes one run per element, so expressing "all the keys, then all
+    /// the positions" would need either two temporary buffers or a new vocabulary for a shape only these
+    /// two commands have. The <c>Compose</c> form is what the codebase already reaches for when the
+    /// argument count is data-dependent - see <c>Geospatial.AddAsync</c>.
+    /// </remarks>
+    private static void MultiStreamTail(
+        scoped ref RespRequestBuilder cmd,
+        scoped ReadOnlySpan<StreamPosition> positions,
+        int? maxCount,
+        int? maxSize)
+    {
+        MultiStreamCaps(ref cmd, maxCount, maxSize);
+        MultiStreamKeysAndIds(ref cmd, positions);
+    }
+
+    /// <inheritdoc cref="MultiStreamTail"/>
+    private static void MultiStreamCaps(scoped ref RespRequestBuilder cmd, int? maxCount, int? maxSize)
+    {
+        if (maxCount.HasValue)
+        {
+            cmd.AppendFormatted(RespLiterals.MaxCount);
+            cmd.AppendFormatted((long)maxCount.GetValueOrDefault());
+        }
+
+        if (maxSize.HasValue)
+        {
+            cmd.AppendFormatted(RespLiterals.MaxSize);
+            cmd.AppendFormatted((long)maxSize.GetValueOrDefault());
+        }
+    }
+
+    /// <inheritdoc cref="MultiStreamTail"/>
+    private static void MultiStreamKeysAndIds(scoped ref RespRequestBuilder cmd, scoped ReadOnlySpan<StreamPosition> positions)
+    {
+        cmd.AppendFormatted(RespLiterals.StreamsKeyword);
+        foreach (ref readonly var position in positions)
+        {
+            cmd.AppendFormatted(position.Key);
+        }
+        foreach (ref readonly var position in positions)
+        {
+            // XREADGROUP, not XREAD, and on both commands - see the remarks on ReadAsync
+            cmd.AppendFormatted(StreamPosition.Resolve(position.Position, RedisCommand.XREADGROUP));
+        }
+    }
+
+    private static void DemandStreams(scoped ReadOnlySpan<StreamPosition> positions)
+    {
+        if (positions.IsEmpty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(positions), "positions must contain at least one item.");
+        }
+
+        foreach (ref readonly var position in positions)
+        {
+            position.Key.AssertNotNull();
+        }
+    }
+
+    private static void DemandPositive(int? value, string name)
+    {
+        if (value.HasValue && value <= 0) throw new ArgumentOutOfRangeException(name, name + " must be greater than 0.");
+    }
+
+    private static readonly RespReplyHandler<RespMultiReadReply> MultiReadReplyHandler
+        = new(static payload => new RespMultiReadReply(payload));
 
     private static readonly RespReplyHandler<RespReadReply> ReadReplyHandler
         = new(static payload => new RespReadReply(payload));

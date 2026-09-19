@@ -215,9 +215,11 @@ Four consequences, none of them cosmetic:
       the single-key overload throws and the multi-key one sends `>` to a command that has no consumer
       group, which the server then rejects.
 
-      Reproduced as-is by the new surface, and both halves are pinned by
-      `RespSurfaceStreamsParityTests.ReadRefusesNewMessagesButReadGroupDoesNot`, so whichever way this is
-      settled the test says what changed.
+      Reproduced as-is by the new surface, and pinned from both ends -
+      `RespSurfaceStreamsParityTests.ReadRefusesNewMessagesButReadGroupDoesNot` for the single-stream
+      rule, and `MultiReadAcceptsNewMessagesUnlikeTheSingleStreamOverload` (added 2026-09-19, with the
+      multi-stream reads) for the multi-stream leak, which asserts the `>` on the wire. Whichever way this
+      is settled, the tests say what changed.
 
 - [ ] **A commit on this branch deleted 77 files that the main merge had just brought in.** Found
       2026-09-18 while looking for `RedisValue.EqualityComparer`, which Marc expected to be here.

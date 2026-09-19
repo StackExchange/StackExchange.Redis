@@ -374,5 +374,58 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
             => _inner.Streams.ReadGroupArray(key, groupName, consumerName, position, count, noAck, claimMinIdleTime, flags).AsTask();
+
+        // ---- XREAD / XREADGROUP, several streams -----------------------------------------------------
+        // Two XREAD overloads collapse to one and four XREADGROUP overloads collapse to one; they differ
+        // only in which of maxCount/maxSize/noAck/claimMinIdleTime they expose. The array-to-span
+        // conversion is the adapter's job, and Required() is what keeps the old ArgumentNullException.
+
+        /// <inheritdoc/>
+        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
+            => Wait(_inner.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, flags: flags));
+
+        /// <inheritdoc/>
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
+            => _inner.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, flags: flags).AsTask();
+
+        /// <inheritdoc/>
+        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, maxCount, maxSize, flags));
+
+        /// <inheritdoc/>
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, maxCount, maxSize, flags).AsTask();
+
+        /// <inheritdoc/>
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
+            => StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck: false, claimMinIdleTime: null, flags: flags);
+
+        /// <inheritdoc/>
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
+            => StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck: false, claimMinIdleTime: null, flags: flags);
+
+        /// <inheritdoc/>
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
+            => StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime: null, flags: flags);
+
+        /// <inheritdoc/>
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
+            => StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime: null, flags: flags);
+
+        /// <inheritdoc/>
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags)
+            => StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount: null, maxSize: null, flags);
+
+        /// <inheritdoc/>
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags)
+            => StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount: null, maxSize: null, flags);
+
+        /// <inheritdoc/>
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+            => Wait(_inner.Streams.ReadGroupArray(Required(streamPositions, nameof(streamPositions)), groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags));
+
+        /// <inheritdoc/>
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+            => _inner.Streams.ReadGroupArray(Required(streamPositions, nameof(streamPositions)), groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags).AsTask();
     }
 }

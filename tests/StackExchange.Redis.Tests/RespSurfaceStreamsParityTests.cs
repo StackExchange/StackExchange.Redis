@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -343,6 +343,105 @@ public class RespSurfaceStreamsParityTests
             db => db.GetStreamReadGroupMessage("s", "g", "c", StreamPosition.Resolve(StreamPosition.NewMessages, RedisCommand.XREADGROUP), null, false, claim, CommandFlags.None),
             ctx => Discard(ctx.Streams.ReadGroupAsync("s", "g", "c", null, null, false, claim)),
             NamedEntriesReply);
+    }
+
+    // ---- XREAD / XREADGROUP across several streams -------------------------------------------------
+    // The shape most worth pinning: the wire wants every key and THEN every id, so a rendering that
+    // walked the positions once - the obvious way to write it - would interleave them and still look
+    // plausible. Two streams, because one cannot tell the two orders apart.
+
+    private const string MultiStreamReply =              // XREAD, two streams: [[name, [entries]], ...]
+        "*2\r\n*2\r\n$2\r\ns1\r\n*1\r\n*2\r\n$3\r\n1-1\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n"
+        + "*2\r\n$2\r\ns2\r\n*1\r\n*2\r\n$3\r\n2-2\r\n*2\r\n$1\r\nf\r\n$1\r\nv\r\n";
+
+    private static StreamPosition[] TwoStreams() => [new("s1", "0-0"), new("s2", "5-5")];
+
+    public static TheoryData<string, int?, int?, int?> MultiReadCases() => new()
+    {
+        { "bare", null, null, null },
+        { "count", 5, null, null },
+        { "maxcount", null, 10, null },
+        { "maxsize", null, null, 1024 },
+        { "everything", 5, 10, 1024 },
+    };
+
+    [Theory]
+    [MemberData(nameof(MultiReadCases))]
+    public void MultiReadMatches(string name, int? countPerStream, int? maxCount, int? maxSize)
+    {
+        _ = name;
+        AssertSame(
+            db => db.GetMultiStreamReadMessage(TwoStreams(), countPerStream, CommandFlags.None, maxCount, maxSize),
+            ctx => Discard(ctx.Streams.ReadAsync(TwoStreams(), countPerStream, maxCount, maxSize)),
+            MultiStreamReply);
+    }
+
+    public static TheoryData<string, int?, bool, long?, int?, int?> MultiReadGroupCases() => new()
+    {
+        { "bare", null, false, null, null, null },
+        { "count", 5, false, null, null, null },
+        { "noack", null, true, null, null, null },
+        { "claim", null, false, 5000L, null, null },
+        { "caps", null, false, null, 10, 1024 },
+        { "everything", 5, true, 5000L, 10, 1024 },
+    };
+
+    [Theory]
+    [MemberData(nameof(MultiReadGroupCases))]
+    public void MultiReadGroupMatches(string name, int? countPerStream, bool noAck, long? claimMs, int? maxCount, int? maxSize)
+    {
+        _ = name;
+        var claim = AsIdle(claimMs);
+        AssertSame(
+            db => db.GetMultiStreamReadGroupMessage(TwoStreams(), "g", "c", countPerStream, noAck, claim, CommandFlags.None, maxCount, maxSize),
+            ctx => Discard(ctx.Streams.ReadGroupAsync(TwoStreams(), "g", "c", countPerStream, noAck, claim, maxCount, maxSize)),
+            MultiStreamReply);
+    }
+
+    /// <summary>Every key, then every id - not one pair after another.</summary>
+    [Fact]
+    public void MultiReadPutsAllKeysBeforeAllIds()
+    {
+        var rendered = Modern(ctx => Discard(ctx.Streams.ReadAsync(TwoStreams())), MultiStreamReply);
+        Assert.EndsWith("|$7|STREAMS|$2|s1|$2|s2|$3|0-0|$3|5-5|", rendered);
+    }
+
+    /// <summary>
+    /// The multi-stream <c>XREAD</c> accepts <c>$</c> and turns it into <c>&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// A shipped bug, pinned rather than fixed. The single-stream overload refuses
+    /// <see cref="StreamPosition.NewMessages"/> for <c>XREAD</c>, because <c>$</c> means "entries added
+    /// while this blocks" and it does not block. The multi-stream message resolves every position against
+    /// <c>XREADGROUP</c> instead, so the same input is accepted and rewritten to <c>&gt;</c> - the
+    /// consumer-group "undelivered" token, which plain <c>XREAD</c> does not understand at all. Both
+    /// surfaces do the same wrong thing, which is the property this test keeps until they are fixed
+    /// together.
+    /// </remarks>
+    [Fact]
+    public void MultiReadAcceptsNewMessagesUnlikeTheSingleStreamOverload()
+    {
+        StreamPosition[] positions = [new("s1", StreamPosition.NewMessages)];
+        AssertSame(
+            db => db.GetMultiStreamReadMessage(positions, null, CommandFlags.None),
+            ctx => Discard(ctx.Streams.ReadAsync(positions)),
+            MultiStreamReply);
+
+        // > , not $ : resolved as though this were XREADGROUP
+        Assert.EndsWith("|$7|STREAMS|$2|s1|$1|>|", Modern(ctx => Discard(ctx.Streams.ReadAsync(positions)), MultiStreamReply));
+
+        // and the single-stream overload still refuses it outright
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor(MultiStreamReply)));
+        Assert.Throws<InvalidOperationException>(() => ctx.Streams.ReadAsync("s1", StreamPosition.NewMessages));
+    }
+
+    /// <summary>An empty run is refused before anything is rented.</summary>
+    [Fact]
+    public void MultiReadDemandsAtLeastOneStream()
+    {
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor(MultiStreamReply)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Streams.ReadAsync(default(ReadOnlySpan<StreamPosition>)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ctx.Streams.ReadGroupAsync(default(ReadOnlySpan<StreamPosition>), "g", "c"));
     }
 
     private static TimeSpan? AsIdle(long? ms) => ms.HasValue ? TimeSpan.FromMilliseconds(ms.GetValueOrDefault()) : null;

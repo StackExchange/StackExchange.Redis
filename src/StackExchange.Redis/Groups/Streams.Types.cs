@@ -173,6 +173,117 @@ public static partial class Streams
     }
 
     /// <summary>
+    /// The reply to a multi-stream <c>XREAD</c>/<c>XREADGROUP</c>: one named run of entries per stream
+    /// that had any.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One field, two wire shapes.</b> RESP2 answers an array of <c>[name, entries]</c> pairs and
+    /// RESP3 answers a map of name to entries - and <see cref="RespPairAggregate{T}"/> with
+    /// <c>allowJagged</c> reads both, because "every child is a two-element aggregate" is exactly what
+    /// distinguishes the array form. So this needs no protocol, no flag and no second field; the same
+    /// trick <see cref="RespNameValueEntry"/> already uses for an entry's fields.
+    /// </para>
+    /// <para>
+    /// <b>Streams that had nothing are simply absent</b> - the server does not pad the reply - so
+    /// <see cref="Count"/> answers how many streams <i>replied</i>, not how many were asked for. A read
+    /// where no stream had anything is a nil reply, which reads as empty.
+    /// </para>
+    /// </remarks>
+    public sealed class RespMultiReadReply : RespReply
+    {
+        private readonly RespPairAggregate<RespNamedStream> _streams;
+
+        /// <summary>Read a multi-stream read reply from a payload.</summary>
+        /// <param name="payload">The reply's bytes, with one reference already taken on this reply's behalf.</param>
+        /// <remarks><inheritdoc cref="RespRangeReply(RespPayload)" path="/remarks"/></remarks>
+        public RespMultiReadReply(RespPayload payload) : base(payload)
+        {
+            var reader = GetReader();
+            RespPairAggregate<RespNamedStream>.TryCaptureNext(
+                Payload, ref reader, RespNamedStream.Projection, allowJagged: true, out _streams);
+        }
+
+        /// <summary>The streams that replied, in the order the server returned them.</summary>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RespPairAggregate<RespNamedStream> Streams
+        {
+            get
+            {
+                _ = Payload; // the windows are only meaningful while the buffer is held
+                return _streams;
+            }
+        }
+
+        /// <summary>How many streams the reply carries.</summary>
+        public int Count => _streams.Count;
+
+        /// <summary>Materialise the whole reply into the array shape the older surface promises.</summary>
+        /// <remarks><inheritdoc cref="RespRangeReply.ToArray" path="/remarks/para[2]"/></remarks>
+        /// <exception cref="ObjectDisposedException">If this reply has already been disposed.</exception>
+        public RedisStream[] ToArray()
+        {
+            var reader = GetReader();
+            if (!reader.TryMoveNext()) return [];
+            return ResultProcessor.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
+        }
+
+        /// <inheritdoc/>
+        public override string ToString()
+            => IsDisposed ? "(disposed)" : $"({Count} stream{(Count == 1 ? "" : "s")})";
+    }
+
+    /// <summary>One stream's worth of a multi-stream read: its name, and the entries it answered with.</summary>
+    /// <remarks>
+    /// Nested in the group and <c>Resp</c>-prefixed for the reasons given on <see cref="Streams"/>; the
+    /// materialised counterpart is <see cref="RedisStream"/>, which is top-level because it shipped that
+    /// way.
+    /// </remarks>
+    public readonly struct RespNamedStream
+    {
+        /// <summary>Captures a stream's name and entries; handed readers positioned before each.</summary>
+        internal static readonly RespReader.PairProjection<object?, RespNamedStream> Projection =
+            static (ref object? owner, ref RespReader first, ref RespReader second) =>
+            {
+                RespValue.TryCaptureNext(owner, ref first, out var name);
+                RespAggregate<RespStreamEntry>.TryCaptureNext(
+                    owner, ref second, RespStreamEntry.Projection, out var entries);
+                return new RespNamedStream(name, entries);
+            };
+
+        private readonly RespValue _name;
+        private readonly RespAggregate<RespStreamEntry> _entries;
+
+        private RespNamedStream(RespValue name, RespAggregate<RespStreamEntry> entries)
+        {
+            _name = name;
+            _entries = entries;
+        }
+
+        /// <summary>The stream's key, as the server spelled it.</summary>
+        public RespValue Name => _name;
+
+        /// <summary>The entries this stream answered with.</summary>
+        public RespAggregate<RespStreamEntry> Entries => _entries;
+
+        /// <summary>How many entries this stream answered with.</summary>
+        public int Count => _entries.Count;
+
+        /// <summary>Materialise this stream, so it outlives the reply it came from.</summary>
+        /// <remarks><b><c>To</c>, not <c>As</c></b>: the name and every entry are copied out.</remarks>
+        public RedisStream ToRedisStream()
+        {
+            var entries = _entries.ToArray();
+            var result = new StreamEntry[entries.Length];
+            for (var i = 0; i < entries.Length; i++) result[i] = entries[i].ToStreamEntry();
+            return new RedisStream(_name.AsRedisKey(), result);
+        }
+
+        /// <inheritdoc/>
+        public override string ToString() => $"{_name} ({Count} entr{(Count == 1 ? "y" : "ies")})";
+    }
+
+    /// <summary>
     /// The reply to an <c>XAUTOCLAIM</c>: a resume cursor, the claimed entries, and the ids that turned
     /// out to be gone.
     /// </summary>

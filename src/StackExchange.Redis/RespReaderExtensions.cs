@@ -38,6 +38,22 @@ public static class RespReaderExtensions
         return reader.ReadRedisValue();
     }
 
+    /// <summary>Materialise a value as a <see cref="RedisKey"/>.</summary>
+    /// <param name="value">The value to materialise.</param>
+    /// <remarks>
+    /// The key twin of <see cref="AsRedisValue"/>, here for the same layering reason. <c>As</c> rather
+    /// than <c>To</c> is more of a stretch here - a key is bytes, so a non-empty one always copies - but
+    /// it is kept for symmetry with the value form, which a reader meets first.
+    /// </remarks>
+    public static RedisKey AsRedisKey(this in RespValue value)
+    {
+        if (value.IsNull) return default;
+
+        var reader = new RespReader(value.Frame);
+        reader.MoveNext();
+        return reader.ReadRedisKey();
+    }
+
     /// <summary>Materialise an aggregate's children into a pooled lease.</summary>
     /// <typeparam name="T">The projected child type.</typeparam>
     /// <param name="aggregate">The aggregate to read.</param>

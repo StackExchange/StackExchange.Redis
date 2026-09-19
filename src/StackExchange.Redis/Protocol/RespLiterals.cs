@@ -427,6 +427,14 @@ namespace StackExchange.Redis
         [Resp("STREAMS")]
         internal static partial RespFragment StreamsKeyword { get; }
 
+        /// <summary>The <c>MAXCOUNT</c> operand of the multi-stream reads; an entry count follows it.</summary>
+        [Resp("MAXCOUNT")]
+        internal static partial RespFragment MaxCount { get; }
+
+        /// <summary>The <c>MAXSIZE</c> operand of the multi-stream reads; a byte count follows it.</summary>
+        [Resp("MAXSIZE")]
+        internal static partial RespFragment MaxSize { get; }
+
         /// <summary>The <c>GROUP</c> operand of <c>XREADGROUP</c>; a group and a consumer follow it.</summary>
         [Resp]
         internal static partial RespFragment Group { get; }

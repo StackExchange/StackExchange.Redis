@@ -2328,6 +2328,60 @@ namespace StackExchange.Redis
             return ParseRedisStreamEntries(ref streamIter.Value, allowJaggedFields);
         }
 
+        /// <summary>Read a multi-stream <c>XREAD</c>/<c>XREADGROUP</c> reply.</summary>
+        /// <param name="reader">The reader, positioned on the reply root.</param>
+        /// <param name="isMap">Whether the root is a map, which is how RESP3 spells this.</param>
+        /// <param name="allowJaggedFields">Whether an entry's fields may arrive as nested pairs.</param>
+        /// <remarks>
+        /// <para><inheritdoc cref="ParseStreamWithNameSkip" path="/remarks/para[2]"/></para>
+        /// <para>
+        /// The multi-stream twin of <see cref="ParseStreamWithNameSkip"/>, and it exists for the same
+        /// reason: <see cref="MultiStreamProcessor"/> had this walk inlined in its
+        /// <c>SetResultCore</c>, where a reply object cannot reach it. Both now call this, so the
+        /// deferred and materialising shapes stay two call sites of one parse.
+        /// </para>
+        /// </remarks>
+        internal static RedisStream[] ParseRedisStreams(ref RespReader reader, bool isMap, bool allowJaggedFields)
+        {
+            // nothing for any requested stream; the server answers nil rather than an empty aggregate
+            if (reader.IsNull || !reader.IsAggregate) return [];
+
+            if (isMap)
+            {
+                // a map: name, entries, name, entries - the names are children, not wrappers
+                var count = reader.AggregateLength() >> 1;
+                if (count == 0)
+                {
+                    reader.SkipChildren();
+                    return [];
+                }
+
+                var result = new RedisStream[count];
+                var mapIter = reader.AggregateChildren();
+                for (var i = 0; i < count; i++)
+                {
+                    mapIter.DemandNext();
+                    var key = mapIter.Value.ReadRedisKey();
+                    mapIter.DemandNext();
+                    result[i] = new RedisStream(key, ParseRedisStreamEntries(ref mapIter.Value, allowJaggedFields));
+                }
+                return result;
+            }
+
+            // an array of [name, entries] pairs
+            return reader.ReadPastArray(
+                ref allowJaggedFields,
+                static (ref allowJaggedFields, ref itemReader) =>
+                {
+                    var streamIter = itemReader.AggregateChildren();
+                    streamIter.DemandNext();
+                    var key = streamIter.Value.ReadRedisKey();
+                    streamIter.DemandNext();
+                    return new RedisStream(key, ParseRedisStreamEntries(ref streamIter.Value, allowJaggedFields));
+                },
+                scalar: false) ?? [];
+        }
+
         internal sealed class SingleStreamProcessor : ResultProcessor<StreamEntry[]>
         {
             private readonly bool skipStreamName;
@@ -2449,84 +2503,16 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.IsNull)
-                {
-                    // Nothing returned for any of the requested streams. The server returns 'nil'.
-                    SetResult(message, []);
-                    return true;
-                }
-
-                if (!reader.IsAggregate)
-                {
-                    return false;
-                }
+                // nil - nothing returned for any of the requested streams - and a non-aggregate are both
+                // handled inside the shared parse; this path has nothing left of its own to decide
+                if (!reader.IsNull && !reader.IsAggregate) return false;
 
                 var protocol = connection.Protocol.GetValueOrDefault();
-                RedisStream[] streams;
-
-                if (reader.Prefix == RespPrefix.Map) // see SetResultCore for the shape delta between RESP2 and RESP3
-                {
-                    // root is a map of named inner-arrays
-                    // RedisStreamInterleavedProcessor handles maps via the interleaved processor base
-                    var processor = protocol == RedisProtocol.Resp2 ? RedisStreamInterleavedProcessor.Resp2 : RedisStreamInterleavedProcessor.Resp3;
-                    streams = processor.ParseArray(ref reader, protocol, false, out _, null)!; // null-checked below
-                }
-                else
-                {
-                    streams = reader.ReadPastArray(
-                        ref protocol,
-                        static (ref protocol, ref itemReader) =>
-                        {
-                            if (!itemReader.IsAggregate)
-                            {
-                                throw new InvalidOperationException("Expected aggregate for stream");
-                            }
-
-                            // [0] = Name of the Stream
-                            if (!itemReader.TryMoveNext())
-                            {
-                                throw new InvalidOperationException("Expected stream name");
-                            }
-                            var key = itemReader.ReadRedisKey();
-
-                            // [1] = Multibulk Array of Stream Entries
-                            if (!itemReader.TryMoveNext())
-                            {
-                                throw new InvalidOperationException("Expected stream entries");
-                            }
-                            var entries = ParseRedisStreamEntries(ref itemReader, protocol);
-
-                            return new RedisStream(key: key, entries: entries);
-                        },
-                        scalar: false)!; // null-checked below
-
-                    if (streams == null)
-                    {
-                        return false;
-                    }
-                }
-
-                SetResult(message, streams);
+                SetResult(message, ParseRedisStreams(
+                    ref reader,
+                    isMap: reader.Prefix == RespPrefix.Map, // see SetResultCore for the shape delta between RESP2 and RESP3
+                    allowJaggedFields: AllowJaggedStreamFields(protocol)));
                 return true;
-            }
-        }
-
-        private sealed class RedisStreamInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisStream>
-        {
-            protected override bool AllowJaggedPairs(RedisProtocol protocol) => false; // we only use this on a flattened map
-
-            public static readonly RedisStreamInterleavedProcessor Resp2 = new(RedisProtocol.Resp2);
-            public static readonly RedisStreamInterleavedProcessor Resp3 = new(RedisProtocol.Resp3);
-
-            private readonly RedisProtocol _protocol;
-            private RedisStreamInterleavedProcessor(RedisProtocol protocol)
-            {
-                _protocol = protocol;
-            }
-
-            protected override RedisStream Parse(ref RespReader first, ref RespReader second, object? state)
-            {
-                return new(key: first.ReadRedisKey(), entries: ParseRedisStreamEntries(ref second, _protocol));
             }
         }
 
