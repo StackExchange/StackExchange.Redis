@@ -308,10 +308,15 @@ Message construction, by file:
 
 Two things follow.
 
-**The target is `RedisDatabase`'s command methods, not "the database implementations".** `RedisBatch`
-builds no messages at all; `KeyPrefixed*`, `MultiGroupDatabase`, `RetryDatabase` and `RetryTransaction`
-are decorators. Deleting them removes API and behaviour while freeing no message machinery. `RedisDatabase`
-alone is ~75% of it.
+**The target is `RedisDatabase`'s command methods, not "the database implementations".** `KeyPrefixed*`,
+`MultiGroupDatabase`, `RetryDatabase` and `RetryTransaction` are decorators: deleting them removes API and
+behaviour while freeing no message machinery. `RedisDatabase` alone is ~75% of it.
+
+`RedisBatch`'s zero in that table is **not** what it looks like, and the correction matters: `RedisBatch :
+RedisDatabase` and `RedisTransaction : RedisDatabase`. They build no messages because they *inherit* all
+504, overriding only where the message is queued rather than sent. The `IBatch`/`ITransaction` surface
+**is** `RedisDatabase`'s method set. So "delete `RedisDatabase`'s command methods" and "delete batch and
+transaction" are the same sentence.
 
 **Deleting them does not let `Message` go.** ~150 sites live in `RedisServer` and `ServerEndPoint`, and
 the context surface has exactly one server group (`Keyspace`) against `IServer`'s ~70 members. The
@@ -320,6 +325,82 @@ server surface is the long pole, and it is barely started.
 **And `RedisBase` must survive the cut.** `RespMessageExecutor` holds a `RedisBase` target and calls
 `_target.ExecuteAsync(message, processor)` — so the execute plumbing is what the *new* surface stands
 on. The cut is the ~504 command-building methods, not the type that owns dispatch.
+
+---
+
+## 6c. The spike: what actually happened when we deleted it
+
+Run on `marc/v4-core-spike` (commit `db9433c2`) — "worst case we revert, document the problem we hit,
+plan, and start again".
+
+### First: hand out the new surface with no safety net
+
+`GetDatabase` returns `TransitionalDatabase` with **no fallback**, so an unmoved command throws rather
+than silently using the old path. That turns 6a's 110 into the honest number:
+
+```
+Failed: 749, Passed: 7405, Skipped: 162, Total: 8316
+```
+
+The fallback was carrying 639 tests. But of the 637 `NotImplementedException`s, **every single one names
+a member already on the list**:
+
+| n | member |
+|---|---|
+| 530 | `CreateTransaction` |
+| 24 | `CreateBatch` |
+| 20 | `IsConnected` |
+| 14 | `IdentifyEndpointAsync` |
+| 10 | `IdentifyEndpoint` |
+| 39 | the eight SER352 holdouts (`LockExtend`, `LockRelease`, `Publish`, `StringGetWithExpiry`) |
+
+**There is no unknown gap**, which is the thing worth knowing. 6a's "~98.7%" was measured with the old
+path still underneath; the true figure is 89%, and 87% of the shortfall is the two forwarding members
+whose work was deliberately paused. The residual 112 are 6a's test-coupling failures.
+
+### Then: the synchronous half is dead weight
+
+`IBatch : IDatabaseAsync`, and `ITransaction : IBatch, ITransactionAsync`. **Async only.** So once
+`GetDatabase` stops handing out a `RedisDatabase`, `IDatabase` comes off the class and its *synchronous*
+methods serve nothing. Deleted:
+
+- 232 `ExecuteSync`-bodied command methods
+- 46 sync-to-sync convenience forwarders
+- 7 explicit `IDatabase.HashScan`/`SetScan`/`SortedSetScan` members
+
+1,833 lines; `RedisDatabase.cs` goes 6,674 → 4,841. Re-running the suite gives **byte-identical** numbers
+— 749/7405/8316, same capture breakdown — so the cut cost zero tests. Exactly two unit tests referenced
+the sync overloads on the concrete type, and both had async twins asserting the same thing.
+
+### What it did not buy
+
+**Message construction dropped 511 → 295, not to zero.** The reason is the finding: all **45**
+`GetXxxMessage` builders are called from *both* sync and async, and there are **zero sync-only helpers**.
+The sync/async pairs are mirrors over shared construction — 152 sync and 154 async methods build inline,
+79 of each go through a shared builder.
+
+> **The unit of deletion is a command, not a layer.** A mechanical "delete the sync tier" pass hits this
+> wall immediately: strip by access modifier and you take the shared builders with you, then spend the
+> next hour restoring them one compiler error at a time. Ask for a *command* — sync, async, and its
+> builder — and the cut is clean.
+
+**And the remaining ~280 async methods cannot follow**, because they are the `IBatch`/`ITransaction`
+surface (see the correction in 6b). Batch and transaction on the new surface is not one item of many on
+the way to deleting `Message` — it is the gate.
+
+### Standing conclusion
+
+The spike is worth keeping as a branch and **not** worth merging as-is: it leaves 749 red tests, all of
+them the five paused members. The order it implies:
+
+1. `IsConnected`, `IdentifyEndpoint`, `IdentifyEndpointAsync` — 44 tests, routing/identity questions the
+   context can answer through its executor. Cheap, and independent of everything else.
+2. The eight SER352 holdouts — 39 tests.
+3. Batch and transaction — 554 tests, and the gate on deleting anything further.
+4. Only then the sync deletion above, which is already proven to be free.
+
+Widening `TransitionalSurfaceFixture.Wrap` from 12 towards 64 remains the non-destructive way to hold
+this ground on `main` in the meantime.
 
 ---
 
