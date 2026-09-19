@@ -425,28 +425,31 @@ Four consequences, none of them cosmetic:
       faster in isolation and 8% *slower* in the real path). The only trustworthy route is to prototype the
       memoisation and re-run `CacheHitSendBenchmarks`, which measures a whole operation.
 
-- [ ] **`Ping` now measures a slightly different thing, on purpose — decide whether to close the gap.**
-      Done 2026-09-19, on Marc's design: *"the basic Ping() should be an OK (ValueTask) response. For a
-      separate PingMeasureAsync(), I think the handler becomes an alloc, so: class PingMeasureHandle :
-      ITheWhatever that captures the initial time at creation."*
+- [x] **`Ping` splits in two, and measures end-to-end — DONE, 2026-09-19.** Marc's design: *"the basic
+      Ping() should be an OK (ValueTask) response. For a separate PingMeasureAsync(), I think the handler
+      becomes an alloc, so: class PingMeasureHandle : ITheWhatever that captures the initial time at
+      creation."*
 
       `PingMeasureHandler` takes its start timestamp in its constructor and reads the elapsed time when the
       reply arrives, so the duration needs no state threaded through the send - which is what made the
       alternative (`IRespHandler<TState, TResult>`, state handed to `Parse`) not worth a type parameter on
-      every handler in the library to serve one command. It is the only per-call handler on this surface.
+      every handler in the library to serve one command. It is the only per-call handler on this surface,
+      and `EachPingMeasureGetsItsOwnClock` is what makes that right rather than merely easy: a shared
+      handler would carry one start timestamp, so the second measurement would be the time since the FIRST
+      call - growing without bound and looking plausible the whole way.
 
-      **The number is not the same number.** `TimingProcessor` reads
+      **The number changed, deliberately.** `TimingProcessor` reads
       `TimerMessage.StartedWritingTimestamp`, stamped inside `WriteImpl`, so the shipped `IRedis.Ping`
       times the server and excludes whatever the message spent queued. A handler is handed a reader and
-      nothing else, so it starts its clock just before the send and therefore also counts the queue.
-      Identical on an idle connection; larger under a backlog. `IRedis.Ping`/`PingAsync` are wired to it,
-      so **anyone alerting on this number sees it move under congestion** - which is arguably the more
-      useful reading, and is still a change.
+      nothing else, so it starts its clock just before the send and counts the queue too - identical on an
+      idle connection, larger under a backlog.
 
-      To get exact parity the write instant has to reach the handler, which means `RespPayload` (or the
-      request) carrying a timestamp the executor stamps - a RESPite-level change, not a large one. Worth
-      doing if the metric matters more than the plumbing; reverting the two adapter members to the
-      fallback is the other one-line option.
+      Raised as a fork with two ways out (carry a write timestamp on the payload for exact parity, or put
+      the adapter members back on the fallback). Marc settled it: *"arguably on a backlog, the end-to-end
+      time is what they actually care about"*. So neither - a caller waiting behind a backlog is waiting
+      for the whole of it, and a ping that hid the queue would look healthy at precisely the moment it
+      matters. `IRedis.Ping` has always documented its result as "the observed latency", which is this
+      reading rather than the other one, so the shipped docs need no change either.
 
 - [ ] **`TransitionalDatabase`: 17 unimplemented members — status, 2026-09-19.** 106 at the start of
       2026-09-18, then 71, then 43; now **10** generated (the SER352 number) plus **7 hand-written members

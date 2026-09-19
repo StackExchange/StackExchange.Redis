@@ -192,12 +192,17 @@ namespace StackExchange.Redis
             /// serve one command.
             /// </para>
             /// <para>
-            /// <b>This measures from just before the send, where <c>IRedis.Ping</c> measures from the
-            /// write.</b> The shipped <c>TimingProcessor</c> reads <c>TimerMessage.StartedWritingTimestamp</c>,
-            /// stamped inside <c>WriteImpl</c>, so its number excludes whatever the message spent queued -
-            /// which is exactly the time a backlog adds. A handler cannot see that instant: it is handed a
-            /// reader and nothing else. So this number is the same on an idle connection and larger on a
-            /// congested one, and it is the caller's own latency rather than the server's.
+            /// <b>This measures from just before the send, where the shipped <c>TimingProcessor</c>
+            /// measures from the write</b> - it reads <c>TimerMessage.StartedWritingTimestamp</c>, stamped
+            /// inside <c>WriteImpl</c>, so its number excludes whatever the message spent queued, which is
+            /// exactly the time a backlog adds. A handler cannot see that instant: it is handed a reader
+            /// and nothing else.
+            /// </para>
+            /// <para>
+            /// <b>Counting the queue is the wanted behaviour, not a compromise.</b> A caller waiting behind
+            /// a backlog is waiting for the whole of it, so the end-to-end time is what they are actually
+            /// experiencing - and a ping that hid the queue would look healthy at precisely the moment it
+            /// matters. The two agree on an idle connection, which is when nobody is asking.
             /// </para>
             /// <para>
             /// The reply itself is not inspected, which is the shipped behaviour too: a <c>PING</c> can be

@@ -185,12 +185,20 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>The number is measured from a slightly earlier instant than the shipped one.</b>
-        /// <c>TimingProcessor</c> reads <c>TimerMessage.StartedWritingTimestamp</c>, stamped inside
-        /// <c>WriteImpl</c>, so it times the server; <c>PingMeasureAsync</c>'s handler starts its clock
-        /// just before the send, so it also counts whatever the message spends queued. Identical on an
-        /// idle connection, larger under a backlog - and a handler is handed a reader and nothing else, so
-        /// it cannot see the write instant without the payload carrying it. Recorded in the queue.
+        /// <para>
+        /// <b>The number is measured from a slightly earlier instant than the shipped one, and that is the
+        /// chosen behaviour rather than a limitation being tolerated.</b> <c>TimingProcessor</c> reads
+        /// <c>TimerMessage.StartedWritingTimestamp</c>, stamped inside <c>WriteImpl</c>, so it times the
+        /// server and excludes whatever the message spent queued; <c>PingMeasureAsync</c>'s handler starts
+        /// its clock just before the send, so it counts the queue too.
+        /// </para>
+        /// <para>
+        /// Identical on an idle connection, larger under a backlog - which is the case that decided it:
+        /// <b>a caller waiting behind a backlog is waiting for the whole of it</b>, so the end-to-end time
+        /// is the one they are actually experiencing, and a number that hid the queue would be reassuring
+        /// at exactly the wrong moment. <see cref="IRedis.Ping"/> has always documented its result as "the
+        /// observed latency", which is this reading rather than the other one.
+        /// </para>
         /// </remarks>
         public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
             => _inner.PingMeasureAsync(flags).AsTask();
