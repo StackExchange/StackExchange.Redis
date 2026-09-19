@@ -67,7 +67,18 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
-- [ ] **Marc's 3-way (4-way) benchmark, once the new stack can reach a real server.** Requested
+- [x] **Marc's 3-way (4-way) benchmark — DONE, and the premise holds.** Full numbers in design notes
+      §7e and `toys/CoreBench/readme.md`. Headline: 3.3.0 and this branch's old path are identical within
+      noise (the control), and the new core is **+30% at 64 workers**, +2.5% at one — the predicted shape.
+      It also found that phase 1's pooling had never once engaged (0 hits in 56,642 sends), which no test
+      could have caught because results were correct throughout.
+
+      Allocation is the open side: ~497 B/op against the old core's ~375, of which ~300 is addressable —
+      the surface's async state machine on the suspending path (~176, and `newcache` at 0.0 proves the
+      same machinery is free when nothing suspends), the reply copy (~72), the request lease (~48). Creep
+      already favours the new core: flat and dying in gen0, where the old promotes to gen1/gen2.
+
+- [ ] ~~**Marc's 3-way (4-way) benchmark, once the new stack can reach a real server.**~~ Requested
       2026-09-19, explicitly not urgent and explicitly gated on *"something that works end to end … that
       is realistic (so: we're not cheating by omitting half the work, like timing and status)"*. A counter
       GET, using the 8-byte `RedisValue` allocation hack for all arms, measuring ops/s **and memory

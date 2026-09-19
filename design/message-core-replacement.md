@@ -509,6 +509,70 @@ construction: the diagnostics live on the *operation*, and an operation exists o
 going to the pipe. A cache hit returns from `TryGet` before the executor is reached, so it stamps
 nothing. That is a property of the layering, not a flag anyone has to remember to check.
 
+
+### 7e. Measured: the premise holds, and what it costs
+
+Run 2026-09-19, net10.0, server GC, local server; counter `INCR`, one key per worker (a shared counter
+serialises on the *server*, which is the thing being controlled for), 3s per measurement. `toys/CoreBench`,
+with `toys/CoreBench.Baseline` linking the **same harness** against the shipped package so the control
+cannot drift from what it controls.
+
+| arm | 1 | 4 | 16 | 64 | bytes/op |
+|---|---|---|---|---|---|
+| **3.3.0** (shipped) | 27,929 | 79,896 | 205,505 | 426,699 | 361–383 |
+| **old** (this branch) | 26,942 | 82,188 | 204,441 | 425,607 | 361–375 |
+| **new** (this branch) | 27,626 | 86,635 | 224,965 | **553,822** | 496.1 |
+| **newcache** (cacheable `GET`) | 7,667,317 | — | 79,032,968 | 89,931,589 | **0.0** |
+
+**3.3.0 and this branch's old path are identical within noise**, at every worker count and in
+allocation. That is the control everything else rests on: new-vs-old here is a valid proxy for
+new-vs-shipped, because nothing about the old path has moved.
+
+**The contention prediction in §3b was right**: +2.5% at one worker, +5.4% at four, +10% at sixteen,
+**+30% at sixty-four**. Close single-threaded, gap opening with concurrency — which is what should happen
+if the difference is that the old core serialises every argument inside its write lock and the new core
+does not.
+
+#### Where the bytes go
+
+| arm | bytes/op | what the step adds |
+|---|---|---|
+| `noop` | 0.0 | the harness is free, so every number below is real |
+| `yield` | 96.0 | **the caller's own async state machine**, for an await that genuinely suspends |
+| `render` | 48.0 | the per-request lease |
+| `direct` | 249.1 | +105 connection and operation, including the thread-pool work item |
+| `exec` | 321.1 | **+72** `RespPayload` + `RefCountedBuffer` |
+| `new` | 496.9 | **+176** the context surface's own async state machine |
+| `newcache` | 0.0 | the same surface, when nothing suspends |
+
+Of the new core's ~497 bytes, **~300 is addressable and none of it is the core design**:
+
+- **~96 is the caller's**, not ours. Any suspending `await` boxes its state machine; 3.3.0 pays it
+  identically. Not recoverable, and not a difference.
+- **~176 is the surface's async state machine** on the suspending path — the largest single item, and the
+  most promising. `newcache` at 0.0 proves it is *only* the suspending path: the same handler, parse and
+  `ValueTask` machinery allocates nothing when the executor completes inline. A pooled async method
+  builder, or a shape that avoids the async frame on synchronous completion, is the lead.
+- **~72 is `RespPayload.Create` copying the reply**, already documented in-source as scaffolding for
+  sharing the receive buffer's lease.
+- **~48 is the per-request lease**, poolable.
+- **~105 is the connection and operation path**, including the thread-pool work item that exists
+  *because* continuations are queued rather than run inline. Not a bug to fix — that is thread theft's
+  price, and the existing core pays it too.
+
+#### Creep, which is the other half of the question
+
+The new core's allocation is **flat at 496.1 and dies in gen0** — zero gen1, zero gen2 at every worker
+count. The old core's varies between 322 and 383 and **promotes**: 29 gen1 collections and a gen2 at 64
+workers. So on volume the new core is currently worse and on *accumulation* it is already better, which
+is the distinction that matters for a long-lived server process.
+
+#### What this is not yet
+
+The new arm has no handshake, no `SELECT`, no reconnect, no backlog and no profiling hooks. None of those
+distort a steady-state loop on a healthy connection, but they are real work that the old arm does and the
+new one does not, so this is not yet a fair fight in either direction.
+
 ---
 
 ## 8. Open questions
