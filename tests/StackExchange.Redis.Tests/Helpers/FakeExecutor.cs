@@ -130,3 +130,24 @@ internal class FakeExecutor(params string[] replies) : RespExecutorBase
         foreach (var range in ranges) Keys.Add(Encoding.UTF8.GetString(request.GetKey(in range).ToArray()));
     }
 }
+
+/// <summary>Reaching the concrete multiplexer through whatever the fixture handed back.</summary>
+/// <remarks>
+/// <b>Needed wherever a test wants the OLD database specifically</b> - a shim executor, or a message
+/// builder - because <c>GetDatabase</c> is precisely what stops returning one when the new surface is
+/// switched on, and the shared fixture hands out a non-disposing wrapper rather than the multiplexer.
+/// Extracted after the third copy of the same two lines.
+/// </remarks>
+internal static class TestMultiplexer
+{
+    internal static ConnectionMultiplexer Unwrap(IConnectionMultiplexer conn) => conn switch
+    {
+        ConnectionMultiplexer direct => direct,
+        SharedConnectionFixture.NonDisposingConnection wrapper => (ConnectionMultiplexer)wrapper.UnderlyingConnection,
+        _ => throw new InvalidOperationException($"cannot reach a multiplexer through {conn.GetType().Name}"),
+    };
+
+    /// <summary>The shipped database, whatever <c>GetDatabase</c> is currently configured to return.</summary>
+    internal static RedisDatabase Legacy(IConnectionMultiplexer conn, int db = 0, object? asyncState = null)
+        => new(Unwrap(conn), db, asyncState);
+}

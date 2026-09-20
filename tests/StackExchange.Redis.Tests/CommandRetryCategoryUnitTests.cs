@@ -31,7 +31,7 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     {
         var server = new InProcessTestServer(log);
         var conn = await server.ConnectAsync();
-        return new RedisDatabase((ConnectionMultiplexer)conn, 0, null);
+        return TestMultiplexer.Legacy(conn);
     }
 
     private void AssertCategory(CommandFlags expected, Message message, string because)

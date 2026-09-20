@@ -27,13 +27,7 @@ public abstract class RespNewCoreFixture
     /// <summary>The new core over this multiplexer, as an <see cref="IDatabase"/>.</summary>
     internal static IDatabase Wrap(IConnectionMultiplexer conn, int db, object? asyncState)
     {
-        // the shared fixture hands out a NonDisposingConnection wrapper, so unwrap to the real thing
-        var muxer = conn switch
-        {
-            ConnectionMultiplexer direct => direct,
-            SharedConnectionFixture.NonDisposingConnection wrapper => (ConnectionMultiplexer)wrapper.UnderlyingConnection,
-            _ => throw new InvalidOperationException($"cannot reach a multiplexer through {conn.GetType().Name}"),
-        };
+        var muxer = TestMultiplexer.Unwrap(conn);
 
         var core = Cores.GetValue(muxer, static m => new RespNewCore(m));
         var wanted = db < 0 ? 0 : db;
