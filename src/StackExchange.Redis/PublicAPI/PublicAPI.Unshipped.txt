@@ -741,3 +741,5 @@ static StackExchange.Redis.VectorSets.SimilaritySearchAsync(this in StackExchang
 virtual StackExchange.Redis.RespReply.OnDisposed() -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(ulong value) -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(ulong? value) -> void
+StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(float value) -> void
+StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(float? value) -> void

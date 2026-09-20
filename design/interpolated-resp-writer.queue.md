@@ -158,8 +158,14 @@ suites that would have caught them never routed through the new surface:
   entries at 0, 1, 2 became five values written from index 0, reply `5` where the caller expected `3`.
   The server accepts and misreads it. `RespSurfaceArraysTests` had pinned the bug.
 - **`ulong` rendered in scientific notation** (`1.8446744073709552E+19`) - no `ulong` overload, so it
-  bound to `double`. `ulong?` was a *separate* trap needing its own overload. `float` deliberately left
-  alone: an overload makes every `int` literal ambiguous, and exponential form is legal there.
+  bound to `double`. `ulong?` was a *separate* trap needing its own overload. `float` was left alone at
+  first because an overload for it made every `int` literal ambiguous with `long?` - until Marc asked
+  whether `OverloadResolutionPriority` helps. **It does**, and it was already polyfilled and in use here:
+  priority on `long?` says an integral hole means an integer, and `float` then binds only to an actual
+  float. Two further steps were needed to make that worth anything - `RedisValue` has no
+  single-precision form, so the overload alone still widened, and the *nullable* has to call the float
+  overload rather than the `RedisValue` one. Formatted into the frame directly with `Utf8Formatter`, so
+  the fidelity costs no allocation.
 - **A null key rendered as an empty bulk string**, so the command ran against a key named `""` - a legal
   key, so it *succeeded against the wrong thing*. Now refused where every key reaches a frame.
 - **Doubles from the server could not be parsed at all.** The numeric buffer was 20 bytes; a G17 double

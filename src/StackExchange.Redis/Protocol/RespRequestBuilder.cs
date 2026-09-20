@@ -759,6 +759,7 @@ namespace StackExchange.Redis.Protocol
         /// so a nullable hole binds to this without the caller asking.
         /// </para>
         /// </remarks>
+        [OverloadResolutionPriority(1)] // integral holes prefer this over the float overload below
         public void AppendFormatted(long? value)
         {
             if (value is long actual) AppendFormatted((RedisValue)actual);
@@ -777,20 +778,50 @@ namespace StackExchange.Redis.Protocol
         [System.CLSCompliant(false)]
         public void AppendFormatted(ulong value) => AppendFormatted((RedisValue)value);
 
+        /// <summary>Append a single-precision argument.</summary>
+        /// <param name="value">The value.</param>
+        /// <remarks>
+        /// <b>So it is not widened to <see cref="double"/> first.</b> Exponential form is legal for a
+        /// floating argument, so this is fidelity rather than correctness - but widening adds digits that
+        /// were never in the value: <c>1.5e20f</c> went out as <c>1.500000030061316E+20</c>, the double
+        /// nearest that float rather than the float the caller wrote.
+        /// <para>
+        /// This overload is only viable because <see cref="AppendFormatted(long?)"/> carries
+        /// <see cref="OverloadResolutionPriorityAttribute"/>: without it every <see cref="int"/> hole
+        /// becomes ambiguous between <c>long?</c> and <c>float</c>, since an <c>int</c> converts
+        /// implicitly to both and neither is better. The priority says which one an integer means.
+        /// </para>
+        /// </remarks>
+        public void AppendFormatted(float value)
+        {
+            // formatted AS A FLOAT rather than converted to RedisValue, which has no single-precision
+            // form and would widen to double - the very thing this overload exists to avoid. Written
+            // straight into the frame, so preserving the fidelity costs no allocation.
+            Span<byte> scratch = stackalloc byte[32];
+            if (!System.Buffers.Text.Utf8Formatter.TryFormat(value, scratch, out var written))
+            {
+                AppendFormatted((RedisValue)(double)value); // unreachable in practice; widened is still valid
+                return;
+            }
+
+            CountArguments();
+            var payload = WriteBulk(written, out var payloadOffset);
+            scratch.Slice(0, written).CopyTo(payload);
+            CommitBulk(payloadOffset, written);
+        }
+
+        /// <inheritdoc cref="AppendFormatted(float)"/>
+        public void AppendFormatted(float? value)
+        {
+            if (value is float actual) AppendFormatted(actual); // the float overload, NOT the RedisValue one
+        }
+
         /// <inheritdoc cref="AppendFormatted(ulong)"/>
         /// <remarks>
         /// <para>
         /// <b>The nullable needs its own overload for the same reason, one level up.</b> <c>ulong?</c> does
         /// not convert to <c>ulong</c>, so it would fall through to <see cref="double"/>? and render in
         /// scientific notation exactly as the non-nullable did - the fix for one is not the fix for both.
-        /// </para>
-        /// <para>
-        /// <b><see cref="float"/> is deliberately left alone</b>, though it has the same shape: it widens
-        /// to <see cref="double"/> and so renders <c>1.5e20f</c> as <c>1.500000030061316E+20</c>, the
-        /// double nearest that float rather than the float itself. An overload for it would make every
-        /// <see cref="int"/> literal ambiguous between <c>long?</c> and <c>float</c>, which breaks call
-        /// sites that are correct today - and exponential form is legal for a floating argument, so this
-        /// is fidelity rather than correctness. Not worth that trade; recorded instead.
         /// </para>
         /// </remarks>
         [System.CLSCompliant(false)]

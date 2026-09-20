@@ -68,6 +68,21 @@ public partial class InterpolatedAppendTests
         ulong? nullable = ulong.MaxValue;
         using var lifted = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{nullable}");
         Assert.Equal("*3|$3|GET|$1|k|$20|18446744073709551615|", Text(lifted));
+
+        // a float is not widened to double first: exponential form is legal here, but widening adds
+        // digits that were never in the value - 1.5e20f became 1.500000030061316E+20. The float overload
+        // is only viable because AppendFormatted(long?) carries OverloadResolutionPriority: without it an
+        // int hole is ambiguous between long? and float, since int converts implicitly to both.
+        using var single = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{1.5e20f}");
+        Assert.Equal("*3|$3|GET|$1|k|$7|1.5E+20|", Text(single));
+
+        float? liftedSingle = 1.5e20f;
+        using var singleLifted = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{liftedSingle}");
+        Assert.Equal("*3|$3|GET|$1|k|$7|1.5E+20|", Text(singleLifted));
+
+        // and the priority does its job: an integer hole still means an integer, not a float
+        using var whole = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{12345}");
+        Assert.Equal("*3|$3|GET|$1|k|$5|12345|", Text(whole));
     }
 
     [Fact]
