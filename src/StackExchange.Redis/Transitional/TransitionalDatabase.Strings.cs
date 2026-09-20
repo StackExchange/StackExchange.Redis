@@ -33,7 +33,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetAsync(key, flags).AsTask();
+            => _inner.Strings.GetAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool StringSet(RedisKey key, RedisValue value, Expiration expiry = default, ValueCondition when = default, CommandFlags flags = CommandFlags.None)
@@ -41,7 +41,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry = default, ValueCondition when = default, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.SetAsync(key, value, expiry, when, flags).AsTask();
+            => _inner.Strings.SetAsync(key, value, expiry, when, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
@@ -85,7 +85,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.SetAsync(Required(values, nameof(values)), expiry, when, flags).AsTask();
+            => _inner.Strings.SetAsync(Required(values, nameof(values)), expiry, when, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
@@ -101,7 +101,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.SetAndGetAsync(key, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags).AsTask();
+            => _inner.Strings.SetAndGetAsync(key, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -114,7 +114,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="StringGetSet"/>
         public Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetSet(key, value, flags).AsTask();
+            => _inner.Strings.GetSet(key, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -126,7 +126,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="StringGet(RedisKey[], CommandFlags)"/>
         public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetArray(Required(keys, nameof(keys)), flags).AsTask();
+            => _inner.Strings.GetArray(Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -134,7 +134,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<Lease<byte>?> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetWritableLease(key, flags).AsTask();
+            => _inner.Strings.GetWritableLease(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue StringGetRange(RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
@@ -142,7 +142,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetRangeAsync(RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetRangeAsync(key, start, end, flags).AsTask();
+            => _inner.Strings.GetRangeAsync(key, start, end, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue StringGetDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -150,7 +150,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetDeleteAsync(key, flags).AsTask();
+            => _inner.Strings.GetDeleteAsync(key, flags).AsTask(AsyncState, flags);
 
         // GETEX: two overloads and a separate PERSIST concept on the old surface, one Expiration on the
         // new one. CreateOrPersist with !expiry.HasValue is the same mapping RedisDatabase uses - a null
@@ -162,7 +162,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetSetExpiryAsync(key, Expiration.CreateOrPersist(expiry, !expiry.HasValue), flags).AsTask();
+            => _inner.Strings.GetSetExpiryAsync(key, Expiration.CreateOrPersist(expiry, !expiry.HasValue), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
@@ -170,7 +170,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetSetExpiryAsync(key, new Expiration(expiry), flags).AsTask();
+            => _inner.Strings.GetSetExpiryAsync(key, new Expiration(expiry), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -178,7 +178,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.AppendAsync(key, value, flags).AsTask();
+            => _inner.Strings.AppendAsync(key, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -186,7 +186,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.LengthAsync(key, flags).AsTask();
+            => _inner.Strings.LengthAsync(key, flags).AsTask(AsyncState, flags);
 
         // SETRANGE replies with an integer; the old signature says RedisValue, so the conversion happens
         // here rather than the group pretending not to know what it read
@@ -205,7 +205,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> StringDeleteAsync(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.DeleteAsync(key, when, flags).AsTask();
+            => _inner.Strings.DeleteAsync(key, when, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -213,7 +213,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<ValueCondition?> StringDigestAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.DigestAsync(key, flags).AsTask();
+            => _inner.Strings.DigestAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
@@ -221,7 +221,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.IncrementAsync(key, value, flags).AsTask();
+            => _inner.Strings.IncrementAsync(key, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public double StringIncrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
@@ -229,7 +229,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.IncrementAsync(key, value, flags).AsTask();
+            => _inner.Strings.IncrementAsync(key, value, flags).AsTask(AsyncState, flags);
 
         // Decrement is a negation, here as it already was in RedisDatabase - the group has no DECRBY,
         // because DECRBY n and INCRBY -n are the same request with the same reply
@@ -256,7 +256,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags).AsTask();
+            => _inner.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
@@ -264,7 +264,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags).AsTask();
+            => _inner.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public string? StringLongestCommonSubsequence(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -272,7 +272,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<string?> StringLongestCommonSubsequenceAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.LongestCommonSubsequenceAsync(first, second, flags).AsTask();
+            => _inner.Strings.LongestCommonSubsequenceAsync(first, second, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long StringLongestCommonSubsequenceLength(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -280,7 +280,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.LongestCommonSubsequenceLengthAsync(first, second, flags).AsTask();
+            => _inner.Strings.LongestCommonSubsequenceLengthAsync(first, second, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None)
@@ -288,7 +288,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.LongestCommonSubsequenceWithMatchesAsync(first, second, minLength, flags).AsTask();
+            => _inner.Strings.LongestCommonSubsequenceWithMatchesAsync(first, second, minLength, flags).AsTask(AsyncState, flags);
 
         /// <summary>
         /// The old surface throws on a null array where a span would quietly be empty; keep throwing,
@@ -315,7 +315,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
-            => TakeLock(key, value, expiry, flags).AsTask();
+            => TakeLock(key, value, expiry, flags).AsTask(AsyncState, flags);
 
         private ValueTask<bool> TakeLock(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags)
         {
@@ -330,6 +330,6 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> LockQueryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.GetAsync(key, flags).AsTask();
+            => _inner.Strings.GetAsync(key, flags).AsTask(AsyncState, flags);
     }
 }

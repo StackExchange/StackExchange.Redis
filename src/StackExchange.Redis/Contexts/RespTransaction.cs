@@ -108,6 +108,21 @@ namespace StackExchange.Redis
                 (_queue ??= []).Add(operation);
             }
 
+            // Fire-and-forget is answered NOW, with a null payload that Parse turns into default(T) -
+            // the same thing RespBatchExecutor does, and for the same reason: the real reply arrives
+            // later, with EXEC, and the caller has said they do not want it. The operation still has to
+            // be drained or it never recycles, which is what DiscardReply is for.
+            //
+            // Answered HERE rather than in the shared funnel, which was the first attempt and the wrong
+            // layer: the funnel deliberately still consults the cache for a fire-and-forget command (so
+            // the refusal is counted rather than invisible) and still surfaces a write failure. Both are
+            // pinned by existing tests, and both were broken by short-circuiting above them.
+            if ((request.Flags & CommandFlags.FireAndForget) != 0)
+            {
+                RespPayloadOperation.DiscardReply(operation);
+                return default;
+            }
+
             return new ValueTask<RespPayload>(operation, operation.Token);
         }
 

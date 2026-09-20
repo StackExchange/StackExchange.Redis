@@ -1312,6 +1312,46 @@ convincing. The instrument that settled it took two minutes and should have come
   Not a bug, but a **visible timing change**: code that reads `.Status` immediately rather than awaiting
   was correct-by-luck on the old core. Worth a release note, because it will not announce itself.
 
+### 7u. `AsyncState`, and fire-and-forget at the right layer
+
+**`AsyncState` cannot come from an `IValueTaskSource`, and that is the BCL rather than this design.**
+`Task.AsyncState` is set when the task is constructed and is immutable afterwards; `ValueTask<T>.AsTask()`
+exposes no state parameter, so an IVTS-backed task always reports null. Verified rather than assumed, and
+the experiment turned up a second fact that matters more: for an already-completed value `AsTask()` can
+hand back the **shared `Task.FromResult` cache singleton**. So the tempting optimisation - stamp
+`m_stateObject` with `UnsafeAccessor`, which this library already does in `Delegates.cs` - is safe only
+for a *pending* source, whose task is freshly allocated and unshared. For a completed one it would
+corrupt an instance the whole process holds, and there is no reliable way to ask whether the task you
+were handed is yours. Left as a documented option behind one helper rather than spread across the call
+sites.
+
+The helper sits beside `Wait`, for the same reason `Wait` does. A database with no async state - what
+`GetDatabase()` gives you - takes the plain `AsTask()` path unchanged; only a caller who asked for state
+allocates the `TaskCompletionSource`. The new `RespDatabaseContext` surface returns `ValueTask` and
+allocates nothing at all; this exists for `IDatabaseAsync`, which returns `Task` and was already
+allocating one object per command, so the delta is one more object on an opt-in path.
+
+**No `RunContinuationsAsynchronously` on that TCS, deliberately.** The core's operations already complete
+with asynchronous continuations (§7b, `docs/ThreadTheft.md`), so by the time the bridge resumes the hop
+off the IO thread has happened. A second hop would add latency to buy a guarantee already held.
+
+**Fire-and-forget: the first attempt was at the wrong layer, and two existing tests said so.** Putting
+"return default immediately" in the shared send funnel looked obviously right and broke two things that
+are deliberate: `FireAndForgetIsNeitherCachedNorServed` asserts the cache is still *consulted* (so the
+refusal is counted rather than invisible), and `FireAndForgetIsNotRetried` asserts a write failure still
+surfaces. Short-circuiting above the cache destroyed both.
+
+The convention already existed one layer down - `RespBatchExecutor` and `RespMessageExecutor` each answer
+fire-and-forget with a null payload that `Parse` turns into `default(T)` - and the only executor missing
+it was the transaction one. Fixed there, with `DiscardReply` draining the operation so it still recycles.
+**The lesson is the same one as §7t:** the funnel looked like the general place to put a general rule, and
+the two tests encoded why it is not. Reading them first would have been quicker than reverting.
+
+**Still open: fire-and-forget does not short-circuit at the endpoint executor**, so an ordinary
+`db.StringIncrement(key, 1, FireAndForget)` on the new core still waits for a reply the caller said they
+did not want. That is a latency gap rather than a correctness one, and it interacts with how write
+failures surface, so it wants deciding rather than pattern-matching.
+
 ---
 
 ## 8. Open questions

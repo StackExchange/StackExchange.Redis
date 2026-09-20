@@ -19,7 +19,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.AddAsync(key, value, flags).AsTask();
+            => _inner.Sets.AddAsync(key, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -27,7 +27,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.AddAsync(key, Required(values, nameof(values)), flags).AsTask();
+            => _inner.Sets.AddAsync(key, Required(values, nameof(values)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool SetRemove(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -35,7 +35,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> SetRemoveAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.RemoveAsync(key, value, flags).AsTask();
+            => _inner.Sets.RemoveAsync(key, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SetRemove(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -43,7 +43,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SetRemoveAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.RemoveAsync(key, Required(values, nameof(values)), flags).AsTask();
+            => _inner.Sets.RemoveAsync(key, Required(values, nameof(values)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -51,7 +51,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.ContainsAsync(key, value, flags).AsTask();
+            => _inner.Sets.ContainsAsync(key, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -59,7 +59,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.ContainsArray(key, Required(values, nameof(values)), flags).AsTask();
+            => _inner.Sets.ContainsArray(key, Required(values, nameof(values)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -67,7 +67,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.LengthAsync(key, flags).AsTask();
+            => _inner.Sets.LengthAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue[] SetMembers(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -75,7 +75,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.MembersArray(key, flags).AsTask();
+            => _inner.Sets.MembersArray(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool SetMove(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -83,7 +83,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> SetMoveAsync(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.MoveAsync(source, destination, value, flags).AsTask();
+            => _inner.Sets.MoveAsync(source, destination, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue SetPop(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -91,7 +91,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> SetPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.PopAsync(key, flags).AsTask();
+            => _inner.Sets.PopAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.PopArray(key, count, flags).AsTask();
+            => _inner.Sets.PopArray(key, count, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -107,7 +107,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> SetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.RandomMemberAsync(key, flags).AsTask();
+            => _inner.Sets.RandomMemberAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue[] SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -115,7 +115,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.RandomMembersArray(key, count, flags).AsTask();
+            => _inner.Sets.RandomMembersArray(key, count, flags).AsTask(AsyncState, flags);
 
         // the (first, second) overloads are the old spelling of a two-key run; unpacking them here is the
         // whole of the difference, and a null `second` is how that surface says "just the one"
@@ -126,7 +126,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.CombineArray(operation, Pair(first, second), flags).AsTask();
+            => _inner.Sets.CombineArray(operation, Pair(first, second), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue[] SetCombine(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -134,7 +134,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.CombineArray(operation, Required(keys, nameof(keys)), flags).AsTask();
+            => _inner.Sets.CombineArray(operation, Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -142,7 +142,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.CombineAndStoreAsync(operation, destination, Pair(first, second), flags).AsTask();
+            => _inner.Sets.CombineAndStoreAsync(operation, destination, Pair(first, second), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -150,7 +150,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), flags).AsTask();
+            => _inner.Sets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
@@ -158,7 +158,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate: false, flags).AsTask();
+            => _inner.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate: false, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
@@ -166,7 +166,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit, approximate, flags).AsTask();
+            => _inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit, approximate, flags).AsTask(AsyncState, flags);
 
         /// <summary>
         /// The old <c>(first, second)</c> shape as a run of keys; a default <c>second</c> means one key.

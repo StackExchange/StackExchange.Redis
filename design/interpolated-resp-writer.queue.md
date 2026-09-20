@@ -99,10 +99,22 @@ existing suites run through it. This is the outstanding list, in the order thing
       pre-existing bugs on the way (a batch declining rather than waiting for the first connect; the
       connect publishing its connection before the backlog finished draining). See §7t.
 
-- [ ] **`AsyncState` is not propagated onto tasks the new core returns.** `ValueTask.AsTask()` over an
-      `IValueTaskSource` cannot carry it; the old core gets it free from its per-command
-      `TaskCompletionSource`. Fix is to allocate one *only when `asyncState` is non-null*, so the default
-      `GetDatabase()` pays nothing — ~270 `.AsTask()` sites, mechanical. 2 tests.
+- [x] **`AsyncState` propagated, 2026-09-20.** `TransitionalAsyncState.AsTask(state, flags)` beside
+      `Wait`: vanilla `AsTask()` when the state is null or the command is fire-and-forget, a
+      `TaskCompletionSource<T>(state)` otherwise. Verified that IVTS cannot carry it, and that `AsTask()`
+      on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
+      stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
+
+- [ ] **Fire-and-forget does not short-circuit at the endpoint executor.** `RespBatchExecutor`,
+      `RespMessageExecutor` and now `RespTransactionExecutor` answer it with a null payload; the endpoint
+      and connection executors do not, so an ordinary `db.StringIncrement(k, 1, FireAndForget)` still
+      waits for a reply nobody wants. Latency, not correctness — but it interacts with how write failures
+      surface (`FireAndForgetIsNotRetried` pins that they do), so it needs deciding, not pattern-matching.
+
+- [ ] **`NewCoreSetTests.SScan` / `NewCoreHashTests.ScanNoValues` are flaky under full-suite load.**
+      Pass in isolation and with a narrow filter; fail intermittently in the full run. First seen in the
+      commit that added the new-core batch/transaction suites, which is also the commit that added the
+      ordered write slot — so not yet attributed to either. Not diagnosed; do not assume it is harmless.
 
 - [ ] **Release note: `.Status` read without awaiting can now be `WaitingForActivation`.** This core sets
       `RunContinuationsAsynchronously`, so a task is completed but may not have transitioned at the

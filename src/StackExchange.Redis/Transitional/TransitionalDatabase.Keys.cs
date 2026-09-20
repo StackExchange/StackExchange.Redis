@@ -27,7 +27,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.DeleteAsync(key, flags).AsTask();
+            => _inner.Keys.DeleteAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -35,7 +35,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.DeleteAsync(Required(keys, nameof(keys)), flags).AsTask();
+            => _inner.Keys.DeleteAsync(Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -43,7 +43,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyExistsAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.ExistsAsync(key, flags).AsTask();
+            => _inner.Keys.ExistsAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -51,7 +51,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> KeyExistsAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.ExistsAsync(Required(keys, nameof(keys)), flags).AsTask();
+            => _inner.Keys.ExistsAsync(Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool KeyPersist(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -59,7 +59,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.PersistAsync(key, flags).AsTask();
+            => _inner.Keys.PersistAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public TimeSpan? KeyTimeToLive(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -67,7 +67,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<TimeSpan?> KeyTimeToLiveAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.TimeToLiveAsync(key, flags).AsTask();
+            => _inner.Keys.TimeToLiveAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -75,7 +75,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.ExpireTimeAsync(key, flags).AsTask();
+            => _inner.Keys.ExpireTimeAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -83,7 +83,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.TouchAsync(key, flags).AsTask();
+            => _inner.Keys.TouchAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -91,7 +91,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.TouchAsync(Required(keys, nameof(keys)), flags).AsTask();
+            => _inner.Keys.TouchAsync(Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None)
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.RandomAsync(flags).AsTask();
+            => _inner.Keys.RandomAsync(flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisType KeyType(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -107,7 +107,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisType> KeyTypeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.TypeAsync(key, flags).AsTask();
+            => _inner.Keys.TypeAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
@@ -115,7 +115,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.RenameAsync(key, newKey, when, flags).AsTask();
+            => _inner.Keys.RenameAsync(key, newKey, when, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool KeyMove(RedisKey key, int database, CommandFlags flags = CommandFlags.None)
@@ -123,7 +123,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyMoveAsync(RedisKey key, int database, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.MoveAsync(key, database, flags).AsTask();
+            => _inner.Keys.MoveAsync(key, database, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
@@ -131,7 +131,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase >= 0 ? destinationDatabase : null, replace, flags).AsTask();
+            => _inner.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase >= 0 ? destinationDatabase : null, replace, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -145,7 +145,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="KeyDump"/>
         public Task<byte[]?> KeyDumpAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => KeyDumpAsyncCore(key, flags).AsTask();
+            => KeyDumpAsyncCore(key, flags).AsTask(AsyncState, flags);
 
         private async ValueTask<byte[]?> KeyDumpAsyncCore(RedisKey key, CommandFlags flags)
         {
@@ -171,19 +171,19 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags)
-            => ExpireCore(key, expiry, ExpireWhen.Always, flags).AsTask();
+            => ExpireCore(key, expiry, ExpireWhen.Always, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
-            => ExpireCore(key, expiry, when, flags).AsTask();
+            => ExpireCore(key, expiry, when, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags)
-            => ExpireCore(key, expiry, ExpireWhen.Always, flags).AsTask();
+            => ExpireCore(key, expiry, ExpireWhen.Always, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
-            => ExpireCore(key, expiry, when, flags).AsTask();
+            => ExpireCore(key, expiry, when, flags).AsTask(AsyncState, flags);
 
         /// <summary>A null deadline is not an expiry; it is <c>PERSIST</c>.</summary>
         private ValueTask<bool> ExpireCore(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags)
@@ -199,7 +199,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.EncodingAsync(key, flags).AsTask();
+            => _inner.Keys.EncodingAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long? KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -207,7 +207,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.RefCountAsync(key, flags).AsTask();
+            => _inner.Keys.RefCountAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -215,7 +215,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long?> KeyFrequencyAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.FrequencyAsync(key, flags).AsTask();
+            => _inner.Keys.FrequencyAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -223,7 +223,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.IdleTimeAsync(key, flags).AsTask();
+            => _inner.Keys.IdleTimeAsync(key, flags).AsTask(AsyncState, flags);
 
         // ---- RESTORE / MIGRATE / DEBUG OBJECT ----------------------------------------------------
         // The array and the EndPoint are the shipped spellings; the new surface takes a span and a
@@ -235,7 +235,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task KeyRestoreAsync(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags).AsTask();
+            => _inner.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public void KeyMigrate(RedisKey key, System.Net.EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
@@ -243,7 +243,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task KeyMigrateAsync(RedisKey key, System.Net.EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
-            => Migrate(key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags).AsTask();
+            => Migrate(key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags).AsTask(AsyncState, flags);
 
         /// <summary>Unpick the endpoint and apply the multiplexer's default timeout.</summary>
         /// <remarks>
@@ -268,6 +268,6 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.DebugObjectAsync(key, flags).AsTask();
+            => _inner.Keys.DebugObjectAsync(key, flags).AsTask(AsyncState, flags);
     }
 }

@@ -20,7 +20,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => _inner.HyperLogLog.AddAsync(key, value, flags).AsTask();
+            => _inner.HyperLogLog.AddAsync(key, value, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool HyperLogLogAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -28,7 +28,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => _inner.HyperLogLog.AddAsync(key, Required(values, nameof(values)), flags).AsTask();
+            => _inner.HyperLogLog.AddAsync(key, Required(values, nameof(values)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long HyperLogLogLength(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -36,7 +36,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.HyperLogLog.LengthAsync(key, flags).AsTask();
+            => _inner.HyperLogLog.LengthAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long HyperLogLogLength(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -44,7 +44,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> HyperLogLogLengthAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.HyperLogLog.LengthAsync(Required(keys, nameof(keys)), flags).AsTask();
+            => _inner.HyperLogLog.LengthAsync(Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public void HyperLogLogMerge(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -52,7 +52,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task HyperLogLogMergeAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => _inner.HyperLogLog.MergeAsync(destination, [first, second], flags).AsTask();
+            => _inner.HyperLogLog.MergeAsync(destination, [first, second], flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public void HyperLogLogMerge(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
@@ -60,6 +60,6 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task HyperLogLogMergeAsync(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
-            => _inner.HyperLogLog.MergeAsync(destination, Required(sourceKeys, nameof(sourceKeys)), flags).AsTask();
+            => _inner.HyperLogLog.MergeAsync(destination, Required(sourceKeys, nameof(sourceKeys)), flags).AsTask(AsyncState, flags);
     }
 }

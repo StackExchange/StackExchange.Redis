@@ -20,7 +20,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> VectorSetAddAsync(RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.AddAsync(key, request, flags).AsTask();
+            => _inner.VectorSets.AddAsync(key, request, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long VectorSetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -28,7 +28,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.LengthAsync(key, flags).AsTask();
+            => _inner.VectorSets.LengthAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public int VectorSetDimension(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -36,7 +36,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<int> VectorSetDimensionAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.DimensionAsync(key, flags).AsTask();
+            => _inner.VectorSets.DimensionAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Lease<float>? VectorSetGetApproximateVector(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -44,7 +44,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<Lease<float>?> VectorSetGetApproximateVectorAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.GetApproximateVectorWritableLease(key, member, flags).AsTask();
+            => _inner.VectorSets.GetApproximateVectorWritableLease(key, member, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public string? VectorSetGetAttributesJson(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -52,7 +52,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<string?> VectorSetGetAttributesJsonAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.GetAttributesJsonAsync(key, member, flags).AsTask();
+            => _inner.VectorSets.GetAttributesJsonAsync(key, member, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public VectorSetInfo? VectorSetInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -60,7 +60,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.InfoAsync(key, flags).AsTask();
+            => _inner.VectorSets.InfoAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool VectorSetContains(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -68,7 +68,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.ContainsAsync(key, member, flags).AsTask();
+            => _inner.VectorSets.ContainsAsync(key, member, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -76,7 +76,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.GetLinksWritableLease(key, member, flags).AsTask();
+            => _inner.VectorSets.GetLinksWritableLease(key, member, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Lease<VectorSetLink>? VectorSetGetLinksWithScores(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -84,7 +84,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<Lease<VectorSetLink>?> VectorSetGetLinksWithScoresAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.GetLinksWithScoresWritableLease(key, member, flags).AsTask();
+            => _inner.VectorSets.GetLinksWithScoresWritableLease(key, member, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue VectorSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -92,7 +92,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.RandomMemberAsync(key, flags).AsTask();
+            => _inner.VectorSets.RandomMemberAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue[] VectorSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -100,7 +100,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.RandomMembersArray(key, count, flags).AsTask();
+            => _inner.VectorSets.RandomMembersArray(key, count, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -108,7 +108,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.RemoveAsync(key, member, flags).AsTask();
+            => _inner.VectorSets.RemoveAsync(key, member, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
@@ -116,7 +116,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.SetAttributesJsonAsync(key, member, attributesJson, flags).AsTask();
+            => _inner.VectorSets.SetAttributesJsonAsync(key, member, attributesJson, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)
@@ -124,7 +124,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.SimilaritySearchWritableLease(key, query, flags).AsTask();
+            => _inner.VectorSets.SimilaritySearchWritableLease(key, query, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public Lease<RedisValue> VectorSetRange(RedisKey key, RedisValue start = default, RedisValue end = default, long count = -1, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
@@ -132,6 +132,6 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<Lease<RedisValue>?> VectorSetRangeAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = -1, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => _inner.VectorSets.RangeWritableLease(key, start, end, count, exclude, flags).AsTask();
+            => _inner.VectorSets.RangeWritableLease(key, start, end, count, exclude, flags).AsTask(AsyncState, flags);
     }
 }

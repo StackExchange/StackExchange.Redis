@@ -42,7 +42,7 @@ internal partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Eval(script, keys, values, readOnly: false, flags).AsTask();
+        => Eval(script, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -50,7 +50,7 @@ internal partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Eval(script, keys, values, readOnly: true, flags).AsTask();
+        => Eval(script, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -58,7 +58,7 @@ internal partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => EvalHash(hash, keys, values, readOnly: false, flags).AsTask();
+        => EvalHash(hash, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -66,7 +66,7 @@ internal partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => EvalHash(hash, keys, values, readOnly: true, flags).AsTask();
+        => EvalHash(hash, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
@@ -103,7 +103,7 @@ internal partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-        => EvalResp(script, keys, values, readOnly: false, flags).AsTask();
+        => EvalResp(script, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
@@ -111,5 +111,5 @@ internal partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-        => EvalResp(script, keys, values, readOnly: true, flags).AsTask();
+        => EvalResp(script, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
 }

@@ -225,7 +225,7 @@ namespace StackExchange.Redis
         /// <remarks>Off the fallback; see the synchronous twin.</remarks>
         public Task<System.Net.EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
             => _inner.Raw.Executor is { } executor
-                ? executor.IdentifyEndpointAsync(key, flags).AsTask()
+                ? executor.IdentifyEndpointAsync(key, flags).AsTask(AsyncState, flags)
                 : Fallback<RedisKey>().IdentifyEndpointAsync(key, flags);
 
         /// <inheritdoc/>
@@ -251,7 +251,7 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
-            => _inner.PingMeasureAsync(flags).AsTask();
+            => _inner.PingMeasureAsync(flags).AsTask(AsyncState, flags);
 
         // the Wait family operates on caller-supplied Tasks, not server calls
         #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers

@@ -18,7 +18,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.SortArray(key, skip, take, order, sortType, by, get, flags).AsTask();
+            => _inner.Keys.SortArray(key, skip, take, order, sortType, by, get, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
@@ -26,6 +26,6 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default, RedisValue[]? get = null, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags).AsTask();
+            => _inner.Keys.SortAndStoreAsync(destination, key, skip, take, order, sortType, by, get, flags).AsTask(AsyncState, flags);
     }
 }

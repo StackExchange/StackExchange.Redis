@@ -27,7 +27,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-            => _inner.Raw.ExecuteAsync(command, args, flags).AsTask();
+            => _inner.Raw.ExecuteAsync(command, args, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisResult Execute(string command, params object[] args)
@@ -43,7 +43,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None)
-            => ExecuteCore(command, args, flags).AsTask();
+            => ExecuteCore(command, args, flags).AsTask(AsyncState, flags);
 
         /// <summary>The old <c>object</c>-argument <c>Execute</c>, rendered through the context surface.</summary>
         /// <remarks>
