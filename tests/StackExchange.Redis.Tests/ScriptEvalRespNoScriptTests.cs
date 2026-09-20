@@ -110,6 +110,12 @@ public class ScriptEvalRespNoScriptTests(ITestOutputHelper output) : TestBase(ou
             Protocol = TestContext.Current.GetProtocol(),
         });
 
+        // the OLD database explicitly: this counts rents from RequestBufferPool, which is RedisDatabase's
+        // buffer discipline. The new surface renders its own frames and never touches that pool, so
+        // through GetDatabase the count is whatever the connection's own IO holds and the test measures
+        // nothing about the thing it names.
+        var db = TestMultiplexer.Legacy(conn);
+
         const int Iterations = 20;
         for (int i = 0; i < Iterations; i++)
         {
@@ -117,7 +123,7 @@ public class ScriptEvalRespNoScriptTests(ITestOutputHelper output) : TestBase(ou
             // fails to compile, i.e. an error that is emphatically not a NOSCRIPT
             conn.GetServerSnapshot()[0].AddScript(Broken, UnknownHash);
             await Assert.ThrowsAsync<RedisServerException>(
-                async () => await conn.GetDatabase().ScriptEvaluateRespAsync(Broken, default, new RedisValue[] { "x" }));
+                async () => await db.ScriptEvaluateRespAsync(Broken, default, new RedisValue[] { "x" }));
         }
 
         await Task.Delay(100);

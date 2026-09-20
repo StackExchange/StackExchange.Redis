@@ -143,6 +143,32 @@ existing suites run through it. This is the outstanding list, in the order thing
       Interacts with the group/failover question (§7 cache notes): a cache entry carries an implicit
       subscription, and these three differ in what happens to that subscription when the node changes.
 
+### Switchover: the last few, and two that need a decision
+
+Down to **5-6** from 117, and stable run to run now that the server-global side effects are serialised.
+What is left is not a long tail of small bugs; it is two design questions and one flake.
+
+- [ ] **Timeout and failure fidelity — the most user-visible gap left.** Under the flag,
+      `AbortOnConnectFailTests.DisconnectAndReconnectThrowsConnectionExceptionSync` gets a plain
+      `TimeoutException("The operation has timed out.")` where the shipped path raises
+      `RedisTimeoutException` carrying the whole diagnostic: *"the message timed out in the backlog
+      attempting to send because no connection became available (1000ms) - Last Connection Exception:
+      ..."*, plus the inner exception. Those messages are this library's primary diagnostic surface and
+      people paste them into issues; losing them is a real regression even though nothing functional
+      breaks. `TransitionalDatabase.Wait` goes through `ConnectionMultiplexer.Wait`, which raises the
+      bare BCL exception. Needs the new core to produce an equivalent, not just *an* exception.
+      `AsyncTests.AsyncTasksReportFailureIfServerUnavailable` is the same gap on the async path.
+
+- [ ] **Profiling records the physical command, not the logical one.** `ProfilingTests.Simple` expects two
+      `EVAL`s; the new surface reports `EVALSHA,EVALSHA` because that is genuinely what went on the wire -
+      the shipped path pairs too, but its `Message` keeps `EVAL` as its identity while writing `EVALSHA`.
+      **A decision rather than a bug**: the physical name is truthful and correlates with `SLOWLOG` and
+      `MONITOR`; the logical name matches what the caller invoked, and is what shipped reports. Changing
+      the new core to report the logical command means carrying it separately from the rendered one.
+
+- [ ] `RespAggregateTimingTests.ADeferredWalkAgainstMaterialiseThenRead` - an allocation-comparison test,
+      load-sensitive, passes in isolation. Not a switchover issue; it fails occasionally either way.
+
 ### Switchover progress, 2026-09-20: 117 -> ~12-22 failures
 
 Run the suite either way from one build: default is green, and
