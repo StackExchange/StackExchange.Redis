@@ -105,6 +105,18 @@ existing suites run through it. This is the outstanding list, in the order thing
       on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
       stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
 
+- [ ] **BLOCKER: the new core cannot reach any database but the handshake's, and said nothing.** `SELECT`
+      runs once at handshake and the endpoint cache is keyed by endpoint alone, so `GetDatabase(5)` reads
+      and writes database 0 — verified against the shipped surface. Now **refused** (`GetDatabase` throws,
+      the test fixture skips), which turned 8 silently-fake locking tests into honest skips.
+
+      The fix is **the preamble capability**, not a new mechanism: connection-level tracking of the
+      selected database plus a `SELECT` injected immediately before any command for a different one, with
+      nothing interleaved. That is the same capability `SCRIPT LOAD`-before-`EVALSHA` and the hash-import
+      prepare need, and the §7t write slot is already the primitive for "nothing interleaved". **This
+      promotes the preamble item from an optimisation to a correctness blocker for the deletion.**
+      See §7x.
+
 ### How to progress the gaps: sweep the decisions, don't grind the suites
 
 Converting a suite, fixing what it exposes and repeating works, but it only finds gaps a test happens to

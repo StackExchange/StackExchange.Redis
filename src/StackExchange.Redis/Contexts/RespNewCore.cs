@@ -56,6 +56,9 @@ namespace StackExchange.Redis
                 OnTopologySuspect);
         }
 
+        /// <summary>The one database this core can reach; see <c>GetDatabase</c>.</summary>
+        internal int Database => _router.Database;
+
         /// <summary>A database context that sends through the new core.</summary>
         /// <param name="database">The database index.</param>
         /// <remarks>
@@ -67,16 +70,34 @@ namespace StackExchange.Redis
         /// gracefully; it just answers a question nobody had asked properly.
         /// </remarks>
         internal RespDatabaseContext GetDatabase(int database = 0)
-            => new(new RespContext(
+        {
+            // REFUSED, because the alternative is silent data corruption. SELECT is issued once, by the
+            // handshake, for the connection's configured database; the endpoint cache is keyed by endpoint
+            // alone, so every context resolves to that one connection whatever index it was asked for.
+            // A context for database 5 therefore READS AND WRITES DATABASE 0 with no error of any kind -
+            // verified directly: writing "five" through a db-5 context and reading it back through the
+            // shipped db-0 database returns "five".
+            //
+            // The real fix is connection-level database tracking with SELECT injected immediately before
+            // any command for a different index - and "immediately before, with nothing interleaved" is
+            // exactly the preamble capability section 7s recorded as unreachable on this core, so the two
+            // are one piece of work rather than two. Until then this throws, because a spike that
+            // quietly writes to the wrong database is worse than one that admits it cannot.
+            if (database != _router.Database)
+            {
+                throw new NotSupportedException(
+                    $"The new core cannot yet serve database {database}: SELECT is issued once at handshake, "
+                    + $"so this connection only reaches database {_router.Database}. See design notes 7x.");
+            }
+
+            return new(new RespContext(
                     _multiplexer.RawConfig.CommandMap,
                     database: database,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
                 .WithServices(new RedisBase.ServerFeatureProbe((RedisBase)_multiplexer.GetDatabase(database)))
-                .WithExecutor(database == _router.Database ? _router : Rebind(database)));
-
-        private RespMultiplexerExecutor Rebind(int database) => new(
-            _topology, ForSlot, Any, database, ForEndpoint, OnSlotMoved, OnTopologySuspect);
+                .WithExecutor(_router));
+        }
 
         /// <summary>
         /// Which endpoint owns a slot, according to the multiplexer's own topology.

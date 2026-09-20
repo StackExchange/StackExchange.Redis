@@ -191,6 +191,7 @@ public class TransitionalScanTests(ITestOutputHelper output, SharedConnectionFix
 
 /// <inheritdoc cref="TransitionalSurfaceFixture"/>
 [RunPerProtocol]
+[Collection(NonParallelCollection.Name)] // see HashImportTests: CONFIG RESETSTAT is server-wide
 public class TransitionalHashImportTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     : HashImportTests(output, fixture)
 {

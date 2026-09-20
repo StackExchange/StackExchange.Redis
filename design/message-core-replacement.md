@@ -1447,6 +1447,40 @@ an analyzer - "a wrapped suite calling `conn.GetDatabase()` directly" is mechani
 this is the second time a silent no-op has been found by accident rather than by tooling (the first was
 `[AutoDatabase]` matching interfaces by declared name, §7s).
 
+### 7x. The new core was writing to the wrong database, silently
+
+Converting `CopyTests` surfaced a cross-database `COPY` returning false. Chasing it found something much
+larger than the test: **the new core ignores the database index entirely.**
+
+`SELECT` is issued once, by the handshake, for the connection's configured database. `RespNewCore`'s
+endpoint cache is keyed by endpoint alone, so `GetDatabase(5)` builds a context that reports database 5,
+resolves to that same single connection, and reads and writes **database 0**. Verified directly rather
+than inferred: writing `"five"` through a database-5 context and reading it back through the *shipped*
+database-0 database returns `"five"`, and shipped's database 5 is empty.
+
+No error, no warning, no failing test. It is the worst shape a defect can have - silent, and wrong in the
+direction of corrupting somebody else's data.
+
+**Why no test caught it** is the part worth keeping. Several suites do use a dedicated database, and their
+new-core wrappers were passing: every operation went to database 0 *consistently*, so a test that writes
+and reads through the same wrapper sees exactly what it expects. Only a test that crosses databases -
+`CopyTests.CrossDB`, comparing against the shipped database - can see the difference. Self-consistent
+wrongness is invisible to self-consistent tests.
+
+**Refused rather than fixed, for now.** `GetDatabase` throws for any index the connection cannot reach,
+and `RespNewCoreFixture` skips instead of silently exercising the wrong database - which immediately
+turned eight passing locking tests into skips, because their multi-database coverage had been fake. That
+is the guard earning its place on the first run.
+
+**The real fix is the preamble capability, not a new mechanism.** It needs connection-level tracking of
+the currently-selected database and a `SELECT` injected immediately before any command for a different
+one, with nothing interleaved - which is exactly what §7s recorded as unreachable because
+`IRespPreambleGate.IsNeeded` takes a `PhysicalConnection`. So `SELECT`-injection, `SCRIPT LOAD`-before-
+`EVALSHA`, and the hash-import prepare are one piece of work with three callers, and the ordered write
+slot from §7t is already the primitive that makes the "nothing interleaved" part true. That reframes the
+preamble item from an optimisation ("an `EVALSHA` carries a `SCRIPT LOAD` it does not need") to a
+correctness blocker: **the new core cannot replace the old one until it can inject a preamble.**
+
 ---
 
 ## 8. Open questions

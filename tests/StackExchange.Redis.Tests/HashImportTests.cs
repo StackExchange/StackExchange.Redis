@@ -10,6 +10,12 @@ namespace StackExchange.Redis.Tests;
 /// Integration tests for <see cref="IDatabase.HashImport"/> / <see cref="IDatabaseAsync.HashImportAsync"/> and the
 /// reusable <see cref="HashImport"/> field-set (the session-based <c>HIMPORT</c> feature, Redis 8.10+).
 /// </summary>
+// CONFIG RESETSTAT and INFO commandstats are SERVER-WIDE, and ThePrepareIsInjectedOncePerConnection...
+// depends on both. The test already tolerated a concurrent sibling INFLATING its counts; what it could
+// not tolerate is one RESETSTAT-ing midway through, which deflates them - and adding the new-core and
+// transitional wrappers multiplied the number of siblings doing exactly that. Exclusivity is the only
+// honest fix: there is no way to measure a server-global counter while somebody else is clearing it.
+[Collection(NonParallelCollection.Name)]
 [RunPerProtocol]
 public class HashImportTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {

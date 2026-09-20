@@ -36,7 +36,18 @@ public abstract class RespNewCoreFixture
         };
 
         var core = Cores.GetValue(muxer, static m => new RespNewCore(m));
-        return new TransitionalDatabase(core.GetDatabase(db < 0 ? 0 : db), conn, asyncState, conn.GetDatabase(db, asyncState));
+        var wanted = db < 0 ? 0 : db;
+
+        // SKIPPED rather than silently wrong. The new core SELECTs once at handshake, so a context for
+        // any other database reaches the handshake's one - which was invisible until RespNewCore started
+        // refusing it, and had been quietly making several suites' multi-database coverage fake. Skipping
+        // says so; catching the throw and carrying on would not. See design notes 7x.
+        if (wanted != core.Database)
+        {
+            Assert.Skip($"The new core cannot yet serve database {wanted}; it SELECTs once at handshake.");
+        }
+
+        return new TransitionalDatabase(core.GetDatabase(wanted), conn, asyncState, conn.GetDatabase(db, asyncState));
     }
 
     /// <remarks>
@@ -252,6 +263,7 @@ public class NewCoreOverloadCompatTests(ITestOutputHelper output, SharedConnecti
 
 /// <inheritdoc cref="RespNewCoreFixture"/>
 [RunPerProtocol]
+[Collection(NonParallelCollection.Name)] // see HashImportTests: CONFIG RESETSTAT is server-wide
 public class NewCoreHashImportTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HashImportTests(output, fixture)
 {
     protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
