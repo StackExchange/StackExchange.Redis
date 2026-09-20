@@ -105,6 +105,37 @@ existing suites run through it. This is the outstanding list, in the order thing
       on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
       stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
 
+### How to progress the gaps: sweep the decisions, don't grind the suites
+
+Converting a suite, fixing what it exposes and repeating works, but it only finds gaps a test happens to
+cover — and the biggest one found so far was invisible to every test. A **census of the decisions** the
+shipped surface makes finds them directly.
+
+Shipped gates a command choice on `CommandMap.IsAvailable` for: `BITFIELD_RO`, `DEL`, `EVAL_RO`,
+`EVALSHA_RO`, `EXEC`, `MULTI`, `PTTL`, `PUBLISH`, `SCAN`, `SCRIPT`, `UNLINK`; and on a server feature for
+`MillisecondExpiry`, `HyperLogLogCountReplicaSafe`, `Unlink`, `SetWithValueCheck`, `Scan`,
+`DeleteWithValueCheck`, `BitFieldReadOnly`. The new surface currently gates on `BITFIELD_RO`, `EXEC`,
+`GEOSEARCH`, `LMOVE`, `MULTI`, `PTTL`, `SET`, `SORT_RO`, `PEXPIRE`. **The diff is the gap list**, and it
+is short enough to work through directly:
+
+- [x] **`DEL` → `UNLINK`, 2026-09-20.** `IDatabase.KeyDelete` has always auto-upgraded, and the adapter
+      always sent `DEL` — turning a non-blocking delete into a blocking one. **No test could catch it**:
+      the reply is the same integer, and the difference only shows as the server stalling on a large key.
+      Now pinned by a unit test, because that is the only place it can be.
+- [ ] **`EVAL_RO` / `EVALSHA_RO`** — the read-only script forms, which are what let a script run on a
+      replica. Same shape as `BITFIELD_RO`, which the new surface does handle.
+- [ ] **`SCAN`** — gated on both the map and `features.Scan`.
+- [ ] **`SCRIPT`** — availability of `SCRIPT LOAD`, which the preamble path depends on.
+- [ ] **`PUBLISH`** — pending with pub/sub.
+- [ ] **`HyperLogLogCountReplicaSafe`** — shipped routes `PFCOUNT` to a primary unless the server
+      guarantees it is replica-safe; four sites.
+
+**The rule that keeps falling out of these, worth stating once:** when a command choice is uncertain,
+which way to guess depends on what the *fallback* costs. `PEXPIRE` → `EXPIRE` loses precision silently,
+so unknown must pick the modern command. `UNLINK` → `DEL` loses only latency while guessing wrong is a
+hard error, so unknown must pick the safe one. **Equivalent fallback, guess safe; lossy fallback, guess
+modern.** And the command map is never a guess — it is configuration, and always authoritative.
+
 - [ ] **Real failures behind suites whose wrappers were a no-op — TOP PRIORITY.** The wrapped suites only
       test the new core if they call `GetDatabase(conn)`; 246 sites across 22 files called
       `conn.GetDatabase()` instead and silently tested the shipped database. Converting them all exposed

@@ -23,19 +23,20 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.DeleteAsync(key, flags));
+            => Wait(PrefersUnlink(in key, flags) ? _inner.Keys.UnlinkAsync(key, flags) : _inner.Keys.DeleteAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.DeleteAsync(key, flags).AsTask(AsyncState, flags);
+            => (PrefersUnlink(in key, flags) ? _inner.Keys.UnlinkAsync(key, flags) : _inner.Keys.DeleteAsync(key, flags))
+                .AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.DeleteAsync(Required(keys, nameof(keys)), flags));
+            => Wait(DeleteMany(Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.DeleteAsync(Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
+            => DeleteMany(Required(keys, nameof(keys)), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -184,6 +185,41 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
             => ExpireCore(key, expiry, when, flags).AsTask(AsyncState, flags);
+
+        /// <summary>Whether <c>UNLINK</c> should be sent in place of <c>DEL</c>.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The context surface exposes <c>DeleteAsync</c> and <c>UnlinkAsync</c> separately, which is
+        /// right</b> - they are different commands with different costs, and a caller writing new code
+        /// should say which they mean. But <c>IDatabase.KeyDelete</c> has always <i>auto-upgraded</i>
+        /// to <c>UNLINK</c> where the server has it, so an adapter that always sends <c>DEL</c> turns a
+        /// non-blocking delete into a blocking one. No test caught that: the reply is the same integer
+        /// either way, and the difference only shows as the server stalling on a large key.
+        /// </para>
+        /// <para>
+        /// <b>Positive confirmation is required here, where the expiry fallback deliberately does not
+        /// require it.</b> The direction that is safe under uncertainty depends on what the fallback
+        /// costs: falling back from <c>PEXPIRE</c> to <c>EXPIRE</c> silently loses precision, so unknown
+        /// has to mean "use the modern command"; falling back from <c>UNLINK</c> to <c>DEL</c> loses
+        /// nothing but latency, while guessing wrong is a hard error on an old server. Equivalent
+        /// fallback, guess safe; lossy fallback, guess modern.
+        /// </para>
+        /// </remarks>
+        private bool PrefersUnlink(in RedisKey key, CommandFlags flags)
+            => _inner.Raw.CommandMap.IsAvailable(RedisCommand.UNLINK)
+                && _inner.Raw.TryGetFeatures(RedisCommand.UNLINK, in key, flags, out var features)
+                && features.Unlink;
+
+        /// <inheritdoc cref="PrefersUnlink"/>
+        private ValueTask<long> DeleteMany(RedisKey[] keys, CommandFlags flags)
+        {
+            // the routing question is asked with the FIRST key, as the shipped surface does: they share a
+            // slot or the call would already have been refused, so any of them answers for all
+            var probe = keys.Length == 0 ? default : keys[0];
+            return PrefersUnlink(in probe, flags)
+                ? _inner.Keys.UnlinkAsync(keys, flags)
+                : _inner.Keys.DeleteAsync(keys, flags);
+        }
 
         /// <summary>A null deadline is not an expiry; it is <c>PERSIST</c>.</summary>
         /// <remarks>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -40,6 +40,27 @@ internal class FakeExecutor(params string[] replies) : RespExecutorBase
 
     /// <summary>The flags each request carried, for the tests that assert what reached the wire.</summary>
     public List<CommandFlags> Flags { get; } = [];
+
+    /// <summary>What this fake server claims to support, or null for "no idea".</summary>
+    /// <remarks>
+    /// Null is the honest default and the interesting one: several command choices turn on a feature,
+    /// and whether "unknown" should pick the modern command or the safe one differs per command - so a
+    /// fake that always answered would hide exactly the case worth testing.
+    /// </remarks>
+    public RedisFeatures? Features { get; set; }
+
+    /// <inheritdoc/>
+    internal override bool TryGetLocalFeatures(out RedisFeatures features)
+    {
+        if (Features is { } known)
+        {
+            features = known;
+            return true;
+        }
+
+        features = default;
+        return false;
+    }
 
     /// <summary>The keys the writer marked, captured at send time; only when <see cref="CaptureKeys"/>.</summary>
     /// <remarks>

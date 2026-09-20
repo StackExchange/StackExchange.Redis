@@ -22,6 +22,29 @@ public class TransitionalDatabaseTests
     private static IDatabase Target(FakeExecutor executor)
         => new TransitionalDatabase(new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
+    [Fact]
+    public async Task KeyDeleteUpgradesToUnlinkWhereTheServerHasIt()
+    {
+        // IDatabase.KeyDelete has ALWAYS auto-upgraded to UNLINK, and nothing in the integration suite
+        // can see the difference: the reply is the same integer either way, and what changes is whether
+        // the server blocks while freeing a large key. So it is pinned here or not at all - which is how
+        // it came to be missing from the context surface in the first place.
+        var modern = new FakeExecutor(":1\r\n") { Features = new RedisFeatures(new Version(7, 0)) };
+        await Target(modern).KeyDeleteAsync("k");
+        Assert.Equal("*2|$6|UNLINK|$1|k|", Assert.Single(modern.Sent));
+
+        var ancient = new FakeExecutor(":1\r\n") { Features = new RedisFeatures(new Version(3, 2)) };
+        await Target(ancient).KeyDeleteAsync("k");
+        Assert.Equal("*2|$3|DEL|$1|k|", Assert.Single(ancient.Sent));
+
+        // unknown answers DEL, and the asymmetry with the expiry fallback is deliberate: falling back
+        // from UNLINK to DEL costs only latency, while guessing wrong is a hard error on an old server.
+        // Falling back from PEXPIRE to EXPIRE loses precision silently, so THAT one guesses modern.
+        var unknown = new FakeExecutor(":1\r\n");
+        await Target(unknown).KeyDeleteAsync("k");
+        Assert.Equal("*2|$3|DEL|$1|k|", Assert.Single(unknown.Sent));
+    }
+
     /// <summary>An executor that answers the routing question, and records that it was asked.</summary>
     private sealed class RoutingExecutor(bool connected, params string[] replies) : FakeExecutor(replies)
     {
