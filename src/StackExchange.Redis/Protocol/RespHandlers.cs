@@ -560,8 +560,14 @@ namespace StackExchange.Redis.Protocol
             long? IRespHandler<long?>.Parse(ref RespReader reader)
             {
                 // a single-operation BITFIELD still replies with an array; unwrap a unit one, as the
-                // MessageWriter path's NullableInt64Processor does, so the caller sees one value
-                if (reader.IsAggregate) reader.MoveNext();
+                // MessageWriter path's NullableInt64Processor does, so the caller sees one value.
+                //
+                // "&& !IsNull" is load-bearing: IsAggregate is true for a NULL aggregate too, and RESP3
+                // sends a null as "_" - so unwrapping it moved past the end of the frame and threw
+                // EndOfStreamException. OBJECT REFCOUNT on a missing key does exactly that, and only on
+                // RESP3: the RESP2 reply is a null bulk string, which has no element to step into and so
+                // took the IsNull branch correctly. A null is never an aggregate to step into.
+                if (reader.IsAggregate && !reader.IsNull) reader.MoveNext();
 
                 return reader.IsNull ? null : reader.ReadInt64();
             }

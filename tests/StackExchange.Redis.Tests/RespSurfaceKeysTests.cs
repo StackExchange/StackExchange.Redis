@@ -264,4 +264,20 @@ public class RespSurfaceKeysTests
         var (encoding, _) = await Run("$8\r\nlistpack\r\n", static async c => await c.Keys.EncodingAsync("k"));
         Assert.True(encoding, "OBJECT ENCODING should be cacheable");
     }
+
+    [Theory]
+    [InlineData("_\r\n")]        // RESP3 null
+    [InlineData("$-1\r\n")]      // RESP2 null bulk
+    [InlineData("*-1\r\n")]      // RESP2 null array
+    public async Task ANullRefCountIsNullInEveryProtocolSpelling(string reply)
+    {
+        // IsAggregate is true for a NULL aggregate as well, so unwrapping one stepped past the end of the
+        // frame and threw EndOfStreamException. OBJECT REFCOUNT on a missing key does exactly that - and
+        // only on RESP3, because the RESP2 reply is a null bulk string with no element to step into. A
+        // null is never an aggregate to step into.
+        var executor = new FakeExecutor(reply);
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
+
+        Assert.Null(await ctx.Keys.RefCountAsync("k"));
+    }
 }
