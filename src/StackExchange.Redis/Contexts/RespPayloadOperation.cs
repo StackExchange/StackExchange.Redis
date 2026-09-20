@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Threading;
+using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Operations;
 using StackExchange.Redis.Protocol;
@@ -107,6 +108,7 @@ namespace StackExchange.Redis
 
         /// <summary>Turn a reply frame into a payload, or an error reply into an exception.</summary>
         /// <param name="frame">The complete reply frame.</param>
+        /// <param name="source">Who owns the frame, when it can be retained rather than copied.</param>
         /// <remarks>
         /// <para>
         /// <b>An error reply becomes an exception here</b>, which is parity rather than a choice: the
@@ -122,7 +124,7 @@ namespace StackExchange.Redis
         /// "whoever turns a frame into a result", which is here.
         /// </para>
         /// </remarks>
-        protected override RespPayload ParseFrame(scoped ReadOnlySpan<byte> frame)
+        protected override RespPayload ParseFrame(scoped ReadOnlySpan<byte> frame, IPayloadReservationProvider? source)
         {
             var reader = new RespReader(frame);
             if (reader.TryMoveNext(checkError: false) && reader.IsError)
@@ -133,6 +135,18 @@ namespace StackExchange.Redis
                     reader.ReadString() ?? "Unknown server error.");
             }
 
+            // RETAIN rather than copy, when the sender owns the bytes and says so. This is the payload's
+            // whole reason for existing - it is handed on, read by a handler, and sometimes cached - so
+            // copying it out of the receive buffer was the one remaining copy on the read path, measured
+            // at ~72 bytes per operation. The reservation counts against the connection's buffer, which
+            // then cannot move or be reused until this payload is released.
+            if (source is not null && source.TryReserve(frame, out var reservation)
+                && reservation.Owner is RefCountedBuffer buffer)
+            {
+                return new RespPayload(buffer, reservation.Offset, reservation.Length);
+            }
+
+            // no owner, or the span is not a window onto it: the bytes are valid only for this call
             return RespPayload.Create(frame);
         }
 

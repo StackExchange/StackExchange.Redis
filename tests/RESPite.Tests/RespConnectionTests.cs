@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Operations;
 using RESPite.Transports;
@@ -267,6 +268,113 @@ public class RespConnectionTests
 
         Assert.Equal(">2|$10|invalidate|$1|k|", Assert.Single(connection.Pushes));
         Assert.Equal("one", message.GetResult(message.Token));
+    }
+
+    /// <summary>A message whose result RETAINS the frame, as the payload operation does.</summary>
+    private sealed class RetainingMessage : RespMessageBase<RetainingMessage.Held>
+    {
+        internal sealed class Held(PayloadReservation reservation)
+        {
+            internal string Text
+            {
+                get
+                {
+                    var buffer = (RefCountedBuffer)reservation.Owner;
+                    return Encoding.UTF8.GetString(
+                        buffer.GetSpan().Slice(reservation.Offset, reservation.Length).ToArray()).Replace("\r\n", "|");
+                }
+            }
+
+            internal void Release() => reservation.Owner.Dispose();
+        }
+
+        protected override Held ParseFrame(scoped ReadOnlySpan<byte> frame, IPayloadReservationProvider? source)
+        {
+            Assert.NotNull(source);
+            Assert.True(source!.TryReserve(frame, out var reservation), "the frame should be a window onto the sender's buffer");
+            return new Held(reservation);
+        }
+
+        internal static RetainingMessage For(string command)
+        {
+            var message = new RetainingMessage();
+            message.SetRequest(Encoding.UTF8.GetBytes(command), null, default);
+            return message;
+        }
+    }
+
+    [Fact]
+    public void ARetainedReplySurvivesTheBufferRollingUnderneathIt()
+    {
+        // the point of sharing rather than copying: the frame stays valid because the RESERVATION keeps
+        // the buffer alive, even once the connection has moved on to a new one. Holding every reply
+        // forces exactly that - the buffer can never be compacted in place, so it must roll.
+        var (connection, transport) = Connect();
+        const int Count = 500;
+
+        var messages = new RetainingMessage[Count];
+        var tokens = new short[Count];
+        for (var i = 0; i < Count; i++)
+        {
+            messages[i] = RetainingMessage.For("*1\r\n$1\r\nP\r\n");
+            Assert.True(connection.Send(messages[i]));
+            tokens[i] = messages[i].Token;
+        }
+
+        var builder = new StringBuilder();
+        for (var i = 0; i < Count; i++) builder.Append($"+reply-{i}\r\n");
+        var all = Encoding.UTF8.GetBytes(builder.ToString());
+        for (var offset = 0; offset < all.Length; offset += 37)
+        {
+            transport.Receive(all.AsSpan(offset, Math.Min(37, all.Length - offset)));
+        }
+
+        Assert.False(connection.IsClosed);
+
+        // read them ALL only now, long after the buffers they point into stopped being current
+        var held = new RetainingMessage.Held[Count];
+        for (var i = 0; i < Count; i++) held[i] = messages[i].GetResult(tokens[i]);
+        for (var i = 0; i < Count; i++)
+        {
+            Assert.Equal($"+reply-{i}|", held[i].Text);
+        }
+
+        foreach (var item in held) item.Release();
+    }
+
+    [Fact]
+    public void ManyRepliesAcrossBufferRollsStayMatchedToTheirOwnRequests()
+    {
+        // enough traffic to make the receive buffer fill and roll several times, which is where a shared
+        // (rather than copied) reply can go wrong: the buffer must not move or be reused under a frame
+        // somebody is still holding
+        var (connection, transport) = Connect();
+        const int Count = 2000;
+
+        var messages = new TextMessage[Count];
+        for (var i = 0; i < Count; i++)
+        {
+            messages[i] = TextMessage.For($"*1\r\n$1\r\nP\r\n");
+            Assert.True(connection.Send(messages[i]));
+        }
+
+        var tokens = new short[Count];
+        for (var i = 0; i < Count; i++) tokens[i] = messages[i].Token;
+
+        // deliver in awkward chunks so frames straddle reads
+        var builder = new StringBuilder();
+        for (var i = 0; i < Count; i++) builder.Append($"+reply-{i}\r\n");
+        var all = Encoding.UTF8.GetBytes(builder.ToString());
+        for (var offset = 0; offset < all.Length; offset += 37)
+        {
+            transport.Receive(all.AsSpan(offset, Math.Min(37, all.Length - offset)));
+        }
+
+        Assert.False(connection.IsClosed);
+        for (var i = 0; i < Count; i++)
+        {
+            Assert.Equal($"reply-{i}", messages[i].GetResult(tokens[i]));
+        }
     }
 
     [Fact]

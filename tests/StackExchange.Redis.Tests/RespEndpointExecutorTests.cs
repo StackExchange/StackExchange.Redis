@@ -90,6 +90,26 @@ public class RespEndpointExecutorTests
         {
             get { lock (Transports) return Transports[Transports.Count - 1]; }
         }
+
+        internal int TransportCount
+        {
+            get { lock (Transports) return Transports.Count; }
+        }
+
+        /// <summary>Whether a transport exists AND the command has reached it.</summary>
+        /// <remarks>
+        /// Waiting only for the transport to exist is a race: it is created inside ConnectAsync, before
+        /// the executor has published the connection and drained its backlog. Replying in that window
+        /// delivers to a connection with nothing pending, which is a protocol break - the connection
+        /// closes, and the test fails somewhere unrelated to what it was checking.
+        /// </remarks>
+        internal bool Ready(int expected = 1)
+        {
+            lock (Transports)
+            {
+                return Transports.Count >= expected && Transports[expected - 1].Written.Length > 0;
+            }
+        }
     }
 
     private static RespDatabaseContext Wrap(RespEndpointExecutor executor)
@@ -107,7 +127,7 @@ public class RespEndpointExecutorTests
         Assert.False(executor.IsConnectedNow);
 
         var pending = context.Strings.GetAsync("k");
-        await WaitFor(() => endpoint.Transports.Count == 1);
+        await WaitFor(() => endpoint.Ready());
 
         endpoint.Latest.Reply("$5\r\nhello\r\n");
         Assert.Equal("hello", (string?)await pending);
@@ -131,12 +151,11 @@ public class RespEndpointExecutorTests
         Assert.Equal(1, endpoint.Attempts); // ONE attempt for three waiters, not three
 
         endpoint.Gate.SetResult(true);
-        await WaitFor(() => endpoint.Transports.Count == 1);
 
         // wait for the DRAIN to finish, not merely to start: waiting for "any bytes written" and then
         // asserting all three is a race, and one that only shows up when the machine is busy
         const string Expected = "*2|$3|GET|$1|a|*2|$3|GET|$1|b|*2|$3|GET|$1|c|";
-        await WaitFor(() => endpoint.Latest.Written.Length >= Expected.Length);
+        await WaitFor(() => endpoint.Ready() && endpoint.Latest.Written.Length >= Expected.Length);
 
         Assert.Equal(Expected, endpoint.Latest.Written);
         Assert.Equal(0, executor.BacklogCount);
@@ -155,7 +174,7 @@ public class RespEndpointExecutorTests
         var context = Wrap(executor);
 
         var first = context.Strings.GetAsync("a");
-        await WaitFor(() => endpoint.Transports.Count == 1);
+        await WaitFor(() => endpoint.Ready());
         endpoint.Latest.Reply("$1\r\nA\r\n");
         Assert.Equal("A", (string?)await first);
 
@@ -163,7 +182,7 @@ public class RespEndpointExecutorTests
         Assert.False(executor.IsConnectedNow);
 
         var second = context.Strings.GetAsync("b");
-        await WaitFor(() => endpoint.Transports.Count == 2);
+        await WaitFor(() => endpoint.Ready(2));
         endpoint.Latest.Reply("$1\r\nB\r\n");
 
         Assert.Equal("B", (string?)await second);
@@ -180,8 +199,7 @@ public class RespEndpointExecutorTests
         var context = Wrap(executor);
 
         var pending = context.Strings.IncrementAsync("counter");
-        await WaitFor(() => endpoint.Transports.Count == 1);
-        await WaitFor(() => endpoint.Latest.Written.Length > 0);
+        await WaitFor(() => endpoint.Ready());
 
         endpoint.Latest.Kill(new InvalidOperationException("connection reset"));
 
@@ -252,7 +270,7 @@ public class RespEndpointExecutorTests
         endpoint.Gate = null;
 
         var third = context.Strings.GetAsync("c");
-        await WaitFor(() => endpoint.Transports.Count == 1);
+        await WaitFor(() => endpoint.Ready());
         endpoint.Latest.Reply("$1\r\nC\r\n");
         Assert.Equal("C", (string?)await third);
     }

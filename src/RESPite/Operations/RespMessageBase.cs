@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks.Sources;
+using RESPite.Buffers;
 using RESPite.Messages;
 
 namespace RESPite.Operations;
@@ -156,7 +157,11 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// The default positions a reader and defers to <see cref="Parse(ref RespReader)"/>, which is what
     /// almost everything wants. See that method for when to override this one instead.
     /// </remarks>
-    protected virtual TResponse ParseFrame(scoped ReadOnlySpan<byte> frame)
+    /// <param name="source">
+    /// Who owns <paramref name="frame"/>, when it can be retained instead of copied; null when the bytes
+    /// are valid only for this call. Most parsers read a value out and do not care.
+    /// </param>
+    protected virtual TResponse ParseFrame(scoped ReadOnlySpan<byte> frame, IPayloadReservationProvider? source)
     {
         var reader = new RespReader(frame);
         if ((Volatile.Read(ref _state) & Flag_MetadataParser) == 0) reader.MoveNext();
@@ -332,14 +337,14 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     // ---- outcomes -----------------------------------------------------------------------------------
     /// <inheritdoc/>
-    public bool TrySetResult(short token, scoped ReadOnlySpan<byte> response)
+    public bool TrySetResult(short token, scoped ReadOnlySpan<byte> response, IPayloadReservationProvider? source = null)
     {
         if (!TryClaimOutcome(token)) return false;
         if ((Volatile.Read(ref _state) & Flag_Parser) == 0) return Complete(default!, definite: true);
 
         try
         {
-            return Complete(ParseFrame(response), definite: true);
+            return Complete(ParseFrame(response, source), definite: true);
         }
         catch (Exception ex)
         {

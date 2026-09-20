@@ -1,4 +1,4 @@
-using System.Net.Sockets;
+﻿using System.Net.Sockets;
 using CoreBench;
 using RESPite.Operations;
 using RESPite.Transports;
@@ -7,6 +7,7 @@ using StackExchange.Redis.Caching;
 
 Bench.Configure(args);
 Bench.WriteHeader("this branch");
+await Bench.SeedAsync();
 
 foreach (var workers in Bench.WorkerCounts)
 {
@@ -57,7 +58,9 @@ async Task<long> ExecAsync(Context ctx)
     {
         // Detach moves ownership out of the frame, so the REQUEST is what needs disposing: the executor
         // copies the bytes and never releases the caller's reference
-        using var request = raw.Render($"{RedisCommand.INCR}{key}").Detach();
+        using var request = Bench.Work == "get"
+            ? raw.Render($"{RedisCommand.GET}{key}").Detach()
+            : raw.Render($"{RedisCommand.INCR}{key}").Detach();
         using var payload = await executor.SendAsync(request);
     });
 }

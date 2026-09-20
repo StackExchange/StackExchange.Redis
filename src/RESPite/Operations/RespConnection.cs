@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Transports;
 
@@ -40,8 +41,47 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// </remarks>
     private readonly object _writeLock = new();
 
-    private byte[] _inbound = [];
-    private int _inboundLength;
+    /// <summary>
+    /// The receive buffer, reference-counted so a reply can be <b>retained rather than copied</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to be a plain growable array that was compacted after every drain. That is fine until
+    /// you want a payload to point <i>into</i> it: compacting, resizing, or reusing the array moves bytes
+    /// somebody is still reading, so every reply had to be copied out first - measured at ~72 bytes an
+    /// operation, and the one remaining copy on the receive path.
+    /// </para>
+    /// <para>
+    /// Counted instead. A delivered frame can take a reservation against this buffer, and the buffer
+    /// survives until the last reservation is released. What the connection gives up in exchange is the
+    /// right to move bytes whenever it likes: it may only compact in place while it is the <i>sole</i>
+    /// holder, and otherwise rolls forward to a fresh buffer, carrying the unconsumed tail.
+    /// </para>
+    /// <para>
+    /// <b>One copy remains, and it is the transport contract that requires it.</b>
+    /// <c>TransportReceiver.OnReceived</c> hands over bytes that are transport-owned and valid only for
+    /// that call, so they must be taken somewhere before anything else happens - that is
+    /// <see cref="Append"/>, and it costs one copy per byte received, once. What has gone is the
+    /// <i>second</i> copy, per reply, out of here into a private array.
+    /// </para>
+    /// <para>
+    /// <b>A frame split across several reads costs nothing extra.</b> It is concatenated here as part of
+    /// that same single copy and comes out contiguous, so it can be reserved exactly like one that
+    /// arrived whole - including a frame larger than the buffer, since growth is sized to fit it. Getting
+    /// rid of the last copy would mean the transport handing over <i>ownership</i> rather than a
+    /// borrowed span, which is a change to <c>TransportReceiver</c> rather than anything here.
+    /// </para>
+    /// </remarks>
+    private RefCountedBuffer? _inbound;
+
+    /// <summary>First unconsumed byte in <see cref="_inbound"/>.</summary>
+    private int _start;
+
+    /// <summary>First free byte in <see cref="_inbound"/>.</summary>
+    private int _end;
+
+    /// <summary>The size a receive buffer is rented at unless a single message needs more.</summary>
+    private const int DefaultBufferSize = 16 * 1024;
 
     private long _bytesSent;
     private long _bytesReceived;
@@ -172,21 +212,57 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     private void Append(ReadOnlySpan<byte> payload)
     {
-        var required = _inboundLength + payload.Length;
-        if (required > _inbound.Length)
+        EnsureSpace(payload.Length);
+        payload.CopyTo(_inbound!.GetSpan().Slice(_end));
+        _end += payload.Length;
+    }
+
+    /// <summary>Make room for <paramref name="incoming"/> more bytes, moving as little as possible.</summary>
+    /// <remarks>
+    /// Three cases, in the order that keeps the common one free: it already fits; we are the only holder,
+    /// so the unconsumed tail can slide to the front in place; or somebody still holds a reservation
+    /// against this buffer, so it must be left exactly where it is and we roll forward to a new one. The
+    /// old buffer returns to the pool by itself when its last reader is done.
+    /// </remarks>
+    private void EnsureSpace(int incoming)
+    {
+        var pending = _end - _start;
+        var buffer = _inbound;
+
+        if (buffer is not null && _end + incoming <= buffer.GetSpan().Length) return;
+
+        if (buffer is not null && pending + incoming <= buffer.GetSpan().Length && buffer.RefCount == 1)
         {
-            var size = Math.Max(required, Math.Max(_inbound.Length * 2, 1024));
-            Array.Resize(ref _inbound, size);
+            // sole holder: nothing is reading this, so the tail can move. RefCount can only FALL from
+            // another thread (a reader releasing), never rise - reservations are only taken here, on the
+            // read loop - so observing 1 means 1.
+            if (pending != 0) buffer.GetSpan().Slice(_start, pending).CopyTo(buffer.GetSpan());
+            _start = 0;
+            _end = pending;
+            return;
         }
 
-        payload.CopyTo(_inbound.AsSpan(_inboundLength));
-        _inboundLength = required;
+        // Sized for what is NEEDED, not doubled. Doubling on every roll was the first version, and it is
+        // wrong here in a way it would not be for a growable list: a roll happens whenever somebody holds
+        // a reservation, not because the buffer was too small, so the size ratcheted upward with traffic
+        // and every roll rented a larger array than the last. Measured at 4KB replies it turned a saved
+        // memcpy into a net allocation LOSS. Grow only when one message genuinely needs more room.
+        var size = Math.Max(pending + incoming, DefaultBufferSize);
+        var replacement = RefCountedBuffer.Rent(size, null);
+        if (pending != 0) buffer!.GetSpan().Slice(_start, pending).CopyTo(replacement.GetSpan());
+
+        buffer?.Release(); // our reference; any reservations keep it alive until they are done
+        _inbound = replacement;
+        _start = 0;
+        _end = pending;
     }
 
     private void Drain()
     {
-        var consumed = 0;
-        while (consumed < _inboundLength)
+        var buffer = _inbound;
+        if (buffer is null) return;
+
+        while (_start < _end)
         {
             // A FRESH state each attempt, deliberately. RespScanState CAN carry across calls, and the
             // first version of this held one in a field on exactly that reasoning - which was wrong, and
@@ -195,16 +271,18 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             // same bytes to a state that already counted them double-counts the aggregate depth. Carrying
             // the state is for a reader that does not retain what it has scanned. This one does.
             var scan = default(RespScanState);
-            if (!scan.TryRead(_inbound.AsSpan(consumed, _inboundLength - consumed), out var length)) break;
+            if (!scan.TryRead(buffer.GetSpan().Slice(_start, _end - _start), out var length)) break;
 
-            var frame = _inbound.AsSpan(consumed, length);
-            consumed += length;
+            var frame = buffer.GetSpan().Slice(_start, length);
+            _start += length;
 
             if (!frame.IsEmpty && (RespPrefix)frame[0] == RespPrefix.Push && OnOutOfBand(frame)) continue;
 
             if (_pending.TryDequeue(out var message))
             {
-                message.TrySetResult(message.Token, frame);
+                // the buffer goes along with the bytes, so a message whose result IS the frame can retain
+                // it rather than copy it out
+                message.TrySetResult(message.Token, frame, buffer);
             }
 
             // a reply with nothing pending is a protocol break; there is no correct recovery, and
@@ -216,11 +294,16 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             }
         }
 
-        if (consumed > 0)
-        {
-            Buffer.BlockCopy(_inbound, consumed, _inbound, 0, _inboundLength - consumed);
-            _inboundLength -= consumed;
-        }
+        // NOTHING is rewound here, and that is the whole correctness argument for sharing frames.
+        //
+        // Consumed frames live in [0, _start). The scanner is finished with them; their READERS are not -
+        // a delivered frame may be held by a reservation for as long as its payload lives. Rewinding to
+        // zero because the scanner has caught up would let the next append write straight over them, and
+        // the reader would find somebody else's reply where its own used to be. (It does: reply 0 came
+        // back reading "+reply-484".)
+        //
+        // So the decision of when bytes may move belongs in one place, EnsureSpace, which asks whether
+        // anyone else is holding the buffer before it moves anything.
     }
 
     private void Close(Exception? fault)
@@ -229,6 +312,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
         _fault = fault;
         var reason = fault ?? ClosedFault();
+
+        // our own reference on the receive buffer; outstanding payloads keep it alive past this
+        var buffer = Interlocked.Exchange(ref _inbound, null);
+        buffer?.Release();
 
         // INDEFINITE, and this is the case that distinction exists for: a write may have reached the
         // server and had its reply lost with the connection, so these operations are not provably

@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks.Sources;
+using RESPite.Buffers;
 
 namespace RESPite.Operations;
 
@@ -60,7 +61,11 @@ internal interface IRespMessage : IValueTaskSource
     /// <summary>Deliver a reply held in a single span.</summary>
     /// <param name="token">The version this caller holds.</param>
     /// <param name="response">The complete reply frame.</param>
-    bool TrySetResult(short token, scoped ReadOnlySpan<byte> response);
+    /// <param name="source">
+    /// Who owns <paramref name="response"/>, when it can be <b>retained instead of copied</b>. Null means
+    /// the bytes are valid only for this call, and anything that must outlive it has to take its own copy.
+    /// </param>
+    bool TrySetResult(short token, scoped ReadOnlySpan<byte> response, IPayloadReservationProvider? source = null);
 
     /// <summary>Deliver a reply spanning several buffer segments.</summary>
     /// <param name="token">The version this caller holds.</param>

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using StackExchange.Redis;
 
 namespace CoreBench;
@@ -25,6 +25,14 @@ internal static class Bench
 
     public static int[] WorkerCounts { get; private set; } = [1];
 
+    /// <summary>Bytes to seed each key with, for the <c>get</c> workload.</summary>
+    /// <remarks>
+    /// The point of a size knob: copying a reply costs proportionally to its length, so a benchmark that
+    /// only ever reads small integers measures the <i>allocation</i> of the copy and almost none of the
+    /// copy itself. A realistic value shows what sharing the receive buffer is actually worth.
+    /// </remarks>
+    public static int ValueSize { get; private set; }
+
     public static void Configure(string[] args)
     {
         Host = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "127.0.0.1";
@@ -34,11 +42,35 @@ internal static class Bench
         Seconds = double.Parse(Arg(args, "--seconds", "3"));
         WorkerCounts = Arg(args, "--workers", "1,2,4,8,16,32")
             .Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray();
+        ValueSize = int.Parse(Arg(args, "--value-size", "0"));
+    }
+
+    /// <summary>Put a value of <see cref="ValueSize"/> bytes under every worker's key.</summary>
+    public static async Task SeedAsync()
+    {
+        if (ValueSize <= 0 || Work != "get") return;
+
+        var muxer = await ConnectionMultiplexer.ConnectAsync($"{Host}:{Port}");
+        try
+        {
+            var db = muxer.GetDatabase();
+            var value = new string('x', ValueSize);
+            foreach (var workers in WorkerCounts)
+            {
+                for (var i = 0; i < workers; i++) await db.StringSetAsync($"corebench:{Work}:{i}", value);
+            }
+        }
+        finally
+        {
+            await muxer.CloseAsync();
+            muxer.Dispose();
+        }
     }
 
     public static void WriteHeader(string label)
     {
-        Console.WriteLine($"# {label} :: {Host}:{Port}, work={Work}, {Seconds}s per measurement, server GC={System.Runtime.GCSettings.IsServerGC}");
+        var size = ValueSize > 0 ? $", value={ValueSize}B" : "";
+        Console.WriteLine($"# {label} :: {Host}:{Port}, work={Work}{size}, {Seconds}s per measurement, server GC={System.Runtime.GCSettings.IsServerGC}");
         Console.WriteLine();
         Console.WriteLine($"{"arm",-10} {"workers",7} {"ops/s",14} {"bytes/op",10} {"gen0",7} {"gen1",6} {"gen2",6}");
     }
