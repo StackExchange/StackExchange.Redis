@@ -105,24 +105,36 @@ existing suites run through it. This is the outstanding list, in the order thing
       on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
       stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
 
-- [ ] **164 real failures behind 11 suites whose wrappers were a no-op — TOP PRIORITY.** The wrapped
-      suites only test the new core if they call `GetDatabase(conn)`; 246 sites across 22 files called
-      `conn.GetDatabase()` instead and silently tested the shipped database. Eleven suites now genuinely
-      route and pass; these eleven expose real command-level gaps and are reverted for now so the suite
-      stays green as an instrument: `CopyTests`, `DigestIntegrationTests`, `ExpiryTests`,
-      `FloatingPointTests`, `HashTests`, `HashImportTests`, `KeyTests`, `MSetTests`, `ProfilingTests`,
-      `QueuedResultTests`, `ScanTests`.
+- [ ] **Real failures behind suites whose wrappers were a no-op — TOP PRIORITY.** The wrapped suites only
+      test the new core if they call `GetDatabase(conn)`; 246 sites across 22 files called
+      `conn.GetDatabase()` instead and silently tested the shipped database. Converting them all exposed
+      **164 failures**; not the connection stack, since the `Transitional*` wrappers fail identically over
+      the old pipeline, so these are gaps in the new *surface*.
 
-      Not the connection stack: the `Transitional*` wrappers fail identically and those run over the old
-      pipeline, so these are gaps in the new *surface*. Three root causes identified so far:
-  - The **command map is not consulted** where the shipped surface falls back — `MSETEX` → `MSET` when
-    disabled. Likely a class of bug, not one instance.
-  - **`Expiration` rejects inputs the old API accepted**: "A deadline is required; KEEPTTL and PERSIST
-    are not expirations".
-  - A set of **value/prefix mismatches** (`Assert.Equal`, `Assert.StartsWith`) not yet diagnosed.
+      Done so far — convert one suite, fix what it exposes, keep it converted:
+  - [x] **`MSetTests` (40)** — an empty pair array answers `true` on the context surface ("writing nothing
+        succeeded") and `false` on the shipped one ("did the write happen?"). Both defensible; reconciled
+        in the **adapter**, because `IDatabase.StringSet` is the shipped contract and changing it would be
+        a silent break — the code still compiles and a guard that was false starts being true.
+  - [x] **`ExpiryTests` (28)** — three distinct bugs. `DateTime.MaxValue` means "no deadline" and
+        `Expiration` already encodes that, but `ExpireCore` tested the *input* rather than asking the
+        `Expiration`, so it threw "a deadline is required" for an ordinary call. `PTTL` and
+        `PEXPIRE`/`PEXPIREAT` can be **disabled in the command map** and the shipped surface falls back to
+        `TTL`/`EXPIRE`, which also changes the units — so the fallback is not command renaming, it is a
+        different conversion.
+  - [ ] `CopyTests`, `DigestIntegrationTests`, `FloatingPointTests`, `HashTests`, `HashImportTests`,
+        `KeyTests`, `ProfilingTests`, `QueuedResultTests`, `ScanTests` — still reverted.
 
-      Convert one suite at a time, fix what it exposes, keep it converted. Every one of these is a gap
-      that would otherwise be found *after* the old core was deleted.
+      **The command map is the recurring theme, and it is a class of bug rather than instances.** Anywhere
+      the shipped surface asks `IsAvailable` before choosing a command, the new surface has to as well, and
+      the fallback usually changes more than the name. Worth a sweep of `CommandMap.IsAvailable` call sites
+      in `RedisDatabase` against the new groups rather than waiting for each suite to find them.
+
+      One more general lesson from the same fix: **the command map and a server feature are not symmetrical
+      vetoes.** The map is configuration — authoritative and always known. A feature is an observation that
+      may not have been made, so "unknown" must answer *yes* for anything long-universal, or precision is
+      lost silently. Written the other way round first, and it truncated `PEXPIRE k 60500` to `EXPIRE k 60`
+      wherever features had not been probed.
 
 - [ ] **Analyzer: a wrapped suite that calls `conn.GetDatabase()` directly.** Mechanically detectable,
       and it is the second silent no-op found by accident rather than tooling — the first was

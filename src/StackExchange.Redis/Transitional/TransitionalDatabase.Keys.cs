@@ -186,12 +186,29 @@ namespace StackExchange.Redis
             => ExpireCore(key, expiry, when, flags).AsTask(AsyncState, flags);
 
         /// <summary>A null deadline is not an expiry; it is <c>PERSIST</c>.</summary>
+        /// <remarks>
+        /// <b>And neither is <see cref="DateTime.MaxValue"/>.</b> <see cref="Expiration"/>'s constructor
+        /// already maps it to "no deadline" - it is how a caller says "never expire" with a value type
+        /// that has no null - so it is the same request as passing null, and the shipped surface answers
+        /// it the same way: <c>ExpiryTests</c> asserts the TTL is gone afterwards.
+        /// <para>
+        /// Asked of the <see cref="Expiration"/> rather than re-tested here, so the rule lives in one
+        /// place. Testing the input instead was the bug: this threw "a deadline is required" for a
+        /// perfectly ordinary call that the old surface had always accepted.
+        /// </para>
+        /// </remarks>
         private ValueTask<bool> ExpireCore(RedisKey key, TimeSpan? expiry, ExpireWhen when, CommandFlags flags)
-            => expiry is null ? _inner.Keys.PersistAsync(key, flags) : _inner.Keys.ExpireAsync(key, expiry.Value, when, flags);
+            => expiry is null ? _inner.Keys.PersistAsync(key, flags) : ExpireDeadline(key, expiry.Value, when, flags);
 
         /// <inheritdoc cref="ExpireCore(RedisKey, TimeSpan?, ExpireWhen, CommandFlags)"/>
         private ValueTask<bool> ExpireCore(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags)
-            => expiry is null ? _inner.Keys.PersistAsync(key, flags) : _inner.Keys.ExpireAsync(key, expiry.Value, when, flags);
+            => expiry is null ? _inner.Keys.PersistAsync(key, flags) : ExpireDeadline(key, expiry.Value, when, flags);
+
+        /// <inheritdoc cref="ExpireCore(RedisKey, TimeSpan?, ExpireWhen, CommandFlags)"/>
+        private ValueTask<bool> ExpireDeadline(RedisKey key, Expiration expiry, ExpireWhen when, CommandFlags flags)
+            => expiry.IsAbsolute || expiry.IsRelative
+                ? _inner.Keys.ExpireAsync(key, expiry, when, flags)
+                : _inner.Keys.PersistAsync(key, flags);
 
         /// <inheritdoc/>
         public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None)

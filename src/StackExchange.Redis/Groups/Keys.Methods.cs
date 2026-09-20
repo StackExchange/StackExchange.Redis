@@ -107,11 +107,47 @@ public static partial class Keys
         CancellationToken cancellationToken = default)
     {
         var command = SelectKeyExpireCommand(expiry);
+        var value = expiry.Value;
+
+        // PEXPIRE/PEXPIREAT can be DISABLED in the command map, or unsupported by an old server, and the
+        // shipped surface then falls back to second precision rather than failing - truncating the value
+        // to match, because the command it is now sending counts in seconds. Emitting the millisecond
+        // command unconditionally threw "this operation has been disabled in the command-map".
+        //
+        // Only reachable when the deadline is NOT a whole number of seconds: Expiration already picks the
+        // second-precision form when it can, so this is the genuinely-sub-second case giving up precision
+        // it cannot express here.
+        if (expiry.IsMilliseconds && !CanExpireInMilliseconds(keys.Context, command, in key, flags))
+        {
+            command = expiry.IsAbsolute ? RedisCommand.EXPIREAT : RedisCommand.EXPIRE;
+            value /= 1000;
+        }
+
         return keys.Context.SendAsync<bool>(
-            $"{command}{key}{expiry.Value}{RespSurface.AsFragment(when)}",
+            $"{command}{key}{value}{RespSurface.AsFragment(when)}",
             flags.WithRetryCategory(when.AsRetryCategory()),
             cancellationToken: cancellationToken);
     }
+
+    /// <summary>Whether the millisecond-precision expiry command can actually be used here.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The two vetoes are not symmetrical, and getting that backwards loses precision silently.</b>
+    /// The command map is configuration: it is authoritative, present without asking anyone, and a
+    /// disabled command genuinely cannot be sent. The server feature is an observation that may simply
+    /// not have been made yet - and <c>PEXPIRE</c> has been universal since 2.6, so "I have not asked"
+    /// is much weaker evidence of absence than "the map says no".
+    /// </para>
+    /// <para>
+    /// So an unknown server answers <b>yes</b> and only a known-old one answers no. Written the other way
+    /// round first, and it quietly truncated <c>PEXPIRE k 60500</c> to <c>EXPIRE k 60</c> wherever
+    /// features had not been probed - caught by a unit test over a bare executor, which is exactly the
+    /// shape that has no features to report.
+    /// </para>
+    /// </remarks>
+    private static bool CanExpireInMilliseconds(RespContext context, RedisCommand command, in RedisKey key, CommandFlags flags)
+        => context.CommandMap.IsAvailable(command)
+            && (!context.TryGetFeatures(RedisCommand.PEXPIRE, in key, flags, out var features) || features.MillisecondExpiry);
 
     /// <summary>PERSIST: remove any deadline.</summary>
     /// <param name="keys">The key command group.</param>
@@ -138,8 +174,31 @@ public static partial class Keys
     /// </para>
     /// </remarks>
     public static ValueTask<TimeSpan?> TimeToLiveAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => keys.Context.SendAsync<TimeSpan?>(
+    {
+        // PTTL can be DISABLED in the command map - a deployment that only permits second precision, which
+        // the test suite exercises directly - and the shipped surface falls back to TTL rather than
+        // failing. Rendering PTTL unconditionally threw "this operation has been disabled in the
+        // command-map" for a call that had always worked.
+        //
+        // The fallback is not just a different command name: TTL answers in SECONDS, so the reply needs a
+        // different conversion, which is why this cannot be handled by command renaming alone.
+        if (!keys.Context.CommandMap.IsAvailable(RedisCommand.PTTL))
+        {
+            return FromSeconds(keys.Context.SendAsync<long>(
+                $"{RedisCommand.TTL}{key}", flags.NeverCached(), cancellationToken: cancellationToken));
+        }
+
+        return keys.Context.SendAsync<TimeSpan?>(
             $"{RedisCommand.PTTL}{key}", flags.NeverCached(), cancellationToken: cancellationToken);
+
+        // negative is not a duration: -1 is "no deadline" and -2 is "no such key", and both read as null
+        // here for the reason given in the remarks
+        static async ValueTask<TimeSpan?> FromSeconds(ValueTask<long> pending)
+        {
+            var seconds = await pending.ConfigureAwait(false);
+            return seconds < 0 ? null : TimeSpan.FromSeconds(seconds);
+        }
+    }
 
     /// <summary>PEXPIRETIME: when the key expires, or null if it has no deadline.</summary>
     /// <param name="keys">The key command group.</param>

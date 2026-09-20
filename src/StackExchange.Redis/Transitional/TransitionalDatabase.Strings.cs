@@ -82,11 +82,28 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Strings.SetAsync(Required(values, nameof(values)), expiry, when, flags));
+            => Required(values, nameof(values)).Length != 0
+                && Wait(_inner.Strings.SetAsync(values, expiry, when, flags));
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// <b>No pairs answers <see langword="false"/> here and <see langword="true"/> on the context
+        /// surface, and both are right.</b> The new surface reads the question as "did this succeed?" -
+        /// writing nothing vacuously did, which is also how it answers a no-key <c>GetAsync</c>. The
+        /// shipped surface reads it as "did the write happen?" and answers no, which is what
+        /// <c>GetStringSetMessage</c>'s <c>case 0: return null</c> produces and what <c>MSetTests</c>
+        /// asserts across forty cases.
+        /// <para>
+        /// The adapter is where that is reconciled, because this member IS the shipped contract: a caller
+        /// compiled against <see cref="IDatabase"/> gets the answer it has always had. Changing it to
+        /// match the new surface would be a silent behaviour break - the code still compiles, and a
+        /// guard that used to be false starts being true.
+        /// </para>
+        /// </remarks>
         public Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.SetAsync(Required(values, nameof(values)), expiry, when, flags).AsTask(AsyncState, flags);
+            => Required(values, nameof(values)).Length == 0
+                ? new ValueTask<bool>(false).AsTask(AsyncState, flags)
+                : _inner.Strings.SetAsync(values, expiry, when, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags)
