@@ -128,11 +128,25 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase >= 0 ? destinationDatabase : null, replace, flags));
+            => Wait(_inner.Keys.CopyAsync(sourceKey, destinationKey, DestinationDatabase(destinationDatabase), replace, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.CopyAsync(sourceKey, destinationKey, destinationDatabase >= 0 ? destinationDatabase : null, replace, flags).AsTask(AsyncState, flags);
+            => _inner.Keys.CopyAsync(sourceKey, destinationKey, DestinationDatabase(destinationDatabase), replace, flags).AsTask(AsyncState, flags);
+
+        /// <summary>The destination database as the context surface wants it: an index, or null for "here".</summary>
+        /// <remarks>
+        /// <b>Only -1 means "the current database"</b>; anything below that is a caller mistake and the
+        /// shipped surface says so with <see cref="ArgumentOutOfRangeException"/>. Folding every negative
+        /// into null accepted <c>-10</c> silently and copied within the current database instead - the
+        /// wrong operation, reported as success.
+        /// </remarks>
+        private static int? DestinationDatabase(int destinationDatabase) => destinationDatabase switch
+        {
+            < -1 => throw new ArgumentOutOfRangeException(nameof(destinationDatabase)),
+            -1 => null,
+            _ => destinationDatabase,
+        };
 
         /// <inheritdoc/>
         /// <remarks>
