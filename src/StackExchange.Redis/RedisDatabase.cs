@@ -2136,28 +2136,14 @@ namespace StackExchange.Redis
             return script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
         }
 
-        /// <summary>
-        /// Pick the command to identify a read-only script request by, honouring the command map. The
-        /// server-version half of the decision cannot happen here - we do not know yet which server this
-        /// will go to - so that is resolved at write time; see <c>CanUseReadOnlyScripts</c>.
-        /// </summary>
+        /// <inheritdoc cref="Scripts.ForReadOnlyScript"/>
         /// <remarks>
-        /// When we fall back, the retry category is pinned to the read-only one first. EVAL_RO defaults to
-        /// CommandRetryReadOnly and EVAL to CommandRetryWriteAccumulating, so simply swapping the command
-        /// would quietly make a script the caller asked for read-only retry like a write. Falling back is
-        /// about what the server will accept, not about what the caller asked for.
+        /// Forwards to the context surface, which is where this now lives: the decision is about a
+        /// <see cref="CommandMap"/> and a retry category, neither of which needs a <c>Message</c>, and
+        /// keeping one copy means the two surfaces cannot drift while both exist.
         /// </remarks>
         internal static RedisCommand ForReadOnlyScript(CommandMap map, RedisCommand readOnlyCommand, ref CommandFlags flags)
-        {
-            // both, for the same reason CanUseReadOnlyScripts wants both: hash-vs-script is decided later
-            if (map.IsAvailable(RedisCommand.EVAL_RO) && map.IsAvailable(RedisCommand.EVALSHA_RO))
-            {
-                return readOnlyCommand;
-            }
-
-            flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
-            return readOnlyCommand == RedisCommand.EVALSHA_RO ? RedisCommand.EVALSHA : RedisCommand.EVAL;
-        }
+            => Scripts.ForReadOnlyScript(map, readOnlyCommand, ref flags);
 
         public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {

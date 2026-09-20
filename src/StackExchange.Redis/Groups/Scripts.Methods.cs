@@ -67,9 +67,20 @@ public static partial class Scripts
         // take no hash. The script still lands in the server's cache - nothing a client sends can stop
         // that - but in the pool it evicts from, which is the point. It is also why such a script is not
         // admitted to the registry below: the caller has told us it is not worth keeping.
-        if ((flags & CommandFlags.NoScriptCache) != 0)
+        //
+        // A command map without SCRIPT means the SAME thing, and the shipped surface makes exactly that
+        // equivalence: there is no way to put the script in the server's cache, so there is no hash worth
+        // holding and the body has to travel. Asking only about the flag left the preamble path rendering
+        // a SCRIPT LOAD that the map forbids.
+        if ((flags & CommandFlags.NoScriptCache) != 0 || !context.CommandMap.IsAvailable(RedisCommand.SCRIPT))
         {
-            var eval = readOnly ? RedisCommand.EVAL_RO : RedisCommand.EVAL;
+            // EVAL_RO can be DISABLED in the command map, and the fallback is not just a different name:
+            // EVAL_RO defaults to CommandRetryReadOnly where EVAL defaults to CommandRetryWriteAccumulating,
+            // so swapping the command alone would quietly make a script the caller asked for read-only
+            // retry like a write. ForReadOnlyScript pins the category before it falls back.
+            var eval = readOnly
+                ? ForReadOnlyScript(context.CommandMap, RedisCommand.EVAL_RO, ref flags)
+                : RedisCommand.EVAL;
             var cmd = context.Render($"{eval}{script.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
             return context.SendAsync(ref cmd, flags, handler);
         }
@@ -136,7 +147,9 @@ public static partial class Scripts
         IRespPreambleGate gate,
         IRespHandler<TResult> handler)
     {
-        var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
+        var command = readOnly
+            ? ForReadOnlyScript(context.CommandMap, RedisCommand.EVALSHA_RO, ref flags)
+            : RedisCommand.EVALSHA;
         var request = context.Render($"{command}{hash.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
         try
         {
@@ -165,7 +178,9 @@ public static partial class Scripts
         IRespPreambleGate gate,
         IRespHandler<TResult> handler)
     {
-        var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
+        var command = readOnly
+            ? ForReadOnlyScript(context.CommandMap, RedisCommand.EVALSHA_RO, ref flags)
+            : RedisCommand.EVALSHA;
         var request = context.Render($"{command}{hash.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
         try
         {
@@ -246,7 +261,9 @@ public static partial class Scripts
     {
         if (hash.IsEmpty) throw new ArgumentException("A script hash is required.", nameof(hash));
 
-        var command = readOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA;
+        var command = readOnly
+            ? ForReadOnlyScript(scripts.Context.CommandMap, RedisCommand.EVALSHA_RO, ref flags)
+            : RedisCommand.EVALSHA;
         var cmd = scripts.Context.Render($"{command}{hash}{(RedisValue)keys.Length}{keys}{args}");
         return scripts.Context.SendAsync(ref cmd, flags, handler, cancellationToken);
     }
@@ -336,5 +353,28 @@ public static partial class Scripts
 
         var cmd = scripts.Context.Render($"{command}{scriptOrHash}{(RedisValue)keys.Length}{keys}{args}");
         return scripts.Context.SendAsync(ref cmd, flags, handler);
+    }
+
+    /// <summary>
+    /// Pick the command to identify a read-only script request by, honouring the command map. The
+    /// server-version half of the decision cannot happen here - we do not know yet which server this
+    /// will go to - so that is resolved at write time; see <c>CanUseReadOnlyScripts</c>.
+    /// </summary>
+    /// <remarks>
+    /// When we fall back, the retry category is pinned to the read-only one first. EVAL_RO defaults to
+    /// CommandRetryReadOnly and EVAL to CommandRetryWriteAccumulating, so simply swapping the command
+    /// would quietly make a script the caller asked for read-only retry like a write. Falling back is
+    /// about what the server will accept, not about what the caller asked for.
+    /// </remarks>
+    internal static RedisCommand ForReadOnlyScript(CommandMap map, RedisCommand readOnlyCommand, ref CommandFlags flags)
+        {
+        // both, for the same reason CanUseReadOnlyScripts wants both: hash-vs-script is decided later
+        if (map.IsAvailable(RedisCommand.EVAL_RO) && map.IsAvailable(RedisCommand.EVALSHA_RO))
+        {
+            return readOnlyCommand;
+    }
+
+        flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
+        return readOnlyCommand == RedisCommand.EVALSHA_RO ? RedisCommand.EVALSHA : RedisCommand.EVAL;
     }
 }

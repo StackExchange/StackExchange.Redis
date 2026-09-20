@@ -122,13 +122,21 @@ is short enough to work through directly:
       always sent `DEL` — turning a non-blocking delete into a blocking one. **No test could catch it**:
       the reply is the same integer, and the difference only shows as the server stalling on a large key.
       Now pinned by a unit test, because that is the only place it can be.
-- [ ] **`EVAL_RO` / `EVALSHA_RO`** — the read-only script forms, which are what let a script run on a
-      replica. Same shape as `BITFIELD_RO`, which the new surface does handle.
-- [ ] **`SCAN`** — gated on both the map and `features.Scan`.
-- [ ] **`SCRIPT`** — availability of `SCRIPT LOAD`, which the preamble path depends on.
-- [ ] **`PUBLISH`** — pending with pub/sub.
-- [ ] **`HyperLogLogCountReplicaSafe`** — shipped routes `PFCOUNT` to a primary unless the server
-      guarantees it is replica-safe; four sites.
+- [x] **`EVAL_RO` / `EVALSHA_RO`, 2026-09-20.** The fallback changes more than the name: `EVAL_RO`
+      defaults to `CommandRetryReadOnly` where `EVAL` defaults to `CommandRetryWriteAccumulating`, so a
+      plain swap makes a read-only script retry like a write. Shipped's `ForReadOnlyScript` **moved** to
+      the `Scripts` group rather than being twinned — it is about a `CommandMap` and a retry category and
+      needs no `Message`, so `RedisDatabase` now forwards to it and the helper survives the deletion.
+- [x] **`SCRIPT`, 2026-09-20.** A map without `SCRIPT` means the same as `NoScriptCache` — there is no
+      way to put the script in the server's cache, so the body has to travel. The new surface honoured
+      the flag but never asked the map, and rendered a `SCRIPT LOAD` the map forbids.
+- [x] **`HyperLogLogCountReplicaSafe` — not a gap.** Already handled by `CountFlags`; listed in error
+      when the census was first written, and corrected here rather than left to mislead.
+- [ ] **`HSCAN`/`SSCAN`/`ZSCAN` availability and `features.Scan`.** Shipped's `TryScan` returns null when
+      the map disables the command or the server is too old, and the caller then takes a non-cursor path.
+      The new scanning code asks neither.
+- [ ] **`SCAN` in `RedisServer.Keys`** — falls back to `KEYS` when unavailable. Server surface, so it
+      belongs with that work rather than here.
 
 **The rule that keeps falling out of these, worth stating once:** when a command choice is uncertain,
 which way to guess depends on what the *fallback* costs. `PEXPIRE` → `EXPIRE` loses precision silently,

@@ -312,4 +312,43 @@ public class RespSurfaceScriptsTests
         Assert.Equal(2, executor.Pairs);
         Assert.Equal(executor.Sent[0], executor.Sent[2]);
     }
+
+    [Fact]
+    public async Task ReadOnlyScriptsFallBackWhenTheMapDisablesThem()
+    {
+        // EVAL_RO can be disabled in the command map, and the fallback changes MORE than the command
+        // name: EVAL_RO defaults to CommandRetryReadOnly where EVAL defaults to
+        // CommandRetryWriteAccumulating, so a plain swap would quietly make a script the caller asked
+        // for read-only retry like a write. Both halves are asserted, because only one of them shows
+        // on the wire - which is exactly how this kind of gap survives a passing suite.
+        var enabled = new FakeExecutor("+OK\r\n");
+        var withRo = new RespDatabaseContext(new RespContext().WithExecutor(enabled));
+        await withRo.Scripts.EvaluateReadOnlyAsync("return 1", default, default, CommandFlags.NoScriptCache);
+        Assert.StartsWith("*3|$7|EVAL_RO|", Assert.Single(enabled.Sent));
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, enabled.Flags[0] & CommandFlags.CommandRetryReadOnly);
+
+        var disabled = new FakeExecutor("+OK\r\n");
+        var map = CommandMap.Create(new HashSet<string> { "EVAL_RO", "EVALSHA_RO" }, available: false);
+        var withoutRo = new RespDatabaseContext(new RespContext(map).WithExecutor(disabled));
+        await withoutRo.Scripts.EvaluateReadOnlyAsync("return 1", default, default, CommandFlags.NoScriptCache);
+        Assert.StartsWith("*3|$4|EVAL|", Assert.Single(disabled.Sent));
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, disabled.Flags[0] & CommandFlags.CommandRetryReadOnly);
+    }
+
+    [Fact]
+    public async Task ADisabledScriptCommandSendsTheBodyRatherThanAHash()
+    {
+        // "SCRIPT is disabled" and NoScriptCache mean the same thing to the protocol: there is no way to
+        // put the script in the server's cache, so there is no hash worth holding. Without this the
+        // preamble path renders a SCRIPT LOAD the map forbids.
+        var executor = new FakeExecutor("+OK\r\n");
+        var map = CommandMap.Create(new HashSet<string> { "SCRIPT" }, available: false);
+        var ctx = new RespDatabaseContext(new RespContext(map).WithExecutor(executor));
+
+        await ctx.Scripts.EvaluateAsync("return 1", default, default);
+
+        var sent = Assert.Single(executor.Sent);
+        Assert.StartsWith("*3|$4|EVAL|", sent);
+        Assert.Contains("return 1", sent);
+    }
 }
