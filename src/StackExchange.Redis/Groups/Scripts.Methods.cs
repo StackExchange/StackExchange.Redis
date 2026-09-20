@@ -104,7 +104,77 @@ public static partial class Scripts
         }
 
         var preamble = registry.GetPreamble(context, script, out var known, out var gate);
-        return SendPair(context, preamble, known, keys, args, flags, readOnly, gate, handler);
+        return Repairable(
+            SendPair(context, preamble, known, keys, args, flags, readOnly, gate, handler),
+            context,
+            script,
+            keys,
+            args,
+            flags,
+            readOnly,
+            handler);
+    }
+
+    /// <summary>Recover from <c>NOSCRIPT</c> by re-sending the script body.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A belief about a server's script cache can always be wrong.</b> <c>SCRIPT FLUSH</c>, a restart,
+    /// or a failover to a replica that never saw the load all leave the endpoint believing a script is
+    /// present when it is not - and the reply is <c>NOSCRIPT</c>. The shipped surface repairs this in
+    /// <c>ResultProcessor</c> and re-issues with the body; without the same repair the new surface turns
+    /// an ordinary, expected event into an exception the caller has to handle.
+    /// </para>
+    /// <para>
+    /// <b>Only where the source is known.</b> A caller who supplied a hash and not a script cannot be
+    /// repaired - there is nothing to re-send - so <c>EvaluateHash</c> lets the error stand, which is
+    /// what the remarks there already say.
+    /// </para>
+    /// <para>
+    /// The belief is dropped before retrying, so the retry carries its own <c>SCRIPT LOAD</c> rather than
+    /// trusting the record that has just been proved wrong, and the next caller reloads too.
+    /// </para>
+    /// </remarks>
+    private static ValueTask<TResult> Repairable<TResult>(
+        ValueTask<TResult> pending,
+        RespContext context,
+        string script,
+        ReadOnlySpan<RedisKey> keys,
+        ReadOnlySpan<RedisValue> args,
+        CommandFlags flags,
+        bool readOnly,
+        IRespHandler<TResult> handler)
+    {
+        if (pending.IsCompletedSuccessfully) return pending; // the overwhelmingly common case: no state machine
+
+        // the spans cannot cross an await, so the retry's arguments are captured now - only on the path
+        // that might need them, which is the one that has already suspended
+        return Awaited(pending, context, script, keys.ToArray(), args.ToArray(), flags, readOnly, handler);
+
+        static async ValueTask<TResult> Awaited(
+            ValueTask<TResult> pending,
+            RespContext context,
+            string script,
+            RedisKey[] keys,
+            RedisValue[] args,
+            CommandFlags flags,
+            bool readOnly,
+            IRespHandler<TResult> handler)
+        {
+            try
+            {
+                return await pending.ConfigureAwait(false);
+            }
+            catch (RedisServerException ex) when (ex.Kind == RedisErrorKind.NoScript)
+            {
+                context.ScriptCache?.Forget(script);
+
+                var eval = readOnly
+                    ? ForReadOnlyScript(context.CommandMap, RedisCommand.EVAL_RO, ref flags)
+                    : RedisCommand.EVAL;
+                var cmd = context.Render($"{eval}{script.AsRedisValue()}{(RedisValue)keys.Length}{keys}{args}");
+                return await context.SendAsync(ref cmd, flags, handler).ConfigureAwait(false);
+            }
+        }
     }
 
     /// <summary>EVALSHA_RO, preceded by SCRIPT LOAD; the read-only form of <c>Evaluate</c>.</summary>

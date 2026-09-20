@@ -90,6 +90,15 @@ namespace StackExchange.Redis.Caching
             return entry.AsRequest();
         }
 
+        /// <summary>Drop a script's cached rendering, after the server proved the belief wrong.</summary>
+        /// <param name="script">The Lua source.</param>
+        /// <remarks>
+        /// A <c>NOSCRIPT</c> says the endpoint does not hold this script after all - flushed, restarted, or
+        /// a failover to a node that never saw the load. Keeping the entry would have the next caller trust
+        /// the same disproved record; dropping it makes them re-load, which is the safe direction and cheap.
+        /// </remarks>
+        internal void Forget(string script) => _entries.TryRemove(script, out _);
+
         private Entry Render(RespContext context, string script)
         {
             Interlocked.Increment(ref _rendered);
