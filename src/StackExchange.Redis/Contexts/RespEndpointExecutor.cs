@@ -157,16 +157,22 @@ namespace StackExchange.Redis
         /// pending for <c>EXEC</c> to complete.
         /// </remarks>
         internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
-        {
-            RespConnection? connection;
-            lock (_sync)
-            {
-                connection = _disposed ? null : _connection;
-            }
-
             // the write itself is not endpoint-specific - it needs a connection and nothing else - so it
             // lives with the transaction, and every executor that owns a connection gets the same one
-            return RespTransactionExecutor.TrySendOver(connection, operations, out exec);
+            => RespTransactionExecutor.TrySendOver(CurrentConnection, operations, out exec);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Deliberately <b>not</b> a connect trigger. A caller asking which connection this is holds it
+        /// to compare against later; answering "none yet, but soon" would be answering a different
+        /// question, and starting a connect as a side effect of being asked would be a surprise.
+        /// </remarks>
+        internal override RespConnection? CurrentConnection
+        {
+            get
+            {
+                lock (_sync) return _disposed ? null : _connection;
+            }
         }
 
         /// <inheritdoc/>

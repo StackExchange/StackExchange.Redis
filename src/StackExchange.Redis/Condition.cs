@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis
 {
@@ -372,6 +373,25 @@ namespace StackExchange.Redis
 
         internal abstract IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox);
 
+        /// <summary>The key this condition watches.</summary>
+        /// <remarks>
+        /// Every condition watches exactly one key, and always its own - which is why the <c>WATCH</c>
+        /// half of <see cref="CreateMessages"/> is identical in all seven implementations. Naming the key
+        /// rather than re-deriving the message lets the new core render it once.
+        /// </remarks>
+        internal abstract RedisKey WatchKey { get; }
+
+        /// <summary>Render the <b>check</b> command - the half whose reply <see cref="TryValidate"/> reads.</summary>
+        /// <param name="context">The context to render through.</param>
+        /// <remarks>
+        /// The new-core twin of <see cref="CreateMessages"/>'s second yield, and deliberately a separate
+        /// member rather than a translation of the first: a <c>Message</c> carries a database, flags and a
+        /// result box that a rendered frame has no use for, and going through one to get bytes back out
+        /// would be a round trip through the very type the core replacement is removing. When
+        /// <c>Message</c> goes, <c>CreateMessages</c> goes with it and this stays.
+        /// </remarks>
+        internal abstract RespRequestFrame RenderCheck(RespContext context);
+
         internal abstract int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy);
 
         internal abstract bool TryValidate(ref RespReader reader, out bool value);
@@ -509,6 +529,12 @@ namespace StackExchange.Redis
                 yield return message;
             }
 
+            internal override RedisKey WatchKey => key;
+
+            internal override RespRequestFrame RenderCheck(RespContext context) => expectedValue.IsNull
+                ? context.Render($"{cmd}{key}")
+                : context.Render($"{cmd}{key}{expectedValue}");
+
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
             internal override bool TryValidate(ref RespReader reader, out bool value)
@@ -586,6 +612,14 @@ namespace StackExchange.Redis
                 yield return message;
             }
 
+            internal override RedisKey WatchKey => key;
+
+            // the LIMIT arguments are cast because a CONSTANT zero implicitly converts to any enum, so
+            // a bare 0 is ambiguous between the RedisValue and RedisCommand overloads; 1 is not, and both
+            // are spelled the same way so the next person does not have to rediscover which
+            internal override RespRequestFrame RenderCheck(RespContext context) => context.Render(
+                $"{RedisCommand.ZRANGEBYLEX}{key}{RedisDatabase.GetLexRange(prefix, Exclude.None, isStart: true, Order.Ascending)}{RedisLiterals.PlusSymbol}{RedisLiterals.LIMIT}{(RedisValue)0}{(RedisValue)1}");
+
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
             internal override bool TryValidate(ref RespReader reader, out bool value)
@@ -657,6 +691,12 @@ namespace StackExchange.Redis
                 message.SetSource(ConditionProcessor.Default, resultBox);
                 yield return message;
             }
+
+            internal override RedisKey WatchKey => key;
+
+            internal override RespRequestFrame RenderCheck(RespContext context) => memberName.IsNull
+                ? context.Render($"{cmd}{key}")
+                : context.Render($"{cmd}{key}{memberName}");
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
@@ -730,6 +770,11 @@ namespace StackExchange.Redis
                 yield return message;
             }
 
+            internal override RedisKey WatchKey => key;
+
+            internal override RespRequestFrame RenderCheck(RespContext context)
+                => context.Render($"{RedisCommand.LINDEX}{key}{index}");
+
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
             internal override bool TryValidate(ref RespReader reader, out bool value)
@@ -801,6 +846,10 @@ namespace StackExchange.Redis
                 yield return message;
             }
 
+            internal override RedisKey WatchKey => key;
+
+            internal override RespRequestFrame RenderCheck(RespContext context) => context.Render($"{cmd}{key}");
+
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
             internal override bool TryValidate(ref RespReader reader, out bool value)
@@ -854,6 +903,11 @@ namespace StackExchange.Redis
                 message.SetSource(ConditionProcessor.Default, resultBox);
                 yield return message;
             }
+
+            internal override RedisKey WatchKey => key;
+
+            internal override RespRequestFrame RenderCheck(RespContext context)
+                => context.Render($"{RedisCommand.ZCOUNT}{key}{min}{max}");
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
@@ -909,6 +963,11 @@ namespace StackExchange.Redis
 
                 yield return message;
             }
+
+            internal override RedisKey WatchKey => key;
+
+            internal override RespRequestFrame RenderCheck(RespContext context)
+                => context.Render($"{RedisCommand.ZCOUNT}{key}{sortedSetScore}{sortedSetScore}");
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 

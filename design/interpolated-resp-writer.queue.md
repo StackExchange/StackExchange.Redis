@@ -82,9 +82,11 @@ existing suites run through it. This is the outstanding list, in the order thing
         commands + `EXEC` as one contiguous run, `+QUEUED` receipts absorbed by the connection's hand-off
         hook, `EXEC`'s array distributed once in its own parse. 7 unit tests plus a real-server test.
         RESPite needed nothing. See §7r.
-  - [ ] **`WATCH` and conditions** — the remaining half, and the actual §3c question: a condition is
-        evaluated *before* `MULTI` and decides whether the transaction is sent at all, so it is the first
-        place two contiguous runs are genuinely required rather than one.
+  - [x] **`WATCH` and conditions, 2026-09-20.** Two runs — watches interleaved with their checks, then
+        `MULTI`…`EXEC` once the checks have answered. The new constraint is *connection affinity*: `WATCH`
+        is per-connection state, so the connection is captured before run 1 and compared before run 2, and
+        a mismatch fails rather than running unguarded. All seven `Condition` types reused whole via
+        `TryValidate`; only rendering (`RenderCheck`/`WatchKey`) had to be added. See §7r.
   - [ ] The `IBatch` / `ITransaction` public surfaces (forwarding; `[AutoDatabase]` territory).
 
 - [ ] **Does the `SETEX` collapse have the `INCR` problem?** `Increment(k, 1)` was emitting

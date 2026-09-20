@@ -71,6 +71,9 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
+        internal override RespConnection? CurrentConnection => _connection;
+
+        /// <inheritdoc/>
         /// <remarks>
         /// It owns a connection outright, so contiguity is simply available: there is no backlog that
         /// could drain the run one operation at a time, and no reconnect that could split it.

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
+using RESPite.Operations;
 using StackExchange.Redis.Caching;
 using StackExchange.Redis.Protocol;
 
@@ -146,6 +147,22 @@ namespace StackExchange.Redis
             features = default;
             return false;
         }
+
+        /// <summary>The connection this executor would use right now, when it owns one.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Exists for <c>WATCH</c>, and should not grow other callers.</b> Almost everything here is
+        /// deliberately connection-agnostic: an executor is asked to send, and which socket it picks is
+        /// its business. <c>WATCH</c> is the exception, because the guarantee it makes <i>is</i>
+        /// connection state - the watch and the <c>EXEC</c> that relies on it have to happen on the same
+        /// one, and the only way to promise that is to name it.
+        /// </para>
+        /// <para>
+        /// Null means "not one I can name", which is the honest answer for a router: it has not resolved
+        /// yet, and resolving needs a key. Callers resolve first.
+        /// </para>
+        /// </remarks>
+        internal virtual RespConnection? CurrentConnection => null;
 
         /// <summary>Write a run of operations contiguously, as a batch.</summary>
         /// <param name="operations">The operations, in the order they should reach the server.</param>

@@ -1174,9 +1174,41 @@ reason: it had grown a second job (receipts, not only redirects), and a bare `Re
 interchangeable with it and silently is not — a transaction over one completes every queued command with
 the string `"QUEUED"`.
 
-**Still outstanding: `WATCH` and conditions.** A condition is evaluated *before* `MULTI` and its answer
-decides whether the transaction is sent at all — so it is the pause point of §3c, and the first place two
-contiguous runs are genuinely required rather than one.
+**`WATCH` and conditions: two runs, and the connection has to be named.** A condition is evaluated
+*before* `MULTI` and its answer decides whether the transaction is sent at all — the pause point of §3c,
+and the first place two contiguous runs are genuinely required rather than one. Run 1 is the watches and
+their checks, interleaved `WATCH k` / check / `WATCH k` / check, because a check that ran before its own
+watch reads a value the watch is not yet guarding. Run 2 is `MULTI`…`EXEC`, sent only once every check
+has answered.
+
+**The thing that is new, and that the old core never had to face.** `WATCH` is *per-connection* state,
+so run 2 has to happen on the same connection as run 1 — and between two awaits a reconnect is entirely
+possible. Sending `MULTI`/`EXEC` on a fresh connection would run the transaction with its guard silently
+gone, which is the one outcome a conditional transaction must not have. So the connection is **named**,
+not merely used: `CurrentConnection` is captured before run 1 and compared before run 2, and a mismatch
+fails the transaction rather than running it unguarded.
+
+The old core never faced this because it never let go: `TransactionMessage.GetMessages` holds the write
+lock across the whole thing and blocks for the condition replies with `Monitor` handshakes on result
+boxes. Holding the lock *is* how it pins the connection. That is the trade — the old core bought
+connection affinity with a blocked thread inside the write lock; this one buys it with an identity
+comparison, and the reader never stops making progress. Same guarantee, and §7f's collapse again.
+
+**Seven condition types carried over without a line changed.** `Condition.TryValidate(ref RespReader,
+out bool)` already existed for `ConditionProcessor` and is exactly the shape `ParseFrame` wants. What had
+to be added was rendering: `RenderCheck(RespContext)` and `WatchKey`, as a deliberate *twin* of
+`CreateMessages` rather than a translation of it — a `Message` carries a database, flags and a result box
+that a rendered frame has no use for, and going through one to get bytes back out would be a round trip
+through the very type this work removes. When `Message` goes, `CreateMessages` goes with it and the twin
+stays. Same story as `Message.GetPrimaryReplicaFlags` and `ServerSelectionStrategy`: the parts of the old
+core that were about *Redis* rather than about `Message` survive the replacement.
+
+A failed condition **cancels** the queued commands rather than faulting them — "a precondition did not
+hold" means they did not run, which is a different outcome from failing — and `UNWATCH` is sent even when
+nothing was queued, so a watch never leaks onto a pooled connection.
+
+**Still outstanding:** the `IBatch`/`ITransaction` public surfaces, which is `[AutoDatabase]` territory
+rather than core work.
 
 ---
 

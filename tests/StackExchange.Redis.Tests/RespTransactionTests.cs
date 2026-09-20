@@ -206,6 +206,107 @@ public class RespTransactionTests
         Assert.Equal(before, transport.Written.Length);
     }
 
+    [Fact]
+    public async Task AConditionWatchesItsKeyAndIsCheckedBeforeMultiIsSent()
+    {
+        // the whole of design notes 3c: with a condition this is TWO contiguous runs, because whether to
+        // send the MULTI at all is not known until the check has been answered
+        var (endpoint, transport) = await ConnectedAsync();
+        var before = transport.Written;
+
+        var tran = new RespTransactionExecutor(endpoint, new RespContext());
+        tran.AddCondition(Condition.KeyExists("guard"));
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(tran));
+
+        var pending = context.Strings.GetAsync("a");
+        var executing = tran.ExecuteAsync();
+
+        // run one: the watch and its check, and NOTHING else - no MULTI yet
+        var first = transport.Written.Substring(before.Length);
+        Assert.Equal("*2|$5|WATCH|$5|guard|*2|$6|EXISTS|$5|guard|", first);
+
+        transport.Reply("+OK\r\n:1\r\n"); // watched, and the key exists
+        await WaitFor(() => transport.Written.Length > before.Length + first.Length);
+
+        // run two, only now that the condition is known to hold
+        var second = transport.Written.Substring(before.Length + first.Length);
+        Assert.Equal("*1|$5|MULTI|*2|$3|GET|$1|a|*1|$4|EXEC|", second);
+
+        transport.Reply("+OK\r\n+QUEUED\r\n*1\r\n$1\r\nA\r\n");
+        Assert.True(await executing);
+        Assert.Equal("A", (string?)(await pending).ToString());
+    }
+
+    [Fact]
+    public async Task AFailedConditionSendsNoMultiAtAllAndReleasesTheWatch()
+    {
+        // not "sent and rolled back" - never sent. The queued commands did not run, which is a distinct
+        // outcome from failing, so they complete as cancelled rather than faulted
+        var (endpoint, transport) = await ConnectedAsync();
+        var before = transport.Written;
+
+        var tran = new RespTransactionExecutor(endpoint, new RespContext());
+        tran.AddCondition(Condition.KeyExists("guard"));
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(tran));
+
+        var pending = context.Strings.GetAsync("a");
+        var executing = tran.ExecuteAsync();
+
+        var first = transport.Written.Substring(before.Length);
+        transport.Reply("+OK\r\n:0\r\n"); // watched, and the key does NOT exist
+
+        Assert.False(await executing);
+
+        var second = transport.Written.Substring(before.Length + first.Length);
+        Assert.Equal("*1|$7|UNWATCH|", second); // no MULTI, and the watch does not leak onto the connection
+        Assert.DoesNotContain("MULTI", second);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
+    }
+
+    [Fact]
+    public async Task EveryConditionIsWatchedBeforeItsOwnCheck()
+    {
+        // interleaved, not batched: a check that ran before its own watch reads a value the watch is not
+        // yet guarding, which reopens the exact window the condition exists to close
+        var (endpoint, transport) = await ConnectedAsync();
+        var before = transport.Written;
+
+        var tran = new RespTransactionExecutor(endpoint, new RespContext());
+        tran.AddCondition(Condition.KeyExists("one"));
+        tran.AddCondition(Condition.KeyNotExists("two"));
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(tran));
+
+        _ = context.Strings.GetAsync("a");
+        var executing = tran.ExecuteAsync();
+
+        Assert.Equal(
+            "*2|$5|WATCH|$3|one|*2|$6|EXISTS|$3|one|*2|$5|WATCH|$3|two|*2|$6|EXISTS|$3|two|",
+            transport.Written.Substring(before.Length));
+
+        transport.Reply("+OK\r\n:1\r\n+OK\r\n:0\r\n"); // one exists, two does not: both hold
+        await WaitFor(() => transport.Written.Contains("MULTI"));
+        transport.Reply("+OK\r\n+QUEUED\r\n*1\r\n$1\r\nA\r\n");
+        Assert.True(await executing);
+    }
+
+    [Fact]
+    public async Task AConditionWithNothingQueuedStillReleasesItsWatch()
+    {
+        var (endpoint, transport) = await ConnectedAsync();
+        var before = transport.Written;
+
+        var tran = new RespTransactionExecutor(endpoint, new RespContext());
+        tran.AddCondition(Condition.KeyExists("guard"));
+
+        var executing = tran.ExecuteAsync();
+        var first = transport.Written.Substring(before.Length);
+        transport.Reply("+OK\r\n:1\r\n");
+
+        Assert.True(await executing);
+        Assert.Equal("*1|$7|UNWATCH|", transport.Written.Substring(before.Length + first.Length));
+    }
+
     private static async Task WaitFor(Func<bool> condition, int millis = 5000)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();

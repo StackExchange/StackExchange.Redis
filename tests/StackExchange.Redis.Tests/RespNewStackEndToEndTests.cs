@@ -498,6 +498,113 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task AConditionalTransactionRunsOnlyWhenItsConditionHolds()
+    {
+        RespDatabaseContext context;
+        RespConnection connection;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, connection, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        RedisKey guard = $"{Me()}:guard";
+        RedisKey counter = $"{Me()}:counter";
+        await context.Keys.DeleteAsync(guard);
+        await context.Keys.DeleteAsync(counter);
+
+        var endpoint = new RespConnectionExecutor(connection, 0);
+
+        // the guard does NOT exist, so the transaction must not be sent at all
+        var blocked = new RespTransactionExecutor(endpoint, new RespContext());
+        blocked.AddCondition(Condition.KeyExists(guard));
+        var blockedContext = new RespDatabaseContext(new RespContext().WithExecutor(blocked));
+        var notRun = blockedContext.Strings.IncrementAsync(counter);
+
+        Assert.False(await blocked.ExecuteAsync());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await notRun);
+        Assert.False(await context.Keys.ExistsAsync(counter)); // and nothing touched the server
+
+        // now the guard exists, so the same shape goes through
+        await context.Strings.SetAsync(guard, "yes");
+
+        var allowed = new RespTransactionExecutor(endpoint, new RespContext());
+        allowed.AddCondition(Condition.KeyExists(guard));
+        var allowedContext = new RespDatabaseContext(new RespContext().WithExecutor(allowed));
+        var ran = allowedContext.Strings.IncrementAsync(counter);
+
+        Assert.True(await allowed.ExecuteAsync());
+        Assert.Equal(1, await ran);
+
+        // and the connection is left clean: no dangling WATCH, no open MULTI
+        Assert.Equal(2, (long)await context.Strings.IncrementAsync(counter));
+    }
+
+    [Fact]
+    public async Task AContendedWatchNeverAppliesHalfOfATransaction()
+    {
+        // DELIBERATELY a race, and it asserts the invariant rather than the winner: the interfering write
+        // may land before or after the check, and both are legitimate. What must hold either way is that
+        // "reported false" and "did not apply" agree - the outcome a torn transaction would break.
+        //
+        // The abort branch ITSELF is pinned deterministically by the unit test over a fake transport,
+        // which can simply reply null to EXEC. This one exists because only a real server decides when
+        // a watch trips, and a shape that passes against a fake can still hang or mis-read against one.
+        RespDatabaseContext context;
+        RespConnection connection;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, connection, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        RedisKey guard = $"{Me()}:guard";
+        RedisKey counter = $"{Me()}:counter";
+        await context.Keys.DeleteAsync(counter);
+        await context.Strings.SetAsync(guard, "before");
+
+        var endpoint = new RespConnectionExecutor(connection, 0);
+        var tran = new RespTransactionExecutor(endpoint, new RespContext());
+        tran.AddCondition(Condition.StringEqual(guard, "before"));
+        var queued = new RespDatabaseContext(new RespContext().WithExecutor(tran));
+        var pending = queued.Strings.IncrementAsync(counter);
+
+        // ExecuteAsync runs the check first; interfering needs a SECOND connection, because changing the
+        // key from this one would not trip our own watch
+        var (other, _, otherTransport) = await ConnectAsync();
+        await using var otherOwner = otherTransport;
+
+        var checking = tran.ExecuteAsync();
+        await other.Strings.SetAsync(guard, "after");
+
+        // whichever way the race lands, the transaction must not have applied when it reports false
+        var executed = await checking;
+        if (!executed)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(async () => await pending);
+            Assert.False(await context.Keys.ExistsAsync(counter));
+        }
+        else
+        {
+            Assert.Equal(1, await pending);
+        }
+    }
+
+    [Fact]
     public async Task ASetAndGetTravelTheNewStackToARealServer()
     {
         RespDatabaseContext context;
