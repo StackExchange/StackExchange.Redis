@@ -118,6 +118,41 @@ existing suites run through it. This is the outstanding list, in the order thing
       and usually one, but not what shipped does. Revisit with the preamble capability; the §7t write slot
       is already the primitive the pair-write needs.
 
+### Distance to the Great Message-ectomy, measured 2026-09-20
+
+Deletion set: **~20,460 lines** (`RedisDatabase*` 8.9k, `RedisServer` ~3k, `ResultProcessor`,
+`PhysicalBridge` 1.8k, `PhysicalConnection*`, `Message` 1.6k, `RedisBatch`/`RedisTransaction`).
+`Message` is created in **~760 places**; **~504 of them are `RedisDatabase*`**.
+
+**Done:** `IDatabase`/`IDatabaseAsync` is complete on the new core bar `Publish` (SER352 **2**, from 8 this
+session); batch and transaction — the gate that blocked everything — are done; databases are routed
+correctly; the command-choice census is nearly closed.
+
+**The ordered blockers, each verified rather than assumed:**
+
+1. **`GetDatabase()` still returns `RedisDatabase`.** The transitional database is only ever constructed
+   by the *test fixtures*. Nothing ships through the new core yet, so "27 suites run on it" is a
+   statement about tests, not about the product. Flipping this is the real switchover and nothing can be
+   deleted before it.
+2. **Coverage is thinner than the suite count suggests.** 246 call sites across 22 wrapped files bypassed
+   the seam; 11 suites now route genuinely, ~9 are still reverted pending gaps. Until those convert,
+   deleting the old path removes the only thing currently proving the new one.
+3. **Pub/sub** — takes `Publish` (SER352 → 0), and with it `[AutoDatabase]` and then `RedisDatabase`.
+4. **The preamble capability is still load-bearing, and now measurably so.** Converting `HashImportTests`
+   gives **6 failures out of 32** on the new core: `ThePrepareIsInjectedOncePerConnectionNotPerImport`
+   (the gate is never consulted, so `PREPARE` goes with *every* import), `WorksInsideBatch`, and
+   `NotSupportedInsideTransaction`. Basic import works via the sequential fallback; the per-connection
+   economy and the batch/transaction interactions do not. `SELECT` no longer needs this (§7x), but
+   hash-import and `SCRIPT LOAD`-before-`EVALSHA` still do.
+5. **The server surface** — ~160 sites, untouched, and independent of everything above.
+6. **Sentinel, maintenance, the heartbeat and the handshake** all still build `Message`s; they are what
+   keeps `PhysicalBridge`/`PhysicalConnection` alive after the database and server surfaces move.
+
+**Shortest honest path:** convert the ~9 remaining suites (fixing what they expose) → flip `GetDatabase()`
+→ pub/sub → delete `RedisDatabase` + `[AutoDatabase]` (~9k lines, the biggest single win) → server
+surface → the rest of the pipeline. The preamble is needed before hash-import can be called done, but
+does not block the `RedisDatabase` deletion itself.
+
 ### How to progress the gaps: sweep the decisions, don't grind the suites
 
 Converting a suite, fixing what it exposes and repeating works, but it only finds gaps a test happens to
