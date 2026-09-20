@@ -64,8 +64,8 @@ namespace StackExchange.Redis
         /// <see langword="false"/> when the group is fully down, rather than a throw: "can you reach this
         /// key?" has a perfectly good answer in that state, and it is no.
         /// </remarks>
-        public override bool IsConnected(in RedisKey key, CommandFlags flags)
-            => _active() is { } active && active.IsConnected(in key, flags);
+        internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
+            => _active()?.ResolveFor(in key, command, flags);
 
         /// <inheritdoc/>
         /// <remarks>Null when nothing is active; the same "no honest answer" default as elsewhere.</remarks>

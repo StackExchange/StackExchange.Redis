@@ -9,8 +9,17 @@ namespace StackExchange.Redis
     /// <summary>What a handshake established about a connection.</summary>
     /// <param name="protocol">The protocol the connection ended up speaking.</param>
     /// <param name="serverType">What the server turned out to be.</param>
-    internal readonly struct RespHandshakeResult(RedisProtocol protocol, ServerType serverType)
+    /// <param name="version">The server version, when HELLO reported one.</param>
+    internal readonly struct RespHandshakeResult(RedisProtocol protocol, ServerType serverType, Version? version = null)
     {
+        /// <summary>The server version, when <c>HELLO</c> reported one.</summary>
+        /// <remarks>
+        /// Read from the same reply that settles the protocol, so it costs nothing extra - and it is what
+        /// lets a connection answer "what can this server do?" from its own observation rather than
+        /// borrowing somebody else's topology.
+        /// </remarks>
+        internal Version? Version { get; } = version;
+
         /// <summary>The protocol the connection ended up speaking.</summary>
         internal RedisProtocol Protocol { get; } = protocol;
 
@@ -83,6 +92,7 @@ namespace StackExchange.Redis
             var protocol = RedisProtocol.Resp2;
             var serverType = ServerType.Standalone;
             var knowServerType = false;
+            Version? version = null;
             if (preferResp3)
             {
                 try
@@ -99,6 +109,8 @@ namespace StackExchange.Redis
                         serverType = mode;
                         knowServerType = true;
                     }
+
+                    version = hello.Version;
                 }
                 catch (RedisServerException)
                 {
@@ -146,7 +158,7 @@ namespace StackExchange.Redis
                 await context.SendAsync($"{RedisCommand.SELECT}{database}").ConfigureAwait(false);
             }
 
-            return new RespHandshakeResult(protocol, serverType);
+            return new RespHandshakeResult(protocol, serverType, version);
         }
 
         /// <summary>Reads the <c>proto</c> field out of a <c>HELLO</c> reply.</summary>
@@ -159,16 +171,19 @@ namespace StackExchange.Redis
         /// <summary>The two fields of a <c>HELLO</c> reply that change what we do next.</summary>
         /// <param name="proto">The protocol the server agreed to.</param>
         /// <param name="mode">What the server says it is, if it said.</param>
+        /// <param name="version">The version it reported, if it did.</param>
         /// <remarks>
         /// A struct rather than a tuple: the library must not reference <c>System.ValueTuple</c>, which
         /// would add a facade dependency on the down-level targets - asserted by
         /// <c>SanityCheckTests.ValueTupleNotReferenced</c>, which is how this was caught.
         /// </remarks>
-        private readonly struct HelloReply(int proto, ServerType? mode)
+        private readonly struct HelloReply(int proto, ServerType? mode, Version? version)
         {
             internal int Proto { get; } = proto;
 
             internal ServerType? Mode { get; } = mode;
+
+            internal Version? Version { get; } = version;
         }
 
         private sealed class HelloHandler : IRespHandler<HelloReply>
@@ -179,6 +194,7 @@ namespace StackExchange.Redis
             {
                 var proto = 2; // a reply we could not read is not a reason to claim RESP3
                 ServerType? mode = null;
+                Version? version = null;
 
                 var count = reader.AggregateLength();
                 for (var i = 0; i < count; i++)
@@ -186,12 +202,17 @@ namespace StackExchange.Redis
                     if (!reader.TryMoveNext()) break;
                     var isProto = reader.Is("proto"u8);
                     var isMode = !isProto && reader.Is("mode"u8);
+                    var isVersion = !isProto && !isMode && reader.Is("version"u8);
                     if (!reader.TryMoveNext()) break;
                     i++;
 
                     if (isProto && reader.IsScalar && reader.TryReadInt64(out var value))
                     {
                         proto = (int)value;
+                    }
+                    else if (isVersion && reader.IsScalar)
+                    {
+                        _ = Format.TryParseVersion(reader.ReadString(), out version);
                     }
                     else if (isMode && reader.IsScalar)
                     {
@@ -206,7 +227,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                return new HelloReply(proto, mode);
+                return new HelloReply(proto, mode, version);
             }
         }
 

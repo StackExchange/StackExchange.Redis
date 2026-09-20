@@ -80,7 +80,7 @@ namespace StackExchange.Redis
         /// whether the connection that <i>would</i> take this key is up, and PING routes the same way
         /// without implying a command that might be disabled in the map.
         /// </remarks>
-        public override bool IsConnected(in RedisKey key, CommandFlags flags)
+        internal override bool IsReachable(in RedisKey key, CommandFlags flags)
             => _target.multiplexer.SelectServer(RedisCommand.PING, flags, key)?.IsConnected == true;
 
         /// <inheritdoc/>

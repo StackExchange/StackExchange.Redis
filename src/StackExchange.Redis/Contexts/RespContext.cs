@@ -278,6 +278,15 @@ namespace StackExchange.Redis
         /// <returns><see langword="false"/> when nothing is known - including when no such service is present.</returns>
         internal bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
         {
+            // The EXECUTOR first, when it has an answer: it resolves the command the same way the send
+            // will and reports what that node's own handshake observed, where the service has to work it
+            // out from a topology it does not own. Falls through when there is no executor, or when the
+            // executor has nothing to report - a fake, or a connection that has not come up yet.
+            if (Executor is { } executor && executor.TryGetFeatures(command, in key, flags, out features))
+            {
+                return true;
+            }
+
             if (TryGetService<IRespServerFeatures>(out var probe))
             {
                 // the key prefix is part of the CONTEXT here, not of the key, and it is applied at write

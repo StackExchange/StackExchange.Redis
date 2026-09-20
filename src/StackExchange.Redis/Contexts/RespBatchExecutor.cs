@@ -68,7 +68,8 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>Routing is the inner executor's; accumulating does not change where a key lives.</remarks>
-        public override bool IsConnected(in RedisKey key, CommandFlags flags) => _inner.IsConnected(in key, flags);
+        internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
+            => _inner.ResolveFor(in key, command, flags);
 
         /// <inheritdoc/>
         /// <remarks>Routing is the inner executor's; this layer does not change where a key lives.</remarks>

@@ -73,7 +73,8 @@ internal sealed class RespRetryExecutor : RespExecutorBase
 
     /// <inheritdoc/>
     /// <remarks>Routing is the inner executor's; retrying does not change where a key lives.</remarks>
-    public override bool IsConnected(in RedisKey key, CommandFlags flags) => _inner.IsConnected(in key, flags);
+    internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
+        => _inner.ResolveFor(in key, command, flags);
 
     /// <inheritdoc/>
     /// <remarks>Routing is the inner executor's; this layer does not change where a key lives.</remarks>

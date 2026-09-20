@@ -34,6 +34,7 @@ namespace StackExchange.Redis
     internal sealed class RespEndpointExecutor : RespExecutorBase, IAsyncDisposable
     {
         private readonly Func<CancellationToken, Task<RespConnection>> _connect;
+        private readonly Func<RedisFeatures?>? _features;
         private readonly EndPoint? _endpoint;
         private readonly bool _queueWhileDisconnected;
         private readonly object _sync = new();
@@ -50,12 +51,18 @@ namespace StackExchange.Redis
         /// <param name="queueWhileDisconnected">
         /// Whether a command arriving with no connection waits for one, or fails immediately.
         /// </param>
+        /// <param name="features">
+        /// What this endpoint's own handshake observed, if anything. Supplied rather than discovered
+        /// because the connect delegate owns the handshake - this only has to be told the answer.
+        /// </param>
         internal RespEndpointExecutor(
             Func<CancellationToken, Task<RespConnection>> connect,
             int database = 0,
             EndPoint? endpoint = null,
-            bool queueWhileDisconnected = true)
+            bool queueWhileDisconnected = true,
+            Func<RedisFeatures?>? features = null)
         {
+            _features = features;
             _connect = connect ?? throw new ArgumentNullException(nameof(connect));
             Database = database;
             _endpoint = endpoint;
@@ -93,7 +100,25 @@ namespace StackExchange.Redis
         /// Answered without sending anything, as the base class describes: there is one endpoint, so the
         /// question reduces to whether we can currently reach it.
         /// </remarks>
-        public override bool IsConnected(in RedisKey key, CommandFlags flags) => IsConnectedNow;
+        internal override bool IsReachable(in RedisKey key, CommandFlags flags) => IsConnectedNow;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>An observation, not a borrowed guess.</b> The handshake read this server's version out of
+        /// its own <c>HELLO</c> reply on this very connection, so the answer describes the node that will
+        /// actually run the command - which is the whole question.
+        /// </remarks>
+        internal override bool TryGetLocalFeatures(out RedisFeatures features)
+        {
+            if (_features?.Invoke() is { } observed)
+            {
+                features = observed;
+                return true;
+            }
+
+            features = default;
+            return false;
+        }
 
         /// <inheritdoc/>
         public override ValueTask<EndPoint?> IdentifyEndpointAsync(

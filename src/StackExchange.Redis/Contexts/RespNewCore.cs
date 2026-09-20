@@ -32,6 +32,14 @@ namespace StackExchange.Redis
         private readonly ConnectionMultiplexer _multiplexer;
         private readonly RespTopology _topology;
         private readonly ConcurrentDictionary<EndPoint, RespEndpointExecutor> _endpoints = new();
+
+        /// <summary>What each endpoint's own handshake reported about itself.</summary>
+        /// <remarks>
+        /// Filled by the connect path, read by that endpoint's executor. An observation from the
+        /// connection that will run the command, rather than a version borrowed from somebody else's
+        /// topology.
+        /// </remarks>
+        private readonly ConcurrentDictionary<EndPoint, RedisFeatures> _observed = new();
         private readonly RespMultiplexerExecutor _router;
 
         internal RespNewCore(ConnectionMultiplexer multiplexer)
@@ -121,7 +129,8 @@ namespace StackExchange.Redis
             token => ConnectAsync(endpoint, token),
             _multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault(),
             endpoint,
-            _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected);
+            _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected,
+            () => _observed.TryGetValue(endpoint, out var features) ? features : null);
 
         /// <summary>Open a socket, hand it to the new stack, and bring it up.</summary>
         /// <remarks>
@@ -143,7 +152,7 @@ namespace StackExchange.Redis
                 new RespContext(config.CommandMap, database: 0)
                     .WithExecutor(new RespConnectionExecutor(connection, 0)));
 
-            await RespHandshake.PerformAsync(
+            var result = await RespHandshake.PerformAsync(
                 context,
                 config.User,
                 config.Password,
@@ -152,6 +161,11 @@ namespace StackExchange.Redis
                 config.Protocol is null or RedisProtocol.Resp3,
                 _topology,
                 cancellationToken).ConfigureAwait(false);
+
+            // recorded BEFORE the connection is handed back, for the same reason the topology is: the
+            // endpoint executor publishes it and drains its backlog the moment this returns, and a
+            // command choosing its spelling from "we have no idea" is the case this exists to avoid
+            if (result.Version is { } version) _observed[endpoint] = new RedisFeatures(version);
 
             return connection;
         }

@@ -59,6 +59,78 @@ namespace StackExchange.Redis
         /// <param name="cancellationToken">Cancels the send.</param>
         public abstract ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default);
 
+        /// <summary>Which executor would actually serve this command.</summary>
+        /// <param name="key">The key being addressed, or default when nothing steers the choice.</param>
+        /// <param name="command">The command, which can change the answer - see <c>BITFIELD_RO</c>.</param>
+        /// <param name="flags">The flags, which can steer to a replica.</param>
+        /// <returns>The executor that would serve it, or null when nothing can.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>The one resolution primitive, because there turned out to be three questions asking it.</b>
+        /// "Can you reach this key?", "what version is the server that would answer?" and "which endpoint
+        /// would take it?" are the same walk down the executor chain with a different question at the
+        /// bottom. Written separately they were six near-identical overrides each; written once they are
+        /// one override per executor and the questions come free.
+        /// </para>
+        /// <para>
+        /// A <b>decorator</b> - retry, batch - forwards, because it changes nothing about where a command
+        /// goes. A <b>router</b> - group, multiplexer - resolves one step and recurses. An <b>endpoint</b>
+        /// is the answer, and the default returns <see langword="this"/> for exactly that reason.
+        /// </para>
+        /// <para>
+        /// Note what this is <i>not</i>: it does not go to the wire, and must not. It answers what routing
+        /// <i>would</i> do, which is why <c>IdentifyEndpointAsync</c> - which asks what actually
+        /// <i>did</i> answer - remains separate. That asymmetry is discussed in the queue.
+        /// </para>
+        /// </remarks>
+        internal virtual RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags) => this;
+
+        /// <summary>Whether <b>this</b> executor, already resolved, can currently reach its server.</summary>
+        /// <param name="key">The key being addressed.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <remarks>
+        /// Only meaningful on a resolved executor; routers answer by resolving first. The default is
+        /// <see langword="true"/> for the same reason <see cref="IsConnected"/>'s was: an executor with no
+        /// notion of connectivity can reach the only thing it has.
+        /// </remarks>
+        internal virtual bool IsReachable(in RedisKey key, CommandFlags flags) => true;
+
+        /// <summary>What the server that would serve this command can do.</summary>
+        /// <param name="command">The command, whose routing decides which server answers.</param>
+        /// <param name="key">The key being addressed, or default when nothing steers the choice.</param>
+        /// <param name="flags">The flags, which can steer to a replica of a different version.</param>
+        /// <param name="features">The answer, when one is available.</param>
+        /// <returns>Whether this is an observation rather than a guess.</returns>
+        /// <remarks>
+        /// <b>The third question on the same walk</b>, and the reason <see cref="ResolveFor"/> exists at
+        /// all. Several commands are <i>chosen</i> from the answer - an all-GET <c>BITFIELD</c> goes out
+        /// as <c>BITFIELD_RO</c> when the server has it, which is what lets a replica serve it - so a
+        /// wrong answer here is not a missing optimisation, it is a command refused for a read.
+        /// </remarks>
+        internal bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
+        {
+            if (ResolveFor(in key, command, flags) is { } target && target.TryGetLocalFeatures(out features))
+            {
+                return true;
+            }
+
+            features = default;
+            return false;
+        }
+
+        /// <summary>What <b>this</b> executor, already resolved, knows about its own server.</summary>
+        /// <param name="features">The answer, when this executor has one.</param>
+        /// <remarks>
+        /// The default is "no idea", which is honest: an executor with no server behind it has nothing to
+        /// report, and the caller's fallback - the configured default version - is a better guess than
+        /// anything this could invent.
+        /// </remarks>
+        internal virtual bool TryGetLocalFeatures(out RedisFeatures features)
+        {
+            features = default;
+            return false;
+        }
+
         /// <summary>Re-issue an operation that a redirect sent here, without completing it first.</summary>
         /// <param name="operation">The operation; still pending, and still owning its request bytes.</param>
         /// <returns>Whether this executor took it on.</returns>
@@ -95,7 +167,8 @@ namespace StackExchange.Redis
         /// says nothing would otherwise claim to be disconnected, which is the more damaging wrong answer.
         /// </para>
         /// </remarks>
-        public virtual bool IsConnected(in RedisKey key, CommandFlags flags) => true;
+        public bool IsConnected(in RedisKey key, CommandFlags flags)
+            => ResolveFor(in key, RedisCommand.PING, flags) is { } target && target.IsReachable(in key, flags);
 
         /// <summary>Which endpoint would serve - or did serve - a command for the given key.</summary>
         /// <param name="key">The key whose routing is being asked about; null means "anywhere".</param>

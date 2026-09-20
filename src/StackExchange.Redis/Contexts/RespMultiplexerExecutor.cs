@@ -119,14 +119,14 @@ namespace StackExchange.Redis
         public override int Database { get; }
 
         /// <inheritdoc/>
-        public override bool IsConnected(in RedisKey key, CommandFlags flags)
+        internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
         {
-            // no request to read a slot from, so this asks the same question the router would: which
-            // endpoint would take this key, and is it up
+            // the routing step, with no request to read a slot from - so the slot comes from the key, the
+            // same way the writer would have computed it
             var target = _topology.RoutesBySlot && !key.IsNull
-                ? _forSlot(ServerSelectionStrategy.GetHashSlot(key), RedisCommand.PING, flags)
-                : _any(RedisCommand.PING, flags);
-            return target is not null && target.IsConnected(in key, flags);
+                ? _forSlot(ServerSelectionStrategy.GetHashSlot(key), command, flags)
+                : _any(command, flags);
+            return target?.ResolveFor(in key, command, flags);
         }
 
         /// <inheritdoc/>

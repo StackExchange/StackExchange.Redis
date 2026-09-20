@@ -31,7 +31,7 @@ public class TransitionalDatabaseTests
 
         internal string? LastKey;
 
-        public override bool IsConnected(in RedisKey key, CommandFlags flags)
+        internal override bool IsReachable(in RedisKey key, CommandFlags flags)
         {
             Asked++;
             LastFlags = flags;
@@ -79,8 +79,8 @@ public class TransitionalDatabaseTests
         // "true" while the server is healthy, so the override is pinned here instead: drop it and the
         // context surface silently claims every key is reachable.
         var method = typeof(RespMessageExecutor).GetMethod(
-            nameof(RespExecutorBase.IsConnected),
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+            "IsReachable",
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
 
         Assert.NotNull(method);
         Assert.Equal(typeof(RespMessageExecutor), method!.DeclaringType);

@@ -950,6 +950,53 @@ profiling has landed.**
 Maintenance events and sentinel are likewise untouched; the suites that pass are the ones whose
 assertions do not depend on any of it.
 
+
+### 7n. One resolution, three questions — and why a hard pin would be a lie
+
+Three questions were each walking the executor chain separately: *can you reach this key?*, *which
+endpoint would take it?*, and *what can the server that answers it do?* Six near-identical overrides
+apiece across seven executors; a third question would have made eighteen.
+
+They are the same walk with a different question at the bottom, so there is now one primitive:
+
+```csharp
+internal virtual RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags);
+```
+
+A **decorator** (retry, batch) forwards, because it changes nothing about where a command goes. A
+**router** (group, multiplexer) resolves one step and recurses. An **endpoint** is the answer, which is
+why the default returns `this`. The questions then sit on the base and come free.
+
+**Why the feature probe matters more than it sounds.** Several commands are *chosen* from the answer: an
+all-GET `BITFIELD` goes out as `BITFIELD_RO` when the server has it, which is what lets a replica serve
+it. Answer "no idea" and the writable spelling goes out — which works everywhere, except that a caller
+who asked for a replica is then refused *for a read*. A guess here is not a missed optimisation; it is a
+client-side refusal of a legal command.
+
+The new core now answers from **its own handshake**: `HELLO` already reports `version` alongside `proto`
+and `mode`, so the endpoint that will run the command reports what it observed on that very connection,
+rather than borrowing a version from somebody else's topology.
+
+#### The race, and why pinning does not fix it
+
+The probe runs at *render* time; the send happens later. They can resolve to different servers. Marc:
+*"I'll settle for 'we made a good decision based on the information we had'"* — and that is the right
+call for a reason stronger than pragmatism:
+
+**A hard pin would be a lie.** Capturing the chosen server at render time narrows the window without
+closing it — a reshard or failover between capture and send makes the capture stale, and now it is
+*confidently* stale. Worse, it fights the principle the routing is built on: topology is read per send
+and never captured, precisely because the context is memoised for the life of the multiplexer. Pinning
+reintroduces the staleness the tri-state topology (§7h) exists to avoid.
+
+`-MOVED` is the proof that pinning was never the mechanism. The cluster tells us when we were wrong, and
+following that correction — in reply order, on the IO loop (§7l) — is what actually makes a stale
+decision recoverable. A client that pinned *and* followed redirects has two mechanisms where one would
+do; a client that pinned *instead of* following them is broken by the first reshard.
+
+So the contract is: decide well from what is known, be correctable, and never pretend the decision was
+more certain than it was.
+
 ---
 
 ## 8. Open questions
