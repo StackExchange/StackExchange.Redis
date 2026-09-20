@@ -3467,6 +3467,28 @@ Four consequences, none of them cosmetic:
 
 ## Decided against
 
+- **Extending SER310 to ambient tokens, in particular an async `[Fact]`/`[Theory]`'s
+  `TestContext.Current.CancellationToken`.** Marc raised it and answered it in the same breath —
+  *"probably not, I guess"* — and the reasoning is worth keeping because it is the rule's whole design in
+  miniature.
+
+  **A token being *reachable* is not the signal; a token being *promised* is.** A `CancellationToken`
+  parameter is a contract with the caller. An ambient one is infrastructure that happens to be in scope,
+  and the same reasoning already excludes locals and fields.
+
+  Concretely, for the test case: a test's token means "the run is being aborted", so migrating a test to
+  a different surface is not a sensible response; a redis call that ignores it finishes in microseconds,
+  so the real cost of ignoring cancellation — a request outliving its caller in production — does not
+  apply; and where an ambient test token genuinely matters, for long waits, xUnit's own **xUnit1051**
+  already covers it. (This session hit and suppressed xUnit1051 earlier, which is the noise dynamic
+  first-hand.)
+
+  **Measured rather than assumed:** as scoped to parameters, SER310 fires **zero** times across the whole
+  solution, ~10,500 tests included. On the "reachable" reading it would fire thousands of times here and
+  be turned off wholesale — which is the failure mode the severity and the once-per-method reporting were
+  already chosen to avoid.
+
+
 - **Passing the context by reference on the send path (`in this` + a `ref readonly` accessor).** Tried
   2026-09-18 on Marc's hunch that `lists.Context.SendAsync(...)` copies 40 bytes per command. The hunch
   was right about the copy and **wrong about the cure**, and so was I - measured both ways.

@@ -22,6 +22,16 @@ namespace StackExchange.Redis.Build;
 /// was never meant to observe. Narrowing to the parameter keeps the rule quiet enough to leave on.
 /// </para>
 /// <para>
+/// <b>A token being <i>reachable</i> is not the signal; a token being <i>promised</i> is.</b> That
+/// distinction is what rules out the case this was nearly extended to cover: an async <c>[Fact]</c> has
+/// an ambient <c>TestContext.Current.CancellationToken</c>, so by the "reachable" reading every test
+/// calling redis would be flagged. But a test's token means "the run is being aborted", migrating a test
+/// to a different surface is not a sensible response to that, and a redis call that ignores it finishes
+/// in microseconds anyway. The rule would fire thousands of times in this repository alone and be
+/// suppressed wholesale - and where an ambient test token genuinely matters, for long waits, xUnit's own
+/// xUnit1051 already covers it.
+/// </para>
+/// <para>
 /// Reported once per method rather than once per call. A repository method with a dozen redis calls has
 /// one thing to decide, not a dozen; a diagnostic per call would be a wall of identical suggestions that
 /// gets suppressed wholesale, which is the opposite of the intent.
