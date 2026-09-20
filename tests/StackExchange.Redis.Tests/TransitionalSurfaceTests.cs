@@ -461,11 +461,13 @@ public class TransitionalCoverageTests
             // moved as a group - deferred execution is not a frame - so they have no group to be tested as
             "VectorSetRangeEnumerate", "VectorSetRangeEnumerateAsync",
 
-            // sugar rather than a group: LockTake IS SET ... NX with an expiry and LockQuery IS GET, so
-            // they are covered by the String group plus TheMovedLockMembersAreSugarOverSetAndGet. Their
-            // siblings LockRelease and LockExtend are NOT here, because they have not moved - they need
-            // the transaction fallback - and so must keep failing the "implemented" test above.
+            // Locks are a PATTERN over other groups rather than a group of their own: LockTake is
+            // SET ... NX with an expiry, LockQuery is GET, and LockRelease/LockExtend are one IFEQ-style
+            // command where the server has it and a transaction where it does not. There is no "Lock"
+            // group to test, so they are covered by NewCoreLockingTests, which runs the existing locking
+            // suite against the new core and therefore checks whichever branch this deployment takes.
             "LockTake", "LockTakeAsync", "LockQuery", "LockQueryAsync",
+            "LockRelease", "LockReleaseAsync", "LockExtend", "LockExtendAsync",
         ];
 
         var uncovered = HandWritten(typeof(IDatabase)).Concat(HandWritten(typeof(IDatabaseAsync)))
@@ -497,11 +499,15 @@ public class TransitionalCoverageTests
         // the interface map stopped distinguishing the two kinds of member, and the coverage claim above
         // would be vacuous rather than wrong - which is the harder failure to notice.
         //
-        // This named "Stream" until the multi-stream reads and XINFO moved, at which point it started
-        // failing because nothing was left to be generated - the control doing its job, in the one way it
-        // is meant to. "Lock" now, because LockRelease/LockExtend need the transaction fallback and so
-        // will be the last thing standing; when they move, pick another still-generated group.
-        Assert.NotEmpty(Generated("Lock", typeof(IDatabase)));
+        // This named "Stream" until the multi-stream reads and XINFO moved, then "Lock" until the
+        // transaction fallback landed and LockRelease/LockExtend moved with it - twice now the control
+        // has gone stale by being right, which is the one way it is meant to fail.
+        //
+        // "Publish" now. It is the last IDatabase member with nowhere else to be: it is not a command
+        // group, it routes to the subscribed server rather than by key, and it belongs with the pub/sub
+        // surface rather than the database one. When that moves, pick another still-generated group -
+        // and if nothing is left, that is the signal that [AutoDatabase] itself can go.
+        Assert.NotEmpty(Generated("Publish", typeof(IDatabase)));
     }
 }
 

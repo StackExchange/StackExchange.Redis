@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -304,10 +305,16 @@ namespace StackExchange.Redis
         // already has, and deliberately do NOT become methods on it - a lock is a pattern over SET and
         // GET, not a command, and the new surface should not pretend otherwise.
         //
-        // LockRelease and LockExtend are a different matter and stay unmoved: each is a single IFEQ-style
-        // message on a new enough server and a TRANSACTION otherwise, falling back again to a plain DELETE
-        // where transactions are unavailable (twemproxy). The context surface has no transactions yet, so
-        // moving them would mean either dropping the fallback or reimplementing it - see the queue.
+        // LockRelease and LockExtend are the other two, and they were the last members on the fallback:
+        // each is a single IFEQ-style command on a new enough server, a TRANSACTION otherwise, and a
+        // plain DELETE/EXPIRE where transactions are unavailable at all (twemproxy). All three layers now
+        // exist on this surface - the feature probe, MULTI/EXEC with conditions, and the plain command -
+        // so they compose rather than needing a second implementation of any of them.
+        //
+        // Note the fire-and-forget command inside the transaction, which is how the shipped version
+        // writes it too: the queued command's own reply is nobody's business, because the ANSWER is
+        // whether EXEC ran at all. That is exactly the path that had to be fixed in
+        // RespTransactionExecutor, and this is the caller that proves it was worth fixing.
 
         /// <inheritdoc/>
         public bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
@@ -322,6 +329,81 @@ namespace StackExchange.Redis
             // a null token would make the lock unreleasable: SET would delete the key instead of taking it
             if (value.IsNull) throw new ArgumentNullException(nameof(value));
             return _inner.Strings.SetAsync(key, value, new Expiration(expiry), ValueCondition.NotExists, flags);
+        }
+
+        /// <inheritdoc/>
+        public bool LockRelease(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+            => Wait(ReleaseLock(key, value, flags));
+
+        /// <inheritdoc/>
+        public Task<bool> LockReleaseAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+            => ReleaseLock(key, value, flags).AsTask(AsyncState, flags);
+
+        [SuppressMessage("Usage", "SER301:Transaction can be replaced by a single atomic operation", Justification = "Deliberate fallback for servers without DELEX; the atomic form is preferred above.")]
+        private ValueTask<bool> ReleaseLock(RedisKey key, RedisValue value, CommandFlags flags)
+        {
+            if (value.IsNull) throw new ArgumentNullException(nameof(value));
+
+            // lock tokens are small, so IFEQ rather than IFDEQ - the same reasoning as the shipped version,
+            // and the same command: one round trip, atomic, no transaction needed
+            if (_inner.Raw.TryGetFeatures(RedisCommand.DELEX, in key, flags, out var features)
+                && features.DeleteWithValueCheck)
+            {
+                return _inner.Strings.DeleteAsync(key, ValueCondition.Equal(value), flags);
+            }
+
+            if (TryCreateTransaction() is { } tran)
+            {
+                tran.AddCondition(Condition.StringEqual(key, value));
+                _ = tran.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+                return new ValueTask<bool>(tran.ExecuteAsync(flags));
+            }
+
+            // without transactions (twemproxy etc) the "value" part cannot be enforced at all; deleting
+            // unconditionally is what the shipped surface does, and it is a deliberate weakening
+            return _inner.Keys.DeleteAsync(key, flags);
+        }
+
+        /// <inheritdoc/>
+        public bool LockExtend(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+            => Wait(ExtendLock(key, value, expiry, flags));
+
+        /// <inheritdoc/>
+        public Task<bool> LockExtendAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+            => ExtendLock(key, value, expiry, flags).AsTask(AsyncState, flags);
+
+        [SuppressMessage("Usage", "SER301:Transaction can be replaced by a single atomic operation", Justification = "Deliberate fallback for servers without SET IFEQ; the atomic form is preferred above.")]
+        private ValueTask<bool> ExtendLock(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags)
+        {
+            if (value.IsNull) throw new ArgumentNullException(nameof(value));
+
+            if (_inner.Raw.TryGetFeatures(RedisCommand.SET, in key, flags, out var features)
+                && features.SetWithValueCheck)
+            {
+                return _inner.Strings.SetAsync(key, value, new Expiration(expiry), ValueCondition.Equal(value), flags);
+            }
+
+            if (TryCreateTransaction() is { } tran)
+            {
+                tran.AddCondition(Condition.StringEqual(key, value));
+                _ = tran.KeyExpireAsync(key, expiry, CommandFlags.FireAndForget);
+                return new ValueTask<bool>(tran.ExecuteAsync(flags));
+            }
+
+            return _inner.Keys.ExpireAsync(key, new Expiration(expiry), flags: flags);
+        }
+
+        /// <summary>A transaction, or null where the server has no <c>MULTI</c>/<c>EXEC</c> to build one from.</summary>
+        /// <remarks>
+        /// Asks the command map rather than assuming, exactly as <c>CreateTransactionIfAvailable</c> does:
+        /// a proxy that disables transactions is the whole reason the third fallback exists.
+        /// </remarks>
+        private ITransaction? TryCreateTransaction()
+        {
+            var map = _inner.Raw.CommandMap;
+            return map.IsAvailable(RedisCommand.MULTI) && map.IsAvailable(RedisCommand.EXEC)
+                ? CreateTransaction(AsyncState)
+                : null;
         }
 
         /// <inheritdoc/>

@@ -152,9 +152,13 @@ public class TransitionalDatabaseTests
         //
         // LockQuery was the previous pick, on the reasoning that "the lock group waits on transactions".
         // Half of that group did not: LockQuery is GET and LockTake is SET NX, so they moved as sugar over
-        // the String group. LockRelease genuinely does wait - it is one IFEQ-style message on a new enough
-        // server and a TRANSACTION otherwise - so it should outlast most of what is left.
-        var ex = Assert.Throws<NotImplementedException>(() => db.LockRelease("k", "token"));
+        // the String group. LockRelease was the pick after that and genuinely did wait - and then the
+        // transaction fallback landed, so it moved too.
+        //
+        // StringGetWithExpiry now, and it waits on something quite different: it is one logical read that
+        // the server answers with TWO commands (GET and TTL/PTTL), so it needs a composite whose result is
+        // assembled from more than one reply. That is a shape this surface does not have yet.
+        var ex = Assert.Throws<NotImplementedException>(() => db.StringGetWithExpiry("k"));
         Assert.Contains("has not yet moved", ex.Message);
     }
 

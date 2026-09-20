@@ -296,3 +296,26 @@ public class NewCoreTransactionTests(ITestOutputHelper output, SharedConnectionF
     protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
         => RespNewCoreFixture.Wrap(conn, db, asyncState);
 }
+
+/// <summary>
+/// <inheritdoc cref="RespNewCoreFixture"/>
+/// </summary>
+/// <remarks>
+/// <b>The suite that proves the last members off the fallback.</b> <c>LockRelease</c>/<c>LockExtend</c>
+/// each have three implementations - the atomic <c>IFEQ</c> form, a transaction, and a bare
+/// <c>DELETE</c>/<c>EXPIRE</c> where transactions are unavailable - and which one runs depends on the
+/// server. Running the existing suite against the new core is what checks the branch this deployment
+/// actually takes, rather than the one the author had in mind.
+/// </remarks>
+[RunPerProtocol]
+public class NewCoreLockingTests(ITestOutputHelper output) : LockingTests(output)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+
+    /// <inheritdoc/>
+    protected override bool SupportsProxy => false;
+
+    /// <inheritdoc/>
+    protected override bool CountsMultiplexerOps => false;
+}

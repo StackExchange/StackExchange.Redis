@@ -105,6 +105,39 @@ existing suites run through it. This is the outstanding list, in the order thing
       on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
       stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
 
+### Deleting `Message` and `[AutoDatabase]` — the actual dependency chain
+
+Census of `Message.Create` / `new *Message(` sites, 2026-09-20, so the ordering argues from numbers
+rather than impressions:
+
+| Area | Sites | Blocked on |
+| --- | --- | --- |
+| `RedisDatabase*.cs` | **~502** | SER352 → 0 |
+| `RedisServer.cs` + `ServerEndPoint.cs` + `HotKeys.Server.cs` | ~160 | the server surface |
+| `Message.cs` itself | 65 | goes with it |
+| `Condition.cs` | 10 | `CreateMessages`, whose twin already exists (§7r) |
+| `RedisTransaction.cs`, `RedisSubscriber.cs` | 9 | transactions done; pub/sub outstanding |
+
+**`[AutoDatabase]` has exactly one job**: generating the `IDatabase`/`IDatabaseAsync` members
+`TransitionalDatabase` does not implement. SER352 counts those. **SER352 → 0 is not a step towards
+deleting the generator — it is the same thing**, and it also unblocks the ~502-site chunk, because that
+is what `TransitionalDatabase` stops needing a fallback for. `AnUnmovedGroupIsStillGenerated` is the
+tripwire: when it can no longer find a generated group, the generator is done.
+
+- [x] **Locks moved, 2026-09-20.** SER352 **8 → 4**. `LockRelease`/`LockExtend` were the last members
+      genuinely blocked on the transaction fallback; all three of their layers now exist on this surface
+      (feature probe → `MULTI`/`EXEC` with conditions → plain `DELETE`/`EXPIRE`), so they compose rather
+      than reimplement. Proven by running `LockingTests` against the new core, which is what checks the
+      branch a given server actually takes.
+
+- [ ] **SER352 4 → 0.** Two members, two different shapes, neither about locks:
+  - `StringGetWithExpiry`/`Async` — one logical read the server answers with **two** commands (`GET` plus
+    `TTL`/`PTTL`). Needs a composite whose result is assembled from more than one reply; the surface has
+    contiguity (§7p) but no "one result from N replies" shape yet. Closest existing relative is
+    `RespExecOperation`, which distributes N replies to N waiters — this is the inverse.
+  - `Publish`/`Async` — not a command group at all: it routes to the *subscribed* server rather than by
+    key, and belongs with the pub/sub surface. Probably moves with `ISubscriber` rather than before it.
+
 - [ ] **Should multi-key reads scatter-gather across a cluster? (`MGET` and friends.)** Raised for
       **cross-library parity**: several other clients split a multi-key command across the nodes that own
       the slots and reassemble the result, where this library refuses it — `RespMultiplexerExecutor`
