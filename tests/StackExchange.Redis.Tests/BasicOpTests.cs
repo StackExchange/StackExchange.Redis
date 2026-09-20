@@ -276,7 +276,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     public async Task TestSevered()
     {
         await using var conn = Create(allowAdmin: true, allowSimulateConnectionFailure: true);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         string key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, key);

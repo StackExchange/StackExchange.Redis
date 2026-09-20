@@ -155,10 +155,15 @@ public class TransitionalDatabaseTests
         // the String group. LockRelease was the pick after that and genuinely did wait - and then the
         // transaction fallback landed, so it moved too.
         //
-        // StringGetWithExpiry now, and it waits on something quite different: it is one logical read that
-        // the server answers with TWO commands (GET and TTL/PTTL), so it needs a composite whose result is
-        // assembled from more than one reply. That is a shape this surface does not have yet.
-        var ex = Assert.Throws<NotImplementedException>(() => db.StringGetWithExpiry("k"));
+        // StringGetWithExpiry was the pick after that, on the reasoning that it needs a composite result
+        // assembled from two replies. It turned out to need no mechanism at all - two sends and an
+        // addition - so it moved in the same session it was chosen, which is the shortest any exemplar
+        // has lasted.
+        //
+        // Publish now, and it is the last one: it is not a command group, it routes to the SUBSCRIBED
+        // server rather than by key, and it belongs with the pub/sub surface. When it moves there is
+        // nothing left for [AutoDatabase] to generate, and this test retires with it.
+        var ex = Assert.Throws<NotImplementedException>(() => db.Publish(RedisChannel.Literal("ch"), "msg"));
         Assert.Contains("has not yet moved", ex.Message);
     }
 

@@ -105,6 +105,30 @@ existing suites run through it. This is the outstanding list, in the order thing
       on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
       stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
 
+- [ ] **164 real failures behind 11 suites whose wrappers were a no-op — TOP PRIORITY.** The wrapped
+      suites only test the new core if they call `GetDatabase(conn)`; 246 sites across 22 files called
+      `conn.GetDatabase()` instead and silently tested the shipped database. Eleven suites now genuinely
+      route and pass; these eleven expose real command-level gaps and are reverted for now so the suite
+      stays green as an instrument: `CopyTests`, `DigestIntegrationTests`, `ExpiryTests`,
+      `FloatingPointTests`, `HashTests`, `HashImportTests`, `KeyTests`, `MSetTests`, `ProfilingTests`,
+      `QueuedResultTests`, `ScanTests`.
+
+      Not the connection stack: the `Transitional*` wrappers fail identically and those run over the old
+      pipeline, so these are gaps in the new *surface*. Three root causes identified so far:
+  - The **command map is not consulted** where the shipped surface falls back — `MSETEX` → `MSET` when
+    disabled. Likely a class of bug, not one instance.
+  - **`Expiration` rejects inputs the old API accepted**: "A deadline is required; KEEPTTL and PERSIST
+    are not expirations".
+  - A set of **value/prefix mismatches** (`Assert.Equal`, `Assert.StartsWith`) not yet diagnosed.
+
+      Convert one suite at a time, fix what it exposes, keep it converted. Every one of these is a gap
+      that would otherwise be found *after* the old core was deleted.
+
+- [ ] **Analyzer: a wrapped suite that calls `conn.GetDatabase()` directly.** Mechanically detectable,
+      and it is the second silent no-op found by accident rather than tooling — the first was
+      `[AutoDatabase]` matching interfaces by declared name, so `IBatch` generated nothing (§7s). Both
+      compiled, ran, and proved less than they claimed.
+
 ### Deleting `Message` and `[AutoDatabase]` — the actual dependency chain
 
 Census of `Message.Create` / `new *Message(` sites, 2026-09-20, so the ordering argues from numbers
@@ -130,13 +154,12 @@ tripwire: when it can no longer find a generated group, the generator is done.
       than reimplement. Proven by running `LockingTests` against the new core, which is what checks the
       branch a given server actually takes.
 
-- [ ] **SER352 4 → 0.** Two members, two different shapes, neither about locks:
-  - `StringGetWithExpiry`/`Async` — one logical read the server answers with **two** commands (`GET` plus
-    `TTL`/`PTTL`). Needs a composite whose result is assembled from more than one reply; the surface has
-    contiguity (§7p) but no "one result from N replies" shape yet. Closest existing relative is
-    `RespExecOperation`, which distributes N replies to N waiters — this is the inverse.
-  - `Publish`/`Async` — not a command group at all: it routes to the *subscribed* server rather than by
-    key, and belongs with the pub/sub surface. Probably moves with `ISubscriber` rather than before it.
+- [x] **`StringGetWithExpiry` moved, 2026-09-20.** SER352 **4 → 2**. Needed no composite mechanism at
+      all: two sends issued before either is awaited, and an addition. See §7w.
+
+- [ ] **SER352 2 → 0: `Publish`/`Async`.** Not a command group — it routes to the *subscribed* server
+      rather than by key, so it belongs with the pub/sub surface and probably moves with `ISubscriber`.
+      When it does, `[AutoDatabase]` has nothing left to generate and retires with it.
 
 - [ ] **Should multi-key reads scatter-gather across a cluster? (`MGET` and friends.)** Raised for
       **cross-library parity**: several other clients split a multi-key command across the nodes that own

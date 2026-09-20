@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -11,7 +11,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     public async Task StringIncrementIncrex_Int64_WithBoundsAndExpiry()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -29,7 +29,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     public async Task StringIncrementIncrex_Double_WithAbsoluteExpiryAndEnx()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var when = DateTime.UtcNow.AddMinutes(30).AddMilliseconds(14);
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -52,7 +52,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     public async Task StringIncrementIncrex_SyncVersion_ParsesResult()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var intKey = (RedisKey)(Me() + ":int");
         var doubleKey = (RedisKey)(Me() + ":double");
         db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
@@ -70,7 +70,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     public async Task StringIncrementIncrex_DefaultRejectsWhenBoundExceeded()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var intKey = (RedisKey)(Me() + ":int");
         var doubleKey = (RedisKey)(Me() + ":double");
         db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
@@ -95,7 +95,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     public async Task StringIncrementIncrex_SaturateClampsToBound()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var intKey = (RedisKey)(Me() + ":int");
         var doubleKey = (RedisKey)(Me() + ":double");
         db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
@@ -120,7 +120,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     public async Task StringIncrementIncrex_DefaultRetainsExistingTtl()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var intKey = (RedisKey)(Me() + ":int");
         var doubleKey = (RedisKey)(Me() + ":double");
         db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
@@ -169,7 +169,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
         bool expectExpiryChanged)
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = (RedisKey)Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -204,7 +204,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
         bool expectExpiryChanged)
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = (RedisKey)Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);

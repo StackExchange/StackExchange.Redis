@@ -11,7 +11,7 @@ public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fix
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -58,7 +58,7 @@ public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fix
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -105,7 +105,7 @@ public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fix
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -124,7 +124,7 @@ public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fix
     public async Task AddSetEveryWayNumbers()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);

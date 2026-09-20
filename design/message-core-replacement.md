@@ -1401,6 +1401,52 @@ otherwise complete inline *from the read loop* - the one thing this is not allow
 `BatchTests` and `TransactionTests` now pass in full, on both protocols, against the new core: 926/926
 across the wrapped and unwrapped forms, and three consecutive full-suite runs with the scan failures gone.
 
+### 7w. `StringGetWithExpiry`, and a coverage claim that was not true
+
+`StringGetWithExpiry` was picked as the next exemplar of "has not moved yet" on the reasoning that it
+needs a composite result assembled from two replies - and then moved in the same sitting, because it
+needs no mechanism at all. The old core expresses it as an `IMultiMessage` expanding to `[TTL, GET]`,
+with the TTL's result box created *inside* the expansion and the `GET`'s processor reassembling the
+pair, plus a `CanWriteWithoutExpansion = false` backstop because writing it unexpanded leaves the expiry
+half unreadable. Here it is two sends and an addition. Same collapse as §7r, from the same cause.
+
+Two details are load-bearing. Both commands are issued *before* either is awaited, so they travel
+together and in order on one connection rather than costing two round trips - they address one key, so
+they resolve to one server, and they were never atomic against other clients in the old core either.
+And **both are awaited even when the first fails**: the operations are pooled and reset when their
+result is consumed, so an abandoned one never resets, never returns to the pool, and never releases its
+pooled request buffer. That is the same leak `DiscardReply` exists to prevent, reached by a different
+road. SER352 is now **2**, both of them `Publish`.
+
+**Then the coverage claim turned out to be partly false, and that is the real finding here.** The
+technique this work leans on - subclass an existing suite, override `GetDatabase`, and every assertion
+in it becomes an assertion about the new core - only works if the suite *calls* `GetDatabase(conn)`.
+Many call `conn.GetDatabase()` directly, which silently bypasses the override and tests the shipped
+database instead. A census of the wrapped suites found **246 such call sites across 22 files**, several
+of them with *no* routed call at all: `StreamTests` (97), `GeoTests` (28), `BasicOpTests` (24),
+`HashImportTests` (14), `ScanTests` (12), `KeyTests` (9). Those wrappers ran, passed, and proved
+nothing.
+
+Converting them all produced **164 failures** - not flakiness, and not the new core's connection stack
+either, because the `Transitional*` wrappers fail identically and those run over the old pipeline. They
+are command-level gaps in the new surface. Three are already identified: the command map is not
+consulted where the shipped surface falls back (`MSETEX` → `MSET`), `Expiration` rejects inputs the old
+API accepted ("a deadline is required; KEEPTTL and PERSIST are not expirations"), and a set of
+value/prefix mismatches not yet diagnosed.
+
+Eleven suites are kept converted, because they pass: `StreamTests`, `GeoTests`, `BasicOpTests`,
+`SetTests`, `HyperLogLogTests`, `IncrexIntegrationTests`, `KeyIdleTests`, `KeyIdleAsyncTests`,
+`LexTests`, `MultiAddTests`, `OverloadCompatTests`. That is real coverage that did not exist an hour
+ago, at no cost in pass count. The other eleven are reverted rather than left red, so the full suite
+stays usable as the regression instrument it has been all session - and their gap list is the queue's
+top item rather than a discovery waiting to happen during deletion.
+
+**The lesson generalises past this branch:** a test that inherits a suite to re-run it against a
+different implementation proves nothing unless every route into the subject goes through the seam. Worth
+an analyzer - "a wrapped suite calling `conn.GetDatabase()` directly" is mechanically detectable, and
+this is the second time a silent no-op has been found by accident rather than by tooling (the first was
+`[AutoDatabase]` matching interfaces by declared name, §7s).
+
 ---
 
 ## 8. Open questions

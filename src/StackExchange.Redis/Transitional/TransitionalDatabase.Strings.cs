@@ -299,6 +299,70 @@ namespace StackExchange.Redis
         private static T[] Required<T>(T[] values, string name)
             => values ?? throw new ArgumentNullException(name);
 
+        /// <inheritdoc/>
+        public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Wait(GetWithExpiry(key, flags));
+
+        /// <inheritdoc/>
+        public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => GetWithExpiry(key, flags).AsTask(AsyncState, flags);
+
+        /// <summary>One result assembled from two replies: the value, and how long it has left.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The shape the old core needed a whole mechanism for.</b> There, this is an
+        /// <c>IMultiMessage</c> that expands to <c>[TTL, GET]</c>, stashes the TTL in a result box created
+        /// <i>inside the expansion</i>, and has the <c>GET</c>'s processor reassemble the pair - with a
+        /// <c>CanWriteWithoutExpansion = false</c> backstop, because writing it without expanding leaves
+        /// the expiry half unreadable. A core that can <c>await</c> needs none of that: two sends and an
+        /// addition. This is the same collapse as the transaction handshake in section 7r, from the same
+        /// cause.
+        /// </para>
+        /// <para>
+        /// <b>Both are issued before either is awaited</b>, so they travel together and in that order on
+        /// one connection rather than costing two round trips. They address one key, so they resolve to
+        /// one server; and they were never atomic with respect to other clients in the old core either,
+        /// so nothing is given up by not bracketing them.
+        /// </para>
+        /// <para>
+        /// <b>Both are awaited even when the first fails</b>, and that is not defensive tidiness. The
+        /// operations behind these are pooled and reset when their result is consumed; an abandoned one
+        /// never resets, never returns to the pool, and never releases the pooled buffer holding its
+        /// request - the same slow leak <c>DiscardReply</c> exists to prevent elsewhere.
+        /// </para>
+        /// <para>
+        /// <c>PTTL</c> rather than a <c>TTL</c>/<c>PTTL</c> choice, because that decision already belongs
+        /// to <c>Keys.TimeToLiveAsync</c> and re-deriving it here would be a second place to keep in step.
+        /// </para>
+        /// </remarks>
+        private async ValueTask<RedisValueWithExpiry> GetWithExpiry(RedisKey key, CommandFlags flags)
+        {
+            if (this is IBatch)
+            {
+                throw new NotSupportedException(
+                    "This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
+            }
+
+            var pendingExpiry = _inner.Keys.TimeToLiveAsync(key, flags);
+            var pendingValue = _inner.Strings.GetAsync(key, flags);
+
+            TimeSpan? expiry = null;
+            Exception? expiryFault = null;
+            try
+            {
+                expiry = await pendingExpiry.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                expiryFault = ex;
+            }
+
+            var value = await pendingValue.ConfigureAwait(false);
+            if (expiryFault is not null) throw expiryFault;
+
+            return new RedisValueWithExpiry(value, expiry);
+        }
+
         // ---- locks ---------------------------------------------------------------------------------
         // Two of the four are sugar, and the shipped implementation says so: LockTake IS StringSet with
         // When.NotExists, and LockQuery IS StringGet. So they compose over commands the context surface

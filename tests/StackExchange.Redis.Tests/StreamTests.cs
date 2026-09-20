@@ -18,7 +18,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.StreamAdd(key, "field1", "value1");
 
@@ -32,7 +32,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var messageId = db.StreamAdd(key, "field1", "value1");
 
@@ -44,7 +44,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var fields = new[]
         {
@@ -72,7 +72,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string id = "42-0";
         var key = Me();
 
@@ -89,7 +89,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task StreamAddCreateStreamFalse(bool pairs, bool useAsync)
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + $":{pairs}:{useAsync}";
         await db.KeyDeleteAsync(key);
 
@@ -125,7 +125,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task StreamAddTrimsByMinId(bool approximate)
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + $":{approximate}";
         await db.KeyDeleteAsync(key);
 
@@ -164,7 +164,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task StreamAddIdempotentId(bool iid, bool pairs, bool async)
     {
         await using var conn = Create(require: RedisFeatures.v8_6_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         StreamIdempotentId id = iid ? new StreamIdempotentId("pid", "iid") : new StreamIdempotentId("pid");
         Log($"id: {id}");
         var key = Me();
@@ -210,7 +210,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task StreamConfigure(int? duration, int? maxsize, bool async)
     {
         await using var conn = Create(require: RedisFeatures.v8_6_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         var key = Me();
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -253,7 +253,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string id = "42-0";
         var key = Me();
 
@@ -278,7 +278,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer = "consumer";
 
@@ -297,7 +297,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -322,7 +322,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -347,7 +347,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -372,7 +372,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -397,7 +397,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -422,7 +422,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -447,7 +447,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -475,7 +475,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -503,7 +503,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup";
 
         // Create the group.
@@ -527,7 +527,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup";
 
         // Create the group.
@@ -551,7 +551,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -573,7 +573,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -595,7 +595,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -620,7 +620,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string group = "consumerGroup",
                      consumer1 = "c1",
                      consumer2 = "c2";
@@ -660,7 +660,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         const string groupName = "test_group", consumer = "consumer";
@@ -691,7 +691,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         const string groupName = "test_group", consumer = "consumer";
@@ -741,7 +741,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         const string groupName = "test_group", consumer = "consumer";
@@ -786,7 +786,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -807,7 +807,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -825,7 +825,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         // Ensure the key doesn't exist.
@@ -846,7 +846,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         // Pass 'false' for 'createStream' to ensure that an
@@ -863,7 +863,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.StreamAdd(key, "f1", "v1");
@@ -884,7 +884,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -906,7 +906,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -927,7 +927,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -952,7 +952,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer = "test_consumer";
@@ -997,7 +997,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode;
         const string groupName = "test_group",
             consumer = "test_consumer";
@@ -1050,7 +1050,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode + ":" + async;
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         const string groupName = "test_group",
@@ -1105,7 +1105,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
@@ -1155,7 +1155,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
@@ -1208,7 +1208,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // for only the stream set to read from the beginning.
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string groupName = "test_group";
         var stream1 = Me() + "a";
         var stream2 = Me() + "b";
@@ -1247,7 +1247,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string groupName = "test_group";
         var stream1 = Me() + "a";
         var stream2 = Me() + "b";
@@ -1279,7 +1279,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string groupName = "test_group";
         var stream1 = Me() + "a";
         var stream2 = Me() + "b";
@@ -1318,7 +1318,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string groupName = "test_group";
         var stream1 = Me() + "a";
         var stream2 = Me() + "b";
@@ -1356,7 +1356,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var stream1 = Me() + "a";
         var stream2 = Me() + "b";
 
@@ -1390,7 +1390,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         const string groupName = "test_group";
         var stream1 = Me() + "a";
         var stream2 = Me() + "b";
@@ -1420,7 +1420,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -1442,7 +1442,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -1465,7 +1465,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
@@ -1503,7 +1503,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
@@ -1540,7 +1540,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
             consumer1 = "test_consumer_1";
@@ -1575,7 +1575,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer1 = "test_consumer_1",
@@ -1610,7 +1610,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer = "test_consumer";
@@ -1641,7 +1641,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer = "test_consumer";
@@ -1670,7 +1670,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
@@ -1690,7 +1690,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
@@ -1713,7 +1713,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         using var conn = Create(require: RedisFeatures.v8_2_0_rc1); // XDELEX
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode;
 
         db.StreamAdd(key, "field1", "value1");
@@ -1736,7 +1736,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         using var conn = Create(require: RedisFeatures.v8_2_0_rc1); // XDELEX
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode;
 
         db.StreamAdd(key, "field1", "value1");
@@ -1764,7 +1764,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         await using (var conn = Create(require: RedisFeatures.v5_0_0))
         {
-            var db = conn.GetDatabase();
+            var db = GetDatabase(conn);
             db.KeyDelete(key);
 
             db.StreamAdd(key, "field1", "value1");
@@ -1817,7 +1817,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string group = "test_group",
                      consumer1 = "test_consumer_1",
@@ -1849,7 +1849,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -1906,7 +1906,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         // Add an entry and then delete it so the stream is empty, then run streaminfo
@@ -1928,7 +1928,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
@@ -1944,7 +1944,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group";
 
@@ -2003,7 +2003,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2024,7 +2024,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         // Write to a stream to create the key.
@@ -2046,7 +2046,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "a";
         var key2 = Me() + "b";
 
@@ -2076,7 +2076,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task StreamReadLastMessage()
     {
         await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
 
         // Read the entire stream from the beginning.
@@ -2095,7 +2095,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var streamPositions = new[]
         {
             new StreamPosition("key1", "0-0"),
@@ -2109,7 +2109,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(key, "0-0", 0));
     }
@@ -2119,7 +2119,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         Assert.Throws<ArgumentNullException>(() => db.StreamRead(null!));
     }
 
@@ -2128,7 +2128,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var emptyList = Array.Empty<StreamPosition>();
         Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(emptyList));
     }
@@ -2138,7 +2138,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "a";
         var key2 = Me() + "b";
 
@@ -2174,7 +2174,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "a";
         var key2 = Me() + "b";
 
@@ -2216,7 +2216,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "a";
         var key2 = Me() + "b";
 
@@ -2250,7 +2250,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "a";
         var key2 = Me() + "b";
 
@@ -2281,7 +2281,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "a";
         var key2 = Me() + "b";
 
@@ -2308,7 +2308,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.StreamAdd(key, "field1", "value1");
@@ -2325,7 +2325,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2343,7 +2343,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2363,7 +2363,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2380,7 +2380,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2398,7 +2398,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2415,7 +2415,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2434,7 +2434,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         var id1 = db.StreamAdd(key, "field1", "value1");
@@ -2457,7 +2457,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         // Add a couple items and check length.
@@ -2489,7 +2489,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode;
 
         // Add a couple items and check length.
@@ -2514,7 +2514,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode;
 
         const int maxLength = 100;
@@ -2552,7 +2552,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         // Add a couple items and check length.
@@ -2569,7 +2569,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.StreamAddAsync(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None).ConfigureAwait(false);
     }
@@ -2582,7 +2582,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: ForMode(mode));
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode;
         db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, trimMode: mode, flags: CommandFlags.None);
     }
@@ -2598,7 +2598,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: ForMode(mode));
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + ":" + mode;
 
         var pairs = new NameValueEntry[count];
@@ -2614,7 +2614,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer = "consumer";
@@ -2641,7 +2641,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "a";
         var key2 = Me() + "b";
         const string groupName = "test_group",
@@ -2677,7 +2677,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var streamName = Me();
 
         await db.StreamAddAsync(
@@ -2702,7 +2702,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer = "consumer";
@@ -2723,7 +2723,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string groupName = "test_group",
                      consumer = "consumer";
