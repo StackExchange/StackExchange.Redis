@@ -156,7 +156,17 @@ namespace StackExchange.Redis
         private async Task DispatchAsync(List<RespPayloadOperation> group)
         {
             var target = _inner.ResolveFor(default, RedisCommand.NONE, CommandFlags.None);
-            if (target is null || !target.TrySendBatch(group))
+
+            // waits for a connection, and for any write claim to clear, rather than declining. A batch
+            // that arrived before the first connect completed is EARLY, not unservable, and failing it
+            // was a real defect: the existing BatchTests caught it the moment they ran on this core.
+            if (target is not null && !await target.PrepareRunAsync().ConfigureAwait(false)) target = null;
+
+            // the slot is ours from here; anything issued while this was waiting queued behind it
+            var sent = target is not null && target.TrySendBatch(group);
+            target?.ReleaseWrites();
+
+            if (!sent)
             {
                 // nothing took it; every element is owed an answer, and "never sent" is the honest one
                 var fault = new RedisConnectionException(
@@ -167,8 +177,6 @@ namespace StackExchange.Redis
                     CommandStatus.WaitingInBacklog);
                 foreach (var operation in group) operation.TrySetException(operation.Token, fault, definite: false);
             }
-
-            await Task.CompletedTask.ConfigureAwait(false);
         }
     }
 }

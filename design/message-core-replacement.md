@@ -1253,6 +1253,65 @@ connection is what is missing. Both messages now name the actual cause. That is 
 has misled a diagnosis; a capability that declines should say which capability, not invent a topology
 problem.
 
+### 7t. The write slot, and three wrong guesses
+
+§7s ended with "wire `GetDatabase` through `RespNewCore` and the batch and transaction suites become the
+proof". They did: wrapping `BatchTests`/`TransactionTests` over the real core rather than the shim went
+from 4/442 passing to **277**, and then to **437** once the failures were understood. What follows is
+what the 163 were, because two of them were defects in the core rather than in the new code.
+
+**Conditional transactions were not ordered against concurrent commands (161 failures).** Every one had
+the same shape — `var exec = tran.ExecuteAsync();` not awaited, then `db.StringGet(key)` expecting to see
+the transaction's effect. Unconditional transactions were fine, because they run to the write without
+awaiting; with a condition there is a real pause for the checks, and anything written into it lands
+*before* the `MULTI`. The shipped surface promises the opposite and keeps that promise by holding the
+connection's write lock across the pause — which is precisely why `TransactionMessage` has to pause its
+enumerator with `Monitor` handshakes on result boxes: the reader must still make progress to deliver the
+replies being waited for.
+
+The fix keeps the guarantee and drops the mechanism. An **ordered write slot** on the endpoint executor
+blocks *writers* only: arrivals go to the backlog, which is the same queue a disconnected endpoint uses
+and drains in arrival order, so per-connection FIFO comes from the mechanism that already guarantees it
+rather than a second one. No thread blocks, the reader is never impeded, and the replies that release the
+slot cannot be starved by it. The cost — other writes to that endpoint queue for one round trip — is
+inherent to the guarantee, not to this design, and only conditional transactions pay it.
+
+**Getting the slot right took three wrong guesses, and the shape of the error is worth keeping.** Each
+time I reasoned from the code to a plausible cause, changed it, and re-ran to find the count unmoved:
+
+1. *"A batch declines when the connection is not up yet."* True, and worth fixing — `TrySendBatch`
+   returns a bool so it can only decline, and declining fails a caller whose batch merely arrived early.
+   `PrepareRunAsync` now waits. Not the cause.
+2. *"The connect publishes the connection before the backlog finishes draining, so a run overtakes."*
+   Also true, also a real pre-existing window, also closed. Not the cause either.
+3. *"The fixture mixes connections, so the test is unprovable."* Wrong — and the grep that suggested it
+   was sloppy: `SetAddAsync` matched `VectorSetAddAsync`.
+
+The actual cause only appeared when I stopped reasoning and dumped the bytes: `DEL, SET, SMEMBERS, DEL,
+SADD`. The slot holder drained the *live* backlog when it became ready, so commands issued **after** it
+took the slot were written in front of its run. Arrival order at the connection is not the rule; the rule
+is that whoever holds the slot goes ahead of everything issued after they took it. The holder now
+captures the backlog under the lock at the moment it acquires, and drains only that.
+
+Three hypotheses, two of which were real bugs that were not *this* bug — which is exactly why they were
+convincing. The instrument that settled it took two minutes and should have come first.
+
+**What the remaining failures are, and none of them is a core defect.**
+
+- **`AsyncState` is not propagated onto returned tasks** (2 tests). `ValueTask.AsTask()` over an
+  `IValueTaskSource` cannot carry it; the old core allocates a `TaskCompletionSource` per command and
+  gets it for free. Carrying it means allocating one *when `asyncState` is non-null* — which is the
+  right trade, since the default `GetDatabase()` passes null and would pay nothing. ~270 call sites,
+  mechanical; queued rather than done here.
+- **`Assert.IsType<RedisTransaction>(tran)`** (2 tests) — a test pinning the shipped concrete type. The
+  behaviour it then checks (nested transactions throw) is preserved.
+- **`Assert.Equal(TaskStatus.Canceled, pending.Status)` read synchronously after the await** (2 tests).
+  The operation *is* cancelled — the same assertion passes with a delay, and against a fake transport
+  it passes outright. What changed is that this core sets `RunContinuationsAsynchronously` (§7b, and
+  `docs/ThreadTheft.md`), so the wrapper task has not transitioned yet at the instant the test looks.
+  Not a bug, but a **visible timing change**: code that reads `.Status` immediately rather than awaiting
+  was correct-by-luck on the old core. Worth a release note, because it will not announce itself.
+
 ---
 
 ## 8. Open questions

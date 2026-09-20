@@ -166,39 +166,71 @@ namespace StackExchange.Redis
 
             var target = _inner.ResolveFor(default, RedisCommand.MULTI, CommandFlags.None);
 
-            // The connection is NAMED, not merely used. WATCH is per-connection state, so the EXEC that
-            // relies on it has to happen on the same one - and between the two runs a reconnect is
-            // entirely possible. Sending MULTI/EXEC on a fresh connection would run the transaction with
-            // its guard silently gone, which is the one outcome a conditional transaction must not have.
-            var connection = target?.CurrentConnection;
-            if (target is null || connection is null || connection.IsClosed)
+            // waits for a connection rather than declining when one is merely not up yet; a transaction
+            // that arrived before the first connect is early, not unservable
+            if (target is null || !await target.PrepareRunAsync().ConfigureAwait(false))
             {
                 Fail(queue, "This executor cannot run a transaction; it has no connection to write MULTI and EXEC to as one run.");
                 return false;
             }
 
-            if (conditions is not null && !await CheckAsync(connection, conditions, verdicts).ConfigureAwait(false))
+            // The connection is NAMED, not merely used. WATCH is per-connection state, so the EXEC that
+            // relies on it has to happen on the same one - and between the two runs a reconnect is
+            // entirely possible. Sending MULTI/EXEC on a fresh connection would run the transaction with
+            // its guard silently gone, which is the one outcome a conditional transaction must not have.
+            var connection = target.CurrentConnection;
+            if (connection is null || connection.IsClosed)
             {
-                // a condition did not hold: the transaction is NOT sent, and nothing it queued ran
-                Discard(connection, queue);
+                Fail(queue, "This executor cannot run a transaction; it has no connection to write MULTI and EXEC to as one run.");
                 return false;
             }
 
-            if (empty)
+            // Only a CONDITIONAL transaction claims the write side, and only it needs to: without
+            // conditions everything below runs to the write without awaiting, so a command issued after
+            // ExecuteAsync returns is already ordered after the transaction. With them there is a real
+            // pause for the checks, and anything written into it would land BEFORE the MULTI - which the
+            // shipped surface does not allow, and which no caller would expect.
+            // the slot is already OURS: PrepareRunAsync acquired it and handed it over, which is what
+            // keeps anything issued after ExecuteAsync returns from landing before the MULTI
+            var claimed = true;
+            try
             {
-                // conditions held but there is nothing to run; the watches must still be released
-                Unwatch(connection);
-                return true;
-            }
+                if (conditions is not null && !await CheckAsync(connection, conditions, verdicts).ConfigureAwait(false))
+                {
+                    // a condition did not hold: the transaction is NOT sent, and nothing it queued ran
+                    Discard(connection, queue);
+                    return false;
+                }
 
-            if (connection != target.CurrentConnection
-                || !TrySendOver(connection, queue!, out var exec, conditions is null ? null : OnAborted))
+                if (empty)
+                {
+                    // conditions held but there is nothing to run; the watches must still be released
+                    if (conditions is not null) Unwatch(connection);
+                    return true;
+                }
+
+                if (connection != target.CurrentConnection
+                    || !TrySendOver(connection, queue!, out var exec, conditions is null ? null : OnAborted))
+                {
+                    Fail(queue, "The connection was lost before the transaction could be sent.");
+                    return false;
+                }
+
+                // released BEFORE awaiting the reply: the claim exists to keep other writes out from
+                // between the WATCH and the EXEC, and the EXEC has now been written. Holding it for the
+                // round trip would stall the endpoint for no further guarantee.
+                if (claimed)
+                {
+                    target.ReleaseWrites();
+                    claimed = false;
+                }
+
+                return await exec.ConfigureAwait(false);
+            }
+            finally
             {
-                Fail(queue, "The connection was lost before the transaction could be sent.");
-                return false;
+                if (claimed) target.ReleaseWrites();
             }
-
-            return await exec.ConfigureAwait(false);
         }
 
         private void OnAborted() => _watchConflict = true;

@@ -93,15 +93,24 @@ existing suites run through it. This is the outstanding list, in the order thing
         open**. `[AutoDatabase]` now matches `AllInterfaces`, since `IBatch` *is* an `IDatabaseAsync`.
         See §7s.
 
-- [ ] **Wire `GetDatabase` through `RespNewCore` — now the critical path.** Wrapping the existing
-      `BatchTests`/`TransactionTests` fails 436/442, because `TransitionalSurfaceFixture` builds over
-      `RespMessageExecutor` (the shim onto the old `PhysicalConnection` pipeline) and the new batch and
-      transaction executors need a `RespConnection` to write a contiguous run to. Not fixable at the shim:
-      for `MULTI`/`EXEC` contiguity *is* the semantics, so sending the frames individually would let
-      another caller join the transaction. Those two suites become proof the moment this lands, and until
-      then they would only be asserting against the shipped implementation anyway. `TransactionTests`/
-      `BatchTests` are already converted to the virtual `GetDatabase(conn)`, so wrapping is then a
-      one-line subclass each.
+- [x] **`BatchTests`/`TransactionTests` on the new core, 2026-09-20.** Wrapped through
+      `RespNewCoreFixture` (the real core, not the shim): 4/442 → **437/442**. Found and fixed an
+      ordered-write-slot gap that cost conditional transactions their ordering guarantee, plus two real
+      pre-existing bugs on the way (a batch declining rather than waiting for the first connect; the
+      connect publishing its connection before the backlog finished draining). See §7t.
+
+- [ ] **`AsyncState` is not propagated onto tasks the new core returns.** `ValueTask.AsTask()` over an
+      `IValueTaskSource` cannot carry it; the old core gets it free from its per-command
+      `TaskCompletionSource`. Fix is to allocate one *only when `asyncState` is non-null*, so the default
+      `GetDatabase()` pays nothing — ~270 `.AsTask()` sites, mechanical. 2 tests.
+
+- [ ] **Release note: `.Status` read without awaiting can now be `WaitingForActivation`.** This core sets
+      `RunContinuationsAsynchronously`, so a task is completed but may not have transitioned at the
+      instant the caller looks. Code that awaits is unaffected; code that reads `.Status` immediately was
+      correct-by-luck before. Silent, so it needs saying out loud.
+
+- [ ] **`Assert.IsType<RedisTransaction>` in `NestedTransactionThrows`** — the suite pins the shipped
+      concrete type. Behaviour is preserved; the assertion needs loosening when the old type goes.
 
 - [ ] **Does the `SETEX` collapse have the `INCR` problem?** `Increment(k, 1)` was emitting
       `INCRBY k 1`, on the grounds that the branch cost more than the four bytes saved — fixed

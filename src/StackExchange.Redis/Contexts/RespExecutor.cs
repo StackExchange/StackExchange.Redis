@@ -164,6 +164,24 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual RespConnection? CurrentConnection => null;
 
+        /// <summary>Give back the write slot acquired by <see cref="PrepareRunAsync"/>, and let anything that queued behind it go.</summary>
+        internal virtual void ReleaseWrites()
+        {
+        }
+
+        /// <summary>Wait until this executor can accept a contiguous run, connecting if it must.</summary>
+        /// <param name="cancellationToken">Cancels the wait.</param>
+        /// <returns>Whether a run can now be written.</returns>
+        /// <remarks>
+        /// <b>Separate from <see cref="TrySendBatch"/> because that one cannot wait.</b> It returns a
+        /// bool, so an endpoint with no connection yet can only decline - and declining fails the caller
+        /// for a batch that merely arrived early, which is the wrong answer when the honest one is "wait
+        /// for the connection, then write the run contiguously". The default is true, for executors that
+        /// have nothing to wait for.
+        /// </remarks>
+        internal virtual ValueTask<bool> PrepareRunAsync(CancellationToken cancellationToken = default)
+            => new(true);
+
         /// <summary>Write a run of operations contiguously, as a batch.</summary>
         /// <param name="operations">The operations, in the order they should reach the server.</param>
         /// <returns>Whether this executor took them on.</returns>

@@ -270,3 +270,29 @@ public class NewCoreProfilingTests(ITestOutputHelper output) : ProfilingTests(ou
     protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
         => RespNewCoreFixture.Wrap(conn, db, asyncState);
 }
+
+/// <summary>
+/// <inheritdoc cref="RespNewCoreFixture"/>
+/// </summary>
+/// <remarks>
+/// <b>The suites that were the gate.</b> Until <c>CreateBatch</c>/<c>CreateTransaction</c> moved off
+/// <c>TransitionalDatabase</c>'s fallback these proved nothing - the batch they got back was the shipped
+/// <c>RedisBatch</c>, and so was everything they then did. They have to run against the <i>new core</i>
+/// rather than the transitional shim, because a batch and a transaction both need a
+/// <c>RespConnection</c> to write a contiguous run to and the shim onto the old <c>PhysicalConnection</c>
+/// pipeline has none. See design notes 7s.
+/// </remarks>
+[RunPerProtocol]
+public class NewCoreBatchTests(ITestOutputHelper output, SharedConnectionFixture fixture) : BatchTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="NewCoreBatchTests"/>
+[RunPerProtocol]
+public class NewCoreTransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TransactionTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}

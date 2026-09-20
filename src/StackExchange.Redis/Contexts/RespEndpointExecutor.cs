@@ -45,6 +45,37 @@ namespace StackExchange.Redis
         private Queue<RespPayloadOperation>? _backlog;
         private bool _disposed;
 
+        /// <summary>Whether somebody owns the write side of this connection right now.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>An ordered write slot, and every part of that matters.</b> Two callers need the write side
+        /// to themselves for longer than a single <c>Send</c>: a contiguous run, which must not be
+        /// interleaved, and a conditional transaction, which has a real pause between its watches and its
+        /// <c>MULTI</c> and must not let anything be written into it. The shipped surface gets the second
+        /// by holding the connection's write lock across the pause, which is why
+        /// <c>TransactionMessage</c> pauses an enumerator with <c>Monitor</c> handshakes on result boxes:
+        /// the reader must still make progress to deliver the replies being waited for.
+        /// </para>
+        /// <para>
+        /// Here the slot blocks <b>writers</b> and nothing else. Arrivals go to the backlog - the same
+        /// queue a disconnected endpoint uses, drained in arrival order - so per-connection FIFO comes
+        /// from the mechanism that already guarantees it rather than a second one. No thread blocks, the
+        /// reader is never impeded, and the replies that release the slot cannot be starved by it.
+        /// </para>
+        /// <para>
+        /// <b>Acquired rather than merely waited on</b>, which is the correction that made it work. A
+        /// version that only waited left a window: a run that had to wait for the first connect released
+        /// its wait, and commands issued in the meantime were already in the backlog and drained ahead of
+        /// it. Whoever is going to write a run has to own the slot from before the wait, so that anything
+        /// arriving during the wait queues behind it. The existing BatchTests found this as a batch
+        /// overtaking the StringSet issued before it, and then failing WRONGTYPE.
+        /// </para>
+        /// </remarks>
+        private bool _writeSlotHeld;
+
+        /// <summary>Whoever is waiting for the write slot, in the order they asked.</summary>
+        private Queue<TaskCompletionSource<bool>>? _writeWaiters;
+
         /// <summary>Create an executor that owns a connection to one endpoint.</summary>
         /// <param name="connect">Establishes and hands back a ready-to-use connection.</param>
         /// <param name="database">The database this executor sends to.</param>
@@ -191,7 +222,8 @@ namespace StackExchange.Redis
                 if (connection is null || connection.IsClosed)
                 {
                     // start connecting anyway: the caller will fail this batch, but the next one should
-                    // not have to wait for a connection nobody has asked for yet
+                    // not have to wait for a connection nobody has asked for yet. Callers that CAN wait
+                    // call PrepareRunAsync first and so do not reach this at all.
                     if (!_disposed && _queueWhileDisconnected) EnsureConnecting(); // already holding _sync
 
                     return false;
@@ -251,9 +283,9 @@ namespace StackExchange.Redis
                 if (_disposed) return false;
 
                 connection = _connection;
-                if (connection is null || connection.IsClosed)
+                if (connection is null || connection.IsClosed || _writeSlotHeld)
                 {
-                    if (!_queueWhileDisconnected) return false;
+                    if (!_queueWhileDisconnected && !_writeSlotHeld) return false;
 
                     operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
                     (_backlog ??= new()).Enqueue(operation);
@@ -284,9 +316,11 @@ namespace StackExchange.Redis
                 }
 
                 connection = _connection;
-                if (connection is null || connection.IsClosed)
+                if (connection is null || connection.IsClosed || _writeSlotHeld)
                 {
-                    if (!_queueWhileDisconnected)
+                    // a claim is deliberately handled by the SAME branch as no-connection: both mean
+                    // "not writable right now", and both are answered by the backlog, in arrival order
+                    if (!_queueWhileDisconnected && !_writeSlotHeld)
                     {
                         operation.EnsureFaulted(request.Flags);
                         return operation;
@@ -328,6 +362,190 @@ namespace StackExchange.Redis
             operation.EnsureFaulted(flags);
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// On success the <b>caller owns the write slot</b> and must release it; the backlog has been
+        /// drained, so writing a run now cannot overtake anything that arrived earlier.
+        /// </remarks>
+        internal override async ValueTask<bool> PrepareRunAsync(CancellationToken cancellationToken = default)
+        {
+            var held = false;
+            var captured = false;
+
+            // What was already queued when the slot was taken, and ONLY that. Draining the live backlog
+            // instead was the subtle version of this bug: by the time the slot holder was ready, commands
+            // issued AFTER it took the slot had joined the queue, and draining wholesale wrote them out
+            // in front of the run. Arrival order at the connection is not the rule - the rule is that
+            // whoever holds the slot goes ahead of everything issued after they took it.
+            Queue<RespPayloadOperation>? earlier = null;
+
+            try
+            {
+                while (true)
+                {
+                    TaskCompletionSource<bool>? slotWait = null;
+                    Task? connectWait = null;
+                    var ready = false;
+
+                    lock (_sync)
+                    {
+                        if (_disposed) return false;
+
+                        if (held && !captured)
+                        {
+                            // taken under the lock the moment the slot is ours, so nothing can slip in
+                            // between owning it and deciding what counts as "earlier"
+                            earlier = _backlog;
+                            _backlog = null;
+                            captured = true;
+                        }
+
+                        if (!held)
+                        {
+                            if (_writeSlotHeld)
+                            {
+                                slotWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                                (_writeWaiters ??= new()).Enqueue(slotWait);
+                            }
+                            else
+                            {
+                                _writeSlotHeld = true;
+                                held = true;
+                                earlier = _backlog;
+                                _backlog = null;
+                                captured = true;
+                            }
+                        }
+
+                        if (held)
+                        {
+                            if (_connection is { IsClosed: false })
+                            {
+                                ready = true;
+                            }
+                            else if (!_queueWhileDisconnected)
+                            {
+                                return false;
+                            }
+                            else
+                            {
+                                EnsureConnecting(); // already holding _sync
+                                connectWait = _connecting;
+                            }
+                        }
+                    }
+
+                    if (ready)
+                    {
+                        // anything that queued earlier goes first; only then does the caller's run get
+                        // written, which is what makes owning the slot an ordering guarantee rather than
+                        // merely an exclusion one
+                        Write(earlier);
+                        earlier = null;
+                        held = false; // ownership passes to the caller, who releases it
+                        return true;
+                    }
+
+                    try
+                    {
+                        if (slotWait is not null)
+                        {
+                            held = await slotWait.Task.ConfigureAwait(false);
+                        }
+                        else if (connectWait is not null)
+                        {
+                            await connectWait.ConfigureAwait(false);
+                        }
+                    }
+                    catch
+                    {
+                        return false; // the connect failed; the caller fails the run, and says why
+                    }
+                }
+            }
+            finally
+            {
+                if (held)
+                {
+                    // never written, so they go back at the FRONT: they were queued before anything that
+                    // has arrived since, and losing that is losing the ordering this method exists for
+                    if (earlier is { Count: > 0 })
+                    {
+                        lock (_sync)
+                        {
+                            if (_backlog is { Count: > 0 })
+                            {
+                                foreach (var later in _backlog) earlier.Enqueue(later);
+                            }
+
+                            _backlog = earlier;
+                        }
+                    }
+
+                    ReleaseWrites();
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        internal override void ReleaseWrites()
+        {
+            while (true)
+            {
+                DrainBacklog();
+
+                lock (_sync)
+                {
+                    // re-checked under the lock rather than assumed: freeing the slot with anything still
+                    // queued would reopen the overtaking window the slot exists to close, one level down
+                    if (_connection is { IsClosed: false } && _backlog is { Count: > 0 }) continue;
+
+                    if (_writeWaiters is { Count: > 0 })
+                    {
+                        // handed over directly, so the slot is never momentarily free for a newcomer to
+                        // take ahead of somebody who has been waiting
+                        _writeWaiters.Dequeue().TrySetResult(true);
+                        return;
+                    }
+
+                    _writeSlotHeld = false;
+                    return;
+                }
+            }
+        }
+
+        /// <summary>Write everything backlogged, in arrival order, while the slot is held.</summary>
+        private void DrainBacklog()
+        {
+            while (true)
+            {
+                Queue<RespPayloadOperation>? waiting;
+                lock (_sync)
+                {
+                    // only drain what a live connection can take; otherwise leave it for the connect,
+                    // which is the path that already knows how
+                    if (_connection is not { IsClosed: false } || _backlog is not { Count: > 0 }) return;
+
+                    waiting = _backlog;
+                    _backlog = null;
+                }
+
+                Write(waiting);
+            }
+        }
+
+        /// <summary>Write a captured queue, in order.</summary>
+        private void Write(Queue<RespPayloadOperation>? waiting)
+        {
+            if (waiting is null) return;
+            while (waiting.Count != 0)
+            {
+                var operation = waiting.Dequeue();
+                if (_connection is { IsClosed: false } connection && connection.Send(operation)) continue;
+                operation.EnsureFaulted(CommandFlags.None);
+            }
+        }
+
         /// <summary>Start a connection attempt, unless one is already running.</summary>
         /// <remarks>
         /// Single-flight: everybody who arrives while a connect is in progress waits on that one rather
@@ -346,7 +564,7 @@ namespace StackExchange.Redis
                 var connection = await _connect(CancellationToken.None).ConfigureAwait(false);
                 Interlocked.Increment(ref _connects);
 
-                Queue<RespPayloadOperation>? waiting;
+                bool drain;
                 lock (_sync)
                 {
                     _connecting = null;
@@ -357,20 +575,14 @@ namespace StackExchange.Redis
                     }
 
                     _connection = connection;
-                    waiting = _backlog;
-                    _backlog = null;
+
+                    // if somebody owns the write slot they are waiting on this very task, and THEY will
+                    // drain - draining here as well would write the backlog out from under them
+                    drain = !_writeSlotHeld;
+                    if (drain) _writeSlotHeld = true;
                 }
 
-                // drained OUTSIDE the lock, in arrival order: these were queued before anything newer
-                // could reach a connection, so replaying them first is what preserves ordering
-                if (waiting is not null)
-                {
-                    while (waiting.Count != 0)
-                    {
-                        var operation = waiting.Dequeue();
-                        if (!connection.Send(operation)) operation.EnsureFaulted(CommandFlags.None);
-                    }
-                }
+                if (drain) ReleaseWrites(); // drains in arrival order, then frees or hands on the slot
 
                 return connection;
             }
