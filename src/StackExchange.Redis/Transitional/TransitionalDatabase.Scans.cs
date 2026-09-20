@@ -38,10 +38,19 @@ internal partial class TransitionalDatabase
     /// the cursor path; the old one owns the answer when there is no cursor path.
     /// </para>
     /// </remarks>
+    /// <remarks>
+    /// <b>Two conditions that look alike and are not.</b> A batch or transaction cannot scan at all - the
+    /// cursor for each page comes from the previous page's reply, which has not been sent - and that is a
+    /// refusal, not something a fallback can serve. The command merely being unavailable IS serviceable,
+    /// by the shipped path. Folding them together made a batch delegate instead of refusing, which the
+    /// batch test caught immediately.
+    /// </remarks>
     private bool Scannable(RedisCommand command, in RedisKey key, CommandFlags flags)
-        => CanScan
-            && _inner.Raw.CommandMap.IsAvailable(command)
+    {
+        if (!CanScan) throw NoScanning(); // a batch or transaction: refused outright, never delegated
+        return _inner.Raw.CommandMap.IsAvailable(command)
             && (!_inner.Raw.TryGetFeatures(command, in key, flags, out var features) || features.Scan);
+    }
 
     // ---- HSCAN --------------------------------------------------------------------------------------
 
