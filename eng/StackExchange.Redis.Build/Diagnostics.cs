@@ -336,6 +336,35 @@ internal static class Diagnostics
         helpLinkUri: HelpLink("SER309"));
 
     /// <summary>
+    /// A redis call made from a method that has a <see cref="System.Threading.CancellationToken"/> to hand,
+    /// on a surface that cannot honour one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The point is not that cancellation is missing - it is that the caller <b>has a token and expects it
+    /// to mean something</b>. A method whose signature promises cancellation, calling something that cannot
+    /// cancel, is a promise the code cannot keep, and the failure mode is silence: the token is cancelled,
+    /// the caller waits anyway, and nothing in the source says why.
+    /// </para>
+    /// <para>
+    /// <b>A suggestion rather than a warning</b>, deliberately. There is nothing wrong with the code -
+    /// plenty of callers legitimately have an ambient token and no need to act on it - so this is guidance
+    /// at the moment it is useful, not a defect to be fixed. It is also why the fix is "move this call to
+    /// the context surface", not "hack cancellation into the old API": the old pipeline genuinely cannot
+    /// cancel an in-flight request, and pretending otherwise would be worse than saying so.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor CancellationIgnored = new(
+        id: "SER310",
+        title: "Redis call cannot honour the cancellation token in scope",
+        messageFormat: "'{0}' cannot be cancelled, so '{1}' has no effect on it; the RESP context surface accepts a cancellation token",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "This surface cannot cancel a request once it has been sent, so a cancellation token passed to - or in scope around - the call is silently ignored. Code that holds a token generally intends it to mean something; the context surface can honour one.",
+        helpLinkUri: HelpLink("SER310"));
+
+    /// <summary>
     /// A <c>[Resp]</c> declaration the generator cannot implement, and would otherwise skip in silence.
     /// </summary>
     /// <remarks>

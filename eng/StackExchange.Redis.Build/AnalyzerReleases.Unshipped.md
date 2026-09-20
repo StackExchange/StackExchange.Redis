@@ -16,5 +16,6 @@ SER306  | Usage    | Warning  | QueuedResultAnalyzer: waiting for a fire-and-for
 SER307  | Usage    | Warning  | QueuedResultAnalyzer: blocking on a redis call instead of awaiting it, which ties up a thread-pool thread while the reply needs one of its own
 SER308  | Usage    | Warning  | QueuedResultAnalyzer: calling the library's own Wait/WaitAll/TryWait helpers, which block the calling thread
 SER309  | Usage    | Warning  | RespInterpolationAnalyzer: literal text in a RESP interpolated command is parsed and encoded on every call, where a fragment or resolved command is prepared once
+SER310  | Usage    | Info     | CancellationAnalyzer: a redis call that cannot honour the CancellationToken parameter its enclosing method accepts
 SER351  | Build    | Warning  | RespFragmentGenerator: a [Resp] declaration that cannot be implemented, which would otherwise be skipped silently
 SER352  | Build    | Warning  | AutoDatabaseGenerator: an [AutoDatabase(WarnIfIncomplete = true)] type still has generated members that only throw; Release builds only

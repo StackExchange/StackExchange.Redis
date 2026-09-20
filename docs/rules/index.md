@@ -45,6 +45,7 @@ Unlike everything under [Usage](#usage), these describe code that does not do wh
 - [SER302](SER302) - condition may be redundant; the command already reports whether it acted (any server version)
 - [SER303](SER303) - two queued operations may be a single compound command (varies by pair)
 - [SER304](SER304) - the same operation queued repeatedly may suit the variadic overload (mostly any server)
+- [SER310](SER310) - this call cannot honour the `CancellationToken` the enclosing method accepts
 
 ## Build
 
