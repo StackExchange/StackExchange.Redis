@@ -997,6 +997,38 @@ do; a client that pinned *instead of* following them is broken by the first resh
 So the contract is: decide well from what is known, be correctable, and never pretend the decision was
 more certain than it was.
 
+
+### 7o. Profiling, and how little RESPite needed
+
+Phase 3's last outstanding item. `BitTests` is back in the new-core set, which was the agreed check:
+`BitFieldAllGetGoesOutAsReadOnlyAndReachesAReplica` asserts *through a `ProfilingSession`* which command
+reached which endpoint, so it fails flat against a core that feeds none. `ProfilingTests` runs against
+the new core too.
+
+**A second door on `ProfiledCommand`, not a second type.** Three of its properties reached through to a
+`Message` for `Db`, `Command` and `Flags`; they now fall back to fields that `SetOperation` fills.
+Everything a profiled command reports is already carried by the operation's diagnostics — what it lacked
+was a `Message` to read them *from*. The timing methods needed no change at all: they were never about
+`Message`.
+
+**The record starts at the endpoint executor, not at render.** A profiled command reports which server
+answered it, and until routing has resolved there is no honest answer to that.
+
+**RESPite needed 27 lines, which is two empty virtuals and two call sites.** Marc was right to be
+surprised, and the first attempt had three; the third was convenience and is gone. What remains:
+
+| hook | why it is in RESPite |
+|---|---|
+| `OnSent` | it fires exactly where `Diagnostics.Status` becomes `Sent` — RESPite already records that moment for its own reasons, so observing it costs one call beside a line that was already there. Doing it from outside means re-deriving "when was it sent" at four call sites, less accurately and easy to miss when a fifth appears. |
+| `OnFinished` | **the one that cannot be done from outside.** It must fire for every ending — reply, server error, cancellation, timeout, connection fault — *and* for fire-and-forget commands nobody consumes. `OnReset` comes closest but fires on consumption, which those never reach. |
+
+The one that was dropped, `OnResponseReceived`, is now stamped in `RespRedirectingConnection.TryHandOff`:
+every frame matched to an operation already passes through there, in SE.Redis, so RESPite never needed to
+know.
+
+The general test this suggests: **a hook belongs in RESPite when RESPite already knows the moment, or
+when no layer above can see all the cases.** Convenience does not qualify.
+
 ---
 
 ## 8. Open questions

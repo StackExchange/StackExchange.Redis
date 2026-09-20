@@ -130,7 +130,8 @@ namespace StackExchange.Redis
             _multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault(),
             endpoint,
             _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected,
-            () => _observed.TryGetValue(endpoint, out var features) ? features : null);
+            () => _observed.TryGetValue(endpoint, out var features) ? features : null,
+            StartProfile);
 
         /// <summary>Open a socket, hand it to the new stack, and bring it up.</summary>
         /// <remarks>
@@ -168,6 +169,29 @@ namespace StackExchange.Redis
             if (result.Version is { } version) _observed[endpoint] = new RedisFeatures(version);
 
             return connection;
+        }
+
+        /// <summary>Begin a profiling record, if anyone is profiling right now.</summary>
+        /// <remarks>
+        /// <b>Asked per command, not cached.</b> A profiling session is ambient - <c>RegisterProfiler</c>
+        /// hands back a provider that can return a different session, or none, on every call - so caching
+        /// the answer would profile the wrong session, or keep profiling after someone stopped.
+        /// </remarks>
+        private object? StartProfile(
+            RespPayloadOperation operation, RedisCommand command, CommandFlags flags, int database, EndPoint? endpoint)
+        {
+            if (endpoint is null) return null;
+
+            var session = _multiplexer.CurrentProfilingSession;
+            if (session is null) return null;
+
+            var server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured);
+            if (server is null) return null;
+
+            var profile = Profiling.ProfiledCommand.NewWithContext(session, server);
+            profile.SetOperation(command, flags, database, operation.Diagnostics.CreatedDateTime, operation.Diagnostics.CreatedTimestamp);
+            operation.Profile = profile;
+            return profile;
         }
 
         private bool Follow(in RespRedirect redirect, RespPayloadOperation operation)

@@ -126,16 +126,17 @@ public class NewCoreGeoTests(ITestOutputHelper output, SharedConnectionFixture f
         => RespNewCoreFixture.Wrap(conn, db, asyncState);
 }
 
-// BitTests is NOT re-run here, and the reason is worth keeping rather than quietly omitting.
-//
-// BitFieldAllGetGoesOutAsReadOnlyAndReachesAReplica asserts through a ProfilingSession - which command
-// went to which endpoint - and the new core feeds no profiling at all, so the session comes back empty.
-// That is a genuine missing feature, not a quirk of the test: `performance (ProfiledCommand)` is on the
-// design notes' section 4 inventory of what the new token must carry, and RespOperationDiagnostics
-// already reserves HostState for it. Bolting on just enough to make one assertion pass would be building
-// the feature backwards.
-//
-// Adding it back is the check that profiling has actually landed.
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreBitTests(ITestOutputHelper output, SharedConnectionFixture fixture) : BitTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+// BitTests is back, and it is the check that profiling landed: BitFieldAllGetGoesOutAsReadOnlyAndReachesAReplica
+// asserts through a ProfilingSession which command went to which endpoint, so it fails flat against a
+// core that feeds no profiling. It was excluded for exactly as long as that was true.
 
 /// <inheritdoc cref="RespNewCoreFixture"/>
 [RunPerProtocol]
@@ -252,6 +253,19 @@ public class NewCoreOverloadCompatTests(ITestOutputHelper output, SharedConnecti
 /// <inheritdoc cref="RespNewCoreFixture"/>
 [RunPerProtocol]
 public class NewCoreHashImportTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HashImportTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+/// <remarks>
+/// The suite that exists to exercise profiling, run against the core that now feeds it. Anything it
+/// asserts about timings, ordering or which endpoint answered is an assertion about the new operation's
+/// lifecycle hooks rather than about <c>Message</c>.
+/// </remarks>
+[RunPerProtocol]
+public class NewCoreProfilingTests(ITestOutputHelper output) : ProfilingTests(output)
 {
     protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
         => RespNewCoreFixture.Wrap(conn, db, asyncState);

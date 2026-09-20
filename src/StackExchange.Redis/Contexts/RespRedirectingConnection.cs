@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using RESPite.Operations;
 
@@ -39,6 +39,10 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         protected override bool TryHandOff(ReadOnlySpan<byte> frame, IRespMessage message)
         {
+            // every frame matched to an operation passes through here, which makes it the natural place
+            // to mark "answered" - and means RESPite needs no hook for it
+            if (message is RespPayloadOperation answered) answered.Profile?.SetResponseReceived();
+
             // one byte of work for every reply that is not an error, which is nearly all of them
             if (!RespRedirect.TryParse(frame, out var redirect)) return false;
             if (message is not RespPayloadOperation operation) return false;

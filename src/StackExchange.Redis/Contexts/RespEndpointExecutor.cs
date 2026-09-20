@@ -35,6 +35,7 @@ namespace StackExchange.Redis
     {
         private readonly Func<CancellationToken, Task<RespConnection>> _connect;
         private readonly Func<RedisFeatures?>? _features;
+        private readonly Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? _startProfile;
         private readonly EndPoint? _endpoint;
         private readonly bool _queueWhileDisconnected;
         private readonly object _sync = new();
@@ -55,14 +56,17 @@ namespace StackExchange.Redis
         /// What this endpoint's own handshake observed, if anything. Supplied rather than discovered
         /// because the connect delegate owns the handshake - this only has to be told the answer.
         /// </param>
+        /// <param name="startProfile">Begins a profiling record for a command, when anyone is profiling.</param>
         internal RespEndpointExecutor(
             Func<CancellationToken, Task<RespConnection>> connect,
             int database = 0,
             EndPoint? endpoint = null,
             bool queueWhileDisconnected = true,
-            Func<RedisFeatures?>? features = null)
+            Func<RedisFeatures?>? features = null,
+            Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? startProfile = null)
         {
             _features = features;
+            _startProfile = startProfile;
             _connect = connect ?? throw new ArgumentNullException(nameof(connect));
             Database = database;
             _endpoint = endpoint;
@@ -233,6 +237,10 @@ namespace StackExchange.Redis
         {
             var operation = RespPayloadOperation.Rent();
             operation.Attach(request.Span, request.Flags, cancellationToken);
+
+            // started HERE, where the endpoint is finally known: a profiled command reports which server
+            // answered it, and until routing has resolved there is no honest answer to that
+            _startProfile?.Invoke(operation, request.Command, request.Flags, Database, _endpoint);
 
             RespConnection? connection;
             lock (_sync)

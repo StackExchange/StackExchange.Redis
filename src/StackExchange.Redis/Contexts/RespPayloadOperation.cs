@@ -83,6 +83,29 @@ namespace StackExchange.Redis
         /// <summary>The flags the request carried, which the retry and redirect layers read.</summary>
         internal CommandFlags Flags => _flags;
 
+        /// <summary>The profiling record for this command, when anyone is profiling.</summary>
+        /// <remarks>
+        /// Lives in <c>Diagnostics.HostState</c>, which design notes section 4 reserved for exactly this:
+        /// the operation carries an opaque slot for the host's per-command object, so RESPite never has
+        /// to know what a <see cref="Profiling.ProfiledCommand"/> is.
+        /// </remarks>
+        internal Profiling.ProfiledCommand? Profile
+        {
+            get => Diagnostics.HostState as Profiling.ProfiledCommand;
+            set => Diagnostics.HostState = value;
+        }
+
+        /// <inheritdoc/>
+        protected override void OnSent() => Profile?.SetRequestSent();
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Finished, not consumed.</b> The record is pushed to its session here rather than when the
+        /// caller reads the result, because a fire-and-forget command has no reader and would otherwise
+        /// never appear in a profile at all.
+        /// </remarks>
+        protected override void OnFinished() => Profile?.SetCompleted();
+
         /// <inheritdoc/>
         /// <remarks>
         /// <b>This instance is pooled</b>, so a life's state has to be cleared or it becomes the next
@@ -91,7 +114,11 @@ namespace StackExchange.Redis
         /// a legitimate redirect for it. Exactly the hazard design notes section 4 describes, and the
         /// reason <c>Reset</c> is exhaustive by construction rather than by inspection.
         /// </remarks>
-        protected override void OnReset() => HasFollowedRedirect = false;
+        protected override void OnReset()
+        {
+            HasFollowedRedirect = false;
+            Profile = null; // the next life gets its own record, or none
+        }
 
         /// <inheritdoc/>
         /// <remarks>

@@ -192,6 +192,30 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
     }
 
+    /// <summary>Called when a writer takes the request bytes; the operation is now on its way.</summary>
+    /// <remarks>
+    /// <b>Beside the status stamp, because it is the same event.</b> This fires exactly where
+    /// <c>Diagnostics.Status</c> becomes <c>Sent</c> - RESPite already records that moment for its own
+    /// reasons, so a host observing it costs one call next to a line that was already there. Doing it
+    /// from outside would mean re-deriving "when was it sent" at three or four call sites, which is both
+    /// less accurate and easy to miss when a fifth appears.
+    /// </remarks>
+    protected virtual void OnSent()
+    {
+    }
+
+    /// <summary>Called once the outcome is set, however it ended.</summary>
+    /// <remarks>
+    /// <b>The one that cannot be done from outside.</b> It has to fire for every ending - a reply, a
+    /// server error, a cancellation, a timeout, a connection fault - and for fire-and-forget commands
+    /// that nobody ever consumes. There is no single point above this that sees all of those;
+    /// <see cref="OnReset"/> comes close but fires on <i>consumption</i>, which the unconsumed ones never
+    /// reach.
+    /// </remarks>
+    protected virtual void OnFinished()
+    {
+    }
+
     // ---- state helpers ------------------------------------------------------------------------------
     private static int Pack(short version, int flags) => (version << 16) | (flags & FlagMask);
 
@@ -284,6 +308,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
                 {
                     SetFlag(Flag_Sent);
                     _diagnostics.Status = RespCommandStatus.Sent;
+                    OnSent();
                 }
 
                 payload = _request;
@@ -440,6 +465,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     private void Pulse(bool pulse)
     {
+        OnFinished();
+
         if (!pulse) return;
         lock (this)
         {
