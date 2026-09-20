@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
 using RESPite.Operations;
 using RESPite.Transports;
@@ -145,6 +146,56 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         Assert.Equal(ServerSelectionStrategy.GetHashSlot((RedisKey)"user:1"), request.Slot);
 
         output.WriteLine($"cluster node reported {result.ServerType} over {result.Protocol}");
+    }
+
+    [Fact]
+    public async Task ARealClusterNodeRedirectsInAFormWeCanRead()
+    {
+        // the parser's unit tests assert what I BELIEVE the format is; this asserts what a server
+        // actually sends. Worth having separately, because a format assumption that is wrong passes
+        // every test written from the same assumption.
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync(TestConfig.Current.ClusterServer, TestConfig.Current.ClusterStartPort);
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to cluster server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        // hunt for a key this node does not own; with 16,384 slots over a handful of nodes it takes very
+        // few attempts, but the loop makes the test independent of which node answered
+        RespRedirect redirect = default;
+        var found = false;
+        for (var i = 0; i < 200 && !found; i++)
+        {
+            try
+            {
+                await context.Strings.GetAsync($"{nameof(ARealClusterNodeRedirectsInAFormWeCanRead)}:{i}");
+            }
+            catch (RedisServerException ex) when (ex.Message.StartsWith("MOVED", StringComparison.Ordinal))
+            {
+                found = RespRedirect.TryParseText(Encoding.UTF8.GetBytes(ex.Message), out redirect);
+                Assert.True(found, $"failed to read a redirect the server sent: '{ex.Message}'");
+            }
+        }
+
+        if (!found)
+        {
+            Assert.Skip("this node owns every slot we tried; nothing to redirect");
+            return;
+        }
+
+        Assert.True(redirect.IsMoved);
+        Assert.InRange(redirect.Slot, 0, 16383);
+        Assert.False(redirect.IsUnroutable);
+        Assert.NotNull(redirect.Endpoint);
+        output.WriteLine($"server redirected slot {redirect.Slot} to {redirect.Endpoint}");
     }
 
     [Fact]
