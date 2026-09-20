@@ -147,6 +147,32 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
+        /// <b>Declined when there is no live connection</b>, for the same reason <c>ASKING</c> is: a
+        /// backlog drains one operation at a time, which is exactly the adjacency a batch is asking for.
+        /// A batch that cannot be written contiguously is not a batch, so saying no is better than
+        /// quietly issuing it as a pipeline.
+        /// </remarks>
+        internal override bool TrySendBatch(List<RespPayloadOperation> operations)
+        {
+            RespConnection? connection;
+            lock (_sync)
+            {
+                connection = _disposed ? null : _connection;
+                if (connection is null || connection.IsClosed)
+                {
+                    // start connecting anyway: the caller will fail this batch, but the next one should
+                    // not have to wait for a connection nobody has asked for yet
+                    if (!_disposed && _queueWhileDisconnected) EnsureConnecting(); // already holding _sync
+
+                    return false;
+                }
+            }
+
+            return connection.Send(operations.ToArray(), operations.Count);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
         /// The same path an ordinary send takes once its operation exists - connect if needed, backlog if
         /// not yet connected - minus creating one, because a redirected command already has its own and
         /// somebody is already awaiting it.

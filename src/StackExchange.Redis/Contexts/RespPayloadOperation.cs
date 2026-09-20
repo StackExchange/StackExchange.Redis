@@ -80,6 +80,13 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool HasFollowedRedirect { get; set; }
 
+        /// <summary>The cluster slot this command's keys resolved to, for batch grouping.</summary>
+        /// <remarks>
+        /// Carried on the operation because the request it was rendered from is gone by the time a batch
+        /// is dispatched - the bytes were copied and the caller's frame released.
+        /// </remarks>
+        internal int Slot { get; set; } = ServerSelectionStrategy.NoSlot;
+
         /// <summary>The flags the request carried, which the retry and redirect layers read.</summary>
         internal CommandFlags Flags => _flags;
 
@@ -117,6 +124,7 @@ namespace StackExchange.Redis
         protected override void OnReset()
         {
             HasFollowedRedirect = false;
+            Slot = ServerSelectionStrategy.NoSlot;
             Profile = null; // the next life gets its own record, or none
         }
 

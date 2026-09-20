@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -130,6 +131,15 @@ namespace StackExchange.Redis
             features = default;
             return false;
         }
+
+        /// <summary>Write a run of operations contiguously, as a batch.</summary>
+        /// <param name="operations">The operations, in the order they should reach the server.</param>
+        /// <returns>Whether this executor took them on.</returns>
+        /// <remarks>
+        /// Returns nothing but a bool, because there is nothing to return: each operation is its own
+        /// completion and the callers already hold their handles.
+        /// </remarks>
+        internal virtual bool TrySendBatch(List<RespPayloadOperation> operations) => false;
 
         /// <summary>Re-issue an operation that a redirect sent here, without completing it first.</summary>
         /// <param name="operation">The operation; still pending, and still owning its request bytes.</param>

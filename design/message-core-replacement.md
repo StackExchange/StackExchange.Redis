@@ -394,7 +394,8 @@ Proposed order, each step independently shippable:
    `RespEndpointExecutor` owns a connection's whole life — connect, handshake, notice death, reconnect,
    and hold a backlog meanwhile. That also closes phase 3's outstanding reconnect and backlog items; what
    remains there is the profiling hooks.
-5. **Batch, then transaction**, as decorators. `RespBatchExecutor` is replaced by the `BatchConnection`
+5. **Batch, then transaction**, as decorators. **Batch done** — `RespOperationBatchExecutor`, and §3c's
+   prediction held: see §7p. Transaction is the remaining half. `RespBatchExecutor` is replaced by the `BatchConnection`
    shape; `IRespRunExecutor` is deleted rather than fixed.
 6. **Retire the shim**: `RespMessageExecutor`, `FrameMessage`, `FramePairMessage`, `FrameRunMessage`,
    `PayloadProcessor` and its copy-per-reply.
@@ -1028,6 +1029,38 @@ know.
 
 The general test this suggests: **a hook belongs in RESPite when RESPite already knows the moment, or
 when no layer above can see all the cases.** Convenience does not qualify.
+
+
+### 7p. Batch, and the machinery that did not need writing
+
+§3c predicted that once operations complete themselves, the batch API's hardest problem stops existing.
+It did.
+
+The earlier attempt needed a `TaskCompletionSource` per element, a `Span<ValueTask<RespPayload>>`
+out-parameter, and a scatter-back into caller positions — all to answer *"how does element 3 of 5 get its
+result out?"*. **409 lines.** The operation-based version is **190**, and most of the difference is that
+the question does not arise: element 3 *is* an operation, whose completion is itself. There is nothing to
+hand back, so there is no return channel to design.
+
+What a batch actually needs from a connection turned out to be one method — write N operations with
+nothing of anybody else's between them — which is the N-way form of the pair `ASKING` already needed.
+
+Three decisions worth keeping:
+
+- **Grouped by slot, not by server.** Grouping by server races a reshard: the map can change between
+  grouping and writing, and the group is then split across nodes with no way to tell. A slot is a
+  property of the keys themselves and cannot move underneath the grouping; *where* that slot lives is
+  resolved once, at dispatch. Outside cluster everything is `NoSlot`, so it is one group and the cost is
+  a walk comparing ints.
+- **Declined rather than backlogged when disconnected**, for the same reason `ASKING` is: a backlog
+  drains one operation at a time, which is exactly the adjacency a batch is asking for. A batch that
+  cannot be written contiguously is not a batch, so saying no beats quietly issuing it as a pipeline.
+- **A failed element disturbs nothing else.** A server error on element two leaves one and three alone,
+  because they were never sharing a result channel to begin with.
+
+Still to do for the *public* `IBatch`: the surface itself. `IBatch` is `IDatabaseAsync` plus `Execute`,
+so the shape is a context whose executor accumulates — which is what this is — wrapped in something that
+implements the interface. That is forwarding, and forwarding is what `[AutoDatabase]` is for.
 
 ---
 

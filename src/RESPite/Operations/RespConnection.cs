@@ -210,6 +210,61 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         return true;
     }
 
+    /// <summary>Write several operations with nothing of anybody else's between them.</summary>
+    /// <param name="operations">The operations, in the order they should reach the server.</param>
+    /// <param name="count">How many of <paramref name="operations"/> to write.</param>
+    /// <returns>Whether they were written.</returns>
+    /// <remarks>
+    /// <para>
+    /// The N-way form of the pair used for <c>ASKING</c>, and the whole of what a batch needs from a
+    /// connection. Note what is <b>not</b> here: no result collection, no completion sources, no
+    /// scattering replies back to callers. Each operation is its own completion, so writing them is the
+    /// entire job and the replies find their own way home.
+    /// </para>
+    /// <para>
+    /// <b>Queued before written, all of them, under one lock</b> - for the same reason a single send is:
+    /// the first reply can arrive before the last write returns.
+    /// </para>
+    /// </remarks>
+    public bool Send(IRespMessage[] operations, int count)
+    {
+        if (operations is null) throw new ArgumentNullException(nameof(operations));
+        if (count <= 0) return true;
+        if (Volatile.Read(ref _closed) != 0) return false;
+
+        lock (_writeLock)
+        {
+            var received = Volatile.Read(ref _bytesReceived);
+            for (var i = 0; i < count; i++)
+            {
+                var message = operations[i];
+
+                // a reserve failure means this one was already completed - cancelled, most likely - so it
+                // is owed nothing and the rest of the run carries on without it. Failing the whole batch
+                // because one element was cancelled would be the wrong trade.
+                if (!message.TryReserveRequest(message.Token, out var payload)) continue;
+
+                try
+                {
+                    // enqueued before IT is written, which is all the ordering this needs: a reply to an
+                    // earlier element can arrive while a later one is still being copied, but no reply can
+                    // arrive for something not yet written
+                    message.OnEnqueued(this, _bytesSent, received);
+                    _pending.Enqueue(message);
+                    Write(payload.Span);
+                    Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+                }
+                finally
+                {
+                    message.ReleaseRequest();
+                }
+            }
+        }
+
+        _transport.Flush();
+        return true;
+    }
+
     private void Write(ReadOnlySpan<byte> payload)
     {
         // loop rather than assume one span is enough: IBufferWriter only promises *at least* the hint,
