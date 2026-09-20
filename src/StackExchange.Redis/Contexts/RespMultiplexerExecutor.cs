@@ -127,6 +127,10 @@ namespace StackExchange.Redis
         public override bool CanCancel => ResolveFor(default, RedisCommand.NONE, CommandFlags.None) is { CanCancel: true };
 
         /// <inheritdoc/>
+        internal override bool CanWriteRuns
+            => ResolveFor(default, RedisCommand.MULTI, CommandFlags.None) is { CanWriteRuns: true };
+
+        /// <inheritdoc/>
         internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
         {
             // the routing step, with no request to read a slot from - so the slot comes from the key, the

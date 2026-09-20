@@ -143,36 +143,37 @@ existing suites run through it. This is the outstanding list, in the order thing
       Interacts with the group/failover question (§7 cache notes): a cache entry carries an implicit
       subscription, and these three differ in what happens to that subscription when the node changes.
 
-### Why `GetDatabase()` still returns `RedisDatabase` — measured, not assumed
+### The `GetDatabase()` swap: measured, and much closer than it looked
 
-Tried it: `GetDatabase` returning `TransitionalDatabase(inner.Context, this, asyncState, inner)` — the
-transitional surface over the **shim**, with the old database as fallback. Public contract is no
-obstacle (`GetDatabase` returns `IDatabase`, and exactly **one** place in `src` casts its result — our own
-`(RedisBase)` for the feature probe, now removed). What the experiment found instead:
+Tried it rather than reasoned about it — `GetDatabase` returning `TransitionalDatabase` over the **shim**
+with the old database as fallback. First attempt looked catastrophic: the full suite ran for >20 minutes
+without finishing. It was neither a hang nor doom.
 
-1. **One cast accounted for 80 of 80 `StringTests` failures.** Removing it took that suite to 240/240.
-   Worth keeping regardless: constructing the probe's database directly is right, since `GetDatabase` is
-   precisely what stops returning an old database when the surface is swapped.
-2. **`QueuedResultTests` fails 27/27** — *"This executor cannot write a batch as one contiguous run; it
-   has no connection to write it to."* This is the §7s boundary, and the thing that actually blocks the
-   swap: `TransitionalBatch`/`TransitionalTransaction` need a `RespConnection`, and the **shim has
-   none**. So swapping to the transitional surface *over the shim* breaks every batch and transaction.
-3. **`CommandTimeoutTests` and `AggressiveTests` hang** (>150s against a ~2s baseline), undiagnosed.
-4. **`IInternalDatabaseAsync` is not implemented** by `TransitionalDatabase`, and its extensions degrade
-   **silently**: `GetFeatures` → `Unknown`, `GetNextFailover()` → `None`. The retry and availability
-   layers consume both, so a swap would quietly stop retry reacting to failover. Nothing would fail; it
-   would just stop working.
+**What it actually was, in order of discovery:**
 
-**So the swap has two forms, and neither is a small step:**
+1. **One cast, 80 of 80 `StringTests` failures.** `(RedisBase)_multiplexer.GetDatabase(database)` in our
+   own feature probe — the only place in `src` that casts `GetDatabase`'s result. Constructing the
+   probe's database directly fixes it and is right independently: the probe wants an *old* database, and
+   `GetDatabase` is exactly what stops returning one. **Removing it also removed the "hang"** — the
+   apparent stall was 80+ exceptions per suite cascading through connection teardown, not a deadlock.
+2. **Two "hangs" that were a grep artefact.** `CommandTimeoutTests` and `AggressiveTests` reported nothing
+   because they **skip** (`Skipped!`, which a `Passed!|Failed!` pattern misses). They were never slow.
+3. **`QueuedResultTests` 27/27** — *"cannot write a batch as one contiguous run"*. Real, and the §7s
+   boundary: the new batch and transaction need a `RespConnection` and the shim has none. Fixed by
+   **asking first**: `CanWriteRuns` on the executor, so a transitional database with a fallback builds a
+   shipped `RedisBatch` instead of a broken one. That is what a transitional type is *for*.
+4. **`IInternalDatabaseAsync` silently unimplemented** — `GetFeatures` → `Unknown`,
+   `GetNextFailover()` → `None`, so retry quietly stops reacting to failover. Now implemented, forwarding
+   to the fallback.
 
-- **Over the shim** — keeps every connection, bridge and pipeline, changes only rendering and parsing.
-  Needs batch/transaction to work without a `RespConnection` (a fallback to `RedisBatch` when the
-  executor cannot write runs), `IInternalDatabaseAsync` implemented, and the two hangs diagnosed.
-- **Over `RespNewCore`** — the real destination, but it needs the whole new connection stack to be
-  production-ready: server surface, sentinel, maintenance, and the preamble for hash-import.
+**Result: 117 failures of 11,077, at the normal 1m36s runtime** — from "doomed" to a bounded list in one
+sitting. The clusters are `ArrayTests` (18), `ScanTests` family (24), `RespEndToEndTests` (13),
+`CommandRetryCategoryUnitTests` (12, a test casting to `(RedisDatabase)`), `BasicOps` family (16),
+`ScriptingTests` (6).
 
-The shim route is much the cheaper of the two and is the one that unlocks deleting `RedisDatabase`'s
-~504 members, since the transitional surface already implements them. It is the next concrete step.
+The two enabling fixes are kept; the swap itself is reverted until those 117 are worked down. **This is
+now the highest-value queue item**: it is the switchover, and every failure in that list is a gap that
+would otherwise be found after the old core was deleted.
 
 ### Distance to the Great Message-ectomy, measured 2026-09-20
 

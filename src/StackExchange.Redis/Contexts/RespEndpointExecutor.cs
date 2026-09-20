@@ -207,6 +207,9 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
+        internal override bool CanWriteRuns => true;
+
+        /// <inheritdoc/>
         /// <remarks>
         /// <b>Declined when there is no live connection</b>, for the same reason <c>ASKING</c> is: a
         /// backlog drains one operation at a time, which is exactly the adjacency a batch is asking for.

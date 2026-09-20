@@ -169,6 +169,20 @@ namespace StackExchange.Redis
         {
         }
 
+        /// <summary>Whether this executor can write a contiguous run at all.</summary>
+        /// <remarks>
+        /// <b>Asked before a batch or transaction is built, not discovered when it is sent.</b> A run
+        /// needs a connection to write to, and the <c>Message</c> shim has none - it reaches the server
+        /// through the old pipeline - so a batch composed over it can only fail. Answering the question up
+        /// front lets the caller choose the shipped implementation instead, which is exactly what a
+        /// transitional database with a fallback should do.
+        /// <para>
+        /// Forwarded rather than assumed by routers, as <see cref="CanCancel"/> is: whether a run can be
+        /// written is a property of whatever finally writes it.
+        /// </para>
+        /// </remarks>
+        internal virtual bool CanWriteRuns => false;
+
         /// <summary>Wait until this executor can accept a contiguous run, connecting if it must.</summary>
         /// <param name="cancellationToken">Cancels the wait.</param>
         /// <returns>Whether a run can now be written.</returns>

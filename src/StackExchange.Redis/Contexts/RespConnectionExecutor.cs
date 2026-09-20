@@ -74,6 +74,9 @@ namespace StackExchange.Redis
         internal override RespConnection? CurrentConnection => _connection;
 
         /// <inheritdoc/>
+        internal override bool CanWriteRuns => true;
+
+        /// <inheritdoc/>
         /// <remarks>
         /// It owns a connection outright, so contiguity is simply available: there is no backlog that
         /// could drain the run one operation at a time, and no reconnect that could split it.

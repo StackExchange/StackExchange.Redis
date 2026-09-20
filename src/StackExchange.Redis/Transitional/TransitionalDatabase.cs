@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
@@ -44,7 +46,7 @@ namespace StackExchange.Redis
     /// </remarks>
     [AutoDatabase(WarnIfIncomplete = true)]
     internal partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
-        : IDatabase
+        : IDatabase, IInternalDatabaseAsync
     {
         /// <inheritdoc/>
         public RespDatabaseContext Context => _inner;
@@ -93,6 +95,40 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public IConnectionMultiplexer Multiplexer => multiplexer;
+
+        // ---- IInternalDatabaseAsync --------------------------------------------------------------------
+        // NOT optional, and the reason is the failure mode: the extensions that read this interface fall
+        // back to Unknown, null and CancellationToken.None when a database does not implement it, so a
+        // database that quietly omits it does not fail - it just stops participating. GetNextFailover in
+        // particular is how the retry layer learns that a failover happened, and a None token means retry
+        // waits for one that never comes.
+        //
+        // Found by trying the GetDatabase swap: nothing failed, which is exactly the problem.
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Delegated to the fallback where there is one, because it knows the connection; otherwise the
+        /// cluster flag is read from the context, which is where this surface keeps the same fact.
+        /// </remarks>
+        DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
+        {
+            if (_fallback is { } db) return db.GetFeatures(out name);
+
+            name = multiplexer?.ClientName ?? "";
+            return _inner.Raw.ServerType == ServerType.Cluster
+                ? DatabaseFeatureFlags.Cluster
+                : DatabaseFeatureFlags.None;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Forwarded, not answered.</b> This surface has no failover notion of its own; the databases
+        /// that do - <c>RetryDatabase</c>, <c>MultiGroupDatabase</c> - sit above it and hand their own
+        /// token down. Returning <see cref="CancellationToken.None"/> without asking the fallback is what
+        /// silently disconnects retry from failover.
+        /// </remarks>
+        CancellationToken IInternalDatabaseAsync.GetNextFailover()
+            => _fallback is { } db ? db.GetNextFailover() : CancellationToken.None;
 
         // ---- [AutoDatabase] funnels ---------------------------------------------------------------------
         // Every member this class does not implement lands here. Normally there is no inner IDatabase to
@@ -200,14 +236,32 @@ namespace StackExchange.Redis
             // so a derived class that merely declares its own public CreateTransaction is never reached
             // through the interface. One method that asks what it is beats two that can disagree.
             if (this is IBatch) throw new NotSupportedException("Nested batches are not supported");
-            return TransitionalBatch.CreateBatch(_inner, multiplexer, asyncState ?? AsyncState);
+            return CanWriteRuns
+                ? TransitionalBatch.CreateBatch(_inner, multiplexer, asyncState ?? AsyncState)
+                : Fallback<IBatch>().CreateBatch(asyncState);
         }
+
+        /// <summary>Whether a batch or transaction composed here could actually be written.</summary>
+        /// <remarks>
+        /// <b>Asked before building one, because the failure is otherwise silent until execution.</b> The
+        /// new batch and transaction write their commands as a contiguous run, which needs a connection to
+        /// write to - and the <c>Message</c> shim has none, reaching the server through the old pipeline
+        /// instead. Composed over that, every batch failed with "cannot write a batch as one contiguous
+        /// run", which is true but unhelpful when a perfectly good shipped implementation is available.
+        /// <para>
+        /// This is what a transitional type is for: the executor decides which era can serve the request,
+        /// and the caller gets a working batch either way.
+        /// </para>
+        /// </remarks>
+        private bool CanWriteRuns => _inner.Raw.Executor is { CanWriteRuns: true };
 
         /// <inheritdoc cref="CreateBatch"/>
         public ITransaction CreateTransaction(object? asyncState = null)
         {
             if (this is IBatch) throw new NotSupportedException("Nested transactions are not supported");
-            return TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState);
+            return CanWriteRuns
+                ? TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState)
+                : Fallback<ITransaction>().CreateTransaction(asyncState);
         }
 
         ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);

@@ -60,6 +60,9 @@ namespace StackExchange.Redis
         /// <remarks>Forwarded from the active member; a group does not send anything itself.</remarks>
         public override bool CanCancel => _active() is { CanCancel: true };
 
+        /// <inheritdoc/>
+        internal override bool CanWriteRuns => _active() is { CanWriteRuns: true };
+
         /// <summary>Whether any member is currently able to serve.</summary>
         public bool HasActiveMember => _active() is not null;
 
