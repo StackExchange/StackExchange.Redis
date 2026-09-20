@@ -67,6 +67,24 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+- [ ] **Cancellation is built and tested but NOT offered — the gate is the outstanding work.** Raised by
+      Marc 2026-09-20, asking whether the sidelined v3 branch's cancellation survived the port. It did:
+      registration taken at `SetRequest`, unregistered on any definite outcome, `TrySetCanceled`
+      competing for the same single-winner claim, cleared by `Reset` so a recycled operation cannot
+      inherit a previous life's token. Four tests, including a reply/cancel race run 500 times and a
+      cancel-after-recycle.
+
+      What blocks it is `RespExecutor.SendAsync`'s `DemandNoCancellation`, which throws
+      `NotImplementedException` for any cancellable token. That gate was right when the only executor was
+      the `Message` shim, whose pipeline cannot cancel an in-flight request — but the new core threads the
+      token into the operation and honours it.
+
+      **The fix is to make the gate a capability rather than a blanket refusal**, which
+      `RespExecutorBase` is already shaped for (`CanWritePreamble` is the precedent). Recording it because
+      a feature that is built, tested and unreachable is exactly the kind that rots: nothing fails, and no
+      test complains.
+
+
 - [x] **Marc's 3-way (4-way) benchmark — DONE, and the premise holds.** Full numbers in design notes
       §7e and `toys/CoreBench/readme.md`. Headline: 3.3.0 and this branch's old path are identical within
       noise (the control), and the new core is **+30% at 64 workers**, +2.5% at one — the predicted shape.

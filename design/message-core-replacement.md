@@ -1062,6 +1062,36 @@ Still to do for the *public* `IBatch`: the surface itself. `IBatch` is `IDatabas
 so the shape is a context whose executor accumulates — which is what this is — wrapped in something that
 implements the interface. That is forwarding, and forwarding is what `[AutoDatabase]` is for.
 
+
+### 7q. Cancellation: captured, tested, and currently unreachable
+
+Marc asked whether the cancellation work from the sidelined v3 branch survived the port. **It did** — §2
+listed it under *Take*, and it landed in phase 1:
+
+- a `CancellationTokenRegistration` taken at `SetRequest`, against the operation itself;
+- unregistered on **any** definite outcome, not just a cancellation, so a completed operation stops
+  holding a registration on somebody's long-lived token;
+- `TrySetCanceled`, which competes for the same single-winner outcome claim as a reply;
+- cleared by `Reset`, so a recycled operation does not inherit the previous life's token.
+
+Four tests cover it, including the two that matter for a pooled, racing design: a reply and a
+cancellation arriving together (run 500 times — *exactly one* wins, never both, never neither), and a
+token cancelled after the operation has been recycled, which must not touch whatever is using the
+instance now.
+
+**But it is not reachable from the surface**, and that is the part worth recording rather than
+discovering later. `RespExecutor.SendAsync` still calls `DemandNoCancellation`, which throws
+`NotImplementedException` for any cancellable token — a gate added when the only executor was the
+`Message` shim, whose pipeline genuinely cannot cancel an in-flight request. The new core threads the
+token all the way into the operation (`Attach(request, flags, cancellationToken)`), so the capability is
+live and tested; the gate above it means no caller can ask for it.
+
+**So the outstanding work is a gate, not a feature.** Removing `DemandNoCancellation` has to become
+conditional on the executor rather than unconditional: the new core can honour a token, the shim cannot,
+and `RespExecutorBase` is already where capabilities like that are asked (`CanWritePreamble` set the
+precedent). Until then the honest position is that cancellation is *built* but not *offered* — which is
+the sort of thing that quietly rots, since nothing fails and no test complains.
+
 ---
 
 ## 8. Open questions
