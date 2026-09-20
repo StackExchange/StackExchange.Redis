@@ -69,7 +69,9 @@ namespace StackExchange.Redis
                     database: database,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
-                .WithServices(new RedisBase.ServerFeatureProbe((RedisBase)_multiplexer.GetDatabase(database)))
+                // constructed directly rather than via GetDatabase: the probe needs the OLD database specifically,
+                // and GetDatabase is exactly the thing that stops returning one when the surface is swapped
+                .WithServices(new RedisBase.ServerFeatureProbe(new RedisDatabase(_multiplexer, database, null)))
                 .WithExecutor(database == _router.Database ? _router : Rebind(database)));
         }
 

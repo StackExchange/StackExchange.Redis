@@ -118,6 +118,62 @@ existing suites run through it. This is the outstanding list, in the order thing
       and usually one, but not what shipped does. Revisit with the preamble capability; the §7t write slot
       is already the primitive the pair-write needs.
 
+- [ ] **Alternative cache-invalidation strategies, alongside tracking and broadcast.** The client-side
+      cache currently rests on `CLIENT TRACKING` — default (per-key) and `BCAST` modes. Two more are worth
+      evaluating, and they are interesting precisely because they are available where tracking is not:
+
+  - **Keyspace notifications** (`notify-keyspace-events`, `__keyspace@N__`/`__keyevent@N__`). Works
+    without `CLIENT TRACKING` at all, so it reaches RESP2 connections and servers or proxies that do not
+    offer tracking. The costs are real: it needs *server* configuration the client cannot set and which
+    is off by default; it fires for **every** key rather than the ones this client cached, so the noise
+    is proportional to the server's write rate rather than to our working set; the channels are
+    per-database; and which events are enabled (expired, evicted, generic) is another thing to get right
+    or silently miss invalidations.
+  - **Manual `SPUBLISH`/`SSUBSCRIBE`.** The application announces its own invalidations, sharded so the
+    message stays on the shard that owns the key — cluster-friendly and available everywhere. The
+    weakness is the interesting part: it only sees writes made by *cooperating* clients, so it is an
+    application protocol rather than a server guarantee, and a write from anything else is missed
+    silently.
+
+      **The question to answer first is what correctness claim the cache can make under each**, because
+      that is what decides whether they are alternatives or merely options. Tracking gives "the server
+      will tell you"; keyspace notifications give that too, if configured, at a cost proportional to
+      total write volume; manual pub/sub gives only "clients that opted in will tell you" — which is a
+      materially weaker promise and should be surfaced as such rather than selected by config alone.
+      Interacts with the group/failover question (§7 cache notes): a cache entry carries an implicit
+      subscription, and these three differ in what happens to that subscription when the node changes.
+
+### Why `GetDatabase()` still returns `RedisDatabase` — measured, not assumed
+
+Tried it: `GetDatabase` returning `TransitionalDatabase(inner.Context, this, asyncState, inner)` — the
+transitional surface over the **shim**, with the old database as fallback. Public contract is no
+obstacle (`GetDatabase` returns `IDatabase`, and exactly **one** place in `src` casts its result — our own
+`(RedisBase)` for the feature probe, now removed). What the experiment found instead:
+
+1. **One cast accounted for 80 of 80 `StringTests` failures.** Removing it took that suite to 240/240.
+   Worth keeping regardless: constructing the probe's database directly is right, since `GetDatabase` is
+   precisely what stops returning an old database when the surface is swapped.
+2. **`QueuedResultTests` fails 27/27** — *"This executor cannot write a batch as one contiguous run; it
+   has no connection to write it to."* This is the §7s boundary, and the thing that actually blocks the
+   swap: `TransitionalBatch`/`TransitionalTransaction` need a `RespConnection`, and the **shim has
+   none**. So swapping to the transitional surface *over the shim* breaks every batch and transaction.
+3. **`CommandTimeoutTests` and `AggressiveTests` hang** (>150s against a ~2s baseline), undiagnosed.
+4. **`IInternalDatabaseAsync` is not implemented** by `TransitionalDatabase`, and its extensions degrade
+   **silently**: `GetFeatures` → `Unknown`, `GetNextFailover()` → `None`. The retry and availability
+   layers consume both, so a swap would quietly stop retry reacting to failover. Nothing would fail; it
+   would just stop working.
+
+**So the swap has two forms, and neither is a small step:**
+
+- **Over the shim** — keeps every connection, bridge and pipeline, changes only rendering and parsing.
+  Needs batch/transaction to work without a `RespConnection` (a fallback to `RedisBatch` when the
+  executor cannot write runs), `IInternalDatabaseAsync` implemented, and the two hangs diagnosed.
+- **Over `RespNewCore`** — the real destination, but it needs the whole new connection stack to be
+  production-ready: server surface, sentinel, maintenance, and the preamble for hash-import.
+
+The shim route is much the cheaper of the two and is the one that unlocks deleting `RedisDatabase`'s
+~504 members, since the transitional surface already implements them. It is the next concrete step.
+
 ### Distance to the Great Message-ectomy, measured 2026-09-20
 
 Deletion set: **~20,460 lines** (`RedisDatabase*` 8.9k, `RedisServer` ~3k, `ResultProcessor`,
