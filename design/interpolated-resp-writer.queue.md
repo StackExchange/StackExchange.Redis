@@ -143,6 +143,45 @@ existing suites run through it. This is the outstanding list, in the order thing
       Interacts with the group/failover question (§7 cache notes): a cache entry carries an implicit
       subscription, and these three differ in what happens to that subscription when the node changes.
 
+### Switchover progress, 2026-09-20: 117 -> ~12-22 failures
+
+Run the suite either way from one build: default is green, and
+`SEREDIS_NEW_DATABASE_SURFACE=1` runs everything through the transitional surface
+(`ConnectionMultiplexer.FeatureFlags.NewDatabaseSurface`). The remaining count varies run to run
+(12-22) because the suite's cross-suite interference is now larger than the real failure count -
+**that flakiness is the next thing to fix, or the last few gaps cannot be seen.**
+
+**Real defects found by the swap** — every one invisible to the wrapper-suite technique, because the
+suites that would have caught them never routed through the new surface:
+
+- **`ARSET` where `ARMSET` was meant.** Pairs rendered after the consecutive-values command: three
+  entries at 0, 1, 2 became five values written from index 0, reply `5` where the caller expected `3`.
+  The server accepts and misreads it. `RespSurfaceArraysTests` had pinned the bug.
+- **`ulong` rendered in scientific notation** (`1.8446744073709552E+19`) - no `ulong` overload, so it
+  bound to `double`. `ulong?` was a *separate* trap needing its own overload. `float` deliberately left
+  alone: an overload makes every `int` literal ambiguous, and exponential form is legal there.
+- **A null key rendered as an empty bulk string**, so the command ran against a key named `""` - a legal
+  key, so it *succeeded against the wrong thing*. Now refused where every key reaches a frame.
+- **Doubles from the server could not be parsed at all.** The numeric buffer was 20 bytes; a G17 double
+  is 24 on its own, and `INCRBYFLOAT` does long-double arithmetic - `-14548.86600019999999933`. Affected
+  `ReadDouble`, `TryReadDouble` and `ReadDecimal`, so `ZSCORE` and friends shared the ceiling.
+- **Scripts were not paired**, on a documented premise that turned out to be false: shipped's
+  `ScriptEvalMessage` *does* `SCRIPT LOAD` then `EVALSHA`. Not pairing was the divergence.
+- **`ScriptEvaluate(byte[] hash)` sent the raw 20-byte digest** where the server wants 40 hex
+  characters, so every such call answered `NOSCRIPT` for a script that was loaded.
+- **No `NOSCRIPT` recovery** - a stale cache belief surfaced as an exception where shipped re-issues.
+- **`KeyCopy` folded every negative database into "here"**, so `-10` copied within the current database
+  and reported success.
+- **Scans ignored command availability**; the adapter now delegates that case to the shipped fallback.
+
+**The recurring test-side pattern:** a test that is *about the old core* must construct it, because
+`GetDatabase` is exactly what stops handing one back. Five places cast its result or assumed it;
+`TestMultiplexer.Legacy/Unwrap` is now the one way to say "the old database".
+
+**Still open:** `RespResultTests.ScriptEvaluateResp_Null_IsSharedSingleton` (the registry path does not
+return the shared null singleton the direct path does - decide whether that optimisation is worth
+preserving), profiling, a few stream and geo cases, and the interference noise above.
+
 ### The `GetDatabase()` swap: measured, and much closer than it looked
 
 Tried it rather than reasoned about it — `GetDatabase` returning `TransitionalDatabase` over the **shim**
