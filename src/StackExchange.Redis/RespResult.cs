@@ -36,6 +36,14 @@ public sealed class RespResult : IDisposable
     private static RespResult CreateNullSingleton(RespPrefix prefix, ReadOnlySpan<byte> raw) =>
         new(prefix, isNull: true, RefCountedBuffer.CreateFixed(raw.ToArray()));
 
+    /// <summary>The shared null for a prefix; these carry their own framing and own no pooled buffer.</summary>
+    private static RespResult NullFor(RespPrefix prefix) => prefix switch
+    {
+        RespPrefix.BulkString => NullBulkStringReply,
+        RespPrefix.Array => NullArrayReply,
+        _ => NullReply,
+    };
+
     // reference-counted, so that a Lease taken from this reply (see RespReaderExtensions.ReadLease) can
     // point back into this buffer rather than copying out of it; the buffer returns to its pool when this
     // result and every lease taken from it have been disposed.
@@ -86,6 +94,15 @@ public sealed class RespResult : IDisposable
         var probe = new RespReader(buffer.GetSpan().Slice(offset, length));
         probe.MovePastBof();
 
+        // A NULL carries no data, so there is nothing to share: taking a reference here would pin a
+        // receive buffer for a reply that says only "nothing", until whoever holds it remembers to
+        // dispose. The singletons already exist for the copy path below; using them here too means a null
+        // reply allocates nothing and holds nothing, whatever route it arrived by.
+        //
+        // They are faithful, not a shortcut: each carries the raw framing for its own prefix, so a caller
+        // reading Raw still sees "_\r\n", "$-1\r\n" or "*-1\r\n" as the server sent it.
+        if (probe.IsNull) return NullFor(probe.Prefix);
+
         // increment-if-nonzero: losing this race means the buffer is already going back to its pool, which
         // the caller must treat as a miss rather than resurrecting it
         if (!buffer.TryAddRef()) return null;
@@ -117,15 +134,7 @@ public sealed class RespResult : IDisposable
 
     internal static RespResult Capture(RespPrefix prefix, bool isNull, ref RespReader reader, int length, MemoryPool<byte>? pool)
     {
-        if (isNull)
-        {
-            return prefix switch
-            {
-                RespPrefix.BulkString => NullBulkStringReply,
-                RespPrefix.Array => NullArrayReply,
-                _ => NullReply,
-            };
-        }
+        if (isNull) return NullFor(prefix);
 
         Debug.Assert(length >= 0, "length must be non-negative");
         var buffer = RefCountedBuffer.Rent(length, pool);
