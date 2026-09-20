@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
@@ -8,11 +8,16 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>These keep the shipped wire behaviour rather than the better one.</b> The string overload chooses
-/// <c>EVALSHA</c> when the string looks like a SHA1 and otherwise sends <c>EVAL</c> with the body, every
-/// call, uncached - where <c>Scripts.EvaluateAsync</c> does <c>SCRIPT LOAD</c> then <c>EVALSHA</c> and
-/// keeps the rendering. Switching existing callers to that would add a load to the first call and leave
-/// the script in the server's non-evictable cache, which is a decision rather than a translation.
+/// <b>These keep the shipped wire behaviour, which means they DO pair.</b> This paragraph previously said
+/// the opposite - that the shipped surface sends <c>EVAL</c> with the body every call, uncached, and that
+/// pairing would be a behaviour change. That was simply wrong: <c>ScriptEvalMessage.GetMessages</c> asks
+/// the endpoint whether it knows the script and returns <c>LoadThenEvaluate()</c> when it does not, so all
+/// four shipped entry points already do <c>SCRIPT LOAD</c> then <c>EVALSHA</c> and remember it per server.
+/// Not pairing was the divergence, and <c>ScriptLoadPairingTests</c> is the test that says so.
+/// </para>
+/// <para>
+/// A string that looks like a SHA1 is still taken as a hash and sent directly - that is the shipped rule,
+/// and there is nothing to load. Only the script-body case goes through the registry.
 /// </para>
 /// <para>
 /// The <c>LuaScript</c> and <c>LoadedLuaScript</c> overloads need nothing here: they extract their
@@ -29,12 +34,44 @@ internal partial class TransitionalDatabase
         // a 40-character hex string is taken as a hash, which is the shipped rule; it is why a script
         // whose body happens to look like one cannot be sent by this overload
         var isHash = ResultProcessor.ScriptLoadProcessor.IsSHA1(script);
-        return _inner.Scripts.EvaluateDirectResult(script.AsRedisValue(), keys ?? [], values ?? [], isHash, readOnly, flags);
+        return isHash
+            ? _inner.Scripts.EvaluateDirectResult(script.AsRedisValue(), keys ?? [], values ?? [], isHash: true, readOnly, flags)
+            : _inner.Scripts.EvaluateResult(script, keys ?? [], values ?? [], readOnly, flags);
     }
 
+    /// <summary>A raw SHA1 digest, sent the way the server expects it.</summary>
+    /// <remarks>
+    /// <b>Hex, not the raw twenty bytes.</b> The shipped overload takes the digest as
+    /// <see cref="byte"/>[] and writes it with <c>WriteSha1AsHex</c>; passing it through as a value sent
+    /// twenty binary bytes where the server wanted forty hex characters, and every such call answered
+    /// <c>NOSCRIPT</c> - for a script that was loaded, which is about as misleading as an error gets.
+    /// The length check is the shipped one too: a wrong-sized array is a caller mistake worth naming here
+    /// rather than a mystery at the server.
+    /// </remarks>
     private ValueTask<RedisResult> EvalHash(byte[] hash, RedisKey[]? keys, RedisValue[]? values, bool readOnly, CommandFlags flags)
-        => _inner.Scripts.EvaluateDirectResult(
-            Required(hash, nameof(hash)), keys ?? [], values ?? [], isHash: true, readOnly, flags);
+    {
+        Required(hash, nameof(hash));
+        if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");
+        }
+
+        return _inner.Scripts.EvaluateDirectResult(
+            (RedisValue)ToHex(hash), keys ?? [], values ?? [], isHash: true, readOnly, flags);
+    }
+
+    private static string ToHex(byte[] hash)
+    {
+        const string Digits = "0123456789abcdef";
+        var chars = new char[hash.Length * 2];
+        for (int i = 0, j = 0; i < hash.Length; i++)
+        {
+            chars[j++] = Digits[hash[i] >> 4];
+            chars[j++] = Digits[hash[i] & 0xF];
+        }
+
+        return new string(chars);
+    }
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -94,7 +131,11 @@ internal partial class TransitionalDatabase
     {
         if (script is null) throw new ArgumentNullException(nameof(script));
         var isHash = ResultProcessor.ScriptLoadProcessor.IsSHA1(script);
-        return _inner.Scripts.EvaluateDirectResp(script.AsRedisValue(), keys.Span, values.Span, isHash, readOnly, flags);
+        if (isHash) return _inner.Scripts.EvaluateDirectResp(script.AsRedisValue(), keys.Span, values.Span, isHash: true, readOnly, flags);
+
+        return readOnly
+            ? _inner.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags)
+            : _inner.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags);
     }
 
     /// <inheritdoc/>
