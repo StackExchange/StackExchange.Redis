@@ -860,6 +860,49 @@ right key, right shape, slightly wrong value — which is the kind that survives
 So if this is ever modelled, the useful knob is a `MaxCacheAge` ceiling derived from expected replication
 lag. Not a change to what happens on a switch.
 
+
+### 7l. Following a redirect
+
+The half that makes cluster routing real rather than nominal. `RespRedirect` reads a `-MOVED`/`-ASK`
+reply; `RespRedirectingConnection` offers it to a router before the operation is completed; the
+multiplexer executor resolves the target and re-issues.
+
+**It happens on the IO loop, which is a correctness requirement.** Commands redirected together were sent
+to the wrong node in order and answered in that order, so re-issuing as the replies arrive puts them on
+the new connection in the caller's original order. Handing the work to a thread pool loses exactly that,
+and per-slot ordering is the strongest guarantee this client has (§7h).
+
+Four decisions, each of which had a wrong-looking easy version:
+
+**`MOVED` updates the slot map; `ASK` must not.** That is the entire difference between them. `ASK` says
+*this key* is mid-migration; updating the map from it would point every subsequent key in the slot at a
+node that only holds the ones already migrated.
+
+**`ASKING` is written with the command as one write, not two sends.** The server applies it to the very
+next command on that connection, so anything interleaved receives it instead. Two `Send` calls cannot
+promise adjacency — another sender takes the write lock between them — hence `RespConnection.Send(first,
+second)`.
+
+**And `ASKING` is declined when there is no live connection, rather than backlogged.** A backlog drains
+one operation at a time, so the pair would lose that adjacency on the way out. Declining lets the
+redirect stand as the error it arrived as, which is also the more honest answer: the node we were told to
+try is not reachable.
+
+**Once is enough** — Marc, from the shipped logic, which sets `NoRedirect` when it re-issues. A second
+redirect for the same command is pathological rather than routine: two nodes that disagree, or a topology
+changing faster than commands complete. Short-circuiting means the caller sees the server's own error,
+which says more than a redirect loop or a hang would. (Note the shipped version applies it to `ASK` as
+well as `MOVED`, and additionally marks `MOVED` re-issues as internal calls.)
+
+**A bug this nearly had, caught by remembering §4:** `HasFollowedRedirect` lives on a *pooled* operation,
+so without an explicit clear on `Reset` it becomes the next command's starting position — silently
+refusing to follow a legitimate redirect for whatever reused the instance. Exhaustive reset is not a
+tidiness rule.
+
+**And a leak it did have:** `ASKING` has a reply, and nothing was awaiting it — so its operation was
+never consumed, never reset, never returned to the pool, and never released the pooled buffer holding its
+request. It is now drained explicitly.
+
 ---
 
 ## 8. Open questions

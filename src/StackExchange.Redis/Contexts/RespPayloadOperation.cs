@@ -70,6 +70,29 @@ namespace StackExchange.Redis
 
         private CommandFlags _flags;
 
+        /// <summary>Whether this command has already been re-issued after a redirect.</summary>
+        /// <remarks>
+        /// <b>Once is enough.</b> A second redirect for the same command is pathological rather than
+        /// routine - two nodes that disagree, or a topology changing faster than commands complete - so
+        /// short-circuiting it is warranted. The command then fails with the server's own error, which
+        /// says more about what is wrong than a redirect loop or a hang would. This mirrors the shipped
+        /// core, which sets <see cref="CommandFlags.NoRedirect"/> on the message when it re-issues.
+        /// </remarks>
+        internal bool HasFollowedRedirect { get; set; }
+
+        /// <summary>The flags the request carried, which the retry and redirect layers read.</summary>
+        internal CommandFlags Flags => _flags;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>This instance is pooled</b>, so a life's state has to be cleared or it becomes the next
+        /// life's starting position - here, a command that had followed a redirect would hand a
+        /// "already redirected once" to whatever command reused the instance, silently refusing to follow
+        /// a legitimate redirect for it. Exactly the hazard design notes section 4 describes, and the
+        /// reason <c>Reset</c> is exhaustive by construction rather than by inspection.
+        /// </remarks>
+        protected override void OnReset() => HasFollowedRedirect = false;
+
         /// <inheritdoc/>
         /// <remarks>
         /// Called only after a definite outcome has been consumed, with the instance already reset and

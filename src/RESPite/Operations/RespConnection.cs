@@ -161,6 +161,55 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         return true;
     }
 
+    /// <summary>Write two operations with nothing of anybody else's between them.</summary>
+    /// <param name="first">The operation to write first; typically a preamble.</param>
+    /// <param name="second">The operation whose reply the caller wants.</param>
+    /// <returns>Whether both were written.</returns>
+    /// <remarks>
+    /// <b>Contiguity, not batching.</b> The motivating case is <c>ASKING</c> before a redirected command:
+    /// the server applies it to the very next command on that connection, so anything interleaved between
+    /// them would receive the <c>ASKING</c> instead. Two separate <see cref="Send(IRespMessage)"/> calls
+    /// cannot promise that - another sender takes the lock in between - so the pair has to be one write.
+    /// </remarks>
+    public bool Send(IRespMessage first, IRespMessage second)
+    {
+        if (first is null) throw new ArgumentNullException(nameof(first));
+        if (second is null) throw new ArgumentNullException(nameof(second));
+        if (Volatile.Read(ref _closed) != 0) return false;
+
+        lock (_writeLock)
+        {
+            if (!first.TryReserveRequest(first.Token, out var firstPayload)) return false;
+            try
+            {
+                if (!second.TryReserveRequest(second.Token, out var secondPayload)) return false;
+                try
+                {
+                    var bytes = firstPayload.Length + secondPayload.Length;
+                    first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                    second.OnEnqueued(this, _bytesSent + firstPayload.Length, Volatile.Read(ref _bytesReceived));
+
+                    _pending.Enqueue(first);
+                    _pending.Enqueue(second);
+                    Write(firstPayload.Span);
+                    Write(secondPayload.Span);
+                    Volatile.Write(ref _bytesSent, _bytesSent + bytes);
+                }
+                finally
+                {
+                    second.ReleaseRequest();
+                }
+            }
+            finally
+            {
+                first.ReleaseRequest();
+            }
+        }
+
+        _transport.Flush();
+        return true;
+    }
+
     private void Write(ReadOnlySpan<byte> payload)
     {
         // loop rather than assume one span is enough: IBufferWriter only promises *at least* the hint,
@@ -189,6 +238,30 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     /// <inheritdoc/>
     public override void OnClosed(Exception? fault) => Close(fault);
+
+    /// <summary>
+    /// Offer a reply to somebody who may take the operation elsewhere instead of completing it here.
+    /// </summary>
+    /// <param name="frame">The complete reply frame.</param>
+    /// <param name="message">The operation this reply was matched to.</param>
+    /// <returns>
+    /// Whether the operation has been taken over. <see langword="true"/> means it is <b>not</b> completed
+    /// here - somebody else now owns finishing it.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// Deliberately generic: this layer knows nothing about why a reply might not be the answer. The
+    /// motivating case is a cluster redirect - the slot moved, so the command has to be re-issued
+    /// somewhere else rather than failed - but the connection's part is only "this did not finish it".
+    /// </para>
+    /// <para>
+    /// <b>Called on the IO loop, in reply order, and that is the point.</b> Commands redirected together
+    /// were sent to the wrong node in order and answered in that order; re-issuing them as the replies
+    /// arrive puts them on the new connection in the caller's original order. Handing this to a worker
+    /// thread would lose exactly that.
+    /// </para>
+    /// </remarks>
+    protected virtual bool TryHandOff(ReadOnlySpan<byte> frame, IRespMessage message) => false;
 
     /// <summary>
     /// Handle a frame that belongs to nobody - a RESP3 push.
@@ -280,9 +353,14 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             if (_pending.TryDequeue(out var message))
             {
-                // the buffer goes along with the bytes, so a message whose result IS the frame can retain
-                // it rather than copy it out
-                message.TrySetResult(message.Token, frame, buffer);
+                // offered first: a redirect is an instruction, not an answer, and completing the
+                // operation with it would report a failure for something routine
+                if (!TryHandOff(frame, message))
+                {
+                    // the buffer goes along with the bytes, so a message whose result IS the frame can
+                    // retain it rather than copy it out
+                    message.TrySetResult(message.Token, frame, buffer);
+                }
             }
 
             // a reply with nothing pending is a protocol break; there is no correct recovery, and

@@ -59,6 +59,25 @@ namespace StackExchange.Redis
         /// <param name="cancellationToken">Cancels the send.</param>
         public abstract ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default);
 
+        /// <summary>Re-issue an operation that a redirect sent here, without completing it first.</summary>
+        /// <param name="operation">The operation; still pending, and still owning its request bytes.</param>
+        /// <returns>Whether this executor took it on.</returns>
+        /// <remarks>
+        /// Distinct from <c>SendAsync</c> because there is nothing to return: the operation <i>is</i> the
+        /// completion, and whoever is awaiting it already holds their handle. The default declines, so an
+        /// executor that cannot re-issue lets the redirect stand as the error it arrived as.
+        /// </remarks>
+        internal virtual bool TryResend(RespPayloadOperation operation) => false;
+
+        /// <summary>Re-issue an operation preceded by <c>ASKING</c>, with nothing between the two.</summary>
+        /// <param name="operation">The operation; still pending, and still owning its request bytes.</param>
+        /// <returns>Whether this executor took it on.</returns>
+        /// <remarks>
+        /// <c>ASKING</c> applies to the very next command on that connection, so the pair has to be
+        /// written as one - anything interleaved would consume it instead.
+        /// </remarks>
+        internal virtual bool TryResendAsking(RespPayloadOperation operation) => false;
+
         /// <summary>Whether a connected server is currently available to serve the given key.</summary>
         /// <param name="key">The key whose routing is being asked about; may be null for "anywhere".</param>
         /// <param name="flags">The flags that would be used, which can steer to a replica.</param>

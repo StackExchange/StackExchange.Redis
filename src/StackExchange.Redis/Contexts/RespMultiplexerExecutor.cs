@@ -42,22 +42,71 @@ namespace StackExchange.Redis
         private readonly RespTopology _topology;
         private readonly Func<int, RespExecutorBase?> _forSlot;
         private readonly Func<RespExecutorBase?> _any;
+        private readonly Func<EndPoint, RespExecutorBase?>? _forEndpoint;
+        private readonly Action<int, EndPoint>? _onSlotMoved;
+        private readonly Action? _onTopologySuspect;
 
         /// <summary>Create a routing executor over a set of endpoints.</summary>
         /// <param name="topology">The cell that says whether slots mean anything yet.</param>
         /// <param name="forSlot">Resolves a hash slot to the endpoint that serves it.</param>
         /// <param name="any">Resolves the endpoint to use when no key steers the choice.</param>
         /// <param name="database">The database commands run against.</param>
+        /// <param name="forEndpoint">Resolves a redirect target to an executor, if redirects are followed.</param>
+        /// <param name="onSlotMoved">Told when a <c>MOVED</c> reveals the slot map is stale.</param>
+        /// <param name="onTopologySuspect">Told when a redirect could not be followed at all.</param>
         internal RespMultiplexerExecutor(
             RespTopology topology,
             Func<int, RespExecutorBase?> forSlot,
             Func<RespExecutorBase?> any,
-            int database = 0)
+            int database = 0,
+            Func<EndPoint, RespExecutorBase?>? forEndpoint = null,
+            Action<int, EndPoint>? onSlotMoved = null,
+            Action? onTopologySuspect = null)
         {
             _topology = topology ?? throw new ArgumentNullException(nameof(topology));
             _forSlot = forSlot ?? throw new ArgumentNullException(nameof(forSlot));
             _any = any ?? throw new ArgumentNullException(nameof(any));
             Database = database;
+            _forEndpoint = forEndpoint;
+            _onSlotMoved = onSlotMoved;
+            _onTopologySuspect = onTopologySuspect;
+        }
+
+        /// <summary>Follow a redirect, or decline it and let the reply stand as an error.</summary>
+        /// <param name="redirect">What the server said.</param>
+        /// <param name="operation">The command that was redirected; not yet completed.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Called on a connection's IO loop</b>, so it must not block: resolving an endpoint and
+        /// handing the operation to its executor is the whole of the work, and if that executor has no
+        /// connection yet the operation lands in its backlog rather than waiting here.
+        /// </para>
+        /// <para>
+        /// <b>The map is updated for <c>MOVED</c> and not for <c>ASK</c>, which is the entire difference
+        /// between them.</b> <c>MOVED</c> says the slot has moved and our map is stale; <c>ASK</c> says
+        /// this one key is mid-migration and the map is still right for everything else. Updating on
+        /// <c>ASK</c> would point every subsequent key in the slot at the node that only holds the ones
+        /// already migrated.
+        /// </para>
+        /// </remarks>
+        internal bool TryFollowRedirect(in RespRedirect redirect, RespPayloadOperation operation)
+        {
+            if (redirect.IsUnroutable)
+            {
+                // the server does not know where the slot went either, so there is nowhere to send this.
+                // Ask for a topology refresh, which CAN name the target, and let the error stand.
+                _onTopologySuspect?.Invoke();
+                return false;
+            }
+
+            var target = _forEndpoint?.Invoke(redirect.Endpoint!);
+            if (target is null) return false;
+
+            if (redirect.IsMoved) _onSlotMoved?.Invoke(redirect.Slot, redirect.Endpoint!);
+
+            return redirect.IsMoved
+                ? target.TryResend(operation)
+                : target.TryResendAsking(operation);
         }
 
         /// <inheritdoc/>
