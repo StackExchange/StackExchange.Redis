@@ -219,11 +219,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StringDelete(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Strings.DeleteAsync(key, when, flags));
+            => Wait(_inner.Strings.DeleteAsync(key, when, flags, default, nameof(StringDelete)));
 
         /// <inheritdoc/>
         public Task<bool> StringDeleteAsync(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None)
-            => _inner.Strings.DeleteAsync(key, when, flags).AsTask(AsyncState, flags);
+            => _inner.Strings.DeleteAsync(key, when, flags, default, nameof(StringDeleteAsync)).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None)

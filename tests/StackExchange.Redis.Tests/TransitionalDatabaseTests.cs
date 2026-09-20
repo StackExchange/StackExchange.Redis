@@ -23,6 +23,24 @@ public class TransitionalDatabaseTests
         => new TransitionalDatabase(new RespDatabaseContext(new RespContext().WithExecutor(executor)), null!, null);
 
     [Fact]
+    public async Task ARefusedConditionNamesTheMemberTheCallerActuallyCalled()
+    {
+        // The rule lives once, in the context surface's switch; the NAME does not, because the two
+        // surfaces spell the same operation differently. Being told that "DeleteAsync" cannot be used
+        // when you called StringDeleteAsync is a poor error, and the alternative - a second copy of the
+        // switch in the adapter - would be free to drift from the real one.
+        var db = Target(new FakeExecutor(":1\r\n"));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await db.StringDeleteAsync("k", ValueCondition.NotExists));
+        Assert.StartsWith("StringDeleteAsync cannot be used with a NotExists condition", ex.Message);
+
+        var sync = Assert.Throws<InvalidOperationException>(
+            () => db.StringDelete("k", ValueCondition.NotExists));
+        Assert.StartsWith("StringDelete cannot be used with a NotExists condition", sync.Message);
+    }
+
+    [Fact]
     public async Task KeyDeleteUpgradesToUnlinkWhereTheServerHasIt()
     {
         // IDatabase.KeyDelete has ALWAYS auto-upgraded to UNLINK, and nothing in the integration suite

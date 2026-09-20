@@ -490,6 +490,29 @@ public static partial class Strings
         ValueCondition when = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
+        => DeleteAsync(in strings, key, when, flags, cancellationToken, nameof(DeleteAsync));
+
+    /// <inheritdoc cref="DeleteAsync(in RespStrings, RedisKey, ValueCondition, CommandFlags, CancellationToken)"/>
+    /// <param name="strings">The string command group.</param>
+    /// <param name="key">The key to remove.</param>
+    /// <param name="when">The condition the delete is subject to.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <param name="caller">The member to name if the condition is refused.</param>
+    /// <remarks>
+    /// <b>The caller's name travels because the error message carries it</b>, and the two surfaces spell
+    /// this differently: a context caller invoked <c>DeleteAsync</c>, an <see cref="IDatabase"/> caller
+    /// invoked <c>StringDeleteAsync</c>, and being told about a method you did not call is a poor error.
+    /// One rule, two names - rather than a second copy of the switch in the adapter, which would be free
+    /// to drift from this one.
+    /// </remarks>
+    internal static ValueTask<bool> DeleteAsync(
+        this in RespStrings strings,
+        RedisKey key,
+        ValueCondition when,
+        CommandFlags flags,
+        CancellationToken cancellationToken,
+        string caller)
     {
         switch (when.Kind)
         {
@@ -508,7 +531,7 @@ public static partial class Strings
                     cancellationToken: cancellationToken);
 
             default:
-                return ThrowUnsupportedCondition<ValueTask<bool>>(when, nameof(DeleteAsync));
+                return ThrowUnsupportedCondition<ValueTask<bool>>(when, caller);
         }
     }
 

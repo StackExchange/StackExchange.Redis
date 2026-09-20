@@ -132,11 +132,27 @@ is short enough to work through directly:
       the flag but never asked the map, and rendered a `SCRIPT LOAD` the map forbids.
 - [x] **`HyperLogLogCountReplicaSafe` — not a gap.** Already handled by `CountFlags`; listed in error
       when the census was first written, and corrected here rather than left to mislead.
+- [x] **Condition refusals name the member the caller actually called, 2026-09-20.** The rule lives once
+      in the context surface's switch; the *name* cannot, because the two surfaces spell the operation
+      differently — being told `DeleteAsync` cannot be used when you called `StringDeleteAsync` is a poor
+      error, and a second copy of the switch in the adapter would be free to drift. The caller's name is
+      threaded through an internal overload instead.
 - [ ] **`HSCAN`/`SSCAN`/`ZSCAN` availability and `features.Scan`.** Shipped's `TryScan` returns null when
-      the map disables the command or the server is too old, and the caller then takes a non-cursor path.
-      The new scanning code asks neither.
+      the map disables the command or the server is too old, and the caller then falls back: no cursor and
+      no pattern becomes a single `HGETALL` wrapped as a one-page cursor, and anything else throws a clear
+      `NotSupported`. The new scanning code asks neither, so it emits `HSCAN` and gets a loud
+      command-map error instead — wrong, but *loudly* wrong, which is why this ranks below the silent ones.
 - [ ] **`SCAN` in `RedisServer.Keys`** — falls back to `KEYS` when unavailable. Server surface, so it
       belongs with that work rather than here.
+
+- [ ] **Cross-suite interference in the full run, separate from any surface gap.** Several suites pass in
+      isolation and fail intermittently in the full suite — `ScanTests` (183/183 alone), `CopyTests`,
+      `HashImportTests`, `NewCoreSetTests.SScan`. A re-run of the identical build went 3 failures → 0.
+      These share a connection fixture and, through `RespNewCoreFixture`'s `ConditionalWeakTable`, a
+      single `RespNewCore` per multiplexer — so the new-core wrappers contend in ways the originals never
+      did. **This blocks converting the remaining suites**, because a suite that is green alone and red
+      in the run cannot be kept. Diagnose the contention before converting more; it is not a gap and
+      should not be counted as one.
 
 **The rule that keeps falling out of these, worth stating once:** when a command choice is uncertain,
 which way to guess depends on what the *fallback* costs. `PEXPIRE` → `EXPIRE` loses precision silently,
