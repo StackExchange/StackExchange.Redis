@@ -77,7 +77,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         Flag_Parser = 1 << 4,           // a parser was supplied
         Flag_MetadataParser = 1 << 5,   // the parser wants to see attributes/metadata itself
         Flag_InlineParser = 1 << 6,     // the parser is safe to run on the IO thread
-        Flag_Indefinite = 1 << 7;       // the outcome does not prove the pipeline is done with us
+        Flag_Indefinite = 1 << 7,       // the outcome does not prove the pipeline is done with us
+        Flag_Queued = 1 << 8;           // accepted by an owner that will send it later - a backlog
 
     private const int FlagMask = 0xFFFF;
 
@@ -404,6 +405,48 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         return TryClaimOutcome(token) && Fail(new OperationCanceledException(named), definite: true);
     }
 
+    /// <summary>
+    /// Cancel this operation, running the waiter's continuation <b>inline</b> on the calling thread.
+    /// </summary>
+    /// <param name="token">The operation's token.</param>
+    /// <param name="cancellationToken">The token to report as the cause.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>The default is asynchronous continuations, and this is the narrow exception.</b> The reason for
+    /// the default is above: the thread that publishes an outcome is normally the connection's read loop,
+    /// and running arbitrary user code there head-of-line blocks every other reply on that socket. That
+    /// reasoning does not apply to an operation being cancelled by a caller that <i>never sent it</i> -
+    /// there is no read loop involved, and the calling thread is the one that decided to cancel.
+    /// </para>
+    /// <para>
+    /// <b>Only use this where the operation provably cannot be completed from the IO loop</b>, which in
+    /// practice means one that was never written. A conditional transaction whose condition did not hold
+    /// is exactly that case: its queued commands never reached a socket, and the shipped surface
+    /// guarantees they have already transitioned to <c>Canceled</c> by the time <c>ExecuteAsync</c>'s own
+    /// task completes. Callers read <c>.Status</c> immediately rather than awaiting, so "cancelled, and
+    /// the continuation will run shortly" is not good enough - it has to be done.
+    /// </para>
+    /// <para>
+    /// The flag is restored before returning. <c>ManualResetValueTaskSourceCore.Reset</c> does <b>not</b>
+    /// clear it, so leaving it false would quietly make the next life of a pooled operation complete
+    /// inline - from the read loop, which is the thing this is not allowed to do.
+    /// </para>
+    /// </remarks>
+    public bool TrySetCanceledInline(short token, CancellationToken cancellationToken = default)
+    {
+        _asyncCore.RunContinuationsAsynchronously = false;
+        try
+        {
+            return TrySetCanceled(token, cancellationToken);
+        }
+        finally
+        {
+            // unconditionally back to the safe default, even if the inline continuation recycled and
+            // re-rented this instance: true is what a fresh life wants anyway
+            _asyncCore.RunContinuationsAsynchronously = true;
+        }
+    }
+
     /// <inheritdoc/>
     void IRespMessage.TrySetCanceled()
     {
@@ -524,7 +567,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         // the CORE's status, not Flag_Complete: the flag is now set before the outcome is published, so
         // a waiter that trusted it could call GetResult on a core that has nothing in it yet
         if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending) return GetResult(token);
-        if (!HasFlag(Flag_Sent)) ThrowNotSent();
+        if (!HasFlag(Flag_Sent | Flag_Queued)) ThrowNotSent();
 
         CheckToken(token);
         var timedOut = false;
@@ -567,6 +610,30 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         if (token != _asyncCore.Version) _ = _asyncCore.GetStatus(token); // for the consistent message
     }
 
+    /// <summary>
+    /// Record that an owner has accepted this operation and will send it - a backlog, typically.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Distinct from sent, and the distinction is what <c>Wait</c> needs.</b> The guard on the
+    /// blocking and status paths exists to catch a real mistake - awaiting a command that belongs to a
+    /// batch or transaction that has not been executed, which would hang forever because nothing is ever
+    /// going to send it. A backlogged command is the opposite case: nobody has written it yet, but
+    /// somebody has promised to, so waiting is exactly right.
+    /// </para>
+    /// <para>
+    /// Without this, a <b>synchronous</b> command that arrives while the connection is still coming up -
+    /// or while a conditional transaction holds the write slot - throws "this command has not been sent"
+    /// instead of waiting for it. That surfaced as intermittent scan failures, because a cursor loop is
+    /// a long run of synchronous sends and only needs to be unlucky once.
+    /// </para>
+    /// </remarks>
+    public void MarkQueued()
+    {
+        SetFlag(Flag_Queued);
+        _diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+    }
+
     private static void ThrowNotSent() => throw new InvalidOperationException(
         "This command has not been sent, so it cannot be awaited. If it belongs to a batch or transaction, execute that first.");
 
@@ -579,7 +646,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     public ValueTaskSourceStatus GetStatus(short token)
     {
         var status = _asyncCore.GetStatus(token);
-        if (!HasFlag(Flag_Sent)) ThrowNotSent();
+        if (!HasFlag(Flag_Sent | Flag_Queued)) ThrowNotSent();
         return status;
     }
 

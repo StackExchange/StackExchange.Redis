@@ -30,8 +30,11 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
 
         var db = GetDatabase(conn);
         var tran = db.CreateTransaction();
-        var redisTransaction = Assert.IsType<RedisTransaction>(tran);
-        Assert.Throws<NotSupportedException>(() => redisTransaction.CreateTransaction(null));
+
+        // through the INTERFACE, not the concrete type: nesting being refused is the contract, and
+        // RedisTransaction being the thing that refuses it is an implementation detail. Pinning the type
+        // made this the one test in the suite that a second ITransaction implementation could not satisfy.
+        Assert.Throws<NotSupportedException>(() => ((IDatabaseAsync)tran).CreateTransaction(null));
     }
 
     [Theory]

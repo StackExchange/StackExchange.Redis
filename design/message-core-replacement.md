@@ -1352,6 +1352,55 @@ the two tests encoded why it is not. Reading them first would have been quicker 
 did not want. That is a latency gap rather than a correctness one, and it interacts with how write
 failures surface, so it wants deciding rather than pattern-matching.
 
+### 7v. Closing out the batch/transaction suites: two real bugs behind the "known" failures
+
+The three remaining failures after §7u were labelled "characterised, none a core defect". Two of them
+were core defects, and the label was wrong because I had stopped at the first plausible explanation.
+
+**The nested-transaction test was the one genuine test-only fix.** `Assert.IsType<RedisTransaction>(tran)`
+pinned the shipped concrete type, so it was the one assertion in the suite a second `ITransaction`
+implementation could not satisfy. Asserting through `IDatabaseAsync` tests the contract instead. That
+exposed the second half: `TransitionalBatch` declared its own public `CreateTransaction`, which the
+interface never reached, because `IDatabaseAsync.CreateTransaction` is an **explicit** implementation on
+the base. `RedisDatabase` had already solved this with a runtime `this is IBatch` check in one method
+rather than two that can disagree — copied, because it is the better shape and not merely the shipped one.
+
+**A conditional transaction was dialling a new connection for every command issued while it ran.** The
+`.Status`-timing story from §7t turned out to be hiding this. Making cancellation inline (below) left one
+failure that was deterministic rather than flaky, and it reported *"the connection was lost"* while both
+the old and the new connection were open — which is not what "lost" looks like.
+
+The cause: the backlog branch in `Dispatch`/`Enqueue` ends with `EnsureConnecting()`, because it was
+written for "there is no connection". §7t reused that branch for "the write slot is held", where the
+connection is perfectly good and merely busy. So every command arriving during a conditional transaction
+started a fresh socket, which replaced `_connection`, and the transaction then found its **named**
+connection changed and refused to send — the §7r safety check doing exactly its job, on a problem
+manufactured one layer below it. Reusing a branch reuses its side effects, and this is the second time in
+two sections that a branch has been shared on the strength of its *condition* while its *body* carried an
+assumption that no longer held.
+
+**A synchronous command that landed in the backlog could not be waited on at all.** This is the one worth
+keeping: it was dismissed as scan flakiness twice, including once in a queue entry that said "do not
+assume it is harmless". `RespMessageBase.Wait` guards on `Flag_Sent`, and the guard is right — awaiting a
+command whose batch has not been executed would hang forever, because nothing is ever going to send it.
+But a *backlogged* command is the opposite case: nothing has written it yet, and somebody has promised to.
+The operation had no way to say so, so the sync path threw `"This command has not been sent"`.
+
+Reachable long before any of this work: any synchronous command issued while the connection is still
+coming up hits it. It presented as intermittent scan failures because a cursor loop is a long run of
+synchronous sends and only needs to be unlucky once, and it got more reachable with the write slot.
+`Flag_Queued`/`MarkQueued` names the state; `Wait` and `GetStatus` accept either.
+
+**Inline cancellation, narrowly.** The queued commands of a transaction whose condition failed are
+cancelled by a caller that never sent them - no read loop is involved - so `TrySetCanceledInline`
+completes them on the calling thread, and the shipped guarantee that they have transitioned by the time
+`ExecuteAsync`'s task completes holds again. The flag is restored before returning, because
+`ManualResetValueTaskSourceCore.Reset` does not clear it and a pooled operation's next life would
+otherwise complete inline *from the read loop* - the one thing this is not allowed to do.
+
+`BatchTests` and `TransactionTests` now pass in full, on both protocols, against the new core: 926/926
+across the wrapped and unwrapped forms, and three consecutive full-suite runs with the scan failures gone.
+
 ---
 
 ## 8. Open questions

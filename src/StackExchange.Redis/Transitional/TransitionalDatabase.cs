@@ -194,11 +194,21 @@ namespace StackExchange.Redis
         /// every one of <c>RedisDatabase</c>'s ~504 members had to stay to serve it.
         /// </remarks>
         public IBatch CreateBatch(object? asyncState = null)
-            => TransitionalBatch.CreateBatch(_inner, multiplexer, asyncState ?? AsyncState);
+        {
+            // the runtime check rather than a virtual, exactly as RedisDatabase does it - and for a reason
+            // worth keeping: IDatabaseAsync.CreateTransaction is an EXPLICIT implementation on this type,
+            // so a derived class that merely declares its own public CreateTransaction is never reached
+            // through the interface. One method that asks what it is beats two that can disagree.
+            if (this is IBatch) throw new NotSupportedException("Nested batches are not supported");
+            return TransitionalBatch.CreateBatch(_inner, multiplexer, asyncState ?? AsyncState);
+        }
 
         /// <inheritdoc cref="CreateBatch"/>
         public ITransaction CreateTransaction(object? asyncState = null)
-            => TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState);
+        {
+            if (this is IBatch) throw new NotSupportedException("Nested transactions are not supported");
+            return TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState);
+        }
 
         ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
 

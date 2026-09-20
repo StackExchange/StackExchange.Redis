@@ -287,9 +287,16 @@ namespace StackExchange.Redis
                 {
                     if (!_queueWhileDisconnected && !_writeSlotHeld) return false;
 
-                    operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+                    operation.MarkQueued();
                     (_backlog ??= new()).Enqueue(operation);
-                    EnsureConnecting();
+
+                    // ONLY when there is nothing to send on. This branch is shared with "the write slot
+                    // is held", where the connection is perfectly good and merely busy - and dialling a
+                    // new socket there replaces _connection underneath the slot holder, who then sees its
+                    // named connection change and fails the transaction it was in the middle of. That is
+                    // exactly how it presented: a conditional transaction reporting the connection lost,
+                    // with neither the old nor the new connection closed.
+                    if (connection is null || connection.IsClosed) EnsureConnecting();
                     return true;
                 }
             }
@@ -329,9 +336,16 @@ namespace StackExchange.Redis
                     // WaitingInBacklog, not WaitingToBeSent, and it matters beyond the report: a command
                     // still in the backlog provably never reached a socket, which is what lets
                     // FaultContext.NotApplied bypass retry's side-effect cap if this ends badly
-                    operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+                    operation.MarkQueued();
                     (_backlog ??= new()).Enqueue(operation);
-                    EnsureConnecting();
+
+                    // ONLY when there is nothing to send on. This branch is shared with "the write slot
+                    // is held", where the connection is perfectly good and merely busy - and dialling a
+                    // new socket there replaces _connection underneath the slot holder, who then sees its
+                    // named connection change and fails the transaction it was in the middle of. That is
+                    // exactly how it presented: a conditional transaction reporting the connection lost,
+                    // with neither the old nor the new connection closed.
+                    if (connection is null || connection.IsClosed) EnsureConnecting();
                     return operation;
                 }
             }
@@ -352,9 +366,16 @@ namespace StackExchange.Redis
 
                 if (_queueWhileDisconnected && !_disposed)
                 {
-                    operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+                    operation.MarkQueued();
                     (_backlog ??= new()).Enqueue(operation);
-                    EnsureConnecting();
+
+                    // ONLY when there is nothing to send on. This branch is shared with "the write slot
+                    // is held", where the connection is perfectly good and merely busy - and dialling a
+                    // new socket there replaces _connection underneath the slot holder, who then sees its
+                    // named connection change and fails the transaction it was in the middle of. That is
+                    // exactly how it presented: a conditional transaction reporting the connection lost,
+                    // with neither the old nor the new connection closed.
+                    if (connection is null || connection.IsClosed) EnsureConnecting();
                     return;
                 }
             }

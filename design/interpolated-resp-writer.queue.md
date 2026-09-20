@@ -105,16 +105,52 @@ existing suites run through it. This is the outstanding list, in the order thing
       on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
       stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
 
+- [ ] **Should multi-key reads scatter-gather across a cluster? (`MGET` and friends.)** Raised for
+      **cross-library parity**: several other clients split a multi-key command across the nodes that own
+      the slots and reassemble the result, where this library refuses it — `RespMultiplexerExecutor`
+      throws `ThrowCrossSlot`, on the grounds that there is no order in which to do the halves that would
+      mean anything. Callers coming from another client hit a wall where they expected it to just work.
+
+      The design note that makes this *thinkable* rather than a contradiction is §7t's: per-slot ordering
+      is all this library can ever promise, and commands for different slots already run concurrently on
+      different nodes. So a scattered `MGET` gives up nothing that a single-node `MGET` was offering —
+      there was never cross-slot atomicity to lose. What it does give up is the ability to say "this
+      command hit one server", which matters for `IdentifyEndpoint`, profiling, and what a
+      `RedisServerException` from one shard means for the other shards' results.
+
+      **Optimised for "not", explicitly.** The single-slot path must stay exactly what it is today — one
+      request, one connection, no grouping, no reassembly buffer — because that is the overwhelmingly
+      common case and the fast path §3b was built around. Any scatter-gather belongs behind the
+      already-computed `MultipleSlots` check, which is a branch that is currently a throw and would
+      become a slower path taken only by callers who asked for something that genuinely spans shards.
+
+      **Transactions and batches are an exclusion, not an edge case.** A command queued inside `MULTI`
+      cannot be scattered: `MULTI` is per-connection state, so the queued command has to go to the
+      connection that holds the transaction, and splitting it across nodes would mean several `MULTI`s
+      that no `EXEC` can make atomic. A batch is the same argument one step weaker — its contract is one
+      contiguous run on one connection, which scattering dissolves. So whatever the answer is, both
+      executors have to refuse it explicitly rather than inherit it, and the refusal must be a clear
+      error rather than a silent single-node send. Worth pinning with a test in the same change, because
+      this is exactly the kind of exclusion that reads as obvious and gets dropped.
+
+      Other open questions: opt-in flag or default; whether partial failure yields an exception or a
+      result with holes; whether the same treatment extends to `MSET`/`DEL`/`UNLINK` (writes make the
+      atomicity question sharper, since a partial `MSET` is observable); and whether `KEYS`/`SCAN`-shaped
+      fan-out is the same problem or a different one. Survey what Jedis, go-redis, StackExchange's own
+      users and the cluster spec actually do before deciding.
+
 - [ ] **Fire-and-forget does not short-circuit at the endpoint executor.** `RespBatchExecutor`,
       `RespMessageExecutor` and now `RespTransactionExecutor` answer it with a null payload; the endpoint
       and connection executors do not, so an ordinary `db.StringIncrement(k, 1, FireAndForget)` still
       waits for a reply nobody wants. Latency, not correctness — but it interacts with how write failures
       surface (`FireAndForgetIsNotRetried` pins that they do), so it needs deciding, not pattern-matching.
 
-- [ ] **`NewCoreSetTests.SScan` / `NewCoreHashTests.ScanNoValues` are flaky under full-suite load.**
-      Pass in isolation and with a narrow filter; fail intermittently in the full run. First seen in the
-      commit that added the new-core batch/transaction suites, which is also the commit that added the
-      ordered write slot — so not yet attributed to either. Not diagnosed; do not assume it is harmless.
+- [x] **The scan flakiness was a real sync-path bug, 2026-09-20.** Not test flakiness: a *synchronous*
+      command that lands in the backlog threw "This command has not been sent, so it cannot be awaited"
+      instead of waiting. `RespMessageBase` only knew *sent*, and the guard exists to catch awaiting a
+      command whose batch has not been executed — a backlogged command is the opposite case. Added
+      `Flag_Queued`/`MarkQueued`. A cursor loop is a long run of synchronous sends, so scans only had to
+      be unlucky once, which is why it looked like flakiness. See §7v.
 
 - [ ] **Release note: `.Status` read without awaiting can now be `WaitingForActivation`.** This core sets
       `RunContinuationsAsynchronously`, so a task is completed but may not have transitioned at the

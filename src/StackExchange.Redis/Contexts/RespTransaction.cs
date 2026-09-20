@@ -312,8 +312,11 @@ namespace StackExchange.Redis
             // NOT an exception: "a precondition did not hold" is a real outcome of a real transaction,
             // and the old surface reports it by returning false from Execute while every queued command's
             // task completes as cancelled rather than faulted
+            // INLINE, deliberately: these never reached a socket, so there is no read loop to protect,
+            // and the shipped surface guarantees they have transitioned by the time ExecuteAsync's task
+            // completes - callers read .Status rather than awaiting. See TrySetCanceledInline.
             if (queue is null) return;
-            foreach (var operation in queue) operation.TrySetCanceled(operation.Token);
+            foreach (var operation in queue) operation.TrySetCanceledInline(operation.Token);
         }
 
         private static void Unwatch(RespConnection connection)
