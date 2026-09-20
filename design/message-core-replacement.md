@@ -1467,19 +1467,30 @@ and reads through the same wrapper sees exactly what it expects. Only a test tha
 `CopyTests.CrossDB`, comparing against the shipped database - can see the difference. Self-consistent
 wrongness is invisible to self-consistent tests.
 
-**Refused rather than fixed, for now.** `GetDatabase` throws for any index the connection cannot reach,
-and `RespNewCoreFixture` skips instead of silently exercising the wrong database - which immediately
-turned eight passing locking tests into skips, because their multi-database coverage had been fake. That
-is the guard earning its place on the first run.
+**Refused first, then fixed.** The interim guard - `GetDatabase` throwing, the fixture skipping - earned
+its place inside one run by turning eight *passing* locking tests into skips, their multi-database
+coverage having been fake all along.
 
-**The real fix is the preamble capability, not a new mechanism.** It needs connection-level tracking of
-the currently-selected database and a `SELECT` injected immediately before any command for a different
-one, with nothing interleaved - which is exactly what §7s recorded as unreachable because
-`IRespPreambleGate.IsNeeded` takes a `PhysicalConnection`. So `SELECT`-injection, `SCRIPT LOAD`-before-
-`EVALSHA`, and the hash-import prepare are one piece of work with three callers, and the ordered write
-slot from §7t is already the primitive that makes the "nothing interleaved" part true. That reframes the
-preamble item from an optimisation ("an `EVALSHA` carries a `SCRIPT LOAD` it does not need") to a
-correctness blocker: **the new core cannot replace the old one until it can inject a preamble.**
+**The fix is a connection per (endpoint, database).** The endpoint cache is keyed by database first,
+because that is the axis that decides which connection; `SELECT` then happens once per connection, at its
+own handshake, and can never be stale. Verified against the shipped surface rather than itself: writing
+`"zero"` to database 0 and `"other"` to another, both surfaces now agree about which is which.
+
+**That is deliberately not what the shipped core does**, and the difference is worth stating. There, one
+connection serves every database and a `SELECT` is injected immediately before any command for a
+different one - cheaper in sockets, and the reason the shipped path needs a preamble mechanism at all.
+Multiplexing databases over one connection means every such command must be written as a contiguous
+pair, which is the capability §7s recorded as unreachable. A connection each is correct today and costs a
+socket per database *actually used* - and databases are rare, discouraged in cluster, and usually one.
+
+So the preamble stays queued, but as the optimisation it originally was rather than the correctness
+blocker this briefly made it: `SELECT` no longer needs it, while `SCRIPT LOAD`-before-`EVALSHA` and the
+hash-import prepare still do. The ordered write slot from §7t remains the primitive the pair-write will
+want.
+
+**The test that now pins it does something no wrapped suite could**: it compares *across* databases and
+*against the shipped surface*. A suite that writes and reads through one wrapper cannot see this class of
+bug however many times it is run.
 
 ---
 

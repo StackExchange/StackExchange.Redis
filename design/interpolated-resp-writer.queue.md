@@ -105,17 +105,18 @@ existing suites run through it. This is the outstanding list, in the order thing
       on a completed value can return the shared `Task.FromResult` singleton — which is what rules out
       stamping `m_stateObject` via `UnsafeAccessor` on that path. See §7u.
 
-- [ ] **BLOCKER: the new core cannot reach any database but the handshake's, and said nothing.** `SELECT`
-      runs once at handshake and the endpoint cache is keyed by endpoint alone, so `GetDatabase(5)` reads
-      and writes database 0 — verified against the shipped surface. Now **refused** (`GetDatabase` throws,
-      the test fixture skips), which turned 8 silently-fake locking tests into honest skips.
+- [x] **The new core could not reach any database but the handshake's, 2026-09-20.** `SELECT` ran once at
+      handshake and the endpoint cache was keyed by endpoint alone, so `GetDatabase(5)` read and wrote
+      database 0 — silently, and verified against the shipped surface. Fixed by keying the cache by
+      database first: **a connection per (endpoint, database)**, so `SELECT` happens once per connection
+      and cannot go stale. Pinned by a test that compares across databases *and* against the shipped
+      surface, which is the only shape that can see it. See §7x.
 
-      The fix is **the preamble capability**, not a new mechanism: connection-level tracking of the
-      selected database plus a `SELECT` injected immediately before any command for a different one, with
-      nothing interleaved. That is the same capability `SCRIPT LOAD`-before-`EVALSHA` and the hash-import
-      prepare need, and the §7t write slot is already the primitive for "nothing interleaved". **This
-      promotes the preamble item from an optimisation to a correctness blocker for the deletion.**
-      See §7x.
+- [ ] **Multiplex databases over one connection, when the preamble lands.** Shipped serves every database
+      from one connection by injecting `SELECT` before any command for a different one. This costs a
+      socket per database actually used instead — correct, and cheap in practice since databases are rare
+      and usually one, but not what shipped does. Revisit with the preamble capability; the §7t write slot
+      is already the primitive the pair-write needs.
 
 ### How to progress the gaps: sweep the decisions, don't grind the suites
 

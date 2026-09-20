@@ -38,15 +38,6 @@ public abstract class RespNewCoreFixture
         var core = Cores.GetValue(muxer, static m => new RespNewCore(m));
         var wanted = db < 0 ? 0 : db;
 
-        // SKIPPED rather than silently wrong. The new core SELECTs once at handshake, so a context for
-        // any other database reaches the handshake's one - which was invisible until RespNewCore started
-        // refusing it, and had been quietly making several suites' multi-database coverage fake. Skipping
-        // says so; catching the throw and carrying on would not. See design notes 7x.
-        if (wanted != core.Database)
-        {
-            Assert.Skip($"The new core cannot yet serve database {wanted}; it SELECTs once at handshake.");
-        }
-
         return new TransitionalDatabase(core.GetDatabase(wanted), conn, asyncState, conn.GetDatabase(db, asyncState));
     }
 
@@ -330,4 +321,42 @@ public class NewCoreLockingTests(ITestOutputHelper output) : LockingTests(output
 
     /// <inheritdoc/>
     protected override bool CountsMultiplexerOps => false;
+}
+
+/// <summary>
+/// That the new core reaches the database it was asked for.
+/// </summary>
+/// <remarks>
+/// <b>Not covered by any wrapped suite, and that is the point.</b> Suites that use a dedicated database
+/// passed while every command silently went to database 0, because they write and read through the same
+/// wrapper and self-consistent wrongness is invisible to a self-consistent test. Only a comparison
+/// ACROSS databases - and against the shipped surface - can see it. See design notes 7x.
+/// </remarks>
+[RunPerProtocol]
+public class NewCoreDatabaseRoutingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
+{
+    [Fact]
+    public async Task EachDatabaseIsItsOwn()
+    {
+        await using var conn = Create();
+        var db0 = RespNewCoreFixture.Wrap(conn, 0, null);
+        var other = TestConfig.GetDedicatedDB(conn);
+        if (other == 0) Assert.Skip("needs a database other than 0");
+        var dbN = RespNewCoreFixture.Wrap(conn, other, null);
+
+        RedisKey key = Me();
+        await db0.KeyDeleteAsync(key);
+        await dbN.KeyDeleteAsync(key);
+
+        await db0.StringSetAsync(key, "zero");
+        await dbN.StringSetAsync(key, "other");
+
+        Assert.Equal("zero", (string?)await db0.StringGetAsync(key));
+        Assert.Equal("other", (string?)await dbN.StringGetAsync(key));
+
+        // and the shipped surface agrees, which is the assertion that actually failed before: the writes
+        // have to land where the INDEX says, not merely be self-consistent
+        Assert.Equal("zero", (string?)await conn.GetDatabase(0).StringGetAsync(key));
+        Assert.Equal("other", (string?)await conn.GetDatabase(other).StringGetAsync(key));
+    }
 }

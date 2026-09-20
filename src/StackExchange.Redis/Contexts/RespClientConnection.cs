@@ -49,6 +49,22 @@ namespace StackExchange.Redis
         RESPite.Transports.DuplexTransport transport,
         RespRedirectRouter router) : RespConnection(transport)
     {
+        /// <summary>Which database this connection is currently <c>SELECT</c>ed onto.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Connection state, and the reason a database index cannot simply be carried on the request.</b>
+        /// <c>SELECT</c> is sticky: it changes the connection until something changes it back, so a command
+        /// for another database has to be preceded by its own <c>SELECT</c>, and the two must reach the
+        /// socket with nothing between them or the command runs against whatever the interloper selected.
+        /// </para>
+        /// <para>
+        /// Set by the handshake and then only by the pair-write that changes it, both of which happen under
+        /// the connection's write lock - so a reader of this is either the writer itself or somebody who
+        /// will re-check under that lock before acting.
+        /// </para>
+        /// </remarks>
+        internal int CurrentDatabase { get; set; }
+
         /// <inheritdoc/>
         protected override bool TryHandOff(ReadOnlySpan<byte> frame, IRespMessage message)
         {

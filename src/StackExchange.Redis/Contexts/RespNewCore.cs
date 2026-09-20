@@ -31,7 +31,7 @@ namespace StackExchange.Redis
     {
         private readonly ConnectionMultiplexer _multiplexer;
         private readonly RespTopology _topology;
-        private readonly ConcurrentDictionary<EndPoint, RespEndpointExecutor> _endpoints = new();
+        private readonly ConcurrentDictionary<int, ConcurrentDictionary<EndPoint, RespEndpointExecutor>> _endpoints = new();
 
         /// <summary>What each endpoint's own handshake reported about itself.</summary>
         /// <remarks>
@@ -46,14 +46,7 @@ namespace StackExchange.Redis
         {
             _multiplexer = multiplexer;
             _topology = new RespTopology(multiplexer.ServerSelectionStrategy.ServerType);
-            _router = new RespMultiplexerExecutor(
-                _topology,
-                ForSlot,
-                Any,
-                multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault(),
-                ForEndpoint,
-                OnSlotMoved,
-                OnTopologySuspect);
+            _router = Rebind(multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
         }
 
         /// <summary>The one database this core can reach; see <c>GetDatabase</c>.</summary>
@@ -71,33 +64,42 @@ namespace StackExchange.Redis
         /// </remarks>
         internal RespDatabaseContext GetDatabase(int database = 0)
         {
-            // REFUSED, because the alternative is silent data corruption. SELECT is issued once, by the
-            // handshake, for the connection's configured database; the endpoint cache is keyed by endpoint
-            // alone, so every context resolves to that one connection whatever index it was asked for.
-            // A context for database 5 therefore READS AND WRITES DATABASE 0 with no error of any kind -
-            // verified directly: writing "five" through a db-5 context and reading it back through the
-            // shipped db-0 database returns "five".
-            //
-            // The real fix is connection-level database tracking with SELECT injected immediately before
-            // any command for a different index - and "immediately before, with nothing interleaved" is
-            // exactly the preamble capability section 7s recorded as unreachable on this core, so the two
-            // are one piece of work rather than two. Until then this throws, because a spike that
-            // quietly writes to the wrong database is worse than one that admits it cannot.
-            if (database != _router.Database)
-            {
-                throw new NotSupportedException(
-                    $"The new core cannot yet serve database {database}: SELECT is issued once at handshake, "
-                    + $"so this connection only reaches database {_router.Database}. See design notes 7x.");
-            }
-
             return new(new RespContext(
                     _multiplexer.RawConfig.CommandMap,
                     database: database,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
                 .WithServices(new RedisBase.ServerFeatureProbe((RedisBase)_multiplexer.GetDatabase(database)))
-                .WithExecutor(_router));
+                .WithExecutor(database == _router.Database ? _router : Rebind(database)));
         }
+
+        /// <summary>A router whose endpoints are the ones connected to <paramref name="database"/>.</summary>
+        /// <remarks>
+        /// <b>A connection per (endpoint, database), which is not what the shipped core does.</b> There,
+        /// one connection serves every database and a <c>SELECT</c> is injected immediately before any
+        /// command for a different one - cheaper in sockets, and the reason the shipped path needs a
+        /// preamble mechanism at all.
+        /// <para>
+        /// This is the honest trade for now: <c>SELECT</c> is sticky connection state, so multiplexing
+        /// databases over one connection means every such command must be written as a contiguous pair,
+        /// which is the capability section 7s recorded as unreachable. A connection each is correct today
+        /// and costs a socket per database actually used - and databases are rare, discouraged in cluster,
+        /// and usually one. Revisit when the preamble lands; the write slot from 7t is already the
+        /// primitive the pair-write needs.
+        /// </para>
+        /// <para>
+        /// It replaced something far worse: before this, every database resolved to the SAME connection and
+        /// silently read and wrote the handshake's database. See section 7x.
+        /// </para>
+        /// </remarks>
+        private RespMultiplexerExecutor Rebind(int database) => new(
+            _topology,
+            (slot, command, flags) => ForSlot(database, slot, command, flags),
+            (command, flags) => Any(database, command, flags),
+            database,
+            endpoint => Executor(database, endpoint),
+            OnSlotMoved,
+            OnTopologySuspect);
 
         /// <summary>
         /// Which endpoint owns a slot, according to the multiplexer's own topology.
@@ -113,23 +115,21 @@ namespace StackExchange.Redis
         /// part of choosing a node, not a separate step, and <c>ServerSelectionStrategy</c> already knows
         /// which endpoints are replicas and which are reachable.
         /// </remarks>
-        private RespExecutorBase? ForSlot(int slot, RedisCommand command, CommandFlags flags)
+        private RespExecutorBase? ForSlot(int database, int slot, RedisCommand command, CommandFlags flags)
         {
             var server = _multiplexer.ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: true);
-            return server is null ? Any(command, flags) : Executor(server.EndPoint);
+            return server is null ? Any(database, command, flags) : Executor(database, server.EndPoint);
         }
 
-        private RespExecutorBase? Any(RedisCommand command, CommandFlags flags)
+        private RespExecutorBase? Any(int database, RedisCommand command, CommandFlags flags)
         {
             var server = _multiplexer.ServerSelectionStrategy.Select(
                 ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: true);
-            if (server is not null) return Executor(server.EndPoint);
+            if (server is not null) return Executor(database, server.EndPoint);
 
             var endpoints = _multiplexer.GetEndPoints();
-            return endpoints.Length == 0 ? null : Executor(endpoints[0]);
+            return endpoints.Length == 0 ? null : Executor(database, endpoints[0]);
         }
-
-        private RespExecutorBase? ForEndpoint(EndPoint endpoint) => Executor(endpoint);
 
         private void OnSlotMoved(int slot, EndPoint endpoint)
             => _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
@@ -137,18 +137,24 @@ namespace StackExchange.Redis
         private void OnTopologySuspect()
             => _multiplexer.ReconfigureIfNeeded(null, false, "unroutable redirect");
 
-        private RespEndpointExecutor Executor(EndPoint endpoint)
+        private RespEndpointExecutor Executor(int database, EndPoint endpoint)
         {
+            // keyed by database FIRST, because that is the axis that decides which connection: two
+            // databases on one endpoint are two connections, and the nested dictionary says so in its shape
+            var byEndpoint = _endpoints.TryGetValue(database, out var known)
+                ? known
+                : _endpoints.GetOrAdd(database, new ConcurrentDictionary<EndPoint, RespEndpointExecutor>());
+
             // the factory-with-state overload of GetOrAdd does not exist on the down-level targets, and
             // this is not a hot path - an endpoint is resolved once and then reused
-            return _endpoints.TryGetValue(endpoint, out var existing)
+            return byEndpoint.TryGetValue(endpoint, out var existing)
                 ? existing
-                : _endpoints.GetOrAdd(endpoint, Create(endpoint));
+                : byEndpoint.GetOrAdd(endpoint, Create(database, endpoint));
         }
 
-        private RespEndpointExecutor Create(EndPoint endpoint) => new(
-            token => ConnectAsync(endpoint, token),
-            _multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault(),
+        private RespEndpointExecutor Create(int database, EndPoint endpoint) => new(
+            token => ConnectAsync(database, endpoint, token),
+            database,
             endpoint,
             _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected,
             () => _observed.TryGetValue(endpoint, out var features) ? features : null,
@@ -161,7 +167,7 @@ namespace StackExchange.Redis
         /// moment this completes, and a backlog draining against an unset topology is the window that
         /// loses per-slot ordering. See design notes 7h.
         /// </remarks>
-        private async Task<RespConnection> ConnectAsync(EndPoint endpoint, CancellationToken cancellationToken)
+        private async Task<RespConnection> ConnectAsync(int database, EndPoint endpoint, CancellationToken cancellationToken)
         {
             var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
             await ConnectSocketAsync(socket, endpoint).ConfigureAwait(false);
@@ -179,7 +185,7 @@ namespace StackExchange.Redis
                 config.User,
                 config.Password,
                 _multiplexer.ClientName,
-                config.DefaultDatabase.GetValueOrDefault(),
+                database,
                 config.Protocol is null or RedisProtocol.Resp3,
                 _topology,
                 cancellationToken).ConfigureAwait(false);
@@ -188,6 +194,10 @@ namespace StackExchange.Redis
             // endpoint executor publishes it and drains its backlog the moment this returns, and a
             // command choosing its spelling from "we have no idea" is the case this exists to avoid
             if (result.Version is { } version) _observed[endpoint] = new RedisFeatures(version);
+
+            // the handshake's SELECT is where this connection's database is decided; recording it is what
+            // lets a later command for a different one know it has to say so first
+            connection.CurrentDatabase = database;
 
             return connection;
         }
@@ -227,7 +237,10 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()
         {
-            foreach (var executor in _endpoints.Values) await executor.DisposeAsync().ConfigureAwait(false);
+            foreach (var byEndpoint in _endpoints.Values)
+            {
+                foreach (var executor in byEndpoint.Values) await executor.DisposeAsync().ConfigureAwait(false);
+            }
             _endpoints.Clear();
         }
     }
