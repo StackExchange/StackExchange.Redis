@@ -400,11 +400,22 @@ namespace StackExchange.Redis.Protocol
             command = default; // the move is only a move if the source stops owning the buffer
         }
 
+        private static void ThrowNullKey() => throw new ArgumentException("A null key is not valid in this context");
+
         /// <summary>Append a key: prefixed, marked for invalidation, and folded into the cluster slot.</summary>
         /// <param name="value">The key to append.</param>
         public void AppendFormatted(RedisKey value)
         {
             DemandCommand();
+
+            // THE one place every key written to a frame passes through, which makes it the one place this
+            // rule belongs - the shipped surface asserts the same thing in Message's constructor, for the
+            // same reason. Without it a null key rendered as an empty bulk string and the server was asked
+            // about a key named "", which is a legal key: the command succeeded against the wrong thing.
+            //
+            // Note this is the WRITE point, not routing: a default RedisKey is perfectly valid when asking
+            // "which endpoint serves no particular key", and that path never reaches here.
+            if (value.IsNull) ThrowNullKey();
 
             // Both prefix mechanisms have to coexist: the context's prefix, and any prefix the key already
             // carries from a KeyPrefixed* decorator. RedisKey.WithPrefix would ALLOCATE to combine them (see
@@ -443,6 +454,10 @@ namespace StackExchange.Redis.Protocol
         public void AppendFormatted(RespKey value)
         {
             DemandCommand();
+
+            // the same rule as the RedisKey overload above: the two spellings of "a key" must agree about
+            // a null one, or which type a caller happened to use would decide whether it was caught
+            if (value.IsNull) ThrowNullKey();
 
             var prefix = _context.KeyPrefixSpan;
             MarkKey(_offset);

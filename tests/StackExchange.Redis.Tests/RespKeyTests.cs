@@ -73,8 +73,15 @@ public class RespKeyTests
 
         Assert.True(new RespKey(nothing).IsNull);
 
-        using var owned = ctx.Render($"{RedisCommand.GET}{(RedisKey)nothing!}");
-        using var borrowed = ctx.Render($"{RedisCommand.GET}{new RespKey(nothing)}");
+        // and a null key is REFUSED when written, by both spellings alike - which is what the shipped
+        // surface does from Message's constructor. Rendering it produced an empty bulk string, so the
+        // server was asked about a key named "" - a legal key, so the command succeeded against the
+        // wrong thing. The equivalence this test is really about is checked on a real key below.
+        Assert.Throws<ArgumentException>(() => ctx.Render($"{RedisCommand.GET}{(RedisKey)nothing!}"));
+        Assert.Throws<ArgumentException>(() => ctx.Render($"{RedisCommand.GET}{new RespKey(nothing)}"));
+
+        using var owned = ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        using var borrowed = ctx.Render($"{RedisCommand.GET}{new RespKey("k")}");
         Assert.Equal(Text(owned), Text(borrowed));
     }
 
@@ -95,9 +102,11 @@ public class RespKeyTests
         Assert.True(default(RespKey).IsNull);
         Assert.True(default(RedisKey).IsNull);
 
-        using var owned = ctx.Render($"{RedisCommand.GET}{default(RedisKey)}");
-        using var borrowed = ctx.Render($"{RedisCommand.GET}{default(RespKey)}");
-        Assert.Equal(Text(owned), Text(borrowed));
+        // and being null, neither can be written - the default is not a usable key, it is the absence of
+        // one. Routing still accepts a default key ("which endpoint serves no particular key?"); this is
+        // about what reaches a frame.
+        Assert.Throws<ArgumentException>(() => ctx.Render($"{RedisCommand.GET}{default(RedisKey)}"));
+        Assert.Throws<ArgumentException>(() => ctx.Render($"{RedisCommand.GET}{default(RespKey)}"));
     }
 
     /// <summary>An empty key is NOT a null one, though they happen to render alike.</summary>
