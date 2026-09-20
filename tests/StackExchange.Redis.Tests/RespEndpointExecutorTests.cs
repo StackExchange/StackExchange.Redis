@@ -147,8 +147,9 @@ public class RespEndpointExecutorTests
         var second = context.Strings.GetAsync("b");
         var third = context.Strings.GetAsync("c");
 
-        await WaitFor(() => executor.BacklogCount == 3);
-        Assert.Equal(1, endpoint.Attempts); // ONE attempt for three waiters, not three
+        // the connect runs on the thread pool, so wait for it to have STARTED before counting attempts -
+        // asserting immediately races the Task.Run and reads zero
+        await WaitFor(() => executor.BacklogCount == 3 && endpoint.Attempts == 1);
 
         endpoint.Gate.SetResult(true);
 
@@ -159,6 +160,7 @@ public class RespEndpointExecutorTests
 
         Assert.Equal(Expected, endpoint.Latest.Written);
         Assert.Equal(0, executor.BacklogCount);
+        Assert.Equal(1, endpoint.Attempts); // ONE attempt for three waiters, not three
 
         endpoint.Latest.Reply("$1\r\nA\r\n$1\r\nB\r\n$1\r\nC\r\n");
         Assert.Equal("A", (string?)await first);

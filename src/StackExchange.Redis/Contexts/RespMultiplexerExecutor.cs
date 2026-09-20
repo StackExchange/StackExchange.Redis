@@ -146,6 +146,17 @@ namespace StackExchange.Redis
         /// <param name="request">The rendered request, carrying its combined slot.</param>
         private RespExecutorBase Route(in RespRequest request)
         {
+            // A write demanded on a replica is refused rather than routed. The rule about WHICH commands
+            // are primary-only already exists and is shared with the interpolated writer
+            // (Message.DemandPrimary), which is why this only has to ask rather than decide: a caller who
+            // DEMANDED a replica for a write asked for something that cannot be honoured, as opposed to
+            // expressing a preference that routing may override.
+            if (Message.GetPrimaryReplicaFlags(request.Flags) == CommandFlags.DemandReplica
+                && request.Command.IsPrimaryOnly())
+            {
+                ThrowPrimaryOnly(request.Command);
+            }
+
             // THE fast path, and the reason topology is a volatile bool rather than anything richer
             if (!_topology.RoutesBySlot) return _any() ?? ThrowNoEndpoint();
 
@@ -166,6 +177,9 @@ namespace StackExchange.Redis
                 "No endpoint is available to serve this command.",
                 null,
                 CommandStatus.WaitingToBeSent);
+
+        private static void ThrowPrimaryOnly(RedisCommand command)
+            => throw new RedisCommandException($"Command cannot be issued to a replica: {command}");
 
         private static void ThrowCrossSlot()
             => throw new RedisCommandException(

@@ -903,6 +903,34 @@ tidiness rule.
 never consumed, never reset, never returned to the pool, and never released the pooled buffer holding its
 request. It is now drained explicitly.
 
+
+### 7m. The new core, in front of the existing suite
+
+`RespNewCore` builds the whole new chain — operation, connection, transport, handshake, endpoint and
+multiplexer executors, redirects — over a real `ConnectionMultiplexer`, and eight existing suites now run
+against it: **888 tests, no `Message` anywhere in the send path.**
+
+**What it borrows and what it replaces is the point.** Topology and configuration stay with
+`ConnectionMultiplexer`: which endpoints exist, which node owns a slot, what the credentials are.
+`ServerSelectionStrategy` already maintains the slot map from `CLUSTER NODES`, keeps it fresh across
+reshards, and knows about unreachable nodes — a second map maintained by the spike would be a second
+thing to get wrong and would not make the *send path* any more correct. Only sending is new.
+
+This is the same argument `TransitionalSurfaceFixture` makes one layer up, and for the same reason:
+assertions written for the shipped library know far more about what it must do than anything written
+alongside a spike.
+
+**It found a real gap immediately**, which is the whole return on the exercise:
+`SortedSetRangeStoreFailForReplica` failed because **the new core ignored replica flags entirely**. A
+write demanded on a replica must be *refused*, not routed — and the rule about which commands are
+primary-only already exists and is shared with the interpolated writer (`Message.DemandPrimary`), so the
+executor only had to ask rather than decide. That is now enforced where routing decides.
+
+**Still absent, and knowable from what is not wired:** replica *preference* (as opposed to refusal) is
+not honoured at all — `PreferReplica` routes to the primary. Profiling hooks, maintenance events and
+sentinel are likewise untouched. The suites that pass are the ones whose assertions do not depend on any
+of that.
+
 ---
 
 ## 8. Open questions
