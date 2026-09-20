@@ -48,6 +48,15 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     /// member leaves its cache warm for switching back, which nuking a shared cache would throw away.
     /// </para>
     /// <para>
+    /// <b>Knowing the replication topology would not change this.</b> The rule is not "the data might
+    /// differ" - that is incidental - but that <i>a cache entry carries an implicit subscription, and
+    /// subscriptions do not transfer</i>. <c>CLIENT TRACKING</c> is registered per connection, so
+    /// inheriting A's entries while talking to B inherits no registration on B: those entries become
+    /// unfalsifiable rather than merely possibly-stale, even if B's data is byte-identical. Active-active
+    /// and geo-replication change the invalidation <i>latency</i> (bounded by replication lag rather than
+    /// a round trip), which bounds a safe maximum age - not what happens on a switch.
+    /// </para>
+    /// <para>
     /// <b>Where the 628 generated forwarding members eventually go.</b> Every one of them exists to
     /// capture a command's arguments, resolve the active member, and replay the call against it - because
     /// the decoration happens above the command surface. Once the decoration is an executor below it,

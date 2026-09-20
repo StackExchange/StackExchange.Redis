@@ -827,6 +827,39 @@ happens in the context surface, above the executor — so delegating the send to
 never reaches it. `WithCacheResolver` fixes it the same way topology was fixed: resolved per command, and
 `null` for every other context, which costs one predictable branch on the hot path.
 
+
+### 7k. Does knowing the replication topology change the cache rule?
+
+Marc asked whether the answer differs if we positively knew we were in (1) active-active, (2)
+geo-replicated with the secondary a replica of the primary, or (3) independent deployments. Nothing in
+the codebase models this today, so it would be new configuration — worth knowing before adding it.
+
+**The answer is no, and the reason is better than the one §7j gives.** §7j argues from "the data might
+differ". That is true but incidental. The real rule:
+
+> **A cache entry carries an implicit subscription, and subscriptions do not transfer.**
+
+`CLIENT TRACKING` registration is per *connection*. Inheriting A's entries while talking to B means
+inheriting **no registration on B** — so future invalidations for those keys never arrive, and the entry
+is unfalsifiable rather than merely possibly-stale. That holds even if B's data is byte-identical to A's,
+which is exactly the case the three scenarios are asking about.
+
+What each scenario *does* change is elsewhere:
+
+| | data relationship | what actually differs |
+|---|---|---|
+| **Active-active** | converges asynchronously | invalidation latency is bounded by *replication lag*, not network RTT — a write at B reaches A's tracking only once it replicates. Bounds safe `MaxCacheAge`. |
+| **Geo-replicated** | secondary is a replica | reads from the secondary are already stale; the cache does not make that worse. The tempting error: A's cached values are *fresher* than B's, so serving them looks like an upgrade — but they carry no B subscription, and after a promotion with unreplicated loss they are from a diverged timeline. |
+| **Independent** | unrelated | nothing shared, nothing to reason about. |
+
+**And the counter-intuitive part:** per-member caching matters *more* when the topology is "related" than
+when it is independent. With independent deployments, a shared cache gives obviously-wrong answers that
+are found in the first hour. With active-active or geo-replication it gives **plausible** wrong answers —
+right key, right shape, slightly wrong value — which is the kind that survives to production.
+
+So if this is ever modelled, the useful knob is a `MaxCacheAge` ceiling derived from expected replication
+lag. Not a change to what happens on a switch.
+
 ---
 
 ## 8. Open questions
