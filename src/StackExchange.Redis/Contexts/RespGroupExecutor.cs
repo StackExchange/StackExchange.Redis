@@ -56,6 +56,10 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public override int Database { get; }
 
+        /// <inheritdoc/>
+        /// <remarks>Forwarded from the active member; a group does not send anything itself.</remarks>
+        public override bool CanCancel => _active() is { CanCancel: true };
+
         /// <summary>Whether any member is currently able to serve.</summary>
         public bool HasActiveMember => _active() is not null;
 

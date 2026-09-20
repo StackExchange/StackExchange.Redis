@@ -119,6 +119,14 @@ namespace StackExchange.Redis
         public override int Database { get; }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Forwarded from wherever a command would actually go, because that is what decides it. Asking
+        /// with no key is the honest approximation: a deployment whose endpoints disagreed about this
+        /// would be one running two different cores at once.
+        /// </remarks>
+        public override bool CanCancel => ResolveFor(default, RedisCommand.NONE, CommandFlags.None) is { CanCancel: true };
+
+        /// <inheritdoc/>
         internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
         {
             // the routing step, with no request to read a slot from - so the slot comes from the key, the

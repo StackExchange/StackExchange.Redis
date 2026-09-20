@@ -1086,11 +1086,20 @@ discovering later. `RespExecutor.SendAsync` still calls `DemandNoCancellation`, 
 token all the way into the operation (`Attach(request, flags, cancellationToken)`), so the capability is
 live and tested; the gate above it means no caller can ask for it.
 
-**So the outstanding work is a gate, not a feature.** Removing `DemandNoCancellation` has to become
-conditional on the executor rather than unconditional: the new core can honour a token, the shim cannot,
-and `RespExecutorBase` is already where capabilities like that are asked (`CanWritePreamble` set the
-precedent). Until then the honest position is that cancellation is *built* but not *offered* — which is
-the sort of thing that quietly rots, since nothing fails and no test complains.
+**Done, 2026-09-20.** `DemandNoCancellation` is now `DemandCancellable`, which asks
+`RespExecutorBase.CanCancel` instead of refusing everything. The default is **false** — the honest answer
+for anything on the classic pipeline, which cannot withdraw a request that has reached the socket, and
+cannot ignore the reply that is coming without desynchronising every reply after it. The connection and
+endpoint executors answer true; routers and decorators forward, because whether a command can be
+cancelled is a property of whatever finally sends it.
+
+Cancelled-*before*-we-start is still honoured whatever the executor says, since refusing to begin costs
+nothing — and it is checked first, a cancelled token being also a cancellable one.
+
+Proven against a real server: a pre-cancelled token throws without sending, a live token is accepted and
+the command completes, and cancelling afterwards changes nothing because the registration is released on
+any definite outcome. The `Message` shim still refuses, and a test pins that it does — the capability is
+per-executor, not a flag that got flipped globally.
 
 ---
 

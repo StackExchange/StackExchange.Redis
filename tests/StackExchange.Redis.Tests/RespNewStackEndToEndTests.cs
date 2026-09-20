@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Operations;
 using RESPite.Transports;
@@ -397,6 +398,57 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         Assert.True(executor.IsConnectedNow);
 
         output.WriteLine($"recovered across {executor.Connects} connections, {casualties} command(s) lost to the dead socket");
+    }
+
+    [Fact]
+    public async Task ACancellationTokenIsHonouredAgainstARealServer()
+    {
+        // the most-requested missing feature, and the whole reason the operation holds its own
+        // registration: the token competes for the same single-winner outcome claim a reply does
+        RespDatabaseContext context;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, _, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        // a token cancelled BEFORE we start is refused without sending anything, whatever the executor
+        using (var precancelled = new CancellationTokenSource())
+        {
+            precancelled.Cancel(); // not CancelAsync: this project targets net481 too
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                async () => await context.Strings.GetAsync(Me(), cancellationToken: precancelled.Token));
+        }
+
+        // and a live token is now ACCEPTED rather than refused with NotImplementedException, which is
+        // what SER310 has been telling people to migrate for
+        await context.Keys.DeleteAsync(Me());
+        using var cts = new CancellationTokenSource();
+        Assert.Equal(1, (long)await context.Strings.IncrementAsync(Me(), cancellationToken: cts.Token));
+
+        // the registration is released on a definite outcome, so cancelling afterwards changes nothing
+        cts.Cancel();
+        Assert.Equal("1", (string?)await context.Strings.GetAsync(Me()));
+    }
+
+    [Fact]
+    public async Task TheMessageShimStillRefusesACancellableToken()
+    {
+        // the capability is per-executor, and the shim's answer is still no - honestly so, because the
+        // classic pipeline cannot withdraw a request that has reached the socket
+        await using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort);
+        var context = conn.GetDatabase().Context;
+
+        using var cts = new CancellationTokenSource();
+        await Assert.ThrowsAsync<NotImplementedException>(
+            async () => await context.Strings.GetAsync(Me(), cancellationToken: cts.Token));
     }
 
     [Fact]

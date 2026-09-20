@@ -72,6 +72,10 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     internal RespExecutorBase Inner => _inner;
 
     /// <inheritdoc/>
+    /// <remarks>Forwarded; retrying does not change whether the thing underneath can be cancelled.</remarks>
+    public override bool CanCancel => _inner.CanCancel;
+
+    /// <inheritdoc/>
     /// <remarks>Routing is the inner executor's; retrying does not change where a key lives.</remarks>
     internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
         => _inner.ResolveFor(in key, command, flags);

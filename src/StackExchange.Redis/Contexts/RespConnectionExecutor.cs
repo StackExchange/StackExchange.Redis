@@ -44,6 +44,14 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
+        /// Yes: the operation holds the cancellation registration itself, and a cancellation competes for
+        /// the same single-winner outcome claim a reply does - so exactly one of them wins, and the caller
+        /// is never left waiting on a command it has given up on.
+        /// </remarks>
+        public override bool CanCancel => true;
+
+        /// <inheritdoc/>
+        /// <remarks>
         /// The synchronous path is the same object, waited on rather than awaited - which is the whole
         /// point of the operation carrying its own completion. There is no second mechanism here, and no
         /// result box to allocate.

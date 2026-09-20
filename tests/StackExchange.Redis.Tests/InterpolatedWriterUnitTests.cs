@@ -364,7 +364,10 @@ public class InterpolatedWriterUnitTests
         }
 
         Assert.NotNull(caught);
-        Assert.Contains("not yet supported", caught!.Message);
+
+        // the refusal is now per-executor rather than blanket - this context has none, so it cannot
+        // cancel and says so; a context over the new core accepts the token instead
+        Assert.Contains("not supported by this executor", caught!.Message);
         Assert.True(handler.BufferReturned, "the rented buffer was not handed back");
     }
 

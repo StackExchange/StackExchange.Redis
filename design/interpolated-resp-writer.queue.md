@@ -82,8 +82,11 @@ existing suites run through it. This is the outstanding list, in the order thing
       interface wrapper. `IBatch` is `IDatabaseAsync` + `Execute`, so the shape is a context whose
       executor accumulates, wrapped in something implementing the interface — which is forwarding, which
       is what `[AutoDatabase]` is for.
-- [ ] **The cancellation gate** (see the entry below): `DemandNoCancellation` refuses unconditionally, so
-      SER310 currently points users at a destination that is still shut.
+- [x] **The cancellation gate — DONE, 2026-09-20.** `DemandNoCancellation` was a blanket refusal; it is
+      now `DemandCancellable`, which asks the executor. `RespExecutorBase.CanCancel` defaults to **false**
+      (the honest answer for anything on the classic pipeline), the connection and endpoint executors
+      answer **true**, and routers and decorators forward — because whether a command can be cancelled
+      belongs to whatever finally sends it. SER310's advice is now actionable.
 - [ ] **8 SER352 throwers**: `LockExtend`, `LockRelease`, `Publish`, `StringGetWithExpiry`, sync and
       async. `Publish` wants the server-endpoint executor as a per-call hint and is **unblocked now** that
       the executor exists; the locks need transactions.
@@ -98,7 +101,7 @@ existing suites run through it. This is the outstanding list, in the order thing
       design notes §6b for why the batch/transaction gate is what holds it.
 
 
-- [ ] **Cancellation is built and tested but NOT offered — the gate is the outstanding work.** Raised by
+- [x] **Cancellation is built and tested but NOT offered — RESOLVED 2026-09-20, see the tracker above.** Raised by
       Marc 2026-09-20, asking whether the sidelined v3 branch's cancellation survived the port. It did:
       registration taken at `SetRequest`, unregistered on any definite outcome, `TrySetCanceled`
       competing for the same single-winner claim, cleared by `Reset` so a recycled operation cannot

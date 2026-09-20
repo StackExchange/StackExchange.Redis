@@ -60,6 +60,21 @@ namespace StackExchange.Redis
         /// <param name="cancellationToken">Cancels the send.</param>
         public abstract ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default);
 
+        /// <summary>Whether this executor can honour a <see cref="CancellationToken"/> once a command is sent.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Asked rather than assumed</b>, exactly as <see cref="CanWritePreamble"/> is. The default is
+        /// <see langword="false"/>, which is the honest answer for anything built on the classic pipeline:
+        /// it cannot withdraw a request that has reached the socket, and cannot ignore the reply that is
+        /// coming without desynchronising every reply after it.
+        /// </para>
+        /// <para>
+        /// A decorator should forward this rather than answer for itself - whether a command can be
+        /// cancelled is a property of the thing that finally sends it.
+        /// </para>
+        /// </remarks>
+        public virtual bool CanCancel => false;
+
         /// <summary>Which executor would actually serve this command.</summary>
         /// <param name="key">The key being addressed, or default when nothing steers the choice.</param>
         /// <param name="command">The command, which can change the answer - see <c>BITFIELD_RO</c>.</param>
@@ -559,7 +574,7 @@ namespace StackExchange.Redis
         /// The buffer is rented in the CALLER's frame, before this method is entered - the same reason the
         /// context's old cancellation check disposed the handler rather than simply throwing.
         /// </remarks>
-        private static void DemandNoCancellation(ref RespRequestBuilder request, CancellationToken cancellationToken)
+        private static void DemandCancellable(RespContext context, ref RespRequestBuilder request, CancellationToken cancellationToken)
         {
             // already cancelled is the half we CAN honour - refusing to start costs nothing - so it gets the
             // right exception rather than "not implemented". Checked first, because a cancelled token is
@@ -570,25 +585,40 @@ namespace StackExchange.Redis
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            if (cancellationToken.CanBeCanceled)
+            if (cancellationToken.CanBeCanceled && context.Executor is not { CanCancel: true })
             {
                 request.Dispose();
-                DemandNoCancellation(cancellationToken);
+                ThrowCannotCancel();
             }
         }
 
-        private static void DemandNoCancellation(CancellationToken cancellationToken)
+        /// <summary>Refuse a cancellable token unless the executor beneath can act on one.</summary>
+        /// <remarks>
+        /// <b>A capability, not a blanket refusal.</b> This used to say no to every cancellable token,
+        /// which was right when the only executor was the <c>Message</c> shim: that pipeline cannot
+        /// withdraw a request once it has reached the socket, and honouring a token there would mean
+        /// abandoning the caller while the command still runs on the server. That is not cancellation, it
+        /// is a lie about cancellation, and the wrong one to tell. The new core's operation genuinely
+        /// takes the outcome first - a cancellation competes for the same single-winner claim a reply
+        /// does - so it answers yes and the refusal stops applying to it.
+        /// </remarks>
+        private static void DemandCancellable(RespContext context, CancellationToken cancellationToken)
         {
-            // as above: cancelled-before-we-started is honoured properly, because it can be
+            // cancelled-before-we-started is honoured whatever the executor says, because it can be:
+            // refusing to start costs nothing. Checked first, since a cancelled token is also cancellable.
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (cancellationToken.CanBeCanceled)
+            if (cancellationToken.CanBeCanceled && context.Executor is not { CanCancel: true })
             {
-                throw new NotImplementedException(
-                    "Cancellation is not yet supported on this surface: the underlying pipeline cannot cancel an "
-                    + "in-flight request, so honouring the token is not possible yet. Pass 'default' until it is.");
+                ThrowCannotCancel();
             }
         }
+
+        private static void ThrowCannotCancel()
+            => throw new NotImplementedException(
+                "Cancellation is not supported by this executor: the underlying pipeline cannot cancel an "
+                + "in-flight request, so honouring the token is not possible. Pass 'default', or use a "
+                + "context whose executor supports cancellation.");
 
         private static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
             => response switch
@@ -635,7 +665,7 @@ namespace StackExchange.Redis
             CancellationToken cancellationToken)
         {
             if (handler is null) throw new ArgumentNullException(nameof(handler));
-            DemandNoCancellation(cancellationToken);
+            DemandCancellable(context, cancellationToken);
 
             // THE one place a command's retry category is applied. The frame already carries the
             // RedisCommand it rendered - stored when the command hole was written, not re-parsed - so no
@@ -746,7 +776,7 @@ namespace StackExchange.Redis
             // the inbuilt handler for TResult - so a command factory does not force its callers to spell
             // out a handler they were happy to leave implicit before the factory existed.
             handler ??= RespHandlers.Inbuilt<TResult>.Require();
-            DemandNoCancellation(cancellationToken);
+            DemandCancellable(context, cancellationToken);
 
             // THE one place a command's retry category is applied. The frame already carries the
             // RedisCommand it rendered - stored when the command hole was written, not re-parsed - so no
@@ -817,7 +847,7 @@ namespace StackExchange.Redis
             IRespHandler<TResult>? handler = null,
             CancellationToken cancellationToken = default)
         {
-            DemandNoCancellation(ref request, cancellationToken);
+            DemandCancellable(context, ref request, cancellationToken);
             var frame = request.Complete();
             return SendAsync(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require(), cancellationToken);
         }
@@ -858,7 +888,7 @@ namespace StackExchange.Redis
             CommandFlags flags = CommandFlags.None,
             CancellationToken cancellationToken = default)
         {
-            DemandNoCancellation(ref request, cancellationToken);
+            DemandCancellable(context, ref request, cancellationToken);
             var frame = request.Complete();
             var pending = SendAsync(context, ref frame, flags, RespHandlers.Success, cancellationToken);
             return pending.IsCompletedSuccessfully ? default : Awaited(pending);
@@ -927,7 +957,7 @@ namespace StackExchange.Redis
             IRespHandler<TResult>? handler = null,
             CancellationToken cancellationToken = default)
         {
-            DemandNoCancellation(ref request, cancellationToken);
+            DemandCancellable(context, ref request, cancellationToken);
             var frame = request.Complete();
             return Send(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require(), cancellationToken);
         }

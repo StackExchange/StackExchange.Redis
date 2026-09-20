@@ -76,6 +76,10 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public override int Database { get; }
 
+        /// <inheritdoc/>
+        /// <remarks>Yes; see <see cref="RespConnectionExecutor.CanCancel"/> - it is the operation that honours it.</remarks>
+        public override bool CanCancel => true;
+
         /// <summary>Whether there is a live connection right now.</summary>
         public bool IsConnectedNow
         {
