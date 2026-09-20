@@ -30,6 +30,29 @@ public partial class ConnectionMultiplexer
         /// </para>
         /// </remarks>
         DedicatedThreads = 2,
+
+        /// <summary>
+        /// Return databases built on the new RESP context surface, rather than <c>RedisDatabase</c>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The migration switch for the core replacement.</b> The transitional database implements the
+        /// whole of <see cref="IDatabase"/> over the new rendering and parsing, falling back to the shipped
+        /// database for anything that has not moved - so this changes how commands are written and replies
+        /// are read, and nothing about connections, the bridge or the pipeline.
+        /// </para>
+        /// <para>
+        /// <b>Off by default, and deliberately a flag rather than a branch.</b> The remaining failures are
+        /// a known, shrinking list, and a flag lets the suite be run both ways from one build: the default
+        /// stays green while the new surface is worked down, instead of the work living on a red tree or a
+        /// long-lived branch that drifts.
+        /// </para>
+        /// <para>
+        /// Set it before taking a database: instances are cached per multiplexer, so a connection that has
+        /// already handed out database 0 will keep handing out the same one.
+        /// </para>
+        /// </remarks>
+        NewDatabaseSurface = 4,
     }
 
     private static void SetAutodetectFeatureFlags()
@@ -43,6 +66,18 @@ public partial class ConnectionMultiplexer
         }
         catch { }
         SetFeatureFlag(nameof(FeatureFlags.PreventThreadTheft), value);
+
+        // The migration switch is settable from the environment so one build can be run both ways - the
+        // default suite green, and a second pass on the new surface - rather than the work living on a red
+        // tree. Guarded because reading the environment is not permitted in every host.
+        try
+        {
+            if (Environment.GetEnvironmentVariable("SEREDIS_NEW_DATABASE_SURFACE") is "1" or "true" or "TRUE")
+            {
+                SetFeatureFlag(nameof(FeatureFlags.NewDatabaseSurface), true);
+            }
+        }
+        catch { }
     }
 
     /// <summary>
@@ -73,6 +108,9 @@ public partial class ConnectionMultiplexer
     internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
 
     internal static bool DedicatedThreads => (s_featureFlags & FeatureFlags.DedicatedThreads) != 0;
+
+    /// <inheritdoc cref="FeatureFlags.NewDatabaseSurface"/>
+    internal static bool NewDatabaseSurface => (s_featureFlags & FeatureFlags.NewDatabaseSurface) != 0;
 
     /// <summary>
     /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there

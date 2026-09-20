@@ -1530,8 +1530,17 @@ namespace StackExchange.Redis
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
-                ? GetCachedDatabaseInstance(db) : new RedisDatabase(this, db, asyncState);
+                ? GetCachedDatabaseInstance(db) : Surface(new RedisDatabase(this, db, asyncState), asyncState);
         }
+
+        /// <summary>The database to hand out: the shipped one, or the new surface over it.</summary>
+        /// <remarks>
+        /// <b>The old database is still built either way</b>, and is handed to the new surface as its
+        /// fallback - which is what makes this switchable at all rather than all-or-nothing. Commands that
+        /// have moved take the new write path; the rest reach the server exactly as they did.
+        /// </remarks>
+        private IDatabase Surface(RedisDatabase inner, object? asyncState)
+            => NewDatabaseSurface ? new TransitionalDatabase(inner.Context, this, asyncState, inner) : inner;
 
         // DB zero is stored separately, since 0-only is a massively common use-case
         internal const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
@@ -1545,10 +1554,10 @@ namespace StackExchange.Redis
             // different instances, one of which (arbitrarily) ends up cached for later use.
             if (db == 0)
             {
-                return dbCacheZero ??= new RedisDatabase(this, 0, null);
+                return dbCacheZero ??= Surface(new RedisDatabase(this, 0, null), null);
             }
             var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
-            return arr[db - 1] ??= new RedisDatabase(this, db, null);
+            return arr[db - 1] ??= Surface(new RedisDatabase(this, db, null), null);
         }
 
         /// <summary>
