@@ -67,6 +67,37 @@ Four consequences, none of them cosmetic:
 
 ## Now
 
+### Core replacement — what is left, 2026-09-20
+
+Phases 1-4 of design notes §7 are done and phase 5 is half done; the new core is ~3,735 lines and 27
+existing suites run through it. This is the outstanding list, in the order things unblock:
+
+- [ ] **Transactions — THE GATE.** `CreateBatch`/`CreateTransaction` are the only two members still on
+      `TransitionalDatabase`'s fallback, and `RedisBatch : RedisDatabase` means the batch/transaction
+      surface **is** `RedisDatabase`'s ~504 methods. Nothing can be deleted until this lands. The
+      substantive design question is §3c's: a pause for a reply is a *contiguity boundary*, which is not
+      the same thing as a flush point, and the type has to say which it means or a transaction silently
+      promises adjacency it does not have.
+- [ ] **The `IBatch` surface.** The executor exists (`RespOperationBatchExecutor`); what is missing is the
+      interface wrapper. `IBatch` is `IDatabaseAsync` + `Execute`, so the shape is a context whose
+      executor accumulates, wrapped in something implementing the interface — which is forwarding, which
+      is what `[AutoDatabase]` is for.
+- [ ] **The cancellation gate** (see the entry below): `DemandNoCancellation` refuses unconditionally, so
+      SER310 currently points users at a destination that is still shut.
+- [ ] **8 SER352 throwers**: `LockExtend`, `LockRelease`, `Publish`, `StringGetWithExpiry`, sync and
+      async. `Publish` wants the server-endpoint executor as a per-call hint and is **unblocked now** that
+      the executor exists; the locks need transactions.
+- [ ] **The server surface, which is the long pole and has not moved.** `RedisServer` and `ServerEndPoint`
+      hold ~150 message-construction sites, and the context surface has **one** group (`Keyspace`) against
+      `IServer`'s ~70 members. Measured at the start of this work and unchanged since.
+- [ ] **Maintenance events and sentinel are not built on the new core at all.** The suites that pass
+      through it are the ones whose assertions do not depend on either.
+- [ ] **Nothing has been deleted yet, and the line delta is positive.** The only measured deletion is on
+      the parked `marc/v4-core-spike` branch: −1,833 lines from `RedisDatabase`'s synchronous half, at a
+      cost of zero tests. The ~28,000 lines of old core come out *after* transactions, not before — see
+      design notes §6b for why the batch/transaction gate is what holds it.
+
+
 - [ ] **Cancellation is built and tested but NOT offered — the gate is the outstanding work.** Raised by
       Marc 2026-09-20, asking whether the sidelined v3 branch's cancellation survived the port. It did:
       registration taken at `SetRequest`, unregistered on any definite outcome, `TrySetCanceled`
@@ -565,7 +596,11 @@ Four consequences, none of them cosmetic:
       matters. `IRedis.Ping` has always documented its result as "the observed latency", which is this
       reading rather than the other one, so the shipped docs need no change either.
 
-- [ ] **`TransitionalDatabase`: 13 unimplemented members — status, 2026-09-19.** 106 at the start of
+- [ ] **`TransitionalDatabase`: 13 unimplemented members — SUPERSEDED, 2026-09-20.** Now **8** generated
+      throwers plus **2** on the fallback (`CreateBatch`, `CreateTransaction`); `IsConnected` and
+      `IdentifyEndpoint`/`Async` came off. See the core-replacement tracker at the top. Original below.
+
+- [ ] ~~**`TransitionalDatabase`: 13 unimplemented members — status, 2026-09-19.**~~ 106 at the start of
       2026-09-18, then 71, then 43, then 17; now **8** generated (the SER352 number) plus **5 hand-written
       members that forward to the legacy fallback**, which SER352 cannot see. Marc spotted that class of
       gap: *"make sure we add scans to the list, because I think we're cheating on that"*.
@@ -1060,7 +1095,13 @@ Four consequences, none of them cosmetic:
       `System.Memory` at the library's pinned versions to bind `ValueTask`; real consumers get those
       transitively, but a netfx consumer pinning older ones hits `CS1705` before any of this matters.
 
-- [ ] **`WATCH`/`MULTI` is BLOCKED on the `Message` refactor — do not start it first.** The measurement is
+- [ ] **`WATCH`/`MULTI` — the blocker has LIFTED, 2026-09-20.** This said "blocked on the `Message`
+      refactor; do not start it first", and that was right at the time. The refactor has since happened:
+      operations complete themselves, connections write contiguous runs, and batch is built on both. What
+      remains is the transaction-specific part — the preamble, and the constraint check that may need a
+      reply *before* the tail is issued. Original note follows, for the reasoning.
+
+- [ ] ~~**`WATCH`/`MULTI` is BLOCKED on the `Message` refactor — do not start it first.**~~ The measurement is
       taken (`0ac297fe`): a condition makes `ExecuteAsync` block the *calling* thread for two round trips
       (sync 508ms vs 2ms without), because the expansion is enumerated inside a sync `WriteMessageInsideLock`
       and waits there on `Monitor.Wait`. The target is "release the thread, keep the connection reserved",
