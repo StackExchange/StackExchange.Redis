@@ -13,6 +13,7 @@ using Xunit;
 // ReSharper disable StringLiteralTypo # because of Lua scripts
 namespace StackExchange.Redis.Tests;
 
+[Collection(ScriptCacheCollection.Name)] // SCRIPT FLUSH is server-wide; see the collection
 [RunPerProtocol]
 public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {

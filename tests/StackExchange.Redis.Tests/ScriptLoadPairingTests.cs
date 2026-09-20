@@ -21,6 +21,7 @@ namespace StackExchange.Redis.Tests;
 /// write-time skip consumes - making this the test that stops that optimisation from being built on sand.
 /// </para>
 /// </remarks>
+[Collection(ScriptCacheCollection.Name)] // SCRIPT FLUSH is server-wide; see the collection
 public class ScriptLoadPairingTests(ITestOutputHelper output) : TestBase(output)
 {
     private const string Script = "return 'hello from ScriptLoadPairingTests'";

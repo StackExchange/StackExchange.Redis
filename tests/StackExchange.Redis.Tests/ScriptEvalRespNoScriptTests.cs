@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Tests;
 /// had it - while the client still has the hash cached, so every EVALSHA path has to cope with NOSCRIPT by
 /// re-issuing as EVAL. These pin that down for the RespResult-returning script APIs.
 /// </summary>
+[Collection(ScriptCacheCollection.Name)] // SCRIPT FLUSH is server-wide; see the collection
 public class ScriptEvalRespNoScriptTests(ITestOutputHelper output) : TestBase(output)
 {
     private const string ArgScript = "return ARGV[1] .. '|' .. ARGV[2]";

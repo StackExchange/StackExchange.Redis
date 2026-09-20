@@ -18,6 +18,7 @@ namespace StackExchange.Redis.Tests;
 /// acceptable - only framing was ever in question, never semantics. These are the first commands from the
 /// new writer that a server has actually seen.
 /// </remarks>
+[Collection(ScriptCacheCollection.Name)] // SCRIPT FLUSH is server-wide; see the collection
 public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private static RespDatabaseContext NewSurface(IConnectionMultiplexer conn, int db, RespClientCache? cache = null)

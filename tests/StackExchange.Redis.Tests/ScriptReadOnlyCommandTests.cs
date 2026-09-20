@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -14,6 +14,7 @@ namespace StackExchange.Redis.Tests;
 /// if we fell back, the script simply runs. A replica cannot be used to tell these apart - a modern server
 /// accepts a plain EVAL on a replica so long as the script does not write.
 /// </remarks>
+[Collection(ScriptCacheCollection.Name)] // SCRIPT FLUSH is server-wide; see the collection
 public class ScriptReadOnlyCommandTests(ITestOutputHelper output) : TestBase(output)
 {
     private const string Script = "return 1";
