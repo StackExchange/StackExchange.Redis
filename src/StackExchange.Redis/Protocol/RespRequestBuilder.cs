@@ -749,6 +749,19 @@ namespace StackExchange.Redis.Protocol
             if (value is long actual) AppendFormatted((RedisValue)actual);
         }
 
+        /// <summary>Append an unsigned 64-bit argument.</summary>
+        /// <param name="value">The value.</param>
+        /// <remarks>
+        /// <b>Needed because the fallback is silently wrong, not merely absent.</b> <see cref="ulong"/>
+        /// does not convert to <see cref="long"/>, so without this overload the compiler reaches for the
+        /// next best thing - <see cref="double"/> - and a large value renders in <i>scientific notation</i>:
+        /// <c>ulong.MaxValue</c> went to the server as <c>1.8446744073709552E+19</c>, which it rejects, and
+        /// values merely large would have been silently rounded. Found through <c>RedisArrayIndex</c>, whose
+        /// backing value is a <see cref="ulong"/>, but nothing about it was specific to arrays.
+        /// </remarks>
+        [System.CLSCompliant(false)]
+        public void AppendFormatted(ulong value) => AppendFormatted((RedisValue)value);
+
         /// <summary>Append a duration in the unit the command asks for: <c>$"{idle:ms}"</c>.</summary>
         /// <param name="value">The duration.</param>
         /// <param name="format">The unit: <c>ms</c> for milliseconds, <c>s</c> for seconds.</param>

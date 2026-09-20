@@ -54,6 +54,17 @@ public partial class InterpolatedAppendTests
     }
 
     [Fact]
+    public void UnsignedValuesRenderAsIntegersNotScience()
+    {
+        // ulong does not convert to long, so without an overload of its own the compiler reaches for
+        // double and a large value goes out in SCIENTIFIC NOTATION: ulong.MaxValue rendered as
+        // 1.8446744073709552E+19, which the server rejects - and values merely large would have been
+        // silently rounded instead. Found through RedisArrayIndex, whose backing value is a ulong.
+        using var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{ulong.MaxValue}");
+        Assert.Equal("*3|$3|GET|$1|k|$20|18446744073709551615|", Text(frame));
+    }
+
+    [Fact]
     public void AppendSurvivesABufferGrowth()
     {
         // the moved-in copy is what grows, swapping to a new pooled array - so if Append did not assign the

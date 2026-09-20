@@ -70,7 +70,11 @@ public class RespSurfaceArraysTests
             new[]
             {
                 "*4|$6|ARMGET|$1|a|$1|1|$1|2|",           // one argument per index
-                "*6|$5|ARSET|$1|a|$1|1|$1|x|$1|2|$1|y|",  // two per entry, index then value
+                // ARMSET, not ARSET: pairs, not one index followed by consecutive values. This test
+                // asserted ARSET and so pinned the bug in place - three entries at 0, 1 and 2 were being
+                // written as five consecutive values from index 0, with the server reporting 5 where the
+                // caller expected 3. It accepts the command and misreads it; nothing errors.
+                "*6|$6|ARMSET|$1|a|$1|1|$1|x|$1|2|$1|y|",  // two per entry, index then value
                 "*4|$10|ARDELRANGE|$1|a|$1|1|$1|5|",      // two per range, start then end
             },
             exec.Sent);

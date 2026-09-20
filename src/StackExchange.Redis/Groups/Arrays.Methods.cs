@@ -42,17 +42,24 @@ public static partial class Arrays
             : arrays.Context.SendAsync<long>(
                 $"{RedisCommand.ARSET}{key}{index}{values}", flags, cancellationToken: cancellationToken);
 
-    /// <summary>ARSET of scattered slots; how many were written.</summary>
+    /// <summary>ARMSET of scattered slots; how many were written.</summary>
     /// <param name="arrays">The array command group.</param>
     /// <param name="key">The array.</param>
     /// <param name="entries">The index/value pairs to store.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b><c>ARMSET</c>, not <c>ARSET</c>, and the difference silently corrupts.</b> <c>ARSET</c> takes one
+    /// index followed by consecutive values; <c>ARMSET</c> takes index/value <i>pairs</i>. Rendering these
+    /// pairs after <c>ARSET</c> produces a command the server accepts and misreads - three entries at
+    /// 0, 1 and 2 became five consecutive values written from index 0, and the reply said 5 where the
+    /// caller expected 3. Nothing errors; the array is simply wrong afterwards.
+    /// </remarks>
     public static ValueTask<long> SetAsync(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayEntry> entries, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => entries.IsEmpty
             ? default
             : arrays.Context.SendAsync<long>(
-                $"{RedisCommand.ARSET}{key}{entries}", flags, cancellationToken: cancellationToken);
+                $"{RedisCommand.ARMSET}{key}{entries}", flags, cancellationToken: cancellationToken);
 
     /// <summary>ARGET; the value at one slot.</summary>
     /// <param name="arrays">The array command group.</param>

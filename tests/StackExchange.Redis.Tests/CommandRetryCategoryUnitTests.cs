@@ -20,11 +20,18 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     /// <summary>A caller-supplied category that is deliberately absurd for every command tested here.</summary>
     private const CommandFlags CallerOverride = CommandFlags.CommandRetryAlways;
 
+    /// <remarks>
+    /// <b>Constructed rather than taken from <c>GetDatabase</c>.</b> These tests reach into
+    /// <see cref="RedisDatabase"/>'s message builders, so that is the type they need - and
+    /// <c>GetDatabase</c> is precisely the thing that stops returning one when the new surface is
+    /// switched on. Casting its result made this suite fail for a reason that had nothing to do with
+    /// retry categories.
+    /// </remarks>
     private async Task<RedisDatabase> GetDatabaseAsync()
     {
         var server = new InProcessTestServer(log);
         var conn = await server.ConnectAsync();
-        return (RedisDatabase)conn.GetDatabase(0);
+        return new RedisDatabase((ConnectionMultiplexer)conn, 0, null);
     }
 
     private void AssertCategory(CommandFlags expected, Message message, string because)
