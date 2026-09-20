@@ -40,8 +40,8 @@ namespace StackExchange.Redis
     internal sealed class RespMultiplexerExecutor : RespExecutorBase
     {
         private readonly RespTopology _topology;
-        private readonly Func<int, RespExecutorBase?> _forSlot;
-        private readonly Func<RespExecutorBase?> _any;
+        private readonly Func<int, RedisCommand, CommandFlags, RespExecutorBase?> _forSlot;
+        private readonly Func<RedisCommand, CommandFlags, RespExecutorBase?> _any;
         private readonly Func<EndPoint, RespExecutorBase?>? _forEndpoint;
         private readonly Action<int, EndPoint>? _onSlotMoved;
         private readonly Action? _onTopologySuspect;
@@ -50,14 +50,20 @@ namespace StackExchange.Redis
         /// <param name="topology">The cell that says whether slots mean anything yet.</param>
         /// <param name="forSlot">Resolves a hash slot to the endpoint that serves it.</param>
         /// <param name="any">Resolves the endpoint to use when no key steers the choice.</param>
+        /// <remarks>
+        /// <b>Both resolvers take the command and its flags</b>, not just a slot. Which node serves a
+        /// request is not only a question of <i>where the data is</i>: <c>PreferReplica</c> on a read
+        /// should reach a replica, and only the resolver knows which endpoints are replicas and which are
+        /// reachable. Passing a slot alone silently routed everything to the primary.
+        /// </remarks>
         /// <param name="database">The database commands run against.</param>
         /// <param name="forEndpoint">Resolves a redirect target to an executor, if redirects are followed.</param>
         /// <param name="onSlotMoved">Told when a <c>MOVED</c> reveals the slot map is stale.</param>
         /// <param name="onTopologySuspect">Told when a redirect could not be followed at all.</param>
         internal RespMultiplexerExecutor(
             RespTopology topology,
-            Func<int, RespExecutorBase?> forSlot,
-            Func<RespExecutorBase?> any,
+            Func<int, RedisCommand, CommandFlags, RespExecutorBase?> forSlot,
+            Func<RedisCommand, CommandFlags, RespExecutorBase?> any,
             int database = 0,
             Func<EndPoint, RespExecutorBase?>? forEndpoint = null,
             Action<int, EndPoint>? onSlotMoved = null,
@@ -118,8 +124,8 @@ namespace StackExchange.Redis
             // no request to read a slot from, so this asks the same question the router would: which
             // endpoint would take this key, and is it up
             var target = _topology.RoutesBySlot && !key.IsNull
-                ? _forSlot(ServerSelectionStrategy.GetHashSlot(key))
-                : _any();
+                ? _forSlot(ServerSelectionStrategy.GetHashSlot(key), RedisCommand.PING, flags)
+                : _any(RedisCommand.PING, flags);
             return target is not null && target.IsConnected(in key, flags);
         }
 
@@ -130,8 +136,8 @@ namespace StackExchange.Redis
             CancellationToken cancellationToken = default)
         {
             var target = _topology.RoutesBySlot && !key.IsNull
-                ? _forSlot(ServerSelectionStrategy.GetHashSlot(key))
-                : _any();
+                ? _forSlot(ServerSelectionStrategy.GetHashSlot(key), RedisCommand.PING, flags)
+                : _any(RedisCommand.PING, flags);
             return target is null ? default : target.IdentifyEndpointAsync(key, flags, cancellationToken);
         }
 
@@ -157,8 +163,10 @@ namespace StackExchange.Redis
                 ThrowPrimaryOnly(request.Command);
             }
 
-            // THE fast path, and the reason topology is a volatile bool rather than anything richer
-            if (!_topology.RoutesBySlot) return _any() ?? ThrowNoEndpoint();
+            // THE fast path, and the reason topology is a volatile bool rather than anything richer.
+            // Note the flags still travel: outside cluster there is no slot to resolve, but there may
+            // still be a replica to prefer.
+            if (!_topology.RoutesBySlot) return _any(request.Command, request.Flags) ?? ThrowNoEndpoint();
 
             var slot = request.Slot;
             if (slot == ServerSelectionStrategy.MultipleSlots) ThrowCrossSlot();
@@ -167,7 +175,9 @@ namespace StackExchange.Redis
             // will do. It no longer ALSO means "rendered before we knew": the topology's Unknown state
             // computes slots speculatively for exactly that reason, so a request that crossed the
             // discovery boundary still carries one.
-            return (slot == ServerSelectionStrategy.NoSlot ? _any() : _forSlot(slot)) ?? ThrowNoEndpoint();
+            return (slot == ServerSelectionStrategy.NoSlot
+                ? _any(request.Command, request.Flags)
+                : _forSlot(slot, request.Command, request.Flags)) ?? ThrowNoEndpoint();
         }
 
         private static RespExecutorBase ThrowNoEndpoint()

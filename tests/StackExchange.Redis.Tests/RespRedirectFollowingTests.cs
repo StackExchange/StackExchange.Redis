@@ -83,8 +83,8 @@ public class RespRedirectFollowingTests
         var topology = new RespTopology(RespClusterState.Yes);
         muxer = new RespMultiplexerExecutor(
             topology,
-            _ => wrongNode.Executor,                    // our map is stale: it says "the wrong node"
-            () => wrongNode.Executor,
+            (_, _, _) => wrongNode.Executor,           // our map is stale: it says "the wrong node"
+            (_, _) => wrongNode.Executor,
             forEndpoint: ep => Equals(ep, owner) ? rightNode.Executor : null,
             onSlotMoved: (slot, ep) => moves.Add((slot, ep)));
 
@@ -121,8 +121,8 @@ public class RespRedirectFollowingTests
         var topology = new RespTopology(RespClusterState.Yes);
         muxer = new RespMultiplexerExecutor(
             topology,
-            _ => wrongNode.Executor,
-            () => wrongNode.Executor,
+            (_, _, _) => wrongNode.Executor,
+            (_, _) => wrongNode.Executor,
             forEndpoint: ep => Equals(ep, owner) ? rightNode.Executor : null,
             onSlotMoved: (_, _) => moves++);
 
@@ -170,7 +170,7 @@ public class RespRedirectFollowingTests
 
         var topology = new RespTopology(RespClusterState.Yes);
         muxer = new RespMultiplexerExecutor(
-            topology, _ => first.Executor, () => first.Executor,
+            topology, (_, _, _) => first.Executor, (_, _) => first.Executor,
             forEndpoint: ep => Equals(ep, owner) ? second.Executor : first.Executor);
 
         var context = new RespDatabaseContext(new RespContext(serverType: ServerType.Cluster).WithTopology(topology).WithExecutor(muxer));
@@ -200,7 +200,7 @@ public class RespRedirectFollowingTests
 
         var topology = new RespTopology(RespClusterState.Yes);
         muxer = new RespMultiplexerExecutor(
-            topology, _ => node.Executor, () => node.Executor,
+            topology, (_, _, _) => node.Executor, (_, _) => node.Executor,
             forEndpoint: _ => null,
             onTopologySuspect: () => suspect++);
 

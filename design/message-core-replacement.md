@@ -926,10 +926,29 @@ write demanded on a replica must be *refused*, not routed — and the rule about
 primary-only already exists and is shared with the interpolated writer (`Message.DemandPrimary`), so the
 executor only had to ask rather than decide. That is now enforced where routing decides.
 
-**Still absent, and knowable from what is not wired:** replica *preference* (as opposed to refusal) is
-not honoured at all — `PreferReplica` routes to the primary. Profiling hooks, maintenance events and
-sentinel are likewise untouched. The suites that pass are the ones whose assertions do not depend on any
-of that.
+**Widening it to 24 suites found two more**, which is the loop working:
+
+- **Replica preference was not honoured at all.** The resolvers took a slot and nothing else, so
+  `PreferReplica` routed to the primary. Fixed by passing the *command and flags* to the resolver:
+  choosing a node is not only a question of where the data is, and `ServerSelectionStrategy` already
+  knows which endpoints are replicas and which are reachable. Passing a slot alone silently discarded
+  half the question.
+- **The server-feature probe was not wired**, and that is not a missing nicety. Several commands are
+  *chosen* from what the server supports — an all-GET `BITFIELD` goes out as `BITFIELD_RO` when
+  available, which is what lets a replica serve it. Without the probe the surface reports "unknown",
+  picks the writable command, and a caller who demanded a replica is then refused *for a read*. The
+  selection logic handles "unknown" gracefully; it simply answers a question nobody had asked properly.
+
+**`BitTests` is deliberately not in the set**, and the reason is the honest one:
+`BitFieldAllGetGoesOutAsReadOnlyAndReachesAReplica` asserts through a `ProfilingSession`, and the new
+core feeds no profiling at all, so the session comes back empty. That is a real missing feature rather
+than a quirk of the test — `performance (ProfiledCommand)` is on §4's inventory, and
+`RespOperationDiagnostics` already reserves `HostState` for it. Bolting on just enough to make one
+assertion pass would be building the feature backwards. **Adding that suite back is the check that
+profiling has landed.**
+
+Maintenance events and sentinel are likewise untouched; the suites that pass are the ones whose
+assertions do not depend on any of it.
 
 ---
 

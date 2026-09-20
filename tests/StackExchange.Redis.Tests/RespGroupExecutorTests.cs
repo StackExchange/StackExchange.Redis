@@ -309,8 +309,8 @@ public class RespGroupExecutorTests
         var endpointA = new Member("a", "$1\r\nA\r\n");
         var endpointB = new Member("b", "$1\r\nB\r\n");
 
-        var muxerA = new RespMultiplexerExecutor(topology, _ => endpointA, () => endpointA);
-        var muxerB = new RespMultiplexerExecutor(topology, _ => endpointB, () => endpointB);
+        var muxerA = new RespMultiplexerExecutor(topology, (_, _, _) => endpointA, (_, _) => endpointA);
+        var muxerB = new RespMultiplexerExecutor(topology, (_, _, _) => endpointB, (_, _) => endpointB);
 
         RespExecutorBase? active = muxerA;
         var group = new RespGroupExecutor(() => active);

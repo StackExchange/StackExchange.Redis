@@ -33,13 +33,20 @@ public class RespMultiplexerExecutorTests
 
         internal int SlotLookups;
 
-        internal RespExecutorBase? ForSlot(int slot)
+        internal CommandFlags LastFlags;
+
+        internal RespExecutorBase? ForSlot(int slot, RedisCommand command, CommandFlags flags)
         {
             SlotLookups++;
+            LastFlags = flags;
             return BySlot.TryGetValue(slot, out var endpoint) ? endpoint : Default;
         }
 
-        internal RespExecutorBase? Any() => Default;
+        internal RespExecutorBase? Any(RedisCommand command, CommandFlags flags)
+        {
+            LastFlags = flags;
+            return Default;
+        }
     }
 
     private static (RespDatabaseContext Context, RespTopology Topology, Router Router) Build(

@@ -117,3 +117,142 @@ public class NewCoreBasicOpsTests(ITestOutputHelper output, SharedConnectionFixt
     protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
         => RespNewCoreFixture.Wrap(conn, db, asyncState);
 }
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreGeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : GeoTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+// BitTests is NOT re-run here, and the reason is worth keeping rather than quietly omitting.
+//
+// BitFieldAllGetGoesOutAsReadOnlyAndReachesAReplica asserts through a ProfilingSession - which command
+// went to which endpoint - and the new core feeds no profiling at all, so the session comes back empty.
+// That is a genuine missing feature, not a quirk of the test: `performance (ProfiledCommand)` is on the
+// design notes' section 4 inventory of what the new token must carry, and RespOperationDiagnostics
+// already reserves HostState for it. Bolting on just enough to make one assertion pass would be building
+// the feature backwards.
+//
+// Adding it back is the check that profiling has actually landed.
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreHyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HyperLogLogTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreScanTests(ITestOutputHelper output, SharedConnectionFixture fixture) : ScanTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreHashFieldTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HashFieldTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreSortTests(ITestOutputHelper output, SharedConnectionFixture fixture) : SortTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreLexTests(ITestOutputHelper output, SharedConnectionFixture fixture) : LexTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreMultiAddTests(ITestOutputHelper output, SharedConnectionFixture fixture) : MultiAddTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreCopyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : CopyTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreMSetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : MSetTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreFloatingPointTests(ITestOutputHelper output, SharedConnectionFixture fixture) : FloatingPointTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreSortedSetWhenTests(ITestOutputHelper output, SharedConnectionFixture fixture) : SortedSetWhenTest(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreKeyIdleTests(ITestOutputHelper output, SharedConnectionFixture fixture) : KeyIdleTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreIncrexTests(ITestOutputHelper output, SharedConnectionFixture fixture) : IncrexIntegrationTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreDigestTests(ITestOutputHelper output, SharedConnectionFixture fixture) : DigestIntegrationTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreOverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : OverloadCompatTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+[RunPerProtocol]
+public class NewCoreHashImportTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HashImportTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}

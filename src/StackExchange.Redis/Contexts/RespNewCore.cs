@@ -49,12 +49,22 @@ namespace StackExchange.Redis
         }
 
         /// <summary>A database context that sends through the new core.</summary>
+        /// <param name="database">The database index.</param>
+        /// <remarks>
+        /// <b>The feature probe is not optional, and leaving it out is not merely a missing nicety.</b>
+        /// Several commands are <i>chosen</i> from what the server supports - an all-GET <c>BITFIELD</c>
+        /// goes out as <c>BITFIELD_RO</c> when the server has it, which is what lets a replica serve it.
+        /// Without the probe the surface reports "unknown", picks the writable command, and a caller who
+        /// demanded a replica is then refused for a read. The selection logic already handles "unknown"
+        /// gracefully; it just answers a question nobody had asked properly.
+        /// </remarks>
         internal RespDatabaseContext GetDatabase(int database = 0)
             => new(new RespContext(
                     _multiplexer.RawConfig.CommandMap,
                     database: database,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
+                .WithServices(new RedisBase.ServerFeatureProbe((RedisBase)_multiplexer.GetDatabase(database)))
                 .WithExecutor(database == _router.Database ? _router : Rebind(database)));
 
         private RespMultiplexerExecutor Rebind(int database) => new(
@@ -69,14 +79,23 @@ namespace StackExchange.Redis
         /// preference and unreachable nodes. A second map maintained by the spike would be a second thing
         /// to get wrong, and would not make the send path any more or less correct.
         /// </remarks>
-        private RespExecutorBase? ForSlot(int slot)
+        /// <remarks>
+        /// The command and flags travel because <c>Select</c> needs them: primary/replica preference is
+        /// part of choosing a node, not a separate step, and <c>ServerSelectionStrategy</c> already knows
+        /// which endpoints are replicas and which are reachable.
+        /// </remarks>
+        private RespExecutorBase? ForSlot(int slot, RedisCommand command, CommandFlags flags)
         {
-            var server = _multiplexer.ServerSelectionStrategy.Select(slot, RedisCommand.GET, CommandFlags.None, allowDisconnected: true);
-            return server is null ? Any() : Executor(server.EndPoint);
+            var server = _multiplexer.ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: true);
+            return server is null ? Any(command, flags) : Executor(server.EndPoint);
         }
 
-        private RespExecutorBase? Any()
+        private RespExecutorBase? Any(RedisCommand command, CommandFlags flags)
         {
+            var server = _multiplexer.ServerSelectionStrategy.Select(
+                ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: true);
+            if (server is not null) return Executor(server.EndPoint);
+
             var endpoints = _multiplexer.GetEndPoints();
             return endpoints.Length == 0 ? null : Executor(endpoints[0]);
         }
