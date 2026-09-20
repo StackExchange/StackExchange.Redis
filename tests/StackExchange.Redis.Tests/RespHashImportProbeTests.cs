@@ -46,7 +46,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
 
     private static RespDatabaseContext NewContext(IConnectionMultiplexer conn, int db)
     {
-        var database = (RedisBase)conn.GetDatabase(db);
+        var database = TestMultiplexer.Legacy(conn, db); // not a cast of GetDatabase: see TestMultiplexer
         return new RespDatabaseContext(new RespContext(database.multiplexer.CommandMap, database: db)
             .WithExecutor(new RespMessageExecutor(database, db)));
     }

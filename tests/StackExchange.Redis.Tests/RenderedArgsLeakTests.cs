@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,7 +27,10 @@ public class RenderedArgsLeakTests(ITestOutputHelper output) : TestBase(output)
         RedisKey key = Me();
         await using (var conn = await ConnectionMultiplexer.ConnectAsync(options))
         {
-            var db = conn.GetDatabase();
+            // the OLD database explicitly: this measures RedisDatabase's rented-buffer discipline
+            // against RequestBufferPool, and the new surface does its own rendering and never touches
+            // that pool - so through GetDatabase the count drops to zero and the test measures nothing
+            var db = TestMultiplexer.Legacy(conn);
             for (int i = 0; i < Iterations; i++)
             {
                 using var setResult = await db.ExecuteRespAsync("SET", new RedisKeyOrValue[] { key, (RedisValue)i });
@@ -59,7 +62,7 @@ public class RenderedArgsLeakTests(ITestOutputHelper output) : TestBase(output)
             EndPoints = { TestConfig.Current.PrimaryServerAndPort },
             Protocol = TestContext.Current.GetProtocol(),
         });
-        var db = conn.GetDatabase();
+        var db = TestMultiplexer.Legacy(conn); // see above: this test is about the old path's pool use
         for (int i = 0; i < Iterations; i++)
         {
             await db.StringSetAsync(key, i);
