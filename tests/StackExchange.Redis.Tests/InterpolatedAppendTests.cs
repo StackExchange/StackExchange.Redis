@@ -62,6 +62,12 @@ public partial class InterpolatedAppendTests
         // silently rounded instead. Found through RedisArrayIndex, whose backing value is a ulong.
         using var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{ulong.MaxValue}");
         Assert.Equal("*3|$3|GET|$1|k|$20|18446744073709551615|", Text(frame));
+
+        // and the NULLABLE separately, because ulong? does not convert to ulong: fixing one does not fix
+        // the other, and it would have fallen through to double? in exactly the same way
+        ulong? nullable = ulong.MaxValue;
+        using var lifted = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"k"}{nullable}");
+        Assert.Equal("*3|$3|GET|$1|k|$20|18446744073709551615|", Text(lifted));
     }
 
     [Fact]

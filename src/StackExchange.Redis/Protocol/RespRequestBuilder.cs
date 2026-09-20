@@ -762,6 +762,28 @@ namespace StackExchange.Redis.Protocol
         [System.CLSCompliant(false)]
         public void AppendFormatted(ulong value) => AppendFormatted((RedisValue)value);
 
+        /// <inheritdoc cref="AppendFormatted(ulong)"/>
+        /// <remarks>
+        /// <para>
+        /// <b>The nullable needs its own overload for the same reason, one level up.</b> <c>ulong?</c> does
+        /// not convert to <c>ulong</c>, so it would fall through to <see cref="double"/>? and render in
+        /// scientific notation exactly as the non-nullable did - the fix for one is not the fix for both.
+        /// </para>
+        /// <para>
+        /// <b><see cref="float"/> is deliberately left alone</b>, though it has the same shape: it widens
+        /// to <see cref="double"/> and so renders <c>1.5e20f</c> as <c>1.500000030061316E+20</c>, the
+        /// double nearest that float rather than the float itself. An overload for it would make every
+        /// <see cref="int"/> literal ambiguous between <c>long?</c> and <c>float</c>, which breaks call
+        /// sites that are correct today - and exponential form is legal for a floating argument, so this
+        /// is fidelity rather than correctness. Not worth that trade; recorded instead.
+        /// </para>
+        /// </remarks>
+        [System.CLSCompliant(false)]
+        public void AppendFormatted(ulong? value)
+        {
+            if (value is ulong actual) AppendFormatted((RedisValue)actual);
+        }
+
         /// <summary>Append a duration in the unit the command asks for: <c>$"{idle:ms}"</c>.</summary>
         /// <param name="value">The duration.</param>
         /// <param name="format">The unit: <c>ms</c> for milliseconds, <c>s</c> for seconds.</param>

@@ -740,3 +740,4 @@ static StackExchange.Redis.VectorSets.SetAttributesJsonAsync(this in StackExchan
 static StackExchange.Redis.VectorSets.SimilaritySearchAsync(this in StackExchange.Redis.RespVectorSets sets, StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetSimilaritySearchRequest! query, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.ReadOnlyLease<StackExchange.Redis.VectorSetSimilaritySearchResult>?>
 virtual StackExchange.Redis.RespReply.OnDisposed() -> void
 StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(ulong value) -> void
+StackExchange.Redis.Protocol.RespRequestBuilder.AppendFormatted(ulong? value) -> void
