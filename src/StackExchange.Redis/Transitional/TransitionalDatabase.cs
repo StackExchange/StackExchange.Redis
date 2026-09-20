@@ -30,8 +30,20 @@ namespace StackExchange.Redis
     /// generated throw.
     /// </para>
     /// </remarks>
+    /// <remarks>
+    /// <para>
+    /// <b>Not sealed, because <see cref="TransitionalBatch"/> and <see cref="TransitionalTransaction"/>
+    /// derive from it.</b> That looks like the shipped <c>RedisBatch : RedisDatabase</c> relationship
+    /// this work exists to undo, and it is worth being precise about why it is fine here and not there.
+    /// <c>RedisDatabase</c> is ~6,000 lines of command implementations, so inheriting it pins every one
+    /// of them in place; this class implements nothing - it funnels to a
+    /// <see cref="RespDatabaseContext"/>, and a batch is exactly the same funnel over a context whose
+    /// executor queues. The inheritance buys ~504 members that would otherwise be forwarded by hand and
+    /// costs nothing, because there is nothing behind it to be stuck with.
+    /// </para>
+    /// </remarks>
     [AutoDatabase(WarnIfIncomplete = true)]
-    internal sealed partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
+    internal partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
         : IDatabase
     {
         /// <inheritdoc/>
@@ -65,6 +77,19 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public int Database => _inner.Database;
+
+        /// <summary>Whether a cursor-based scan can make progress through this database.</summary>
+        /// <remarks>
+        /// False for a batch or a transaction, and that is a property of <c>SCAN</c> rather than of those
+        /// types: the cursor that asks for page two is read out of page one's <i>reply</i>, and neither
+        /// has been sent when the enumeration starts. The shipped surface inherits <c>RedisDatabase</c>'s
+        /// implementation here and so offers a scan that cannot advance; refusing is the better answer.
+        /// </remarks>
+        private protected virtual bool CanScan => true;
+
+        private protected static NotSupportedException NoScanning() => new(
+            "A cursor-based scan cannot run inside a batch or transaction: the cursor for every page after "
+            + "the first is read from the previous page's reply, which has not been sent yet.");
 
         /// <inheritdoc/>
         public IConnectionMultiplexer Multiplexer => multiplexer;
@@ -161,11 +186,19 @@ namespace StackExchange.Redis
         // ---- members the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod) -------------
         // These take the fallback too, so a harness that supplies one gets a complete IDatabase rather than
         // one with holes in exactly the places a test suite reaches for scaffolding.
-        public IBatch CreateBatch(object? asyncState = null)
-            => Fallback<IBatch>().CreateBatch(asyncState);
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>The last two members to leave the fallback.</b> They were the gate on the whole deletion:
+        /// <c>RedisBatch : RedisDatabase</c>, so as long as a batch had to come from the old surface,
+        /// every one of <c>RedisDatabase</c>'s ~504 members had to stay to serve it.
+        /// </remarks>
+        public IBatch CreateBatch(object? asyncState = null)
+            => TransitionalBatch.CreateBatch(_inner, multiplexer, asyncState ?? AsyncState);
+
+        /// <inheritdoc cref="CreateBatch"/>
         public ITransaction CreateTransaction(object? asyncState = null)
-            => Fallback<ITransaction>().CreateTransaction(asyncState);
+            => TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState);
 
         ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
 

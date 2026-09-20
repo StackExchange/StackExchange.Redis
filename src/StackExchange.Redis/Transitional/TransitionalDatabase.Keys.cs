@@ -19,7 +19,7 @@ namespace StackExchange.Redis
     /// and this is where the old signature makes it.
     /// </para>
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None)

@@ -19,7 +19,7 @@ namespace StackExchange.Redis
     /// it keeps key-ness, so an ad-hoc command routes, invalidates and caches like a modelled one.
     /// </para>
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)

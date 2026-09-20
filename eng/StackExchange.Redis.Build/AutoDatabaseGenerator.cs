@@ -190,8 +190,14 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             return false;
         }
 
+        // AllInterfaces, not Interfaces: IBatch and ITransaction ARE IDatabaseAsync (IBatch : IDatabaseAsync,
+        // ITransaction : IBatch), so a class declaring one of those implements every async command member
+        // and wants exactly the same generated set. Matching only the directly-declared name generated
+        // nothing for them, silently - the class compiled, and the members it had not written were simply
+        // absent rather than throwing. The union below is idempotent, so a class that declares IDatabase
+        // directly is unaffected by also seeing it here transitively.
         KnownInterfaces known = 0;
-        foreach (var iFace in cls.Interfaces)
+        foreach (var iFace in cls.AllInterfaces)
         {
             if (IsOurInterface(iFace))
             {

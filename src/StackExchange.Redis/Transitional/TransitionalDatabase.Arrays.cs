@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     /// through either writer, so the decision that was owed about that type is made. Arrays become spans
     /// here, which is the adapter's job and not the new surface's.
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public bool ArraySet(RedisKey key, RedisArrayIndex index, RedisValue value, CommandFlags flags = CommandFlags.None)

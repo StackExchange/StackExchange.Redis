@@ -12,7 +12,7 @@ namespace StackExchange.Redis
     /// <c>VectorSetRandomMembers</c>. The enumerating <c>VRANGE</c> stays in
     /// <c>TransitionalDatabase.Scans.cs</c> with the other cursors.
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public bool VectorSetAdd(RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)

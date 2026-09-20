@@ -17,7 +17,7 @@ namespace StackExchange.Redis
     /// <c>ZSCAN</c> stays in <c>TransitionalDatabase.Scans.cs</c>.
     /// </para>
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         // ---- membership --------------------------------------------------------------------------------
         // `When` converts to SortedSetWhen, and the CommandFlags-only overloads are the pre-`When` shapes;

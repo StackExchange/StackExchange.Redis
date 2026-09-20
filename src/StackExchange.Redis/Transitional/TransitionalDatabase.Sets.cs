@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     /// <c>SetCombineAndStore</c> each have a <c>(first, second)</c> overload that existed only because
     /// building a variadic message used to be work. Both now unpack into the one group method.
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
@@ -162,7 +162,7 @@ namespace StackExchange.Redis
                 var fault = new RedisConnectionException(
                     ConnectionFailureType.UnableToResolvePhysicalConnection,
                     CommandFlags.CommandRetryNever,
-                    "No endpoint is available to serve this batch.",
+                    "This executor cannot write a batch as one contiguous run; it has no connection to write it to.",
                     null,
                     CommandStatus.WaitingInBacklog);
                 foreach (var operation in group) operation.TrySetException(operation.Token, fault, definite: false);

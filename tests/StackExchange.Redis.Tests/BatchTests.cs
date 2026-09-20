@@ -11,7 +11,7 @@ public class BatchTests(ITestOutputHelper output, SharedConnectionFixture fixtur
     public async Task TestBatchNotSent()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         _ = db.KeyDeleteAsync(key);
         _ = db.StringSetAsync(key, "batch-not-sent");
@@ -29,7 +29,7 @@ public class BatchTests(ITestOutputHelper output, SharedConnectionFixture fixtur
     public async Task TestBatchSent()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         _ = db.KeyDeleteAsync(key);
         _ = db.StringSetAsync(key, "batch-sent");

@@ -19,7 +19,7 @@ namespace StackExchange.Redis
     /// That is a shape decision rather than a mechanical one, and it is deliberately not being made here.
     /// </para>
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public RedisValue ListGetByIndex(RedisKey key, long index, CommandFlags flags = CommandFlags.None)

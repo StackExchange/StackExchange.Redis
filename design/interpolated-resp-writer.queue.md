@@ -87,7 +87,21 @@ existing suites run through it. This is the outstanding list, in the order thing
         is per-connection state, so the connection is captured before run 1 and compared before run 2, and
         a mismatch fails rather than running unguarded. All seven `Condition` types reused whole via
         `TryValidate`; only rendering (`RenderCheck`/`WatchKey`) had to be added. See §7r.
-  - [ ] The `IBatch` / `ITransaction` public surfaces (forwarding; `[AutoDatabase]` territory).
+  - [x] **The `IBatch`/`ITransaction` public surfaces, 2026-09-20.** `TransitionalBatch` (~60 lines, every
+        command member inherited) and `TransitionalTransaction` (+`AddCondition`/`Execute`/
+        `WasWatchConflict`). `CreateBatch`/`CreateTransaction` are off the fallback — **the gate is
+        open**. `[AutoDatabase]` now matches `AllInterfaces`, since `IBatch` *is* an `IDatabaseAsync`.
+        See §7s.
+
+- [ ] **Wire `GetDatabase` through `RespNewCore` — now the critical path.** Wrapping the existing
+      `BatchTests`/`TransactionTests` fails 436/442, because `TransitionalSurfaceFixture` builds over
+      `RespMessageExecutor` (the shim onto the old `PhysicalConnection` pipeline) and the new batch and
+      transaction executors need a `RespConnection` to write a contiguous run to. Not fixable at the shim:
+      for `MULTI`/`EXEC` contiguity *is* the semantics, so sending the frames individually would let
+      another caller join the transaction. Those two suites become proof the moment this lands, and until
+      then they would only be asserting against the shipped implementation anyway. `TransactionTests`/
+      `BatchTests` are already converted to the virtual `GetDatabase(conn)`, so wrapping is then a
+      one-line subclass each.
 
 - [ ] **Does the `SETEX` collapse have the `INCR` problem?** `Increment(k, 1)` was emitting
       `INCRBY k 1`, on the grounds that the branch cost more than the four bytes saved — fixed

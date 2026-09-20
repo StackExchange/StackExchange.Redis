@@ -23,7 +23,7 @@ namespace StackExchange.Redis;
 /// each, so neither face blocks on the other.
 /// </para>
 /// </remarks>
-internal sealed partial class TransitionalDatabase
+internal partial class TransitionalDatabase
 {
     // ---- HSCAN --------------------------------------------------------------------------------------
 
@@ -33,19 +33,19 @@ internal sealed partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     /// <inheritdoc/>
     public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     /// <inheritdoc/>
     public IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     // ---- SSCAN --------------------------------------------------------------------------------------
 
@@ -55,11 +55,11 @@ internal sealed partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     // ---- ZSCAN --------------------------------------------------------------------------------------
 
@@ -69,11 +69,11 @@ internal sealed partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     /// <inheritdoc/>
     public IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        => _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags);
+        => CanScan ? _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags) : throw NoScanning();
 
     // ---- VectorSetRangeEnumerate --------------------------------------------------------------------
     // NOT a cursor scan, and the shipped code says so: "intentionally not using scan naming in case a
@@ -86,9 +86,9 @@ internal sealed partial class TransitionalDatabase
 
     /// <inheritdoc/>
     public IEnumerable<RedisValue> VectorSetRangeEnumerate(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => _inner.VectorSets.RangeEnumerateCore(key, start, end, count, exclude, flags);
+        => CanScan ? _inner.VectorSets.RangeEnumerateCore(key, start, end, count, exclude, flags) : throw NoScanning();
 
     /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => _inner.VectorSets.RangeEnumerateCore(key, start, end, count, exclude, flags);
+        => CanScan ? _inner.VectorSets.RangeEnumerateCore(key, start, end, count, exclude, flags) : throw NoScanning();
 }

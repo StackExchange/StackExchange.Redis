@@ -504,3 +504,16 @@ public class TransitionalCoverageTests
         Assert.NotEmpty(Generated("Lock", typeof(IDatabase)));
     }
 }
+
+// NOT wrapped, and the reason is load-bearing: BatchTests and TransactionTests. Both were tried here and
+// both fail wholesale, because TransitionalSurfaceFixture.Wrap builds over RespMessageExecutor - the shim
+// onto the OLD PhysicalConnection pipeline - and the new batch and transaction executors need a
+// RespConnection to write a contiguous run to. The shim has none, so TrySendBatch/TrySendTransaction
+// inherit the declining base and every batch and transaction reports that it cannot be served.
+//
+// This is a boundary rather than a bug: contiguity IS the semantics for MULTI/EXEC, so falling back to
+// sending the frames individually would let another caller interleave and join the transaction - a
+// correctness hole dressed as a degradation. The suites become the proof the moment GetDatabase is wired
+// through RespNewCore; until then they would be asserting against the shipped implementation anyway.
+// (TransactionTests and BatchTests were converted to the virtual GetDatabase(conn) in preparation, which
+// costs nothing and is what makes wrapping a one-line subclass when that lands.)

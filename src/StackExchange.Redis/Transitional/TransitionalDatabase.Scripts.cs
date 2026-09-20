@@ -20,7 +20,7 @@ namespace StackExchange.Redis;
 /// object, so they travel the same path the moment those two do.
 /// </para>
 /// </remarks>
-internal sealed partial class TransitionalDatabase
+internal partial class TransitionalDatabase
 {
     private ValueTask<RedisResult> Eval(string script, RedisKey[]? keys, RedisValue[]? values, bool readOnly, CommandFlags flags)
     {

@@ -1207,8 +1207,51 @@ A failed condition **cancels** the queued commands rather than faulting them —
 hold" means they did not run, which is a different outcome from failing — and `UNWATCH` is sent even when
 nothing was queued, so a watch never leaks onto a pooled connection.
 
-**Still outstanding:** the `IBatch`/`ITransaction` public surfaces, which is `[AutoDatabase]` territory
-rather than core work.
+### 7s. `IBatch`/`ITransaction`: the gate opens, and where it stops
+
+`CreateBatch`/`CreateTransaction` were the last two members on `TransitionalDatabase`'s fallback, and
+they were the gate on everything: `RedisBatch : RedisDatabase`, so as long as a batch had to come from
+the old surface, all ~504 of `RedisDatabase`'s members had to stay to serve it.
+
+**`TransitionalBatch` is ~60 lines, and that is the whole argument.** It derives from
+`TransitionalDatabase` over a context whose executor queues; every command member is inherited, and
+nothing on the command path is told it is in a batch. That is the same `RedisBatch : RedisDatabase`
+inheritance the new design exists to undo — and it is fine *here* for the reason it is not fine *there*:
+`RedisDatabase` is ~6,000 lines of command implementations, so inheriting it pins every one of them,
+where `TransitionalDatabase` implements nothing and is a funnel to a context. The inheritance buys ~504
+members and costs nothing, because there is nothing behind it to be stuck with.
+
+`TransitionalTransaction` adds three members. `AddCondition` hands back a `ConditionResult` *now* and
+fills it in when the check is answered, which is what keeps "which condition failed?" answerable — a
+single bool from `Execute` cannot say that, and by the time it is false the conditions are gone.
+`WasWatchConflict` needed the core to distinguish a failed condition (the state was not what you wanted)
+from an abort (it was, and somebody moved first); only the second is worth retrying, so `EXEC`'s null
+reply now reports itself rather than being folded into the same `false`.
+
+**Two things the generator and the surface gave up for free.** `[AutoDatabase]` matched interfaces by
+*declared* name, so a class declaring `IBatch` got nothing generated — silently, since the members it had
+not written were simply absent rather than throwing. Matching `AllInterfaces` fixes it: `IBatch` **is**
+an `IDatabaseAsync`. And scanning inside a batch is now refused rather than offered broken: the cursor
+for every page after the first is read out of the previous page's *reply*, which a batch has not sent.
+The shipped surface inherits `RedisDatabase`'s implementation here and so offers a scan that cannot
+advance.
+
+**Where it stops, and this is the useful part.** Wrapping the existing `BatchTests`/`TransactionTests`
+through `TransitionalSurfaceFixture` — the technique that made 27 other suites into proof — fails
+wholesale, 436 of 442. The fixture builds over `RespMessageExecutor`, the shim onto the *old*
+`PhysicalConnection` pipeline, and the new batch and transaction executors need a `RespConnection` to
+write a contiguous run to. The shim has none, so both capabilities inherit the declining base.
+
+That is a boundary, not a bug, and the distinction matters: for `MULTI`/`EXEC` **contiguity is the
+semantics**, so falling back to sending the frames individually would let another caller interleave and
+join the transaction — a correctness hole dressed as a degradation. Declining is right. What it means is
+that these two suites become the proof only once `GetDatabase` is wired through `RespNewCore`, which is
+now the next real step rather than a later tidy-up.
+
+Both refusals also repeated §7r's lie — "No endpoint is available" when the endpoint is fine and the
+connection is what is missing. Both messages now name the actual cause. That is twice this exact wording
+has misled a diagnosis; a capability that declines should say which capability, not invent a topology
+problem.
 
 ---
 

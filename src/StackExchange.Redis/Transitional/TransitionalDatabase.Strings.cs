@@ -25,7 +25,7 @@ namespace StackExchange.Redis
     /// is purely the adapter from the old interface to it.
     /// </para>
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None)

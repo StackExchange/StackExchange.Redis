@@ -43,7 +43,9 @@ namespace StackExchange.Redis
         private readonly object _sync = new();
         private List<RespPayloadOperation>? _queue;
         private List<Condition>? _conditions;
+        private List<Action<bool>?>? _verdicts;
         private bool _sent;
+        private bool _watchConflict;
 
         /// <summary>Create a transaction over an executor.</summary>
         /// <param name="inner">The executor the transaction ultimately sends through.</param>
@@ -60,6 +62,17 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public override int Database => _inner.Database;
+
+        /// <summary>
+        /// Whether the conditions all held and the transaction was <i>still</i> aborted, because a
+        /// watched key changed between the check and the <c>EXEC</c>.
+        /// </summary>
+        /// <remarks>
+        /// Distinct from "a condition did not hold", and the distinction is the whole reason callers
+        /// retry: a failed condition means the state is not what you wanted, where a watch conflict means
+        /// it was, and somebody moved first. Only the second is worth re-reading and trying again.
+        /// </remarks>
+        internal bool WasWatchConflict => _watchConflict;
 
         /// <summary>How many commands are waiting to be sent.</summary>
         internal int Count
@@ -100,13 +113,19 @@ namespace StackExchange.Redis
 
         /// <summary>Add a precondition that must hold for the transaction to be sent.</summary>
         /// <param name="condition">The condition; its key is watched and its check is evaluated first.</param>
-        internal void AddCondition(Condition condition)
+        /// <param name="onVerdict">
+        /// Told this condition's own answer, whatever the transaction as a whole then does. The shipped
+        /// surface hands the caller a <c>ConditionResult</c> when the condition is added and fills it in
+        /// later, so "which one failed?" stays answerable; a single overall bool cannot say that.
+        /// </param>
+        internal void AddCondition(Condition condition, Action<bool>? onVerdict = null)
         {
             if (condition is null) throw new ArgumentNullException(nameof(condition));
             lock (_sync)
             {
                 if (_sent) throw new InvalidOperationException("This transaction has already been executed.");
                 (_conditions ??= []).Add(condition);
+                (_verdicts ??= []).Add(onVerdict);
             }
         }
 
@@ -130,12 +149,15 @@ namespace StackExchange.Redis
         {
             List<RespPayloadOperation>? queue;
             List<Condition>? conditions;
+            List<Action<bool>?>? verdicts;
             lock (_sync)
             {
                 queue = _queue;
                 conditions = _conditions;
+                verdicts = _verdicts;
                 _queue = null;
                 _conditions = null;
+                _verdicts = null;
                 _sent = true;
             }
 
@@ -151,11 +173,11 @@ namespace StackExchange.Redis
             var connection = target?.CurrentConnection;
             if (target is null || connection is null || connection.IsClosed)
             {
-                Fail(queue, "No endpoint is available to serve this transaction.");
+                Fail(queue, "This executor cannot run a transaction; it has no connection to write MULTI and EXEC to as one run.");
                 return false;
             }
 
-            if (conditions is not null && !await CheckAsync(connection, conditions).ConfigureAwait(false))
+            if (conditions is not null && !await CheckAsync(connection, conditions, verdicts).ConfigureAwait(false))
             {
                 // a condition did not hold: the transaction is NOT sent, and nothing it queued ran
                 Discard(connection, queue);
@@ -169,7 +191,8 @@ namespace StackExchange.Redis
                 return true;
             }
 
-            if (connection != target.CurrentConnection || !RespTransactionExecutor.TrySendOver(connection, queue!, out var exec))
+            if (connection != target.CurrentConnection
+                || !TrySendOver(connection, queue!, out var exec, conditions is null ? null : OnAborted))
             {
                 Fail(queue, "The connection was lost before the transaction could be sent.");
                 return false;
@@ -178,13 +201,15 @@ namespace StackExchange.Redis
             return await exec.ConfigureAwait(false);
         }
 
+        private void OnAborted() => _watchConflict = true;
+
         /// <summary>Run the watches and their checks as one contiguous run, and await the verdicts.</summary>
         /// <remarks>
         /// <b>Watches and checks are interleaved, in that order, exactly as the old core emits them.</b>
         /// Each <c>WATCH</c> must precede its own check, or the check reads a value the watch is not yet
         /// guarding and the window it exists to close is open again.
         /// </remarks>
-        private async Task<bool> CheckAsync(RespConnection connection, List<Condition> conditions)
+        private async Task<bool> CheckAsync(RespConnection connection, List<Condition> conditions, List<Action<bool>?>? verdicts)
         {
             var checks = new RespConditionOperation[conditions.Count];
             var run = new IRespMessage[conditions.Count * 2];
@@ -203,24 +228,30 @@ namespace StackExchange.Redis
             if (!connection.Send(run, run.Length))
             {
                 for (var i = 0; i < run.Length; i += 2) RespPayloadOperation.DiscardReply((RespPayloadOperation)run[i]);
+                foreach (var check in checks) check.TrySetCanceled(check.Token);
                 return false;
             }
 
             for (var i = 0; i < run.Length; i += 2) RespPayloadOperation.DiscardReply((RespPayloadOperation)run[i]);
 
             // every check is awaited, not short-circuited on the first false: they are already in flight,
-            // and abandoning one leaves an operation that never recycles
+            // and abandoning one leaves an operation that never recycles. Each verdict is reported
+            // individually as well as folded, because the caller is owed "which condition failed?"
             var held = true;
-            foreach (var check in checks)
+            for (var i = 0; i < checks.Length; i++)
             {
+                bool answer;
                 try
                 {
-                    held &= await new ValueTask<bool>(check, check.Token).ConfigureAwait(false);
+                    answer = await new ValueTask<bool>(checks[i], checks[i].Token).ConfigureAwait(false);
                 }
                 catch
                 {
-                    held = false;
+                    answer = false;
                 }
+
+                verdicts?[i]?.Invoke(answer);
+                held &= answer;
             }
 
             return held;
@@ -279,7 +310,12 @@ namespace StackExchange.Redis
         /// executor that owns one can serve it.
         /// </para>
         /// </remarks>
-        internal static bool TrySendOver(RespConnection? connection, List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        /// <param name="onAborted">
+        /// Told when <c>EXEC</c> replies null - the transaction was discarded because a watched key
+        /// changed. Distinct from every other way this can return false, and the only one a caller
+        /// should respond to by re-reading and trying again.
+        /// </param>
+        internal static bool TrySendOver(RespConnection? connection, List<RespPayloadOperation> operations, out ValueTask<bool> exec, Action? onAborted = null)
         {
             exec = default;
             if (connection is null || connection.IsClosed) return false;
@@ -288,7 +324,7 @@ namespace StackExchange.Redis
             multi.Attach(MultiFrame, CommandFlags.None, default);
 
             var execOperation = new RespExecOperation();
-            execOperation.Attach(ExecFrame, operations);
+            execOperation.Attach(ExecFrame, operations, onAborted);
 
             var run = new IRespMessage[operations.Count + 2];
             run[0] = multi;
@@ -347,10 +383,12 @@ namespace StackExchange.Redis
     internal sealed class RespExecOperation : RespMessageBase<bool>
     {
         private List<RespPayloadOperation>? _queued;
+        private Action? _onAborted;
 
-        internal void Attach(ReadOnlySpan<byte> request, List<RespPayloadOperation> queued)
+        internal void Attach(ReadOnlySpan<byte> request, List<RespPayloadOperation> queued, Action? onAborted = null)
         {
             _queued = queued;
+            _onAborted = onAborted;
             var pool = ArrayPool<byte>.Shared;
             var buffer = pool.Rent(request.Length);
             request.CopyTo(buffer);
@@ -358,7 +396,11 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
-        protected override void OnReset() => _queued = null;
+        protected override void OnReset()
+        {
+            _queued = null;
+            _onAborted = null;
+        }
 
         /// <inheritdoc/>
         protected override bool ParseFrame(scoped ReadOnlySpan<byte> frame, IPayloadReservationProvider? source)
@@ -384,7 +426,11 @@ namespace StackExchange.Redis
             }
 
             // a null reply is an ABORT, not a failure: a watched key changed, so nothing ran
-            if (reader.IsNull) return Abort(queued, null);
+            if (reader.IsNull)
+            {
+                _onAborted?.Invoke();
+                return Abort(queued, null);
+            }
 
             // Walk the elements by SCANNING each one's extent, exactly as the connection does for
             // top-level frames. Slicing by hand would work for the scalars a transaction usually returns

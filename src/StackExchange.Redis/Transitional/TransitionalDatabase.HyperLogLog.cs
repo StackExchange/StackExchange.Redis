@@ -12,7 +12,7 @@ namespace StackExchange.Redis
     /// one that loses a shape rather than a spelling: the (first, second) overload is two keys, and two
     /// keys are a span.
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public bool HyperLogLogAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)

@@ -19,7 +19,7 @@ namespace StackExchange.Redis
     /// is the whole of the difference.
     /// </para>
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public bool StringGetBit(RedisKey key, long offset, CommandFlags flags = CommandFlags.None)

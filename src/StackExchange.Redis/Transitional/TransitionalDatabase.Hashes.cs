@@ -21,7 +21,7 @@ namespace StackExchange.Redis
     /// <see cref="HashImportPrepareGate"/>.
     /// </para>
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         public RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)

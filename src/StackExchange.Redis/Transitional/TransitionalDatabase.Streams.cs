@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     /// array parameters here: the old signatures promise <c>RedisValue[]</c>, so this is where an array
     /// becomes a span - the conversion belongs to the adapter, not to the new surface.
     /// </remarks>
-    internal sealed partial class TransitionalDatabase
+    internal partial class TransitionalDatabase
     {
         /// <inheritdoc/>
         /// <remarks>
