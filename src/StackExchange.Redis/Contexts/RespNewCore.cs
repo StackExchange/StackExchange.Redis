@@ -146,7 +146,7 @@ namespace StackExchange.Redis
             await ConnectSocketAsync(socket, endpoint).ConfigureAwait(false);
 
             var transport = new StreamDuplexTransport(new NetworkStream(socket, ownsSocket: true));
-            var connection = new RespRedirectingConnection(transport, Follow);
+            var connection = new RespClientConnection(transport, Follow);
 
             var config = _multiplexer.RawConfig;
             var context = new RespDatabaseContext(

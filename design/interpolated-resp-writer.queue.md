@@ -78,6 +78,36 @@ existing suites run through it. This is the outstanding list, in the order thing
       substantive design question is §3c's: a pause for a reply is a *contiguity boundary*, which is not
       the same thing as a flush point, and the type has to say which it means or a transaction silently
       promises adjacency it does not have.
+  - [x] **MULTI/EXEC, 2026-09-20.** `RespTransactionExecutor` + `RespExecOperation`; `MULTI` + queued
+        commands + `EXEC` as one contiguous run, `+QUEUED` receipts absorbed by the connection's hand-off
+        hook, `EXEC`'s array distributed once in its own parse. 7 unit tests plus a real-server test.
+        RESPite needed nothing. See §7r.
+  - [ ] **`WATCH` and conditions** — the remaining half, and the actual §3c question: a condition is
+        evaluated *before* `MULTI` and decides whether the transaction is sent at all, so it is the first
+        place two contiguous runs are genuinely required rather than one.
+  - [ ] The `IBatch` / `ITransaction` public surfaces (forwarding; `[AutoDatabase]` territory).
+
+- [ ] **Does the `SETEX` collapse have the `INCR` problem?** `Increment(k, 1)` was emitting
+      `INCRBY k 1`, on the grounds that the branch cost more than the four bytes saved — fixed
+      2026-09-20, because that weighed the wrong thing. The command *name* is configurable:
+      `CommandMap` can rename or disable `INCR` independently of `INCRBY`, and ACLs, `MONITOR` and
+      `SLOWLOG` all key off it, so the shipped surface's `1 → INCR` / `-1 → DECR` is what deployments
+      are configured for.
+      **The same argument may apply to `SET`**, which never emits `SETEX`/`PSETEX`/`SETNX` where the
+      legacy builder does. That one is *not* an oversight — it is argued in the remarks, and `SETNX`'s
+      differing reply shape is called out as a deliberate divergence — but it was argued on semantics
+      and arity, and the CommandMap/ACL point was not among the reasons weighed. Worth re-deciding
+      with it on the table rather than leaving the two decisions resting on different grounds.
+
+- [ ] **`CanWritePreamble` is unreachable on the new core** (found by the §7r capability audit). The
+      pair primitive exists — `RespConnection.Send(first, second)`, already carrying `ASKING` — but
+      `IRespPreambleGate.IsNeeded` takes a `PhysicalConnection`, which the new core does not have, so no
+      new-core leaf can implement it; and `RespMultiplexerExecutor`/`RespGroupExecutor` do not forward the
+      capability either (`RespRetryExecutor` does). Not a correctness bug: `AwaitPair` falls back to
+      sending the two in sequence. The cost is that the gate is never consulted, so **an `EVALSHA` on the
+      new core carries a `SCRIPT LOAD` it does not need on every call**. Fix is to give the gate a
+      connection identity both cores can supply — an interface the old core owns, so this belongs with
+      the deletion rather than before it.
 - [ ] **The `IBatch` surface.** The executor exists (`RespOperationBatchExecutor`); what is missing is the
       interface wrapper. `IBatch` is `IDatabaseAsync` + `Execute`, so the shape is a context whose
       executor accumulates, wrapped in something implementing the interface — which is forwarding, which

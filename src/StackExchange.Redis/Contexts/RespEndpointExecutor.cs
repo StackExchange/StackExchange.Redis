@@ -151,6 +151,26 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
+        /// <b>MULTI, the commands, and EXEC as one write</b>, with the receipts standing in the pending
+        /// queue for MULTI and EXEC. The queued commands are enqueued too - they have to be, to receive
+        /// their <c>+QUEUED</c> - but the connection's hand-off hook takes that receipt and leaves them
+        /// pending for <c>EXEC</c> to complete.
+        /// </remarks>
+        internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        {
+            RespConnection? connection;
+            lock (_sync)
+            {
+                connection = _disposed ? null : _connection;
+            }
+
+            // the write itself is not endpoint-specific - it needs a connection and nothing else - so it
+            // lives with the transaction, and every executor that owns a connection gets the same one
+            return RespTransactionExecutor.TrySendOver(connection, operations, out exec);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
         /// <b>Declined when there is no live connection</b>, for the same reason <c>ASKING</c> is: a
         /// backlog drains one operation at a time, which is exactly the adjacency a batch is asking for.
         /// A batch that cannot be written contiguously is not a batch, so saying no is better than
@@ -204,36 +224,12 @@ namespace StackExchange.Redis
             asking.Attach(AskingFrame, CommandFlags.None, default);
             if (!connection.Send(asking, operation))
             {
-                Discard(asking);
+                RespPayloadOperation.DiscardReply(asking);
                 return false;
             }
 
-            Discard(asking);
+            RespPayloadOperation.DiscardReply(asking);
             return true;
-        }
-
-        /// <summary>Consume a reply nobody is waiting for, so its operation and buffer come back.</summary>
-        /// <param name="operation">The operation to drain.</param>
-        /// <remarks>
-        /// <c>ASKING</c> has an answer - <c>+OK</c> - and somebody has to take it. Left unconsumed the
-        /// operation is never reset, so it never returns to the pool and never releases the pooled buffer
-        /// holding its request: a slow leak of exactly the kind pooling was added to avoid.
-        /// </remarks>
-        private static void Discard(RespPayloadOperation operation)
-        {
-            _ = DrainAsync(operation);
-
-            static async Task DrainAsync(RespPayloadOperation operation)
-            {
-                try
-                {
-                    using var payload = await new ValueTask<RespPayload>(operation, operation.Token).ConfigureAwait(false);
-                }
-                catch
-                {
-                    // ASKING failing tells us nothing the redirected command will not tell us better
-                }
-            }
         }
 
         /// <summary>The rendered <c>ASKING</c> command; constant, so it is rendered once.</summary>

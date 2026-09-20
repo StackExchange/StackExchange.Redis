@@ -92,13 +92,15 @@ public class RespSurfaceStringsTests
         await ctx.Strings.IncrementAsync("k", -1);
         await ctx.Strings.IncrementAsync("k", 5);
 
-        // no INCR/DECR/DECRBY: the argument is always written, so there is no arity branch and no second
-        // spelling to keep in step. See the remarks on Increment.
+        // a unit step takes the short spelling, because the command NAME is configurable: CommandMap can
+        // rename or disable INCR independently of INCRBY, and ACLs, MONITOR and SLOWLOG all key off it.
+        // Emitting INCRBY for an increment of one is a behaviour change, not an encoding choice.
+        // There is still no DECRBY - that is genuinely INCRBY with a minus sign.
         Assert.Equal(
             new[]
             {
-                "*3|$6|INCRBY|$1|k|$1|1|",
-                "*3|$6|INCRBY|$1|k|$2|-1|",
+                "*2|$4|INCR|$1|k|",
+                "*2|$4|DECR|$1|k|",
                 "*3|$6|INCRBY|$1|k|$1|5|",
             },
             exec.Sent);

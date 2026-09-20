@@ -156,6 +156,21 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual bool TrySendBatch(List<RespPayloadOperation> operations) => false;
 
+        /// <summary>Write <c>MULTI</c>, a run of queued commands, and <c>EXEC</c>, contiguously.</summary>
+        /// <param name="operations">The queued commands, in order.</param>
+        /// <param name="exec">Completes with whether the transaction executed.</param>
+        /// <returns>Whether this executor took it on.</returns>
+        /// <remarks>
+        /// One run, because <c>MULTI</c> is per-connection state: anything of anybody else's interleaved
+        /// between the <c>MULTI</c> and the <c>EXEC</c> would join the transaction rather than run beside
+        /// it. That is a stronger requirement than a batch's, which only wants the commands adjacent.
+        /// </remarks>
+        internal virtual bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        {
+            exec = default;
+            return false;
+        }
+
         /// <summary>Re-issue an operation that a redirect sent here, without completing it first.</summary>
         /// <param name="operation">The operation; still pending, and still owning its request bytes.</param>
         /// <returns>Whether this executor took it on.</returns>

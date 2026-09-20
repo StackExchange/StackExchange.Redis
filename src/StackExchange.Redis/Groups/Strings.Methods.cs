@@ -526,14 +526,26 @@ public static partial class Strings
     /// spelling here would buy a method whose only content is a minus sign.
     /// </para>
     /// <para>
-    /// <c>INCR</c> and <c>DECR</c> go the same way, for the reason <c>SETEX</c> did: they are
-    /// <c>INCRBY key 1</c> with the argument removed, which saves four bytes on the wire and costs a
-    /// branch on every call.
+    /// <b>A step of one goes out as <c>INCR</c>, and minus one as <c>DECR</c></b>, which is what the
+    /// shipped surface emits and therefore what deployments are configured for. This was briefly written
+    /// the other way, on the grounds that the branch cost more than the four bytes it saved - which
+    /// weighed the wrong thing. The command <i>name</i> is not an encoding detail: <see cref="CommandMap"/>
+    /// can rename or outright disable <c>INCR</c> independently of <c>INCRBY</c>, ACL rules are written
+    /// per command, and so is everything reading <c>MONITOR</c> or <c>SLOWLOG</c>. Emitting the other
+    /// spelling is a behaviour change dressed as an optimisation.
+    /// </para>
+    /// <para>
+    /// A step of <b>zero</b> is left as <c>INCRBY key 0</c> rather than elided: it is a real command with
+    /// a real reply - the current value - and the caller asked for it.
     /// </para>
     /// </remarks>
     public static ValueTask<long> IncrementAsync(this in RespStrings strings, RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => strings.Context.SendAsync<long>(
-            $"{RedisCommand.INCRBY}{key}{value}", flags, cancellationToken: cancellationToken);
+        => value switch
+        {
+            1 => strings.Context.SendAsync<long>($"{RedisCommand.INCR}{key}", flags, cancellationToken: cancellationToken),
+            -1 => strings.Context.SendAsync<long>($"{RedisCommand.DECR}{key}", flags, cancellationToken: cancellationToken),
+            _ => strings.Context.SendAsync<long>($"{RedisCommand.INCRBY}{key}{value}", flags, cancellationToken: cancellationToken),
+        };
 
     /// <inheritdoc cref="Strings.IncrementAsync(in RespStrings, RedisKey, long, CommandFlags, CancellationToken)"/>
     /// <param name="strings">The string command group.</param>

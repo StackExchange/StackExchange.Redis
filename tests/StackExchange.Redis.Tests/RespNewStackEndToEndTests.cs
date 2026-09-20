@@ -45,7 +45,7 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         await socket.ConnectAsync(host ?? TestConfig.Current.PrimaryServer, port == 0 ? TestConfig.Current.PrimaryPort : port);
 
         var transport = new StreamDuplexTransport(new NetworkStream(socket, ownsSocket: true));
-        var connection = new RespConnection(transport);
+        var connection = new RespClientConnection(transport, static (in RespRedirect _, RespPayloadOperation _) => false);
         var context = new RespContext().WithExecutor(new RespConnectionExecutor(connection, 0));
         return (new RespDatabaseContext(context), connection, transport);
     }
@@ -343,7 +343,7 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
                 await socket.ConnectAsync(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
                 lock (sockets) sockets.Add(socket);
 
-                var connection = new RespConnection(new StreamDuplexTransport(new NetworkStream(socket, ownsSocket: true)));
+                var connection = new RespClientConnection(new StreamDuplexTransport(new NetworkStream(socket, ownsSocket: true)), static (in RespRedirect _, RespPayloadOperation _) => false);
 
                 // the replacement is handshaked too, which is the point: a reconnected connection that
                 // skipped SELECT would quietly be on the wrong database
@@ -449,6 +449,52 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         using var cts = new CancellationTokenSource();
         await Assert.ThrowsAsync<NotImplementedException>(
             async () => await context.Strings.GetAsync(Me(), cancellationToken: cts.Token));
+    }
+
+    [Fact]
+    public async Task ATransactionRunsAtomicallyAgainstARealServer()
+    {
+        // the fake-transport tests prove the shape against replies I wrote; this proves it against the
+        // ones a server actually sends - which is where an assumption about +QUEUED or EXEC would show
+        RespDatabaseContext context;
+        RespConnection connection;
+        StreamDuplexTransport transport;
+        try
+        {
+            (context, connection, transport) = await ConnectAsync();
+        }
+        catch (SocketException ex)
+        {
+            Assert.Skip($"Unable to connect to server: {ex.Message}");
+            return;
+        }
+
+        await using var owner = transport;
+
+        RedisKey counter = $"{Me()}:counter";
+        RedisKey list = $"{Me()}:list";
+        await context.Keys.DeleteAsync(counter);
+        await context.Keys.DeleteAsync(list);
+
+        var endpoint = new RespConnectionExecutor(connection, 0);
+        var tran = new RespTransactionExecutor(endpoint);
+        var queued = new RespDatabaseContext(new RespContext().WithExecutor(tran));
+
+        // a scalar and an aggregate, so the element walk is exercised on a real reply
+        var incr = queued.Strings.IncrementAsync(counter);
+        var push = queued.Lists.RightPushAsync(list, "x");
+        var range = queued.Lists.RangeAsync(list, 0, -1);
+
+        Assert.True(await tran.ExecuteAsync());
+
+        Assert.Equal(1, await incr);
+        Assert.Equal(1, await push);
+        using var values = await range;
+        Assert.Equal(1, values.Length);
+        Assert.Equal("x", (string?)values.Span[0]);
+
+        // and the connection is usable afterwards: MULTI state was left cleanly
+        Assert.Equal(2, (long)await context.Strings.IncrementAsync(counter));
     }
 
     [Fact]

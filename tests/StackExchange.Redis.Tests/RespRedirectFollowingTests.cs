@@ -64,7 +64,7 @@ public class RespRedirectFollowingTests
         {
             var node = new Node();
             node.Executor = new RespEndpointExecutor(
-                _ => Task.FromResult<RespConnection>(new RespRedirectingConnection(node.Transport, router)),
+                _ => Task.FromResult<RespConnection>(new RespClientConnection(node.Transport, router)),
                 endpoint: endpoint);
             return node;
         }

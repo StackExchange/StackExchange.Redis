@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -68,6 +69,18 @@ namespace StackExchange.Redis
             var operation = Dispatch(in request, cancellationToken);
             return new ValueTask<RespPayload>(operation, operation.Token);
         }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// It owns a connection outright, so contiguity is simply available: there is no backlog that
+        /// could drain the run one operation at a time, and no reconnect that could split it.
+        /// </remarks>
+        internal override bool TrySendBatch(List<RespPayloadOperation> operations)
+            => !_connection.IsClosed && _connection.Send(operations.ToArray(), operations.Count);
+
+        /// <inheritdoc/>
+        internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+            => RespTransactionExecutor.TrySendOver(_connection, operations, out exec);
 
         private RespPayloadOperation Dispatch(in RespRequest request, CancellationToken cancellationToken)
         {

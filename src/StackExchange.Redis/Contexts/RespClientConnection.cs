@@ -16,9 +16,22 @@ namespace StackExchange.Redis
     internal delegate bool RespRedirectRouter(in RespRedirect redirect, RespPayloadOperation operation);
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A connection that follows <c>-MOVED</c> and <c>-ASK</c> rather than
-    /// reporting them.
+    /// EXPERIMENTAL SPIKE. The connection the client uses: one that knows what a reply <i>means</i>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Renamed from <c>RespRedirectingConnection</c>, because it grew a second job and the old name
+    /// hid it.</b> Two kinds of reply do not complete the operation they are matched to - a redirect,
+    /// which means "ask somewhere else", and a <c>+QUEUED</c> receipt inside <c>MULTI</c>, which means
+    /// "your real answer comes with <c>EXEC</c>". Both are handled here, through the same hand-off hook,
+    /// and neither needs anything from RESPite.
+    /// </para>
+    /// <para>
+    /// The name mattered: a bare <c>RespConnection</c> looks interchangeable with this one and silently
+    /// is not - a transaction over one completes every command with the string "QUEUED". That is exactly
+    /// the mistake this rename exists to stop.
+    /// </para>
+    /// </remarks>
     /// <remarks>
     /// <para>
     /// <b>The following happens on the IO loop, and that is a correctness requirement rather than an
@@ -32,7 +45,7 @@ namespace StackExchange.Redis
     /// node - so the decision is delegated upward to whoever holds the topology.
     /// </para>
     /// </remarks>
-    internal sealed class RespRedirectingConnection(
+    internal sealed class RespClientConnection(
         RESPite.Transports.DuplexTransport transport,
         RespRedirectRouter router) : RespConnection(transport)
     {
@@ -41,7 +54,19 @@ namespace StackExchange.Redis
         {
             // every frame matched to an operation passes through here, which makes it the natural place
             // to mark "answered" - and means RESPite needs no hook for it
-            if (message is RespPayloadOperation answered) answered.Profile?.SetResponseReceived();
+            if (message is RespPayloadOperation answered)
+            {
+                answered.Profile?.SetResponseReceived();
+
+                // a queued command's first reply is a +QUEUED receipt, not its result. Taking it here
+                // leaves the operation pending, to be completed later from EXEC's array - which is what
+                // the hand-off hook is for, and why this needs nothing from RESPite.
+                if (answered.ExpectsQueuedReceipt)
+                {
+                    answered.ExpectsQueuedReceipt = false;
+                    return true;
+                }
+            }
 
             // one byte of work for every reply that is not an error, which is nearly all of them
             if (!RespRedirect.TryParse(frame, out var redirect)) return false;

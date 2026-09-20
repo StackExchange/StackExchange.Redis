@@ -1,0 +1,311 @@
+﻿using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
+using RESPite.Buffers;
+using RESPite.Messages;
+using RESPite.Operations;
+using StackExchange.Redis.Protocol;
+
+namespace StackExchange.Redis
+{
+    /// <summary>
+    /// EXPERIMENTAL SPIKE. Accumulates commands and sends them inside <c>MULTI</c>/<c>EXEC</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Where a transaction stops looking like a batch.</b> A batch needed no return channel at all,
+    /// because each operation's own reply <i>is</i> its result. Inside <c>MULTI</c> the server answers
+    /// each command with <c>+QUEUED</c> and holds the real results until <c>EXEC</c>, which returns them
+    /// as one array - so RESP itself multiplexes them, and something has to distribute them back.
+    /// </para>
+    /// <para>
+    /// That distribution happens <b>once</b>, in the <c>EXEC</c> operation's parse, rather than as a
+    /// completion source per element. The queued operations are ordinary operations that are simply not
+    /// completed by their first reply; the connection's hand-off hook takes the receipt and leaves them
+    /// pending.
+    /// </para>
+    /// <para>
+    /// <b>And this is where the old core's strangest code lived.</b> <c>TransactionMessage.GetMessages</c>
+    /// pauses for condition replies with <c>Monitor.Enter</c>/<c>Monitor.Exit</c> on result boxes,
+    /// <i>inside the write lock</i>, because an enumerator that blocks for a reply cannot hold that lock
+    /// and the reader must make progress. A core that can <c>await</c> does not need the handshake: a
+    /// pause is simply the boundary between two contiguous runs. See design notes §3c, which asked for
+    /// exactly this distinction, and §7f, where the handshake collapsed the same way.
+    /// </para>
+    /// </remarks>
+    internal sealed class RespTransactionExecutor : RespExecutorBase
+    {
+        private readonly RespExecutorBase _inner;
+        private readonly object _sync = new();
+        private List<RespPayloadOperation>? _queue;
+        private bool _sent;
+
+        internal RespTransactionExecutor(RespExecutorBase inner)
+            => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+
+        /// <inheritdoc/>
+        public override int Database => _inner.Database;
+
+        /// <summary>How many commands are waiting to be sent.</summary>
+        internal int Count
+        {
+            get
+            {
+                lock (_sync) return _queue?.Count ?? 0;
+            }
+        }
+
+        /// <inheritdoc/>
+        internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
+            => _inner.ResolveFor(in key, command, flags);
+
+        /// <inheritdoc/>
+        public override RespPayload Send(in RespRequest request)
+            => throw new NotSupportedException("A queued command cannot be waited on before the transaction is executed.");
+
+        /// <inheritdoc/>
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        {
+            var operation = RespPayloadOperation.Rent();
+            operation.Attach(request.Span, request.Flags, cancellationToken);
+            operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+            operation.Slot = request.Slot;
+
+            // its first reply will be the +QUEUED receipt; the real result arrives from EXEC
+            operation.ExpectsQueuedReceipt = true;
+
+            lock (_sync)
+            {
+                if (_sent) throw new InvalidOperationException("This transaction has already been executed.");
+                (_queue ??= []).Add(operation);
+            }
+
+            return new ValueTask<RespPayload>(operation, operation.Token);
+        }
+
+        /// <summary>Send <c>MULTI</c>, the queued commands, and <c>EXEC</c>, as one contiguous run.</summary>
+        /// <returns>Whether the transaction was executed.</returns>
+        /// <remarks>
+        /// One run, because <c>MULTI</c> is per-connection state: anything of anybody else's interleaved
+        /// between the <c>MULTI</c> and the <c>EXEC</c> would join the transaction rather than run beside
+        /// it.
+        /// </remarks>
+        internal async Task<bool> ExecuteAsync()
+        {
+            List<RespPayloadOperation>? queue;
+            lock (_sync)
+            {
+                queue = _queue;
+                _queue = null;
+                _sent = true;
+            }
+
+            if (queue is null || queue.Count == 0) return true; // an empty transaction trivially succeeds
+
+            var target = _inner.ResolveFor(default, RedisCommand.MULTI, CommandFlags.None);
+            if (target is null || !target.TrySendTransaction(queue, out var exec))
+            {
+                var fault = new RedisConnectionException(
+                    ConnectionFailureType.UnableToResolvePhysicalConnection,
+                    CommandFlags.CommandRetryNever,
+                    "No endpoint is available to serve this transaction.",
+                    null,
+                    CommandStatus.WaitingInBacklog);
+                foreach (var operation in queue) operation.TrySetException(operation.Token, fault, definite: false);
+                return false;
+            }
+
+            return await exec.ConfigureAwait(false);
+        }
+
+        /// <summary>Write <c>MULTI</c>, the queued commands, and <c>EXEC</c> down one connection.</summary>
+        /// <param name="connection">The connection to write to; may be null or closed, which declines.</param>
+        /// <param name="operations">The queued commands, in order.</param>
+        /// <param name="exec">Completes with whether the transaction executed.</param>
+        /// <returns>Whether the run was written.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>One write, with the receipts standing in the pending queue for <c>MULTI</c> and
+        /// <c>EXEC</c>.</b> The queued commands are enqueued too - they have to be, to receive their
+        /// <c>+QUEUED</c> - but the connection's hand-off hook takes that receipt and leaves them pending
+        /// for <c>EXEC</c> to complete.
+        /// </para>
+        /// <para>
+        /// <b>This has to be shared, and the bug that says so is worth keeping.</b> It began as a method
+        /// on the endpoint executor, so a transaction over a plain <see cref="RespConnectionExecutor"/>
+        /// hit the base <c>TrySendTransaction</c>, which declines - and a declined transaction reports
+        /// "no endpoint is available", which is a lie when the connection is right there and working.
+        /// Nothing about assembling this run is endpoint-specific: it needs a connection, and any
+        /// executor that owns one can serve it.
+        /// </para>
+        /// </remarks>
+        internal static bool TrySendOver(RespConnection? connection, List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        {
+            exec = default;
+            if (connection is null || connection.IsClosed) return false;
+
+            var multi = RespPayloadOperation.Rent();
+            multi.Attach(MultiFrame, CommandFlags.None, default);
+
+            var execOperation = new RespExecOperation();
+            execOperation.Attach(ExecFrame, operations);
+
+            var run = new IRespMessage[operations.Count + 2];
+            run[0] = multi;
+            for (var i = 0; i < operations.Count; i++) run[i + 1] = operations[i];
+            run[operations.Count + 1] = execOperation;
+
+            if (!connection.Send(run, run.Length))
+            {
+                RespPayloadOperation.DiscardReply(multi);
+                return false;
+            }
+
+            RespPayloadOperation.DiscardReply(multi); // +OK, which nobody is waiting for
+            exec = new ValueTask<bool>(execOperation, execOperation.Token);
+            return true;
+        }
+
+        private static ReadOnlySpan<byte> MultiFrame => "*1\r\n$5\r\nMULTI\r\n"u8;
+
+        private static ReadOnlySpan<byte> ExecFrame => "*1\r\n$4\r\nEXEC\r\n"u8;
+
+        /// <summary>Fail everything queued; for a transaction discarded rather than executed.</summary>
+        internal void Abandon(Exception fault)
+        {
+            List<RespPayloadOperation>? queue;
+            lock (_sync)
+            {
+                queue = _queue;
+                _queue = null;
+                _sent = true;
+            }
+
+            if (queue is null) return;
+            foreach (var operation in queue) operation.TrySetException(operation.Token, fault, definite: false);
+        }
+    }
+
+    /// <summary>
+    /// The <c>EXEC</c> command, whose reply is everybody else's results.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Parses the array and hands element <i>i</i> to queued operation <i>i</i>. A <b>null</b> reply means
+    /// the transaction was aborted - a watched key changed - and every queued command is completed as
+    /// having not run, which is a distinct outcome from failing.
+    /// </para>
+    /// <para>
+    /// <b>The elements are copied out.</b> They are slices of one frame, and that frame's buffer is
+    /// reference-counted as a whole, so retaining N payloads against it would keep the entire reply alive
+    /// for as long as the longest-lived element. Copying each is the cheaper end of that trade when the
+    /// alternative is pinning a potentially large array.
+    /// </para>
+    /// </remarks>
+    internal sealed class RespExecOperation : RespMessageBase<bool>
+    {
+        private List<RespPayloadOperation>? _queued;
+
+        internal void Attach(ReadOnlySpan<byte> request, List<RespPayloadOperation> queued)
+        {
+            _queued = queued;
+            var pool = ArrayPool<byte>.Shared;
+            var buffer = pool.Rent(request.Length);
+            request.CopyTo(buffer);
+            SetRequest(new ReadOnlyMemory<byte>(buffer, 0, request.Length), pool, default);
+        }
+
+        /// <inheritdoc/>
+        protected override void OnReset() => _queued = null;
+
+        /// <inheritdoc/>
+        protected override bool ParseFrame(scoped ReadOnlySpan<byte> frame, IPayloadReservationProvider? source)
+        {
+            var queued = _queued;
+            if (queued is null) return false;
+
+            var reader = new RespReader(frame);
+            if (!reader.TryMoveNext(checkError: false)) return Abort(queued, "EXEC produced no reply.");
+
+            if (reader.IsError)
+            {
+                var message = reader.ReadString() ?? "EXEC failed.";
+                foreach (var operation in queued)
+                {
+                    operation.TrySetException(
+                        operation.Token,
+                        new RedisServerException(RedisErrorKindMetadata.Classify(reader), CommandFlags.None, message),
+                        definite: true);
+                }
+
+                return false;
+            }
+
+            // a null reply is an ABORT, not a failure: a watched key changed, so nothing ran
+            if (reader.IsNull) return Abort(queued, null);
+
+            // Walk the elements by SCANNING each one's extent, exactly as the connection does for
+            // top-level frames. Slicing by hand would work for the scalars a transaction usually returns
+            // and quietly break on a queued LRANGE, whose element is an aggregate of its own.
+            var count = reader.AggregateLength();
+            var body = frame.Slice(HeaderLength(frame));
+
+            for (var i = 0; i < queued.Count; i++)
+            {
+                var operation = queued[i];
+                var scan = default(RespScanState);
+                if (i >= count || body.IsEmpty || !scan.TryRead(body, out var length))
+                {
+                    operation.TrySetException(
+                        operation.Token,
+                        new RedisServerException(RedisErrorKind.ConnectionFault, CommandFlags.None, "EXEC returned fewer results than commands queued."),
+                        definite: true);
+                    continue;
+                }
+
+                // each element is a complete frame in its own right, so the operation parses it exactly
+                // as it would have parsed a reply of its own. No source: these bytes belong to the EXEC
+                // reply, and retaining N slices of one frame would pin the whole array for as long as its
+                // longest-lived element.
+                operation.TrySetResult(operation.Token, body.Slice(0, length));
+                body = body.Slice(length);
+            }
+
+            return true;
+        }
+
+        /// <summary>How long the aggregate's own header is, so the elements can be walked.</summary>
+        private static int HeaderLength(scoped ReadOnlySpan<byte> frame)
+        {
+            var terminator = frame.IndexOf((byte)'\n');
+            return terminator < 0 ? frame.Length : terminator + 1;
+        }
+
+        private static bool Abort(List<RespPayloadOperation> queued, string? fault)
+        {
+            foreach (var operation in queued)
+            {
+                if (fault is null)
+                {
+                    // aborted: the command did not run, so it is NOT applied - which the retry layer reads
+                    operation.TrySetException(
+                        operation.Token,
+                        new RedisServerException(RedisErrorKind.None, CommandFlags.None, "The transaction was aborted; a watched key changed."),
+                        definite: true);
+                }
+                else
+                {
+                    operation.TrySetException(
+                        operation.Token,
+                        new RedisServerException(RedisErrorKind.ConnectionFault, CommandFlags.None, fault),
+                        definite: true);
+                }
+            }
+
+            return false;
+        }
+    }
+}

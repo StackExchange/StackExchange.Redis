@@ -1101,6 +1101,83 @@ the command completes, and cancelling afterwards changes nothing because the reg
 any definite outcome. The `Message` shim still refuses, and a test pins that it does — the capability is
 per-executor, not a flag that got flipped globally.
 
+### 7r. Transaction: the handshake collapses, and a lie about "no endpoint"
+
+Batch (§7p) needed no return channel — each operation's own reply *is* its result. `MULTI` is the first
+thing on this core where that stops being true: the server answers each queued command with `+QUEUED`
+and holds the real results until `EXEC`, which returns them as one array. RESP itself multiplexes them,
+so something has to distribute them back.
+
+**Three pieces, and only one of them is new.**
+
+`ExpectsQueuedReceipt` on `RespPayloadOperation` says "your first reply is a receipt, not your result".
+`RespClientConnection`'s hand-off hook absorbs it and leaves the operation pending — the *same* hook that
+absorbs `-MOVED`, because it is the same shape of question: this reply does not complete this operation.
+RESPite needed nothing, which is now twice in a row (§7o, §7p) that a Redis-semantic feature landed
+entirely in StackExchange.Redis.
+
+`RespExecOperation` is the only genuinely new object: one operation whose `ParseFrame` walks the `EXEC`
+array and hands element *i* to queued operation *i*. Distribution happens **once**, not as a completion
+source per element. The elements are copied out rather than reserved against the reply's buffer —
+retaining N slices of one frame would pin the whole array for as long as its longest-lived element, and
+for the scalars a transaction usually returns the copy is much the cheaper end of that trade. Each
+element is scanned with `RespScanState`, not sliced by hand: hand-slicing works for scalars and quietly
+breaks on a queued `LRANGE`, whose element is an aggregate of its own.
+
+`TrySendTransaction` writes `MULTI`, the queued commands and `EXEC` as **one contiguous run**. That is a
+stronger requirement than a batch's: a batch wants its commands adjacent, whereas anything interleaved
+between this `MULTI` and this `EXEC` would *join the transaction* rather than run beside it.
+
+**The handshake §5 predicted would collapse, collapsed.** The old core's `TransactionMessage.GetMessages`
+pauses for condition replies with `Monitor.Enter`/`Monitor.Exit` on result boxes, *inside the write lock*
+— because an enumerator that blocks for a reply cannot hold that lock while the reader must make
+progress. A core that can `await` does not need any of it: a pause is simply the boundary between two
+contiguous runs, exactly the distinction §3c asked for. The same collapse as §7f, from the same cause.
+
+**The bug worth recording.** The real-server test failed with "No endpoint is available to serve this
+transaction" while connected to a working server. `TrySendTransaction` was a method on
+`RespEndpointExecutor`; the test drove a plain `RespConnectionExecutor`, which inherited the base
+implementation — and the base declines. Declining is reported as *no endpoint*, which was a lie: the
+connection was right there and working.
+
+Nothing about assembling the run is endpoint-specific. It needs a `RespConnection` and nothing else, so
+it moved to `RespTransactionExecutor.TrySendOver`, and both executors call it. `TrySendBatch` had the
+identical hole — a batch over a connection executor silently degraded to a pipeline — and got the same
+fix. **A `virtual` returning `false` is a capability question that answers "no" by default, and every
+type that could have said yes and did not is a silent downgrade.**
+
+**So the rest of the base got audited.** `RespExecutorBase` has six such members. Four are safe *by
+construction* rather than by anyone remembering: `TryGetLocalFeatures`, `TrySendBatch` and
+`TrySendTransaction` are only ever reached through `ResolveFor`, which walks the routers down to a leaf
+before the question is asked — the funnel §7m built for a different reason turns out to be what keeps
+capability questions off decorators. `TryResend`/`TryResendAsking` bypass `ResolveFor` (the redirect path
+resolves an `EndPoint`, not a key), but `RespNewCore.ForEndpoint` returns a `RespEndpointExecutor`
+directly, so they land on a leaf too.
+
+**`CanWritePreamble` is the one that is genuinely broken, and differently.** It is asked on the
+*outermost* executor — `context.Executor` — not on a resolved leaf, because the pair has to be written by
+whoever owns the write, and resolving first would answer a question about the wrong object. So every
+router in the chain has to forward it; `RespRetryExecutor` does, `RespMultiplexerExecutor` and
+`RespGroupExecutor` do not. But fixing the forwarding would change nothing today, because **no new-core
+leaf implements it at all**: `IRespPreambleGate.IsNeeded` takes a `PhysicalConnection`, which the new
+core does not have. RESPite has the primitive — `RespConnection.Send(first, second)`, already carrying
+`ASKING` — and the gate is what cannot reach it.
+
+The effect is bounded and not a correctness bug: `AwaitPair` falls back to sending the two in sequence,
+which is semantically identical and one round trip worse. What it costs is that the gate is never
+consulted, so an `EVALSHA` on the new core carries a `SCRIPT LOAD` it does not need *on every call*.
+Tracked in the queue; the fix is to give the gate a connection identity both cores can supply, which is
+a change to an interface the old core owns and so belongs with the deletion rather than before it.
+
+`RespRedirectingConnection` was renamed to `RespClientConnection` in the same change, for the same
+reason: it had grown a second job (receipts, not only redirects), and a bare `RespConnection` looks
+interchangeable with it and silently is not — a transaction over one completes every queued command with
+the string `"QUEUED"`.
+
+**Still outstanding: `WATCH` and conditions.** A condition is evaluated *before* `MULTI` and its answer
+decides whether the transaction is sent at all — so it is the pause point of §3c, and the first place two
+contiguous runs are genuinely required rather than one.
+
 ---
 
 ## 8. Open questions

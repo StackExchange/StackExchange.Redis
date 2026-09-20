@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Threading;
+using System.Threading.Tasks;
 using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Operations;
@@ -80,6 +81,26 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool HasFollowedRedirect { get; set; }
 
+        /// <summary>
+        /// Whether this command's next reply is a <c>+QUEUED</c> receipt rather than its result.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Inside <c>MULTI</c>, the server answers each command with <c>+QUEUED</c> and holds the real
+        /// results until <c>EXEC</c>, which returns them as one array. So a queued command receives
+        /// <b>two</b> replies, and the first one is a receipt: completing the operation with it would hand
+        /// the caller "QUEUED" where its value should be.
+        /// </para>
+        /// <para>
+        /// This is where batch and transaction genuinely differ. In a batch there is no return channel to
+        /// design, because each operation's own reply <i>is</i> its result. In a transaction RESP itself
+        /// multiplexes the results into a single array, so a distribution step is unavoidable - but it
+        /// happens once, in the <c>EXEC</c> operation's parse, rather than as a completion source per
+        /// element.
+        /// </para>
+        /// </remarks>
+        internal bool ExpectsQueuedReceipt { get; set; }
+
         /// <summary>The cluster slot this command's keys resolved to, for batch grouping.</summary>
         /// <remarks>
         /// Carried on the operation because the request it was rendered from is gone by the time a batch
@@ -124,6 +145,7 @@ namespace StackExchange.Redis
         protected override void OnReset()
         {
             HasFollowedRedirect = false;
+            ExpectsQueuedReceipt = false;
             Slot = ServerSelectionStrategy.NoSlot;
             Profile = null; // the next life gets its own record, or none
         }
@@ -220,6 +242,31 @@ namespace StackExchange.Redis
             finally
             {
                 ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
+
+        /// <summary>Await and throw away an operation's reply, so it recycles.</summary>
+        /// <param name="operation">The operation to drain.</param>
+        /// <remarks>
+        /// Some commands have an answer that nobody wants: <c>ASKING</c>'s <c>+OK</c>, <c>MULTI</c>'s.
+        /// Somebody still has to take it. Left unconsumed the operation is never reset, so it never
+        /// returns to the pool and never releases the pooled buffer holding its request: a slow leak of
+        /// exactly the kind pooling was added to avoid.
+        /// </remarks>
+        internal static void DiscardReply(RespPayloadOperation operation)
+        {
+            _ = DrainAsync(operation);
+
+            static async Task DrainAsync(RespPayloadOperation operation)
+            {
+                try
+                {
+                    using var payload = await new ValueTask<RespPayload>(operation, operation.Token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // the command it was paired with will report any failure better than this can
+                }
             }
         }
     }
