@@ -179,6 +179,93 @@ public class RespPreamblePairingTests
         public void OnEstablished(IRespPreambleTarget connection) { }
     }
 
+    /// <summary>
+    /// <b>The gate is consulted while the write lock is held</b>, so no other sender can slip a command in
+    /// between a preamble being decided on and being written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The race this closes: A asks "is a preamble needed?", is told yes and records the claim; B asks,
+    /// sees A's record and is told no; B then wins the write lock and its command goes out <i>ahead</i> of
+    /// A's preamble - so B runs without the thing it was told had already been arranged.
+    /// </para>
+    /// <para>
+    /// For <c>SCRIPT LOAD</c> that costs a redundant load or a <c>NOSCRIPT</c> retry, which is why it sat
+    /// there unnoticed. For <c>SELECT</c> it is a command run against the wrong database, silently, and
+    /// that is the case this has to be right for.
+    /// </para>
+    /// <para>
+    /// Deterministic rather than a stress loop: the gate blocks inside the decision, so if the decision
+    /// were made outside the lock the second sender would be free to write and the assertion below would
+    /// see its bytes. It is held instead, and the wire stays exactly as it was.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheGateIsConsultedWhileTheWriteLockIsHeld()
+    {
+        var (_, transport, context) = await ConnectedAsync();
+        var gate = new BlockingGate();
+
+        var before = transport.Written;
+
+        Task<bool> Send() => Task.Run(() =>
+        {
+            var preamble = context.Raw.Render($"{RedisCommand.SELECT}{(RedisValue)3}");
+            var request = context.Raw.Render($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
+            try
+            {
+                return context.Raw.SendWithPreambleAsync(
+                    ref preamble, ref request, CommandFlags.None, RespHandlers.Boolean, gate).AsTask();
+            }
+            finally
+            {
+                preamble.Dispose();
+                request.Dispose();
+            }
+        });
+
+        var first = Send();
+        Assert.True(gate.Entered.Wait(5000), "the first sender never reached the gate");
+
+        var second = Send();
+
+        // the second sender is blocked on the write lock the first is holding; were the decision taken
+        // outside it, this is where its SET would appear - in front of the SELECT that is still unwritten
+        await Task.Delay(250);
+        Assert.Equal(before, transport.Written);
+
+        gate.Release.Set();
+
+        await WaitFor(() => transport.Written.Contains("SELECT"));
+        transport.Reply("+OK\r\n+OK\r\n+OK\r\n"); // the SELECT, then each SET
+        Assert.True(await first);
+        Assert.True(await second);
+
+        // and the order is the one that matters: the preamble precedes every request that relied on it
+        var sent = transport.Written.Substring(before.Length);
+        Assert.StartsWith("*2|$6|SELECT|$1|3|*3|$3|SET|", sent);
+        Assert.Equal(1, gate.Claims);
+    }
+
+    private sealed class BlockingGate : IRespPreambleGate
+    {
+        internal readonly ManualResetEventSlim Entered = new(), Release = new();
+        private int _claimed;
+        internal int Claims;
+
+        public bool IsNeeded(IRespPreambleTarget connection)
+        {
+            if (Interlocked.Exchange(ref _claimed, 1) != 0) return false; // already arranged, by the first
+
+            Entered.Set();
+            Assert.True(Release.Wait(5000), "the test never released the gate");
+            Interlocked.Increment(ref Claims);
+            return true;
+        }
+
+        public void OnEstablished(IRespPreambleTarget connection) { }
+    }
+
     private static async Task WaitFor(Func<bool> condition, int millis = 5000)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();

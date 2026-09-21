@@ -161,6 +161,105 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// Write two operations contiguously, deciding <b>inside the write lock</b> whether the first is
+    /// needed at all.
+    /// </summary>
+    /// <typeparam name="TState">Whatever the predicate needs; a struct, so a static lambda allocates nothing.</typeparam>
+    /// <param name="first">The preamble, written only if <paramref name="isFirstNeeded"/> says so.</param>
+    /// <param name="second">The operation whose reply the caller wants.</param>
+    /// <param name="state">Passed to the predicate.</param>
+    /// <param name="isFirstNeeded">
+    /// Asked once, holding the write lock. It may record that the preamble is being written - doing so
+    /// here is what makes the claim and the write atomic.
+    /// </param>
+    /// <param name="wroteFirst">Whether the preamble was written; if not, the caller still owns it.</param>
+    /// <returns>Whether <paramref name="second"/> was written.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Why the predicate cannot be asked earlier.</b> Deciding before taking the lock and then writing
+    /// is two steps that another sender can interleave: A asks "is a preamble needed?", is told yes and
+    /// records it; B asks, sees A's record and is told no; B then wins the lock and writes its command
+    /// ahead of A's preamble. B's command runs without it.
+    /// </para>
+    /// <para>
+    /// For <c>SCRIPT LOAD</c> that race costs a redundant load or a <c>NOSCRIPT</c> retry, which is why it
+    /// went unnoticed. For <c>SELECT</c> it is a command executed against the wrong database, silently -
+    /// and connection state like <c>SELECT</c> is the reason this overload exists.
+    /// </para>
+    /// <para>
+    /// The predicate runs under the lock, so it must not block, take other locks in a different order, or
+    /// call back into this connection.
+    /// </para>
+    /// </remarks>
+    public bool Send<TState>(
+        IRespMessage first,
+        IRespMessage second,
+        TState state,
+        Func<TState, bool> isFirstNeeded,
+        out bool wroteFirst)
+    {
+        if (first is null) throw new ArgumentNullException(nameof(first));
+        if (second is null) throw new ArgumentNullException(nameof(second));
+        if (isFirstNeeded is null) throw new ArgumentNullException(nameof(isFirstNeeded));
+
+        wroteFirst = false;
+        if (Volatile.Read(ref _closed) != 0) return false;
+
+        lock (_writeLock)
+        {
+            if (!isFirstNeeded(state))
+            {
+                // the preamble is not wanted after all; this is an ordinary single write, and the caller
+                // is told so that it can discard the operation it speculatively created
+                if (!second.TryReserveRequest(second.Token, out var only)) return false;
+                try
+                {
+                    second.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                    _pending.Enqueue(second);
+                    Write(only.Span);
+                    Volatile.Write(ref _bytesSent, _bytesSent + only.Length);
+                }
+                finally
+                {
+                    second.ReleaseRequest();
+                }
+            }
+            else
+            {
+                if (!first.TryReserveRequest(first.Token, out var firstPayload)) return false;
+                try
+                {
+                    if (!second.TryReserveRequest(second.Token, out var secondPayload)) return false;
+                    try
+                    {
+                        var bytes = firstPayload.Length + secondPayload.Length;
+                        first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                        second.OnEnqueued(this, _bytesSent + firstPayload.Length, Volatile.Read(ref _bytesReceived));
+
+                        _pending.Enqueue(first);
+                        _pending.Enqueue(second);
+                        Write(firstPayload.Span);
+                        Write(secondPayload.Span);
+                        Volatile.Write(ref _bytesSent, _bytesSent + bytes);
+                        wroteFirst = true;
+                    }
+                    finally
+                    {
+                        second.ReleaseRequest();
+                    }
+                }
+                finally
+                {
+                    first.ReleaseRequest();
+                }
+            }
+        }
+
+        _transport.Flush();
+        return true;
+    }
+
     /// <summary>Write two operations with nothing of anybody else's between them.</summary>
     /// <param name="first">The operation to write first; typically a preamble.</param>
     /// <param name="second">The operation whose reply the caller wants.</param>

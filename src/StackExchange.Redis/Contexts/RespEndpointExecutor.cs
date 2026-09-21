@@ -244,13 +244,7 @@ namespace StackExchange.Redis
                 if (connection is null || connection.IsClosed) return SequentialAsync(preamble, request, cancellationToken);
             }
 
-            // asked before anything is written, because a gate that says no turns the pair into a single
-            // send - and the operation for a preamble nobody wants must never be created, let alone queued
             var target = connection as IRespPreambleTarget;
-            if (gate is not null && target is not null && !gate.IsNeeded(target))
-            {
-                return SendAsync(request, cancellationToken);
-            }
 
             var head = RespPayloadOperation.Rent();
             head.Attach(preamble.Span, preamble.Flags, default);
@@ -260,10 +254,25 @@ namespace StackExchange.Redis
             body.Slot = request.Slot;
             _startProfile?.Invoke(body, request.Command, request.Flags, Database, _endpoint);
 
-            if (!connection.Send(head, body))
+            // The gate is asked INSIDE the connection's write lock, which is the whole point of this
+            // overload: deciding first and writing second lets another sender see this one's claim and then
+            // win the lock ahead of it, so its command goes out in front of the preamble it depended on.
+            // Harmless for SCRIPT LOAD, silent corruption for SELECT - see RespConnection.Send.
+            //
+            // The head operation is created speculatively, before the answer is known, because renting one
+            // inside the lock is work the lock should not be holding. If the gate declines, nothing was
+            // written for it and it is simply discarded.
+            bool wroteHead;
+            if (!connection.Send(head, body, new Decision(gate, target), static d => d.IsNeeded(), out wroteHead))
             {
                 RespPayloadOperation.DiscardReply(head);
                 body.EnsureFaulted(request.Flags);
+                return new ValueTask<RespPayload>(body, body.Token);
+            }
+
+            if (!wroteHead)
+            {
+                RespPayloadOperation.DiscardReply(head);
                 return new ValueTask<RespPayload>(body, body.Token);
             }
 
@@ -293,6 +302,20 @@ namespace StackExchange.Redis
                     // the request that followed will report whatever that costs it
                 }
             }
+        }
+
+        /// <summary>
+        /// The gate and what it is being asked about, as one struct so the predicate can be a static
+        /// lambda and allocate nothing on a path that runs per command.
+        /// </summary>
+        private readonly struct Decision(IRespPreambleGate? gate, IRespPreambleTarget? target)
+        {
+            /// <remarks>
+            /// No gate, or nothing to ask it about, means "write it" - the same answer the pair gave before
+            /// gates existed, and the safe one: a preamble sent needlessly costs a round trip, one skipped
+            /// wrongly costs correctness.
+            /// </remarks>
+            internal bool IsNeeded() => gate is null || target is null || gate.IsNeeded(target);
         }
 
         /// <summary>
