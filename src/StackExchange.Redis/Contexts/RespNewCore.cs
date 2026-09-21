@@ -87,6 +87,12 @@ namespace StackExchange.Redis
                     database: database,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
+
+                // the multiplexer's, not one of this core's own: a loaded script is a fact about the
+                // SERVER, so both cores must consult the same record or each will reload what the other
+                // already sent. Without it the registry is null, which also meant no NOSCRIPT repair -
+                // see the null-registry branch in Scripts.Methods
+                .WithScriptCache(_multiplexer.ScriptCache)
                 .AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix)
                 .WithServices(_features)
                 .WithExecutor(database == _router.Database ? _router : Rebind(database)));

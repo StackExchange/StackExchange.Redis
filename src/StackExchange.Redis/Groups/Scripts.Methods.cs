@@ -72,7 +72,18 @@ public static partial class Scripts
         // equivalence: there is no way to put the script in the server's cache, so there is no hash worth
         // holding and the body has to travel. Asking only about the flag left the preamble path rendering
         // a SCRIPT LOAD that the map forbids.
-        if ((flags & CommandFlags.NoScriptCache) != 0 || !context.CommandMap.IsAvailable(RedisCommand.SCRIPT))
+        // An ACCUMULATING executor - a batch or a transaction - is the third case that has to carry the
+        // body, and for a harder reason than the other two. Such an executor cannot pair, so the preamble
+        // falls back to being sent first and AWAITED; but nothing leaves an accumulating executor until the
+        // run does, so that await waits for a send this very call is holding up. It surfaced as a script
+        // inside a transaction reporting "this transaction has already been executed" - the body being
+        // written after EXEC had come and gone - rather than the server error the script actually returned.
+        //
+        // The shipped core has always sent the body inside MULTI, and ScriptLoadPairingTests says why in
+        // its own terms: a SCRIPT LOAD paired inside a transaction would shift every EXEC result.
+        if ((flags & CommandFlags.NoScriptCache) != 0
+            || !context.CommandMap.IsAvailable(RedisCommand.SCRIPT)
+            || context.Executor is { Accumulates: true })
         {
             // EVAL_RO can be DISABLED in the command map, and the fallback is not just a different name:
             // EVAL_RO defaults to CommandRetryReadOnly where EVAL defaults to CommandRetryWriteAccumulating,
@@ -95,7 +106,21 @@ public static partial class Scripts
             {
                 // a gate per call here, where the registry keeps one per script: without a registry
                 // there is nowhere to keep it, and the skip is worth more than the allocation
-                return SendPair(context, ref fresh, hash, keys, args, flags, readOnly, new ScriptLoadGate(script, hash), handler);
+                //
+                // Repairable for the same reason the registry path is, and it was missing here: the gate
+                // consults the ENDPOINT's belief about its script cache, which exists whether or not this
+                // context has a registry - so a SCRIPT FLUSH under a registry-less context produced a
+                // NOSCRIPT that nothing repaired. That is how the new core presented, having never been
+                // given a registry at all.
+                return Repairable(
+                    SendPair(context, ref fresh, hash, keys, args, flags, readOnly, new ScriptLoadGate(script, hash), handler),
+                    context,
+                    script,
+                    keys,
+                    args,
+                    flags,
+                    readOnly,
+                    handler);
             }
             finally
             {

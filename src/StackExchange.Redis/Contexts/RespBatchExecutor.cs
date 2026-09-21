@@ -64,6 +64,10 @@ namespace StackExchange.Redis
         internal RespBatchExecutor(RespExecutorBase inner)
             => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
+        /// <inheritdoc/>
+        /// <remarks>Yes: nothing leaves until the run does.</remarks>
+        internal override bool Accumulates => true;
+
         public override int Database => _inner.Database;
 
         /// <inheritdoc/>

@@ -61,6 +61,10 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
+        /// <remarks>Yes: nothing leaves until the run does.</remarks>
+        internal override bool Accumulates => true;
+
+        /// <inheritdoc/>
         public override int Database => _inner.Database;
 
         /// <summary>

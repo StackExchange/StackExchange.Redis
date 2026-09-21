@@ -349,6 +349,26 @@ namespace StackExchange.Redis
         public virtual bool CanWritePreamble => false;
 
         /// <summary>
+        /// Whether this executor <b>queues</b> commands and sends them later, rather than sending each as
+        /// it arrives.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The question is whether a reply can be awaited before the next command is composed</b>, and
+        /// for a batch or a transaction it cannot: nothing is sent until the run is, so awaiting anything
+        /// mid-composition waits for a send that this very code is holding up.
+        /// </para>
+        /// <para>
+        /// It matters for preambles. An executor that cannot pair falls back to sending the two in
+        /// sequence and awaiting the first - correct, and one round trip worse - but inside an accumulating
+        /// executor that await cannot complete until the run goes out, and by then the second command has
+        /// nowhere to be sent. A caller with another way to express itself should take it: a script, for
+        /// instance, can carry its own body instead of a hash and a <c>SCRIPT LOAD</c>.
+        /// </para>
+        /// </remarks>
+        internal virtual bool Accumulates => false;
+
+        /// <summary>
         /// Write a <b>preamble</b> immediately before a request, on the same connection and with nothing
         /// interleaved.
         /// </summary>

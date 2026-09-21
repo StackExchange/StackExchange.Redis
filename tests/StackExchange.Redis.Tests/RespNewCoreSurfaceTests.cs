@@ -355,20 +355,22 @@ public class NewCoreDatabaseRoutingTests(ITestOutputHelper output, SharedConnect
     }
 }
 
-// NOT wrapped yet, and the gap is measured rather than guessed: ScriptingTests. Converting it to the
-// virtual GetDatabase (done here) makes wrapping a one-line subclass, and doing that temporarily reports
-// 18 failures of three kinds:
-//
-//   14  NOSCRIPT No matching script. The new core has no NOSCRIPT recovery at all - every bit of it lives
-//       in ResultProcessor/Message (see ResultProcessor.RespResult.cs), so an EVALSHA whose script the
-//       server has forgotten is simply an error. The preamble gate avoids this in the common case, but a
-//       SCRIPT FLUSH from a sibling test invalidates a belief the gate still holds. This is the next piece
-//       of work for scripts, and it is frame-ownership sensitive: the retry must re-issue as EVAL without
-//       handing a pooled buffer back twice.
-//    2  ChangeDbInTranScript - the SELECT/connection-per-database gap, not a script problem.
-//    2  exception type mismatches, unexamined.
-//
-// Wrapping it is the first thing to do once NOSCRIPT recovery lands.
+#if NET // ScriptingTests itself is NET-only - it flushes and reloads scripts, so it runs in one suite
+/// <inheritdoc cref="RespNewCoreFixture"/>
+/// <remarks>
+/// <b>Wrappable only since the preamble landed, and only once the core was given a script registry.</b>
+/// Every EVALSHA needs its SCRIPT LOAD written as a contiguous pair, which the new core could not do until
+/// IRespPreambleTarget gave both cores a way to answer a gate; and without a registry it took the branch
+/// that had no NOSCRIPT repair, so a SCRIPT FLUSH from a sibling test was fatal rather than recoverable.
+/// </remarks>
+[Collection(ScriptCacheCollection.Name)] // SCRIPT FLUSH is server-wide; see the collection
+[RunPerProtocol]
+public class NewCoreScriptingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : ScriptingTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
+#endif
 
 /// <inheritdoc cref="RespNewCoreFixture"/>
 /// <remarks>
