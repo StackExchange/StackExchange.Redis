@@ -79,6 +79,13 @@ namespace StackExchange.Redis.Downlevel
         /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Scripts"/>
         public static RespScripts Scripts(this in RespDatabaseContext context) => new RespScripts(context.Raw);
 
+        /// <inheritdoc cref="RespDatabaseExtensions.extension(in RespDatabaseContext).PubSub"/>
+        /// <remarks>
+        /// Only the database form: publishing is not keyspace-scoped, so there is no
+        /// <c>IRespKeyspaceTarget</c> accessor for the shim to mirror.
+        /// </remarks>
+        public static RespPubSub PubSub(this in RespDatabaseContext context) => new RespPubSub(context.Raw);
+
         /// <inheritdoc cref="RespDatabaseExtensions.extension{TTarget}(TTarget).Sets"/>
         public static RespSets Sets<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget => new RespSets(target.Raw);
 

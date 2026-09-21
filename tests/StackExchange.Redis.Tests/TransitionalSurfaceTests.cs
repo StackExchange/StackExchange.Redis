@@ -337,9 +337,11 @@ public class TransitionalKeyIdleAsyncTests(ITestOutputHelper output, SharedConne
 /// </remarks>
 public class TransitionalCoverageTests
 {
-    private static string[] Generated(string prefix, Type iface)
+    private static string[] Generated(string prefix, Type iface) => Generated(typeof(TransitionalDatabase), prefix, iface);
+
+    private static string[] Generated(Type implementation, string prefix, Type iface)
     {
-        var map = typeof(TransitionalDatabase).GetInterfaceMap(iface);
+        var map = implementation.GetInterfaceMap(iface);
         return map.InterfaceMethods
             .Select((m, i) => (Interface: m, Target: map.TargetMethods[i]))
             .Where(x => x.Interface.Name.StartsWith(prefix, StringComparison.Ordinal))
@@ -493,23 +495,52 @@ public class TransitionalCoverageTests
             .ToArray();
     }
 
+    /// <summary>
+    /// <b>The milestone, standing where the control used to.</b> Nothing in <see cref="IDatabase"/> or
+    /// <see cref="IDatabaseAsync"/> is generated for <see cref="TransitionalDatabase"/> any more: every
+    /// member is implemented against the RESP context surface.
+    /// </summary>
+    /// <remarks>
+    /// This slot held the opposite assertion for most of the port - "some group is still generated" - as a
+    /// control proving the interface-map query could tell the two kinds of member apart. It named Stream,
+    /// then Lock, then Publish, going stale each time by being right. Publish was the last: it is not a
+    /// command group, and it routes to the subscribed server rather than by key, so it was the member with
+    /// nowhere else to be. With it moved there is nothing left to point at, and an assertion that
+    /// something is missing cannot be written truthfully any more.
+    /// <para>
+    /// The anti-vacuity job it did is not dropped, it moves to
+    /// <see cref="TheGeneratedQueryCanStillSeeAGeneratedMember"/> - which is a better control anyway,
+    /// because it demonstrates the instrument on a type that is generated <i>by design</i> rather than on
+    /// our own unfinished work.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void AnUnmovedGroupIsStillGenerated()
+    public void NothingIsGeneratedForTheTransitionalDatabaseAnyMore()
     {
-        // the control. Without this, EveryMemberOfAMovedGroupIsImplemented would pass just as happily if
-        // the interface map stopped distinguishing the two kinds of member, and the coverage claim above
-        // would be vacuous rather than wrong - which is the harder failure to notice.
-        //
-        // This named "Stream" until the multi-stream reads and XINFO moved, then "Lock" until the
-        // transaction fallback landed and LockRelease/LockExtend moved with it - twice now the control
-        // has gone stale by being right, which is the one way it is meant to fail.
-        //
-        // "Publish" now. It is the last IDatabase member with nowhere else to be: it is not a command
-        // group, it routes to the subscribed server rather than by key, and it belongs with the pub/sub
-        // surface rather than the database one. When that moves, pick another still-generated group -
-        // and if nothing is left, that is the signal that [AutoDatabase] itself can go.
-        Assert.NotEmpty(Generated("Publish", typeof(IDatabase)));
+        Assert.Empty(Generated(string.Empty, typeof(IDatabase)));
+
+        // ...with one exception, and it is a limit of the instrument rather than a member left behind.
+        // IDatabaseAsync.CreateTransaction returns ITransactionAsync, so it CANNOT be served by the public
+        // CreateTransaction (which returns ITransaction) and has to be written explicitly - and an explicit
+        // implementation is private, exactly like a generated one. The interface map cannot tell those two
+        // apart, so this is the single known false positive. It is named rather than filtered out by
+        // pattern, so a genuinely generated member appearing here would still fail.
+        Assert.Equal(["CreateTransaction(Object)"], Generated(string.Empty, typeof(IDatabaseAsync)));
     }
+
+    /// <summary>
+    /// The control for every <c>Assert.Empty</c> above: the query really can see a generated member, so
+    /// "nothing is generated" means nothing is generated rather than "the query stopped working".
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Availability.RetryDatabase"/> is <c>[AutoDatabase(Replays = true)]</c> and is generated
+    /// on purpose - capture-and-replay wrappers are what the generator is <i>for</i>, and it keeps that
+    /// job after the transitional database stops needing it. So this control cannot go stale by being
+    /// right, which is how the previous one kept failing.
+    /// </remarks>
+    [Fact]
+    public void TheGeneratedQueryCanStillSeeAGeneratedMember()
+        => Assert.NotEmpty(Generated(typeof(Availability.RetryDatabase), "String", typeof(IDatabaseAsync)));
 }
 
 // NOT wrapped, and the reason is load-bearing: BatchTests and TransactionTests. Both were tried here and

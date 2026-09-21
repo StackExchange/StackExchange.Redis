@@ -50,6 +50,11 @@ namespace StackExchange.Redis
                 database: Database,
                 serverType: multiplexer.ServerSelectionStrategy.ServerType)
                 .WithExecutor(new RespMessageExecutor(this, Database))
+                // the connection-wide channel prefix, which the old write path applied from the multiplexer
+                // inside MessageWriter and the new one can only get from its context. Without it a publish
+                // went to the unprefixed channel while the subscription was on the prefixed one, so nobody
+                // received it - and in cluster it also hashed to the wrong slot, so it went to the wrong node
+                .AppendChannelPrefix(multiplexer.RawConfig.ChannelPrefix)
                 .WithCache(multiplexer.ClientCache)
                 .WithScriptCache(multiplexer.ScriptCache)
                 .WithServices(new ServerFeatureProbe(this));

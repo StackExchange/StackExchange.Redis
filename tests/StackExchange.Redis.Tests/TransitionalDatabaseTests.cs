@@ -181,31 +181,28 @@ public class TransitionalDatabaseTests
         Assert.Equal("*6|$3|SET|$1|k|$1|v|$2|NX|$2|EX|$3|300|", Assert.Single(executor.Sent));
     }
 
+    /// <summary>
+    /// <b>Where the "an unmoved command throws" exemplar used to be.</b> There is no longer a command to
+    /// point at: every member of <see cref="IDatabase"/>/<see cref="IDatabaseAsync"/> is implemented
+    /// against the RESP context surface, so nothing reaches the generated throw.
+    /// </summary>
+    /// <remarks>
+    /// The exemplar went stale seven times by being right - KeyDelete, ListLeftPush, StreamLength,
+    /// ArrayLength, LockQuery, LockRelease, StringGetWithExpiry - and finally Publish, which the comment
+    /// here called the last one and said would retire this test when it moved. It has, so it does.
+    /// <see cref="TransitionalCoverageTests.NothingIsGeneratedForTheTransitionalDatabaseAnyMore"/> is what
+    /// asserts the state this used to sample, and it asserts it over the whole interface rather than one
+    /// hand-picked member.
+    /// </remarks>
     [Fact]
-    public void AnUnmovedCommandThrowsAndSaysSo()
+    public void NoCommandIsLeftForTheGeneratedThrow()
     {
-        var db = Target(new FakeExecutor("+OK\r\n"));
+        var executor = new FakeExecutor(":2\r\n");
+        var db = Target(executor);
 
-        // the exemplar has to be a command that genuinely has not moved, so it changes as groups land -
-        // KeyDelete was this until the Key group arrived, ListLeftPush until the List group did,
-        // StreamLength until the stream scalars did, and ArrayLength lasted about an hour. Going stale is
-        // the point: it fails here loudly rather than silently asserting nothing.
-        //
-        // LockQuery was the previous pick, on the reasoning that "the lock group waits on transactions".
-        // Half of that group did not: LockQuery is GET and LockTake is SET NX, so they moved as sugar over
-        // the String group. LockRelease was the pick after that and genuinely did wait - and then the
-        // transaction fallback landed, so it moved too.
-        //
-        // StringGetWithExpiry was the pick after that, on the reasoning that it needs a composite result
-        // assembled from two replies. It turned out to need no mechanism at all - two sends and an
-        // addition - so it moved in the same session it was chosen, which is the shortest any exemplar
-        // has lasted.
-        //
-        // Publish now, and it is the last one: it is not a command group, it routes to the SUBSCRIBED
-        // server rather than by key, and it belongs with the pub/sub surface. When it moves there is
-        // nothing left for [AutoDatabase] to generate, and this test retires with it.
-        var ex = Assert.Throws<NotImplementedException>(() => db.Publish(RedisChannel.Literal("ch"), "msg"));
-        Assert.Contains("has not yet moved", ex.Message);
+        // the member that was the exemplar, now rendering a frame and going to the wire like any other
+        Assert.Equal(2, db.Publish(RedisChannel.Literal("ch"), "msg"));
+        Assert.Equal("*3|$7|PUBLISH|$2|ch|$3|msg|", Assert.Single(executor.Sent));
     }
 
     /// <summary>

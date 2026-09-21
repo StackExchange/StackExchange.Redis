@@ -102,6 +102,29 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags) => this;
 
+        /// <summary>Where a publish for this channel would rather go, or <see langword="null"/> for no preference.</summary>
+        /// <param name="channel">The channel being published to, <b>before</b> any channel prefix.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Not the same question as <see cref="ResolveFor(in RedisKey, RedisCommand, CommandFlags)"/></b>,
+        /// which asks where a key lives. This asks where <i>this client's own subscription</i> lives, and
+        /// the answer is client state rather than topology: nothing about the channel says it.
+        /// </para>
+        /// <para>
+        /// It matters because <c>PUBLISH</c> reports <b>how many clients that node delivered to</b>, not
+        /// how many the cluster did. A publish sent to any other node is still delivered - it crosses the
+        /// cluster bus - but answers 0, so a caller reading the count sees its own message vanish.
+        /// <c>ClusterTests.ClusterPubSub</c> asserts exactly that, and says why in a comment.
+        /// </para>
+        /// <para>
+        /// <see langword="null"/> is the right answer for most executors, and for all the composing ones:
+        /// a batch or transaction is already going to one server as a unit, so a single command inside it
+        /// has no say. Sharded and key-routed channels do not need this at all - they carry a real slot,
+        /// and the slot is authoritative.
+        /// </para>
+        /// </remarks>
+        internal virtual RespExecutorBase? ResolveForChannel(in RedisChannel channel) => null;
+
         /// <summary>Whether <b>this</b> executor, already resolved, can currently reach its server.</summary>
         /// <param name="key">The key being addressed.</param>
         /// <param name="flags">The command's flags.</param>

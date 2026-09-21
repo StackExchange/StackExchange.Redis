@@ -36,10 +36,19 @@ namespace StackExchange.Redis
     {
         private readonly RedisBase _target;
 
-        internal RespMessageExecutor(RedisBase target, int database)
+        /// <summary>The one server this executor must send to, or null to route normally.</summary>
+        /// <remarks>
+        /// Only ever set by <see cref="ResolveForChannel"/>. The shipped path carries the same thing as an
+        /// argument to <c>ExecuteAsync</c>; here it is a field, because the new surface routes by choosing
+        /// an executor rather than by passing a server down each call.
+        /// </remarks>
+        private readonly ServerEndPoint? _server;
+
+        internal RespMessageExecutor(RedisBase target, int database, ServerEndPoint? server = null)
         {
             _target = target;
             Database = database;
+            _server = server;
         }
 
         public override int Database { get; }
@@ -52,7 +61,19 @@ namespace StackExchange.Redis
         /// which is why <see cref="RespContext.WithDatabase"/> can offer it at all.
         /// </remarks>
         internal RespMessageExecutor WithDatabase(int database)
-            => database == Database ? this : new RespMessageExecutor(_target, database);
+            => database == Database ? this : new RespMessageExecutor(_target, database, _server);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// The subscription registry is the multiplexer's, and this executor has one - so the preference
+        /// is answered here rather than invented at the call site. An unsubscribed channel answers null and
+        /// the publish routes normally, which is what the shipped path does too.
+        /// </remarks>
+        internal override RespExecutorBase? ResolveForChannel(in RedisChannel channel)
+        {
+            var server = _target.multiplexer.GetSubscribedServer(channel);
+            return server is null ? null : new RespMessageExecutor(_target, Database, server);
+        }
 
         /// <summary>Issue the request and return the reply; null if the caller declined one.</summary>
         /// <param name="request">The rendered request.</param>
@@ -65,7 +86,7 @@ namespace StackExchange.Redis
         public override RespPayload Send(in RespRequest request)
         {
             var message = new FrameMessage(Database, request);
-            var reply = _target.ExecuteSync(message, PayloadProcessor.Instance);
+            var reply = _target.ExecuteSync(message, PayloadProcessor.Instance, server: _server);
             if (reply is null && (request.Flags & CommandFlags.FireAndForget) == 0)
             {
                 throw new RedisException("No reply.");
@@ -107,7 +128,7 @@ namespace StackExchange.Redis
             // the existing pipeline has no cancellation; the token is observed by the caller's await, which
             // is the model settled in design notes section 6.11 - the request completes by itself
             var message = new FrameMessage(Database, request);
-            return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!)!);
+            return new(_target.ExecuteAsync(message, PayloadProcessor.Instance, defaultValue: null!, server: _server)!);
         }
 
         /// <inheritdoc/>

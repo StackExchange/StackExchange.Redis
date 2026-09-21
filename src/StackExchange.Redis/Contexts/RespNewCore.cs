@@ -69,6 +69,7 @@ namespace StackExchange.Redis
                     database: database,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
+                .AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix)
                 // constructed directly rather than via GetDatabase: the probe needs the OLD database specifically,
                 // and GetDatabase is exactly the thing that stops returning one when the surface is swapped
                 .WithServices(new RedisBase.ServerFeatureProbe(new RedisDatabase(_multiplexer, database, null)))
