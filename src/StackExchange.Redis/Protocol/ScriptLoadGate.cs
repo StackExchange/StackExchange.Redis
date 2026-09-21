@@ -18,14 +18,13 @@ namespace StackExchange.Redis
     {
         private byte[]? _asciiHash;
 
-        public bool IsNeeded(PhysicalConnection connection)
+        public bool IsNeeded(IRespPreambleTarget connection)
             // no endpoint to ask is not "already loaded" - send it, and let the redundant load be harmless
-            => connection.BridgeCouldBeNull?.ServerEndPoint is not { } endpoint || !endpoint.IsScriptLoaded(script);
+            => connection.Server is not { } endpoint || !endpoint.IsScriptLoaded(script);
 
-        public void OnEstablished(PhysicalConnection connection)
+        public void OnEstablished(IRespPreambleTarget connection)
             // the ASCII of the hex, matching what GetScriptHash hands back to the classic path; computed
             // once per script rather than per call, since this object outlives both
-            => connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(
-                script, _asciiHash ??= Encoding.ASCII.GetBytes(hash));
+            => connection.Server?.AddScript(script, _asciiHash ??= Encoding.ASCII.GetBytes(hash));
     }
 }

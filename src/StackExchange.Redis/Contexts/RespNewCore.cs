@@ -201,6 +201,11 @@ namespace StackExchange.Redis
             // lets a later command for a different one know it has to say so first
             connection.CurrentDatabase = database;
 
+            // which server this reached, so a preamble gate can consult the endpoint's beliefs - a loaded
+            // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
+            // identity changes underneath. Borrowed rather than reimplemented while both cores exist.
+            connection.Server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
+
             return connection;
         }
 

@@ -20,12 +20,16 @@
     /// The connection is passed rather than the endpoint because the right <i>scope</i> differs by
     /// preamble: a loaded script is server-wide, where a connection-local setting is not. Each
     /// implementation picks its own, and gets the reconnect behaviour that goes with it.
+    /// <para>
+    /// It arrives as <see cref="IRespPreambleTarget"/> rather than a concrete connection so that both
+    /// cores can answer it; see the remarks there.
+    /// </para>
     /// </para>
     /// </remarks>
     internal interface IRespPreambleGate
     {
         /// <summary>Whether the preamble still needs to be sent on this connection.</summary>
-        bool IsNeeded(PhysicalConnection connection);
+        bool IsNeeded(IRespPreambleTarget connection);
 
         /// <summary>Record that the preamble's effect now holds, having seen it succeed.</summary>
         /// <remarks>
@@ -33,6 +37,6 @@
         /// <c>ResultProcessor.ScriptLoad</c> records the existing path's belief. Recording on send would
         /// claim an effect the server has not yet confirmed.
         /// </remarks>
-        void OnEstablished(PhysicalConnection connection);
+        void OnEstablished(IRespPreambleTarget connection);
     }
 }

@@ -61,6 +61,17 @@ namespace StackExchange.Redis
         public override bool CanCancel => _active() is { CanCancel: true };
 
         /// <inheritdoc/>
+        public override bool CanWritePreamble => _active() is { CanWritePreamble: true };
+
+        /// <inheritdoc/>
+        public override ValueTask<RespPayload> SendAsync(
+            RespRequest preamble,
+            RespRequest request,
+            IRespPreambleGate? gate,
+            CancellationToken cancellationToken = default)
+            => Active().SendAsync(preamble, request, gate, cancellationToken);
+
+        /// <inheritdoc/>
         internal override bool CanWriteRuns => _active() is { CanWriteRuns: true };
 
         /// <summary>Whether any member is currently able to serve.</summary>

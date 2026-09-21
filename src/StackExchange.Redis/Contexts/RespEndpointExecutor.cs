@@ -207,6 +207,90 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Yes: it owns a connection, and <c>RespConnection.Send(first, second)</c> already writes two
+        /// operations with nothing between them - the same primitive <c>ASKING</c> uses.
+        /// </remarks>
+        public override bool CanWritePreamble => true;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>
+        /// <b>The gate is consulted at WRITE time, holding the connection</b>, which is the entire reason
+        /// this cannot be decided when the frames are rendered: whether a <c>SCRIPT LOAD</c> is needed
+        /// depends on the endpoint the write lands on, and that is not chosen until here.
+        /// </para>
+        /// <para>
+        /// <b>Declined when there is no live connection</b>, as batches and <c>ASKING</c> are: the pair
+        /// must be adjacent, and a backlog drains one at a time. Declining lets the caller fall back to
+        /// sending them in sequence, which is a round trip worse and semantically identical.
+        /// </para>
+        /// </remarks>
+        public override ValueTask<RespPayload> SendAsync(
+            RespRequest preamble,
+            RespRequest request,
+            IRespPreambleGate? gate,
+            CancellationToken cancellationToken = default)
+        {
+            RespConnection? connection;
+            lock (_sync)
+            {
+                connection = _disposed || _writeSlotHeld ? null : _connection;
+                if (connection is null || connection.IsClosed) return base.SendAsync(preamble, request, gate, cancellationToken);
+            }
+
+            // asked before anything is written, because a gate that says no turns the pair into a single
+            // send - and the operation for a preamble nobody wants must never be created, let alone queued
+            var target = connection as IRespPreambleTarget;
+            if (gate is not null && target is not null && !gate.IsNeeded(target))
+            {
+                return SendAsync(request, cancellationToken);
+            }
+
+            var head = RespPayloadOperation.Rent();
+            head.Attach(preamble.Span, preamble.Flags, default);
+
+            var body = RespPayloadOperation.Rent();
+            body.Attach(request.Span, request.Flags, cancellationToken);
+            body.Slot = request.Slot;
+            _startProfile?.Invoke(body, request.Command, request.Flags, Database, _endpoint);
+
+            if (!connection.Send(head, body))
+            {
+                RespPayloadOperation.DiscardReply(head);
+                body.EnsureFaulted(request.Flags);
+                return new ValueTask<RespPayload>(body, body.Token);
+            }
+
+            // recorded when the reply lands rather than when the write happens: claiming an effect the
+            // server has not confirmed is how a NOSCRIPT gets cached as "loaded"
+            if (gate is not null && target is not null) Established(head, gate, target);
+            else RespPayloadOperation.DiscardReply(head);
+
+            return new ValueTask<RespPayload>(body, body.Token);
+        }
+
+        /// <summary>Consume the preamble's reply, and tell the gate only if it succeeded.</summary>
+        private static void Established(RespPayloadOperation head, IRespPreambleGate gate, IRespPreambleTarget target)
+        {
+            _ = AwaitAsync(head, gate, target);
+
+            static async Task AwaitAsync(RespPayloadOperation head, IRespPreambleGate gate, IRespPreambleTarget target)
+            {
+                try
+                {
+                    using var payload = await new ValueTask<RespPayload>(head, head.Token).ConfigureAwait(false);
+                    gate.OnEstablished(target);
+                }
+                catch
+                {
+                    // the preamble failed, so its effect did not happen and the belief must not be set;
+                    // the request that followed will report whatever that costs it
+                }
+            }
+        }
+
+        /// <inheritdoc/>
         internal override bool CanWriteRuns => true;
 
         /// <inheritdoc/>

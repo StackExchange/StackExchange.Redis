@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using RESPite.Operations;
 
@@ -47,8 +48,36 @@ namespace StackExchange.Redis
     /// </remarks>
     internal sealed class RespClientConnection(
         RESPite.Transports.DuplexTransport transport,
-        RespRedirectRouter router) : RespConnection(transport)
+        RespRedirectRouter router) : RespConnection(transport), IRespPreambleTarget
     {
+        private HashSet<long>? _claims;
+
+        /// <summary>The server this connection reaches; set once the endpoint is known.</summary>
+        /// <remarks>
+        /// Borrowed from the old core rather than reinvented: <see cref="ServerEndPoint"/> already holds
+        /// the script-cache belief and flushes it when a server's identity changes underneath, which is
+        /// exactly the behaviour a preamble gate wants and is not worth a second implementation of while
+        /// both cores exist.
+        /// </remarks>
+        internal ServerEndPoint? Server { get; set; }
+
+        /// <inheritdoc/>
+        ServerEndPoint? IRespPreambleTarget.Server => Server;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Connection-local, and deliberately not thread-safe beyond the lock: claims are taken while the
+        /// pair is being written, which happens under the connection's write lock, so contention here is
+        /// the same contention that already serialises the write.
+        /// </remarks>
+        bool IRespPreambleTarget.TryClaim(long id)
+        {
+            lock (this)
+            {
+                return (_claims ??= new()).Add(id);
+            }
+        }
+
         /// <summary>Which database this connection is currently <c>SELECT</c>ed onto.</summary>
         /// <remarks>
         /// <para>

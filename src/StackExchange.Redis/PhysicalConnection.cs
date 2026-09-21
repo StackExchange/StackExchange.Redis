@@ -20,7 +20,7 @@ using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
 {
-    internal sealed partial class PhysicalConnection : IDisposable
+    internal sealed partial class PhysicalConnection : IDisposable, IRespPreambleTarget
     {
         // infrastructure to simulate connection death; opt-in only (for tests)
         private readonly CancellationTokenSource? _inputCancel, _outputCancel;
@@ -859,6 +859,16 @@ namespace StackExchange.Redis
         // HIMPORT field-set tracking; only ever called inside the bridge write lock, so no synchronization is needed.
         // Returns true when the id was not already prepared on this connection (i.e. the caller must inject a PREPARE).
         internal bool TryAddPreparedFieldSet(long id) => (_preparedFieldSets ??= new()).Add(id);
+
+        // ---- IRespPreambleTarget ------------------------------------------------------------------------
+        // The gates ask the connection two questions, and this is the old core's answer to both. Declared
+        // here rather than on the bridge because the connection-local half genuinely is per-connection.
+
+        /// <inheritdoc/>
+        ServerEndPoint? IRespPreambleTarget.Server => BridgeCouldBeNull?.ServerEndPoint;
+
+        /// <inheritdoc/>
+        bool IRespPreambleTarget.TryClaim(long id) => TryAddPreparedFieldSet(id);
 
         // drops a field-set id when its DISCARD is written, keeping the set bounded to live field-sets over the life of
         // a long-lived connection.

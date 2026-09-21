@@ -127,6 +127,23 @@ namespace StackExchange.Redis
         public override bool CanCancel => ResolveFor(default, RedisCommand.NONE, CommandFlags.None) is { CanCancel: true };
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Forwarded, because whether a pair can be written contiguously is a property of whatever
+        /// finally writes it - and the pair routes by the REQUEST, since a preamble is typically keyless
+        /// and would otherwise resolve anywhere.
+        /// </remarks>
+        public override bool CanWritePreamble
+            => ResolveFor(default, RedisCommand.NONE, CommandFlags.None) is { CanWritePreamble: true };
+
+        /// <inheritdoc cref="CanWritePreamble"/>
+        public override ValueTask<RespPayload> SendAsync(
+            RespRequest preamble,
+            RespRequest request,
+            IRespPreambleGate? gate,
+            CancellationToken cancellationToken = default)
+            => Route(in request).SendAsync(preamble, request, gate, cancellationToken);
+
+        /// <inheritdoc/>
         internal override bool CanWriteRuns
             => ResolveFor(default, RedisCommand.MULTI, CommandFlags.None) is { CanWriteRuns: true };
 

@@ -75,7 +75,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
         // one table per gate: the gate IS the field-set's identity, so membership means "this field-set is
         // prepared on that connection". A dead connection is collected with its entry, which is exactly the
         // reconnect behaviour wanted - a fresh connection has prepared nothing.
-        private readonly ConditionalWeakTable<PhysicalConnection, object> _prepared = new();
+        private readonly ConditionalWeakTable<IRespPreambleTarget, object> _prepared = new();
         private static readonly object Marker = new();
 
         internal int Injections;
@@ -85,7 +85,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
 
         internal FieldSetGate(bool claimOnWrite) => ClaimOnWrite = claimOnWrite;
 
-        public bool IsNeeded(PhysicalConnection connection)
+        public bool IsNeeded(IRespPreambleTarget connection)
         {
             if (!ClaimOnWrite) return Claimed(connection) ? false : Count();
             if (Claimed(connection)) return false;
@@ -99,12 +99,12 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
             return true;
         }
 
-        private bool Claimed(PhysicalConnection connection)
+        private bool Claimed(IRespPreambleTarget connection)
         {
             lock (_prepared) { return _prepared.TryGetValue(connection, out _); }
         }
 
-        private void Claim(PhysicalConnection connection)
+        private void Claim(IRespPreambleTarget connection)
         {
             lock (_prepared)
             {
@@ -112,7 +112,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
             }
         }
 
-        public void OnEstablished(PhysicalConnection connection)
+        public void OnEstablished(IRespPreambleTarget connection)
         {
             Interlocked.Increment(ref Established);
             if (!ClaimOnWrite) Claim(connection);

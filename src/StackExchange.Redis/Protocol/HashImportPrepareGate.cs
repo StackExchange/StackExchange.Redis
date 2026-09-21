@@ -36,20 +36,20 @@
     {
         /// <summary>Whether this connection still needs the <c>PREPARE</c>; claims it if so.</summary>
         /// <param name="connection">The connection the pair is about to be written on.</param>
-        public bool IsNeeded(PhysicalConnection connection)
+        public bool IsNeeded(IRespPreambleTarget connection)
         {
-            if (!connection.TryAddPreparedFieldSet(fieldSet.Id)) return false; // already prepared here
+            if (!connection.TryClaim(fieldSet.Id)) return false; // already prepared here
 
             // recorded for disposal's benefit, at node granularity, in the same breath as the claim - as
             // the shipped path does. Bookkeeping only: it is inside the write lock, so it issues no I/O.
-            var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+            var server = connection.Server;
             if (server is not null) fieldSet.RegisterServer(server, database);
             return true;
         }
 
         /// <summary>Nothing to do: <see cref="IsNeeded"/> already claimed it.</summary>
         /// <param name="connection">The connection the preamble was written on.</param>
-        public void OnEstablished(PhysicalConnection connection)
+        public void OnEstablished(IRespPreambleTarget connection)
         {
         }
     }
