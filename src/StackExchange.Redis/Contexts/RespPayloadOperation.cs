@@ -108,6 +108,16 @@ namespace StackExchange.Redis
         /// </remarks>
         internal int Slot { get; set; } = ServerSelectionStrategy.NoSlot;
 
+        /// <summary>Which database this command belongs to, or <c>-1</c> when it belongs to none.</summary>
+        /// <remarks>
+        /// <b>On the operation for the same reason <see cref="Slot"/> is</b>: by the time it is written the
+        /// request it came from may be long gone. It matters most on the backlog - commands for several
+        /// databases can be queued together while a connection comes up, and each has to be preceded by its
+        /// OWN <c>SELECT</c> as it drains. Reading the executor's database there would select once and run
+        /// everything behind it, which is silent and wrong.
+        /// </remarks>
+        internal int Database { get; set; } = -1;
+
         /// <summary>The flags the request carried, which the retry and redirect layers read.</summary>
         internal CommandFlags Flags => _flags;
 

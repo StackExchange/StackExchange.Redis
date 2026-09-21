@@ -31,7 +31,21 @@ namespace StackExchange.Redis
     {
         private readonly ConnectionMultiplexer _multiplexer;
         private readonly RespTopology _topology;
-        private readonly ConcurrentDictionary<int, ConcurrentDictionary<EndPoint, RespEndpointExecutor>> _endpoints = new();
+
+        /// <summary>One executor - and so one connection - per endpoint, whatever databases are in use.</summary>
+        private readonly ConcurrentDictionary<EndPoint, RespEndpointExecutor> _endpoints = new();
+
+        /// <summary>A per-database view of each endpoint, keyed by database then endpoint.</summary>
+        private readonly ConcurrentDictionary<int, ConcurrentDictionary<EndPoint, RespExecutorBase>> _views = new();
+
+        /// <summary>The <c>SELECT</c> frames the views inject; rendered once per database.</summary>
+        private readonly SelectPreamble _select;
+
+        /// <summary>
+        /// The database each connection's handshake selects, and so the one its owning executor needs no
+        /// <c>SELECT</c> for.
+        /// </summary>
+        private readonly int _defaultDatabase;
 
         /// <summary>What each endpoint's own handshake reported about itself.</summary>
         /// <remarks>
@@ -48,6 +62,8 @@ namespace StackExchange.Redis
             _multiplexer = multiplexer;
             _topology = new RespTopology(multiplexer.ServerSelectionStrategy.ServerType);
             _features = new MultiplexerFeatureProbe(multiplexer);
+            _select = new SelectPreamble(new RespContext(multiplexer.RawConfig.CommandMap));
+            _defaultDatabase = multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault();
             _router = Rebind(multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
         }
 
@@ -140,20 +156,40 @@ namespace StackExchange.Redis
         private void OnTopologySuspect()
             => _multiplexer.ReconfigureIfNeeded(null, false, "unroutable redirect");
 
-        private RespEndpointExecutor Executor(int database, EndPoint endpoint)
+        /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
+        /// <remarks>
+        /// <b>One connection per endpoint, and a view per database over it</b> - which is what the shipped
+        /// core does, and what this could not do until <c>SELECT</c> could be injected as a preamble. It
+        /// replaces a connection per (endpoint, database): correct either way, but a socket per database
+        /// actually used, and a <c>SELECT</c> that could never move once the handshake had chosen.
+        /// <para>
+        /// The endpoint's own executor is the view for the database the handshake selected; the rest wrap
+        /// it. That keeps the common single-database deployment exactly as it was - no view, no injection,
+        /// no per-command question - since an executor whose database matches its connection never needs a
+        /// <c>SELECT</c> at all.
+        /// </para>
+        /// </remarks>
+        private RespExecutorBase Executor(int database, EndPoint endpoint)
         {
-            // keyed by database FIRST, because that is the axis that decides which connection: two
-            // databases on one endpoint are two connections, and the nested dictionary says so in its shape
-            var byEndpoint = _endpoints.TryGetValue(database, out var known)
-                ? known
-                : _endpoints.GetOrAdd(database, new ConcurrentDictionary<EndPoint, RespEndpointExecutor>());
+            var owner = Endpoint(endpoint);
+            if (owner.Database == database) return owner;
 
             // the factory-with-state overload of GetOrAdd does not exist on the down-level targets, and
-            // this is not a hot path - an endpoint is resolved once and then reused
+            // this is not a hot path - a view is resolved once and then reused
+            var byEndpoint = _views.TryGetValue(database, out var known)
+                ? known
+                : _views.GetOrAdd(database, new ConcurrentDictionary<EndPoint, RespExecutorBase>());
+
             return byEndpoint.TryGetValue(endpoint, out var existing)
                 ? existing
-                : byEndpoint.GetOrAdd(endpoint, Create(database, endpoint));
+                : byEndpoint.GetOrAdd(endpoint, new RespDatabaseExecutor(owner, database));
         }
+
+        /// <summary>The one executor that owns this endpoint's connection.</summary>
+        private RespEndpointExecutor Endpoint(EndPoint endpoint)
+            => _endpoints.TryGetValue(endpoint, out var existing)
+                ? existing
+                : _endpoints.GetOrAdd(endpoint, Create(_defaultDatabase, endpoint));
 
         private RespEndpointExecutor Create(int database, EndPoint endpoint) => new(
             token => ConnectAsync(database, endpoint, token),
@@ -161,7 +197,8 @@ namespace StackExchange.Redis
             endpoint,
             _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected,
             () => _observed.TryGetValue(endpoint, out var features) ? features : null,
-            StartProfile);
+            StartProfile,
+            _select);
 
         /// <summary>Open a socket, hand it to the new stack, and bring it up.</summary>
         /// <remarks>
@@ -275,10 +312,14 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()
         {
-            foreach (var byEndpoint in _endpoints.Values)
+            foreach (var executor in _endpoints.Values)
             {
-                foreach (var executor in byEndpoint.Values) await executor.DisposeAsync().ConfigureAwait(false);
+                await executor.DisposeAsync().ConfigureAwait(false);
             }
+
+            // the views own nothing - they are a database index over an endpoint's connection - so
+            // disposing the endpoints disposes everything there is to dispose
+            _views.Clear();
             _endpoints.Clear();
         }
     }

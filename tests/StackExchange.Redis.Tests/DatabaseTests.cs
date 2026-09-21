@@ -90,8 +90,8 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
             var key = Me();
-            var dba = conn.GetDatabase(db1Id);
-            var dbb = conn.GetDatabase(db2Id);
+            var dba = GetDatabase(conn, db1Id);
+            var dbb = GetDatabase(conn, db2Id);
             dba.StringSet(key + ":abc", "def", flags: CommandFlags.FireAndForget);
             dba.StringIncrement(key, flags: CommandFlags.FireAndForget);
             dbb.StringIncrement(key, flags: CommandFlags.FireAndForget);
@@ -126,9 +126,9 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
         await using var conn = Create();
 
         RedisKey key = Me();
-        var db0 = conn.GetDatabase(TestConfig.GetDedicatedDB(conn));
-        var db1 = conn.GetDatabase(TestConfig.GetDedicatedDB(conn));
-        var db2 = conn.GetDatabase(TestConfig.GetDedicatedDB(conn));
+        var db0 = GetDatabase(conn, TestConfig.GetDedicatedDB(conn));
+        var db1 = GetDatabase(conn, TestConfig.GetDedicatedDB(conn));
+        var db2 = GetDatabase(conn, TestConfig.GetDedicatedDB(conn));
 
         db0.KeyDelete(key, CommandFlags.FireAndForget);
         db1.KeyDelete(key, CommandFlags.FireAndForget);
@@ -154,9 +154,9 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
 
         RedisKey key = Me();
         var db0id = TestConfig.GetDedicatedDB(conn);
-        var db0 = conn.GetDatabase(db0id);
+        var db0 = GetDatabase(conn, db0id);
         var db1id = TestConfig.GetDedicatedDB(conn);
-        var db1 = conn.GetDatabase(db1id);
+        var db1 = GetDatabase(conn, db1id);
 
         db0.KeyDelete(key, CommandFlags.FireAndForget);
         db1.KeyDelete(key, CommandFlags.FireAndForget);
@@ -187,9 +187,9 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
 
         RedisKey key = Me();
         var db0id = TestConfig.GetDedicatedDB(conn);
-        var db0 = conn.GetDatabase(db0id);
+        var db0 = GetDatabase(conn, db0id);
         var db1id = TestConfig.GetDedicatedDB(conn);
-        var db1 = conn.GetDatabase(db1id);
+        var db1 = GetDatabase(conn, db1id);
 
         db0.KeyDelete(key, CommandFlags.FireAndForget);
         db1.KeyDelete(key, CommandFlags.FireAndForget);
@@ -204,7 +204,12 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
         Assert.Equal("b", await b); // db:1
 
         var server = GetServer(conn);
-        _ = server.SwapDatabasesAsync(db0id, db1id).ForAwait();
+
+        // AWAITED, as the synchronous sibling's SwapDatabases() call is. Discarding the task let the reads
+        // below race the swap; that went unnoticed only because the server command and the reads shared one
+        // connection, so the write ordering was implicit. It is not implicit once they can be on different
+        // connections - which is the whole point of a database being able to move between them.
+        await server.SwapDatabasesAsync(db0id, db1id).ForAwait();
 
         var aNew = db1.StringGetAsync(key);
         var bNew = db0.StringGetAsync(key);

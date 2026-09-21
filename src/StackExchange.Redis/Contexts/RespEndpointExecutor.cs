@@ -453,9 +453,22 @@ namespace StackExchange.Redis
         }
 
         private RespPayloadOperation Dispatch(in RespRequest request, CancellationToken cancellationToken)
+            => Dispatch(in request, Database, cancellationToken);
+
+        /// <summary>Send, on behalf of a database that may not be this executor's own.</summary>
+        /// <param name="request">The rendered request.</param>
+        /// <param name="database">The database the command belongs to.</param>
+        /// <param name="cancellationToken">Cancels the request before it is sent.</param>
+        /// <remarks>
+        /// The seam for sharing one connection: a per-database view over this executor sends through here,
+        /// naming its own database, and the <c>SELECT</c> that makes that true is written in front of the
+        /// command inside the connection's write lock.
+        /// </remarks>
+        internal RespPayloadOperation Dispatch(in RespRequest request, int database, CancellationToken cancellationToken)
         {
             var operation = RespPayloadOperation.Rent();
             operation.Attach(request.Span, request.Flags, cancellationToken);
+            operation.Database = database;
 
             // started HERE, where the endpoint is finally known: a profiled command reports which server
             // answered it, and until routing has resolved there is no honest answer to that
@@ -742,12 +755,16 @@ namespace StackExchange.Redis
         }
 
         /// <summary>Write one operation, putting a <c>SELECT</c> in front of it if this connection needs one.</summary>
+        /// <remarks>
+        /// The database comes from the OPERATION, not from this executor: one connection can be shared by
+        /// several databases, and the backlog can hold commands for more than one of them at once.
+        /// </remarks>
         private bool Send(RespConnection connection, RespPayloadOperation operation)
         {
-            if (_select is null || Database < 0) return connection.Send(operation);
+            if (_select is null || operation.Database < 0) return connection.Send(operation);
 
             var sent = connection.Send(
-                operation, new Selector(connection, _select, Database), static s => s.Preamble(), out var head);
+                operation, new Selector(connection, _select, operation.Database), static s => s.Preamble(), out var head);
 
             // the SELECT's own reply is nobody's business: it is +OK or the connection is broken, and the
             // command behind it reports that far better than a reply nobody asked for

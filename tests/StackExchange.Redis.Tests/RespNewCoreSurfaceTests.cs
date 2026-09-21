@@ -382,3 +382,17 @@ public class NewCorePubSubTests(ITestOutputHelper output, SharedConnectionFixtur
     protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
         => RespNewCoreFixture.Wrap(conn, db, asyncState);
 }
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+/// <remarks>
+/// <b>Wrappable only since one connection could serve several databases.</b> This suite is about the
+/// database index itself - that GetDatabase(1) and GetDatabase(2) are separate keyspaces, and that a
+/// command carrying no database leaves the selection alone - and the new core used to open a connection
+/// per (endpoint, database), so SELECT was fixed at the handshake and could never move.
+/// </remarks>
+[RunPerProtocol]
+public class NewCoreDatabaseTests(ITestOutputHelper output, SharedConnectionFixture fixture) : DatabaseTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}
