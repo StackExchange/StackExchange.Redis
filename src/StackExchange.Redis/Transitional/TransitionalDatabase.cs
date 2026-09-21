@@ -13,23 +13,27 @@ namespace StackExchange.Redis
     /// <para>
     /// The transition vehicle: eventually <c>GetDatabase()</c> returns one of these (under some less
     /// provisional name), so the existing interface keeps working while the commands behind it move to the
-    /// new write path one at a time. Anything not yet moved throws <see cref="NotImplementedException"/>,
-    /// which is loud, local, and impossible to mistake for working.
+    /// new write path.
     /// </para>
     /// <para>
-    /// <b>The unimplemented members are not written here - they are generated.</b> <c>[AutoDatabase]</c>
-    /// emits every member of <see cref="IDatabase"/>/<see cref="IDatabaseAsync"/> that this class does not
-    /// implement itself, funnelled through <c>Execute</c>/<c>ExecuteAsync</c> below. So this file does not
-    /// grow a line when a command is added to the interface, and cannot drift out of step with it: the
-    /// generated set is *by construction* "everything not in
-    /// <c>TransitionalDatabase.Implemented.cs</c>". A hand-written NIE file would need a line per command
-    /// and would silently miss new ones.
+    /// <b>They have all moved.</b> Every member of <see cref="IDatabase"/>/<see cref="IDatabaseAsync"/> is
+    /// implemented here against the context surface, and <c>[AutoDatabase]</c> has come off the class -
+    /// for most of the port it generated the not-yet-moved members as explicit implementations that threw,
+    /// with SER352 counting them down on every Release build. That count reached zero when <c>PUBLISH</c>
+    /// moved, so the attribute generated nothing and was removed along with the funnels it fed.
     /// </para>
     /// <para>
-    /// That skip-what-is-implemented behaviour is new, and it is a correctness fix rather than a
-    /// convenience: the generator emits <i>explicit</i> interface implementations, so a hand-written member
-    /// does not collide with a generated one - both compile, and interface dispatch quietly prefers the
-    /// generated throw.
+    /// <b>Losing it is an improvement, not a regression.</b> A command added to the interface used to
+    /// produce a generated throw and a warning; now it does not compile until it is implemented, which is
+    /// the same guarantee <c>RedisDatabase</c> has always had and a better one than a tripwire. The
+    /// generator itself stays - <c>RetryDatabase</c> and <c>MultiGroupDatabase</c> are capture-and-replay
+    /// wrappers, which is what it is really for.
+    /// </para>
+    /// <para>
+    /// <b>The fallback is no longer about commands</b>, and what is left of it says where the remaining
+    /// work is: scans against a server too old to <c>SCAN</c>, and batch/transaction when the executor
+    /// cannot write a contiguous run - which is only ever true over the <c>Message</c> shim, never over
+    /// the new core. See <c>CanWriteRuns</c>.
     /// </para>
     /// </remarks>
     /// <remarks>
@@ -44,7 +48,6 @@ namespace StackExchange.Redis
     /// costs nothing, because there is nothing behind it to be stuck with.
     /// </para>
     /// </remarks>
-    [AutoDatabase(WarnIfIncomplete = true)]
     internal partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
         : IDatabase, IInternalDatabaseAsync
     {
@@ -130,29 +133,9 @@ namespace StackExchange.Redis
         CancellationToken IInternalDatabaseAsync.GetNextFailover()
             => _fallback is { } db ? db.GetNextFailover() : CancellationToken.None;
 
-        // ---- [AutoDatabase] funnels ---------------------------------------------------------------------
-        // Every member this class does not implement lands here. Normally there is no inner IDatabase to
-        // forward to - that is the whole point - so the captured state is never invoked, and the throw
-        // names the member so the message says which command still needs moving. A test harness can supply
-        // a fallback, and then the capture is invoked against it exactly once; see _fallback.
-        private TResult Execute<TState, TResult>(in TState state, AutoDatabaseSyncOperation<TState, TResult> operation)
-            where TState : struct
-            => _fallback is { } db ? operation(in state, db) : throw NotMoved<TState>();
-
-        private void Execute<TState>(in TState state, AutoDatabaseSyncOperation<TState> operation)
-            where TState : struct
-        {
-            if (_fallback is not { } db) throw NotMoved<TState>();
-            operation(in state, db);
-        }
-
-        private Task<TResult> ExecuteAsync<TState, TResult>(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
-            where TState : struct
-            => _fallback is { } db ? operation(in state, db) : throw NotMoved<TState>();
-
-        private Task ExecuteAsync<TState>(in TState state, AutoDatabaseAsyncOperation<TState> operation)
-            where TState : struct
-            => _fallback is { } db ? operation(in state, db) : throw NotMoved<TState>();
+        // The [AutoDatabase] funnels used to be here - four of them, the landing place for every member
+        // this class did not implement. They are gone with the attribute: there is no longer a member that
+        // does not implement itself, so nothing was being generated and nothing reached them.
 
         /// <summary>The fallback, or a throw naming what is missing.</summary>
         private IDatabase Fallback<TState>() => _fallback ?? throw NotMoved<TState>();
