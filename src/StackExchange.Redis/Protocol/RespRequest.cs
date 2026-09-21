@@ -55,7 +55,8 @@ namespace StackExchange.Redis.Protocol
             int slot = ServerSelectionStrategy.NoSlot,
             int argCount = 0,
             CommandFlags flags = CommandFlags.None,
-            RedisCommand command = RedisCommand.UNKNOWN)
+            RedisCommand command = RedisCommand.UNKNOWN,
+            int database = -1)
         {
             _array = array;
             _lease = lease;
@@ -67,7 +68,11 @@ namespace StackExchange.Redis.Protocol
             ArgCount = argCount;
             Flags = flags;
             Command = command;
+            Database = database;
         }
+
+        /// <inheritdoc cref="RespRequestFrame.Database"/>
+        public int Database { get; }
 
         /// <summary>The combined cluster slot; routing needs this and nothing else about the keys.</summary>
         public int Slot { get; }
@@ -183,7 +188,13 @@ namespace StackExchange.Redis.Protocol
         public override int GetHashCode() => _hash;
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Tests the buffer rather than the lease, because owning a lease is not the same question as
+        /// having content: a BORROWED request - <see cref="RespRequestFrame.AsLookupKey"/>, or a shared
+        /// fixed rendering - has no lease and is perfectly readable. Asking the lease reported every one of
+        /// those as "(empty)" in diagnostics, which is exactly when you are reading them.
+        /// </remarks>
         public override string ToString() =>
-            _lease is null ? "(empty)" : System.Text.Encoding.UTF8.GetString(Span.ToArray()).Replace("\r\n", "|");
+            IsEmpty ? "(empty)" : System.Text.Encoding.UTF8.GetString(Span.ToArray()).Replace("\r\n", "|");
     }
 }

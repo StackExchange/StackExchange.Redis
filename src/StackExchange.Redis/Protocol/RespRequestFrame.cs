@@ -33,7 +33,7 @@ namespace StackExchange.Redis.Protocol
         private readonly int _length;
         private readonly ulong _keyMarks;
 
-        internal RespRequestFrame(byte[] buffer, int start, int length, int argCount, int slot, ulong keyMarks, RedisCommand command)
+        internal RespRequestFrame(byte[] buffer, int start, int length, int argCount, int slot, ulong keyMarks, RedisCommand command, int database = -1)
         {
             _buffer = buffer;
             _start = start;
@@ -42,7 +42,28 @@ namespace StackExchange.Redis.Protocol
             ArgCount = argCount;
             Slot = slot;
             Command = command;
+            Database = database;
         }
+
+        /// <summary>Which database this command is for, or <c>-1</c> when it does not belong to one.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Carried beside the bytes, not in them</b> - exactly as <see cref="Slot"/> is, and for the same
+        /// reason: it is routing metadata rather than content. <c>GET k</c> renders identically for every
+        /// database, so anything that needs to tell them apart has to be told.
+        /// </para>
+        /// <para>
+        /// The precedent is the client cache, which has always keyed entries on the pair - see
+        /// <c>RespClientCache.EntryKey</c>, whose equality is frame AND database. Without that, a cached
+        /// reply from one database would be served to another, which is the quiet kind of wrong.
+        /// </para>
+        /// <para>
+        /// Deliberately absent from equality, for the same reason <see cref="Command"/> is: two frames with
+        /// the same bytes are the same rendering, and it is the <i>callers</i> that pair them with a
+        /// database.
+        /// </para>
+        /// </remarks>
+        public int Database { get; }
 
         /// <summary>The number of RESP arguments, including the command itself.</summary>
         public int ArgCount { get; }
@@ -301,7 +322,8 @@ namespace StackExchange.Redis.Protocol
                 Slot,
                 ArgCount,
                 flags,
-                Command);
+                Command,
+                Database);
         }
 
         /// <summary>
@@ -333,7 +355,8 @@ namespace StackExchange.Redis.Protocol
                 Slot,
                 ArgCount,
                 flags,
-                Command);
+                Command,
+                Database);
         }
 
         /// <summary>Return the underlying buffer to the pool; safe to call more than once.</summary>

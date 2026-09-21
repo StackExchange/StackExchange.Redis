@@ -751,3 +751,5 @@ StackExchange.Redis.RespPubSub.RespPubSub() -> void
 static StackExchange.Redis.PubSub.PublishAsync(this in StackExchange.Redis.RespPubSub pubsub, StackExchange.Redis.RedisChannel channel, StackExchange.Redis.RedisValue message, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.RespDatabaseExtensions.get_PubSub(in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespPubSub
 static StackExchange.Redis.Downlevel.RespGroups.PubSub(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespPubSub
+StackExchange.Redis.Protocol.RespRequest.Database.get -> int
+StackExchange.Redis.Protocol.RespRequestFrame.Database.get -> int

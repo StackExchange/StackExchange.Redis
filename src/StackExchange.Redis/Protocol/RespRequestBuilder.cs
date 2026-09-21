@@ -915,7 +915,7 @@ namespace StackExchange.Redis.Protocol
             var start = HeaderMax - headerLength;
             header.Slice(0, headerLength).CopyTo(_buffer.AsSpan(start));
 
-            var frame = new RespRequestFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks(), _command);
+            var frame = new RespRequestFrame(_buffer, start, _offset - start, _args, _slot, PackKeyMarks(), _command, _context.Database);
             _buffer = null!; // ownership transferred to the frame
             return frame;
 

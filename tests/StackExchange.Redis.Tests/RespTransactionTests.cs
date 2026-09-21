@@ -226,7 +226,10 @@ public class RespTransactionTests
         Assert.Equal("*2|$5|WATCH|$5|guard|*2|$6|EXISTS|$5|guard|", first);
 
         transport.Reply("+OK\r\n:1\r\n"); // watched, and the key exists
-        await WaitFor(() => transport.Written.Length > before.Length + first.Length);
+
+        // wait for the run to be COMPLETE, not merely started: EXEC is the last thing in it, and waiting
+        // for "some bytes arrived" instead read a half-written run under load and asserted against it
+        await WaitFor(() => transport.Written.Contains("EXEC"));
 
         // run two, only now that the condition is known to hold
         var second = transport.Written.Substring(before.Length + first.Length);
@@ -280,12 +283,17 @@ public class RespTransactionTests
         _ = context.Strings.GetAsync("a");
         var executing = tran.ExecuteAsync();
 
-        Assert.Equal(
-            "*2|$5|WATCH|$3|one|*2|$6|EXISTS|$3|one|*2|$5|WATCH|$3|two|*2|$6|EXISTS|$3|two|",
-            transport.Written.Substring(before.Length));
+        // the writes are not synchronous with the call, so wait for the last of them before reading the
+        // buffer; asserting immediately measured how far the write had got rather than what order it used
+        const string Watches = "*2|$5|WATCH|$3|one|*2|$6|EXISTS|$3|one|*2|$5|WATCH|$3|two|*2|$6|EXISTS|$3|two|";
+        await WaitFor(() => transport.Written.Length >= before.Length + Watches.Length);
+        Assert.Equal(Watches, transport.Written.Substring(before.Length));
 
         transport.Reply("+OK\r\n:1\r\n+OK\r\n:0\r\n"); // one exists, two does not: both hold
-        await WaitFor(() => transport.Written.Contains("MULTI"));
+
+        // EXEC, not MULTI: the three replies below answer MULTI, the queued GET, and EXEC, so feeding them
+        // while EXEC was still unwritten delivered a reply with no operation pending
+        await WaitFor(() => transport.Written.Contains("EXEC"));
         transport.Reply("+OK\r\n+QUEUED\r\n*1\r\n$1\r\nA\r\n");
         Assert.True(await executing);
     }
