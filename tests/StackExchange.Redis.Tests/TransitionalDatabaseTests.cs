@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using NSubstitute;
+using StackExchange.Redis.KeyspaceIsolation;
 using StackExchange.Redis.Protocol;
 using Xunit;
 
@@ -194,6 +195,74 @@ public class TransitionalDatabaseTests
     /// asserts the state this used to sample, and it asserts it over the whole interface rather than one
     /// hand-picked member.
     /// </remarks>
+    /// <summary>
+    /// <b>The key prefix is applied exactly once, and the same way, whichever surface you hold.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// There are two prefixing mechanisms now, and they overlap: <c>KeyPrefixedDatabase</c> wraps an
+    /// <see cref="IDatabase"/> and rewrites every <see cref="RedisKey"/> as it forwards, while
+    /// <see cref="RespContext"/> carries a prefix the frame writer applies. A caller who reaches the
+    /// context <i>through</i> a wrapper touches both, which is the shape a double prefix would take - and
+    /// a double prefix is silent: every read and write agrees with every other, against the wrong keys.
+    /// </para>
+    /// <para>
+    /// They do compose correctly, and this pins why rather than merely that. The wrapper's context is its
+    /// <i>inner</i> context plus the prefix, not its own - so the prefix is contributed once, by whichever
+    /// mechanism is actually in the path, and never by both.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheKeyPrefixIsAppliedOnceWhicheverSurfaceIsHeld()
+    {
+        var executor = new FakeExecutor("$1\r\nv\r\n", "$1\r\nv\r\n");
+        var prefixed = Target(executor).WithKeyPrefix("p:");
+
+        // the shipped interface, forwarded through the wrapper
+        prefixed.StringGet("k");
+
+        // the new surface, reached through the same wrapper
+        await new RespDatabaseContext(((IRespTarget)prefixed).Context).Strings.GetAsync("k");
+
+        Assert.Equal(["*2|$3|GET|$3|p:k|", "*2|$3|GET|$3|p:k|"], executor.Sent);
+    }
+
+    /// <summary>
+    /// <b>Both prefixes apply to a channel, and in that order</b> - the connection's channel prefix
+    /// outermost, the database's key prefix inside it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This looks wrong at first sight and is not, which is why it is pinned. A key prefix is keyspace
+    /// <i>isolation</i>, and the shipped wrapper has always isolated channels along with keys -
+    /// <c>KeyPrefixed.PublishAsync</c> forwards <c>ToInner(channel)</c> - so an isolated database
+    /// publishes to an isolated channel. The connection-wide channel prefix is then prepended by the
+    /// writer, as it is for every channel. A caller with both configured sees <c>c:p:ch</c>, and both
+    /// surfaces have to agree on that or a publish and its subscription part company.
+    /// </para>
+    /// <para>
+    /// The quiet failure this guards is the channel prefix going missing: it rides on the context's
+    /// services, so a <c>With*</c> that rebuilt the context without carrying them would publish to the
+    /// unprefixed channel while subscribers waited on the prefixed one - with no error anywhere.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void BothPrefixesApplyToAChannelChannelPrefixOutermost()
+    {
+        var executor = new FakeExecutor(":0\r\n", "$1\r\nv\r\n");
+        IDatabase db = new TransitionalDatabase(
+            new RespDatabaseContext(new RespContext().WithExecutor(executor).AppendChannelPrefix(RedisChannel.Literal("c:"))),
+            null!,
+            null);
+
+        var prefixed = db.WithKeyPrefix("p:");
+        prefixed.Publish(RedisChannel.Literal("ch"), "msg");
+        prefixed.StringGet("k");
+
+        // the channel took BOTH, channel prefix outermost; the key took only the key prefix
+        Assert.Equal(["*3|$7|PUBLISH|$6|c:p:ch|$3|msg|", "*2|$3|GET|$3|p:k|"], executor.Sent);
+    }
+
     [Fact]
     public void NoCommandIsLeftForTheGeneratedThrow()
     {
