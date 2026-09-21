@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Text;
 using System.Threading;
@@ -210,6 +210,13 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
     /// Without this, losing the service wiring on a lease path would silently fall back to
     /// ArrayPool&lt;byte&gt;.Shared, with nothing failing to say so.
     /// </summary>
+    /// <remarks>
+    /// <b>The value has to be big enough not to fit in one receive buffer.</b> A lease SHARES the
+    /// connection's buffer whenever it can reserve the payload, and copies only when it cannot - so a
+    /// small value takes the zero-copy path, rents nothing, and this test measures the wrong thing. It
+    /// used 1KiB and passed only because the surface it ran on could not reserve at all; the moment one
+    /// could, the assertion failed while the pool wiring was perfectly fine.
+    /// </remarks>
     [Fact]
     public async Task ConfiguredResponseBufferPoolIsUsedForCopiedLeases()
     {
@@ -221,12 +228,13 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
         var db = conn.GetDatabase();
         RedisKey key = Me();
-        await db.HashSetAsync(key, "field", new string('y', 1024));
+        const int Size = 256 * 1024; // comfortably more than one receive buffer, so the lease must copy
+        await db.HashSetAsync(key, "field", new string('y', Size));
 
         var before = pool.RentCount;
         using var lease = await db.HashGetLeaseAsync(key, "field");
         Assert.NotNull(lease);
-        Assert.Equal(1024, lease!.Length);
+        Assert.Equal(Size, lease!.Length);
         Assert.True(pool.RentCount > before, $"expected the configured pool to be used; rents went {before} -> {pool.RentCount}");
     }
 

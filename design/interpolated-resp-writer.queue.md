@@ -143,6 +143,24 @@ existing suites run through it. This is the outstanding list, in the order thing
       Interacts with the group/failover question (§7 cache notes): a cache entry carries an implicit
       subscription, and these three differ in what happens to that subscription when the node changes.
 
+### The switchover suite is GREEN, 2026-09-21
+
+`SEREDIS_NEW_DATABASE_SURFACE=1` now passes the entire suite - 0 failures, from 117 when the swap was
+first tried. The flag is still off by default; turning it on is now a decision rather than a project.
+
+The last one was instructive. `ConfiguredResponseBufferPoolIsUsedForCopiedLeases` asserts that a **copied**
+lease rents from the configured pool - but a lease only copies when it *cannot reserve* the payload, and
+the new surface can. With a 1KiB value it took the zero-copy path, rented nothing, and the assertion
+failed while the pool wiring it guards was perfectly correct. Fixed by making the value span more than one
+receive buffer, which forces the copy on either surface: the test now exercises the path it names instead
+of the path its old surface happened to take.
+
+**That was the shape of most of the last twenty**, and it is worth stating once: a test written against
+one implementation often pins *the mechanism that implementation used* rather than the property it set out
+to check. Buffer-pool rents, shared singletons, `EVAL` vs `EVALSHA`, `(RedisDatabase)` casts - each needed
+deciding whether the property or the mechanism was the point. Only two turned out to be the mechanism
+being genuinely required.
+
 ### Switchover: the last few, and two that need a decision
 
 Down to **5-6** from 117, and stable run to run now that the server-global side effects are serialised.
