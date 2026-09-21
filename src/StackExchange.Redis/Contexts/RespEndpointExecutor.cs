@@ -236,7 +236,12 @@ namespace StackExchange.Redis
             lock (_sync)
             {
                 connection = _disposed || _writeSlotHeld ? null : _connection;
-                if (connection is null || connection.IsClosed) return base.SendAsync(preamble, request, gate, cancellationToken);
+
+                // No connection yet (or somebody holds the write slot), so there is nothing to pair ON.
+                // Do what an executor WITHOUT the capability does - send them in sequence - rather than
+                // calling the base, which throws: this executor can pair in general, just not this instant,
+                // and the first EVALSHA on a cold connection is exactly that instant.
+                if (connection is null || connection.IsClosed) return SequentialAsync(preamble, request, cancellationToken);
             }
 
             // asked before anything is written, because a gate that says no turns the pair into a single
@@ -288,6 +293,27 @@ namespace StackExchange.Redis
                     // the request that followed will report whatever that costs it
                 }
             }
+        }
+
+        /// <summary>
+        /// The preamble and the request as two sends, the second issued only once the first has landed.
+        /// </summary>
+        /// <remarks>
+        /// <b>Ordering is what the caller actually needs; adjacency is an optimisation on top of it.</b>
+        /// Awaiting the preamble gives the ordering at the cost of the round trip a pair would have saved,
+        /// which is the same trade <c>AwaitPair</c> makes for an executor that cannot pair at all.
+        /// <para>
+        /// The gate is not consulted, deliberately: it asks a question about a connection, and the reason
+        /// this path exists is that there is not one yet. Sending a preamble that turns out to have been
+        /// unnecessary is harmless for both of today's gates - a redundant <c>SCRIPT LOAD</c> or
+        /// <c>HIMPORT PREPARE</c> is idempotent - whereas skipping a needed one is not.
+        /// </para>
+        /// </remarks>
+        private async ValueTask<RespPayload> SequentialAsync(
+            RespRequest preamble, RespRequest request, CancellationToken cancellationToken)
+        {
+            (await SendAsync(preamble, cancellationToken).ForAwait())?.Release();
+            return await SendAsync(request, cancellationToken).ForAwait();
         }
 
         /// <inheritdoc/>

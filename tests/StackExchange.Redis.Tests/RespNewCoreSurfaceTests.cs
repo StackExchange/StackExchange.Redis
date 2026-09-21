@@ -354,3 +354,31 @@ public class NewCoreDatabaseRoutingTests(ITestOutputHelper output, SharedConnect
         Assert.Equal("other", (string?)await conn.GetDatabase(other).StringGetAsync(key));
     }
 }
+
+// NOT wrapped yet, and the gap is measured rather than guessed: ScriptingTests. Converting it to the
+// virtual GetDatabase (done here) makes wrapping a one-line subclass, and doing that temporarily reports
+// 18 failures of three kinds:
+//
+//   14  NOSCRIPT No matching script. The new core has no NOSCRIPT recovery at all - every bit of it lives
+//       in ResultProcessor/Message (see ResultProcessor.RespResult.cs), so an EVALSHA whose script the
+//       server has forgotten is simply an error. The preamble gate avoids this in the common case, but a
+//       SCRIPT FLUSH from a sibling test invalidates a belief the gate still holds. This is the next piece
+//       of work for scripts, and it is frame-ownership sensitive: the retry must re-issue as EVAL without
+//       handing a pooled buffer back twice.
+//    2  ChangeDbInTranScript - the SELECT/connection-per-database gap, not a script problem.
+//    2  exception type mismatches, unexamined.
+//
+// Wrapping it is the first thing to do once NOSCRIPT recovery lands.
+
+/// <inheritdoc cref="RespNewCoreFixture"/>
+/// <remarks>
+/// Only the <i>publishing</i> half runs through the new core - subscribing is still the old surface's, and
+/// is what these mostly assert against. That is the point: a publish routed by the new core has to reach a
+/// subscription registered by the old one.
+/// </remarks>
+[RunPerProtocol]
+public class NewCorePubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : PubSubTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}

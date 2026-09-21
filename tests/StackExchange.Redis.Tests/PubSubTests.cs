@@ -33,7 +33,9 @@ public abstract class PubSubTestBase(
     [Fact]
     public async Task ExplicitPublishMode()
     {
-        await using var conn = ConnectFactory(channelPrefix: "foo:");
+        // per-class, for the reason spelled out in TestBasicPubSub: the channels here are literals, so a
+        // second class deriving from this base would subscribe to and publish on exactly the same names
+        await using var conn = ConnectFactory(channelPrefix: GetType().Name + ":");
 
         var pub = conn.GetSubscriber();
         int a = 0, b = 0, c = 0, d = 0;
@@ -78,8 +80,13 @@ public abstract class PubSubTestBase(
         await PingAsync(pub, sub).ForAwait();
         HashSet<string?> received = [];
         int secondHandler = 0;
-        string subChannel = (wildCard ? "a*c" : "abc") + breaker;
-        string pubChannel = "abc" + breaker;
+        // the class name is part of the channel, not decoration: pub/sub is server-wide, so two classes
+        // deriving from this base and running the same method against the same server would publish onto
+        // each other's subscriptions and both see two messages where they assert one. The `breaker`
+        // parameter is the same defence between the theory's own cases.
+        var scope = GetType().Name;
+        string subChannel = scope + (wildCard ? "a*c" : "abc") + breaker;
+        string pubChannel = scope + "abc" + breaker;
         Action<RedisChannel, RedisValue> handler1 = (channel, payload) =>
         {
             lock (received)
@@ -524,7 +531,7 @@ public abstract class PubSubTestBase(
                 Log("Sub Ping.");
                 sub.Ping();
                 Log("Database Ping.");
-                conn.GetDatabase().Ping();
+                GetDatabase(conn).Ping();
                 for (int i = 0; i < count; i++)
                 {
                     Assert.Equal(i, data[i]);
@@ -590,7 +597,7 @@ public abstract class PubSubTestBase(
                 Log("Sub Ping.");
                 sub.Ping();
                 Log("Database Ping.");
-                conn.GetDatabase().Ping();
+                GetDatabase(conn).Ping();
                 for (int i = 0; i < count; i++)
                 {
                     Assert.Equal(i, data[i]);
@@ -662,7 +669,7 @@ public abstract class PubSubTestBase(
                 Log("Sub Ping.");
                 sub.Ping();
                 Log("Database Ping.");
-                conn.GetDatabase().Ping();
+                GetDatabase(conn).Ping();
                 for (int i = 0; i < count; i++)
                 {
                     Assert.Equal(i, data[i]);
@@ -718,7 +725,7 @@ public abstract class PubSubTestBase(
         var channel = RedisChannel.Literal(Me());
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
-        await connPub.GetDatabase().PingAsync();
+        await GetDatabase(connPub).PingAsync();
         var pub = connPub.GetSubscriber();
         int gotA = 0, gotB = 0;
         var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });

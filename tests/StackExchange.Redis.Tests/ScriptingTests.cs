@@ -28,7 +28,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     public async Task ClientScripting()
     {
         await using var conn = GetScriptConn();
-        _ = conn.GetDatabase().ScriptEvaluate(script: "return redis.call('info','server')", keys: null, values: null);
+        _ = GetDatabase(conn).ScriptEvaluate(script: "return redis.call('info','server')", keys: null, values: null);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = GetScriptConn();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var noCache = db.ScriptEvaluateAsync(
             script: "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
             keys: ["key1", "key2"],
@@ -67,7 +67,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = GetScriptConn();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
         var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key], values: null);
@@ -86,7 +86,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = GetScriptConn();
 
         var prefix = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.StringSet(prefix + "A", "0", flags: CommandFlags.FireAndForget);
         db.StringSet(prefix + "B", "5", flags: CommandFlags.FireAndForget);
         db.StringSet(prefix + "C", "10", flags: CommandFlags.FireAndForget);
@@ -110,7 +110,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = GetScriptConn();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         // prime some initial values
         db.KeyDelete([prefix + "a", prefix + "b", prefix + "c"], CommandFlags.FireAndForget);
@@ -143,7 +143,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = GetScriptConn();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         // prime some initial values
         db.KeyDelete([prefix + "a", prefix + "b", prefix + "c"], CommandFlags.FireAndForget);
@@ -174,7 +174,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = GetScriptConn();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
         var result = (byte[]?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key]);
@@ -190,7 +190,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         // we don't expect this to handle everything; we just expect it to be predictable
         await using var conn = GetScriptConn(allowAdmin: true);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
         var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key], values: null);
@@ -249,7 +249,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = GetScriptConn();
 
         const string Evil = "return '僕'";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         GetServer(conn).ScriptLoad(Evil);
 
         var result = (string?)db.ScriptEvaluate(script: Evil, keys: null, values: null);
@@ -262,7 +262,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = GetScriptConn();
         await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
-            var db = conn.GetDatabase();
+            var db = GetDatabase(conn);
             try
             {
                 await db.ScriptEvaluateAsync(script: "return redis.error_reply('oops')", keys: null, values: null).ForAwait();
@@ -280,7 +280,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = GetScriptConn();
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var beforeTran = (string?)db.StringGet(key);
         Assert.Null(beforeTran);
@@ -327,11 +327,11 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = GetScriptConn();
 
         var key = Me();
-        conn.GetDatabase(1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
-        conn.GetDatabase(2).StringSet(key, "db 2", flags: CommandFlags.FireAndForget);
+        GetDatabase(conn, 1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
+        GetDatabase(conn, 2).StringSet(key, "db 2", flags: CommandFlags.FireAndForget);
 
         Log("Key: " + key);
-        var db = conn.GetDatabase(2);
+        var db = GetDatabase(conn, 2);
         var evalResult = db.ScriptEvaluateAsync(
             script: @"redis.call('select', 1)
             return redis.call('get','" + key + "')",
@@ -350,10 +350,10 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = GetScriptConn();
 
         var key = Me();
-        conn.GetDatabase(1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
-        conn.GetDatabase(2).StringSet(key, "db 2", flags: CommandFlags.FireAndForget);
+        GetDatabase(conn, 1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
+        GetDatabase(conn, 2).StringSet(key, "db 2", flags: CommandFlags.FireAndForget);
 
-        var db = conn.GetDatabase(2);
+        var db = GetDatabase(conn, 2);
         var tran = db.CreateTransaction();
         var evalResult = tran.ScriptEvaluateAsync(
             script: @"redis.call('select', 1)
@@ -375,7 +375,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         RedisValue newId = Guid.NewGuid().ToString();
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.HashSet(key, "id", 123, flags: CommandFlags.FireAndForget);
 
@@ -406,7 +406,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         // note that these are on different connections (so we wouldn't expect
         // the flush to drop the local cache - assume it is a surprise!)
         var server = conn0.GetServer(TestConfig.Current.PrimaryServerAndPort);
-        var db = conn1.GetDatabase();
+        var db = GetDatabase(conn1);
         var key = Me();
         var Script = $"return '{key}';";
 
@@ -458,7 +458,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         server.ScriptFlush();
 
         server.ScriptLoad(Script);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         await db.PingAsync(); // k, we're all up to date now; clean db, minimal script cache
 
         // we're using a pipeline here, so send 1000 messages, but for timing: only care about the last
@@ -508,7 +508,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         byte[] hash = server.ScriptLoad(Script);
         Assert.NotNull(hash);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         RedisKey[] keys = [key];
@@ -536,7 +536,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         var prepared = LuaScript.Prepare(Script);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         // Scopes for repeated use
         {
@@ -590,7 +590,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
         server.ScriptFlush();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         // Scopes for repeated use
         {
@@ -646,7 +646,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         var script = LuaScript.Prepare(Script);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -678,7 +678,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         Assert.Equal("redis.call('set', ARGV[1], 'hello@example')", script.ExecutableScript);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -712,7 +712,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var prepared = LuaScript.Prepare(Script);
         var loaded = prepared.Load(server);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         // Scopes for repeated use
         {
@@ -769,7 +769,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var script = LuaScript.Prepare(Script);
         var prepared = script.Load(server);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -835,7 +835,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         const string Script = "redis.call('set', @key, @value)";
         var script = LuaScript.Prepare(Script);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.ScriptEvaluate(script, new { key = (RedisKey)key, value = "value" });
@@ -857,7 +857,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         const string Script = "redis.call('set', @key, @value)";
         var script = LuaScript.Prepare(Script);
         var server = conn.GetServer(conn.GetEndPoints()[0]);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -893,7 +893,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var wrappedDb = db.WithKeyPrefix("prefix-");
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -916,7 +916,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var wrappedDb = db.WithKeyPrefix("prefix-");
         var key = Me();
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -939,7 +939,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var wrappedDb = db.WithKeyPrefix("prefix2-");
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -963,7 +963,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var wrappedDb = db.WithKeyPrefix("prefix2-");
         var key = Me();
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -986,7 +986,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create();
 
-        var p = conn.GetDatabase().WithKeyPrefix("prefix/");
+        var p = GetDatabase(conn).WithKeyPrefix("prefix/");
 
         var args = new { x = "abc", y = (RedisKey)"def", z = 123 };
         var script = LuaScript.Prepare(@"
@@ -1008,7 +1008,7 @@ return arr;
     {
         await using var conn = Create();
 
-        var p = conn.GetDatabase().WithKeyPrefix("prefix/");
+        var p = GetDatabase(conn).WithKeyPrefix("prefix/");
 
         const string Script = @"
 local arr = {};
@@ -1029,7 +1029,7 @@ return arr;
     {
         await using var conn = Create();
 
-        var p = conn.GetDatabase().WithKeyPrefix("prefix/");
+        var p = GetDatabase(conn).WithKeyPrefix("prefix/");
         var args = new { k = (RedisKey)"key", s = "str", v = 123 };
         LuaScript lua = LuaScript.Prepare("return {@k, @s, @v}");
         var viaArgs = (RedisValue[]?)p.ScriptEvaluate(lua, args);
@@ -1083,7 +1083,7 @@ return arr;
     public async Task TestEvalReadonly()
     {
         await using var conn = GetScriptConn();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         string script = "return KEYS[1]";
         RedisKey key = Me();
@@ -1098,7 +1098,7 @@ return arr;
     public async Task TestEvalReadonlyAsync()
     {
         await using var conn = GetScriptConn();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
 
         string script = "return KEYS[1]";
         RedisKey key = Me();
@@ -1113,7 +1113,7 @@ return arr;
     public async Task TestEvalShaReadOnly()
     {
         await using var conn = GetScriptConn();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var script = $"return redis.call('get','{key}')";
         db.StringSet(key, "bar");
@@ -1131,7 +1131,7 @@ return arr;
     public async Task TestEvalShaReadOnlyAsync()
     {
         await using var conn = GetScriptConn();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var script = $"return redis.call('get','{key}')";
         db.StringSet(key, "bar");
