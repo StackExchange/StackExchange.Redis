@@ -72,6 +72,10 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     internal RespExecutorBase Inner => _inner;
 
     /// <inheritdoc/>
+    /// <remarks>This one's own source if it was given one, else whatever the chain below offers.</remarks>
+    internal override Func<CancellationToken>? GetFailoverSource() => _failoverSource ?? _inner.GetFailoverSource();
+
+    /// <inheritdoc/>
     /// <remarks>Forwarded; retrying does not change whether the thing underneath can be cancelled.</remarks>
     public override bool CanCancel => _inner.CanCancel;
 

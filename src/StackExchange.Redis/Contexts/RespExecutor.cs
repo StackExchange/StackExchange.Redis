@@ -125,6 +125,27 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual RespExecutorBase? ResolveForChannel(in RedisChannel channel) => null;
 
+        /// <summary>
+        /// A source for "the token that cancels when the next failover happens", or <see langword="null"/>
+        /// when this chain has no notion of failing over.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A source, not a token.</b> The token is replaced each time a failover happens - that is how
+        /// it signals - so anything that captured one would be holding the previous failover's, already
+        /// cancelled or never to be. It has to be re-fetched per use, which is what handing back a
+        /// delegate forces.
+        /// </para>
+        /// <para>
+        /// <see langword="null"/> rather than a source returning <see cref="CancellationToken.None"/>,
+        /// because the two answers mean different things to a retry policy: "there is no failover here"
+        /// makes the failover rungs unreachable, where a token that never fires would leave the policy
+        /// waiting for one that cannot come. <c>RetryController.TracksFailover</c> is derived from exactly
+        /// this distinction.
+        /// </para>
+        /// </remarks>
+        internal virtual Func<CancellationToken>? GetFailoverSource() => null;
+
         /// <summary>Whether <b>this</b> executor, already resolved, can currently reach its server.</summary>
         /// <param name="key">The key being addressed.</param>
         /// <param name="flags">The command's flags.</param>

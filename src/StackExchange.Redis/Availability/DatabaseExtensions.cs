@@ -79,8 +79,12 @@ public static class DatabaseExtensions
                 "This context is already retrying; a second policy would multiply the attempts rather than replace them.");
         }
 
+        // the failover source comes from the executor chain rather than from an IDatabaseAsync, which is
+        // what lets a retrying CONTEXT track failover at all: RetryDatabase could always hand its own
+        // GetNextFailover down, but a context built with WithRetry had nowhere to get one and so silently
+        // ran with the failover rungs unreachable. Fetched per use, never captured - see GetFailoverSource.
         return new RespDatabaseContext(
-            raw.WithExecutor(new RespRetryExecutor(inner, retryPolicy ?? RetryPolicy.Default)));
+            raw.WithExecutor(new RespRetryExecutor(inner, retryPolicy ?? RetryPolicy.Default, inner.GetFailoverSource())));
     }
 
     // IDatabaseAsync always exposes its multiplexer (via IRedisAsync), so the configured policy is reachable

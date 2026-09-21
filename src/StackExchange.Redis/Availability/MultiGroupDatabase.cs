@@ -77,7 +77,7 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
                 parent.CommandMap,
                 database: resolved,
                 serverType: ServerType.Standalone)
-            .WithExecutor(new RespGroupExecutor(() => ActiveExecutor, resolved, DescribeUnavailable))
+            .WithExecutor(new RespGroupExecutor(() => ActiveExecutor, resolved, DescribeUnavailable, parent.GetNextFailover))
             .WithCacheResolver(() => parent.TryGetActive()?.ClientCache);
     }
 

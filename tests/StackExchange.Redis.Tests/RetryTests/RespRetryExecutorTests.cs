@@ -300,4 +300,57 @@ public class RespRetryExecutorTests
         await Assert.ThrowsAsync<RedisConnectionException>(async () => await plain.Strings.GetAsync("k"));
         Assert.Single(executor.Sent);
     }
+
+    /// <summary>
+    /// A retrying <b>context</b> gets its next-failover token from the executor chain, so failover-aware
+    /// retry works without going through <see cref="RetryDatabase"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Before this, <c>WithRetry</c> on a context had nowhere to get one: the token was only reachable via
+    /// <c>IDatabaseAsync.GetNextFailover()</c>, so a context-level retry ran with
+    /// <c>TracksFailover</c> false and the failover rungs of the policy quietly unreachable.
+    /// </para>
+    /// <para>
+    /// <b>Only the group executor can answer</b>, and that is not an accident of layering: moving between
+    /// members IS the failover, and the group is the thing that moves. Everything below it is a single
+    /// multiplexer, which has nothing to fail over to.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AContextRetryTakesItsFailoverSourceFromTheChain()
+    {
+        var inner = new FakeExecutor(":1\r\n");
+        using CancellationTokenSource first = new(), second = new();
+
+        var current = first;
+        var group = new RespGroupExecutor(() => inner, nextFailover: () => current.Token);
+
+        var retrying = new RespDatabaseContext(new RespContext().WithExecutor(group)).WithRetry(RetryPolicy.Default);
+        var executor = Assert.IsType<RespRetryExecutor>(retrying.Raw.Executor);
+
+        var source = executor.GetFailoverSource();
+        Assert.NotNull(source);
+        Assert.Equal(first.Token, source!());
+
+        // and it is re-fetched rather than captured: a failover REPLACES the token, so anything holding the
+        // old one would be watching the failover that already happened instead of the next one
+        current = second;
+        Assert.Equal(second.Token, source!());
+    }
+
+    /// <summary>And a chain with no group in it reports no source at all, rather than one that never fires.</summary>
+    /// <remarks>
+    /// The distinction is load-bearing: <c>RetryController</c> treats "no failover source" as "the failover
+    /// rungs are unreachable", where a token that simply never fires would leave the policy waiting for
+    /// something that cannot arrive.
+    /// </remarks>
+    [Fact]
+    public void AChainWithNoGroupHasNoFailoverSource()
+    {
+        var retrying = new RespDatabaseContext(
+            new RespContext().WithExecutor(new FakeExecutor(":1\r\n"))).WithRetry(RetryPolicy.Default);
+
+        Assert.Null(Assert.IsType<RespRetryExecutor>(retrying.Raw.Executor).GetFailoverSource());
+    }
 }

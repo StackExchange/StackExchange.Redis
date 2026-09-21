@@ -35,6 +35,7 @@ namespace StackExchange.Redis
     {
         private readonly Func<RespExecutorBase?> _active;
         private readonly Func<string>? _describeUnavailable;
+        private readonly Func<CancellationToken>? _nextFailover;
 
         /// <summary>Create an executor over a group of members.</summary>
         /// <param name="active">Resolves the currently active member's executor, or null if none is.</param>
@@ -43,15 +44,26 @@ namespace StackExchange.Redis
         /// Supplies the detail for the "nothing is reachable" exception; the group knows why and this does
         /// not.
         /// </param>
+        /// <param name="nextFailover">Where to get the token that cancels on the next failover, if this group tracks one.</param>
         internal RespGroupExecutor(
             Func<RespExecutorBase?> active,
             int database = 0,
-            Func<string>? describeUnavailable = null)
+            Func<string>? describeUnavailable = null,
+            Func<CancellationToken>? nextFailover = null)
         {
             _active = active ?? throw new ArgumentNullException(nameof(active));
             Database = database;
             _describeUnavailable = describeUnavailable;
+            _nextFailover = nextFailover;
         }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>The group is where failover actually happens</b>, so it is the one executor that can answer
+        /// this: moving between members IS the failover, and the group is what moves. Everything below is
+        /// a single multiplexer, which cannot fail over to anything, and everything above just forwards.
+        /// </remarks>
+        internal override Func<CancellationToken>? GetFailoverSource() => _nextFailover;
 
         /// <inheritdoc/>
         public override int Database { get; }
