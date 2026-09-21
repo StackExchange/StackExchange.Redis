@@ -78,6 +78,23 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// No lock of its own, and that is not an oversight: this is only ever called from inside the
+        /// connection's write lock, which is the lock that matters - it is what makes the claim and the
+        /// write that honours it one indivisible step. Taking a second lock here would order nothing extra
+        /// and would invite the two to be acquired in different orders elsewhere.
+        /// </remarks>
+        bool IRespPreambleTarget.TrySelectDatabase(int database)
+        {
+            if (CurrentDatabase == database) return false;
+
+            // recorded BEFORE the SELECT is written, because the caller writes it immediately and under
+            // this same lock; a later reader is therefore either this writer or somebody who will ask again
+            CurrentDatabase = database;
+            return true;
+        }
+
         /// <summary>Which database this connection is currently <c>SELECT</c>ed onto.</summary>
         /// <remarks>
         /// <para>

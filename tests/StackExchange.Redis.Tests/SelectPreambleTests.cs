@@ -1,4 +1,4 @@
-using StackExchange.Redis.Protocol;
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -61,6 +61,23 @@ public class SelectPreambleTests
         var select = New();
         Assert.Equal("*2|$6|SELECT|$3|400|", select.For(400).ToString());
         Assert.False(select.For(400).Span == select.For(400).Span); // rendered fresh each time
+    }
+
+    /// <summary>A frame rendered through a context stamps that context's database.</summary>
+    [Fact]
+    public void ARenderedFrameCarriesTheContextDatabase()
+    {
+        var context = new RespContext(database: 3);
+        var frame = context.Render($"{RedisCommand.GET}{(RedisKey)"k"}");
+        try
+        {
+            Assert.Equal(3, frame.Database);
+            Assert.Equal(3, frame.Detach().Database);
+        }
+        finally
+        {
+            frame.Dispose();
+        }
     }
 
     /// <summary>The database travels on the request, because the bytes alone cannot say which one it is.</summary>

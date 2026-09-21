@@ -88,13 +88,15 @@ namespace StackExchange.Redis
         /// because the connect delegate owns the handshake - this only has to be told the answer.
         /// </param>
         /// <param name="startProfile">Begins a profiling record for a command, when anyone is profiling.</param>
+        /// <param name="select">Supplies <c>SELECT</c> frames when this connection serves several databases.</param>
         internal RespEndpointExecutor(
             Func<CancellationToken, Task<RespConnection>> connect,
             int database = 0,
             EndPoint? endpoint = null,
             bool queueWhileDisconnected = true,
             Func<RedisFeatures?>? features = null,
-            Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? startProfile = null)
+            Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? startProfile = null,
+            SelectPreamble? select = null)
         {
             _features = features;
             _startProfile = startProfile;
@@ -102,7 +104,17 @@ namespace StackExchange.Redis
             Database = database;
             _endpoint = endpoint;
             _queueWhileDisconnected = queueWhileDisconnected;
+            _select = select;
         }
+
+        /// <summary>Where <c>SELECT</c> frames come from, or null if this connection serves one database.</summary>
+        /// <remarks>
+        /// <b>Null is the old shape and still the default</b>, so an executor that was never told about
+        /// several databases behaves exactly as before - no injection, no per-command question. It is
+        /// supplied only by whoever decided to share one connection across databases, which is the same
+        /// decision that makes the injection necessary.
+        /// </remarks>
+        private readonly SelectPreamble? _select;
 
         /// <inheritdoc/>
         public override int Database { get; }
@@ -488,8 +500,27 @@ namespace StackExchange.Redis
 
             // OUTSIDE the lock: writing is the slow part, and holding a lock across it would serialise
             // every sender behind one - the exact thing the new core exists to avoid
-            if (!connection.Send(operation)) OnSendRefused(connection, operation, request.Flags);
+            if (!Send(connection, operation)) OnSendRefused(connection, operation, request.Flags);
             return operation;
+        }
+
+        /// <summary>
+        /// Answers "does a <c>SELECT</c> have to go out in front of this command?", from inside the write
+        /// lock, and builds one only when it does.
+        /// </summary>
+        private readonly struct Selector(RespConnection connection, SelectPreamble select, int database)
+        {
+            internal IRespMessage? Preamble()
+            {
+                // TrySelectDatabase both asks and claims; see IRespPreambleTarget for why those cannot be
+                // two steps. A connection that manages its own database answers false and nothing is added.
+                if (connection is not IRespPreambleTarget target || !target.TrySelectDatabase(database)) return null;
+
+                var frame = select.For(database);
+                var head = RespPayloadOperation.Rent();
+                head.Attach(frame.Span, frame.Flags, default);
+                return head;
+            }
         }
 
         private void OnSendRefused(RespConnection connection, RespPayloadOperation operation, CommandFlags flags)
@@ -692,15 +723,36 @@ namespace StackExchange.Redis
         }
 
         /// <summary>Write a captured queue, in order.</summary>
+        /// <remarks>
+        /// <b>Selects, like any other write.</b> This is not a rare path that can be excused: a command
+        /// issued before the connection came up is backlogged and drained here, so on a connection serving
+        /// several databases the FIRST command after connecting always arrives this way. Writing it without
+        /// its <c>SELECT</c> would run it against whatever the handshake selected - and only the first one,
+        /// which is the kind of bug that looks like a fluke.
+        /// </remarks>
         private void Write(Queue<RespPayloadOperation>? waiting)
         {
             if (waiting is null) return;
             while (waiting.Count != 0)
             {
                 var operation = waiting.Dequeue();
-                if (_connection is { IsClosed: false } connection && connection.Send(operation)) continue;
+                if (_connection is { IsClosed: false } connection && Send(connection, operation)) continue;
                 operation.EnsureFaulted(CommandFlags.None);
             }
+        }
+
+        /// <summary>Write one operation, putting a <c>SELECT</c> in front of it if this connection needs one.</summary>
+        private bool Send(RespConnection connection, RespPayloadOperation operation)
+        {
+            if (_select is null || Database < 0) return connection.Send(operation);
+
+            var sent = connection.Send(
+                operation, new Selector(connection, _select, Database), static s => s.Preamble(), out var head);
+
+            // the SELECT's own reply is nobody's business: it is +OK or the connection is broken, and the
+            // command behind it reports that far better than a reply nobody asked for
+            if (head is RespPayloadOperation discard) RespPayloadOperation.DiscardReply(discard);
+            return sent;
         }
 
         /// <summary>Start a connection attempt, unless one is already running.</summary>

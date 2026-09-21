@@ -870,6 +870,15 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         bool IRespPreambleTarget.TryClaim(long id) => TryAddPreparedFieldSet(id);
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Always false: the old core selects its own database.</b> A <c>Message</c> carries its
+        /// database index and the bridge injects the <c>SELECT</c> itself, inside its own write lock - so
+        /// there is nothing here for the preamble mechanism to add, and injecting a second one would send
+        /// <c>SELECT</c> twice.
+        /// </remarks>
+        bool IRespPreambleTarget.TrySelectDatabase(int database) => false;
+
         // drops a field-set id when its DISCARD is written, keeping the set bounded to live field-sets over the life of
         // a long-lived connection.
         internal void RemovePreparedFieldSet(long id) => _preparedFieldSets?.Remove(id);

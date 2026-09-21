@@ -162,6 +162,103 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     }
 
     /// <summary>
+    /// Write one operation, giving the caller the chance - <b>inside the write lock</b> - to put a
+    /// preamble immediately in front of it.
+    /// </summary>
+    /// <typeparam name="TState">Whatever the factory needs; a struct, so a static lambda allocates nothing.</typeparam>
+    /// <param name="message">The operation to write.</param>
+    /// <param name="state">Passed to the factory.</param>
+    /// <param name="preamble">
+    /// Asked once, holding the write lock: returns the operation to write first, or <see langword="null"/>
+    /// for none. It may record that the preamble is being written - doing so here is what makes the claim
+    /// and the write atomic.
+    /// </param>
+    /// <param name="wrotePreamble">What the factory produced, so the caller can track or discard it.</param>
+    /// <returns>Whether <paramref name="message"/> was written.</returns>
+    /// <remarks>
+    /// <para>
+    /// The difference from the two-operation form is <b>when the preamble is built</b>. There the caller
+    /// has one ready and the lock only decides whether to use it; here the lock decides and the factory
+    /// then builds one, so nothing is allocated for a preamble that turns out to be unnecessary.
+    /// </para>
+    /// <para>
+    /// That matters for <c>SELECT</c>: the question "is this connection on the right database?" cannot be
+    /// answered before taking the lock - another sender may move it - so every command would otherwise have
+    /// to arrive with a speculative <c>SELECT</c> in hand, and throw it away in the common case where the
+    /// database has not changed.
+    /// </para>
+    /// <para>
+    /// The factory runs under the lock, so it must not block, take other locks in a different order, or
+    /// call back into this connection.
+    /// </para>
+    /// </remarks>
+    public bool Send<TState>(
+        IRespMessage message,
+        TState state,
+        Func<TState, IRespMessage?> preamble,
+        out IRespMessage? wrotePreamble)
+    {
+        if (message is null) throw new ArgumentNullException(nameof(message));
+        if (preamble is null) throw new ArgumentNullException(nameof(preamble));
+
+        wrotePreamble = null;
+        if (Volatile.Read(ref _closed) != 0) return false;
+
+        lock (_writeLock)
+        {
+            var head = preamble(state);
+            wrotePreamble = head;
+
+            if (head is null)
+            {
+                if (!message.TryReserveRequest(message.Token, out var only)) return false;
+                try
+                {
+                    message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                    _pending.Enqueue(message);
+                    Write(only.Span);
+                    Volatile.Write(ref _bytesSent, _bytesSent + only.Length);
+                }
+                finally
+                {
+                    message.ReleaseRequest();
+                }
+            }
+            else
+            {
+                if (!head.TryReserveRequest(head.Token, out var headPayload)) return false;
+                try
+                {
+                    if (!message.TryReserveRequest(message.Token, out var bodyPayload)) return false;
+                    try
+                    {
+                        var bytes = headPayload.Length + bodyPayload.Length;
+                        head.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                        message.OnEnqueued(this, _bytesSent + headPayload.Length, Volatile.Read(ref _bytesReceived));
+
+                        _pending.Enqueue(head);
+                        _pending.Enqueue(message);
+                        Write(headPayload.Span);
+                        Write(bodyPayload.Span);
+                        Volatile.Write(ref _bytesSent, _bytesSent + bytes);
+                    }
+                    finally
+                    {
+                        message.ReleaseRequest();
+                    }
+                }
+                finally
+                {
+                    head.ReleaseRequest();
+                }
+            }
+        }
+
+        _transport.Flush();
+        return true;
+    }
+
+    /// <summary>
     /// Write two operations contiguously, deciding <b>inside the write lock</b> whether the first is
     /// needed at all.
     /// </summary>

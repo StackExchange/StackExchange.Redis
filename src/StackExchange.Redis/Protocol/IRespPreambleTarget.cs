@@ -1,4 +1,4 @@
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
     /// <summary>
     /// What a <see cref="IRespPreambleGate"/> needs to know about the connection a pair is being written
@@ -31,5 +31,30 @@ namespace StackExchange.Redis
         /// <summary>Claim a connection-local fact; false if this connection already holds it.</summary>
         /// <param name="id">Identifies the fact - a field-set id, today.</param>
         bool TryClaim(long id);
+
+        /// <summary>
+        /// Move this connection onto <paramref name="database"/>, reporting whether a <c>SELECT</c> has to
+        /// be written to make that true.
+        /// </summary>
+        /// <param name="database">The database the command about to be written belongs to.</param>
+        /// <returns>
+        /// <see langword="true"/> if the caller must write a <c>SELECT</c> immediately before its command;
+        /// <see langword="false"/> if the connection is already there.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Asks and claims in one call, because they cannot be separated.</b> Reading the current
+        /// database, deciding, and then writing is three steps another sender can interleave: it sees the
+        /// database this caller is about to set, concludes it needs no <c>SELECT</c>, and wins the write
+        /// lock - so its command runs against a database that has not been selected yet. The only safe
+        /// shape is to claim while holding the lock that orders the writes, which is what the conditional
+        /// pair-send does.
+        /// </para>
+        /// <para>
+        /// A target that manages its own database - the old core does, inside its bridge - answers
+        /// <see langword="false"/>: nothing for this mechanism to inject.
+        /// </para>
+        /// </remarks>
+        bool TrySelectDatabase(int database);
     }
 }
