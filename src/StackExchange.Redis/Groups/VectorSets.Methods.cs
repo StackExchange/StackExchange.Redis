@@ -225,9 +225,9 @@ public static partial class VectorSets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        // the bound spelling is shared with the MessageWriter path; see RedisDatabase.VectorSetBound
-        var from = RedisDatabase.VectorSetBound(start, exclude, isStart: true);
-        var to = RedisDatabase.VectorSetBound(end, exclude, isStart: false);
+        // the bound spelling is shared with the MessageWriter path; see VectorSets.VectorSetBound
+        var from = VectorSets.VectorSetBound(start, exclude, isStart: true);
+        var to = VectorSets.VectorSetBound(end, exclude, isStart: false);
 
         return count < 0
             ? sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
@@ -320,7 +320,7 @@ public static partial class VectorSets
 
     /// <summary>Render one page of a <c>VRANGE</c> walk.</summary>
     /// <remarks>
-    /// The bound spelling is <see cref="RedisDatabase.VectorSetBound"/>'s, as <see cref="RangeAsync"/>
+    /// The bound spelling is <see cref="VectorSets.VectorSetBound"/>'s, as <see cref="RangeAsync"/>
     /// uses - so a page of the walk and a one-shot range agree on what a bracket means.
     /// </remarks>
     private static RespRequestFrame RangePageCommand(
@@ -332,8 +332,8 @@ public static partial class VectorSets
         bool excludeStart,
         bool excludeEnd)
     {
-        var from = RedisDatabase.VectorSetBound(start, excludeStart ? Exclude.Start : Exclude.None, isStart: true);
-        var to = RedisDatabase.VectorSetBound(end, excludeEnd ? Exclude.Stop : Exclude.None, isStart: false);
+        var from = VectorSets.VectorSetBound(start, excludeStart ? Exclude.Start : Exclude.None, isStart: true);
+        var to = VectorSets.VectorSetBound(end, excludeEnd ? Exclude.Stop : Exclude.None, isStart: false);
         return context.Render($"{RedisCommand.VRANGE}{key}{from}{to}{pageSize}");
     }
 
@@ -414,8 +414,8 @@ public static partial class VectorSets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        var from = RedisDatabase.VectorSetBound(start, exclude, isStart: true);
-        var to = RedisDatabase.VectorSetBound(end, exclude, isStart: false);
+        var from = VectorSets.VectorSetBound(start, exclude, isStart: true);
+        var to = VectorSets.VectorSetBound(end, exclude, isStart: false);
 
         return count < 0
             ? sets.Context.SendAsync(
@@ -715,5 +715,30 @@ public static partial class VectorSets
             source.Span.CopyTo(lease.Span);
             return lease;
         }
+    }
+
+    // Moved off RedisDatabase, where these used to sit as internal statics. They are pure functions
+    // about how this family of commands is spelled - they never touched a database - so parking them
+    // on the old surface meant the new one reached across to a type that is being deleted.
+
+    /// <summary>
+    /// One bound of a <c>VRANGE</c>: <c>-</c>/<c>+</c> for an open end, otherwise the value behind a
+    /// <c>[</c> or <c>(</c> depending on whether it is inclusive.
+    /// </summary>
+    /// <remarks>
+    /// Shared with the interpolated surface, as <c>GetLexRange</c> is for the sorted sets: the bracket is
+    /// the whole of the meaning, and an exclusive bound written inclusively is an off-by-one nobody sees
+    /// until it matters.
+    /// </remarks>
+    /// <param name="value">The bound value, or null for an open end.</param>
+    /// <param name="exclude">Which bounds the caller asked to exclude.</param>
+    /// <param name="isStart">Whether this is the lower bound.</param>
+    internal static RedisValue VectorSetBound(in RedisValue value, Exclude exclude, bool isStart)
+    {
+        if (value.IsNull) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
+
+        var mask = isStart ? Exclude.Start : Exclude.Stop;
+        var isExclusive = (exclude & mask) != 0;
+        return ((isExclusive ? "(" : "[") + value).AsRedisValue();
     }
 }

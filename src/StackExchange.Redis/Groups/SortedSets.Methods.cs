@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -217,7 +218,7 @@ public static partial class SortedSets
         }
 
         return sortedSets.Context.SendAsync<long>(
-            $"{RedisCommand.ZCOUNT}{key}{RedisDatabase.GetRange(min, exclude, isStart: true)}{RedisDatabase.GetRange(max, exclude, isStart: false)}",
+            $"{RedisCommand.ZCOUNT}{key}{SortedSets.GetRange(min, exclude, isStart: true)}{SortedSets.GetRange(max, exclude, isStart: false)}",
             flags,
             cancellationToken: cancellationToken);
     }
@@ -239,7 +240,7 @@ public static partial class SortedSets
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
-        RedisDatabase.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
+        SortedSets.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
         return sortedSets.Context.SendAsync<long>(
             $"{RedisCommand.ZLEXCOUNT}{key}{Lex(min, exclude, isStart: true)}{Lex(max, exclude, isStart: false)}",
             flags,
@@ -555,7 +556,7 @@ public static partial class SortedSets
 
         // the bounds stay in start-then-stop order even for the reversed command; what reverses is
         // which of them is "low", and GetLexRange's order-aware -/+ mapping is where that lives
-        RedisDatabase.ReverseLimits(order, ref exclude, ref min, ref max);
+        SortedSets.ReverseLimits(order, ref exclude, ref min, ref max);
 
         return sortedSets.Context.SendAsync<ReadOnlyLease<RespValue>>(
             $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
@@ -591,7 +592,7 @@ public static partial class SortedSets
 
         // the bounds stay in start-then-stop order even for the reversed command; what reverses is
         // which of them is "low", and GetLexRange's order-aware -/+ mapping is where that lives
-        RedisDatabase.ReverseLimits(order, ref exclude, ref min, ref max);
+        SortedSets.ReverseLimits(order, ref exclude, ref min, ref max);
 
         return sortedSets.Context.SendAsync<RedisValue[]>(
             $"{command}{key}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{new RespLimitRange(skip, take)}",
@@ -688,7 +689,7 @@ public static partial class SortedSets
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<long> RemoveRangeByScoreAsync(this in RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sortedSets.Context.SendAsync<long>(
-            $"{RedisCommand.ZREMRANGEBYSCORE}{key}{RedisDatabase.GetRange(start, exclude, isStart: true)}{RedisDatabase.GetRange(stop, exclude, isStart: false)}",
+            $"{RedisCommand.ZREMRANGEBYSCORE}{key}{SortedSets.GetRange(start, exclude, isStart: true)}{SortedSets.GetRange(stop, exclude, isStart: false)}",
             flags,
             cancellationToken: cancellationToken);
 
@@ -702,7 +703,7 @@ public static partial class SortedSets
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask<long> RemoveRangeByValueAsync(this in RespSortedSets sortedSets, RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
-        RedisDatabase.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
+        SortedSets.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
         return sortedSets.Context.SendAsync<long>(
             $"{RedisCommand.ZREMRANGEBYLEX}{key}{Lex(min, exclude, isStart: true)}{Lex(max, exclude, isStart: false)}",
             flags,
@@ -968,8 +969,8 @@ public static partial class SortedSets
             };
         }
 
-        var from = RedisDatabase.GetRange(start, exclude, isStart: true);
-        var to = RedisDatabase.GetRange(stop, exclude, isStart: false);
+        var from = SortedSets.GetRange(start, exclude, isStart: true);
+        var to = SortedSets.GetRange(stop, exclude, isStart: false);
         var scores = RespLiterals.WithScores.When(withScores);
 
         return sortedSets.Context.SendAsync<TResult>(
@@ -1047,9 +1048,39 @@ public static partial class SortedSets
         return sortedSets.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require(), default);
     }
 
-    /// <summary>A lexical bound, shared with the MessageWriter path; see RedisDatabase.GetLexRange.</summary>
+    /// <summary>A lexical bound, shared with the MessageWriter path.</summary>
     private static RedisValue Lex(in RedisValue value, Exclude exclude, bool isStart, Order order = Order.Ascending)
-        => RedisDatabase.GetLexRange(value, exclude, isStart, order);
+        => LexBound(value, exclude, isStart, order);
+
+    /// <summary>
+    /// Renders one end of a <c>ZRANGEBYLEX</c>-style range: <c>[</c>/<c>(</c> plus the value, or the
+    /// open-ended <c>-</c>/<c>+</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Here rather than on <c>RedisDatabase</c>, where it used to live.</b> It is a pure function about
+    /// how a lexical bound is spelled, so it belongs with the sorted sets rather than with whichever
+    /// surface happens to send them - and parking it on the old database meant the new surface, the
+    /// <c>Message</c> writer and <c>Condition</c> all reached across to a type that is being deleted.
+    /// </remarks>
+    internal static RedisValue LexBound(in RedisValue value, Exclude exclude, bool isStart, Order order)
+    {
+        if (value.IsNull) // open search
+        {
+            if (order == Order.Ascending) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
+
+            return isStart ? RedisLiterals.PlusSymbol : RedisLiterals.MinusSymbol; // when descending order: Plus and Minus have to be reversed
+        }
+
+        var srcLength = value.GetByteCount();
+        Debug.Assert(srcLength >= 0);
+
+        byte[] result = new byte[srcLength + 1];
+        // no defaults here; must always explicitly specify [ / (
+        result[0] = (exclude & (isStart ? Exclude.Start : Exclude.Stop)) == 0 ? (byte)'[' : (byte)'(';
+        int written = value.CopyTo(result.AsSpan(1));
+        Debug.Assert(written == srcLength, "predicted/actual length mismatch");
+        return result;
+    }
 
     /// <summary>The <c>AGGREGATE mode</c> pair; SUM is the server's default and writes nothing.</summary>
     private static RespAggregate AsFragment(Aggregate aggregate) => new(aggregate);
@@ -1148,4 +1179,46 @@ public static partial class SortedSets
     }
 
     private static readonly RespScanPagePairHandler<SortedSetEntry> SortedSetScanHandler = new(ResultProcessor.SortedSetWithScores);
+
+    // Moved off RedisDatabase, where these used to sit as internal statics. They are pure functions
+    // about how this family of commands is spelled - they never touched a database - so parking them
+    // on the old surface meant the new one reached across to a type that is being deleted.
+
+    /// <summary>
+    /// A score bound, with the <c>(</c> prefix that means exclusive. Shared with the interpolated
+    /// surface rather than restated: the prefix is the whole of the convention, and a second copy of
+    /// it would be a silent off-by-one-bound waiting to happen.
+    /// </summary>
+    internal static RedisValue GetRange(double value, Exclude exclude, bool isStart)
+    {
+        if (isStart)
+        {
+            if ((exclude & Exclude.Start) == 0) return value; // inclusive is default
+        }
+        else
+        {
+            if ((exclude & Exclude.Stop) == 0) return value; // inclusive is default
+        }
+        return ("(" + Format.ToString(value)).AsRedisValue(); // '(' prefix means exclusive
+    }
+
+    /// <summary>
+    /// Put a lexical range into the low-then-high order the server always wants, whichever direction it
+    /// is asked to walk, swapping the exclusivity with it. Shared with the interpolated surface.
+    /// </summary>
+    internal static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
+    {
+        bool reverseLimits = (order == Order.Ascending) == (stop != default && start.CompareTo(stop) > 0);
+        if (reverseLimits)
+        {
+            var tmp = start;
+            start = stop;
+            stop = tmp;
+            switch (exclude)
+            {
+                case Exclude.Start: exclude = Exclude.Stop; break;
+                case Exclude.Stop: exclude = Exclude.Start; break;
+            }
+        }
+    }
 }

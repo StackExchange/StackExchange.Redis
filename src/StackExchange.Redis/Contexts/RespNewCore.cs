@@ -41,11 +41,13 @@ namespace StackExchange.Redis
         /// </remarks>
         private readonly ConcurrentDictionary<EndPoint, RedisFeatures> _observed = new();
         private readonly RespMultiplexerExecutor _router;
+        private readonly MultiplexerFeatureProbe _features;
 
         internal RespNewCore(ConnectionMultiplexer multiplexer)
         {
             _multiplexer = multiplexer;
             _topology = new RespTopology(multiplexer.ServerSelectionStrategy.ServerType);
+            _features = new MultiplexerFeatureProbe(multiplexer);
             _router = Rebind(multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
         }
 
@@ -70,9 +72,7 @@ namespace StackExchange.Redis
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
                 .AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix)
-                // constructed directly rather than via GetDatabase: the probe needs the OLD database specifically,
-                // and GetDatabase is exactly the thing that stops returning one when the surface is swapped
-                .WithServices(new RedisBase.ServerFeatureProbe(new RedisDatabase(_multiplexer, database, null)))
+                .WithServices(_features)
                 .WithExecutor(database == _router.Database ? _router : Rebind(database)));
         }
 
@@ -241,6 +241,36 @@ namespace StackExchange.Redis
             DnsEndPoint dns => socket.ConnectAsync(dns.Host, dns.Port),
             _ => socket.ConnectAsync(endpoint),
         };
+
+        /// <summary>
+        /// Answers "what can the server that would take this command do", from the multiplexer's topology.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>This used to be <c>RedisBase.ServerFeatureProbe</c> over a <c>RedisDatabase</c> built for the
+        /// purpose</b> - an entire command surface constructed so that one method could be called on it.
+        /// That method is <c>RedisBase.GetFeatures</c>, whose base implementation is two lines of
+        /// multiplexer: select the server, read its version. Only <c>RedisServer</c> overrides it, to pin
+        /// the answer to its own node, and a database is not a server - so the database contributed
+        /// nothing except a reference to a type that is being deleted.
+        /// </para>
+        /// <para>
+        /// Borrowed rather than reimplemented, in the same sense as the topology: <c>SelectServer</c>
+        /// already knows about replica preference, reachability and the configured default version.
+        /// </para>
+        /// </remarks>
+        private sealed class MultiplexerFeatureProbe(ConnectionMultiplexer multiplexer) : IRespServerFeatures
+        {
+            public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
+            {
+                var server = multiplexer.SelectServer(command, flags, key);
+
+                // usable either way - the configured default version stands in - but only a selected server
+                // makes this an observation rather than a guess, which is what the bool reports
+                features = new RedisFeatures(server is null ? multiplexer.RawConfig.DefaultVersion : server.Version);
+                return server is not null;
+            }
+        }
 
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()

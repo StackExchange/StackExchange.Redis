@@ -288,7 +288,7 @@ public static partial class Bitmaps
     /// payload rather than on the command's name.
     /// </summary>
     /// <remarks>
-    /// The decision itself is <c>RedisDatabase.SelectBitFieldCommand</c>, shared rather than restated:
+    /// The decision itself is <c>Bitmaps.SelectBitFieldCommand</c>, shared rather than restated:
     /// all-GET is a pure read whatever command carries it, a payload of SETs replays to the same end
     /// state, and only INCRBY compounds. Only the "is the read-only command available?" input differs,
     /// because here it is answered by the command map instead of by the endpoint's version.
@@ -326,7 +326,7 @@ public static partial class Bitmaps
             && context.CommandMap.IsAvailable(RedisCommand.BITFIELD_RO)
             && context.TryGetFeatures(RedisCommand.BITFIELD_RO, in key, flags, out var features)
             && features.BitFieldReadOnly;
-        var command = RedisDatabase.SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags);
+        var command = Bitmaps.SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags);
         flags = flags.WithDefaultCategory(command);
         return command;
     }
@@ -352,4 +352,31 @@ public static partial class Bitmaps
         Bitwise.One => RespLiterals.One,
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
+
+    // Moved off RedisDatabase, where these used to sit as internal statics. They are pure functions
+    // about how this family of commands is spelled - they never touched a database - so parking them
+    // on the old surface meant the new one reached across to a type that is being deleted.
+
+    /// <summary>
+    /// Chooses the command, and the retry category the payload deserves - which is a separate axis
+    /// from routing: the server treats BITFIELD as a write however read-only its sub-operations are,
+    /// but that governs which servers will accept it, not whether replaying it is safe.
+    /// </summary>
+    internal static RedisCommand SelectBitFieldCommand(bool allGet, bool anyIncrement, bool readOnlyAvailable, ref CommandFlags flags)
+    {
+        if (allGet)
+        {
+            // nothing to replay, whichever of the two commands we end up issuing
+            flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
+            return readOnlyAvailable ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
+        }
+
+        if (!anyIncrement)
+        {
+            // SET is positional, so a replay lands on the same value; only INCRBY compounds
+            flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
+        }
+
+        return RedisCommand.BITFIELD;
+    }
 }

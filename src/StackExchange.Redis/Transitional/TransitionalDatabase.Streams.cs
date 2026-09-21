@@ -135,7 +135,7 @@ namespace StackExchange.Redis
 
         // ---- XADD -----------------------------------------------------------------------------------
         // Eight shipped overloads, two on the new surface. The difference is entirely StreamAddOptions:
-        // the old spellings lay the same settings out positionally, and LegacyStreamAddOptions - shared
+        // the old spellings lay the same settings out positionally, and FromLegacyArguments - shared
         // with the classic path rather than copied - folds them back up. It deliberately does NOT
         // validate, because the shipped overloads have always passed odd combinations to the server; only
         // the options-carrying overloads call ThrowIfInvalid, and that asymmetry is preserved here.
@@ -150,19 +150,19 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAdd(key, streamField, streamValue, RedisDatabase.LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAdd(key, streamField, streamValue, StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAddAsync(key, streamField, streamValue, RedisDatabase.LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAddAsync(key, streamField, streamValue, StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAdd(key, streamField, streamValue, RedisDatabase.LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAdd(key, streamField, streamValue, StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAddAsync(key, streamField, streamValue, RedisDatabase.LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAddAsync(key, streamField, streamValue, StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamAddOptions options, CommandFlags flags = CommandFlags.None)
@@ -188,19 +188,19 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAdd(key, streamPairs, RedisDatabase.LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAdd(key, streamPairs, StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAddAsync(key, streamPairs, RedisDatabase.LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAddAsync(key, streamPairs, StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAdd(key, streamPairs, RedisDatabase.LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAdd(key, streamPairs, StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => StreamAddAsync(key, streamPairs, RedisDatabase.LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
+            => StreamAddAsync(key, streamPairs, StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode), flags);
 
         /// <inheritdoc/>
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamAddOptions options, CommandFlags flags = CommandFlags.None)

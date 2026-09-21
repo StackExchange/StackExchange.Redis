@@ -2983,14 +2983,14 @@ namespace StackExchange.Redis
 
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
@@ -3007,14 +3007,14 @@ namespace StackExchange.Redis
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
@@ -3031,14 +3031,14 @@ namespace StackExchange.Redis
 
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
@@ -3055,14 +3055,14 @@ namespace StackExchange.Redis
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = StreamAddOptions.FromLegacyArguments(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
@@ -4419,26 +4419,6 @@ namespace StackExchange.Redis
             return tran;
         }
 
-        internal static RedisValue GetLexRange(RedisValue value, Exclude exclude, bool isStart, Order order)
-        {
-            if (value.IsNull) // open search
-            {
-                if (order == Order.Ascending) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
-
-                return isStart ? RedisLiterals.PlusSymbol : RedisLiterals.MinusSymbol; // when descending order: Plus and Minus have to be reversed
-            }
-
-            var srcLength = value.GetByteCount();
-            Debug.Assert(srcLength >= 0);
-
-            byte[] result = new byte[srcLength + 1];
-            // no defaults here; must always explicitly specify [ / (
-            result[0] = (exclude & (isStart ? Exclude.Start : Exclude.Stop)) == 0 ? (byte)'[' : (byte)'(';
-            int written = value.CopyTo(result.AsSpan(1));
-            Debug.Assert(written == srcLength, "predicted/actual length mismatch");
-            return result;
-        }
-
         internal Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags, int? maxCount = null, int? maxSize = null) =>
             new MultiStreamReadGroupCommandMessage(
                 Database,
@@ -4667,24 +4647,6 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        /// <summary>
-        /// A score bound, with the <c>(</c> prefix that means exclusive. Shared with the interpolated
-        /// surface rather than restated: the prefix is the whole of the convention, and a second copy of
-        /// it would be a silent off-by-one-bound waiting to happen.
-        /// </summary>
-        internal static RedisValue GetRange(double value, Exclude exclude, bool isStart)
-        {
-            if (isStart)
-            {
-                if ((exclude & Exclude.Start) == 0) return value; // inclusive is default
-            }
-            else
-            {
-                if ((exclude & Exclude.Stop) == 0) return value; // inclusive is default
-            }
-            return ("(" + Format.ToString(value)).AsRedisValue(); // '(' prefix means exclusive
-        }
-
         internal Message GetRestoreMessage(RedisKey key, byte[] value, TimeSpan? expiry, CommandFlags flags)
         {
             long pttl = (expiry == null || expiry.Value == TimeSpan.MaxValue) ? 0 : (expiry.Value.Ticks / TimeSpan.TicksPerMillisecond);
@@ -4886,8 +4848,8 @@ namespace StackExchange.Redis
             if (double.IsNegativeInfinity(min) && double.IsPositiveInfinity(max))
                 return Message.Create(Database, flags, RedisCommand.ZCARD, key);
 
-            var from = GetRange(min, exclude, true);
-            var to = GetRange(max, exclude, false);
+            var from = SortedSets.GetRange(min, exclude, true);
+            var to = SortedSets.GetRange(max, exclude, false);
             return Message.Create(Database, flags, RedisCommand.ZCOUNT, key, from, to);
         }
 
@@ -4914,7 +4876,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            RedisValue from = GetRange(start, exclude, true), to = GetRange(stop, exclude, false);
+            RedisValue from = SortedSets.GetRange(start, exclude, true), to = SortedSets.GetRange(stop, exclude, false);
             if (withScores)
             {
                 return unlimited ? Message.Create(Database, flags, command, key, from, to, RedisLiterals.WITHSCORES)
@@ -4934,8 +4896,8 @@ namespace StackExchange.Redis
                 flags,
                 RedisCommand.ZREMRANGEBYSCORE,
                 key,
-                GetRange(start, exclude, true),
-                GetRange(stop, exclude, false));
+                SortedSets.GetRange(start, exclude, true),
+                SortedSets.GetRange(stop, exclude, false));
         }
 
         private Message GetStreamAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags)
@@ -4977,25 +4939,6 @@ namespace StackExchange.Redis
 
             return Message.Create(Database, flags, RedisCommand.XACKDEL, key, values);
         }
-
-        /// <summary>
-        /// Maps the legacy positional trim/id arguments onto <see cref="StreamAddOptions"/>.
-        /// </summary>
-        /// <remarks>
-        /// Deliberately does *not* call <see cref="StreamAddOptions.ThrowIfInvalid"/>: the shipped overloads
-        /// have always passed questionable combinations (<c>LIMIT</c> without a threshold, say) through to the
-        /// server, and that behaviour is preserved; only the options-based overloads validate up-front.
-        /// </remarks>
-        internal static StreamAddOptions LegacyStreamAddOptions(RedisValue? messageId, in StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode)
-            => new()
-            {
-                MessageId = messageId,
-                IdempotentId = idempotentId,
-                MaxLength = maxLength,
-                Approximate = useApproximateMaxLength,
-                Limit = limit,
-                TrimMode = mode,
-            };
 
         /// <summary>
         /// The number of arguments written by <see cref="WriteStreamAddPrefix"/>.
@@ -5078,17 +5021,9 @@ namespace StackExchange.Redis
         /// <c>*</c> would therefore let a double-append through under the default policy.
         /// </remarks>
         private static CommandFlags GetStreamAddCategory(CommandFlags flags, in StreamAddOptions options)
-            => (options.IdempotentId.ArgCount != 0 || !IsServerAssignedId(options.EntryId))
+            => (options.IdempotentId.ArgCount != 0 || !Streams.IsServerAssignedId(options.EntryId))
                 ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked)
                 : flags;
-
-        /// <summary>
-        /// Whether the server assigns any part of a stream entry id, i.e. it ends in <c>*</c> - either the bare
-        /// <c>*</c> (server picks both halves) or the <c>&lt;ms&gt;-*</c> auto-sequence form (server picks the
-        /// sequence). Anything else is fully caller-specified, and so cannot be appended twice.
-        /// </summary>
-        internal static bool IsServerAssignedId(in RedisValue messageId)
-            => messageId.EndsWithAscii((byte)'*');
 
         /// <summary>
         /// Gets message for <see href="https://redis.io/commands/xadd"/>.
@@ -5564,30 +5499,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            return SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags);
-        }
-
-        /// <summary>
-        /// Chooses the command, and the retry category the payload deserves - which is a separate axis
-        /// from routing: the server treats BITFIELD as a write however read-only its sub-operations are,
-        /// but that governs which servers will accept it, not whether replaying it is safe.
-        /// </summary>
-        internal static RedisCommand SelectBitFieldCommand(bool allGet, bool anyIncrement, bool readOnlyAvailable, ref CommandFlags flags)
-        {
-            if (allGet)
-            {
-                // nothing to replay, whichever of the two commands we end up issuing
-                flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
-                return readOnlyAvailable ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
-            }
-
-            if (!anyIncrement)
-            {
-                // SET is positional, so a replay lands on the same value; only INCRBY compounds
-                flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
-            }
-
-            return RedisCommand.BITFIELD;
+            return Bitmaps.SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags);
         }
 
         internal Message GetStringBitPositionMessage(in RedisKey key, bool bit, long start, long end, StringIndexType indexType, CommandFlags flags)
@@ -5805,7 +5717,7 @@ namespace StackExchange.Redis
 
         private Message GetLexMessage(RedisCommand command, RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags, Order order)
         {
-            RedisValue start = GetLexRange(min, exclude, true, order), stop = GetLexRange(max, exclude, false, order);
+            RedisValue start = SortedSets.LexBound(min, exclude, true, order), stop = SortedSets.LexBound(max, exclude, false, order);
 
             if (skip == 0 && take == -1)
                 return Message.Create(Database, flags, command, key, start, stop);
@@ -5822,25 +5734,6 @@ namespace StackExchange.Redis
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
-        /// <summary>
-        /// Put a lexical range into the low-then-high order the server always wants, whichever direction it
-        /// is asked to walk, swapping the exclusivity with it. Shared with the interpolated surface.
-        /// </summary>
-        internal static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
-        {
-            bool reverseLimits = (order == Order.Ascending) == (stop != default && start.CompareTo(stop) > 0);
-            if (reverseLimits)
-            {
-                var tmp = start;
-                start = stop;
-                stop = tmp;
-                switch (exclude)
-                {
-                    case Exclude.Start: exclude = Exclude.Stop; break;
-                    case Exclude.Stop: exclude = Exclude.Start; break;
-                }
-            }
-        }
         public RedisValue[] SortedSetRangeByValue(
             RedisKey key,
             RedisValue min = default,
@@ -5851,7 +5744,7 @@ namespace StackExchange.Redis
             long take = -1,
             CommandFlags flags = CommandFlags.None)
         {
-            ReverseLimits(order, ref exclude, ref min, ref max);
+            SortedSets.ReverseLimits(order, ref exclude, ref min, ref max);
             var msg = GetLexMessage(order == Order.Ascending ? RedisCommand.ZRANGEBYLEX : RedisCommand.ZREVRANGEBYLEX, key, min, max, exclude, skip, take, flags, order);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
@@ -5881,7 +5774,7 @@ namespace StackExchange.Redis
             long take = -1,
             CommandFlags flags = CommandFlags.None)
         {
-            ReverseLimits(order, ref exclude, ref min, ref max);
+            SortedSets.ReverseLimits(order, ref exclude, ref min, ref max);
             var msg = GetLexMessage(order == Order.Ascending ? RedisCommand.ZRANGEBYLEX : RedisCommand.ZREVRANGEBYLEX, key, min, max, exclude, skip, take, flags, order);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }

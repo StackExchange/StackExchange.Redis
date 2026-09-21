@@ -594,7 +594,7 @@ namespace StackExchange.Redis
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
                 // prepend '[' to prefix for inclusive search
-                var startValueWithToken = RedisDatabase.GetLexRange(prefix, Exclude.None, isStart: true, Order.Ascending);
+                var startValueWithToken = SortedSets.LexBound(prefix, Exclude.None, isStart: true, Order.Ascending);
 
                 var message = ConditionProcessor.CreateMessage(
                     this,
@@ -618,7 +618,7 @@ namespace StackExchange.Redis
             // a bare 0 is ambiguous between the RedisValue and RedisCommand overloads; 1 is not, and both
             // are spelled the same way so the next person does not have to rediscover which
             internal override RespRequestFrame RenderCheck(RespContext context) => context.Render(
-                $"{RedisCommand.ZRANGEBYLEX}{key}{RedisDatabase.GetLexRange(prefix, Exclude.None, isStart: true, Order.Ascending)}{RedisLiterals.PlusSymbol}{RedisLiterals.LIMIT}{(RedisValue)0}{(RedisValue)1}");
+                $"{RedisCommand.ZRANGEBYLEX}{key}{SortedSets.LexBound(prefix, Exclude.None, isStart: true, Order.Ascending)}{RedisLiterals.PlusSymbol}{RedisLiterals.LIMIT}{(RedisValue)0}{(RedisValue)1}");
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 

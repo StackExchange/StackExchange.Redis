@@ -1585,10 +1585,10 @@ public static partial class Streams
     /// Which is the case exactly when the caller pinned the id - a fully explicit id is rejected the
     /// second time as "equal or smaller" - or asked for idempotency. A server-assigned id (<c>*</c>, or
     /// the <c>&lt;ms&gt;-*</c> auto-sequence form) would append twice, so it stays uncategorised. Shared
-    /// with the classic path's rule rather than restated: see <c>RedisDatabase.IsServerAssignedId</c>.
+    /// with the classic path's rule rather than restated: see <c>Streams.IsServerAssignedId</c>.
     /// </remarks>
     private static CommandFlags AddFlags(CommandFlags flags, in StreamAddOptions options)
-        => options.IdempotentId.ArgCount != 0 || !RedisDatabase.IsServerAssignedId(options.EntryId)
+        => options.IdempotentId.ArgCount != 0 || !Streams.IsServerAssignedId(options.EntryId)
             ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked)
             : flags;
 
@@ -1655,4 +1655,16 @@ public static partial class Streams
             throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
         }
     }
+
+    // Moved off RedisDatabase, where these used to sit as internal statics. They are pure functions
+    // about how this family of commands is spelled - they never touched a database - so parking them
+    // on the old surface meant the new one reached across to a type that is being deleted.
+
+    /// <summary>
+    /// Whether the server assigns any part of a stream entry id, i.e. it ends in <c>*</c> - either the bare
+    /// <c>*</c> (server picks both halves) or the <c>&lt;ms&gt;-*</c> auto-sequence form (server picks the
+    /// sequence). Anything else is fully caller-specified, and so cannot be appended twice.
+    /// </summary>
+    internal static bool IsServerAssignedId(in RedisValue messageId)
+        => messageId.EndsWithAscii((byte)'*');
 }

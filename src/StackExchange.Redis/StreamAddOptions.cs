@@ -102,4 +102,36 @@ public readonly struct StreamAddOptions
 
         static void Throw(string message) => throw new ArgumentException(message, "options");
     }
+
+    /// <summary>
+    /// Maps the legacy positional trim/id arguments onto <see cref="StreamAddOptions"/>.
+    /// </summary>
+    /// <param name="messageId">The explicit entry id, or null for <c>*</c>.</param>
+    /// <param name="idempotentId">The idempotency id, if any.</param>
+    /// <param name="maxLength">The <c>MAXLEN</c> threshold, if any.</param>
+    /// <param name="useApproximateMaxLength">Whether the threshold is approximate (<c>~</c>).</param>
+    /// <param name="limit">The <c>LIMIT</c>, if any.</param>
+    /// <param name="mode">The trim mode.</param>
+    /// <remarks>
+    /// <para>
+    /// Deliberately does *not* call <see cref="ThrowIfInvalid"/>: the shipped overloads have always passed
+    /// questionable combinations (<c>LIMIT</c> without a threshold, say) through to the server, and that
+    /// behaviour is preserved; only the options-based overloads validate up-front.
+    /// </para>
+    /// <para>
+    /// <b>Here rather than on <c>RedisDatabase</c>, where it used to live.</b> It is a factory for this
+    /// type and knows nothing about a database; parking it on the old surface meant both surfaces reached
+    /// across to a type that is being deleted in order to build one of these.
+    /// </para>
+    /// </remarks>
+    internal static StreamAddOptions FromLegacyArguments(RedisValue? messageId, in StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode)
+        => new()
+        {
+            MessageId = messageId,
+            IdempotentId = idempotentId,
+            MaxLength = maxLength,
+            Approximate = useApproximateMaxLength,
+            Limit = limit,
+            TrimMode = mode,
+        };
 }
