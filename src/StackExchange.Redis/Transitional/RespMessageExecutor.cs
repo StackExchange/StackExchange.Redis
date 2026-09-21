@@ -237,6 +237,13 @@ namespace StackExchange.Redis
         /// <remarks>This is the executor that actually reaches a connection, so it is the one that can.</remarks>
         public override bool CanWritePreamble => true;
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Yes: everything here becomes a <c>Message</c> on the existing pipeline, which has carried the
+        /// timeout sweep - and the diagnostics that go with it - since long before this type existed.
+        /// </remarks>
+        internal override bool EnforcesTimeouts => true;
+
         public override ValueTask<RespPayload> SendAsync(RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
         {
             var message = new FramePairMessage(Database, preamble, request, gate);
@@ -335,6 +342,44 @@ namespace StackExchange.Redis
 
             /// <summary>Set only on a preamble, and only when it establishes something skippable.</summary>
             internal IRespPreambleGate? Gate { get; }
+
+            /// <summary>The command and its first key, for diagnostics.</summary>
+            /// <remarks>
+            /// <b>This is what users read when something goes wrong.</b> The base implementation reports
+            /// the command alone, so "no connection is active/available to service this operation: SADD"
+            /// named the command but not the key - and a message naming which key you were writing is
+            /// most of the value when you are staring at a connection failure in production.
+            /// <para>
+            /// Recovered from the frame's own key marks, which the writer already recorded for routing, so
+            /// this costs nothing until somebody asks. Only the first key: that is what the shipped
+            /// <c>CommandKeyBase</c> reports too, and a variadic command's whole key list would bury the
+            /// diagnostic it is meant to support.
+            /// </para>
+            /// </remarks>
+            public override string CommandAndKey
+            {
+                get
+                {
+                    if (_request.KeyCount > 0)
+                    {
+                        Span<KeyRange> ranges = stackalloc KeyRange[1];
+                        if (_request.TryGetKeys(ranges) > 0)
+                        {
+                            var key = _request.GetKey(in ranges[0]);
+                            if (!key.IsEmpty)
+                            {
+#if NETCOREAPP3_1_OR_GREATER
+                                return $"{Command} {System.Text.Encoding.UTF8.GetString(key)}";
+#else
+                                return $"{Command} {System.Text.Encoding.UTF8.GetString(key.ToArray())}";
+#endif
+                            }
+                        }
+                    }
+
+                    return base.CommandAndKey;
+                }
+            }
 
             internal FrameMessage(int database, in RespRequest request, IRespPreambleGate? gate = null)
                 // the command's identity, not just its bytes: without it the pipeline cannot tell a write

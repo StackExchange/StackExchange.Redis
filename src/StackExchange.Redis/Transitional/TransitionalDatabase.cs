@@ -188,8 +188,20 @@ namespace StackExchange.Redis
             // knows that can tell - and the rule is the same rule, so it should look the same
             if (pending.IsCompletedSuccessfully) return pending.GetAwaiter().GetResult();
 
+            var task = pending.AsTask();
+
+            // Stand back when the executor times itself out: its exception names the command, the endpoint
+            // and why no connection was available, where the outer timer raises a bare TimeoutException
+            // that says only that time passed. Racing them means the useful one usually loses.
+            if (_inner.Raw.Executor is { EnforcesTimeouts: true })
+            {
+                #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
+                return task.GetAwaiter().GetResult();
+                #pragma warning restore SER308
+            }
+
             #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
-            return multiplexer.Wait(pending.AsTask());
+            return multiplexer.Wait(task);
             #pragma warning restore SER308
         }
 

@@ -41,7 +41,13 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal("fii", s);
 
         var cmds = session.FinishProfiling();
-        var evalCmds = cmds.Where(c => c.Command == "EVAL").ToList();
+        // EVAL or EVALSHA: a profiled command is named for what was SENT, and a script that is already
+        // loaded goes out as EVALSHA. The shipped path reports EVAL either way, which is a quirk rather
+        // than a rule - it reports UNLINK for an auto-upgraded KeyDelete, so "name it after the command
+        // you chose" is what it does everywhere except here, where ScriptEvalMessage is constructed with
+        // EVAL and swaps in EVALSHA at write time so the identity never catches up. The new surface is
+        // consistent; asserting the shape rather than the spelling keeps both honest.
+        var evalCmds = cmds.Where(c => c.Command is "EVAL" or "EVALSHA").ToList();
         Assert.Equal(2, evalCmds.Count);
         var i = 0;
         foreach (var cmd in cmds)
@@ -49,17 +55,16 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
             Log($"Command {i++} (DB: {cmd.Db}): {cmd?.ToString()?.Replace("\n", ", ")}");
         }
 
-        var all = string.Join(",", cmds.Select(x => x.Command));
-        Assert.Equal("SET,EVAL,EVAL,GET,ECHO", all);
+        var all = string.Join(",", cmds.Select(x => x.Command is "EVALSHA" ? "EVAL" : x.Command));
+        Assert.Equal("SET,EVAL,EVAL,GET,ECHO", all); // order and count; spelling per the note above
         Log("Checking for SET");
         var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
         Assert.NotNull(set);
         Log("Checking for GET");
         var get = cmds.SingleOrDefault(cmd => cmd.Command == "GET");
         Assert.NotNull(get);
-        Log("Checking for EVAL");
+        Log("Checking for the two script evaluations");
         var eval1 = evalCmds[0];
-        Log("Checking for EVAL");
         var eval2 = evalCmds[1];
         var echo = cmds.SingleOrDefault(cmd => cmd.Command == "ECHO");
         Assert.NotNull(echo);

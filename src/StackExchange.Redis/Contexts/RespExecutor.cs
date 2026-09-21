@@ -169,6 +169,22 @@ namespace StackExchange.Redis
         {
         }
 
+        /// <summary>Whether this executor times out an operation itself, with a diagnostic.</summary>
+        /// <remarks>
+        /// <b>About which exception a caller sees, not whether one arrives.</b> An executor that answers
+        /// true will fail a stalled operation on its own terms - with the command, the endpoint, the
+        /// backlog depth and the last connection fault - which is the text people paste into issues when
+        /// something goes wrong at three in the morning. A synchronous waiter that imposes its own timer
+        /// on top of that races it and usually wins, and what it raises is a bare
+        /// <see cref="TimeoutException"/> saying "the operation has timed out" and nothing else.
+        /// <para>
+        /// So a waiter asks first, and stands back when the answer is yes. The default is false, which
+        /// keeps the outer timeout for anything that cannot promise to time itself out - a fake in a test,
+        /// or an executor that has not grown a sweep yet. Better a poor exception than a hang.
+        /// </para>
+        /// </remarks>
+        internal virtual bool EnforcesTimeouts => false;
+
         /// <summary>Whether this executor can write a contiguous run at all.</summary>
         /// <remarks>
         /// <b>Asked before a batch or transaction is built, not discovered when it is sent.</b> A run
