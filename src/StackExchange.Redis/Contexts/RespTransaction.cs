@@ -214,7 +214,7 @@ namespace StackExchange.Redis
             var claimed = true;
             try
             {
-                if (conditions is not null && !await CheckAsync(connection, conditions, verdicts).ConfigureAwait(false))
+                if (conditions is not null && !await CheckAsync(target, connection, conditions, verdicts).ConfigureAwait(false))
                 {
                     // a condition did not hold: the transaction is NOT sent, and nothing it queued ran
                     Discard(connection, queue);
@@ -228,8 +228,15 @@ namespace StackExchange.Redis
                     return true;
                 }
 
+                // written THROUGH the target, not straight to the connection: the executor is what knows
+                // whether a SELECT is due in front of the MULTI, and a transaction holds none of that
                 if (connection != target.CurrentConnection
-                    || !TrySendOver(connection, queue!, out var exec, conditions is null ? null : OnAborted))
+                    || !TrySendOver(
+                        connection,
+                        queue!,
+                        out var exec,
+                        conditions is null ? null : OnAborted,
+                        (run, count) => target.TryWriteRun(connection, run, count)))
                 {
                     Fail(queue, "The connection was lost before the transaction could be sent.");
                     return false;
@@ -260,7 +267,8 @@ namespace StackExchange.Redis
         /// Each <c>WATCH</c> must precede its own check, or the check reads a value the watch is not yet
         /// guarding and the window it exists to close is open again.
         /// </remarks>
-        private async Task<bool> CheckAsync(RespConnection connection, List<Condition> conditions, List<Action<bool>?>? verdicts)
+        private async Task<bool> CheckAsync(
+            RespExecutorBase target, RespConnection connection, List<Condition> conditions, List<Action<bool>?>? verdicts)
         {
             var checks = new RespConditionOperation[conditions.Count];
             var run = new IRespMessage[conditions.Count * 2];
@@ -276,7 +284,16 @@ namespace StackExchange.Redis
                 run[(i * 2) + 1] = check;
             }
 
-            if (!connection.Send(run, run.Length))
+            // written THROUGH the executor, exactly as the MULTI run is, and this is not symmetry for its
+            // own sake: the WATCH and its check have to run on the SAME database as the body they guard. A
+            // direct write leaves them on whatever the connection last selected, so the watches guard keys
+            // in one database while the transaction operates on another - which shows up as a condition
+            // reaching the wrong verdict, not as an error.
+            //
+            // One SELECT covers the whole transaction: the write slot is held from here until after EXEC,
+            // so nothing else can move the connection in between, and the MULTI run then finds it already
+            // where it needs to be and adds nothing.
+            if (!target.TryWriteRun(connection, run, run.Length))
             {
                 for (var i = 0; i < run.Length; i += 2) RespPayloadOperation.DiscardReply((RespPayloadOperation)run[i]);
                 foreach (var check in checks) check.TrySetCanceled(check.Token);
@@ -369,7 +386,17 @@ namespace StackExchange.Redis
         /// changed. Distinct from every other way this can return false, and the only one a caller
         /// should respond to by re-reading and trying again.
         /// </param>
-        internal static bool TrySendOver(RespConnection? connection, List<RespPayloadOperation> operations, out ValueTask<bool> exec, Action? onAborted = null)
+        /// <param name="send">
+        /// How to write the assembled run; null writes it straight to the connection. An endpoint that
+        /// shares one connection across databases passes its own, so a <c>SELECT</c> can go in front of
+        /// <c>MULTI</c> - inside the transaction it would simply be queued like any other command.
+        /// </param>
+        internal static bool TrySendOver(
+            RespConnection? connection,
+            List<RespPayloadOperation> operations,
+            out ValueTask<bool> exec,
+            Action? onAborted = null,
+            Func<IRespMessage[], int, bool>? send = null)
         {
             exec = default;
             if (connection is null || connection.IsClosed) return false;
@@ -385,7 +412,7 @@ namespace StackExchange.Redis
             for (var i = 0; i < operations.Count; i++) run[i + 1] = operations[i];
             run[operations.Count + 1] = execOperation;
 
-            if (!connection.Send(run, run.Length))
+            if (!(send is null ? connection.Send(run, run.Length) : send(run, run.Length)))
             {
                 RespPayloadOperation.DiscardReply(multi);
                 return false;

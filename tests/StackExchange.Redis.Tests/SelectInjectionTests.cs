@@ -164,6 +164,96 @@ public class SelectInjectionTests
         Assert.StartsWith("*2|$6|SELECT|$1|7|", wire);
     }
 
+    /// <summary>
+    /// A batch on another database is preceded by <b>one</b> <c>SELECT</c>, governing the whole run.
+    /// </summary>
+    /// <remarks>
+    /// A run is composed through one context and so belongs to one database, and it is written with
+    /// nothing of anybody else's in between - so a single SELECT at the front covers all of it. What has
+    /// to hold is that the operations agree with each other, not that they agree with whatever the socket
+    /// last selected.
+    /// </remarks>
+    [Fact]
+    public async Task ABatchOnAnotherDatabaseIsPrecededByOneSelect()
+    {
+        var (transport, context) = ForDatabase(4);
+
+        using var batch = context.CreateBatch();
+        _ = batch.Context.Strings.GetAsync("a");
+        _ = batch.Context.Strings.GetAsync("b");
+        _ = batch.ExecuteAsync();
+
+        await WaitFor(() => CountOf(transport.Written, "|GET|") == 2);
+
+        // one SELECT, at the front, governing both commands. Contiguity comes from the write lock rather
+        // than from the flush count - the connect path can flush on its own account - so the wire is what
+        // is asserted here.
+        Assert.Equal("*2|$6|SELECT|$1|4|*2|$3|GET|$1|a|*2|$3|GET|$1|b|", transport.Written);
+    }
+
+    /// <summary>And a transaction puts it in front of <c>MULTI</c>, the only place it can go.</summary>
+    /// <remarks>
+    /// Inside the transaction a <c>SELECT</c> would be queued and applied at <c>EXEC</c> like any other
+    /// command - which is not what "run these against database 4" means.
+    /// </remarks>
+    [Fact]
+    public async Task ATransactionSelectsBeforeMulti()
+    {
+        var (transport, context) = ForDatabase(4);
+
+        var tran = new RespTransactionExecutor(ExecutorOf(context));
+        var inside = new RespDatabaseContext(new RespContext().WithExecutor(tran));
+        _ = inside.Strings.GetAsync("a");
+        var executing = tran.ExecuteAsync();
+
+        await WaitFor(() => transport.Written.Contains("EXEC"));
+
+        Assert.StartsWith("*2|$6|SELECT|$1|4|*1|$5|MULTI|", transport.Written);
+        Assert.Equal(1, CountOf(transport.Written, "|SELECT|"));
+
+        transport.Reply("+OK\r\n+OK\r\n+QUEUED\r\n*1\r\n$1\r\nA\r\n"); // SELECT, MULTI, queued, EXEC
+        Assert.True(await executing);
+    }
+
+    /// <summary>
+    /// A <b>conditional</b> transaction selects once, before its <c>WATCH</c> - so the watches guard keys
+    /// in the same database the body operates on.
+    /// </summary>
+    /// <remarks>
+    /// This is the one that bites silently. The WATCH phase used to be written straight to the connection
+    /// while the MULTI run went through the executor, so the watches landed on whatever the connection had
+    /// last selected and the body on the right database. Nothing errors: the condition simply reaches its
+    /// verdict against the wrong keys, and the transaction applies or aborts for the wrong reason.
+    /// </remarks>
+    [Fact]
+    public async Task AConditionalTransactionSelectsBeforeItsWatch()
+    {
+        var (transport, context) = ForDatabase(4);
+
+        var tran = new RespTransactionExecutor(ExecutorOf(context), new RespContext());
+        tran.AddCondition(Condition.KeyExists("guard"));
+        var inside = new RespDatabaseContext(new RespContext().WithExecutor(tran));
+        _ = inside.Strings.GetAsync("a");
+        var executing = tran.ExecuteAsync();
+
+        await WaitFor(() => transport.Written.Contains("EXISTS"));
+
+        // the SELECT comes first, and the WATCH is inside it rather than in front of it
+        Assert.StartsWith("*2|$6|SELECT|$1|4|*2|$5|WATCH|$5|guard|*2|$6|EXISTS|$5|guard|", transport.Written);
+
+        transport.Reply("+OK\r\n+OK\r\n:1\r\n"); // SELECT, WATCH, and the key exists
+        await WaitFor(() => transport.Written.Contains("EXEC"));
+
+        // and the body needs no second SELECT: the write slot is held throughout, so nothing moved it
+        Assert.Equal(1, CountOf(transport.Written, "|SELECT|"));
+
+        transport.Reply("+OK\r\n+QUEUED\r\n*1\r\n$1\r\nA\r\n");
+        Assert.True(await executing);
+    }
+
+    private static RespExecutorBase ExecutorOf(RespDatabaseContext context)
+        => context.Raw.Executor ?? throw new InvalidOperationException("no executor");
+
     private static int CountOf(string haystack, string needle)
     {
         int count = 0, index = 0;

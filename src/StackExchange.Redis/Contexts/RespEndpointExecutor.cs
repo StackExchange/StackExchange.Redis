@@ -200,9 +200,34 @@ namespace StackExchange.Redis
         /// pending for <c>EXEC</c> to complete.
         /// </remarks>
         internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+            => TrySendTransaction(operations, Database, out exec);
+
+        /// <summary>Write a transaction on behalf of a database that may not be this executor's own.</summary>
+        /// <param name="operations">The queued commands.</param>
+        /// <param name="database">The database the whole transaction belongs to.</param>
+        /// <param name="exec">Completes with whether <c>EXEC</c> applied.</param>
+        /// <remarks>
+        /// The <c>SELECT</c> goes in front of <c>MULTI</c>, which is the only place it can: inside the
+        /// transaction it would be queued and applied at <c>EXEC</c> like any other command.
+        /// </remarks>
+        internal bool TrySendTransaction(List<RespPayloadOperation> operations, int database, out ValueTask<bool> exec)
+        {
             // the write itself is not endpoint-specific - it needs a connection and nothing else - so it
             // lives with the transaction, and every executor that owns a connection gets the same one
-            => RespTransactionExecutor.TrySendOver(CurrentConnection, operations, out exec);
+            var connection = CurrentConnection;
+            return RespTransactionExecutor.TrySendOver(
+                connection,
+                operations,
+                out exec,
+                onAborted: null,
+                send: connection is null ? null : (run, count) => SendRun(connection, run, count, database));
+        }
+
+        /// <summary>Write a run for a database that may not be this executor's own.</summary>
+        internal bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count, int database)
+        {
+            return SendRun(connection, run, count, database);
+        }
 
         /// <inheritdoc/>
         /// <remarks>
@@ -362,6 +387,17 @@ namespace StackExchange.Redis
         /// quietly issuing it as a pipeline.
         /// </remarks>
         internal override bool TrySendBatch(List<RespPayloadOperation> operations)
+            => TrySendBatch(operations, Database);
+
+        /// <summary>Write a batch on behalf of a database that may not be this executor's own.</summary>
+        /// <param name="operations">The queued commands.</param>
+        /// <param name="database">The database the whole run belongs to.</param>
+        /// <remarks>
+        /// <b>One <c>SELECT</c> governs the entire run.</b> A batch is composed through a single context
+        /// and so belongs to a single database, and the run is written with nothing of anybody else's in
+        /// between - so the selection holds for exactly as long as the run needs it.
+        /// </remarks>
+        internal bool TrySendBatch(List<RespPayloadOperation> operations, int database)
         {
             RespConnection? connection;
             lock (_sync)
@@ -378,7 +414,23 @@ namespace StackExchange.Redis
                 }
             }
 
-            return connection.Send(operations.ToArray(), operations.Count);
+            return SendRun(connection, operations.ToArray(), operations.Count, database);
+        }
+
+        /// <inheritdoc/>
+        internal override bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count)
+            => SendRun(connection, run, count, Database);
+
+        /// <summary>Write a run, preceded by a <c>SELECT</c> if this connection is on another database.</summary>
+        internal bool SendRun(RespConnection connection, IRespMessage[] run, int count, int database)
+        {
+            if (_select is null || database < 0) return connection.Send(run, count);
+
+            var sent = connection.Send(
+                run, count, new Selector(connection, _select, database), static s => s.Preamble(), out var head);
+
+            if (head is RespPayloadOperation discard) RespPayloadOperation.DiscardReply(discard);
+            return sent;
         }
 
         /// <inheritdoc/>

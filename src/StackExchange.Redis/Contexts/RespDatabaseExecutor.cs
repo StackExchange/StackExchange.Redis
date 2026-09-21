@@ -81,30 +81,28 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>Deliberately not forwarded.</b> A run is written as one contiguous block, and every command
-        /// in it would need to be preceded by this view's <c>SELECT</c> - which the run form cannot express
-        /// today. Declining sends a batch or transaction down the path that handles an executor without the
-        /// capability, rather than writing one against the wrong database.
+        /// <b>Yes, and the database is no obstacle.</b> A run is composed through one context and so
+        /// belongs to one database, and it is written with nothing of anybody else's in between - so a
+        /// single <c>SELECT</c> at the front governs all of it. An earlier version declined whenever the
+        /// view's database differed from the connection's, which was needlessly strict: what matters is
+        /// that the operations agree with each other, not that they agree with the socket's last SELECT.
         /// </remarks>
-        internal override bool CanWriteRuns => Database == _inner.Database && _inner.CanWriteRuns;
+        internal override bool CanWriteRuns => _inner.CanWriteRuns;
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="CanWriteRuns" path="/remarks"/></remarks>
         internal override bool TrySendBatch(List<RespPayloadOperation> operations)
-            => Database == _inner.Database && _inner.TrySendBatch(operations);
+            => _inner.TrySendBatch(operations, Database);
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="CanWriteRuns" path="/remarks"/></remarks>
         internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
-        {
-            if (Database != _inner.Database)
-            {
-                exec = default;
-                return false;
-            }
+            => _inner.TrySendTransaction(operations, Database, out exec);
 
-            return _inner.TrySendTransaction(operations, out exec);
-        }
+        /// <inheritdoc/>
+        /// <remarks>Named with THIS view's database, so a transaction's run selects before its MULTI.</remarks>
+        internal override bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count)
+            => _inner.TryWriteRun(connection, run, count, Database);
 
         /// <inheritdoc/>
         internal override RespConnection? CurrentConnection => _inner.CurrentConnection;

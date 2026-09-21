@@ -406,6 +406,83 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// Write several operations contiguously, giving the caller the chance - <b>inside the write lock</b> -
+    /// to put a preamble in front of the whole run.
+    /// </summary>
+    /// <typeparam name="TState">Whatever the factory needs; a struct, so a static lambda allocates nothing.</typeparam>
+    /// <param name="operations">The operations, in the order they should reach the server.</param>
+    /// <param name="count">How many of <paramref name="operations"/> to write.</param>
+    /// <param name="state">Passed to the factory.</param>
+    /// <param name="preamble">Asked once, holding the write lock; returns the operation to write first, or null.</param>
+    /// <param name="wrotePreamble">What the factory produced, so the caller can track or discard it.</param>
+    /// <returns>Whether the run was written.</returns>
+    /// <remarks>
+    /// <b>One preamble for the whole run, not one per element.</b> A run is composed through a single
+    /// context and so belongs to a single database, and everything in it is written with nothing of
+    /// anybody else's in between - so a <c>SELECT</c> at the front governs all of it, for exactly as long
+    /// as it needs to.
+    /// </remarks>
+    public bool Send<TState>(
+        IRespMessage[] operations,
+        int count,
+        TState state,
+        Func<TState, IRespMessage?> preamble,
+        out IRespMessage? wrotePreamble)
+    {
+        if (operations is null) throw new ArgumentNullException(nameof(operations));
+        if (preamble is null) throw new ArgumentNullException(nameof(preamble));
+
+        wrotePreamble = null;
+        if (count <= 0) return true;
+        if (Volatile.Read(ref _closed) != 0) return false;
+
+        lock (_writeLock)
+        {
+            var received = Volatile.Read(ref _bytesReceived);
+
+            if (preamble(state) is { } head)
+            {
+                wrotePreamble = head;
+                if (head.TryReserveRequest(head.Token, out var headPayload))
+                {
+                    try
+                    {
+                        head.OnEnqueued(this, _bytesSent, received);
+                        _pending.Enqueue(head);
+                        Write(headPayload.Span);
+                        Volatile.Write(ref _bytesSent, _bytesSent + headPayload.Length);
+                    }
+                    finally
+                    {
+                        head.ReleaseRequest();
+                    }
+                }
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                var message = operations[i];
+                if (!message.TryReserveRequest(message.Token, out var payload)) continue;
+
+                try
+                {
+                    message.OnEnqueued(this, _bytesSent, received);
+                    _pending.Enqueue(message);
+                    Write(payload.Span);
+                    Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+                }
+                finally
+                {
+                    message.ReleaseRequest();
+                }
+            }
+        }
+
+        _transport.Flush();
+        return true;
+    }
+
     /// <summary>Write several operations with nothing of anybody else's between them.</summary>
     /// <param name="operations">The operations, in the order they should reach the server.</param>
     /// <param name="count">How many of <paramref name="operations"/> to write.</param>

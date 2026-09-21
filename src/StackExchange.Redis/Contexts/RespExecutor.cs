@@ -265,6 +265,24 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual bool TrySendBatch(List<RespPayloadOperation> operations) => false;
 
+        /// <summary>
+        /// Write an already-assembled run to <paramref name="connection"/>, adding whatever this executor
+        /// needs in front of it.
+        /// </summary>
+        /// <param name="connection">The connection to write to.</param>
+        /// <param name="run">The operations, in order.</param>
+        /// <param name="count">How many of <paramref name="run"/> to write.</param>
+        /// <remarks>
+        /// <b>The seam a transaction needs.</b> A transaction assembles its own run - <c>MULTI</c>, the
+        /// queued commands, <c>EXEC</c> - and writes it straight to the connection, so it never passes
+        /// through the executor that would otherwise know a <c>SELECT</c> is due. Asking the executor to do
+        /// the writing puts that knowledge back in the path without the transaction having to hold any of
+        /// it: the <c>SELECT</c> goes in front of <c>MULTI</c>, which is the only place it can go - inside
+        /// the transaction it would be queued and applied at <c>EXEC</c> like any other command.
+        /// </remarks>
+        internal virtual bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count)
+            => connection.Send(run, count);
+
         /// <summary>Write <c>MULTI</c>, a run of queued commands, and <c>EXEC</c>, contiguously.</summary>
         /// <param name="operations">The queued commands, in order.</param>
         /// <param name="exec">Completes with whether the transaction executed.</param>
