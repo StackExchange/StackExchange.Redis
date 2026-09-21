@@ -143,6 +143,36 @@ existing suites run through it. This is the outstanding list, in the order thing
       Interacts with the group/failover question (§7 cache notes): a cache entry carries an implicit
       subscription, and these three differ in what happens to that subscription when the node changes.
 
+### Measured: `GetDatabase` over `RespNewCore` is NOT close, and why
+
+The shim swap is green, so the obvious next question is whether the same flag can point at the new
+*core* instead. Tried it (experiment, reverted): `StringTests` passes 240/240, but `ClusterTests` fails
+10, `DatabaseTests` 3, and the full run stalls somewhere not yet identified. So the shim remains the
+viable switchover and the new core is a separate project - which is worth knowing before anyone assumes
+one follows the other.
+
+**The failures are not a long tail; they are the database-identity trade coming due.** §7x gave each
+(endpoint, database) its own connection, which fixed silent wrong-database writes and was right for that.
+It also means `SELECT` never moves - and two shipped behaviours are *about* it moving:
+
+- `ServerExecuteDatabaseTests.CommandsNeedingNoDatabaseLeaveTheSelectionAlone` expects `db=21` and gets
+  `db=0`: a command that needs no database is supposed to leave whatever the connection had selected,
+  which presumes one connection whose selection is observable state.
+- `SwapDatabasesAsync` - `SWAPDB` is hard to give meaning when each database is a different socket.
+
+So the connection-per-database decision is not free after all: it trades a silent correctness bug for a
+semantic difference, and the semantic difference is only visible from the *server* surface. Revisit it
+together with the preamble, which is what would allow one connection to carry several databases again.
+
+**Two more things needing care before that route is viable** (Marc's, and both real):
+
+- **Key prefixing has two mechanisms.** `KeyPrefixed<T>` wraps an `IDatabase`, and `RespContext` has its
+  own `AppendKeyPrefix`. A swap that returns a context-backed database from `GetDatabase` and is then
+  wrapped by `WithKeyPrefix` risks applying the prefix twice - or once, in the wrong place.
+- **Routing that is not by key.** `Publish` goes to the *subscribed* server, and a sharded channel routes
+  by the channel's slot, not a key's. The new core's router only knows key slots, so the last two SER352
+  members have nowhere to sit until channel routing exists.
+
 - [ ] **A custom awaitable at the send seam — the intended answer, when the new core owns timeouts.**
       Not needed while the shim is underneath, because the old pipeline still times out and produces the
       full diagnostic. It becomes necessary the moment `RespNewCore` has to do that itself.
