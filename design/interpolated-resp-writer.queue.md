@@ -143,6 +143,25 @@ existing suites run through it. This is the outstanding list, in the order thing
       Interacts with the group/failover question (§7 cache notes): a cache entry carries an implicit
       subscription, and these three differ in what happens to that subscription when the node changes.
 
+- [ ] **A custom awaitable at the send seam — the intended answer, when the new core owns timeouts.**
+      Not needed while the shim is underneath, because the old pipeline still times out and produces the
+      full diagnostic. It becomes necessary the moment `RespNewCore` has to do that itself.
+
+      The problem it solves: `AwaitUncached` is an `async` method, so the `ValueTask` a caller holds is a
+      state-machine box and the **operation is gone** by the time anything wants to ask about it. That one
+      fact causes three separate costs, which is why it is worth a shape change rather than three fixes:
+  - **the sync seam** — blocking on that `ValueTask` is sync-over-async; with the operation in hand the
+    synchronous path calls `operation.Wait(...)` directly, which is what `TransitionalDatabase.Wait`'s own
+    remarks already say the fix should be;
+  - **diagnostics** — the command, status and connection meet only at the operation, so that is the only
+    place a shipped-quality timeout message can be built (see §7 and the failure-fidelity work);
+  - **allocation** — §7's benchmark put the state-machine box at ~176 of ~497 bytes per operation, and
+    *pooling* it only reached 296. An awaitable removes the box instead of pooling it.
+
+      The shelved v3 work used a custom awaitable at this seam; pull that up rather than reinventing it.
+      Also needs one extra `RedisCommand` field on `RespPayloadOperation`, which currently takes the
+      command for profiling and then drops it — a sweep cannot name what it cannot see.
+
 ### The switchover suite is GREEN, 2026-09-21
 
 `SEREDIS_NEW_DATABASE_SURFACE=1` now passes the entire suite - 0 failures, from 117 when the swap was
