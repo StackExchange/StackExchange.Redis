@@ -152,6 +152,11 @@ internal sealed partial class PhysicalConnection
                 }
             }
 
+            // ForceReconnect can land here with the filler still genuinely mid-cycle (unlike the
+            // _fillerDone break above, where the filler has already fully stopped by construction) - set
+            // this *before* Release() below, not just in finally, or the filler could still be holding an
+            // outstanding lease into a segment Release() is about to hand back to the shared spare pool.
+            _readLoopDoomed = true;
             _readStatus = ReadStatus.ProcessBufferComplete;
             lock (_readBufferLock) { _readBuffer.Release(); } // clean exit, we can recycle
             _readStatus = ReadStatus.RanToCompletion;
@@ -174,9 +179,12 @@ internal sealed partial class PhysicalConnection
         }
         finally
         {
-            // set *before* touching _readBuffer below: the filler checks this after each read completes,
-            // before committing into _readBuffer, so it never combines into (or races) a buffer that's
-            // about to be - or already has been - wiped here.
+            // set *before* touching _readBuffer below: the filler checks this (now inside the same lock
+            // as its own touches - see FillBufferAsync) before combining a read into _readBuffer, so it
+            // never combines into (or races) a buffer that's about to be - or already has been - wiped
+            // here. Redundant with the clean-exit path above, which sets it earlier for the same reason;
+            // harmless to repeat, and keeps every exit path (including ones that throw straight into a
+            // catch below, skipping that code) self-contained rather than relying on it having run.
             _readLoopDoomed = true;
 
             // the filler also observes the same cancellationToken (via the disposing/reconnecting
@@ -223,11 +231,17 @@ internal sealed partial class PhysicalConnection
         {
             while (true)
             {
-                if (_readLoopDoomed) return; // the parse loop already gave up; _readBuffer may be gone
-
                 Memory<byte> buffer;
                 lock (_readBufferLock)
                 {
+                    // Checked *inside* the same lock that guards every _readBuffer touch (here and in the
+                    // parse loop's own wipe/Release), not just before it: checking outside the lock leaves
+                    // a window between "saw false" and "took the lock" for the parse loop to doom-and-wipe
+                    // (or doom-and-Release) in between, so this thread would then touch a buffer that's
+                    // gone - or, worse for Release(), still get a lease into a segment that's just been
+                    // handed back to the shared spare pool for some *other* connection's CycleBuffer to
+                    // reuse. Checking under the same lock makes the two mutually exclusive.
+                    if (_readLoopDoomed) return; // the parse loop already gave up; _readBuffer may be gone
                     buffer = _readBuffer.GetUncommittedMemory();
                 }
 
@@ -241,8 +255,6 @@ internal sealed partial class PhysicalConnection
                     read = 0; // some streams throw rather than returning 0; treat identically
                 }
 
-                if (_readLoopDoomed) return; // as above - checked again now the read has had time to run
-
                 if (read <= 0)
                 {
                     return; // clean EOF - _fillerDone is set in the finally block below
@@ -250,6 +262,9 @@ internal sealed partial class PhysicalConnection
 
                 lock (_readBufferLock)
                 {
+                    // as above - checked again now the read has had time to run, under the same lock as
+                    // the Commit() it guards
+                    if (_readLoopDoomed) return;
                     _readBuffer.Commit(read);
                 }
                 UpdateLastReadTime();
@@ -274,6 +289,10 @@ internal sealed partial class PhysicalConnection
         }
     }
 
+    // Only ever called from the filler's own single logical thread of control (FillBufferAsync's task,
+    // or FillBufferSync's thread) - never concurrently with itself - which is what makes the
+    // CurrentCount==0-then-Release() check below race-free. That's a property of the call sites, not of
+    // this method, so a future second caller needs to be reasoned about afresh rather than assumed safe.
     private void SignalFillProgress()
     {
         var sem = _fillSignal;
@@ -286,6 +305,14 @@ internal sealed partial class PhysicalConnection
             catch (ObjectDisposedException)
             {
                 // torn down from under us during shutdown; the parse loop has already stopped caring
+            }
+            catch (SemaphoreFullException)
+            {
+                // would mean the single-caller invariant above was violated by a second, concurrent
+                // caller racing the check-then-Release above; benign here (the semaphore ends up
+                // signaled either way, which was the only goal), but Debug.Fail so a future violation
+                // surfaces immediately in debug/test runs instead of silently vanishing.
+                Debug.Fail("SignalFillProgress: concurrent Release race - single-caller invariant violated");
             }
         }
     }
@@ -322,7 +349,12 @@ internal sealed partial class PhysicalConnection
         Thread filler = new Thread(() => FillBufferSync(tail, cancellationToken))
         {
             IsBackground = true,
-            Priority = ThreadPriority.AboveNormal,
+
+            // Deliberately Normal, not AboveNormal like the parser thread below: the parser does the
+            // higher-value, latency-sensitive work (result matching, TCS completion, user callbacks), so
+            // under CPU contention it should win any priority-based scheduling contest against this
+            // thread, whose job - reading ahead - can afford to lose a beat without anyone waiting on it.
+            Priority = ThreadPriority.Normal,
             Name = "SE.Redis Sync Filler",
         };
         filler.Start();
@@ -349,6 +381,11 @@ internal sealed partial class PhysicalConnection
                 }
             }
 
+            // ForceReconnect can land here with the filler still genuinely mid-cycle (unlike the
+            // _fillerDone break above, where the filler has already fully stopped by construction) - set
+            // this *before* Release() below, not just in finally, or the filler could still be holding an
+            // outstanding lease into a segment Release() is about to hand back to the shared spare pool.
+            _readLoopDoomed = true;
             _readStatus = ReadStatus.ProcessBufferComplete;
             lock (_readBufferLock) { _readBuffer.Release(); } // clean exit, we can recycle
             _readStatus = ReadStatus.RanToCompletion;
@@ -399,11 +436,12 @@ internal sealed partial class PhysicalConnection
         {
             while (true)
             {
-                if (_readLoopDoomed) return; // the parse loop already gave up; _readBuffer may be gone
-
                 Memory<byte> buffer;
                 lock (_readBufferLock)
                 {
+                    // see FillBufferAsync's matching check for why this must be inside the lock, not
+                    // just before it
+                    if (_readLoopDoomed) return; // the parse loop already gave up; _readBuffer may be gone
                     buffer = _readBuffer.GetUncommittedMemory();
                 }
 
@@ -422,8 +460,6 @@ internal sealed partial class PhysicalConnection
                     read = 0; // some streams throw rather than returning 0; treat identically
                 }
 
-                if (_readLoopDoomed) return; // as above - checked again now the read has had time to run
-
                 if (read <= 0)
                 {
                     return; // clean EOF - _fillerDone is set in the finally block below
@@ -431,6 +467,9 @@ internal sealed partial class PhysicalConnection
 
                 lock (_readBufferLock)
                 {
+                    // as above - checked again now the read has had time to run, under the same lock as
+                    // the Commit() it guards
+                    if (_readLoopDoomed) return;
                     _readBuffer.Commit(read);
                 }
                 UpdateLastReadTime();
