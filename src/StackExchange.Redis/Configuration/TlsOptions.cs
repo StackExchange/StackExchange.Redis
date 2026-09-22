@@ -96,12 +96,10 @@ public readonly struct TlsOptions
 #endif
 
     /// <summary>
-    /// The TLS host name to use for the given endpoint: the configured <see cref="SslHost"/> if there is
-    /// one, otherwise the host portion of the endpoint - which is what the library's own TLS path does.
+    /// The TLS host name to use for the given endpoint. An explicitly configured <see cref="SslHost"/> always
+    /// wins. Otherwise, a <see cref="DnsEndPoint"/> uses its own host, and an address endpoint uses the inferred
+    /// configuration host when available before falling back to its address.
     /// </summary>
     public string ResolveHost(EndPoint endpoint)
-    {
-        var host = SslHost;
-        return host.IsNullOrWhiteSpace() ? Format.ToStringHostOnly(endpoint) : host!;
-    }
+        => _options?.ResolveTlsHostName(endpoint) ?? Format.ToStringHostOnly(endpoint);
 }

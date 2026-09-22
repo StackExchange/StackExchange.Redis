@@ -131,6 +131,28 @@ namespace StackExchange.Redis
                 _ => "",
             };
 
+        /// <summary>
+        /// Gets the TLS SNI and certificate-validation host for a connection to <paramref name="endpoint"/>.
+        /// </summary>
+        /// <remarks>
+        /// An explicitly configured <paramref name="sslHost"/> wins. Otherwise, a <see cref="DnsEndPoint"/>
+        /// uses its own host and any other endpoint uses its address.
+        /// </remarks>
+        internal static string GetTlsHostName(EndPoint endpoint, string? sslHost)
+        {
+            if (!sslHost.IsNullOrWhiteSpace())
+            {
+                return sslHost;
+            }
+
+            if (endpoint is DnsEndPoint dns && !dns.Host.IsNullOrWhiteSpace())
+            {
+                return dns.Host;
+            }
+
+            return ToStringHostOnly(endpoint);
+        }
+
         internal static bool TryGetHostPort(EndPoint? endpoint, [NotNullWhen(true)] out string? host, [NotNullWhen(true)] out int? port)
         {
             if (endpoint is not null)

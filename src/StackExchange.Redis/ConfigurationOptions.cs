@@ -957,12 +957,27 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode.
+        /// The target host to use for SNI and certificate validation; setting a value here enables SSL mode.
         /// </summary>
+        /// <remarks>
+        /// When explicitly configured, this overrides the host for every endpoint. When unset, connections to a
+        /// <see cref="DnsEndPoint"/> use that endpoint's host, allowing hostname-routed clusters to use a distinct
+        /// SNI name for each node.
+        /// </remarks>
         public string? SslHost
         {
-            get => sslHost ?? Defaults.GetSslHostFromEndpoints(EndPoints);
+            get => sslHost;
             set => sslHost = value;
+        }
+
+        internal string ResolveTlsHostName(EndPoint endpoint)
+        {
+            var host = sslHost;
+            if (host.IsNullOrWhiteSpace() && endpoint is not DnsEndPoint)
+            {
+                host = Defaults.GetSslHostFromEndpoints(EndPoints);
+            }
+            return Format.GetTlsHostName(endpoint, host);
         }
 
         /// <summary>
