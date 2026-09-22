@@ -52,6 +52,7 @@ internal partial class TransitionalDatabase
             && (!_inner.Raw.TryGetFeatures(command, in key, flags, out var features) || features.Scan);
     }
 
+#pragma warning disable CS0618 // the emulation is obsolete BY DESIGN - see Emulate; these are its intended callers
     // ---- HSCAN --------------------------------------------------------------------------------------
 
     /// <inheritdoc/>
@@ -62,25 +63,25 @@ internal partial class TransitionalDatabase
     public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.HSCAN, key, flags)
                 ? _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().HashScan(key, pattern, pageSize, cursor, pageOffset, flags);
+                : Emulate(() => HashGetAllAsync(key, flags), cursor, pageOffset, RedisCommand.HSCAN, RedisCommand.HGETALL, !pattern.IsNull);
 
     /// <inheritdoc/>
     public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.HSCAN, key, flags)
                 ? _inner.Hashes.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().HashScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+                : EmulateAsync(() => HashGetAllAsync(key, flags), cursor, pageOffset, RedisCommand.HSCAN, RedisCommand.HGETALL, !pattern.IsNull);
 
     /// <inheritdoc/>
     public IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.HSCAN, key, flags)
                 ? _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().HashScanNoValues(key, pattern, pageSize, cursor, pageOffset, flags);
+                : Emulate(() => HashKeysAsync(key, flags), cursor, pageOffset, RedisCommand.HSCAN, RedisCommand.HKEYS, !pattern.IsNull);
 
     /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.HSCAN, key, flags)
                 ? _inner.Hashes.ScanNoValuesCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().HashScanNoValuesAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+                : EmulateAsync(() => HashKeysAsync(key, flags), cursor, pageOffset, RedisCommand.HSCAN, RedisCommand.HKEYS, !pattern.IsNull);
 
     // ---- SSCAN --------------------------------------------------------------------------------------
 
@@ -92,13 +93,13 @@ internal partial class TransitionalDatabase
     public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.SSCAN, key, flags)
                 ? _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().SetScan(key, pattern, pageSize, cursor, pageOffset, flags);
+                : Emulate(() => SetMembersAsync(key, flags), cursor, pageOffset, RedisCommand.SSCAN, RedisCommand.SMEMBERS, !pattern.IsNull);
 
     /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.SSCAN, key, flags)
                 ? _inner.Sets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().SetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+                : EmulateAsync(() => SetMembersAsync(key, flags), cursor, pageOffset, RedisCommand.SSCAN, RedisCommand.SMEMBERS, !pattern.IsNull);
 
     // ---- ZSCAN --------------------------------------------------------------------------------------
 
@@ -110,13 +111,13 @@ internal partial class TransitionalDatabase
     public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.ZSCAN, key, flags)
                 ? _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().SortedSetScan(key, pattern, pageSize, cursor, pageOffset, flags);
+                : Emulate(() => SortedSetRangeByRankWithScoresAsync(key, flags: flags), cursor, pageOffset, RedisCommand.ZSCAN, RedisCommand.ZRANGE, !pattern.IsNull);
 
     /// <inheritdoc/>
     public IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
             => Scannable(RedisCommand.ZSCAN, key, flags)
                 ? _inner.SortedSets.ScanCore(key, pattern, pageSize, cursor, pageOffset, flags)
-                : Fallback<RedisKey>().SortedSetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+                : EmulateAsync(() => SortedSetRangeByRankWithScoresAsync(key, flags: flags), cursor, pageOffset, RedisCommand.ZSCAN, RedisCommand.ZRANGE, !pattern.IsNull);
 
     // ---- VectorSetRangeEnumerate --------------------------------------------------------------------
     // NOT a cursor scan, and the shipped code says so: "intentionally not using scan naming in case a
@@ -134,4 +135,79 @@ internal partial class TransitionalDatabase
     /// <inheritdoc/>
     public IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         => CanScan ? _inner.VectorSets.RangeEnumerateCore(key, start, end, count, exclude, flags) : throw NoScanning();
+
+    // ---- the pre-SCAN emulation ----------------------------------------------------------------------
+
+    /// <summary>
+    /// What a scan degrades to when the server predates <c>SCAN</c> or the command map forbids it: one
+    /// page holding the entire structure, read with <c>HGETALL</c>, <c>HKEYS</c>, <c>SMEMBERS</c> or
+    /// <c>ZRANGE</c>.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="all">Reads the whole structure.</param>
+    /// <param name="cursor">Must be the origin; there is no cursor to resume.</param>
+    /// <param name="pageOffset">How many elements of the single page to skip.</param>
+    /// <param name="scan">The scan command that is unavailable, for the "not supported" message.</param>
+    /// <param name="whole">The command standing in for it, for the "no cursor" message.</param>
+    /// <param name="patterned">Whether the caller supplied a match pattern.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Obsolete on purpose, and not because it is going away.</b> It is here so that a deployment which
+    /// worked before the surface moved keeps working - the shipped path has always degraded this way - but
+    /// it is not something to reach for: it materialises the entire structure in one reply, which is the
+    /// exact failure mode <c>SCAN</c> exists to prevent. The attribute is how that reaches a reader, and
+    /// the call sites suppress it deliberately.
+    /// </para>
+    /// <para>
+    /// The two refusals are the shipped ones, not new: a non-origin cursor cannot be honoured because
+    /// there is no cursor to resume from, and a pattern cannot be honoured because the whole-structure
+    /// commands do not filter. Both throw rather than quietly returning something else.
+    /// </para>
+    /// </remarks>
+    [Obsolete("The server or command map does not offer SCAN, so this reads the whole structure in one reply; prefer a server that supports SCAN.")]
+    private static IEnumerable<T> Emulate<T>(
+        Func<Task<T[]>> all, long cursor, int pageOffset, RedisCommand scan, RedisCommand whole, bool patterned)
+    {
+        if (cursor != RedisBase.CursorUtils.Origin) throw ExceptionFactory.NoCursor(whole);
+        if (patterned) throw ExceptionFactory.NotSupported(true, scan);
+
+        return Iterate(all(), pageOffset);
+
+        static IEnumerable<T> Iterate(Task<T[]> pending, int skip)
+        {
+            foreach (var item in pending.GetAwaiter().GetResult())
+            {
+                if (skip > 0)
+                {
+                    skip--;
+                    continue;
+                }
+
+                yield return item;
+            }
+        }
+    }
+
+    /// <inheritdoc cref="Emulate{T}"/>
+    [Obsolete("The server or command map does not offer SCAN, so this reads the whole structure in one reply; prefer a server that supports SCAN.")]
+    private static async IAsyncEnumerable<T> EmulateAsync<T>(
+        Func<Task<T[]>> all, long cursor, int pageOffset, RedisCommand scan, RedisCommand whole, bool patterned)
+    {
+        if (cursor != RedisBase.CursorUtils.Origin) throw ExceptionFactory.NoCursor(whole);
+        if (patterned) throw ExceptionFactory.NotSupported(true, scan);
+
+        var skip = pageOffset;
+        foreach (var item in await all().ForAwait())
+        {
+            if (skip > 0)
+            {
+                skip--;
+                continue;
+            }
+
+            yield return item;
+        }
+    }
+#pragma warning restore CS0618
+
 }
