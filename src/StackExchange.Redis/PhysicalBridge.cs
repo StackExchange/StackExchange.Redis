@@ -832,11 +832,13 @@ namespace StackExchange.Redis
             }
 
             physical.SetWriting();
-            if (message is IMultiMessage multiMessage)
+            // a multi-message may decline to expand - null means "nothing to compose here", and takes the
+            // ordinary single-message path below rather than an enumerator carrying one element
+            if (message is IMultiMessage multiMessage && multiMessage.GetMessages(physical) is { } subCommands)
             {
                 var messageIsSent = false;
                 SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                foreach (var subCommand in multiMessage.GetMessages(physical))
+                foreach (var subCommand in subCommands)
                 {
                     result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                     if (result != WriteResult.Success)
@@ -1602,33 +1604,6 @@ namespace StackExchange.Redis
             }
         }
 
-        // HIMPORT is connection-local: a field-set must be PREPAREd on the same physical connection before a SET can
-        // reference it. We inject that PREPARE lazily here (mirroring SELECT injection): the first SET for a given
-        // field-set on a given connection triggers a fire-and-forget PREPARE ahead of it; a reconnect starts with a
-        // fresh (empty) connection set and re-prepares transparently. A DISCARD drops the id so the connection's set
-        // stays bounded to live field-sets. All of this runs inside the write lock, so ordering PREPARE-before-SET on
-        // the wire is guaranteed and the connection's set needs no further synchronization.
-        private void PrepareFieldSetInsideWriteLock(PhysicalConnection connection, Message message)
-        {
-            if (message is HashImportSetMessage set)
-            {
-                var fieldSet = set.FieldSet;
-                if (connection.TryAddPreparedFieldSet(fieldSet.Id))
-                {
-                    var prepare = fieldSet.CreatePrepareMessage(message.Db);
-                    connection.EnqueueInsideWriteLock(prepare);
-                    prepare.WriteTo(connection);
-                    prepare.SetRequestSent();
-                    IncrementOpCount();
-                    fieldSet.RegisterServer(ServerEndPoint, message.Db);
-                }
-            }
-            else if (message is HashImportDiscardMessage discard)
-            {
-                connection.RemovePreparedFieldSet(discard.FieldSetId);
-            }
-        }
-
         private WriteResult WriteMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
         {
             if (message == null)
@@ -1721,7 +1696,6 @@ namespace StackExchange.Redis
                 {
                     Debug.Assert(!message.IsHighIntegrity, "prior high integrity message found during transaction?");
                 }
-                if (cmd is RedisCommand.HIMPORT) PrepareFieldSetInsideWriteLock(connection, message);
                 connection.EnqueueInsideWriteLock(message);
                 isQueued = true;
                 message.WriteTo(connection);

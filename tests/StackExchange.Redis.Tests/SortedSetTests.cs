@@ -63,7 +63,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -90,7 +90,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -117,7 +117,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -144,7 +144,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -171,7 +171,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -197,7 +197,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -223,7 +223,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -285,7 +285,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -307,7 +307,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -329,7 +329,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me();
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         var key2 = Me() + "2";
@@ -370,7 +370,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     public async Task SortedSetRangeViaScript()
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -384,7 +384,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     public async Task SortedSetRangeViaExecute()
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -446,7 +446,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -469,7 +469,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -491,7 +491,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -514,7 +514,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -536,7 +536,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -556,7 +556,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var key0 = Me() + "non-existing";
 
@@ -600,7 +600,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var key0 = Me() + "non-existing";
 
@@ -643,7 +643,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -659,7 +659,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -680,7 +680,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -701,7 +701,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -722,7 +722,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -743,7 +743,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -764,7 +764,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -785,7 +785,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -806,7 +806,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -827,7 +827,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -848,7 +848,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -864,7 +864,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -885,7 +885,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -906,7 +906,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -927,7 +927,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -948,7 +948,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -969,7 +969,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -990,7 +990,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -1011,7 +1011,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -1032,7 +1032,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -1053,7 +1053,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -1069,7 +1069,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -1085,7 +1085,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key);
 
@@ -1121,7 +1121,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         RedisKey[] keys = [key + ":missing1", key, key + ":missing2"];
         db.KeyDelete(keys);
@@ -1158,7 +1158,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         RedisKey[] keys = [key + ":missing1", key, key + ":missing2"];
         db.KeyDelete(keys);
@@ -1171,7 +1171,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key);
         var exception = Assert.Throws<RedisServerException>(() => db.SortedSetPop([key], 0));
@@ -1183,7 +1183,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         RedisKey[] keys = [key + ":missing1", key, key + ":missing2"];
         db.KeyDelete(keys);
@@ -1221,7 +1221,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.SortedSetPop(Array.Empty<RedisKey>(), 5));
         Assert.Contains("keys must have a size of at least 1", exception.Message);
     }
@@ -1231,7 +1231,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var me = Me();
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
@@ -1247,7 +1247,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v2_1_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string memberName = "member";
 
@@ -1265,7 +1265,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v2_1_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string memberName = "member";
 
@@ -1283,7 +1283,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v2_1_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key);
@@ -1299,7 +1299,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v2_1_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key);
@@ -1315,7 +1315,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v2_1_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key);
@@ -1332,7 +1332,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v2_1_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key);
@@ -1349,7 +1349,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string member1 = "member1",
                      member2 = "member2",
@@ -1374,7 +1374,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string member1 = "member1",
                      member2 = "member2",
@@ -1399,7 +1399,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key);
@@ -1419,7 +1419,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key);
@@ -1439,7 +1439,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string member1 = "member1",
                      member2 = "member2",
@@ -1467,7 +1467,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string member1 = "member1",
                      member2 = "member2",
@@ -1495,7 +1495,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create(require: RedisFeatures.v3_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var member = "a";
         var values = new SortedSetEntry[] { new SortedSetEntry(member, 5) };
@@ -1514,7 +1514,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         RedisValue[]? members = null;

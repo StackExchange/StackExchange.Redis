@@ -512,6 +512,9 @@ internal sealed partial class PhysicalConnection
         // the maintenance-notification family; these are *not* pub/sub - element 1 is a sequence number
         // rather than a channel, so they must be dispatched before anything reads a channel name. The specs
         // write them uppercase while the pub/sub kinds above are lowercase, hence the case-insensitive match
+        //
+        // NOTE: these must stay contiguous, and nothing may be inserted between them: the dispatch below
+        // tests the family with a range check (`>= Moving and <= SlotMigrated`) rather than listing them.
         [AsciiHash("MOVING")]
         Moving,
         [AsciiHash("MIGRATING")]
@@ -526,6 +529,18 @@ internal sealed partial class PhysicalConnection
         SlotMigrating,
         [AsciiHash("SMIGRATED")]
         SlotMigrated,
+
+        /// <summary>
+        /// Server-assisted client-side caching: a key we read has changed, or (with a null payload)
+        /// everything has. Unlike every other kind here, the second element is not a channel.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately after the maintenance family rather than among it, so the range check that
+        /// dispatches that family cannot pick this up: it is out-of-band for the same reason, but it is
+        /// not one of them and is handled separately.
+        /// </remarks>
+        [AsciiHash("invalidate")]
+        Invalidate,
     }
 
     internal static partial class PushKindMetadata
@@ -605,6 +620,11 @@ internal sealed partial class PhysicalConnection
                 => reader.SafeTryMoveNext() & reader.IsInlineScalar &
                    reader.Prefix is RespPrefix.BulkString or RespPrefix.SimpleString;
 
+            // before the channel gate below, not inside the switch after it: every other push kind has a
+            // channel as its second element, and an invalidation has an array of keys (or a null). Reaching
+            // TryMoveNextString with one of these would reject it as unrecognized.
+            if (kind is PushKind.Invalidate) return OnInvalidate(muxer, ref reader);
+
             if (kind is PushKind.None || !TryMoveNextString(ref reader)) return OutOfBandResult.NotRecognized;
 
             // the channel is always the second element
@@ -680,6 +700,58 @@ internal sealed partial class PhysicalConnection
             }
         }
         return OutOfBandResult.NotRecognized;
+    }
+
+    /// <summary>
+    /// Hand a <c>CLIENT TRACKING</c> invalidation to the client-side cache, if there is one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The reader is positioned on the <c>invalidate</c> token; the payload follows. A null payload means
+    /// a flush - <c>FLUSHALL</c>/<c>FLUSHDB</c>, and also the moment tracking is turned off - and is the
+    /// one invalidation that cannot be filtered by prefix, so it is never safe to ignore. Otherwise it is
+    /// an array, because one write can name several keys: <c>MSET a b c</c> arrives as a single push.
+    /// </para>
+    /// <para>
+    /// Always <see cref="OutOfBandResult.Handled"/>, including when we have no cache. An invalidation is
+    /// never the reply to something we sent, so letting it fall through to command matching would hand it
+    /// to whoever happened to be at the front of the queue.
+    /// </para>
+    /// </remarks>
+    private OutOfBandResult OnInvalidate(ConnectionMultiplexer muxer, ref RespReader reader)
+    {
+        _readStatus = ReadStatus.Invalidate;
+        var cache = muxer.ClientCache;
+        if (cache is null || !reader.SafeTryMoveNext()) return OutOfBandResult.Handled;
+
+        if (reader.IsNull)
+        {
+            cache.OnFlush();
+            return OutOfBandResult.Handled;
+        }
+
+        if (!reader.IsAggregate || reader.IsStreaming)
+        {
+            // not a shape we understand; over-flush rather than quietly keep entries the server has
+            // just told us are wrong. Erring this way is the same judgement made on disconnect.
+            cache.OnFlush();
+            return OutOfBandResult.Handled;
+        }
+
+        var count = reader.AggregateLength();
+        for (var i = 0; i < count; i++)
+        {
+            if (!reader.SafeTryMoveNext() || !reader.TryGetSpan(out var key))
+            {
+                // a key we cannot see is a key we cannot evict, and we already know it changed
+                cache.OnFlush();
+                return OutOfBandResult.Handled;
+            }
+
+            cache.OnInvalidate(key); // allocation-free: the key never leaves this span
+        }
+
+        return OutOfBandResult.Handled;
     }
 
     private void OnMessage(

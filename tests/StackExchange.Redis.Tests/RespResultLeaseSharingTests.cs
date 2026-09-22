@@ -112,22 +112,22 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
     [Fact]
     public async Task SharedLeaseStillSupportsArraySegmentConsumers()
     {
-        // DecodeString and AsStream both go via Lease<byte>.ArraySegment; a shared lease is backed by a
-        // MemoryManager rather than an array directly, so this is the case most at risk of regressing
+        // DecodeString and AsStream reach the backing array internally (MemoryMarshal.TryGetArray), and a
+        // SHARED lease is backed by a MemoryManager sitting at a non-zero offset inside the reply - which
+        // is the case most at risk of regressing. ReadOnlyLease deliberately exposes no ArraySegment of its
+        // own: handing out the array is a way to reach outside the lease, and for shared memory that means
+        // into somebody else's data. See design notes 6.16.
         var (conn, result, expected) = await GetBlobAsync();
         await using var _ = conn;
         using (result)
         {
             using var lease = result.ReadScalar().ReadLease();
 
-            var segment = lease!.ArraySegment;
-            Assert.True(segment.Offset > 0, "payload should sit at a non-zero offset within the reply");
-            Assert.Equal(expected.Length, segment.Count);
-            Assert.Equal(expected, Encoding.UTF8.GetString(segment.Array!, segment.Offset, segment.Count));
-
+            Assert.Equal(expected.Length, lease!.Length);
+            Assert.Equal(expected, Encoding.UTF8.GetString(lease.Span.ToArray()));
             Assert.Equal(expected, lease.DecodeString());
 
-            using var stream = lease.AsStream(ownsLease: false);
+            using var stream = lease.AsStream(ownsLease: false)!;
             using var reader = new System.IO.StreamReader(stream);
             Assert.Equal(expected, reader.ReadToEnd());
         }
@@ -159,7 +159,7 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
 
         using var result = await db.ExecuteRespAsync("GET", new RedisKeyOrValue[] { key });
         using var lease = result.ReadScalar().ReadLease();
-        Assert.Same(Lease<byte>.Empty, lease);
+        Assert.Same(ReadOnlyLease<byte>.Empty, lease); // the read-only sibling now serves this call site
         Assert.Equal(1, result.RefCount); // no reference taken, so nothing to strand
     }
 

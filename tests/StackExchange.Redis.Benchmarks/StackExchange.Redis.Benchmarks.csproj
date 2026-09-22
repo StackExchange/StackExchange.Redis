@@ -2,11 +2,30 @@
   <PropertyGroup>
     <Description>StackExchange.Redis MicroBenchmark Suite</Description>
     <TargetFrameworks>net481;net8.0;net10.0</TargetFrameworks>
+
+    <!--
+      The .NET 11 runtime-async comparison; see IncludePreviewTargets in the library. The library is what
+      has to be compiled with the feature, since runtime-async is per-assembly - so measuring "11 off"
+      means building the LIBRARY without it, which is /p:DisableRuntimeAsync=true, not a job setting
+      BenchmarkDotNet can toggle.
+    -->
+    <TargetFrameworks Condition="'$(IncludePreviewTargets)' == 'true'">$(TargetFrameworks);net11.0</TargetFrameworks>
     <Configuration>Release</Configuration>
     <OutputType>Exe</OutputType>
     <SignAssembly>true</SignAssembly>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <!--
+    The benchmark assembly needs the feature too: runtime-async is per-assembly, so without this the
+    benchmark method's OWN state machine survives and masks part of what the library saved.
+  -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0' and '$(DisableRuntimeAsync)' != 'true'">
+    <Features>runtime-async=on</Features>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net11.0' or '$(DisableRuntimeAsync)' == 'true'">
+    <Compile Remove="RuntimeAsyncOptIn.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />

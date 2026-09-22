@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// A redis connection used as the subscriber in a pub/sub scenario.
     /// </summary>
-    public interface ISubscriber : IRedis
+    public interface ISubscriber : IRedis, IRespTarget
     {
         /// <summary>
         /// Indicate exactly which redis server we are talking to.

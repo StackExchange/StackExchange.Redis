@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes a hash-field (a name/value pair).
 /// </summary>
-public readonly struct HashEntry : IEquatable<HashEntry>
+public readonly struct HashEntry : IEquatable<HashEntry>, IRespArgument
 {
     internal readonly RedisValue name, value;
 
@@ -56,6 +57,25 @@ public readonly struct HashEntry : IEquatable<HashEntry>
     /// <summary>
     /// A "{name}: {value}" string representation of this entry.
     /// </summary>
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// Two arguments, name then value - the order every hash command wants them in, so
+    /// <c>$"{RedisCommand.HSETEX}{key}...{entries}"</c> writes a whole field set as one hole.
+    /// </para>
+    /// <para>
+    /// Explicit, so it does not clutter the type for callers who will never write a RESP frame by hand;
+    /// reached only through a command hole, which is the one place it means anything. See
+    /// <see cref="Expiration"/> for the same arrangement.
+    /// </para>
+    /// </remarks>
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
+    {
+        handler.AppendFormatted(name);
+        handler.AppendFormatted(value);
+    }
+
+    /// <inheritdoc/>
     public override string ToString() => name + ": " + value;
 
     /// <inheritdoc/>

@@ -86,6 +86,7 @@ public readonly struct TlsOptions
         => _options is null ? null : _options.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback();
 
 #if NET
+
     /// <summary>
     /// The caller-supplied authentication options for the given host, if any; corresponds to
     /// <see cref="ConfigurationOptions.SslClientAuthenticationOptions"/>. When this returns non-null it

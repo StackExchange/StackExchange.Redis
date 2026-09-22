@@ -1,0 +1,402 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using RESPite;
+using StackExchange.Redis.Protocol;
+using Xunit;
+
+namespace StackExchange.Redis.Tests;
+
+/// <summary>
+/// Batching as a decorator on the executor: <c>SendAsync</c> accumulates, and executing sends the run.
+/// </summary>
+/// <remarks>
+/// The property worth holding on to is that <b>no generics were needed</b>. A batch has to hold a
+/// heterogeneous queue and complete each caller with its own result type, which looks like it demands an
+/// untyped base and a typed proxy - but <c>RespExecutorBase</c> has already erased the type: it deals in
+/// <see cref="RespPayload"/>, and the handler that turns one into a <c>T</c> is applied a layer above,
+/// after the executor has handed the payload back. <c>PayloadsAreCompletedTypedByTheLayerAbove</c> is
+/// where that shows.
+/// </remarks>
+public class RespBatchExecutorTests
+{
+    private static RespDatabaseContext Source(FakeExecutor executor)
+        => new(new RespContext().WithExecutor(executor));
+
+    [Fact]
+    public async Task NothingIsSentUntilTheBatchIsExecuted()
+    {
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var first = batch.Context.Strings.GetAsync("k1");
+        var second = batch.Context.Strings.GetAsync("k2");
+
+        Assert.False(executor.HasSent);
+        Assert.Equal(2, batch.Count);
+        Assert.False(first.IsCompleted);
+        Assert.False(second.IsCompleted);
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal(["*2|$3|GET|$2|k1|", "*2|$3|GET|$2|k2|"], executor.Sent);
+        Assert.Equal("a", (string?)await first);
+        Assert.Equal("b", (string?)await second);
+    }
+
+    /// <summary>
+    /// Each caller gets its own result type, from a queue that knows none of them.
+    /// </summary>
+    /// <remarks>
+    /// The queue holds <c>TaskCompletionSource&lt;RespPayload&gt;</c> and nothing else; that these come
+    /// back as a <see cref="RedisValue"/>, a <see cref="long"/> and a <see cref="bool"/> is the work of the
+    /// handlers above the executor, which the batch never sees. That is why it needs no type parameter.
+    /// </remarks>
+    [Fact]
+    public async Task PayloadsAreCompletedTypedByTheLayerAbove()
+    {
+        var executor = new FakeExecutor("$4\r\nmarc\r\n", ":7\r\n", "+OK\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var value = batch.Context.Strings.GetAsync("k");
+        var length = batch.Context.Strings.LengthAsync("k");
+        var set = batch.Context.Strings.SetAsync("k", "v");
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal("marc", (string?)await value);
+        Assert.Equal(7L, await length);
+        Assert.True(await set);
+    }
+
+    /// <summary>A command that fails faults only its own caller.</summary>
+    [Fact]
+    public async Task AFaultIsDeliveredToTheCommandThatCausedIt()
+    {
+        var executor = new FakeExecutor("-ERR nope\r\n", "$1\r\nb\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var bad = batch.Context.Strings.GetAsync("k1");
+        var good = batch.Context.Strings.GetAsync("k2");
+
+        await batch.ExecuteAsync();
+
+        await Assert.ThrowsAsync<RespException>(async () => await bad);
+        Assert.Equal("b", (string?)await good);
+    }
+
+    /// <summary>An empty batch is a no-op rather than an error.</summary>
+    [Fact]
+    public async Task AnEmptyBatchExecutesCleanly()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        await batch.ExecuteAsync();
+
+        Assert.False(executor.HasSent);
+    }
+
+    /// <summary>
+    /// A batch sends once; executing again, or queueing after, is a bug rather than a no-op.
+    /// </summary>
+    /// <remarks>
+    /// <b>The late command faults its task rather than throwing at the call site</b>, and that is not a
+    /// choice this layer gets to make: the send path hands the executor to an <c>async</c> method, so
+    /// anything the executor throws is captured into the task it returns. The distinction matters only to
+    /// a caller who never awaits - and one who never awaits a command they queued has a larger problem.
+    /// </remarks>
+    [Fact]
+    public async Task ABatchIsOneShot()
+    {
+        var executor = new FakeExecutor("$1\r\na\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        _ = batch.Context.Strings.GetAsync("k");
+        await batch.ExecuteAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await batch.ExecuteAsync());
+
+        var late = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await batch.Context.Strings.GetAsync("k2"));
+        Assert.Contains("already been executed", late.Message);
+    }
+
+    /// <summary>
+    /// Discarding a batch faults what was queued, rather than leaving it outstanding for ever.
+    /// </summary>
+    /// <remarks>
+    /// Not tidiness: the caller awaiting a queued command holds the only reference to its rendered frame
+    /// and releases it when that task completes, so a dropped batch would strand a pooled buffer per
+    /// command. The fault is what lets those <c>finally</c> blocks run.
+    /// </remarks>
+    [Fact]
+    public async Task DiscardingABatchFaultsWhatWasQueued()
+    {
+        var executor = new FakeExecutor("$1\r\na\r\n");
+        Task<RedisValue> pending;
+
+        using (var batch = Source(executor).CreateBatch())
+        {
+            pending = batch.Context.Strings.GetAsync("k").AsTask();
+        }
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await pending);
+        Assert.Contains("discarded without being executed", ex.Message);
+        Assert.False(executor.HasSent);
+    }
+
+    /// <summary>A synchronous send refuses, because there is nothing to hand back yet.</summary>
+    [Fact]
+    public void ASynchronousSendRefuses()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => batch.Context.Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
+        Assert.Contains("no synchronous send", ex.Message);
+    }
+
+    // ---- fire-and-forget --------------------------------------------------------------------------
+
+    /// <summary>
+    /// A fire-and-forget command answers at once, and is still sent when the batch goes out.
+    /// </summary>
+    /// <remarks>
+    /// Nobody is waiting, so there is no promise to make: <c>SendAsync</c> hands back a default
+    /// <see cref="ValueTask{TResult}"/> carrying a null payload, and a null payload is what the layer above
+    /// turns into <c>default(T)</c> - which is what fire-and-forget has always returned. The command still
+    /// travels; only the waiting is skipped.
+    /// </remarks>
+    [Fact]
+    public void FireAndForgetCompletesImmediatelyAndStillSends()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var pending = batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
+
+        Assert.True(pending.IsCompletedSuccessfully); // answered before anything was sent
+        Assert.False(pending.GetAwaiter().GetResult()); // default(bool), as fire-and-forget always gives
+        Assert.False(executor.HasSent);
+        Assert.Equal(1, batch.Count);
+
+        batch.ExecuteAsync().GetAwaiter().GetResult();
+        Assert.Equal(["*3|$3|SET|$1|k|$1|v|"], executor.Sent);
+    }
+
+    /// <summary>
+    /// The frame outlives the answer, which is the whole reason that entry retains.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Answering early hands control back to the caller, whose <c>finally</c> disposes its reference to the
+    /// rendered frame - while the frame is still sitting in the queue waiting to be sent. Every other path
+    /// on this surface is safe because the task completes <i>after</i> the bytes are used; this is the
+    /// exception, so the batch takes a reference of its own.
+    /// </para>
+    /// <para>
+    /// <c>RefCountedBuffer</c> throws on a span read after the last reference has gone, so without the
+    /// retain this fails inside the executor rather than reading somebody else's rent. Awaiting the send
+    /// first is what makes the caller's <c>finally</c> actually have run by the time the batch executes.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task FireAndForgetKeepsTheFrameAliveUntilItIsSent()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        await batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
+        await Task.Yield(); // and let any continuation the caller had run
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal(["*3|$3|SET|$1|k|$1|v|"], executor.Sent);
+    }
+
+    /// <summary>A mixed batch keeps both kinds in order.</summary>
+    [Fact]
+    public async Task AwaitedAndForgottenCommandsShareTheRun()
+    {
+        var executor = new FakeExecutor("+OK\r\n", "$1\r\na\r\n");
+        using var batch = Source(executor).CreateBatch();
+
+        var forgotten = batch.Context.Strings.SetAsync("k1", "v", flags: CommandFlags.FireAndForget);
+        var awaited = batch.Context.Strings.GetAsync("k2");
+
+        Assert.True(forgotten.IsCompletedSuccessfully);
+        Assert.False(awaited.IsCompleted);
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal(2, executor.Sent.Count);
+        Assert.StartsWith("*3|$3|SET|$2|k1|", executor.Sent[0]);
+        Assert.Equal("*2|$3|GET|$2|k2|", executor.Sent[1]);
+        Assert.Equal("a", (string?)await awaited);
+    }
+
+    /// <summary>Discarding a batch releases what the forgotten commands were holding.</summary>
+    /// <remarks>
+    /// There is no task to fault for those, so the only thing abandonment can get wrong is the reference -
+    /// and a leaked one is a pooled buffer that never goes back. Nothing here can observe the count
+    /// directly; what it can observe is that disposing twice, or after executing, does not double-release.
+    /// </remarks>
+    [Fact]
+    public void DiscardingReleasesForgottenCommandsExactlyOnce()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        var batch = Source(executor).CreateBatch();
+
+        _ = batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
+
+        batch.Dispose();
+        batch.Dispose(); // idempotent: a second release would hand the same buffer back twice
+        Assert.False(executor.HasSent);
+    }
+
+    // ---- the contiguous path ------------------------------------------------------------------------
+
+    /// <summary>Writes a whole run at once, and refuses to be used one command at a time.</summary>
+    /// <remarks>
+    /// The single-request <c>SendAsync</c> throws, so a test that passes has demonstrably taken the run
+    /// path rather than merely produced the same answers by pipelining.
+    /// </remarks>
+    private sealed class RunExecutor(params string[] replies) : RespExecutorBase, IRespRunExecutor
+    {
+        /// <summary>One entry per run, holding that run's frames - so "one write" is checkable.</summary>
+        public List<string[]> Runs { get; } = [];
+
+        public override int Database => 0;
+
+        public override RespPayload Send(in RespRequest request) => throw new NotSupportedException();
+
+        public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("this executor writes runs, not single commands");
+
+        public ValueTask SendAsync(
+            scoped ReadOnlySpan<RespRequest> run,
+            scoped Span<ValueTask<RespPayload>> replies,
+            CancellationToken cancellationToken = default)
+        {
+            var frames = new string[run.Length];
+            for (var i = 0; i < run.Length; i++)
+            {
+                frames[i] = Encoding.UTF8.GetString(run[i].Span.ToArray()).Replace("\r\n", "|");
+                replies[i] = new ValueTask<RespPayload>(
+                    RespPayload.Create(Encoding.UTF8.GetBytes(replies.Length == 0 ? "+OK\r\n" : this.replies[Math.Min(i, this.replies.Length - 1)])));
+            }
+
+            Runs.Add(frames);
+            return default;
+        }
+
+        private string[] replies { get; } = replies;
+    }
+
+    /// <summary>
+    /// When the executor can write a run, the whole batch goes out as one.
+    /// </summary>
+    /// <remarks>
+    /// This is the guarantee the shipped <see cref="IBatch"/> gives and the pipelined fallback does not:
+    /// nothing of anybody else's between two of our commands. It is a <b>write-side</b> property only -
+    /// in RESP3 an out-of-band push can still arrive between two replies, which is why each request is
+    /// answered on its own task rather than the run handing back one result holding them all.
+    /// </remarks>
+    [Fact]
+    public async Task ARunCapableExecutorGetsTheWholeQueueAtOnce()
+    {
+        var executor = new RunExecutor("$1\r\na\r\n", "$1\r\nb\r\n", "$1\r\nc\r\n");
+        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateBatch();
+
+        var first = batch.Context.Strings.GetAsync("k1");
+        var second = batch.Context.Strings.GetAsync("k2");
+        var third = batch.Context.Strings.GetAsync("k3");
+
+        await batch.ExecuteAsync();
+
+        var run = Assert.Single(executor.Runs); // ONE write, not three
+        Assert.Equal(["*2|$3|GET|$2|k1|", "*2|$3|GET|$2|k2|", "*2|$3|GET|$2|k3|"], run);
+
+        Assert.Equal("a", (string?)await first);
+        Assert.Equal("b", (string?)await second);
+        Assert.Equal("c", (string?)await third);
+    }
+
+    /// <summary>
+    /// A cluster batch touching several slots becomes one run per slot.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A run must resolve to a single slot, so a multi-slot batch cannot be one write - and grouping needs
+    /// nothing from the topology: the request already carries the slot it folded while being written. The
+    /// three keys here use hash tags, so two of them share a slot and the third does not.
+    /// </para>
+    /// <para>
+    /// Grouping is by <b>slot</b>, not node, so this over-splits compared with the shipped batch - many
+    /// slots live on one server. Correct without asking anything about the topology, which is the trade;
+    /// grouping by node needs the multiplexer.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AClusterBatchIsSplitPerSlot()
+    {
+        var executor = new RunExecutor("$1\r\na\r\n");
+        var context = new RespDatabaseContext(
+            new RespContext(serverType: ServerType.Cluster).WithExecutor(executor));
+        using var batch = context.CreateBatch();
+
+        var first = batch.Context.Strings.GetAsync("{x}:1");
+        var second = batch.Context.Strings.GetAsync("{y}:1");
+        var third = batch.Context.Strings.GetAsync("{x}:2");
+
+        await batch.ExecuteAsync();
+
+        // two slots, so two runs - and the {x} pair travelled together, in order
+        Assert.Equal(2, executor.Runs.Count);
+        Assert.Contains(executor.Runs, run => run.Length == 2
+            && run[0] == "*2|$3|GET|$5|{x}:1|" && run[1] == "*2|$3|GET|$5|{x}:2|");
+        Assert.Contains(executor.Runs, run => run.Length == 1 && run[0] == "*2|$3|GET|$5|{y}:1|");
+
+        Assert.Equal("a", (string?)await first);
+        Assert.Equal("a", (string?)await second);
+        Assert.Equal("a", (string?)await third);
+    }
+
+    /// <summary>Outside cluster there are no slots, so there is exactly one run however many keys.</summary>
+    /// <remarks>
+    /// The property that makes the grouping free everywhere it is not needed: <c>RespRequestBuilder</c>
+    /// only folds a slot when the context is a cluster, so a standalone batch is all <c>NoSlot</c> and
+    /// falls in one group.
+    /// </remarks>
+    [Fact]
+    public async Task AStandaloneBatchIsOneRunWhateverTheKeys()
+    {
+        var executor = new RunExecutor("$1\r\na\r\n");
+        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateBatch();
+
+        _ = batch.Context.Strings.GetAsync("{x}:1");
+        _ = batch.Context.Strings.GetAsync("{y}:1");
+        _ = batch.Context.Strings.GetAsync("nohashtag");
+
+        await batch.ExecuteAsync();
+
+        Assert.Equal(3, Assert.Single(executor.Runs).Length);
+    }
+
+    /// <summary>The context it was built from is untouched, and still sends immediately.</summary>
+    [Fact]
+    public async Task TheSourceContextIsNotBatched()
+    {
+        var executor = new FakeExecutor("$1\r\na\r\n");
+        var source = Source(executor);
+        using var batch = source.CreateBatch();
+
+        Assert.Equal("a", (string?)await source.Strings.GetAsync("k"));
+        Assert.True(executor.HasSent);
+        Assert.Equal(0, batch.Count);
+    }
+}

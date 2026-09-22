@@ -518,6 +518,7 @@ public abstract class LoggingTunnel : Tunnel
     }
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+
     /// <summary>
     /// Captures the traffic of a push-mode <see cref="DuplexTransport"/> into a pair of streams, in the
     /// same format <see cref="LoggingDuplexStream"/> produces, so the same replay/validate tooling reads
