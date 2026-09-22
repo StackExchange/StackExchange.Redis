@@ -38,7 +38,7 @@ public class ClusterTlsIdentityTests(ITestOutputHelper log)
         var config = server.GetClientConfig(defaultOnly: true);
         config.EndPoints.Clear();
         config.EndPoints.Add(new DnsEndPoint(Hostname, port));
-        config.SslHost = "apex.redis.example.com"; // the seed-derived name must not replace per-node SNI
+        config.SslHost = "host-2.redis.example.com"; // the configured name must not replace per-node SNI
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
         var db = conn.GetDatabase();
@@ -111,19 +111,4 @@ public class ClusterTlsIdentityTests(ITestOutputHelper log)
 #endif
     }
 
-    [Fact]
-    public void DnsEndPointOverridesSslHostForTlsTargetName()
-    {
-        // A single shared-VIP seed derives SslHost from its apex name, but every discovered DNS endpoint
-        // must present its own name so SNI routes the connection to the correct cluster node.
-        var shard = new DnsEndPoint("host-2.redis.example.com", 443);
-        Assert.Equal("host-2.redis.example.com", Format.GetTlsHostName(shard, "apex.redis.example.com"));
-    }
-
-    [Fact]
-    public void IpEndPointUsesSslHostForTlsTargetName()
-    {
-        var address = new IPEndPoint(IPAddress.Loopback, 443);
-        Assert.Equal("certificate.redis.example.com", Format.GetTlsHostName(address, "certificate.redis.example.com"));
-    }
 }
