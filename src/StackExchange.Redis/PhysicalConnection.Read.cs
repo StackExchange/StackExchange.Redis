@@ -154,11 +154,27 @@ internal sealed partial class PhysicalConnection
 
             // ForceReconnect can land here with the filler still genuinely mid-cycle (unlike the
             // _fillerDone break above, where the filler has already fully stopped by construction) - set
-            // this *before* Release() below, not just in finally, or the filler could still be holding an
-            // outstanding lease into a segment Release() is about to hand back to the shared spare pool.
+            // this *before* touching _readBuffer below, or the filler could still be holding an
+            // outstanding lease into a segment that's about to be recycled or wiped.
             _readLoopDoomed = true;
             _readStatus = ReadStatus.ProcessBufferComplete;
-            lock (_readBufferLock) { _readBuffer.Release(); } // clean exit, we can recycle
+
+            // _fillerDone is only ever set (in FillBufferAsync's own finally, right before it returns) once
+            // the filler has genuinely, fully stopped - no outstanding lease, no read in flight. That's a
+            // stronger guarantee than "doomed": doom alone stops a *new* lease or commit, but not a read
+            // already in flight into memory captured before doom was set, and Release() hands segments
+            // back to the shared static spare regardless of any outstanding lease - so recycling here is
+            // only safe when _fillerDone proves there's nothing still writing into one. Waiting for that
+            // instead (e.g. joining the filler task/thread here) would deadlock: the filler can only
+            // unblock via new data or the stream being disposed, and that disposal is exactly what
+            // RecordConnectionFailed below is about to do. When it isn't yet safe, skip the recycle - the
+            // plain wipe in finally (which only drops the field's value, not returning anything to the
+            // shared pool) covers cleanup instead, same as the fault/cancellation paths already rely on.
+            if (_fillerDone)
+            {
+                lock (_readBufferLock) { _readBuffer.Release(); } // filler confirmed stopped - safe to recycle
+            }
+
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
@@ -331,9 +347,12 @@ internal sealed partial class PhysicalConnection
     /// <see cref="ShouldTransitionToAsync"/>) needs the filler thread to have genuinely stopped touching
     /// <see cref="_readBuffer"/> before <see cref="ReadAllAsync"/> starts its own filler on the same buffer -
     /// two independent fillers racing the same <see cref="CycleBuffer"/> would violate the single-writer
-    /// assumption both designs otherwise rely on. Hence the explicit <c>filler.Join()</c> below, which is
-    /// otherwise unnecessary (the lock plus <see cref="_readLoopDoomed"/> already make the plain wipe-on-exit
-    /// path safe, matching <see cref="ReadAllAsync"/>'s finally block, which doesn't wait for its filler task).
+    /// assumption both designs otherwise rely on. Hence the explicit <c>filler.Join()</c> below for that path
+    /// specifically: the stream stays open and connected throughout a transition, so the filler is going to
+    /// unblock the normal way (the next reply arriving) regardless, and joining just sequences the handoff
+    /// after that happens. The clean-exit <c>Release()</c> call further down deliberately does *not* join
+    /// the filler first, even though it has the same-shaped exposure - see the comment there for why that
+    /// would deadlock instead of just cost a wait.
     /// </remarks>
     private void ReadAllSync(CancellationToken cancellationToken)
     {
@@ -383,11 +402,28 @@ internal sealed partial class PhysicalConnection
 
             // ForceReconnect can land here with the filler still genuinely mid-cycle (unlike the
             // _fillerDone break above, where the filler has already fully stopped by construction) - set
-            // this *before* Release() below, not just in finally, or the filler could still be holding an
-            // outstanding lease into a segment Release() is about to hand back to the shared spare pool.
+            // this *before* touching _readBuffer below, or the filler could still be holding an
+            // outstanding lease into a segment that's about to be recycled or wiped.
             _readLoopDoomed = true;
             _readStatus = ReadStatus.ProcessBufferComplete;
-            lock (_readBufferLock) { _readBuffer.Release(); } // clean exit, we can recycle
+
+            // _fillerDone is only ever set (in FillBufferSync's own finally, right before it returns) once
+            // the filler has genuinely, fully stopped - no outstanding lease, no read in flight. That's a
+            // stronger guarantee than "doomed": doom alone stops a *new* lease or commit, but not a read
+            // already in flight into memory captured before doom was set, and Release() hands segments
+            // back to the shared static spare regardless of any outstanding lease - so recycling here is
+            // only safe when _fillerDone proves there's nothing still writing into one. filler.Join() here
+            // instead (unlike the sync-to-async transition's above, where the stream stays open and the
+            // filler unblocks the normal way, on the next reply) would deadlock: the filler can only
+            // unblock via new data or the stream being disposed, and that disposal is exactly what
+            // RecordConnectionFailed below is about to do. When it isn't yet safe, skip the recycle - the
+            // plain wipe in finally (which only drops the field's value, not returning anything to the
+            // shared pool) covers cleanup instead, same as the fault/cancellation paths already rely on.
+            if (_fillerDone)
+            {
+                lock (_readBufferLock) { _readBuffer.Release(); } // filler confirmed stopped - safe to recycle
+            }
+
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
