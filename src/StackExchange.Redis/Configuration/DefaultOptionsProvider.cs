@@ -486,8 +486,14 @@ namespace StackExchange.Redis.Configuration
         public virtual bool GetDefaultSsl(EndPointCollection endPoints) => false;
 
         /// <summary>
-        /// Gets the SSL Host to check for when connecting to endpoints (customizable in case of internal certificate shenanigans.
+        /// Gets the SSL host to infer when <see cref="ConfigurationOptions.SslHost"/> is not explicitly set, for
+        /// endpoints that don't already carry their own host name (customizable in case of internal certificate shenanigans).
         /// </summary>
+        /// <remarks>
+        /// Only consulted for non-<see cref="DnsEndPoint"/> connections - a <see cref="DnsEndPoint"/> always uses its
+        /// own <see cref="DnsEndPoint.Host"/> instead, so in practice this applies to IP endpoints, such as ones
+        /// discovered via cluster topology.
+        /// </remarks>
         /// <param name="endPoints">The configured endpoints to determine SSL host from (e.g. from the port).</param>
         /// <returns>The common host, if any, detected from the endpoint collection.</returns>
         public virtual string? GetSslHostFromEndpoints(EndPointCollection endPoints)
