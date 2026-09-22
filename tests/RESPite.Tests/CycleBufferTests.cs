@@ -161,7 +161,7 @@ public class CycleBufferTests()
                     }
 
                     var chunkLen = Math.Min(Math.Min(mem.Length, rng.Next(1, 4001)), (int)Math.Min(TargetBytes - written, int.MaxValue));
-                    var span = mem.Span[..chunkLen];
+                    var span = mem.Span.Slice(0, chunkLen);
                     for (int i = 0; i < chunkLen; i++)
                     {
                         span[i] = unchecked((byte)(written + i));
