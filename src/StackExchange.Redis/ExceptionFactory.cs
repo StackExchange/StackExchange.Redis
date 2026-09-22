@@ -74,10 +74,23 @@ namespace StackExchange.Redis
 
         internal static Exception MultiSlot(bool includeDetail, Message message)
         {
-            var ex = new RedisCommandException("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
+            var ex = new RedisCommandException(MultiSlotMessage);
             if (includeDetail) AddExceptionDetail(ex, message, null, null);
             return ex;
         }
+
+        /// <summary>
+        /// What a caller is told when one command's keys span slots - <b>shared with the context surface</b>,
+        /// which has no <c>Message</c> to attach detail to but owes the reader the same explanation.
+        /// </summary>
+        /// <remarks>
+        /// The hash-tag advice is the useful half: "this cannot be served" states the problem, and
+        /// <c>{/users/12345}</c> states the fix. A second, terser wording on the new surface meant the same
+        /// mistake got a worse answer depending on which path the caller happened to be on.
+        /// </remarks>
+        internal const string MultiSlotMessage =
+            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. "
+            + "'{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot";
 
         internal static string GetInnerMostExceptionMessage(Exception? e)
         {

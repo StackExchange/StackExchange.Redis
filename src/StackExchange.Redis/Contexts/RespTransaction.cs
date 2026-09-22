@@ -183,7 +183,7 @@ namespace StackExchange.Redis
             var empty = queue is null || queue.Count == 0;
             if (empty && conditions is null) return true; // an empty transaction trivially succeeds
 
-            var target = _inner.ResolveFor(default, RedisCommand.MULTI, CommandFlags.None);
+            var target = _inner.ResolveForSlot(SlotOf(queue), RedisCommand.MULTI, CommandFlags.None);
 
             // waits for a connection rather than declining when one is merely not up yet; a transaction
             // that arrived before the first connect is early, not unservable
@@ -326,6 +326,37 @@ namespace StackExchange.Redis
         }
 
         /// <summary>Release the watches after a condition failed, without running anything.</summary>
+        /// <summary>The slot every queued command agrees on, or <c>NoSlot</c> when there is nothing to agree.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A transaction runs on one node, so its contents have to pick which.</b> Resolving with no key
+        /// - which is what this did - means a cluster sends the MULTI wherever, and the WATCH, the checks
+        /// and the body then run against a node that may own none of the keys. It presented as a
+        /// transaction aborting for no visible reason: the conditions were answered by a node that had
+        /// never heard of the keys.
+        /// </para>
+        /// <para>
+        /// <b>Conditions are not folded in yet</b>, and that is a real gap rather than an oversight: the
+        /// slot of a <see cref="Condition"/> is only reachable through a <c>ServerSelectionStrategy</c>,
+        /// which this surface does not hold. A condition on a key in another slot therefore routes on the
+        /// body's slot and is answered with a redirect, where the shipped core refuses the whole
+        /// transaction as cross-slot. Wrong error, not wrong data.
+        /// </para>
+        /// </remarks>
+        private static int SlotOf(List<RespPayloadOperation>? queue)
+        {
+            var slot = ServerSelectionStrategy.NoSlot;
+            if (queue is null) return slot;
+
+            foreach (var operation in queue)
+            {
+                slot = ServerSelectionStrategy.CombineSlot(slot, operation.Slot);
+                if (slot == ServerSelectionStrategy.MultipleSlots) return slot;
+            }
+
+            return slot;
+        }
+
         private static void Discard(RespConnection connection, List<RespPayloadOperation>? queue)
         {
             Unwatch(connection);

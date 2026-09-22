@@ -398,3 +398,18 @@ public class NewCoreDatabaseTests(ITestOutputHelper output, SharedConnectionFixt
     protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
         => RespNewCoreFixture.Wrap(conn, db, asyncState);
 }
+
+// NOT wrapped yet, and measured rather than guessed: ClusterTests. Wrapping it reports 7 failures out of
+// 118, and NONE of them is a missing slot-routing executor - that exists, and MOVED/ASK are handled:
+//
+//   5  TransactionWith{SameSlot,SameServer,MultiServer}Keys. A transaction is now routed by the slot its
+//      queued commands agree on, which is necessary and not sufficient: a trace shows the slot is
+//      sometimes NoSlot, because the commands were rendered before this core's topology had settled.
+//      FoldSlot is gated on NeedsSlots, and seeding the belief from the multiplexer (below) narrows the
+//      window without closing it - the render-time gate has to re-ask rather than read a value captured
+//      once. Single commands survive the window: they are corrected with -MOVED, which is also how the
+//      topology shakes out. A MULTI/EXEC run cannot be redirected mid-flight, so it aborts instead.
+//    2  MovedProfiling - a profile does not follow a command across a redirect.
+//
+// Wrapping it is the first thing to do once the render-time topology gate is sorted.
+

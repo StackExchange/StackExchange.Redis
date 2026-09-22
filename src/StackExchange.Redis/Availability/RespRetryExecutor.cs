@@ -88,6 +88,10 @@ internal sealed class RespRetryExecutor : RespExecutorBase
         => _inner.ResolveFor(in key, command, flags);
 
     /// <inheritdoc/>
+    internal override RespExecutorBase? ResolveForSlot(int slot, RedisCommand command, CommandFlags flags)
+        => _inner.ResolveForSlot(slot, command, flags);
+
+    /// <inheritdoc/>
     /// <remarks>Routing is the inner executor's; this layer does not change where a key lives.</remarks>
     public override ValueTask<EndPoint?> IdentifyEndpointAsync(RedisKey key, CommandFlags flags, CancellationToken cancellationToken = default)
         => _inner.IdentifyEndpointAsync(key, flags, cancellationToken);

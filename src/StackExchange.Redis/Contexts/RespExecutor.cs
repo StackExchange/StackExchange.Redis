@@ -102,6 +102,22 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags) => this;
 
+        /// <summary>
+        /// The executor that serves a slot that has <b>already been computed</b>, rather than one derived
+        /// from a key.
+        /// </summary>
+        /// <param name="slot">The hash slot, or <see cref="ServerSelectionStrategy.NoSlot"/>.</param>
+        /// <param name="command">The command, whose flags can steer primary/replica choice.</param>
+        /// <param name="flags">The command's flags.</param>
+        /// <remarks>
+        /// <b>A run has a slot but no single key.</b> A batch or a transaction covers many commands, and
+        /// what decides where it goes is the slot they agree on - which each operation already carries,
+        /// folded when it was rendered. Resolving from a key would mean picking one of them arbitrarily,
+        /// and resolving from no key at all - which is what both did - means a cluster sends the run to
+        /// whichever node answers first, keys or no keys.
+        /// </remarks>
+        internal virtual RespExecutorBase? ResolveForSlot(int slot, RedisCommand command, CommandFlags flags) => this;
+
         /// <summary>Where a publish for this channel would rather go, or <see langword="null"/> for no preference.</summary>
         /// <param name="channel">The channel being published to, <b>before</b> any channel prefix.</param>
         /// <remarks>

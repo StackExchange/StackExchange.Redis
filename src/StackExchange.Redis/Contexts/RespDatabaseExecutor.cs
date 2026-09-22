@@ -51,6 +51,10 @@ namespace StackExchange.Redis
         internal override bool EnforcesTimeouts => _inner.EnforcesTimeouts;
 
         /// <inheritdoc/>
+        internal override RespExecutorBase? ResolveForSlot(int slot, RedisCommand command, CommandFlags flags)
+            => _inner.ResolveForSlot(slot, command, flags);
+
+        /// <inheritdoc/>
         internal override bool IsReachable(in RedisKey key, CommandFlags flags) => _inner.IsReachable(in key, flags);
 
         /// <inheritdoc/>

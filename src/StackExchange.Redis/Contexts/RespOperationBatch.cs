@@ -61,6 +61,10 @@ namespace StackExchange.Redis
             => _inner.ResolveFor(in key, command, flags);
 
         /// <inheritdoc/>
+        internal override RespExecutorBase? ResolveForSlot(int slot, RedisCommand command, CommandFlags flags)
+            => _inner.ResolveForSlot(slot, command, flags);
+
+        /// <inheritdoc/>
         public override ValueTask<EndPoint?> IdentifyEndpointAsync(RedisKey key, CommandFlags flags, CancellationToken cancellationToken = default)
             => _inner.IdentifyEndpointAsync(key, flags, cancellationToken);
 
@@ -159,7 +163,10 @@ namespace StackExchange.Redis
 
         private async Task DispatchAsync(List<RespPayloadOperation> group)
         {
-            var target = _inner.ResolveFor(default, RedisCommand.NONE, CommandFlags.None);
+            // BY SLOT, not by "anywhere": the group was formed by slot precisely so it could be routed to
+            // the node that owns it. Resolving with no key sent every group to whichever node answered
+            // first, which in a cluster is a MOVED for any group whose keys live elsewhere.
+            var target = _inner.ResolveForSlot(group[0].Slot, RedisCommand.NONE, CommandFlags.None);
 
             // waits for a connection, and for any write claim to clear, rather than declining. A batch
             // that arrived before the first connect completed is EARLY, not unservable, and failing it

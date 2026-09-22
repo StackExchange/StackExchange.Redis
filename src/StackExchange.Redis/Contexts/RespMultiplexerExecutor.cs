@@ -42,6 +42,7 @@ namespace StackExchange.Redis
         private readonly RespTopology _topology;
         private readonly Func<int, RedisCommand, CommandFlags, RespExecutorBase?> _forSlot;
         private readonly Func<RedisCommand, CommandFlags, RespExecutorBase?> _any;
+        private readonly Func<RedisChannel, RespExecutorBase?>? _forChannel;
         private readonly Func<EndPoint, RespExecutorBase?>? _forEndpoint;
         private readonly Action<int, EndPoint>? _onSlotMoved;
         private readonly Action? _onTopologySuspect;
@@ -59,6 +60,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database commands run against.</param>
         /// <param name="forEndpoint">Resolves a redirect target to an executor, if redirects are followed.</param>
         /// <param name="onSlotMoved">Told when a <c>MOVED</c> reveals the slot map is stale.</param>
+        /// <param name="forChannel">Resolves the server this client is subscribed on for a channel, if any.</param>
         /// <param name="onTopologySuspect">Told when a redirect could not be followed at all.</param>
         internal RespMultiplexerExecutor(
             RespTopology topology,
@@ -67,8 +69,10 @@ namespace StackExchange.Redis
             int database = 0,
             Func<EndPoint, RespExecutorBase?>? forEndpoint = null,
             Action<int, EndPoint>? onSlotMoved = null,
-            Action? onTopologySuspect = null)
+            Action? onTopologySuspect = null,
+            Func<RedisChannel, RespExecutorBase?>? forChannel = null)
         {
+            _forChannel = forChannel;
             _topology = topology ?? throw new ArgumentNullException(nameof(topology));
             _forSlot = forSlot ?? throw new ArgumentNullException(nameof(forSlot));
             _any = any ?? throw new ArgumentNullException(nameof(any));
@@ -148,6 +152,19 @@ namespace StackExchange.Redis
             => ResolveFor(default, RedisCommand.MULTI, CommandFlags.None) is { CanWriteRuns: true };
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Which server this client already holds a subscription on</b>, which is client state rather
+        /// than topology - nothing about the channel says it, so it has to be asked of the multiplexer.
+        /// It matters because <c>PUBLISH</c> reports how many clients THAT NODE delivered to: publishing
+        /// anywhere else still delivers, across the cluster bus, but answers 0.
+        /// </remarks>
+        internal override RespExecutorBase? ResolveForChannel(in RedisChannel channel)
+            => _forChannel?.Invoke(channel);
+
+        /// <inheritdoc/>
+        internal override RespExecutorBase? ResolveForSlot(int slot, RedisCommand command, CommandFlags flags)
+            => _topology.RoutesBySlot && slot >= 0 ? _forSlot(slot, command, flags) : _any(command, flags);
+
         internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
         {
             // the routing step, with no request to read a slot from - so the slot comes from the key, the
@@ -220,8 +237,12 @@ namespace StackExchange.Redis
         private static void ThrowPrimaryOnly(RedisCommand command)
             => throw new RedisCommandException($"Command cannot be issued to a replica: {command}");
 
+        /// <remarks>
+        /// The shipped wording, shared rather than restated: the hash-tag advice in it is the half that
+        /// tells a caller what to do, and a terser message here meant the same mistake got a worse answer
+        /// depending on which surface the caller was on.
+        /// </remarks>
         private static void ThrowCrossSlot()
-            => throw new RedisCommandException(
-                "This command spans multiple hash slots, which a cluster cannot serve from one node.");
+            => throw new RedisCommandException(ExceptionFactory.MultiSlotMessage);
     }
 }

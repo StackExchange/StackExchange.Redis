@@ -60,12 +60,46 @@ namespace StackExchange.Redis
         internal RespNewCore(ConnectionMultiplexer multiplexer)
         {
             _multiplexer = multiplexer;
-            _topology = new RespTopology(multiplexer.ServerSelectionStrategy.ServerType);
+            // UNKNOWN, not "whatever the strategy says right now". ServerType has no "not yet determined"
+            // value, so a multiplexer that has not finished discovering reports Standalone - and taking
+            // that as an answer makes this core believe, permanently, that a cluster is not one: no slots
+            // are folded, so a batch or transaction has nothing to route on and goes to whichever node
+            // answers first. Single commands survive that by being corrected with -MOVED; a MULTI/EXEC run
+            // cannot be redirected mid-flight, so it simply aborts.
+            //
+            // Unknown is exactly the state that window is for: slots are computed speculatively - a hash
+            // per key until the first handshake reports back - and RespHandshake settles it via
+            // OnServerType. See RespTopology, which says this in its own remarks.
+            _topology = new RespTopology(SeedTopology(multiplexer));
             _features = new MultiplexerFeatureProbe(multiplexer);
             _select = new SelectPreamble(new RespContext(multiplexer.RawConfig.CommandMap));
             _defaultDatabase = multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault();
             _router = Rebind(multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
         }
+
+        /// <summary>What this core should believe about cluster-ness before its own first handshake.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Three states, and <see cref="ServerType"/> can only express two.</b> There is no "not yet
+        /// determined" server type, so a multiplexer still discovering reports <c>Standalone</c> - and
+        /// taking that as an answer makes this core believe, permanently, that a cluster is not one. No
+        /// slots are folded, so a batch or transaction has nothing to route on and goes to whichever node
+        /// answers first. A single command survives that: it is corrected with <c>-MOVED</c>, which is also
+        /// how the topology shakes out in the first place. A <c>MULTI</c>/<c>EXEC</c> run cannot be
+        /// redirected mid-flight, so it simply aborts.
+        /// </para>
+        /// <para>
+        /// So connectedness is the discriminator the type lacks: a connected multiplexer has an answer and
+        /// this core may use it, and an unconnected one has not, which is <see cref="RespClusterState.Unknown"/>
+        /// - slots computed speculatively until this core's own handshake reports back. Note that the
+        /// multiplexer being connected says nothing about THIS core's connections, which are its own; what
+        /// is borrowed is the discovered shape of the deployment, not a connection.
+        /// </para>
+        /// </remarks>
+        private static RespClusterState SeedTopology(ConnectionMultiplexer multiplexer)
+            => multiplexer.ServerSelectionStrategy.ServerType == ServerType.Cluster ? RespClusterState.Yes
+                : multiplexer.IsConnected ? RespClusterState.No
+                : RespClusterState.Unknown;
 
         /// <summary>The one database this core can reach; see <c>GetDatabase</c>.</summary>
         internal int Database => _router.Database;
@@ -124,7 +158,8 @@ namespace StackExchange.Redis
             database,
             endpoint => Executor(database, endpoint),
             OnSlotMoved,
-            OnTopologySuspect);
+            OnTopologySuspect,
+            channel => SubscribedExecutor(database, channel));
 
         /// <summary>
         /// Which endpoint owns a slot, according to the multiplexer's own topology.
@@ -155,6 +190,18 @@ namespace StackExchange.Redis
             var endpoints = _multiplexer.GetEndPoints();
             return endpoints.Length == 0 ? null : Executor(database, endpoints[0]);
         }
+
+        /// <summary>The executor for the server this client is subscribed on for a channel, if any.</summary>
+        /// <remarks>
+        /// Borrowed from the multiplexer's subscription registry rather than kept here, for the same reason
+        /// the slot map is: the subscriptions are the multiplexer's, and a second record of them would be a
+        /// second thing to get wrong. Null - no subscription, or no server for it - means "no preference",
+        /// and the publish routes on the channel's slot like anything else.
+        /// </remarks>
+        private RespExecutorBase? SubscribedExecutor(int database, RedisChannel channel)
+            => _multiplexer.GetSubscribedServer(channel) is { } server
+                ? Executor(database, server.EndPoint)
+                : null;
 
         private void OnSlotMoved(int slot, EndPoint endpoint)
             => _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
