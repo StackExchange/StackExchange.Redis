@@ -19,6 +19,21 @@ internal sealed partial class PhysicalConnection
 {
     private long totalBytesReceived;
 
+    // Guards every touch of _readBuffer/_readState once a background filler is in play (see ReadAllAsync):
+    // the filler and the parse loop run as two independent tasks, and CycleBuffer itself has no internal
+    // thread-safety (by design - see its own remarks), so external mutual exclusion is what makes that
+    // safe. Only ever held for short, synchronous sections - never across an await (Monitor requires the
+    // same thread to exit that entered, which an await's continuation cannot guarantee).
+    private readonly object _readBufferLock = new();
+
+    // Signals from the filler to the parse loop that there is new committed data (or that the filler has
+    // stopped, successfully or not) worth waking up for. Bounded to a single pending signal - multiple
+    // commits that land before the parser gets back around to waiting just coalesce into one wake, which
+    // is fine: the parser always re-checks the buffer's actual state rather than trusting the signal count.
+    private SemaphoreSlim? _fillSignal;
+    private volatile bool _fillerDone;
+    private Exception? _fillerFault;
+
     internal static PhysicalConnection Dummy(Stream stream, BufferedStreamWriter.WriteMode writeMode = BufferedStreamWriter.WriteMode.Default)
         => new(ioStream: stream, writeMode: writeMode);
 
@@ -95,32 +110,41 @@ internal sealed partial class PhysicalConnection
             _readState = default;
             _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
         }
+        _fillerDone = false;
+        _fillerFault = null;
+        var fillSignal = _fillSignal = new SemaphoreSlim(0, 1);
+
+        // A background filler keeps reading into the shared buffer independently of the parse loop below,
+        // so a connection that's busy parsing/dispatching still keeps accumulating data underneath it -
+        // this is what lets a big batch build up per parse cycle under load, instead of every cycle
+        // capping out at whatever one physical read returns (which is what a single, self-overlapping
+        // read loop is still limited to: it can hide the *wait* for the next read behind parsing, but not
+        // grow past one read's worth of buffer per cycle, because nothing keeps reading *while* parsing).
+        // _readBufferLock is what makes sharing _readBuffer between the two tasks safe; see its remarks.
+        var fillerTask = Task.Run(() => FillBufferAsync(tail, cancellationToken), cancellationToken);
         try
         {
-            int read;
-            do
+            while (true)
             {
                 _readStatus = ReadStatus.ReadAsync;
-                var buffer = _readBuffer.GetUncommittedMemory();
-                var pending = tail.ReadAsync(buffer, cancellationToken);
-#if DEBUG
-                bool inline = pending.IsCompleted;
-#endif
-                read = await pending.ConfigureAwait(false);
-                _readStatus = ReadStatus.UpdateWriteTime;
-                UpdateLastReadTime();
-#if DEBUG
-                DebugCounters.OnAsyncRead(read, inline);
-#endif
+                await fillSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+
                 _readStatus = ReadStatus.TryParseResult;
+                lock (_readBufferLock)
+                {
+                    ParseAvailableFrames();
+                }
+
+                if (ForceReconnect) break;
+                if (_fillerDone)
+                {
+                    if (_fillerFault is { } fault) throw fault;
+                    break; // clean EOF; the filler already established there is nothing more coming
+                }
             }
-            // another formatter glitch
-            while (CommitAndParseFrames(read) && !ForceReconnect);
 
             _readStatus = ReadStatus.ProcessBufferComplete;
-
-            // Volatile.Write(ref _readStatus, ReaderCompleted);
-            _readBuffer.Release(); // clean exit, we can recycle
+            lock (_readBufferLock) { _readBuffer.Release(); } // clean exit, we can recycle
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
@@ -141,7 +165,92 @@ internal sealed partial class PhysicalConnection
         }
         finally
         {
+            // the filler observes the same cancellationToken (via the disposing/reconnecting machinery
+            // that also drives it elsewhere) and will wind itself down; just make sure a late fault
+            // doesn't surface as an unobserved task exception, matching the fire-and-forget convention
+            // used elsewhere on this teardown path.
+            fillerTask.RedisFireAndForget();
             _readBuffer = default; // wipe, however we exited
+        }
+    }
+
+    /// <summary>
+    /// Independently keeps <see cref="_readBuffer"/> full: reads, commits under <see cref="_readBufferLock"/>,
+    /// signals <see cref="_fillSignal"/>, repeats - with no knowledge of (or dependency on) whether the parse
+    /// loop in <see cref="ReadAllAsync"/> has caught up. Never has more than one outstanding, uncommitted read
+    /// at a time, which is what keeps this safe without CycleBuffer needing any concurrency-awareness of its
+    /// own: the existing single-writer lease/commit bookkeeping (see CycleBuffer.Commit's remarks on
+    /// CopyDueToDiscardDuringWrite) already tolerates a discard landing on the parse-loop side between this
+    /// method's lease and its own commit of that same lease - that guarantee doesn't depend on which thread
+    /// the discard happens on, only on nothing *else* taking a second, overlapping lease meanwhile, and
+    /// nothing here ever does.
+    /// </summary>
+    private async Task FillBufferAsync(Stream tail, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                Memory<byte> buffer;
+                lock (_readBufferLock)
+                {
+                    buffer = _readBuffer.GetUncommittedMemory();
+                }
+
+                int read;
+                try
+                {
+                    read = await tail.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                }
+                catch (EndOfStreamException)
+                {
+                    read = 0; // some streams throw rather than returning 0; treat identically
+                }
+
+                if (read <= 0)
+                {
+                    return; // clean EOF - _fillerDone is set in the finally block below
+                }
+
+                lock (_readBufferLock)
+                {
+                    _readBuffer.Commit(read);
+                }
+                UpdateLastReadTime();
+#if DEBUG
+                DebugCounters.OnAsyncRead(read, inline: false);
+#endif
+                SignalFillProgress();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // normal shutdown path (connection tearing down) - not a fault worth reporting
+        }
+        catch (Exception ex)
+        {
+            _fillerFault = ex;
+        }
+        finally
+        {
+            _fillerDone = true;
+            SignalFillProgress(); // wake the parse loop even if nothing new arrived, so it notices completion
+        }
+    }
+
+    private void SignalFillProgress()
+    {
+        var sem = _fillSignal;
+        if (sem is not null && sem.CurrentCount == 0)
+        {
+            try
+            {
+                sem.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // torn down from under us during shutdown; the parse loop has already stopped caring
+            }
         }
     }
 
@@ -241,31 +350,41 @@ internal sealed partial class PhysicalConnection
         }
     }
 
-    private bool CommitAndParseFrames(int bytesRead)
+    private bool CommitAndParseFrames(int bytesRead, bool alreadyCommitted = false)
     {
         if (bytesRead <= 0)
         {
             return false;
         }
-        ref RespScanState state = ref _readState; // avoid a ton of ldarg0
 
         totalBytesReceived += bytesRead;
-#if PARSE_DETAIL
-        string src = $"parse {bytesRead}";
-        try
-#endif
+        if (!alreadyCommitted)
         {
-            Debug.Assert(_readBuffer.GetCommittedLength() >= 0, "multi-segment running-indices are corrupt");
-#if PARSE_DETAIL
-            src += $" ({_readBuffer.GetCommittedLength()}+{bytesRead}-{state.TotalBytes})";
-#endif
             Debug.Assert(
                 bytesRead <= _readBuffer.UncommittedAvailable,
                 $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={_readBuffer.UncommittedAvailable}");
             _readBuffer.Commit(bytesRead);
+        }
+
+        ParseAvailableFrames();
+        return true;
+    }
+
+    /// <summary>
+    /// Parses and dispatches as many complete RESP frames as are currently committed in <see cref="_readBuffer"/>,
+    /// discarding what it consumes. A no-op if there is nothing new since the last call (which can legitimately
+    /// happen when called from the background-filler design in <see cref="ReadAllAsync"/> - e.g. a wake that
+    /// turns out to carry no new data, such as the filler's final "I'm done" signal).
+    /// </summary>
+    private void ParseAvailableFrames()
+    {
+        ref RespScanState state = ref _readState; // avoid a ton of ldarg0
+        Debug.Assert(_readBuffer.GetCommittedLength() >= 0, "multi-segment running-indices are corrupt");
 #if PARSE_DETAIL
-            src += $",total {_readBuffer.GetCommittedLength()}";
+        string src = $"parse ({_readBuffer.GetCommittedLength()}-{state.TotalBytes})";
+        try
 #endif
+        {
             var scanner = RespFrameScanner.Default;
 
             OperationStatus status = OperationStatus.NeedMoreData;
@@ -275,7 +394,7 @@ internal sealed partial class PhysicalConnection
                 var toParse = fullSpan.Slice((int)state.TotalBytes); // skip what we've already parsed
                 OnDetailLog($"parsing {toParse.Length} bytes, single buffer");
 
-                Debug.Assert(!toParse.IsEmpty);
+                if (toParse.IsEmpty) return; // nothing new since the last call
                 while (true)
                 {
 #if PARSE_DETAIL
@@ -317,14 +436,14 @@ internal sealed partial class PhysicalConnection
             else // the same thing again, but this time with multi-segment sequence
             {
                 var fullSequence = _readBuffer.GetAllCommitted();
-                Debug.Assert(
-                    fullSequence is { IsEmpty: false, IsSingleSegment: false },
-                    "non-trivial sequence expected");
+                if (fullSequence.IsEmpty) return; // nothing committed at all yet
+                Debug.Assert(!fullSequence.IsSingleSegment, "non-trivial sequence expected");
 
                 long fullyConsumed = 0;
                 var toParse = fullSequence.Slice((int)state.TotalBytes); // skip what we've already parsed
                 OnDetailLog($"parsing {toParse.Length} bytes, multi-buffer");
 
+                if (toParse.IsEmpty) return; // nothing new since the last call
                 while (true)
                 {
 #if PARSE_DETAIL
@@ -372,13 +491,11 @@ internal sealed partial class PhysicalConnection
                 static void ThrowStatus(OperationStatus status) =>
                     throw new InvalidOperationException($"Unexpected operation status: {status}");
             }
-
-            return true;
         }
 #if PARSE_DETAIL
         catch (Exception ex)
         {
-            OnDetailLog($"{nameof(CommitAndParseFrames)}: {ex.Message}");
+            OnDetailLog($"{nameof(ParseAvailableFrames)}: {ex.Message}");
             OnDetailLog(src);
             if (Debugger.IsAttached) Debugger.Break();
             throw new InvalidOperationException($"{src} lead to {ex.Message}", ex);
