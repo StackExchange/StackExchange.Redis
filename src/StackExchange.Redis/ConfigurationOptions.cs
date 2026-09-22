@@ -957,8 +957,13 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode.
+        /// The target host to use when validating an SSL certificate for connections that dial an
+        /// <see cref="IPEndPoint"/> (or when no per-endpoint DNS name is available). Setting a value here enables SSL mode.
         /// </summary>
+        /// <remarks>
+        /// Connections to a <see cref="DnsEndPoint"/> use that endpoint's host for SNI and certificate validation,
+        /// not this property. This allows hostname-routed clusters to use a distinct SNI name for each node.
+        /// </remarks>
         public string? SslHost
         {
             get => sslHost ?? Defaults.GetSslHostFromEndpoints(EndPoints);
