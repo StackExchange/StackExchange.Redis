@@ -137,6 +137,16 @@ namespace StackExchange.Redis
         // this class did not implement. They are gone with the attribute: there is no longer a member that
         // does not implement itself, so nothing was being generated and nothing reached them.
 
+        /// <summary>The executor, which is the router; these three questions are all routing questions.</summary>
+        /// <remarks>
+        /// <b>No fallback, because the branch it replaced could not be reached.</b> All three used to ask
+        /// the old database when this context had no executor - but a context with no executor cannot send
+        /// anything at all, so such a database could answer "where would this go" and then never go there.
+        /// The throw is the one a send gives, for the same reason.
+        /// </remarks>
+        private RespExecutorBase Router => _inner.Raw.Executor
+            ?? throw new InvalidOperationException("No executor is configured for this context.");
+
         /// <summary>The fallback, or a throw naming what is missing.</summary>
         private IDatabase Fallback<TState>() => _fallback ?? throw NotMoved<TState>();
 
@@ -269,23 +279,17 @@ namespace StackExchange.Redis
         /// <c>RespExecutorBase.IsConnected</c>.
         /// </remarks>
         public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => _inner.Raw.Executor is { } executor
-                ? executor.IsConnected(in key, flags)
-                : Fallback<RedisKey>().IsConnected(key, flags);
+            => Router.IsConnected(in key, flags);
 
         /// <inheritdoc/>
         /// <remarks>Off the fallback: the executor is the router, so it is the one that can answer.</remarks>
         public System.Net.EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => _inner.Raw.Executor is { } executor
-                ? Wait(executor.IdentifyEndpointAsync(key, flags))
-                : Fallback<RedisKey>().IdentifyEndpoint(key, flags);
+            => Wait(Router.IdentifyEndpointAsync(key, flags));
 
         /// <inheritdoc/>
         /// <remarks>Off the fallback; see the synchronous twin.</remarks>
         public Task<System.Net.EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => _inner.Raw.Executor is { } executor
-                ? executor.IdentifyEndpointAsync(key, flags).AsTask(AsyncState, flags)
-                : Fallback<RedisKey>().IdentifyEndpointAsync(key, flags);
+            => Router.IdentifyEndpointAsync(key, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="PingAsync" path="/remarks"/></remarks>

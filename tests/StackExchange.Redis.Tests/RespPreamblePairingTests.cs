@@ -236,7 +236,11 @@ public class RespPreamblePairingTests
 
         gate.Release.Set();
 
-        await WaitFor(() => transport.Written.Contains("SELECT"));
+        // wait for BOTH senders to have written, not merely for the first: feeding replies while the
+        // second SET was still unwritten delivered one with no operation pending. That is the same
+        // partial-write race this file's sibling tests document - waiting for "something appeared" and
+        // then asserting, or answering, as though everything had.
+        await WaitFor(() => CountOf(transport.Written, "|SET|") == 2);
         transport.Reply("+OK\r\n+OK\r\n+OK\r\n"); // the SELECT, then each SET
         Assert.True(await first);
         Assert.True(await second);
@@ -264,6 +268,18 @@ public class RespPreamblePairingTests
         }
 
         public void OnEstablished(IRespPreambleTarget connection) { }
+    }
+
+    private static int CountOf(string haystack, string needle)
+    {
+        int count = 0, index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+
+        return count;
     }
 
     private static async Task WaitFor(Func<bool> condition, int millis = 5000)
