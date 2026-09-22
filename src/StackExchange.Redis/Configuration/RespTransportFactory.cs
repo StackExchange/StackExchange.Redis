@@ -80,7 +80,14 @@ namespace StackExchange.Redis
                 ? endpoint
                 : await tunnel.GetSocketConnectEndpointAsync(endpoint, cancellationToken).ConfigureAwait(false) ?? endpoint;
 
-            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            // SocketManager.CreateSocket, not a hand-rolled socket: it picks the address family from the
+            // endpoint, uses ProtocolType.Unspecified for a unix domain socket rather than Tcp, sets
+            // NoDelay only where that is meaningful, and applies TCP keep-alive when configured. The
+            // hand-rolled version this replaced said "Stream, Tcp, NoDelay=true" unconditionally, which
+            // cannot connect to a unix socket at all.
+#pragma warning disable CS0618 // the TYPE is obsolete for public consumers; this static is the live path
+            var socket = SocketManager.CreateSocket(connectTo, config.TcpKeepAlive);
+#pragma warning restore CS0618
             try
             {
                 if (tunnel is not null)
@@ -97,7 +104,10 @@ namespace StackExchange.Redis
 
                 stream ??= new NetworkStream(socket, ownsSocket: true);
 
-                if (config.Ssl) stream = await AuthenticateAsync(stream, endpoint, config, onAuthSuspect).ConfigureAwait(false);
+                if (config.Ssl)
+                {
+                    stream = await AuthenticateAsync(stream, endpoint, config, onAuthSuspect).ConfigureAwait(false);
+                }
 
                 return new StreamDuplexTransport(stream);
             }
@@ -108,8 +118,26 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>Wrap a stream in TLS, exactly as the shipped connect path does.</summary>
-        private static async Task<Stream> AuthenticateAsync(
+        /// <summary>Wrap a stream in TLS: construct the <see cref="SslStream"/> and complete the handshake.</summary>
+        /// <param name="stream">The stream to encrypt.</param>
+        /// <param name="endpoint">Stands in for the host to verify against when none is configured.</param>
+        /// <param name="config">Carries the host, callbacks, protocols and revocation setting.</param>
+        /// <param name="onAuthSuspect">Told when the handshake fails, before the exception propagates.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The handshake and nothing else</b>, deliberately: it does not dispose on failure and does not
+        /// record anything. Both callers already have their own cleanup and their own idea of how a
+        /// connection failure should be reported - the shipped path maps it onto
+        /// <c>RecordConnectionFailed</c> and logs what was negotiated - and folding that in here would
+        /// force one of them to change behaviour to share a decision they agree on anyway.
+        /// </para>
+        /// <para>
+        /// What IS shared is the part worth having one copy of: which callbacks apply, that the ambient
+        /// ones are the fallback, <see cref="EncryptionPolicy.RequireEncryption"/>, and which overload of
+        /// <c>AuthenticateAsClientAsync</c> is used on which target.
+        /// </para>
+        /// </remarks>
+        internal static async Task<SslStream> AuthenticateAsync(
             Stream stream, EndPoint endpoint, ConfigurationOptions config, Action<Exception>? onAuthSuspect)
         {
             var host = config.SslHost;
@@ -138,9 +166,8 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 // "the handshake failed" is far less useful than "the handshake failed and it looks like
-                // an auth problem"; the shipped path reports the same way
+                // an auth problem"; the caller decides what to do with the exception itself
                 onAuthSuspect?.Invoke(ex);
-                ssl.Dispose();
                 throw;
             }
 

@@ -1252,51 +1252,23 @@ namespace StackExchange.Redis
                     }
 
                     stream ??= DemandSocketStream(socket);
-                    var ssl = new SslStream(
-                        innerStream: stream,
-                        leaveInnerStreamOpen: false,
-                        userCertificateValidationCallback: config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback(),
-                        userCertificateSelectionCallback: config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback(),
-                        encryptionPolicy: EncryptionPolicy.RequireEncryption);
+
+                    // the handshake itself is shared with the new core's connect path - see
+                    // RespTransportFactory. Everything around it stays here, because it is this path's:
+                    // what to log, and how a failure becomes a recorded connection failure.
+                    SslStream ssl;
                     try
                     {
-                        try
-                        {
-#if NET
-                            var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
-                            if (configOptions is not null)
+                        ssl = await RespTransportFactory.AuthenticateAsync(
+                            stream,
+                            bridge.ServerEndPoint.EndPoint,
+                            config,
+                            ex =>
                             {
-                                await ssl.AuthenticateAsClientAsync(configOptions).ForAwait();
-                            }
-                            else
-                            {
-                                await ssl.AuthenticateAsClientAsync(host, config.SslProtocols, config.CheckCertificateRevocation).ForAwait();
-                            }
-#else
-                            await ssl.AuthenticateAsClientAsync(host, config.SslProtocols, config.CheckCertificateRevocation).ForAwait();
-#endif
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine(ex.Message);
-                            bridge.Multiplexer.SetAuthSuspect(ex);
-                            bridge.Multiplexer.Logger?.LogErrorConnectionIssue(ex, ex.Message);
-                            throw;
-                        }
-                        // Note on the "assert ssl.IsEncrypted after the handshake" advice: on every TFM we
-                        // target, SslStream.IsEncrypted (and IsSigned) is literally an alias for
-                        // IsAuthenticated, i.e. "handshake completed, no exception" - which is exactly what
-                        // the await above already proved, so asserting it would guarantee nothing about the
-                        // bytes on the wire. What actually forbids plaintext here is the
-                        // EncryptionPolicy.RequireEncryption passed to the ctor above; instead of a
-                        // tautological assert we log what was negotiated, so a surprise is visible.
-                        // .NET:   https://github.com/dotnet/dotnet/blob/b0f34d51fccc69fd334253924abd8d6853fad7aa/src/runtime/src/libraries/System.Net.Security/src/System/Net/Security/SslStream.cs#L475
-                        // netfx:  https://github.com/microsoft/referencesource/blob/main/System/net/System/Net/SecureProtocols/SslStream.cs#L312-L334
-#if NET
-                        log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol, ssl.NegotiatedCipherSuite);
-#else
-                        log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol);
-#endif
+                                Debug.WriteLine(ex.Message);
+                                bridge.Multiplexer.SetAuthSuspect(ex);
+                                bridge.Multiplexer.Logger?.LogErrorConnectionIssue(ex, ex.Message);
+                            }).ForAwait();
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -1304,6 +1276,21 @@ namespace StackExchange.Redis
                         bridge.Multiplexer.Trace("Encryption failure");
                         return false;
                     }
+
+                    // Note on the "assert ssl.IsEncrypted after the handshake" advice: on every TFM we
+                    // target, SslStream.IsEncrypted (and IsSigned) is literally an alias for
+                    // IsAuthenticated, i.e. "handshake completed, no exception" - which is exactly what
+                    // the handshake above already proved, so asserting it would guarantee nothing about the
+                    // bytes on the wire. What actually forbids plaintext is the
+                    // EncryptionPolicy.RequireEncryption the factory passes; instead of a tautological
+                    // assert we log what was negotiated, so a surprise is visible.
+                    // .NET:   https://github.com/dotnet/dotnet/blob/b0f34d51fccc69fd334253924abd8d6853fad7aa/src/runtime/src/libraries/System.Net.Security/src/System/Net/Security/SslStream.cs#L475
+                    // netfx:  https://github.com/microsoft/referencesource/blob/main/System/net/System/Net/SecureProtocols/SslStream.cs#L312-L334
+#if NET
+                    log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol, ssl.NegotiatedCipherSuite);
+#else
+                    log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol);
+#endif
                     stream = ssl;
                 }
 
