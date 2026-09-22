@@ -205,6 +205,18 @@ internal sealed partial class PhysicalConnection
     /// the discard happens on, only on nothing *else* taking a second, overlapping lease meanwhile, and
     /// nothing here ever does.
     /// </summary>
+    /// <remarks>
+    /// A second thread/task is what makes this decoupling possible today: the parse loop's own thread is
+    /// busy dispatching (result matching, TCS completion, user callbacks) while this one keeps reading, and
+    /// that dispatch work is exactly what a single thread can't do *and* keep reading at the same time. If a
+    /// future architecture (e.g. a v4 that moves parsing and dispatch out of the read loop entirely, onto
+    /// whatever consumes the parsed results) shrinks the read loop's own per-cycle cost down to "read plus
+    /// minimal bookkeeping," it may be worth re-testing whether a single thread can then sustain the same
+    /// batching depth without this filler split at all - the mechanism that made the second thread necessary
+    /// here is specifically the competition between dispatch and re-issuing reads on one thread; remove that
+    /// competition and the calculus might change. Untested hypothesis, not a finding - flagged for whoever
+    /// next revisits this once that groundwork exists.
+    /// </remarks>
     private async Task FillBufferAsync(Stream tail, CancellationToken cancellationToken)
     {
         try
@@ -278,41 +290,67 @@ internal sealed partial class PhysicalConnection
         }
     }
 
+    /// <summary>
+    /// Sync-mode counterpart of the async filler/parser split in <see cref="ReadAllAsync"/> and
+    /// <see cref="FillBufferAsync"/>: a dedicated filler thread keeps reading into <see cref="_readBuffer"/>
+    /// independently of this (parser) thread, synchronized the same way (<see cref="_readBufferLock"/>,
+    /// <see cref="_fillSignal"/>, <see cref="_readLoopDoomed"/>). This pays for the same batching-depth
+    /// recovery with a second dedicated thread, on top of the reader thread that <see cref="StartReading"/>
+    /// already spins up for sync/<see cref="ConnectionMultiplexer.DedicatedThreads"/> connections - a cost
+    /// callers of that mode already accept in exchange for not risking ThreadPool starvation.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the earlier single-threaded version this replaced, transitioning to async mid-flight (see
+    /// <see cref="ShouldTransitionToAsync"/>) needs the filler thread to have genuinely stopped touching
+    /// <see cref="_readBuffer"/> before <see cref="ReadAllAsync"/> starts its own filler on the same buffer -
+    /// two independent fillers racing the same <see cref="CycleBuffer"/> would violate the single-writer
+    /// assumption both designs otherwise rely on. Hence the explicit <c>filler.Join()</c> below, which is
+    /// otherwise unnecessary (the lock plus <see cref="_readLoopDoomed"/> already make the plain wipe-on-exit
+    /// path safe, matching <see cref="ReadAllAsync"/>'s finally block, which doesn't wait for its filler task).
+    /// </remarks>
     private void ReadAllSync(CancellationToken cancellationToken)
     {
-        var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
         _readState = default;
         _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
+        _fillerDone = false;
+        _fillerFault = null;
+        _readLoopDoomed = false;
+        var fillSignal = _fillSignal = new SemaphoreSlim(0, 1);
+
+        var tail = _ioStream ?? Stream.Null;
+        Thread filler = new Thread(() => FillBufferSync(tail, cancellationToken))
+        {
+            IsBackground = true,
+            Priority = ThreadPriority.AboveNormal,
+            Name = "SE.Redis Sync Filler",
+        };
+        filler.Start();
+
         try
         {
-            int read;
-            do
+            while (true)
             {
                 _readStatus = ReadStatus.ReadSync;
-                var buffer = _readBuffer.GetUncommittedMemory();
-                cancellationToken.ThrowIfCancellationRequested();
-#if NET
-                read = tail.Read(buffer.Span);
-#else
-                read = tail.Read(buffer);
-#endif
+                fillSignal.Wait(cancellationToken);
 
-                _readStatus = ReadStatus.UpdateWriteTime;
-                UpdateLastReadTime();
-
-                DebugCounters.OnSyncRead(read);
                 _readStatus = ReadStatus.TryParseResult;
-            }
-            // another formatter glitch
-            while (CommitAndParseFrames(read) && !ForceReconnect && !ShouldTransitionToAsync());
+                lock (_readBufferLock)
+                {
+                    ParseAvailableFrames();
+                }
 
-            if (_readStatus is ReadStatus.TransitioningToAsync) return;
+                if (ForceReconnect) break;
+                if (ShouldTransitionToAsync()) return; // finally below hands off once the filler has stopped
+                if (_fillerDone)
+                {
+                    if (_fillerFault is { } fault) throw fault;
+                    break; // clean EOF; the filler already established there is nothing more coming
+                }
+            }
 
             _readStatus = ReadStatus.ProcessBufferComplete;
-
-            // Volatile.Write(ref _readStatus, ReaderCompleted);
-            _readBuffer.Release(); // clean exit, we can recycle
+            lock (_readBufferLock) { _readBuffer.Release(); } // clean exit, we can recycle
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
@@ -333,14 +371,85 @@ internal sealed partial class PhysicalConnection
         }
         finally
         {
+            _readLoopDoomed = true;
             if (_readStatus is ReadStatus.TransitioningToAsync)
             {
+                // must be fully stopped - not just signalled - before ReadAllAsync starts its own filler
+                // on the same _readBuffer; see this method's remarks.
+                filler.Join();
                 StartReadAllAsync(cancellationToken);
             }
             else
             {
-                _readBuffer = default; // wipe, however we exited
+                lock (_readBufferLock)
+                {
+                    _readBuffer = default; // wipe, however we exited
+                }
             }
+        }
+    }
+
+    /// <summary>
+    /// Blocking-thread counterpart of <see cref="FillBufferAsync"/> - see its remarks, which apply unchanged
+    /// (single outstanding read at a time, no reservation needed).
+    /// </summary>
+    private void FillBufferSync(Stream tail, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                if (_readLoopDoomed) return; // the parse loop already gave up; _readBuffer may be gone
+
+                Memory<byte> buffer;
+                lock (_readBufferLock)
+                {
+                    buffer = _readBuffer.GetUncommittedMemory();
+                }
+
+                int read;
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+#if NET
+                    read = tail.Read(buffer.Span);
+#else
+                    read = tail.Read(buffer);
+#endif
+                }
+                catch (EndOfStreamException)
+                {
+                    read = 0; // some streams throw rather than returning 0; treat identically
+                }
+
+                if (_readLoopDoomed) return; // as above - checked again now the read has had time to run
+
+                if (read <= 0)
+                {
+                    return; // clean EOF - _fillerDone is set in the finally block below
+                }
+
+                lock (_readBufferLock)
+                {
+                    _readBuffer.Commit(read);
+                }
+                UpdateLastReadTime();
+                DebugCounters.OnSyncRead(read);
+                SignalFillProgress();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // normal shutdown path (connection tearing down) - not a fault worth reporting
+        }
+        catch (Exception ex)
+        {
+            _fillerFault = ex;
+        }
+        finally
+        {
+            _fillerDone = true;
+            SignalFillProgress(); // wake the parse loop even if nothing new arrived, so it notices completion
         }
     }
 
