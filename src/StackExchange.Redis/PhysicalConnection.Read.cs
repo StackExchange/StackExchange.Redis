@@ -34,6 +34,14 @@ internal sealed partial class PhysicalConnection
     private volatile bool _fillerDone;
     private Exception? _fillerFault;
 
+    // Set (before _readBuffer is touched again) the moment the parse loop gives up, for any reason - a
+    // parse fault, ForceReconnect, or the filler's own clean EOF. The filler checks this after each read
+    // completes, before combining (committing) it into _readBuffer: once doomed, _readBuffer may already
+    // be torn down (see the finally block in ReadAllAsync), so the filler must stop rather than touch it.
+    // The read itself is left to complete naturally rather than raced/cancelled - it doesn't touch shared
+    // state until the commit step this flag gates.
+    private volatile bool _readLoopDoomed;
+
     internal static PhysicalConnection Dummy(Stream stream, BufferedStreamWriter.WriteMode writeMode = BufferedStreamWriter.WriteMode.Default)
         => new(ioStream: stream, writeMode: writeMode);
 
@@ -112,6 +120,7 @@ internal sealed partial class PhysicalConnection
         }
         _fillerDone = false;
         _fillerFault = null;
+        _readLoopDoomed = false;
         var fillSignal = _fillSignal = new SemaphoreSlim(0, 1);
 
         // A background filler keeps reading into the shared buffer independently of the parse loop below,
@@ -165,12 +174,23 @@ internal sealed partial class PhysicalConnection
         }
         finally
         {
-            // the filler observes the same cancellationToken (via the disposing/reconnecting machinery
-            // that also drives it elsewhere) and will wind itself down; just make sure a late fault
-            // doesn't surface as an unobserved task exception, matching the fire-and-forget convention
-            // used elsewhere on this teardown path.
+            // set *before* touching _readBuffer below: the filler checks this after each read completes,
+            // before committing into _readBuffer, so it never combines into (or races) a buffer that's
+            // about to be - or already has been - wiped here.
+            _readLoopDoomed = true;
+
+            // the filler also observes the same cancellationToken (via the disposing/reconnecting
+            // machinery that drives it elsewhere) and will wind itself down on its own; this just makes
+            // sure a late fault doesn't surface as an unobserved task exception, matching the
+            // fire-and-forget convention used elsewhere on this teardown path.
             fillerTask.RedisFireAndForget();
-            _readBuffer = default; // wipe, however we exited
+
+            // lock-protected because the filler's own reads/writes of _readBuffer are - an unsynchronized
+            // write here would race a multi-field struct against them, not just risk a missed signal.
+            lock (_readBufferLock)
+            {
+                _readBuffer = default; // wipe, however we exited
+            }
         }
     }
 
@@ -191,6 +211,8 @@ internal sealed partial class PhysicalConnection
         {
             while (true)
             {
+                if (_readLoopDoomed) return; // the parse loop already gave up; _readBuffer may be gone
+
                 Memory<byte> buffer;
                 lock (_readBufferLock)
                 {
@@ -206,6 +228,8 @@ internal sealed partial class PhysicalConnection
                 {
                     read = 0; // some streams throw rather than returning 0; treat identically
                 }
+
+                if (_readLoopDoomed) return; // as above - checked again now the read has had time to run
 
                 if (read <= 0)
                 {
