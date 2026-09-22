@@ -380,6 +380,10 @@ namespace StackExchange.Redis
         internal override bool CanWriteRuns => true;
 
         /// <inheritdoc/>
+        /// <remarks>Yes: it owns the connection a transaction holds, and the write claim on it.</remarks>
+        internal override bool CanWriteTransactions => true;
+
+        /// <inheritdoc/>
         /// <remarks>
         /// <b>Declined when there is no live connection</b>, for the same reason <c>ASKING</c> is: a
         /// backlog drains one operation at a time, which is exactly the adjacency a batch is asking for.

@@ -86,6 +86,9 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         internal override bool CanWriteRuns => _active() is { CanWriteRuns: true };
 
+        /// <inheritdoc/>
+        internal override bool CanWriteTransactions => _active() is { CanWriteTransactions: true };
+
         /// <summary>Whether any member is currently able to serve.</summary>
         public bool HasActiveMember => _active() is not null;
 

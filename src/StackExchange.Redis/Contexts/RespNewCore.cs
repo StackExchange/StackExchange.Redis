@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Operations;
@@ -262,21 +265,35 @@ namespace StackExchange.Redis
         /// </remarks>
         private async Task<RespConnection> ConnectAsync(int database, EndPoint endpoint, CancellationToken cancellationToken)
         {
-            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-            await ConnectSocketAsync(socket, endpoint).ConfigureAwait(false);
-
-            var transport = new StreamDuplexTransport(new NetworkStream(socket, ownsSocket: true));
-            var connection = new RespClientConnection(transport, Follow);
-
             var config = _multiplexer.RawConfig;
+
+            // the shared chain: tunnel, proxy, socket, TLS. This used to be a bare socket here, which
+            // silently ignored every one of those - and the TLS I added to it first was a second copy of
+            // the shipped logic, which is worse than none: two versions of a security decision, free to
+            // drift. DuplexTransport is the boundary; everything below it belongs to the factory.
+            var transport = await RespTransportFactory.ConnectAsync(
+                endpoint,
+                config,
+                ConnectionType.Interactive,
+                _multiplexer.SetAuthSuspect,
+                cancellationToken).ConfigureAwait(false);
+
+            var connection = new RespClientConnection(transport, Follow);
             var context = new RespDatabaseContext(
                 new RespContext(config.CommandMap, database: 0)
                     .WithExecutor(new RespConnectionExecutor(connection, 0)));
 
+            // AUTH only when there is something to authenticate WITH, matching the shipped handshake's
+            // `!IsNullOrWhiteSpace` test. The handshake itself treats "" as a legitimate password - that is
+            // how a 'nopass' ACL login is expressed, and it is right for a caller who says so explicitly -
+            // but ConfigurationOptions carries "" to mean "none configured", so passing it straight through
+            // sent AUTH to servers that have no password and answer it with an error.
+            var credentials = !string.IsNullOrWhiteSpace(config.User) || !string.IsNullOrWhiteSpace(config.Password);
+
             var result = await RespHandshake.PerformAsync(
                 context,
                 config.User,
-                config.Password,
+                credentials ? config.Password : null,
                 _multiplexer.ClientName,
                 database,
                 config.Protocol is null or RedisProtocol.Resp3,
@@ -325,12 +342,6 @@ namespace StackExchange.Redis
 
         private bool Follow(in RespRedirect redirect, RespPayloadOperation operation)
             => _router.TryFollowRedirect(in redirect, operation);
-
-        private static Task ConnectSocketAsync(Socket socket, EndPoint endpoint) => endpoint switch
-        {
-            DnsEndPoint dns => socket.ConnectAsync(dns.Host, dns.Port),
-            _ => socket.ConnectAsync(endpoint),
-        };
 
         /// <summary>
         /// Answers "what can the server that would take this command do", from the multiplexer's topology.

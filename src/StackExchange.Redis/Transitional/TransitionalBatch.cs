@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
@@ -49,6 +50,9 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="TransitionalDatabase.CanScan"/>
         private protected sealed override bool CanScan => false;
+
+        /// <inheritdoc/>
+        private protected override DatabaseFeatureFlags OwnFeatures => DatabaseFeatureFlags.Batch;
 
         /// <inheritdoc/>
         /// <remarks>

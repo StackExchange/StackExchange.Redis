@@ -152,6 +152,9 @@ namespace StackExchange.Redis
             => ResolveFor(default, RedisCommand.MULTI, CommandFlags.None) is { CanWriteRuns: true };
 
         /// <inheritdoc/>
+        internal override bool CanWriteTransactions => ResolveFor(default, RedisCommand.MULTI, CommandFlags.None) is { CanWriteTransactions: true };
+
+        /// <inheritdoc/>
         /// <remarks>
         /// <b>Which server this client already holds a subscription on</b>, which is client state rather
         /// than topology - nothing about the channel says it, so it has to be asked of the multiplexer.

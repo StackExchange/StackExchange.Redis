@@ -413,3 +413,16 @@ public class NewCoreDatabaseTests(ITestOutputHelper output, SharedConnectionFixt
 //
 // Wrapping it is the first thing to do once the render-time topology gate is sorted.
 
+/// <inheritdoc cref="RespNewCoreFixture"/>
+/// <remarks>
+/// <b>The new core could not do TLS at all until now</b> - it opened a bare socket and handed it to a
+/// NetworkStream, so every encrypted deployment was out of reach, which is most managed ones. Wrapping
+/// the existing TLS suite is the proof that the handshake it now performs is the shipped one: same host
+/// resolution, same validation and selection callbacks, same protocols and revocation check.
+/// </remarks>
+[RunPerProtocol]
+public class NewCoreSSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixture) : SSLTests(output, fixture)
+{
+    protected override IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => RespNewCoreFixture.Wrap(conn, db, asyncState);
+}

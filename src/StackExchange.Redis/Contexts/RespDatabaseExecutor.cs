@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
@@ -92,6 +92,9 @@ namespace StackExchange.Redis
         /// that the operations agree with each other, not that they agree with the socket's last SELECT.
         /// </remarks>
         internal override bool CanWriteRuns => _inner.CanWriteRuns;
+
+        /// <inheritdoc/>
+        internal override bool CanWriteTransactions => _inner.CanWriteTransactions;
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="CanWriteRuns" path="/remarks"/></remarks>

@@ -299,6 +299,24 @@ namespace StackExchange.Redis
         internal virtual bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count)
             => connection.Send(run, count);
 
+        /// <summary>
+        /// Whether this executor can run a <c>MULTI</c>/<c>EXEC</c> transaction, which is a <b>stronger</b>
+        /// claim than <see cref="CanWriteRuns"/>.
+        /// </summary>
+        /// <remarks>
+        /// <b>Two capabilities because there are two mechanisms.</b> A batch needs its commands written
+        /// consecutively and nothing more. A transaction needs that AND a connection it can hold across
+        /// several writes - the watches, the checks, then MULTI/EXEC - with a write claim keeping other
+        /// senders out in between. An executor can honestly offer the first without the second: the
+        /// <c>Message</c> shim writes a run through <c>IMultiMessage</c>, which the old bridge expands
+        /// inside its write lock, but it has no <c>RespConnection</c> to hold.
+        /// <para>
+        /// Conflating them made a transaction over that shim hang rather than fall back: it was told the
+        /// executor could serve one, and then found no connection to serve it on.
+        /// </para>
+        /// </remarks>
+        internal virtual bool CanWriteTransactions => false;
+
         /// <summary>Write <c>MULTI</c>, a run of queued commands, and <c>EXEC</c>, contiguously.</summary>
         /// <param name="operations">The queued commands, in order.</param>
         /// <param name="exec">Completes with whether the transaction executed.</param>

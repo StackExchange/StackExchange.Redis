@@ -115,13 +115,23 @@ namespace StackExchange.Redis
         /// </remarks>
         DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
         {
-            if (_fallback is { } db) return db.GetFeatures(out name);
+            if (_fallback is { } db) return db.GetFeatures(out name) | OwnFeatures;
 
             name = multiplexer?.ClientName ?? "";
-            return _inner.Raw.ServerType == ServerType.Cluster
+            return (_inner.Raw.ServerType == ServerType.Cluster
                 ? DatabaseFeatureFlags.Cluster
-                : DatabaseFeatureFlags.None;
+                : DatabaseFeatureFlags.None) | OwnFeatures;
         }
+
+        /// <summary>What THIS wrapper is, as opposed to what the connection underneath can do.</summary>
+        /// <remarks>
+        /// <b>A batch has to say that it is one</b>, because callers ask: <c>WithRetry</c> refuses a batch
+        /// or a transaction outright, since retrying a command that is queued inside one means retrying it
+        /// outside the thing that gave it meaning. The shipped wrappers fold their own flag in exactly
+        /// here, and these did not - which went unnoticed while <c>CreateBatch</c> still handed back the
+        /// shipped type, and became visible the moment it stopped.
+        /// </remarks>
+        private protected virtual DatabaseFeatureFlags OwnFeatures => DatabaseFeatureFlags.None;
 
         /// <inheritdoc/>
         /// <remarks>
@@ -264,7 +274,9 @@ namespace StackExchange.Redis
         public ITransaction CreateTransaction(object? asyncState = null)
         {
             if (this is IBatch) throw new NotSupportedException("Nested transactions are not supported");
-            return CanWriteRuns
+            // CanWriteTransactions, not CanWriteRuns: an executor can write a batch without being able to
+            // hold a connection across MULTI/EXEC, and the Message shim is exactly that
+            return _inner.Raw.Executor is { CanWriteTransactions: true }
                 ? TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState)
                 : Fallback<ITransaction>().CreateTransaction(asyncState);
         }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
@@ -24,6 +25,13 @@ namespace StackExchange.Redis
     /// </remarks>
     internal sealed class TransitionalTransaction : TransitionalBatch, ITransaction
     {
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Transaction rather than Batch, even though this derives from the batch: a caller asking
+        /// "is this a transaction" wants the stronger answer, and <c>WithRetry</c> refuses both.
+        /// </remarks>
+        private protected sealed override DatabaseFeatureFlags OwnFeatures => DatabaseFeatureFlags.Transaction;
+
         private readonly RespTransactionExecutor _executor;
         private readonly List<ConditionResult> _conditions = [];
 

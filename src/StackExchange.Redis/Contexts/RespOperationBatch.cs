@@ -91,7 +91,74 @@ namespace StackExchange.Redis
                 (_queue ??= []).Add(operation);
             }
 
+            // Fire-and-forget is answered NOW, with a null payload that Parse turns into default(T). The
+            // caller has said they do not want the reply, and a batch makes that visible: the task is
+            // complete before Execute is even called, which is what the shipped batch does and what
+            // BatchQueuedFireAndForgetCompletesImmediatelyWithDefault pins. The operation is still queued
+            // and still written - it just has nobody waiting - and DiscardReply is what lets it recycle
+            // when its reply lands.
+            if ((request.Flags & CommandFlags.FireAndForget) != 0)
+            {
+                RespPayloadOperation.DiscardReply(operation);
+                return default;
+            }
+
             return new ValueTask<RespPayload>(operation, operation.Token);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Yes - a batch is a run, and a run can hold two adjacent entries as easily as one.</b> Both
+        /// go into the queue together, so nothing of anybody else's can land between them when the run is
+        /// written, which is the whole of what a preamble asks for.
+        /// </remarks>
+        public override bool CanWritePreamble => true;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>
+        /// <b>The gate is not consulted, and that is the point.</b> A gate answers "is this preamble still
+        /// needed on THIS connection, right now" - and right now is composition time, which for a batch is
+        /// long before anything is written and possibly before a connection exists. So the preamble always
+        /// goes. Both of today's gates are idempotent - a redundant <c>SCRIPT LOAD</c> or
+        /// <c>HIMPORT PREPARE</c> costs a round trip in the run, nothing more - where a preamble wrongly
+        /// skipped is a command that cannot work.
+        /// </para>
+        /// <para>
+        /// Without this the pair fell back to sending the preamble and AWAITING it, which inside an
+        /// accumulating executor waits for a send the same call is holding up: the await completed only at
+        /// Execute, and the request then arrived after it, reporting that the batch had already been
+        /// executed. See <c>Accumulates</c>.
+        /// </para>
+        /// </remarks>
+        public override ValueTask<RespPayload> SendAsync(
+            RespRequest preamble,
+            RespRequest request,
+            IRespPreambleGate? gate,
+            CancellationToken cancellationToken = default)
+        {
+            var head = RespPayloadOperation.Rent();
+            head.Attach(preamble.Span, preamble.Flags, default);
+            head.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+            head.Slot = preamble.Slot;
+
+            var body = RespPayloadOperation.Rent();
+            body.Attach(request.Span, request.Flags, cancellationToken);
+            body.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+            body.Slot = request.Slot;
+
+            lock (_sync)
+            {
+                if (_sent) throw new InvalidOperationException("This batch has already been executed.");
+                var queue = _queue ??= [];
+                queue.Add(head);
+                queue.Add(body);
+            }
+
+            // nobody is waiting on the preamble's own reply; it is +OK or the run has failed, and the
+            // command behind it reports that better
+            RespPayloadOperation.DiscardReply(head);
+            return new ValueTask<RespPayload>(body, body.Token);
         }
 
         /// <summary>Send everything accumulated so far.</summary>

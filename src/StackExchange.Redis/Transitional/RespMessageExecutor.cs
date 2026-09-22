@@ -356,6 +356,201 @@ namespace StackExchange.Redis
         /// short-lived array is a cheaper answer than a lifetime protocol.
         /// </para>
         /// </remarks>
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>
+        /// <b>Not yet, and the reason is a redirect.</b> The operation form below is written and works -
+        /// <c>IMultiMessage</c> gives the contiguity a run needs, since <c>PhysicalBridge</c> expands one
+        /// inside its write lock - but turning this on made
+        /// <c>MovedToSameEndpoint_BatchCommands_QueuedDuringReconnect</c> hang: a <c>-MOVED</c> re-issues
+        /// the message, and re-issuing a multi-message re-expands a wrapper whose heads were already
+        /// enqueued. Batches over this shim therefore still fall back to the shipped implementation.
+        /// </para>
+        /// <para>
+        /// Left as false rather than reverted, because the work it gates is not wasted: the batch bugs it
+        /// exposed - a preamble deadlocking inside an accumulating executor, fire-and-forget never
+        /// completing early, a batch not reporting itself as one - were real and are fixed, and they
+        /// applied to the new core too.
+        /// </para>
+        /// </remarks>
+        internal override bool CanWriteRuns => false;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// The operations already own the completions their callers are awaiting, so each is written by an
+        /// <see cref="OperationMessage"/> that pushes the reply straight back into it. The last of them
+        /// carries the run, for the reason the request form documents: only the messages a multi-message
+        /// yields are enqueued for replies, so a wrapper yielding none of itself would never be written.
+        /// </remarks>
+        internal override bool TrySendBatch(List<RespPayloadOperation> operations)
+        {
+            if (operations.Count == 0) return true;
+
+            // all but the last are yielded ahead of the run; the LAST IS the run message itself, exactly
+            // as the request form does it. Only the messages a multi-message yields are enqueued for
+            // replies, so a wrapper that yielded none of itself would never be written and never complete.
+            var tail = operations.Count - 1;
+            var heads = new Message[tail];
+            for (var i = 0; i < tail; i++)
+            {
+                var head = new OperationMessage(Database, operations[i]);
+                Forward(head, operations[i]);
+                heads[i] = head;
+            }
+
+            var run = new OperationRunMessage(Database, heads, operations[tail]);
+            Forward(_target.ExecuteAsync(run, PayloadProcessor.Instance, defaultValue: null!)!, operations[tail]);
+            return true;
+        }
+
+        /// <summary>The operations of a batch, written as one unit.</summary>
+        /// <remarks><inheritdoc cref="TrySendBatch" path="/remarks"/></remarks>
+        private sealed class OperationRunMessage : Message, IMultiMessage
+        {
+            private readonly Message[] _heads;
+
+            internal OperationRunMessage(int database, Message[] heads, RespPayloadOperation tail)
+                : base(database, tail.Flags, RedisCommand.UNKNOWN)
+            {
+                _heads = heads;
+                Operation = tail;
+            }
+
+            /// <summary>The last operation of the run, which this message writes and completes.</summary>
+            internal RespPayloadOperation Operation { get; }
+
+            public bool CanWriteWithoutExpansion => false;
+
+            public override int ArgCount => 0;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                var slot = Operation.Slot;
+                foreach (var message in _heads)
+                {
+                    slot = ServerSelectionStrategy.CombineSlot(slot, message.GetHashSlot(serverSelectionStrategy));
+                }
+
+                return slot;
+            }
+
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection) => Expand();
+
+            private IEnumerable<Message> Expand()
+            {
+                foreach (var head in _heads) yield return head;
+                yield return this;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                if (!Operation.TryReserveRequest(Operation.Token, out var payload)) return;
+                try
+                {
+                    writer.WriteRaw(payload.Span);
+                }
+                finally
+                {
+                    Operation.ReleaseRequest();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes an operation's own already-rendered bytes, and completes <b>that operation</b> with the
+        /// reply.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The bridge the batch and transaction paths need.</b> Those paths deal in
+        /// <see cref="RespPayloadOperation"/>s that already exist and already own the completion a caller
+        /// is awaiting - unlike the run path, which is handed requests and creates its own. So this
+        /// message carries the operation rather than a request: it writes what the operation holds, and
+        /// pushes the reply back into it.
+        /// </para>
+        /// <para>
+        /// It is deliberately thin. Everything about ordering, contiguity and slots is the caller's; all
+        /// this does is get bytes out through the old pipeline and the answer back to the right waiter.
+        /// </para>
+        /// </remarks>
+        private sealed class OperationMessage : Message
+        {
+            internal readonly RespPayloadOperation Operation;
+
+            internal OperationMessage(int database, RespPayloadOperation operation)
+                : base(database, operation.Flags, RedisCommand.UNKNOWN)
+            {
+                Operation = operation;
+            }
+
+            public override int ArgCount => 0;
+
+            /// <inheritdoc/>
+            /// <remarks>Already folded when the operation's frame was rendered; nothing here can improve on it.</remarks>
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => Operation.Slot;
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                if (!Operation.TryReserveRequest(Operation.Token, out var payload)) return;
+                try
+                {
+                    writer.WriteRaw(payload.Span);
+                }
+                finally
+                {
+                    Operation.ReleaseRequest();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Attaches an existing operation to a message, so the message's reply completes <b>that
+        /// operation</b>.
+        /// </summary>
+        /// <remarks>
+        /// <b>Reuses <c>PayloadProcessor</c> rather than parsing replies itself</b>, and the first attempt
+        /// here did not - which is exactly what went wrong. A bespoke processor that copied the reply
+        /// straight into the operation also bypassed everything the old read path does around a reply: a
+        /// <c>-MOVED</c> was handed to the caller as a server error instead of being followed, so a
+        /// batch during a reconfiguration failed where it should have been re-issued. Going through the
+        /// ordinary processor inherits redirects, NOSCRIPT repair and error handling for free.
+        /// </remarks>
+        private static void Forward(Message message, RespPayloadOperation operation)
+        {
+            var box = TaskResultBox<RespPayload>.Create(out var source, null);
+            message.SetSource(box, PayloadProcessor.Instance);
+            Forward(source.Task, operation);
+        }
+
+        /// <summary>
+        /// The same hand-off for a message whose completion somebody else owns.
+        /// </summary>
+        /// <remarks>
+        /// <b>The tail of a run is executed rather than merely enqueued</b>, and <c>ExecuteAsync</c> sets
+        /// the message's source itself - overwriting any box attached beforehand, which left the tail's
+        /// operation waiting for a completion that had been replaced. Forwarding from the task it hands
+        /// back is the same wiring from the other end.
+        /// </remarks>
+        private static void Forward(Task<RespPayload> pending, RespPayloadOperation operation)
+        {
+            pending.ContinueWith(
+                static (completed, state) =>
+                {
+                    var target = (RespPayloadOperation)state!;
+                    if (completed.IsFaulted)
+                    {
+                        target.TrySetException(target.Token, completed.Exception!.InnerException ?? completed.Exception);
+                        return;
+                    }
+
+                    using var payload = completed.Result;
+                    target.TrySetResult(target.Token, payload.Span);
+                },
+                operation,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
         private sealed class FrameMessage : Message
         {
             private readonly RespRequest _request;

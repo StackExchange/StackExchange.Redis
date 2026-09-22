@@ -77,6 +77,10 @@ namespace StackExchange.Redis
         internal override bool CanWriteRuns => true;
 
         /// <inheritdoc/>
+        /// <remarks>Yes: it owns the connection a transaction holds, and the write claim on it.</remarks>
+        internal override bool CanWriteTransactions => true;
+
+        /// <inheritdoc/>
         /// <remarks>
         /// It owns a connection outright, so contiguity is simply available: there is no backlog that
         /// could drain the run one operation at a time, and no reconnect that could split it.
