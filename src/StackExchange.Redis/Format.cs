@@ -135,20 +135,19 @@ namespace StackExchange.Redis
         /// Gets the TLS SNI and certificate-validation host for a connection to <paramref name="endpoint"/>.
         /// </summary>
         /// <remarks>
-        /// A <see cref="DnsEndPoint"/> always uses its own host so hostname-routed clusters present the
-        /// correct SNI for each discovered node. An address endpoint still honors <paramref name="sslHost"/>
-        /// so dial-by-IP deployments can validate a certificate name.
+        /// An explicitly configured <paramref name="sslHost"/> wins. Otherwise, a <see cref="DnsEndPoint"/>
+        /// uses its own host and any other endpoint uses its address.
         /// </remarks>
         internal static string GetTlsHostName(EndPoint endpoint, string? sslHost)
         {
-            if (endpoint is DnsEndPoint dns && !dns.Host.IsNullOrWhiteSpace())
-            {
-                return dns.Host;
-            }
-
             if (!sslHost.IsNullOrWhiteSpace())
             {
                 return sslHost;
+            }
+
+            if (endpoint is DnsEndPoint dns && !dns.Host.IsNullOrWhiteSpace())
+            {
+                return dns.Host;
             }
 
             return ToStringHostOnly(endpoint);

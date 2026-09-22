@@ -96,8 +96,10 @@ public readonly struct TlsOptions
 #endif
 
     /// <summary>
-    /// The TLS host name to use for the given endpoint. A <see cref="DnsEndPoint"/> uses its own host
-    /// (required for SNI routing); an address endpoint uses <see cref="SslHost"/> when set, otherwise its address.
+    /// The TLS host name to use for the given endpoint. An explicitly configured <see cref="SslHost"/> always
+    /// wins. Otherwise, a <see cref="DnsEndPoint"/> uses its own host, and an address endpoint uses the inferred
+    /// configuration host when available before falling back to its address.
     /// </summary>
-    public string ResolveHost(EndPoint endpoint) => Format.GetTlsHostName(endpoint, SslHost);
+    public string ResolveHost(EndPoint endpoint)
+        => _options?.ResolveTlsHostName(endpoint) ?? Format.ToStringHostOnly(endpoint);
 }

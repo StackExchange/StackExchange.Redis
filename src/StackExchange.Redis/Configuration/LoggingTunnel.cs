@@ -407,7 +407,7 @@ public abstract class LoggingTunnel : Tunnel
 #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
     {
         // mirrors TLS handshake from PhysicalConnection, but wouldn't help to share code here
-        var host = Format.GetTlsHostName(endpoint, _options.SslHost);
+        var host = _options.ResolveTlsHostName(endpoint);
 
         var ssl = new SslStream(
             innerStream: stream,

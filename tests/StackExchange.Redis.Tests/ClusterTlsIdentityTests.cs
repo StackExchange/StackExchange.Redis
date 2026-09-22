@@ -38,7 +38,6 @@ public class ClusterTlsIdentityTests(ITestOutputHelper log)
         var config = server.GetClientConfig(defaultOnly: true);
         config.EndPoints.Clear();
         config.EndPoints.Add(new DnsEndPoint(Hostname, port));
-        config.SslHost = "host-2.redis.example.com"; // the configured name must not replace per-node SNI
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
         var db = conn.GetDatabase();
