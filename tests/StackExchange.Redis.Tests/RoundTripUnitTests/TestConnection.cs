@@ -83,6 +83,35 @@ public class TestConnection : IDisposable
 
     public void StartReading() => _physical.StartReading(TestContext.Current.CancellationToken);
 
+    internal bool IsSyncReader => _physical.IsSyncReader;
+    internal bool IsSyncWriter => _physical.IsSyncWriter;
+    internal PhysicalConnection.ReadStatus GetReadStatus() => _physical.GetReadStatus();
+    internal bool TransitionToAsync() => _physical.TransitionToAsync();
+    internal long GetBytesReceived()
+    {
+        _physical.GetBytes(out _, out var received);
+        return received;
+    }
+
+    /// <summary>
+    /// Enqueues a <c>PING</c> (without flushing; the reader does not need the request on the wire to pair the
+    /// reply), feeds <paramref name="responseResp"/> inbound, and returns the task for the paired result.
+    /// </summary>
+    internal Task<bool> PingAsync(string responseResp = "+PONG\r\n")
+    {
+        var box = TaskResultBox<bool>.Create(out var tcs, null);
+        var message = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+        message.SetSource(box, ResultProcessor.DemandPONG);
+        WriteOutbound(message);
+        return Complete(this, tcs.Task, responseResp);
+
+        static async Task<bool> Complete(TestConnection conn, Task<bool> pending, string responseResp)
+        {
+            await conn.AddInboundAsync(responseResp);
+            return await pending;
+        }
+    }
+
     public ReadOnlySpan<byte> GetOutboundData() => _stream.GetOutboundData();
     public void FlushOutboundData() => _stream.FlushOutboundData();
     public ValueTask AddInboundAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
