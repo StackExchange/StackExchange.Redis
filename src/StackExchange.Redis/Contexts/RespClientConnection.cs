@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
+using RESPite.Messages;
 using RESPite.Operations;
 
 namespace StackExchange.Redis
@@ -15,6 +16,10 @@ namespace StackExchange.Redis
     /// the reply as an ordinary error, which is the right answer when the redirect cannot be followed.
     /// </returns>
     internal delegate bool RespRedirectRouter(in RespRedirect redirect, RespPayloadOperation operation);
+
+    /// <summary>Handles an out-of-band frame; returns whether it was recognised and consumed.</summary>
+    /// <param name="frame">The complete frame, including its prefix.</param>
+    internal delegate bool RespPushHandler(ReadOnlySpan<byte> frame);
 
     /// <summary>
     /// EXPERIMENTAL SPIKE. The connection the client uses: one that knows what a reply <i>means</i>.
@@ -52,6 +57,26 @@ namespace StackExchange.Redis
     {
         private HashSet<long>? _claims;
 
+        /// <summary>
+        /// Whether deliveries on this connection can arrive as ordinary arrays, not only as push frames.
+        /// </summary>
+        /// <remarks>
+        /// <b>True for a RESP2 subscription connection and nothing else.</b> RESP3 marks a delivery with
+        /// its own prefix, so the protocol says what a frame is; RESP2 does not, and the only thing
+        /// separating a <c>message</c> from a reply is that this connection is a subscriber. Set it on any
+        /// other connection and ordinary replies start being eaten as deliveries.
+        /// </remarks>
+        internal bool DeliversArrays { get; set; }
+
+        /// <summary>Told about each out-of-band frame; returns whether it was recognised and consumed.</summary>
+        /// <remarks>
+        /// Consumed means "never matched to a pending operation". Returning true for a frame that was
+        /// actually a reply stalls whatever was waiting for it, so an unrecognised frame answers false and
+        /// takes its chances as a reply - which is the right way round for RESP2, where the distinction is
+        /// a guess in the first place.
+        /// </remarks>
+        internal RespPushHandler? OnPush { get; set; }
+
         /// <summary>The server this connection reaches; set once the endpoint is known.</summary>
         /// <remarks>
         /// Borrowed from the old core rather than reinvented: <see cref="ServerEndPoint"/> already holds
@@ -76,6 +101,51 @@ namespace StackExchange.Redis
             {
                 return (_claims ??= new()).Add(id);
             }
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>
+        /// A push frame always; an array only when this connection delivers them - and then only when it
+        /// is not the reply to a <c>PING</c>, which on a subscriber connection is <i>also</i> an array.
+        /// Without that exception the ping is consumed as a delivery and whoever sent it waits for ever,
+        /// which is precisely the failure the shipped reader's <c>IsArrayPong</c> exists to avoid.
+        /// </para>
+        /// </remarks>
+        protected override bool IsOutOfBand(ReadOnlySpan<byte> frame)
+        {
+            if (frame.IsEmpty) return false;
+
+            var prefix = (RespPrefix)frame[0];
+            if (prefix == RespPrefix.Push) return true;
+
+            return prefix == RespPrefix.Array && DeliversArrays && !IsPong(frame);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>False when there is no handler, or it does not recognise the frame.</b> That is deliberate
+        /// for arrays: this connection guessed that an array was a delivery, and if nobody claims it the
+        /// honest fallback is to let it be matched as a reply rather than drop it. A RESP3 push that goes
+        /// unrecognised is dropped by the base instead, which is right there - a push is out-of-band by
+        /// definition and matching it to a command would desynchronise the stream.
+        /// </remarks>
+        protected override bool OnOutOfBand(ReadOnlySpan<byte> frame) => OnPush?.Invoke(frame) == true;
+
+        /// <summary>Whether this array is the reply to a <c>PING</c> rather than a delivery.</summary>
+        private static bool IsPong(ReadOnlySpan<byte> frame)
+        {
+            var reader = new RespReader(frame);
+            if (!reader.SafeTryMoveNext() || reader.Prefix != RespPrefix.Array) return false;
+            if (!reader.SafeTryMoveNext()) return false;
+
+            Span<byte> buffer = stackalloc byte[4];
+            var span = reader.TryGetSpan(out var direct) ? direct : reader.Buffer(buffer);
+            return span.Length == 4
+                && (span[0] | 0x20) == (byte)'p'
+                && (span[1] | 0x20) == (byte)'o'
+                && (span[2] | 0x20) == (byte)'n'
+                && (span[3] | 0x20) == (byte)'g';
         }
 
         /// <inheritdoc/>

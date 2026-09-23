@@ -611,6 +611,28 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// </remarks>
     protected virtual bool OnOutOfBand(ReadOnlySpan<byte> frame) => true;
 
+    /// <summary>
+    /// Whether this frame is out-of-band at all, before asking what to do with it.
+    /// </summary>
+    /// <param name="frame">The complete frame, including its prefix.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>A push frame is out-of-band by definition</b>, which is the default and is all RESP3 needs. RESP2
+    /// has no push prefix: there, a delivery is an ordinary array, and the only thing distinguishing it
+    /// from a reply is the state of the connection it arrived on. That is knowledge this type does not
+    /// have and should not acquire - it is protocol plumbing, not a client - so recognition is a virtual
+    /// and the client decides.
+    /// </para>
+    /// <para>
+    /// Answering true here means the frame is never matched against a pending operation, so an
+    /// over-eager implementation does not merely mislabel a frame, it strands whatever was waiting for
+    /// one. A <c>PING</c> on a RESP2 subscriber connection is the case to watch: its reply is also an
+    /// array.
+    /// </para>
+    /// </remarks>
+    protected virtual bool IsOutOfBand(ReadOnlySpan<byte> frame)
+        => !frame.IsEmpty && (RespPrefix)frame[0] == RespPrefix.Push;
+
     private void Append(ReadOnlySpan<byte> payload)
     {
         EnsureSpace(payload.Length);
@@ -677,7 +699,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             var frame = buffer.GetSpan().Slice(_start, length);
             _start += length;
 
-            if (!frame.IsEmpty && (RespPrefix)frame[0] == RespPrefix.Push && OnOutOfBand(frame)) continue;
+            if (IsOutOfBand(frame) && OnOutOfBand(frame)) continue;
 
             if (_pending.TryDequeue(out var message))
             {
