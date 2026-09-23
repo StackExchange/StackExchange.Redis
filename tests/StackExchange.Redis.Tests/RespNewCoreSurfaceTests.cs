@@ -25,6 +25,10 @@ namespace StackExchange.Redis.Tests;
 public abstract class RespNewCoreFixture
 {
     /// <summary>The new core over this multiplexer, as an <see cref="IDatabase"/>.</summary>
+    /// <summary>The core behind a multiplexer, for tests that assert about connections rather than commands.</summary>
+    internal static RespNewCore CoreFor(IConnectionMultiplexer conn)
+        => Cores.GetValue(TestMultiplexer.Unwrap(conn), static m => new RespNewCore(m));
+
     internal static IDatabase Wrap(IConnectionMultiplexer conn, int db, object? asyncState)
     {
         var muxer = TestMultiplexer.Unwrap(conn);

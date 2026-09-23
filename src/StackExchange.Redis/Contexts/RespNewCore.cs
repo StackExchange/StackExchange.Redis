@@ -50,6 +50,16 @@ namespace StackExchange.Redis
         /// </summary>
         private readonly int _defaultDatabase;
 
+        /// <summary>The protocol each endpoint's handshake actually negotiated.</summary>
+        /// <remarks>
+        /// <b>Recorded because it is not knowable in advance.</b> Configuration says what to ask for;
+        /// only the <c>HELLO</c> reply says what was agreed - a server that predates RESP3, or has it
+        /// disabled, answers RESP2 however the client was configured. Anything that depends on the
+        /// protocol therefore cannot be decided at connect time, which is the whole reason this exists
+        /// rather than reading <c>RawConfig.Protocol</c>.
+        /// </remarks>
+        private readonly ConcurrentDictionary<EndPoint, RedisProtocol> _protocols = new();
+
         /// <summary>What each endpoint's own handshake reported about itself.</summary>
         /// <remarks>
         /// Filled by the connect path, read by that endpoint's executor. An observation from the
@@ -206,11 +216,79 @@ namespace StackExchange.Redis
                 ? Executor(database, server.EndPoint)
                 : null;
 
+        /// <summary>
+        /// Whether deliveries for this endpoint arrive on its ordinary connection, rather than needing one
+        /// of their own.
+        /// </summary>
+        /// <param name="endpoint">The endpoint in question.</param>
+        /// <remarks>
+        /// <b>Know, or assume - and the difference matters.</b> Once a handshake has completed this is a
+        /// fact; before that it is a guess from configuration, because the answer does not exist yet. The
+        /// shipped core draws exactly this distinction in <c>ServerEndPoint.KnowOrAssumeResp3</c>, and it
+        /// has to: callers ask whether the subscriber is connected long before anything has connected.
+        /// <para>
+        /// Under RESP3 a delivery is a push frame on the same connection, so there is no second socket at
+        /// all. Only RESP2 needs one, which is why nothing here creates one speculatively.
+        /// </para>
+        /// </remarks>
+        private bool KnowOrAssumeResp3(EndPoint endpoint)
+            => _protocols.TryGetValue(endpoint, out var known)
+                ? known >= RedisProtocol.Resp3
+                : _multiplexer.RawConfig.TryResp3();
+
         private void OnSlotMoved(int slot, EndPoint endpoint)
             => _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
 
         private void OnTopologySuspect()
             => _multiplexer.ReconfigureIfNeeded(null, false, "unroutable redirect");
+
+        /// <summary>One executor - and so one socket - per endpoint for RESP2 deliveries, created on demand.</summary>
+        private readonly ConcurrentDictionary<EndPoint, RespEndpointExecutor> _subscriptions = new();
+
+        /// <summary>How many sockets exist purely for deliveries; zero unless something subscribed.</summary>
+        internal int SubscriptionConnectionCount => _subscriptions.Count;
+
+        /// <summary>The ordinary connection for an endpoint, for tests that compare the two.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        internal RespEndpointExecutor InteractiveEndpoint(EndPoint endpoint) => Endpoint(endpoint);
+
+        /// <summary>
+        /// The connection deliveries arrive on for this endpoint, creating one <b>only if this endpoint
+        /// needs a second socket and something is actually asking</b>.
+        /// </summary>
+        /// <param name="endpoint">The endpoint to subscribe on.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Fully lazy, deliberately, and not merely as an optimisation.</b> Deployments actively reduce
+        /// their server socket count - disabling the legacy notification channel among other things - so a
+        /// subscription socket has to be pay-per-play. Opening one for an endpoint nobody subscribes on
+        /// would spend exactly the resource that effort is protecting.
+        /// </para>
+        /// <para>
+        /// Under RESP3 this returns the ORDINARY executor: deliveries are push frames on the connection
+        /// that is already there, so a second socket would buy nothing. Only RESP2 gets one of its own,
+        /// and only then is <c>DeliversArrays</c> true - which is the invariant that flag documents, now
+        /// with something able to establish it.
+        /// </para>
+        /// </remarks>
+        internal RespEndpointExecutor SubscriptionEndpoint(EndPoint endpoint)
+        {
+            if (KnowOrAssumeResp3(endpoint)) return Endpoint(endpoint);
+
+            return _subscriptions.TryGetValue(endpoint, out var existing)
+                ? existing
+                : _subscriptions.GetOrAdd(endpoint, CreateSubscription(endpoint));
+        }
+
+        /// <summary>An endpoint executor whose connection delivers RESP2 pub/sub arrays.</summary>
+        private RespEndpointExecutor CreateSubscription(EndPoint endpoint) => new(
+            token => ConnectAsync(_defaultDatabase, endpoint, subscription: true, token),
+            _defaultDatabase,
+            endpoint,
+            _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected,
+            () => _observed.TryGetValue(endpoint, out var features) ? features : null,
+            StartProfile,
+            _select);
 
         /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
         /// <remarks>
@@ -263,7 +341,11 @@ namespace StackExchange.Redis
         /// moment this completes, and a backlog draining against an unset topology is the window that
         /// loses per-slot ordering. See design notes 7h.
         /// </remarks>
-        private async Task<RespConnection> ConnectAsync(int database, EndPoint endpoint, CancellationToken cancellationToken)
+        private Task<RespConnection> ConnectAsync(int database, EndPoint endpoint, CancellationToken cancellationToken)
+            => ConnectAsync(database, endpoint, subscription: false, cancellationToken);
+
+        private async Task<RespConnection> ConnectAsync(
+            int database, EndPoint endpoint, bool subscription, CancellationToken cancellationToken)
         {
             var config = _multiplexer.RawConfig;
 
@@ -274,7 +356,7 @@ namespace StackExchange.Redis
             var transport = await RespTransportFactory.ConnectAsync(
                 endpoint,
                 config,
-                ConnectionType.Interactive,
+                subscription ? ConnectionType.Subscription : ConnectionType.Interactive,
                 _multiplexer.SetAuthSuspect,
                 cancellationToken).ConfigureAwait(false);
 
@@ -304,6 +386,7 @@ namespace StackExchange.Redis
             // endpoint executor publishes it and drains its backlog the moment this returns, and a
             // command choosing its spelling from "we have no idea" is the case this exists to avoid
             if (result.Version is { } version) _observed[endpoint] = new RedisFeatures(version);
+            _protocols[endpoint] = result.Protocol;
 
             // the handshake's SELECT is where this connection's database is decided; recording it is what
             // lets a later command for a different one know it has to say so first
@@ -313,6 +396,12 @@ namespace StackExchange.Redis
             // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
             // identity changes underneath. Borrowed rather than reimplemented while both cores exist.
             connection.Server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
+
+            // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
+            // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
+            // interactive connection it would start eating replies. Read from what the handshake NEGOTIATED
+            // rather than what was configured - a server can answer RESP2 to a RESP3 request.
+            connection.DeliversArrays = subscription && result.Protocol < RedisProtocol.Resp3;
 
             return connection;
         }
@@ -380,6 +469,13 @@ namespace StackExchange.Redis
             {
                 await executor.DisposeAsync().ConfigureAwait(false);
             }
+
+            foreach (var executor in _subscriptions.Values)
+            {
+                await executor.DisposeAsync().ConfigureAwait(false);
+            }
+
+            _subscriptions.Clear();
 
             // the views own nothing - they are a database index over an endpoint's connection - so
             // disposing the endpoints disposes everything there is to dispose
