@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Linq;
+using System.Threading;
 using RESPite.Buffers;
 using Xunit;
 
@@ -127,5 +128,144 @@ public class CycleBufferTests()
         }
 
         Assert.Equal(0, buffer.GetCommittedLength());
+    }
+
+    /// <summary>
+    /// Stress test for the filler/parser split used by <c>PhysicalConnection.ReadAllAsync</c>: one real
+    /// thread keeps writing (GetUncommittedMemory+Commit) while another concurrently reads and discards
+    /// (TryGetCommitted/GetAllCommitted+DiscardCommitted), synchronized only by an external lock - exactly
+    /// the pattern the production code relies on, since CycleBuffer itself has no internal thread-safety.
+    /// A running byte pattern makes any loss, duplication, reordering, or corruption immediately visible.
+    /// </summary>
+    [Fact]
+    public void ConcurrentFillAndParse_PreservesDataUnderStress()
+    {
+        var buffer = CycleBuffer.Create();
+        var bufferLock = new object();
+        const long TargetBytes = 500_000; // several dozen 8KB segments' worth
+        long totalWritten = 0, totalVerified = 0;
+        Exception? fillerError = null, parserError = null;
+
+        var filler = new Thread(() =>
+        {
+            try
+            {
+                var rng = new Random(12345);
+                long written = 0;
+                while (written < TargetBytes)
+                {
+                    Memory<byte> mem;
+                    lock (bufferLock)
+                    {
+                        mem = buffer.GetUncommittedMemory();
+                    }
+
+                    var chunkLen = Math.Min(Math.Min(mem.Length, rng.Next(1, 4001)), (int)Math.Min(TargetBytes - written, int.MaxValue));
+                    var span = mem.Span.Slice(0, chunkLen);
+                    for (int i = 0; i < chunkLen; i++)
+                    {
+                        span[i] = unchecked((byte)(written + i));
+                    }
+
+                    lock (bufferLock)
+                    {
+                        buffer.Commit(chunkLen);
+                    }
+                    written += chunkLen;
+                    Volatile.Write(ref totalWritten, written);
+                }
+            }
+            catch (Exception ex)
+            {
+                fillerError = ex;
+            }
+        });
+
+        var parser = new Thread(() =>
+        {
+            try
+            {
+                long verified = 0;
+                while (verified < TargetBytes)
+                {
+                    bool single;
+                    ReadOnlySpan<byte> span = default;
+                    ReadOnlySequence<byte> seq = default;
+                    lock (bufferLock)
+                    {
+                        single = buffer.TryGetCommitted(out span);
+                        if (!single) seq = buffer.GetAllCommitted();
+                    }
+
+                    long consumed;
+                    if (single)
+                    {
+                        consumed = VerifyAndCount(span, verified);
+                    }
+                    else
+                    {
+                        consumed = 0;
+                        foreach (var segment in seq)
+                        {
+                            consumed += VerifyAndCount(segment.Span, verified + consumed);
+                        }
+                    }
+
+                    if (consumed > 0)
+                    {
+                        lock (bufferLock)
+                        {
+                            buffer.DiscardCommitted(consumed);
+                        }
+                        verified += consumed;
+                        Volatile.Write(ref totalVerified, verified);
+                    }
+                    else
+                    {
+                        Thread.Sleep(0); // nothing new yet; yield rather than hot-spin
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                parserError = ex;
+            }
+
+            static long VerifyAndCount(ReadOnlySpan<byte> span, long expectedStart)
+            {
+                for (int i = 0; i < span.Length; i++)
+                {
+                    var expectedByte = unchecked((byte)(expectedStart + i));
+                    if (span[i] != expectedByte)
+                    {
+                        throw new InvalidOperationException(
+                            $"Data mismatch at offset {expectedStart + i}: expected {expectedByte}, got {span[i]}");
+                    }
+                }
+                return span.Length;
+            }
+        });
+
+        filler.Start();
+        parser.Start();
+        var fillerDone = filler.Join(TimeSpan.FromSeconds(10));
+        var parserDone = parser.Join(TimeSpan.FromSeconds(10));
+        if (!fillerDone || !parserDone)
+        {
+            long committedNow;
+            lock (bufferLock)
+            {
+                committedNow = buffer.GetCommittedLength();
+            }
+            Assert.Fail(
+                $"stalled: fillerDone={fillerDone} parserDone={parserDone} totalWritten={Volatile.Read(ref totalWritten)} " +
+                $"totalVerified={Volatile.Read(ref totalVerified)} committedLength={committedNow} " +
+                $"fillerError={fillerError} parserError={parserError}");
+        }
+
+        Assert.Null(fillerError);
+        Assert.Null(parserError);
+        Assert.Equal(TargetBytes, totalWritten);
+        Assert.Equal(TargetBytes, totalVerified);
     }
 }

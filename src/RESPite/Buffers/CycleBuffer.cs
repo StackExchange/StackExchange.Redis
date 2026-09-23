@@ -571,6 +571,15 @@ public partial struct CycleBuffer
             Memory = default;
             RunningIndex = 0;
             _flags = Flags.None;
+
+            // This object becomes available - via the *shared, static* _spare slot below - to any
+            // CycleBuffer instance in the process, handed out by Segment.Create() as a pristine segment.
+            // StartTrimCount must not survive that: some callers reach Recycle() without having gone
+            // through Untrim() first (e.g. AppendOrRecycle's search-exhausted path), and Init() (called
+            // from Create()) never touches it either. A stale nonzero value here previously surfaced as
+            // Debug.Assert(leasedStart == 0, "should be zero for a new segment") failing in
+            // GetUncommittedMemory for what looked like a brand new segment.
+            StartTrimCount = 0;
             Interlocked.Exchange(ref _spare, this);
             DebugAssertValidChain();
         }
