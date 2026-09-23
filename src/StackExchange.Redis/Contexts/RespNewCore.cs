@@ -281,6 +281,33 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// A context pinned to one server: the already-routed piece <see cref="IServer"/> wants.
+        /// </summary>
+        /// <param name="endpoint">The server to send to.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>There is no routing decision left to make</b>, which is the whole point: an endpoint executor
+        /// IS a server, so pinning to one is choosing it rather than wrapping it in something that chooses.
+        /// That is why this is three lines and the multiplexer context is not.
+        /// </para>
+        /// <para>
+        /// <b>No database</b> - a server is not database-scoped, so the context carries <c>-1</c> and a
+        /// command that does need one fails loudly rather than quietly running against whichever database
+        /// the handshake happened to select. <c>IServer</c>'s own database-scoped members take the number
+        /// explicitly. And <b>no cache</b>: invalidation is reported by key and server commands are
+        /// keyless, so nothing could ever invalidate a cached <c>INFO</c>.
+        /// </para>
+        /// </remarks>
+        internal RespServerContext ServerContext(EndPoint endpoint)
+            => new(new RespContext(
+                    _multiplexer.RawConfig.CommandMap,
+                    database: -1,
+                    serverType: _multiplexer.ServerSelectionStrategy.ServerType)
+                .WithScriptCache(_multiplexer.ScriptCache)
+                .WithServices(_features)
+                .WithExecutor(Endpoint(endpoint)));
+
+        /// <summary>
         /// A context that sends on the connection deliveries arrive on for an endpoint.
         /// </summary>
         /// <param name="endpoint">The endpoint to subscribe on.</param>
