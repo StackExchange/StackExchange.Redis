@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -130,6 +131,61 @@ public class RespPushDispatchTests(ITestOutputHelper output, SharedConnectionFix
         var muxer = TestMultiplexer.Unwrap(conn);
 
         Assert.Equal(RespOutOfBandResult.NotRecognized, Dispatch(muxer, frame));
+    }
+
+    /// <summary>
+    /// One delivery can carry several messages, and each is delivered separately.
+    /// </summary>
+    /// <remarks>
+    /// An array payload is not one value that happens to be a list - it is several messages batched into a
+    /// frame (StackExchange.Redis#2507). Reading it as a single value hands the handler something it
+    /// cannot use, and loses every message after the first.
+    /// </remarks>
+    [Fact]
+    public async Task AnArrayPayloadIsSeveralMessages()
+    {
+        await using var conn = Create(shared: false);
+        var muxer = TestMultiplexer.Unwrap(conn);
+
+        var seen = new List<string>();
+        var both = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        muxer.GetSubscriber().Subscribe(RedisChannel.Literal(Me()), (_, payload) =>
+        {
+            lock (seen)
+            {
+                seen.Add((string?)payload ?? "");
+                if (seen.Count == 2) both.TrySetResult(true);
+            }
+        });
+
+        var verdict = Dispatch(
+            muxer,
+            $">3\r\n$7\r\nmessage\r\n${Me().Length}\r\n{Me()}\r\n*2\r\n$5\r\nfirst\r\n$6\r\nsecond\r\n");
+
+        Assert.Equal(RespOutOfBandResult.Handled, verdict);
+
+        var done = await Task.WhenAny(both.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.True(ReferenceEquals(done, both.Task), $"expected two messages, saw {seen.Count}");
+        lock (seen)
+        {
+            Assert.Equal(["first", "second"], seen);
+        }
+    }
+
+    /// <summary>
+    /// An invalidation is consumed, never matched: it is not the reply to anything we sent, so falling
+    /// through to command matching would hand it to whoever happened to be at the front of the queue.
+    /// </summary>
+    [Fact]
+    public async Task AnInvalidationIsConsumed()
+    {
+        await using var conn = Create(shared: false);
+        var muxer = TestMultiplexer.Unwrap(conn);
+
+        // what it does to a cache is RespCacheInvalidationFrameTests; what matters here is that it is
+        // recognised at all - this connection has no cache, and the frame must still not be matched
+        Assert.Equal(RespOutOfBandResult.Handled, Dispatch(muxer, ">2\r\n$10\r\ninvalidate\r\n*1\r\n$1\r\nk\r\n"));
+        Assert.Equal(RespOutOfBandResult.Handled, Dispatch(muxer, ">2\r\n$10\r\ninvalidate\r\n_\r\n"));
     }
 
     /// <summary>

@@ -706,51 +706,16 @@ internal sealed partial class PhysicalConnection
     /// Hand a <c>CLIENT TRACKING</c> invalidation to the client-side cache, if there is one.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The reader is positioned on the <c>invalidate</c> token; the payload follows. A null payload means
-    /// a flush - <c>FLUSHALL</c>/<c>FLUSHDB</c>, and also the moment tracking is turned off - and is the
-    /// one invalidation that cannot be filtered by prefix, so it is never safe to ignore. Otherwise it is
-    /// an array, because one write can name several keys: <c>MSET a b c</c> arrives as a single push.
-    /// </para>
-    /// <para>
     /// Always <see cref="OutOfBandResult.Handled"/>, including when we have no cache. An invalidation is
     /// never the reply to something we sent, so letting it fall through to command matching would hand it
-    /// to whoever happened to be at the front of the queue.
-    /// </para>
+    /// to whoever happened to be at the front of the queue. What to do with the payload is
+    /// <see cref="RespPushDispatch.ApplyInvalidation"/>, shared with the core that has no connection to
+    /// record a read status on.
     /// </remarks>
     private OutOfBandResult OnInvalidate(ConnectionMultiplexer muxer, ref RespReader reader)
     {
         _readStatus = ReadStatus.Invalidate;
-        var cache = muxer.ClientCache;
-        if (cache is null || !reader.SafeTryMoveNext()) return OutOfBandResult.Handled;
-
-        if (reader.IsNull)
-        {
-            cache.OnFlush();
-            return OutOfBandResult.Handled;
-        }
-
-        if (!reader.IsAggregate || reader.IsStreaming)
-        {
-            // not a shape we understand; over-flush rather than quietly keep entries the server has
-            // just told us are wrong. Erring this way is the same judgement made on disconnect.
-            cache.OnFlush();
-            return OutOfBandResult.Handled;
-        }
-
-        var count = reader.AggregateLength();
-        for (var i = 0; i < count; i++)
-        {
-            if (!reader.SafeTryMoveNext() || !reader.TryGetSpan(out var key))
-            {
-                // a key we cannot see is a key we cannot evict, and we already know it changed
-                cache.OnFlush();
-                return OutOfBandResult.Handled;
-            }
-
-            cache.OnInvalidate(key); // allocation-free: the key never leaves this span
-        }
-
+        RespPushDispatch.ApplyInvalidation(muxer.ClientCache, ref reader);
         return OutOfBandResult.Handled;
     }
 
@@ -760,23 +725,8 @@ internal sealed partial class PhysicalConnection
         in RedisChannel messageChannel,
         in RespReader reader)
     {
-        // note: this could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
         _readStatus = ReadStatus.InvokePubSub;
-        switch (reader.Prefix)
-        {
-            case RespPrefix.BulkString:
-            case RespPrefix.SimpleString:
-                muxer.OnMessage(subscriptionChannel, messageChannel, reader.ReadRedisValue());
-                break;
-            case RespPrefix.Array:
-                var iter = reader.AggregateChildren();
-                while (iter.MoveNext())
-                {
-                    muxer.OnMessage(subscriptionChannel, messageChannel, iter.Value.ReadRedisValue());
-                }
-
-                break;
-        }
+        RespPushDispatch.DeliverPayload(muxer, in subscriptionChannel, in messageChannel, in reader);
     }
 
     private void MatchNextResult(ReadOnlySpan<byte> frame)
