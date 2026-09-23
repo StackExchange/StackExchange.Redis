@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Net;
 using RESPite.Messages;
 
 namespace StackExchange.Redis
@@ -85,9 +86,47 @@ namespace StackExchange.Redis
             }
 
             if (!reader.SafeTryMoveNext()) return RespOutOfBandResult.NotRecognized;
+            var payload = reader.ReadRedisValue();
 
-            multiplexer.OnMessage(subscription, channel, reader.ReadRedisValue());
+            // before the handlers, because this one is not a handler's business: the configuration broadcast
+            // is how a peer tells us the topology moved, and it is not kept in the pub/sub registry - so
+            // nothing would be listening for it, and the reconfigure it asks for would simply not happen
+            if (!patterned) CheckConfigurationBroadcast(multiplexer, in subscription, in payload);
+
+            multiplexer.OnMessage(subscription, channel, payload);
             return RespOutOfBandResult.Handled;
+        }
+
+        /// <summary>
+        /// Act on a peer's "the configuration changed" broadcast, if that is what this is.
+        /// </summary>
+        /// <remarks>
+        /// The payload names who to blame, or <c>*</c> for "everyone" - and it is only ever a hint: a
+        /// malformed one costs us the name, not the reconfigure, so it is parsed leniently and the
+        /// reconfigure happens either way.
+        /// </remarks>
+        private static void CheckConfigurationBroadcast(
+            ConnectionMultiplexer multiplexer,
+            in RedisChannel channel,
+            in RedisValue payload)
+        {
+            var configChanged = multiplexer.ConfigurationChangedChannel;
+            if (configChanged is null || !channel.Span.SequenceEqual(configChanged)) return;
+
+            EndPoint? blame = null;
+            if (payload != RedisLiterals.Wildcard)
+            {
+                try
+                {
+                    _ = Format.TryParseEndPoint((string?)payload, out blame);
+                }
+                catch
+                {
+                    // identifying the source is a nicety; not being able to is not a reason to ignore it
+                }
+            }
+
+            multiplexer.ReconfigureIfNeeded(blame, true, "broadcast");
         }
 
         private static bool TryReadChannel(ref RespReader reader, RedisChannel.RedisChannelOptions options, out RedisChannel channel)

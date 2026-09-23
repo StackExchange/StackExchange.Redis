@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -129,6 +130,38 @@ public class RespPushDispatchTests(ITestOutputHelper output, SharedConnectionFix
         var muxer = TestMultiplexer.Unwrap(conn);
 
         Assert.Equal(RespOutOfBandResult.NotRecognized, Dispatch(muxer, frame));
+    }
+
+    /// <summary>
+    /// A peer's "the configuration changed" broadcast is acted on, not merely delivered.
+    /// </summary>
+    /// <remarks>
+    /// This channel is not kept in the pub/sub registry, so nothing is listening for it: a dispatcher that
+    /// only invoked handlers would drop the one message whose whole purpose is to make us re-read the
+    /// topology - and the client would keep talking to the old primary until something else told it.
+    /// </remarks>
+    [Fact]
+    public async Task AConfigurationBroadcastAsksForAReconfigure()
+    {
+        await using var conn = Create(shared: false);
+        var muxer = TestMultiplexer.Unwrap(conn);
+
+        var blamed = new TaskCompletionSource<EndPoint?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        muxer.ConfigurationChangedBroadcast += (_, args) => blamed.TrySetResult(args.EndPoint);
+
+        var channel = Encoding.UTF8.GetString(muxer.ConfigurationChangedChannel!);
+        var source = "127.0.0.1:6380";
+        var verdict = Dispatch(
+            muxer,
+            $">3\r\n$7\r\nmessage\r\n${channel.Length}\r\n{channel}\r\n${source.Length}\r\n{source}\r\n");
+
+        Assert.Equal(RespOutOfBandResult.Handled, verdict);
+
+        var done = await Task.WhenAny(blamed.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.True(ReferenceEquals(done, blamed.Task), "the broadcast was delivered but not acted on");
+
+        // and it names who to blame, which is what steers the reconfigure that follows
+        Assert.Equal(source, Format.ToString(await blamed.Task));
     }
 
     /// <summary>
