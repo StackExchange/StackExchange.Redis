@@ -95,7 +95,10 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         var db = RespNewCoreFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // the protocol is known rather than assumed, so the socket decision is real
 
-        var channel = RedisChannel.Literal(Me());
+        // the protocol belongs in the name: this test runs once per protocol, both against the same
+        // server, and a shared channel means both subscriptions are counted - PUBLISH answers 2 and the
+        // assertion below fails for a reason that has nothing to do with the subject
+        var channel = RedisChannel.Literal($"{Me()}-{TestContext.Current.GetProtocol()}");
         var delivered = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         muxer.GetOrAddSubscription(channel, CommandFlags.None)
              .Add((_, payload) => delivered.TrySetResult((string?)payload ?? ""), null);

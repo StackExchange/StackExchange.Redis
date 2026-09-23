@@ -1535,12 +1535,49 @@ namespace StackExchange.Redis
 
         /// <summary>The database to hand out: the shipped one, or the new surface over it.</summary>
         /// <remarks>
+        /// <para>
         /// <b>The old database is still built either way</b>, and is handed to the new surface as its
         /// fallback - which is what makes this switchable at all rather than all-or-nothing. Commands that
         /// have moved take the new write path; the rest reach the server exactly as they did.
+        /// </para>
+        /// <para>
+        /// <b>Which engine carries it is a separate question</b>, and a separate flag: see
+        /// <c>FeatureFlags.NewCoreEngine</c>. The old database's context reaches the server through the
+        /// shipped pipeline, which cannot write a batch as one contiguous run - so every batch falls back
+        /// to the shipped implementation, and <c>RedisBatch : RedisDatabase</c> keeps the whole of the old
+        /// surface alive. A context over the core's own connections is what finally removes that, which is
+        /// why the engine flag exists even though it is a long way from green.
+        /// </para>
         /// </remarks>
         private IDatabase Surface(RedisDatabase inner, object? asyncState)
-            => NewDatabaseSurface ? new TransitionalDatabase(inner.Context, this, asyncState, inner) : inner;
+            => NewDatabaseSurface
+                ? new TransitionalDatabase(
+                    NewCoreEngine ? NewCore.GetDatabase(inner.Database) : inner.Context,
+                    this,
+                    asyncState,
+                    inner)
+                : inner;
+
+        private RespNewCore? _newCore;
+
+        /// <summary>The new core over this multiplexer, created on first use.</summary>
+        /// <remarks>
+        /// One per multiplexer, sharing its topology, script cache and subscription registry - it owns only
+        /// the connections it opens. Racing constructions are resolved by discarding the loser rather than
+        /// locking: it holds nothing until something sends through it, so the one that does not win has
+        /// nothing to release.
+        /// </remarks>
+        internal RespNewCore NewCore
+        {
+            get
+            {
+                var existing = Volatile.Read(ref _newCore);
+                if (existing is not null) return existing;
+
+                var created = new RespNewCore(this);
+                return Interlocked.CompareExchange(ref _newCore, created, null) ?? created;
+            }
+        }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
         internal const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
@@ -2910,6 +2947,10 @@ namespace StackExchange.Redis
                 WaitAllIgnoreErrors(quits);
             }
             DisposeAndClearServers();
+
+            // the core's connections are its own; nothing above closes them
+            Interlocked.Exchange(ref _newCore, null)?.DisposeAsync().AsTask().ObserveErrors();
+
             OnClosing(true);
             Interlocked.Increment(ref _connectionCloseCount);
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -75,10 +75,16 @@ namespace StackExchange.Redis
                 }
             }
 
-            // ...otherwise the tunnel only says WHERE to dial, which is how a proxy is expressed
-            var connectTo = tunnel is null
-                ? endpoint
-                : await tunnel.GetSocketConnectEndpointAsync(endpoint, cancellationToken).ConfigureAwait(false) ?? endpoint;
+            // ...otherwise the tunnel only says WHERE to dial, which is how a proxy is expressed - and
+            // NULL there means "do not dial at all", not "dial the original endpoint". A tunnel that
+            // supplies the whole connection itself answers null here and hands back a stream from
+            // BeforeAuthenticateAsync; coalescing to the endpoint instead sends us to an address that
+            // exists only as a name, which is exactly what an in-process server is
+            EndPoint? connectTo = endpoint;
+            if (tunnel is not null)
+            {
+                connectTo = await tunnel.GetSocketConnectEndpointAsync(endpoint, cancellationToken).ConfigureAwait(false);
+            }
 
             // SocketManager.CreateSocket, not a hand-rolled socket: it picks the address family from the
             // endpoint, uses ProtocolType.Unspecified for a unix domain socket rather than Tcp, sets
@@ -86,23 +92,41 @@ namespace StackExchange.Redis
             // hand-rolled version this replaced said "Stream, Tcp, NoDelay=true" unconditionally, which
             // cannot connect to a unix socket at all.
 #pragma warning disable CS0618 // the TYPE is obsolete for public consumers; this static is the live path
-            var socket = SocketManager.CreateSocket(connectTo, config.TcpKeepAlive);
+            var socket = connectTo is null ? null : SocketManager.CreateSocket(connectTo, config.TcpKeepAlive);
 #pragma warning restore CS0618
             try
             {
-                if (tunnel is not null)
+                if (socket is not null)
                 {
-                    await tunnel.BeforeSocketConnectAsync(connectTo, connectionType, socket, cancellationToken).ConfigureAwait(false);
+                    // the ORIGINAL endpoint, not the one being dialled: the hook is told which server this
+                    // connection is for, and a proxy address is not it
+                    config.BeforeSocketConnect?.Invoke(endpoint, connectionType, socket);
+                    if (tunnel is not null)
+                    {
+                        await tunnel.BeforeSocketConnectAsync(endpoint, connectionType, socket, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    await ConnectSocketAsync(socket, connectTo!).ConfigureAwait(false);
                 }
 
-                await ConnectSocketAsync(socket, connectTo).ConfigureAwait(false);
-
-                // a tunnel may hand back its own stream over our socket - a SOCKS or CONNECT proxy does
+                // a tunnel may hand back its own stream - over our socket for a SOCKS or CONNECT proxy,
+                // or instead of one entirely
                 var stream = tunnel is null
                     ? null
                     : await tunnel.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken).ConfigureAwait(false);
 
-                stream ??= new NetworkStream(socket, ownsSocket: true);
+                if (stream is null)
+                {
+                    if (socket is null)
+                    {
+                        throw new RedisConnectionException(
+                            ConnectionFailureType.UnableToConnect,
+                            CommandFlags.CommandRetryNever,
+                            "The tunnel declined to connect a socket and supplied no stream of its own.");
+                    }
+
+                    stream = new NetworkStream(socket, ownsSocket: true);
+                }
 
                 if (config.Ssl)
                 {
@@ -113,7 +137,7 @@ namespace StackExchange.Redis
             }
             catch
             {
-                socket.Dispose();
+                socket?.Dispose();
                 throw;
             }
         }

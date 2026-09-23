@@ -53,6 +53,29 @@ public partial class ConnectionMultiplexer
         /// </para>
         /// </remarks>
         NewDatabaseSurface = 4,
+
+        /// <summary>
+        /// Run <see cref="NewDatabaseSurface"/> over the new core's own connections, rather than over the
+        /// shipped pipeline.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Two flags because these are two independent questions.</b> The surface flag decides how a
+        /// command is rendered and its reply read; this one decides what carries it. Until now the answer
+        /// was always the shipped pipeline, reached through a <c>Message</c> shim - which cannot write a
+        /// batch as one contiguous run, so every batch fell back to <c>RedisBatch : RedisDatabase</c> and
+        /// kept the whole of the old surface alive. That fallback is the last thing holding
+        /// <c>RedisDatabase</c> up, and only a real connection removes it.
+        /// </para>
+        /// <para>
+        /// <b>Off by default, and a long way from green.</b> Measured at the time of writing: 222 failures
+        /// and then a hang, concentrated in handshake (<c>Resp3HandshakeTests</c>), retry and redirect
+        /// tests - the areas where the core owns the connection rather than borrowing one. The point of a
+        /// second flag is the same as the first: one build can be run both ways, so the surface work stays
+        /// green while the engine work is driven down, instead of living on a red tree.
+        /// </para>
+        /// </remarks>
+        NewCoreEngine = 8,
     }
 
     private static void SetAutodetectFeatureFlags()
@@ -75,6 +98,11 @@ public partial class ConnectionMultiplexer
             if (Environment.GetEnvironmentVariable("SEREDIS_NEW_DATABASE_SURFACE") is "1" or "true" or "TRUE")
             {
                 SetFeatureFlag(nameof(FeatureFlags.NewDatabaseSurface), true);
+            }
+
+            if (Environment.GetEnvironmentVariable("SEREDIS_NEW_CORE_ENGINE") is "1" or "true" or "TRUE")
+            {
+                SetFeatureFlag(nameof(FeatureFlags.NewCoreEngine), true);
             }
         }
         catch { }
@@ -111,6 +139,9 @@ public partial class ConnectionMultiplexer
 
     /// <inheritdoc cref="FeatureFlags.NewDatabaseSurface"/>
     internal static bool NewDatabaseSurface => (s_featureFlags & FeatureFlags.NewDatabaseSurface) != 0;
+
+    /// <inheritdoc cref="FeatureFlags.NewCoreEngine"/>
+    internal static bool NewCoreEngine => (s_featureFlags & FeatureFlags.NewCoreEngine) != 0;
 
     /// <summary>
     /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there
