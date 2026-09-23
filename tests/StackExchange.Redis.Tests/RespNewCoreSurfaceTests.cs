@@ -24,24 +24,45 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public abstract class RespNewCoreFixture
 {
-    /// <summary>The new core over this multiplexer, as an <see cref="IDatabase"/>.</summary>
     /// <summary>The core behind a multiplexer, for tests that assert about connections rather than commands.</summary>
     internal static RespNewCore CoreFor(IConnectionMultiplexer conn)
-        => Cores.GetValue(TestMultiplexer.Unwrap(conn), static m => new RespNewCore(m));
+        => Cores.GetValue(TestMultiplexer.Unwrap(conn), Create);
 
+    /// <summary>The new core over this multiplexer, as an <see cref="IDatabase"/>.</summary>
     internal static IDatabase Wrap(IConnectionMultiplexer conn, int db, object? asyncState)
     {
         var muxer = TestMultiplexer.Unwrap(conn);
 
-        var core = Cores.GetValue(muxer, static m => new RespNewCore(m));
+        var core = Cores.GetValue(muxer, Create);
         var wanted = db < 0 ? 0 : db;
 
         return new TransitionalDatabase(core.GetDatabase(wanted), conn, asyncState, conn.GetDatabase(db, asyncState));
     }
 
+    /// <summary>
+    /// One core per multiplexer, closed when that multiplexer closes.
+    /// </summary>
     /// <remarks>
-    /// One core per multiplexer, keyed weakly so a disposed connection takes its sockets with it. The
-    /// suites share a connection fixture, so building a core per call would open a socket per command.
+    /// <b>The weak key is not what closes the sockets.</b> It lets the core be <i>collected</i>; nothing
+    /// about that shuts a connection, and the server goes on seeing it. That is tolerable for an idle
+    /// interactive socket and not at all tolerable for a subscription, which carries on receiving - and
+    /// carries on being counted by whatever asserts on subscriber counts next. Hooking the multiplexer's
+    /// own closing is what actually ends them.
+    /// </remarks>
+    private static RespNewCore Create(ConnectionMultiplexer muxer)
+    {
+        var core = new RespNewCore(muxer);
+        muxer.Closing += complete =>
+        {
+            // on the second call, once the multiplexer has finished with its own connections; disposing is
+            // idempotent, so a repeat would be harmless anyway
+            if (complete) _ = core.DisposeAsync().AsTask();
+        };
+        return core;
+    }
+
+    /// <remarks>
+    /// The suites share a connection fixture, so building a core per call would open a socket per command.
     /// </remarks>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ConnectionMultiplexer, RespNewCore> Cores = new();
 }

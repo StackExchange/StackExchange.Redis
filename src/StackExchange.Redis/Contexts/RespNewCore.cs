@@ -280,6 +280,22 @@ namespace StackExchange.Redis
                 : _subscriptions.GetOrAdd(endpoint, CreateSubscription(endpoint));
         }
 
+        /// <summary>
+        /// A context that sends on the connection deliveries arrive on for an endpoint.
+        /// </summary>
+        /// <param name="endpoint">The endpoint to subscribe on.</param>
+        /// <remarks>
+        /// <b>No database, no script cache, no topology.</b> Pub/sub is not per-database - a subscription
+        /// made on database 0 receives what was published on database 7 - and a connection in subscriber
+        /// mode cannot run the commands those services exist for. What it does carry is the channel
+        /// prefix, because that IS the channel as far as the wire is concerned.
+        /// </remarks>
+        internal RespContext SubscriptionContext(EndPoint endpoint)
+            => new RespContext(_multiplexer.RawConfig.CommandMap)
+                .AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix)
+                .WithServices(_features)
+                .WithExecutor(SubscriptionEndpoint(endpoint));
+
         /// <summary>An endpoint executor whose connection delivers RESP2 pub/sub arrays.</summary>
         private RespEndpointExecutor CreateSubscription(EndPoint endpoint) => new(
             token => ConnectAsync(_defaultDatabase, endpoint, subscription: true, token),
