@@ -74,7 +74,7 @@ public class RespOutOfBandTests
         connection.OnPush = frame =>
         {
             pushes.Add(Encoding.UTF8.GetString(frame.ToArray()).Replace("\r\n", "|"));
-            return true;
+            return RespOutOfBandResult.Handled;
         };
 
         return (transport, connection, pushes);
@@ -133,7 +133,7 @@ public class RespOutOfBandTests
         var connection = new RespClientConnection(transport, static (in RespRedirect _, RespPayloadOperation _) => false)
         {
             DeliversArrays = true,
-            OnPush = static _ => false, // recognises nothing
+            OnPush = static _ => RespOutOfBandResult.NotRecognized,
         };
 
         var pending = RespPayloadOperation.Rent();
@@ -145,4 +145,50 @@ public class RespOutOfBandTests
         // it reached the pending operation rather than vanishing
         Assert.True(new ValueTask<RespPayload>(pending, pending.Token).IsCompleted);
     }
+    /// <summary>
+    /// <b>An unrecognised push is dropped, not matched.</b> A push is out-of-band by definition, so
+    /// handing it to whichever command happens to be pending answers that command with an unrelated frame
+    /// and leaves every reply after it off by one.
+    /// </summary>
+    [Fact]
+    public void AnUnrecognisedPushIsDropped()
+    {
+        var transport = new FakeTransport();
+        var connection = new RespClientConnection(transport, static (in RespRedirect _, RespPayloadOperation _) => false)
+        {
+            OnPush = static _ => RespOutOfBandResult.NotRecognized,
+        };
+
+        var pending = RespPayloadOperation.Rent();
+        pending.Attach("*1\r\n$4\r\nPING\r\n"u8, CommandFlags.None, default);
+        Assert.True(connection.Send(pending));
+
+        transport.Reply(">2\r\n$13\r\nsomething-new\r\n$1\r\nx\r\n");
+
+        // the command is still waiting: the push went nowhere near it
+        Assert.False(new ValueTask<RespPayload>(pending, pending.Token).IsCompleted);
+    }
+
+    /// <summary>
+    /// And a confirmation IS the reply to a command, even though it arrives as a push - which is how
+    /// SUBSCRIBE answers in RESP3.
+    /// </summary>
+    [Fact]
+    public void AConfirmationPushCompletesItsCommand()
+    {
+        var transport = new FakeTransport();
+        var connection = new RespClientConnection(transport, static (in RespRedirect _, RespPayloadOperation _) => false)
+        {
+            OnPush = static _ => RespOutOfBandResult.MatchToCommand,
+        };
+
+        var pending = RespPayloadOperation.Rent();
+        pending.Attach("*2\r\n$9\r\nSUBSCRIBE\r\n$2\r\nch\r\n"u8, CommandFlags.None, default);
+        Assert.True(connection.Send(pending));
+
+        transport.Reply(">3\r\n$9\r\nsubscribe\r\n$2\r\nch\r\n:1\r\n");
+
+        Assert.True(new ValueTask<RespPayload>(pending, pending.Token).IsCompleted);
+    }
+
 }

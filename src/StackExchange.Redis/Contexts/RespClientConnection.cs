@@ -17,9 +17,30 @@ namespace StackExchange.Redis
     /// </returns>
     internal delegate bool RespRedirectRouter(in RespRedirect redirect, RespPayloadOperation operation);
 
-    /// <summary>Handles an out-of-band frame; returns whether it was recognised and consumed.</summary>
+    /// <summary>Handles an out-of-band frame; says what should happen to it.</summary>
     /// <param name="frame">The complete frame, including its prefix.</param>
-    internal delegate bool RespPushHandler(ReadOnlySpan<byte> frame);
+    internal delegate RespOutOfBandResult RespPushHandler(ReadOnlySpan<byte> frame);
+
+    /// <summary>What inspecting an out-of-band frame concluded.</summary>
+    /// <remarks>
+    /// <b>Three outcomes, not two, and the third is not a nicety.</b> A subscribe or unsubscribe
+    /// confirmation arrives as a push in RESP3 and <i>is</i> the reply to a command, so it must be matched
+    /// rather than consumed - while a push nobody recognises must be dropped, because matching it to
+    /// whichever command happens to be pending answers that command with somebody else's frame and
+    /// desynchronises every reply after it. Collapsing those two into "not consumed" gets one of them
+    /// silently wrong, and it is the expensive one.
+    /// </remarks>
+    internal enum RespOutOfBandResult
+    {
+        /// <summary>Not identified; for a push this means drop it, for an array it means treat it as a reply.</summary>
+        NotRecognized,
+
+        /// <summary>Consumed as a delivery; nothing further to do.</summary>
+        Handled,
+
+        /// <summary>Recognised, but it answers a command we sent, so ordinary matching must complete it.</summary>
+        MatchToCommand,
+    }
 
     /// <summary>
     /// EXPERIMENTAL SPIKE. The connection the client uses: one that knows what a reply <i>means</i>.
@@ -124,13 +145,31 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>False when there is no handler, or it does not recognise the frame.</b> That is deliberate
-        /// for arrays: this connection guessed that an array was a delivery, and if nobody claims it the
-        /// honest fallback is to let it be matched as a reply rather than drop it. A RESP3 push that goes
-        /// unrecognised is dropped by the base instead, which is right there - a push is out-of-band by
-        /// definition and matching it to a command would desynchronise the stream.
+        /// <para>
+        /// Returning true consumes the frame; returning false lets it be matched as a reply. The mapping
+        /// differs by prefix precisely where it matters:
+        /// </para>
+        /// <para>
+        /// A PUSH that nobody recognises is <b>dropped</b>. A push is out-of-band by definition, so
+        /// matching it would answer somebody's command with an unrelated frame and every reply after it
+        /// would be off by one. An unrecognised ARRAY is matched instead, because this connection only
+        /// GUESSED it was a delivery and dropping it would lose a real reply on the strength of a guess.
+        /// </para>
+        /// <para>
+        /// Either prefix can also be a confirmation - subscribe and unsubscribe answer as pushes in RESP3 -
+        /// which is why the handler can say "this is a reply" rather than only yes or no.
+        /// </para>
         /// </remarks>
-        protected override bool OnOutOfBand(ReadOnlySpan<byte> frame) => OnPush?.Invoke(frame) == true;
+        protected override bool OnOutOfBand(ReadOnlySpan<byte> frame)
+        {
+            var verdict = OnPush?.Invoke(frame) ?? RespOutOfBandResult.NotRecognized;
+            return verdict switch
+            {
+                RespOutOfBandResult.Handled => true,
+                RespOutOfBandResult.MatchToCommand => false,
+                _ => (RespPrefix)frame[0] == RespPrefix.Push, // unrecognised: drop a push, match an array
+            };
+        }
 
         /// <summary>Whether this array is the reply to a <c>PING</c> rather than a delivery.</summary>
         private static bool IsPong(ReadOnlySpan<byte> frame)
