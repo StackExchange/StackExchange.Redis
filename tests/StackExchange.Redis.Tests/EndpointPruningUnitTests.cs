@@ -142,6 +142,52 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
         Assert.Contains(server.DefaultEndPoint, survivors);
     }
 
+    /// <summary>
+    /// The same protection, for a subscription no bridge counted.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="NodeCarryingSubscriptionsIsNotPruned"/> covers the case where the bridge that subscribed
+    /// is also the thing being asked. That counter is a record of what <i>that bridge</i> carried, so a
+    /// subscription carried any other way - a core that drives no bridge - leaves it at zero, and the
+    /// server hosting it looks idle. It would then be retired while still delivering to us.
+    /// </para>
+    /// <para>
+    /// So the state is built directly rather than by subscribing: the registry names the server and no
+    /// bridge counts it, which is precisely the shape being guarded against. Asserted through
+    /// <c>IsIdle</c> rather than end-to-end, because a real subscribe sets both and could not tell the two
+    /// apart - it would pass on the bridge counter alone and prove nothing.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task NodeNamedBySubscriptionRegistryIsNotIdle()
+    {
+        using var server = CreateServer(log);
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        var mux = (ConnectionMultiplexer)conn;
+
+        // a node that owns no slots and has no connection: idle by every term the predicate has, so what
+        // the assertions below move is the subscription term alone
+        GetHost(server.DefaultEndPoint, out var port);
+        var target = mux.GetServerEndPoint(
+            new IPEndPoint(IPAddress.Loopback, port + 1),
+            activate: false,
+            provenance: ServerProvenance.ClusterTopology);
+        Assert.True(target.IsIdle(), "an unused node was not idle to begin with");
+
+        // now name it the way a core that does not drive the bridge would, and only that way
+        var channel = RedisChannel.Literal(nameof(NodeNamedBySubscriptionRegistryIsNotIdle));
+        var subscription = mux.GetOrAddSubscription(channel, CommandFlags.None);
+        subscription.AddEndpoint(target);
+
+        Assert.Equal(0, target.GetBridge(ConnectionType.Subscription, create: false)?.SubscriptionCount ?? 0);
+        Assert.False(target.IsIdle(), "a server carrying a subscription was reported idle");
+
+        // and it stops protecting the server once the subscription lets go of it
+        Assert.True(subscription.TryRemoveEndpoint(target));
+        Assert.True(target.IsIdle());
+    }
+
     [Fact]
     public async Task NodeStillOwningSlotsIsNotPruned()
     {

@@ -25,6 +25,17 @@ public partial class ConnectionMultiplexer
         internal abstract bool IsConnectedAny();
         internal abstract bool IsConnectedTo(EndPoint endpoint);
 
+        /// <summary>
+        /// Whether this subscription names an endpoint, connected there or not.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately distinct from <see cref="IsConnectedTo"/>, which asks whether the subscription is
+        /// <i>live</i> there and answers out of the bridge. Retiring a server this names would abandon the
+        /// subscription either way: one whose server is momentarily disconnected still intends to live on
+        /// it, and a core that drives no bridge has no connected state here to report at all.
+        /// </remarks>
+        internal abstract bool NamesEndpoint(EndPoint endpoint);
+
         internal abstract void AddEndpoint(ServerEndPoint server);
 
         // conditional clear
@@ -208,6 +219,9 @@ public partial class ConnectionMultiplexer
 
         internal override void AddEndpoint(ServerEndPoint server) => _currentServer = server;
 
+        internal override bool NamesEndpoint(EndPoint endpoint)
+            => Volatile.Read(ref _currentServer) is { } server && server.EndPoint == endpoint;
+
         internal override bool TryRemoveEndpoint(ServerEndPoint expected)
         {
             if (_currentServer == expected)
@@ -351,6 +365,8 @@ public partial class ConnectionMultiplexer
         internal override bool IsConnectedTo(EndPoint endpoint)
             => _servers.TryGetValue(endpoint, out var server)
                && server.IsSubscriberConnected;
+
+        internal override bool NamesEndpoint(EndPoint endpoint) => _servers.ContainsKey(endpoint);
 
         internal override void AddEndpoint(ServerEndPoint server)
         {

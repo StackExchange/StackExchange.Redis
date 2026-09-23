@@ -73,6 +73,24 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Whether any subscription names this endpoint, whether or not it is connected there.
+        /// </summary>
+        /// <remarks>
+        /// <b>The registry is asked, not the bridge.</b> A bridge's subscription counter only knows about
+        /// subscriptions that bridge itself carried, so a core that does not drive one leaves it at zero -
+        /// and a server whose only work is a subscription would then look idle, and be retired out from
+        /// under the deliveries it is still receiving. What is true for both cores is the registry entry.
+        /// </remarks>
+        internal bool AnySubscriptionNames(EndPoint endpoint)
+        {
+            foreach (var pair in subscriptions)
+            {
+                if (pair.Value.NamesEndpoint(endpoint)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Handler that executes whenever a message comes in, this doles out messages to any registered handlers.
         /// </summary>
         internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload)

@@ -328,10 +328,17 @@ namespace StackExchange.Redis
         /// Whether retiring this server would abandon anything: slots it owns, subscriptions it carries, or
         /// work it still owes.
         /// </summary>
+        /// <remarks>
+        /// Subscriptions are asked of the registry <i>as well as</i> of the bridges. The bridge counters are
+        /// the record of what those bridges subscribed, so they are silent about a subscription carried any
+        /// other way - and a server whose only work is one of those would look idle and be pruned while
+        /// still delivering. The registry entry is the fact that does not depend on who carried it.
+        /// </remarks>
         internal bool IsIdle()
             => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
             && (subscription?.SubscriptionCount ?? 0) == 0
             && (interactive?.SubscriptionCount ?? 0) == 0
+            && !Multiplexer.AnySubscriptionNames(EndPoint)
             && !HasCallerWork();
 
         /// <summary>
