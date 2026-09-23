@@ -403,6 +403,10 @@ namespace StackExchange.Redis
             // rather than what was configured - a server can answer RESP2 to a RESP3 request.
             connection.DeliversArrays = subscription && result.Protocol < RedisProtocol.Resp3;
 
+            // deliveries arrive here: on the subscription connection under RESP2, and on this one under
+            // RESP3, where a push can land on any connection
+            connection.OnPush = frame => RespPushDispatch.Dispatch(frame, _multiplexer);
+
             return connection;
         }
 
