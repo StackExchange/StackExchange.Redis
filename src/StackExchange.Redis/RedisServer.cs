@@ -64,6 +64,16 @@ namespace StackExchange.Redis
                 .WithScriptCache(multiplexer.ScriptCache)
                 .WithServices(new ServerFeatureProbe(this));
 
+        /// <summary>The non-null spelling these members promise.</summary>
+        /// <param name="pending">The reply, which the server may omit.</param>
+        /// <remarks>
+        /// The shipped members pass <c>defaultValue: string.Empty</c> for exactly this: a server with
+        /// nothing to say answers null, and <c>IServer</c> declares a non-null string. Kept rather than
+        /// tightened, because callers have been reading <c>.Length</c> on it for years.
+        /// </remarks>
+        private static async ValueTask<string> OrEmpty(ValueTask<string?> pending)
+            => await pending.ConfigureAwait(false) ?? string.Empty;
+
         /// <summary>Block on an operation of the new surface, for the synchronous half of a member.</summary>
         /// <typeparam name="T">The result type.</typeparam>
         /// <param name="pending">The operation to wait for.</param>
@@ -239,28 +249,16 @@ namespace StackExchange.Redis
         }
 
         public void ConfigResetStatistics(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.RESETSTAT);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Config.ResetStatisticsAsync(flags));
 
         public Task ConfigResetStatisticsAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.RESETSTAT);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Config.ResetStatisticsAsync(flags).AsTask(asyncState, flags);
 
         public void ConfigRewrite(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.REWRITE);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Config.RewriteAsync(flags));
 
         public Task ConfigRewriteAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.REWRITE);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Config.RewriteAsync(flags).AsTask(asyncState, flags);
 
         public void ConfigSet(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
@@ -592,16 +590,10 @@ namespace StackExchange.Redis
             : Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SLOWLOG, RedisLiterals.GET);
 
         public void SlowlogReset(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.RESET);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Diagnostics.ResetSlowLogAsync(flags));
 
         public Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.RESET);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Diagnostics.ResetSlowLogAsync(flags).AsTask(asyncState, flags);
 
         public RedisValue StringGet(int db, RedisKey key, CommandFlags flags = CommandFlags.None)
         {
@@ -1169,16 +1161,10 @@ namespace StackExchange.Redis
         internal void SimulateConnectionFailure(SimulatedFailureType failureType) => server.SimulateConnectionFailure(failureType);
 
         public Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.LATENCY, RedisLiterals.DOCTOR);
-            return ExecuteAsync<string>(msg, ResultProcessor.String!, defaultValue: string.Empty);
-        }
+            => OrEmpty(Context.Diagnostics.LatencyDoctorAsync(flags)).AsTask(asyncState, flags);
 
         public string LatencyDoctor(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.LATENCY, RedisLiterals.DOCTOR);
-            return ExecuteSync(msg, ResultProcessor.String, defaultValue: string.Empty);
-        }
+            => Wait(OrEmpty(Context.Diagnostics.LatencyDoctorAsync(flags)));
 
         private static Message LatencyResetCommand(string[]? eventNames, CommandFlags flags)
         {
@@ -1234,43 +1220,25 @@ namespace StackExchange.Redis
         }
 
         public Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.MEMORY, RedisLiterals.DOCTOR);
-            return ExecuteAsync<string>(msg, ResultProcessor.String!, defaultValue: string.Empty);
-        }
+            => OrEmpty(Context.Diagnostics.MemoryDoctorAsync(flags)).AsTask(asyncState, flags);
 
         public string MemoryDoctor(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.MEMORY, RedisLiterals.DOCTOR);
-            return ExecuteSync(msg, ResultProcessor.String, defaultValue: string.Empty);
-        }
+            => Wait(OrEmpty(Context.Diagnostics.MemoryDoctorAsync(flags)));
 
         public Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetMemoryPurgeMessage(flags);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Diagnostics.MemoryPurgeAsync(flags).AsTask(asyncState, flags);
 
         public void MemoryPurge(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetMemoryPurgeMessage(flags);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Diagnostics.MemoryPurgeAsync(flags));
 
         internal static Message GetMemoryPurgeMessage(CommandFlags flags)
             => Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.MEMORY, RedisLiterals.PURGE);
 
         public Task<string?> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
-            return ExecuteAsync(msg, ResultProcessor.String);
-        }
+            => Context.Diagnostics.MemoryAllocatorStatsAsync(flags).AsTask(asyncState, flags);
 
         public string? MemoryAllocatorStats(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
-            return ExecuteSync(msg, ResultProcessor.String);
-        }
+            => Wait(Context.Diagnostics.MemoryAllocatorStatsAsync(flags));
 
         public Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None)
         {

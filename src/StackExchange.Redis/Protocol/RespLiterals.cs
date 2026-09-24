@@ -254,6 +254,30 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Load { get; }
 
+        /// <summary>The <c>DOCTOR</c> subcommand of <c>LATENCY</c> and <c>MEMORY</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Doctor { get; }
+
+        /// <summary>The <c>RESET</c> subcommand of <c>LATENCY</c> and <c>SLOWLOG</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Reset { get; }
+
+        /// <summary>The <c>REWRITE</c> subcommand of <c>CONFIG</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Rewrite { get; }
+
+        /// <summary>The <c>RESETSTAT</c> subcommand of <c>CONFIG</c>.</summary>
+        [Resp]
+        internal static partial RespFragment ResetStat { get; }
+
+        /// <summary>The <c>PURGE</c> subcommand of <c>MEMORY</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Purge { get; }
+
+        /// <summary>The <c>MALLOC-STATS</c> subcommand of <c>MEMORY</c>.</summary>
+        [Resp("MALLOC-STATS")]
+        internal static partial RespFragment MallocStats { get; }
+
         /// <summary>The <c>BY</c> operand of <c>SORT</c>; a pattern follows it.</summary>
         [Resp]
         internal static partial RespFragment By { get; }

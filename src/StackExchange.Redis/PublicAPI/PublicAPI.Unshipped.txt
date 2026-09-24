@@ -756,3 +756,22 @@ static StackExchange.Redis.RespDatabaseExtensions.get_PubSub(in StackExchange.Re
 static StackExchange.Redis.Downlevel.RespGroups.PubSub(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespPubSub
 StackExchange.Redis.Protocol.RespRequest.Database.get -> int
 StackExchange.Redis.Protocol.RespRequestFrame.Database.get -> int
+StackExchange.Redis.Config
+StackExchange.Redis.Diagnostics
+StackExchange.Redis.RespConfig
+StackExchange.Redis.RespConfig.RespConfig(StackExchange.Redis.RespContext! context) -> void
+StackExchange.Redis.RespConfig.RespConfig() -> void
+StackExchange.Redis.RespDiagnostics
+StackExchange.Redis.RespDiagnostics.RespDiagnostics(StackExchange.Redis.RespContext! context) -> void
+StackExchange.Redis.RespDiagnostics.RespDiagnostics() -> void
+StackExchange.Redis.RespServerExtensions.extension(in StackExchange.Redis.RespServerContext).Config.get -> StackExchange.Redis.RespConfig
+StackExchange.Redis.RespServerExtensions.extension(in StackExchange.Redis.RespServerContext).Diagnostics.get -> StackExchange.Redis.RespDiagnostics
+static StackExchange.Redis.Config.ResetStatisticsAsync(this in StackExchange.Redis.RespConfig config, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static StackExchange.Redis.Config.RewriteAsync(this in StackExchange.Redis.RespConfig config, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static StackExchange.Redis.Diagnostics.LatencyDoctorAsync(this in StackExchange.Redis.RespDiagnostics diagnostics, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string?>
+static StackExchange.Redis.Diagnostics.MemoryAllocatorStatsAsync(this in StackExchange.Redis.RespDiagnostics diagnostics, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string?>
+static StackExchange.Redis.Diagnostics.MemoryDoctorAsync(this in StackExchange.Redis.RespDiagnostics diagnostics, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string?>
+static StackExchange.Redis.Diagnostics.MemoryPurgeAsync(this in StackExchange.Redis.RespDiagnostics diagnostics, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static StackExchange.Redis.Diagnostics.ResetSlowLogAsync(this in StackExchange.Redis.RespDiagnostics diagnostics, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static StackExchange.Redis.RespServerExtensions.get_Config(in StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespConfig
+static StackExchange.Redis.RespServerExtensions.get_Diagnostics(in StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespDiagnostics
