@@ -1109,18 +1109,12 @@ namespace StackExchange.Redis
         public RedisResult Execute(string command, params object[] args) => Execute(command, args, CommandFlags.None);
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, DatabaseForAdHoc(command), flags, command, args);
-            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-        }
+            => Wait(RespAdHoc.ExecuteAsync(AdHocContext(DatabaseForAdHoc(command)), command, args, flags));
 
         public Task<RedisResult> ExecuteAsync(string command, params object[] args) => ExecuteAsync(command, args, CommandFlags.None);
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, DatabaseForAdHoc(command), flags, command, args);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-        }
+            => RespAdHoc.ExecuteAsync(AdHocContext(DatabaseForAdHoc(command)), command, args, flags).AsTask(asyncState, flags);
 
         /// <summary>
         /// The database an ad-hoc command should run against when the caller named a server but no database.
@@ -1148,18 +1142,21 @@ namespace StackExchange.Redis
                     : -1;
 
         public RedisResult Execute(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-        {
-            var db = multiplexer.ApplyDefaultDatabase(database ?? -1);
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, db, flags, command, args);
-            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-        }
+            => Wait(RespAdHoc.ExecuteAsync(AdHocContext(multiplexer.ApplyDefaultDatabase(database ?? -1)), command, args, flags));
 
         public Task<RedisResult> ExecuteAsync(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-        {
-            var db = multiplexer.ApplyDefaultDatabase(database ?? -1);
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, db, flags, command, args);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-        }
+            => RespAdHoc.ExecuteAsync(AdHocContext(multiplexer.ApplyDefaultDatabase(database ?? -1)), command, args, flags)
+                .AsTask(asyncState, flags);
+
+        /// <summary>This server's context, moved to a database when the command needs one.</summary>
+        /// <param name="database">The database, or -1 for none.</param>
+        /// <remarks>
+        /// <b>-1 must not go through <c>WithDatabase</c>.</b> A server context carries no database on
+        /// purpose, and moving it to "none" is not the same as leaving it alone - the latter is what keeps
+        /// a keyless ad-hoc command from disturbing the connection's current database with a SELECT.
+        /// </remarks>
+        private RespContext AdHocContext(int database)
+            => database < 0 ? Context.Raw : Context.Raw.WithDatabase(database);
 
         /// <summary>
         /// For testing only: Check if the server can simulate connection failure.

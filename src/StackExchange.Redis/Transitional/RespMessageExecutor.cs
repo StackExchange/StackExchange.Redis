@@ -197,6 +197,33 @@ namespace StackExchange.Redis
 
         /// <summary>A run of frames written as one unit; the last of them is this message.</summary>
         /// <remarks><inheritdoc cref="SendAsync(ReadOnlySpan{RespRequest}, Span{ValueTask{RespPayload}}, CancellationToken)" path="/remarks"/></remarks>
+        /// <summary>The sub-command a rendered frame carries, if it is one we recognise.</summary>
+        /// <param name="request">The rendered frame.</param>
+        /// <param name="subCommand">The sub-command.</param>
+        /// <remarks>
+        /// <b>Recovered from the frame, because the admin gate is sub-command aware.</b> <c>CLIENT</c> as a
+        /// whole is admin, but <c>CLIENT ID</c>, <c>GETNAME</c>, <c>SETNAME</c>, <c>INFO</c> and
+        /// <c>SETINFO</c> are not - so a message reporting only its command has every one of those refused
+        /// when <c>AllowAdmin</c> is off. The shipped ad-hoc message exposes its first argument for exactly
+        /// this reason; once the command is rendered, the frame is the only copy of it left.
+        /// </remarks>
+        private static bool TryGetSubCommand(in RespRequest request, out Message.SubCommand subCommand)
+        {
+            // the command token is not an argument here, so index 0 IS the sub-command; and the span must
+            // be big enough for every argument, because resolving refuses a short one rather than filling
+            // what it can - so it is sized from the whole frame, which is an upper bound
+            var wanted = request.ArgCount;
+            Span<KeyRange> ranges = wanted <= 16 ? stackalloc KeyRange[16] : new KeyRange[wanted];
+            if (request.TryGetAllArguments(ranges) > 0
+                && Message.SubCommandMetadata.TryParse(request.GetKey(ranges[0]), out subCommand))
+            {
+                return true;
+            }
+
+            subCommand = Message.SubCommand.Unknown;
+            return false;
+        }
+
         private sealed class FrameRunMessage : Message, IMultiMessage
         {
             private readonly Message[] _heads;
@@ -301,6 +328,11 @@ namespace StackExchange.Redis
             }
 
             public override int ArgCount => _request.ArgCount - 1;
+
+            /// <inheritdoc/>
+            /// <remarks><inheritdoc cref="RespMessageExecutor.TryGetSubCommand" path="/remarks"/></remarks>
+            protected override bool TryGetSubCommand(out SubCommand subCommand)
+                => RespMessageExecutor.TryGetSubCommand(in _request, out subCommand);
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
 
@@ -620,6 +652,11 @@ namespace StackExchange.Redis
             /// <c>CheckMessage</c> reject a frame one argument earlier than the identical classic message.
             /// </remarks>
             public override int ArgCount => _request.ArgCount - 1;
+
+            /// <inheritdoc/>
+            /// <remarks><inheritdoc cref="RespMessageExecutor.TryGetSubCommand" path="/remarks"/></remarks>
+            protected override bool TryGetSubCommand(out SubCommand subCommand)
+                => RespMessageExecutor.TryGetSubCommand(in _request, out subCommand);
 
             // the slot was folded during the write, so routing needs no second look at the keys
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => _request.Slot;
