@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     /// notes §3c and §7r.
     /// </para>
     /// </remarks>
-    internal sealed class TransitionalTransaction : TransitionalBatch, ITransaction
+    internal sealed class TransitionalTransaction : TransitionalBatch, ITransaction, IInternalTransaction
     {
         /// <inheritdoc/>
         /// <remarks>
@@ -76,6 +76,15 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
+        /// <b>Without this the retry layer cannot retry a transaction at all.</b> It asks the transaction
+        /// what a replay would do, and a transaction that does not answer is assumed to be
+        /// <see cref="CommandFlags.CommandRetryNever"/> - so a transient fault the caller explicitly asked
+        /// to ride out is rethrown instead, and their retry policy silently does nothing.
+        /// </remarks>
+        CommandFlags IInternalTransaction.GetAggregateRetryCategory() => _executor.AggregateRetryCategory;
+
+        /// <inheritdoc/>
+        /// <remarks>
         /// Sync-over-async, suppressed for the same reason and with the same reservations as
         /// <c>TransitionalDatabase.Wait</c>: sync is deprioritised on this surface, and the proper fix is
         /// routing rather than waiting.
@@ -85,7 +94,12 @@ namespace StackExchange.Redis
 #pragma warning restore SER308
 
         /// <inheritdoc/>
-        public Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None) => _executor.ExecuteAsync();
+        /// <remarks>
+        /// <b>The flags are not decoration.</b> A retrying caller passes the transaction's aggregate retry
+        /// category here, and a fault the <c>EXEC</c> reports has to carry it back out - otherwise the
+        /// failure is classified as never retryable and the retry policy silently does nothing.
+        /// </remarks>
+        public Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None) => _executor.ExecuteAsync(flags);
 
         /// <inheritdoc cref="TransitionalBatch.ExecuteCoreAsync"/>
         /// <remarks>

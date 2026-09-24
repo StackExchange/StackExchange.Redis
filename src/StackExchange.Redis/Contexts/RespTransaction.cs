@@ -148,6 +148,37 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// The most side-effecting retry category across the queued commands, which is what replaying the
+        /// whole transaction would do.
+        /// </summary>
+        /// <remarks>
+        /// <b>The WATCH constraints are deliberately not included</b>, exactly as the shipped transaction
+        /// does it: they live in the conditions rather than the queue, and re-issuing them is what makes a
+        /// replay safe in the first place.
+        /// </remarks>
+        internal CommandFlags AggregateRetryCategory
+        {
+            get
+            {
+                var result = CommandFlags.None;
+                lock (_sync)
+                {
+                    var queue = _queue;
+                    if (queue is not null)
+                    {
+                        foreach (var operation in queue)
+                        {
+                            var category = operation.Flags & Message.MaskRetryCategory;
+                            if (category > result) result = category;
+                        }
+                    }
+                }
+
+                return result;
+            }
+        }
+
         /// <summary>Send <c>MULTI</c>, the queued commands, and <c>EXEC</c>, as one contiguous run.</summary>
         /// <returns>Whether the transaction was executed.</returns>
         /// <remarks>
@@ -164,7 +195,7 @@ namespace StackExchange.Redis
         /// <c>Monitor</c> handshakes on result boxes inside the write lock to get the same effect.
         /// </para>
         /// </remarks>
-        internal async Task<bool> ExecuteAsync()
+        internal async Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None)
         {
             List<RespPayloadOperation>? queue;
             List<Condition>? conditions;
@@ -236,7 +267,8 @@ namespace StackExchange.Redis
                         queue!,
                         out var exec,
                         conditions is null ? null : OnAborted,
-                        (run, count) => target.TryWriteRun(connection, run, count)))
+                        (run, count) => target.TryWriteRun(connection, run, count),
+                        flags))
                 {
                     Fail(queue, "The connection was lost before the transaction could be sent.");
                     return false;
@@ -422,12 +454,18 @@ namespace StackExchange.Redis
         /// shares one connection across databases passes its own, so a <c>SELECT</c> can go in front of
         /// <c>MULTI</c> - inside the transaction it would simply be queued like any other command.
         /// </param>
+        /// <param name="flags">
+        /// The flags the <c>EXEC</c> runs under, which is how a fault it reports reaches the caller
+        /// carrying its retry category; without them a refused <c>EXEC</c> is classified as never
+        /// retryable and a caller's retry policy does nothing.
+        /// </param>
         internal static bool TrySendOver(
             RespConnection? connection,
             List<RespPayloadOperation> operations,
             out ValueTask<bool> exec,
             Action? onAborted = null,
-            Func<IRespMessage[], int, bool>? send = null)
+            Func<IRespMessage[], int, bool>? send = null,
+            CommandFlags flags = CommandFlags.None)
         {
             exec = default;
             if (connection is null || connection.IsClosed) return false;
@@ -436,7 +474,7 @@ namespace StackExchange.Redis
             multi.Attach(MultiFrame, CommandFlags.None, default);
 
             var execOperation = new RespExecOperation();
-            execOperation.Attach(ExecFrame, operations, onAborted);
+            execOperation.Attach(ExecFrame, operations, onAborted, flags);
 
             var run = new IRespMessage[operations.Count + 2];
             run[0] = multi;
@@ -496,11 +534,17 @@ namespace StackExchange.Redis
     {
         private List<RespPayloadOperation>? _queued;
         private Action? _onAborted;
+        private CommandFlags _flags;
 
-        internal void Attach(ReadOnlySpan<byte> request, List<RespPayloadOperation> queued, Action? onAborted = null)
+        internal void Attach(
+            ReadOnlySpan<byte> request,
+            List<RespPayloadOperation> queued,
+            Action? onAborted = null,
+            CommandFlags flags = CommandFlags.None)
         {
             _queued = queued;
             _onAborted = onAborted;
+            _flags = flags;
             var pool = ArrayPool<byte>.Shared;
             var buffer = pool.Rent(request.Length);
             request.CopyTo(buffer);
@@ -512,6 +556,7 @@ namespace StackExchange.Redis
         {
             _queued = null;
             _onAborted = null;
+            _flags = CommandFlags.None;
         }
 
         /// <inheritdoc/>
@@ -521,27 +566,31 @@ namespace StackExchange.Redis
             if (queued is null) return false;
 
             var reader = new RespReader(frame);
-            if (!reader.TryMoveNext(checkError: false)) return Abort(queued, "EXEC produced no reply.");
+            if (!reader.TryMoveNext(checkError: false)) return Abort(queued, "EXEC produced no reply.", _flags);
 
             if (reader.IsError)
             {
                 var message = reader.ReadString() ?? "EXEC failed.";
+                // the flags carry the retry category, which is what lets a caller's policy ride this out
+                var fault = new RedisServerException(RedisErrorKindMetadata.Classify(reader), _flags, message);
                 foreach (var operation in queued)
                 {
-                    operation.TrySetException(
-                        operation.Token,
-                        new RedisServerException(RedisErrorKindMetadata.Classify(reader), CommandFlags.None, message),
-                        definite: true);
+                    operation.TrySetException(operation.Token, fault, definite: true);
                 }
 
-                return false;
+                // THROWN, not reported as false. False means "did not commit", which is what an elective
+                // abort looks like - and a caller who asked for retries reads that as a clean outcome and
+                // stops. A server that REFUSED the EXEC (-LOADING while a replica warms up, say) is a
+                // fault, and riding that out is exactly what a retry policy is for; reporting it as an
+                // abort disables the caller's retries without telling them. The shipped core throws here.
+                throw fault;
             }
 
             // a null reply is an ABORT, not a failure: a watched key changed, so nothing ran
             if (reader.IsNull)
             {
                 _onAborted?.Invoke();
-                return Abort(queued, null);
+                return Abort(queued, null, _flags);
             }
 
             // Walk the elements by SCANNING each one's extent, exactly as the connection does for
@@ -581,28 +630,41 @@ namespace StackExchange.Redis
             return terminator < 0 ? frame.Length : terminator + 1;
         }
 
-        private static bool Abort(List<RespPayloadOperation> queued, string? fault)
+        /// <summary>Complete everything queued for a transaction that did not deliver results.</summary>
+        /// <param name="queued">The commands that were inside the transaction.</param>
+        /// <param name="fault">What went wrong, or null for an elective abort.</param>
+        /// <param name="flags">The flags the <c>EXEC</c> ran under; they carry the retry category.</param>
+        /// <returns>Always false - the transaction did not commit - for the abort case; the fault case throws.</returns>
+        /// <remarks>
+        /// <b>The two are not the same outcome and must not report the same way.</b> An abort is a real
+        /// answer from a working server: a watched key changed, nothing ran, and a caller re-reads and
+        /// decides for itself. A reply we could not read at all is a fault, and answering false for it
+        /// tells a retrying caller the transaction cleanly did not commit - so it stops, having ridden out
+        /// nothing.
+        /// </remarks>
+        private static bool Abort(List<RespPayloadOperation> queued, string? fault, CommandFlags flags)
         {
-            foreach (var operation in queued)
+            if (fault is null)
             {
-                if (fault is null)
+                foreach (var operation in queued)
                 {
                     // aborted: the command did not run, so it is NOT applied - which the retry layer reads
                     operation.TrySetException(
                         operation.Token,
-                        new RedisServerException(RedisErrorKind.None, CommandFlags.None, "The transaction was aborted; a watched key changed."),
+                        new RedisServerException(RedisErrorKind.None, flags, "The transaction was aborted; a watched key changed."),
                         definite: true);
                 }
-                else
-                {
-                    operation.TrySetException(
-                        operation.Token,
-                        new RedisServerException(RedisErrorKind.ConnectionFault, CommandFlags.None, fault),
-                        definite: true);
-                }
+
+                return false;
             }
 
-            return false;
+            var error = new RedisServerException(RedisErrorKind.ConnectionFault, flags, fault);
+            foreach (var operation in queued)
+            {
+                operation.TrySetException(operation.Token, error, definite: true);
+            }
+
+            throw error;
         }
     }
 
