@@ -276,16 +276,10 @@ namespace StackExchange.Redis
         }
 
         public long CommandCount(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
+            => Wait(Context.Diagnostics.CommandCountAsync(flags));
 
         public Task<long> CommandCountAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
+            => Context.Diagnostics.CommandCountAsync(flags).AsTask(asyncState, flags);
 
         public RedisKey[] CommandGetKeys(RedisValue[] command, CommandFlags flags = CommandFlags.None)
         {
@@ -353,16 +347,10 @@ namespace StackExchange.Redis
             => Context.Keyspace.CountAsync(multiplexer.ApplyDefaultDatabase(database), flags).AsTask(asyncState, flags);
 
         public RedisValue Echo(RedisValue message, CommandFlags flags)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
-            return ExecuteSync(msg, ResultProcessor.RedisValue);
-        }
+            => Wait(Context.Diagnostics.EchoAsync(message, flags));
 
         public Task<RedisValue> EchoAsync(RedisValue message, CommandFlags flags)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
-            return ExecuteAsync(msg, ResultProcessor.RedisValue);
-        }
+            => Context.Diagnostics.EchoAsync(message, flags).AsTask(asyncState, flags);
 
         public void FlushAllDatabases(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Keyspace.FlushAllAsync(flags));
@@ -445,16 +433,10 @@ namespace StackExchange.Redis
         }
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.LASTSAVE);
-            return ExecuteSync(msg, ResultProcessor.DateTime);
-        }
+            => Wait(Context.Diagnostics.LastSaveAsync(flags));
 
         public Task<DateTime> LastSaveAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.LASTSAVE);
-            return ExecuteAsync(msg, ResultProcessor.DateTime);
-        }
+            => Context.Diagnostics.LastSaveAsync(flags).AsTask(asyncState, flags);
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null)
         {
