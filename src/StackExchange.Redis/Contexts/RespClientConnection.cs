@@ -243,6 +243,12 @@ namespace StackExchange.Redis
             if (!RespRedirect.TryParse(frame, out var redirect)) return false;
             if (message is not RespPayloadOperation operation) return false;
 
+            // A caller can decline redirects outright, and NoRedirect is not a hint: the server's error is
+            // surfaced unchanged. What uses it depends on that - a transaction's queued commands and the
+            // topology probes must stay on the connection they chose, and a caller diagnosing a cluster
+            // wants to be told where the server said the slot went rather than quietly following it.
+            if ((operation.Flags & CommandFlags.NoRedirect) != 0) return false;
+
             // ONCE IS ENOUGH. The shipped core sets NoRedirect when it re-issues, on the reasoning that a
             // second redirect for the same command is pathological rather than routine - a redirect loop
             // between two nodes that disagree, or a topology changing faster than commands complete. The

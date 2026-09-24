@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -166,9 +167,13 @@ public class RespPushDispatchTests(ITestOutputHelper output, SharedConnectionFix
 
         var done = await Task.WhenAny(both.Task, Task.Delay(TimeSpan.FromSeconds(5)));
         Assert.True(ReferenceEquals(done, both.Task), $"expected two messages, saw {seen.Count}");
+
+        // as a set, not a sequence: each delivery is completed independently, and a handler may be run on
+        // a worker - so the two can land in either order, and asserting one of them is asserting a
+        // scheduling detail. What this owns is that BOTH arrived, separately, which is the subject
         lock (seen)
         {
-            Assert.Equal(["first", "second"], seen);
+            Assert.Equal(["first", "second"], seen.OrderBy(x => x, StringComparer.Ordinal));
         }
     }
 
