@@ -114,4 +114,49 @@ public static partial class Keyspace
         return keyspace.Context.WithDatabase(database).SendAsync<long>(
             $"{RedisCommand.DBSIZE}", flags, cancellationToken: cancellationToken);
     }
+
+    /// <summary>FLUSHDB: remove every key from one database.</summary>
+    /// <param name="keyspace">The keyspace command group.</param>
+    /// <param name="database">The database to empty; required, for the reason <see cref="CountAsync"/> gives.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Named for the command rather than for the database</b>, which is what makes the pair legible:
+    /// <see cref="FlushAsync"/> empties one and <see cref="FlushAllAsync"/> empties the lot, where
+    /// <c>IServer</c> spells the same two <c>FlushDatabase</c> and <c>FlushAllDatabases</c> and leaves a
+    /// reader to notice that one word is doing all the work.
+    /// </remarks>
+    public static ValueTask FlushAsync(this in RespKeyspace keyspace, int database, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    {
+        if (database < 0) throw new ArgumentOutOfRangeException(nameof(database), "A database is required; a server context has none of its own.");
+
+        // as with DBSIZE, the command takes no operand - it empties the connection's CURRENT database -
+        // so the database has to move the context rather than be written down as an argument
+        return keyspace.Context.WithDatabase(database).SendAsync(
+            $"{RedisCommand.FLUSHDB}", flags, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>FLUSHALL: remove every key from every database on this server.</summary>
+    /// <param name="keyspace">The keyspace command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// No database, and not merely because none is needed: this one is <i>about</i> all of them, so
+    /// moving the context to one would be a <c>SELECT</c> that misleads about what is being emptied.
+    /// </remarks>
+    public static ValueTask FlushAllAsync(this in RespKeyspace keyspace, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => keyspace.Context.SendAsync($"{RedisCommand.FLUSHALL}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>SWAPDB: exchange the contents of two databases.</summary>
+    /// <param name="keyspace">The keyspace command group.</param>
+    /// <param name="first">One database.</param>
+    /// <param name="second">The other.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// Both databases are operands, so this one names them on the wire rather than moving the context -
+    /// the opposite of <see cref="FlushAsync"/>, and for the plain reason that the command says so.
+    /// </remarks>
+    public static ValueTask SwapAsync(this in RespKeyspace keyspace, int first, int second, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => keyspace.Context.SendAsync($"{RedisCommand.SWAPDB}{first}{second}", flags, cancellationToken: cancellationToken);
 }

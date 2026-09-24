@@ -184,55 +184,11 @@ namespace StackExchange.Redis
         /// path. Worth doing when sync stops being deprioritised - not before.
         /// </para>
         /// </remarks>
-        private T Wait<T>(ValueTask<T> pending)
-        {
-            // spelled the same way as the result-less overload below, deliberately: .Result would also
-            // consume (it calls IValueTaskSource<T>.GetResult(_token)), but only a reader who already
-            // knows that can tell - and the rule is the same rule, so it should look the same
-            if (pending.IsCompletedSuccessfully) return pending.GetAwaiter().GetResult();
+        private T Wait<T>(ValueTask<T> pending) => TransitionalSync.Wait(pending, multiplexer, _inner.Raw.Executor);
 
-            var task = pending.AsTask();
-
-            // Stand back when the executor times itself out: its exception names the command, the endpoint
-            // and why no connection was available, where the outer timer raises a bare TimeoutException
-            // that says only that time passed. Racing them means the useful one usually loses.
-            if (_inner.Raw.Executor is { EnforcesTimeouts: true })
-            {
-                #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
-                return task.GetAwaiter().GetResult();
-                #pragma warning restore SER308
-            }
-
-            #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
-            return multiplexer.Wait(task);
-            #pragma warning restore SER308
-        }
-
-        /// <inheritdoc cref="Wait{T}(ValueTask{T})"/>
+        /// <inheritdoc cref="TransitionalSync.Wait(ValueTask, IConnectionMultiplexer)"/>
         /// <param name="pending">The operation to wait for.</param>
-        /// <remarks>
-        /// The result-less twin, for commands that go through the <c>SendAsync</c> overload with no
-        /// <c>TResult</c>. Not used yet - added alongside the generic one deliberately, because the
-        /// consumption rule below is the kind of thing that gets rediscovered the hard way.
-        /// </remarks>
-        private void Wait(ValueTask pending)
-        {
-            if (pending.IsCompletedSuccessfully)
-            {
-                // NOT a no-op, and not optional. A ValueTask backed by an IValueTaskSource must have its
-                // result consumed exactly once: GetResult(_token) is what lets the source complete its
-                // lifecycle and be reset or returned to its pool. Observing IsCompletedSuccessfully and
-                // returning would abandon it - the pooled source is never released, and the next operation
-                // to borrow it can see a stale token. There is no value to take here, which is precisely
-                // why it looks droppable and is not.
-                pending.GetAwaiter().GetResult();
-                return;
-            }
-
-            #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
-            multiplexer.Wait(pending.AsTask()); // AsTask consumes the source too, so the branches stay exclusive
-            #pragma warning restore SER308
-        }
+        private void Wait(ValueTask pending) => TransitionalSync.Wait(pending, multiplexer);
 
         // ---- members the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod) -------------
         // These take the fallback too, so a harness that supplies one gets a complete IDatabase rather than

@@ -64,6 +64,18 @@ namespace StackExchange.Redis
                 .WithScriptCache(multiplexer.ScriptCache)
                 .WithServices(new ServerFeatureProbe(this));
 
+        /// <summary>Block on an operation of the new surface, for the synchronous half of a member.</summary>
+        /// <typeparam name="T">The result type.</typeparam>
+        /// <param name="pending">The operation to wait for.</param>
+        /// <remarks>
+        /// <inheritdoc cref="TransitionalSync" path="/remarks/para[2]"/>
+        /// </remarks>
+        private T Wait<T>(ValueTask<T> pending) => TransitionalSync.Wait(pending, multiplexer, Context.Raw.Executor);
+
+        /// <inheritdoc cref="Wait{T}(ValueTask{T})"/>
+        /// <param name="pending">The operation to wait for.</param>
+        private void Wait(ValueTask pending) => TransitionalSync.Wait(pending, multiplexer);
+
         int IServer.DatabaseCount => server.Databases;
 
         public ClusterConfiguration? ClusterConfiguration => server.ClusterConfiguration;
@@ -337,16 +349,10 @@ namespace StackExchange.Redis
         private RedisValue[] MakeArray(params RedisValue[] redisValues) => redisValues;
 
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
+            => Wait(Context.Keyspace.CountAsync(multiplexer.ApplyDefaultDatabase(database), flags));
 
         public Task<long> DatabaseSizeAsync(int database = -1, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
+            => Context.Keyspace.CountAsync(multiplexer.ApplyDefaultDatabase(database), flags).AsTask(asyncState, flags);
 
         public RedisValue Echo(RedisValue message, CommandFlags flags)
         {
@@ -361,28 +367,16 @@ namespace StackExchange.Redis
         }
 
         public void FlushAllDatabases(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Keyspace.FlushAllAsync(flags));
 
         public Task FlushAllDatabasesAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Keyspace.FlushAllAsync(flags).AsTask(asyncState, flags);
 
         public void FlushDatabase(int database = -1, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Keyspace.FlushAsync(multiplexer.ApplyDefaultDatabase(database), flags));
 
         public Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Keyspace.FlushAsync(multiplexer.ApplyDefaultDatabase(database), flags).AsTask(asyncState, flags);
 
         public ServerCounters GetCounters() => server.GetCounters();
 
@@ -660,16 +654,10 @@ namespace StackExchange.Redis
         }
 
         public void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Keyspace.SwapAsync(first, second, flags));
 
         public Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Keyspace.SwapAsync(first, second, flags).AsTask(asyncState, flags);
 
         public DateTime Time(CommandFlags flags = CommandFlags.None)
         {
