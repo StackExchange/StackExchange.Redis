@@ -472,4 +472,16 @@ public static partial class Scripts
         flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
         return readOnlyCommand == RedisCommand.EVALSHA_RO ? RedisCommand.EVALSHA : RedisCommand.EVAL;
     }
+
+    /// <summary>SCRIPT FLUSH: discard every script this server has cached.</summary>
+    /// <param name="scripts">The scripting command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Server-scoped, unlike the rest of this group.</b> A script cache belongs to one node, so this
+    /// empties the node that was asked and nothing else - which is also why <c>IServer</c> is where it is
+    /// exposed, and why it is guarded by admin mode there.
+    /// </remarks>
+    public static ValueTask FlushAsync(this in RespScripts scripts, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => scripts.Context.SendAsync($"{RedisCommand.SCRIPT}{RespLiterals.Flush}", flags, cancellationToken: cancellationToken);
 }

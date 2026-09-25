@@ -90,3 +90,18 @@ public static partial class RespDatabaseExtensions
         public RespScripts Scripts => target.Context.Scripts;
     }
 }
+
+public static partial class RespServerExtensions
+{
+    extension(in RespServerContext context)
+    {
+        /// <summary>
+        /// The scripting commands of this server.
+        /// </summary>
+        /// <remarks>
+        /// A script cache belongs to one node, so the commands that manage it - <c>SCRIPT FLUSH</c> and
+        /// its neighbours - are asked of a server rather than of a database.
+        /// </remarks>
+        public RespScripts Scripts => new(context.Raw);
+    }
+}

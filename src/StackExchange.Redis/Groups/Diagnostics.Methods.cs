@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite;
+using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -86,10 +89,42 @@ public static partial class Diagnostics
     public static ValueTask<RedisValue> EchoAsync(this in RespDiagnostics diagnostics, RedisValue message, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<RedisValue>($"{RedisCommand.ECHO}{message}", flags, cancellationToken: cancellationToken);
 
+    /// <summary>TIME: the server's own clock.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// The reply is a two-element array - seconds, then microseconds - so unlike <see cref="LastSaveAsync"/>
+    /// this one needs a reader rather than an arithmetic conversion. The microseconds are kept: asking a
+    /// server for its clock and rounding the answer to the second defeats most of the reasons to ask.
+    /// </remarks>
+    public static ValueTask<DateTime> TimeAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync($"{RedisCommand.TIME}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), ServerTimeHandler.Instance, cancellationToken);
+
     /// <summary>SLOWLOG RESET: discard the recorded slow commands.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask ResetSlowLogAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync($"{RedisCommand.SLOWLOG}{RespLiterals.Reset}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>Reads <c>TIME</c>: unix seconds, then microseconds within that second.</summary>
+    private sealed class ServerTimeHandler : IRespHandler<DateTime>
+    {
+        internal static readonly ServerTimeHandler Instance = new();
+
+        public DateTime Parse(ref RespReader reader)
+        {
+            if (reader.IsAggregate
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var seconds)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var micros)
+                && !reader.TryMoveNext())
+            {
+                // DateTime ticks are 100ns, so a microsecond is ten of them
+                return RedisBase.UnixEpoch.AddSeconds(seconds).AddTicks(micros * 10);
+            }
+
+            throw new RespException("Unexpected TIME reply.");
+        }
+    }
 }

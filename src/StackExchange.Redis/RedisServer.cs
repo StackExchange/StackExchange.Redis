@@ -499,16 +499,28 @@ namespace StackExchange.Redis
 
         public void ScriptFlush(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
+            DemandAdminForScriptFlush();
+            Wait(Context.Scripts.FlushAsync(flags));
         }
 
         public Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+            DemandAdminForScriptFlush();
+            return Context.Scripts.FlushAsync(flags).AsTask(asyncState, flags);
+        }
+
+        /// <summary>Refuse a script flush unless admin mode is enabled.</summary>
+        /// <remarks>
+        /// <b>Raised here rather than left to the general gate</b>, and it was so before this moved: the
+        /// whole-command gate sees <c>SCRIPT</c>, which covers <c>EXISTS</c> and <c>LOAD</c> as well, and
+        /// those are not admin. So the one sub-command that is says so itself.
+        /// </remarks>
+        private void DemandAdminForScriptFlush()
+        {
+            if (!multiplexer.RawConfig.AllowAdmin)
+            {
+                throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
+            }
         }
 
         public byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
@@ -614,16 +626,10 @@ namespace StackExchange.Redis
             => Context.Keyspace.SwapAsync(first, second, flags).AsTask(asyncState, flags);
 
         public DateTime Time(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.TIME);
-            return ExecuteSync(msg, ResultProcessor.DateTime);
-        }
+            => Wait(Context.Diagnostics.TimeAsync(flags));
 
         public Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.TIME);
-            return ExecuteAsync(msg, ResultProcessor.DateTime);
-        }
+            => Context.Diagnostics.TimeAsync(flags).AsTask(asyncState, flags);
 
         internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint? primaryEndpoint, CommandFlags flags = CommandFlags.None)
         {
