@@ -646,7 +646,10 @@ namespace StackExchange.Redis.Caching
             // sending their own copy. Losing the race is not a failure: we simply lead without a slot, which
             // is exactly the behaviour before single-flight existed, and RedundantFills still counts it.
             var slot = new InFlight(deps);
-            if (!_inFlight.TryAdd(new EntryKey(key, database), slot)) slot = null;
+
+            // a COPY, because this key outlives the caller's own reference: fill.Key is disposed when the
+            // fill completes, while another thread may still be looking this up. See CopyForCacheKey.
+            if (!_inFlight.TryAdd(new EntryKey(key.CopyForCacheKey(), database), slot)) slot = null;
 
             fill = new RespFill(key, database, deps, this, slot);
             return true;
@@ -782,16 +785,14 @@ namespace StackExchange.Redis.Caching
                 return false;
             }
 
-            if (!fill.Key.TryRetain(out var stored))
-            {
-                fill.Key.Dispose();
-                return false;
-            }
+            // COPIED rather than retained: a stored key is compared by whichever thread happens to be
+            // looking something up, long after this one has moved on, so it must not share a pooled
+            // buffer with anybody. See RespRequest.CopyForCacheKey.
+            var stored = fill.Key.CopyForCacheKey();
 
             if (!response.TryRetain())
             {
                 // the reply is already going back to the pool; nothing to cache
-                stored.Dispose();
                 fill.Key.Dispose();
                 return false;
             }
@@ -803,14 +804,13 @@ namespace StackExchange.Redis.Caching
             // stays owned by the dictionary. TryRemove hands back the value but NOT the stored key, so
             // removing would strand that key's reference - and disposing our own copy instead would release
             // the wrong one.
-            var entry = new Entry(response, fill.Dependencies);
+            var entry = new Entry(response, fill.Dependencies, stored);
             if (fill.Replaces
                 && _entries.TryGetValue(entryKey, out var previous)
                 && _entries.TryUpdate(entryKey, entry, previous))
             {
                 Interlocked.Add(ref _bytes, entry.Bytes - previous.Bytes);
                 previous.Payload.Dispose(); // the superseded reply
-                stored.Dispose();           // our key copy was spare; the dictionary kept its own
                 fill.Key.Dispose();
                 Interlocked.Increment(ref _stored);
                 EvictToBudget();
@@ -829,7 +829,6 @@ namespace StackExchange.Redis.Caching
             // somebody else filled the same request first; theirs is as good as ours
             Interlocked.Increment(ref _redundantFills);
             response.Release();
-            stored.Dispose();
             fill.Key.Dispose();
             return false;
         }
@@ -861,7 +860,7 @@ namespace StackExchange.Redis.Caching
                 if (entry.IsValid && !CachePolicy.IsOlderThan(entry.FilledAt, lifetime)) continue;
                 if (_entries.TryRemove(pair.Key, out var removing))
                 {
-                    Release(pair.Key, removing);
+                    Release(removing);
                     removed++;
                 }
             }
@@ -909,11 +908,11 @@ namespace StackExchange.Redis.Caching
         /// payload cannot be released twice - which would hand a live buffer back to the pool, since
         /// <c>Release()</c> is a bare decrement with no idempotence guard.
         /// </remarks>
-        private void Release(in EntryKey key, Entry entry)
+        private void Release(Entry entry)
         {
             Interlocked.Add(ref _bytes, -entry.Bytes);
             entry.Payload.Dispose();
-            key.Frame.Dispose();
+            entry.Key.Dispose(); // the reference the dictionary held, not whichever copy found it
         }
 
         /// <summary>
@@ -1000,9 +999,8 @@ namespace StackExchange.Redis.Caching
                 // already dead: no scoring needed, and nobody is losing anything they wanted
                 if (!pair.Value.IsValid)
                 {
-                    if (!_entries.TryRemove(pair.Key, out var dead)) continue;
-                    Release(pair.Key, dead);
-                    return true;
+                    if (TryRemoveSampled(pair.Key)) return true;
+                    continue;
                 }
 
                 if (oldest is null || pair.Value.FilledAt < oldest.FilledAt)
@@ -1021,8 +1019,24 @@ namespace StackExchange.Redis.Caching
                 return false;
             }
 
-            if (!_entries.TryRemove(oldestKey, out var removed)) return false;
-            Release(oldestKey, removed);
+            return TryRemoveSampled(oldestKey);
+        }
+
+        /// <summary>Remove an entry named by a key sampled from the live enumeration.</summary>
+        /// <param name="sampled">A key copied out of the live enumeration.</param>
+        /// <returns>Whether this call was the one that removed it.</returns>
+        /// <remarks>
+        /// Safe to probe with despite being a copy taken from a moving enumeration, because a cache key
+        /// owns its bytes outright - see <see cref="RespRequest.CopyForCacheKey"/>. While keys shared the
+        /// rendered frame's pooled buffer this was a use-after-free: a benchmark's sad path found it as an
+        /// ObjectDisposedException from the evictor, and the same race on the read path resolved as a
+        /// lookup comparing against bytes that were back in the pool.
+        /// </remarks>
+        private bool TryRemoveSampled(in EntryKey sampled)
+        {
+            if (!_entries.TryRemove(sampled, out var removed)) return false;
+
+            Release(removed);
             return true;
         }
 
@@ -1032,7 +1046,7 @@ namespace StackExchange.Redis.Caching
             foreach (var pair in _entries)
             {
                 if (!_entries.TryRemove(pair.Key, out var entry)) continue;
-                Release(pair.Key, entry);
+                Release(entry);
             }
 
             _keys.InvalidateAll();
@@ -1220,11 +1234,25 @@ namespace StackExchange.Redis.Caching
             internal void Publish() => _completion.TrySetResult(true);
         }
 
-        private sealed class Entry(RespPayload payload, Dependency[] dependencies)
+        private sealed class Entry(RespPayload payload, Dependency[] dependencies, RespRequest key)
         {
             private int _refreshing;
 
             internal RespPayload Payload { get; } = payload;
+
+            /// <summary>
+            /// The key's own reference to its rendered frame, released when this entry is.
+            /// </summary>
+            /// <remarks>
+            /// <b>Held by the VALUE, because only the value comes back from a removal.</b>
+            /// <c>ConcurrentDictionary.TryRemove</c> hands over what was stored under the key, never the
+            /// key object it actually held - so releasing "the key we probed with" releases whichever copy
+            /// the caller happened to have. That is the right buffer only while no equal key has been
+            /// stored since: evict an entry, let somebody re-fetch it, and a stale probe removes the NEW
+            /// entry while releasing the OLD one's buffer - leaking the new and over-releasing the old.
+            /// Pairing the reference with the value removes the question.
+            /// </remarks>
+            internal RespRequest Key { get; } = key;
 
             /// <summary>What this entry holds, for the budget; see <see cref="CacheOptions.MaxBytes"/>.</summary>
             /// <remarks>
@@ -1284,7 +1312,7 @@ namespace StackExchange.Redis.Caching
         {
             internal RespRequest Frame { get; } = frame;
 
-            private int Database { get; } = database;
+            internal int Database { get; } = database;
 
             public bool Equals(EntryKey other) => Database == other.Database && Frame.Equals(other.Frame);
 

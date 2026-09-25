@@ -141,6 +141,31 @@ namespace StackExchange.Redis.Protocol
         public RespReader GetReader() => new(Span);
 
         /// <summary>
+        /// Copy the rendered bytes into memory of this request's own, for use as a cache key.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A pooled buffer cannot be a concurrent dictionary's key.</b> Equality reads the bytes, and a
+        /// dictionary compares whenever it likes and on whatever thread it likes - including, because its
+        /// readers are lock-free, against an entry another thread has just removed and released. A
+        /// reference of one's own does not help: the holder of the reference is the evictor, while the
+        /// thread doing the comparing is whoever happened to be looking something up.
+        /// </para>
+        /// <para>
+        /// So the key owns ordinary managed memory and has no lifetime at all: nothing to retain, nothing
+        /// to release, nothing to get wrong. It costs one small allocation per <i>stored entry</i> - not
+        /// per read, and next to nothing beside the payload it is filed under - and it removes a class of
+        /// bug whose failure mode is serving one key's value for another.
+        /// </para>
+        /// </remarks>
+        internal RespRequest CopyForCacheKey()
+        {
+            var span = Span;
+            var array = span.ToArray();
+            return new RespRequest(array, lease: null, 0, array.Length, _keyMarks, Slot, ArgCount, Flags, Command, Database);
+        }
+
+        /// <summary>
         /// Take another reference and return a key that owns it, for handing to a cache that will outlive
         /// the caller's own <c>using</c>.
         /// </summary>
