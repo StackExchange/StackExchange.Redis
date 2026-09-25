@@ -125,4 +125,38 @@ public class RespClientCacheConcurrencyTests
 
         Assert.True(faults.IsEmpty, faults.TryPeek(out var first) ? first.ToString() : "");
     }
+
+    /// <summary>Eviction examines a bounded number of candidates, whatever the cache holds.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The regression this exists for cost 30x throughput and no test noticed.</b> Eviction used to
+    /// sample by choosing a moving offset into the dictionary and walking to it, so evicting one entry
+    /// from a 32k-entry cache examined thousands - on every store. Every eviction test passed throughout,
+    /// because they all hold a handful of entries.
+    /// </para>
+    /// <para>
+    /// Asserted as a COUNT rather than a duration: a time-based bar measures the machine and fails on a
+    /// busy one, where "did the work stay bounded" is exactly the question and is answerable exactly.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(64)]
+    [InlineData(20000)]
+    public void EvictionWorkDoesNotScaleWithCacheSize(int resident)
+    {
+        using var cache = new RespClientCache(new CacheOptions { MaxEntries = resident, EvictionSampleSize = 8 });
+
+        for (var i = 0; i < resident; i++) Fill(cache, $"seed{i}");
+
+        var before = cache.EvictionCandidates;
+        const int Stores = 500;
+        for (var i = 0; i < Stores; i++) Fill(cache, $"probe{i}");
+
+        Assert.Equal(Stores, cache.Evicted); // one eviction per store, so the comparison is like for like
+
+        // a generous ceiling: the window is 8, plus the stale allowance. What it rules out is the walk,
+        // which would put this in the millions for the larger cache
+        var perEviction = (cache.EvictionCandidates - before) / (double)Stores;
+        Assert.True(perEviction <= 64, $"examined {perEviction:F1} candidates per eviction over {resident} entries");
+    }
 }

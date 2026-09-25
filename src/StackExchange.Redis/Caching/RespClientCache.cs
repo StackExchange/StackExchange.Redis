@@ -55,6 +55,7 @@ namespace StackExchange.Redis.Caching
         private long _refusedNotTracked;
         private long _refusedTooLarge;
         private long _evicted;
+        private long _evictionCandidates;
         private long _bytes;
         private int _count;
 
@@ -182,6 +183,18 @@ namespace StackExchange.Redis.Caching
         /// nothing being cached".
         /// </remarks>
         public long Evicted => Volatile.Read(ref _evicted);
+
+        /// <summary>
+        /// How many candidate keys eviction has examined, across every pass.
+        /// </summary>
+        /// <remarks>
+        /// <b>Exposed so a test can assert that eviction does not scale with the size of the cache.</b>
+        /// That was once false - the sampler walked to a moving offset, so one eviction examined O(n)
+        /// entries - and nothing caught it: the cost is invisible until the cache is large AND every store
+        /// evicts, which is a benchmark's sad path rather than a unit test. A count is the honest thing to
+        /// assert on, because timing would be measuring the machine.
+        /// </remarks>
+        public long EvictionCandidates => Volatile.Read(ref _evictionCandidates);
 
         /// <summary>
         /// The memory currently held by cached replies.
@@ -1024,6 +1037,7 @@ namespace StackExchange.Redis.Caching
             {
                 if (!_evictionOrder.TryDequeue(out var candidate)) break;
 
+                Interlocked.Increment(ref _evictionCandidates);
                 if (!_entries.TryGetValue(candidate, out var entry))
                 {
                     stale--; // already gone; drop the key and keep looking

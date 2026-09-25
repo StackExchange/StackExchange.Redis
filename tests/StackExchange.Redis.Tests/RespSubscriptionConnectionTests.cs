@@ -95,15 +95,22 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         var db = RespNewCoreFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // the protocol is known rather than assumed, so the socket decision is real
 
-        // the protocol belongs in the name: this test runs once per protocol, both against the same
-        // server, and a shared channel means both subscriptions are counted - PUBLISH answers 2 and the
-        // assertion below fails for a reason that has nothing to do with the subject
-        var channel = RedisChannel.Literal($"{Me()}-{TestContext.Current.GetProtocol()}");
+        // Unique per RUN, not merely per test: the assertion below is that exactly one subscriber exists,
+        // and the server is shared and long-lived, so a subscription left behind by an earlier run of this
+        // same test answers the publish too. A deterministic name collides with its own history - which is
+        // why the pub/sub tests here have always appended a guid.
+        var channel = RedisChannel.Literal($"{Me()}-{TestContext.Current.GetProtocol()}-{Guid.NewGuid():N}");
         var delivered = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        muxer.GetOrAddSubscription(channel, CommandFlags.None)
-             .Add((_, payload) => delivered.TrySetResult((string?)payload ?? ""), null);
+        var subscription = muxer.GetOrAddSubscription(channel, CommandFlags.None);
+        subscription.Add((_, payload) => delivered.TrySetResult((string?)payload ?? ""), null);
 
         var endpoint = conn.GetEndPoints()[0];
+
+        // Tell the registry this subscription already has a server. Without it the shipped heartbeat sees
+        // an entry nobody is connected for and helpfully subscribes it on ITS connection, so the publish
+        // below reports two receivers and the assertion that exactly one exists - the whole proof that the
+        // delivery came from the new core - fails for a reason that has nothing to do with the new core.
+        subscription.AddEndpoint(((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint));
         await core.SubscriptionContext(endpoint).SendAsync($"{RedisCommand.SUBSCRIBE}{channel}");
 
         Assert.Equal(1, await conn.GetSubscriber().PublishAsync(channel, "delivered"));
