@@ -254,6 +254,18 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Load { get; }
 
+        /// <summary>The <c>CHANNELS</c> subcommand of <c>PUBSUB</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Channels { get; }
+
+        /// <summary>The <c>NUMPAT</c> subcommand of <c>PUBSUB</c>.</summary>
+        [Resp]
+        internal static partial RespFragment NumPat { get; }
+
+        /// <summary>The <c>NUMSUB</c> subcommand of <c>PUBSUB</c>; a channel follows it.</summary>
+        [Resp]
+        internal static partial RespFragment NumSub { get; }
+
         /// <summary>The <c>DOCTOR</c> subcommand of <c>LATENCY</c> and <c>MEMORY</c>.</summary>
         [Resp]
         internal static partial RespFragment Doctor { get; }

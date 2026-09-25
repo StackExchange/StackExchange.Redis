@@ -194,6 +194,36 @@ public class RespPushDispatchTests(ITestOutputHelper output, SharedConnectionFix
     }
 
     /// <summary>
+    /// A configured channel prefix is stripped on the way in, as it was added on the way out.
+    /// </summary>
+    /// <remarks>
+    /// <b>This fails silently when it is wrong</b>, which is what makes it worth a test of its own: the
+    /// registry is keyed by the names the caller used, so a delivery read without stripping simply
+    /// matches nothing, and a deployment with a prefix quietly stops receiving. No error, no log, no
+    /// exception - just no messages.
+    /// </remarks>
+    [Fact]
+    public async Task AChannelPrefixIsStrippedFromDeliveries()
+    {
+        const string Prefix = "pfx:";
+        await using var conn = Create(shared: false, channelPrefix: Prefix);
+        var muxer = TestMultiplexer.Unwrap(conn);
+
+        // the caller subscribes to the unprefixed name; the wire carries the prefixed one
+        var pending = Listen(muxer, RedisChannel.Literal(Me()));
+
+        var onTheWire = Prefix + Me();
+        var verdict = Dispatch(
+            muxer,
+            $">3\r\n$7\r\nmessage\r\n${onTheWire.Length}\r\n{onTheWire}\r\n$8\r\nprefixed\r\n");
+
+        Assert.Equal(RespOutOfBandResult.Handled, verdict);
+
+        // and the caller is told the name IT used, not the one the wire used
+        Assert.Equal((Me(), "prefixed"), await Delivered(pending));
+    }
+
+    /// <summary>
     /// A peer's "the configuration changed" broadcast is acted on, not merely delivered.
     /// </summary>
     /// <remarks>

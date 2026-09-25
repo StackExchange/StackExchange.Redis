@@ -85,10 +85,14 @@ namespace StackExchange.Redis
             RedisChannel.RedisChannelOptions options,
             bool patterned)
         {
-            if (!TryReadChannel(ref reader, options, out var subscription)) return RespOutOfBandResult.NotRecognized;
+            // the names arrive prefixed, and the registry is keyed by the names the CALLER used - so a
+            // delivery read without stripping matches nothing, and a deployment with a channel prefix
+            // simply stops receiving. It fails silently, which is why it is worth saying out loud
+            var prefix = multiplexer.ChannelPrefix.AsSpan();
+            if (!TryReadChannel(ref reader, prefix, options, out var subscription)) return RespOutOfBandResult.NotRecognized;
 
             var channel = subscription;
-            if (patterned && !TryReadChannel(ref reader, RedisChannel.RedisChannelOptions.None, out channel))
+            if (patterned && !TryReadChannel(ref reader, prefix, RedisChannel.RedisChannelOptions.None, out channel))
             {
                 return RespOutOfBandResult.NotRecognized;
             }
@@ -210,18 +214,18 @@ namespace StackExchange.Redis
             multiplexer.ReconfigureIfNeeded(blame, true, "broadcast");
         }
 
-        private static bool TryReadChannel(ref RespReader reader, RedisChannel.RedisChannelOptions options, out RedisChannel channel)
+        private static bool TryReadChannel(
+            ref RespReader reader,
+            ReadOnlySpan<byte> channelPrefix,
+            RedisChannel.RedisChannelOptions options,
+            out RedisChannel channel)
         {
             channel = default;
             if (!(reader.SafeTryMoveNext() & reader.IsInlineScalar)) return false;
             if (reader.Prefix is not (RespPrefix.BulkString or RespPrefix.SimpleString)) return false;
 
-            var value = reader.ReadRedisValue();
-            var bytes = (byte[]?)value;
-            if (bytes is null) return false;
-
-            channel = new RedisChannel(bytes, options);
-            return true;
+            channel = RespChannels.AsRedisChannel(channelPrefix, in reader, options);
+            return !channel.IsNull;
         }
     }
 }

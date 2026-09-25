@@ -590,42 +590,22 @@ namespace StackExchange.Redis
         }
 
         public RedisChannel[] SubscriptionChannels(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
-                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
-            return ExecuteSync(msg, ResultProcessor.RedisChannelArrayLiteral, defaultValue: Array.Empty<RedisChannel>());
-        }
+            => Wait(Context.PubSub.ChannelsAsync(pattern, flags));
 
         public Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
-                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
-            return ExecuteAsync(msg, ResultProcessor.RedisChannelArrayLiteral, defaultValue: Array.Empty<RedisChannel>());
-        }
+            => Context.PubSub.ChannelsAsync(pattern, flags).AsTask(asyncState, flags);
 
         public long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
+            => Wait(Context.PubSub.PatternCountAsync(flags));
 
         public Task<long> SubscriptionPatternCountAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
+            => Context.PubSub.PatternCountAsync(flags).AsTask(asyncState, flags);
 
         public long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            return ExecuteSync(msg, ResultProcessor.PubSubNumSub);
-        }
+            => Wait(Context.PubSub.SubscriberCountAsync(channel, flags));
 
         public Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            return ExecuteAsync(msg, ResultProcessor.PubSubNumSub);
-        }
+            => Context.PubSub.SubscriberCountAsync(channel, flags).AsTask(asyncState, flags);
 
         public void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None)
             => Wait(Context.Keyspace.SwapAsync(first, second, flags));

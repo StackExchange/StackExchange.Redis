@@ -865,70 +865,13 @@ internal sealed partial class PhysicalConnection
                        && typed.Command == command && typed.Channel == channel;
     }
 
+    /// <inheritdoc cref="RespChannels.AsRedisChannel"/>
+    /// <remarks>
+    /// The connection's own prefix, and nothing else: what to DO with it is
+    /// <see cref="RespChannels.AsRedisChannel"/>, shared with the core that has no connection to ask.
+    /// </remarks>
     internal RedisChannel AsRedisChannel(in RespReader reader, RedisChannel.RedisChannelOptions options)
-    {
-        var channelPrefix = ChannelPrefix;
-        if (channelPrefix is null)
-        {
-            // no channel-prefix enabled, just use as-is
-            return new RedisChannel(reader.ReadByteArray(), options);
-        }
-
-        byte[] lease = [];
-        var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(ref lease, stackalloc byte[256]);
-
-        if (span.StartsWith(channelPrefix))
-        {
-            // we have a channel-prefix, and it matches; strip it
-            span = span.Slice(channelPrefix.Length);
-        }
-        else if (IsServerDefinedChannel(span))
-        {
-            // Server-defined channels should ignore our channel-prefix rules.
-            // we shouldn't get unexpected events, so to get here: we've received a notification
-            // on a channel that doesn't match our prefix; this *should* be limited to
-            // key notifications (see: IgnoreChannelPrefix), but: we need to be sure
-
-            // leave alone
-        }
-        else
-        {
-            // no idea what this is
-            span = default;
-        }
-
-        RedisChannel channel = span.IsEmpty ? default : new(span.ToArray(), options);
-        if (lease.Length != 0) ArrayPool<byte>.Shared.Return(lease);
-        return channel;
-    }
-
-    private static bool IsServerDefinedChannel(ReadOnlySpan<byte> span)
-    {
-        var hash = AsciiHash.HashCS(span);
-        return hash switch
-        {
-            KeyspaceChannelPrefix.HashCS when span.StartsWith(KeyspaceChannelPrefix.U8) => true,
-            KeyeventChannelPrefix.HashCS when span.StartsWith(KeyeventChannelPrefix.U8) => true,
-            SubkeyspaceChannelPrefix.HashCS when span.StartsWith(SubkeyspaceChannelPrefix.U8) => true,
-            SubkeyeventChannelPrefix.HashCS when span.StartsWith(SubkeyeventChannelPrefix.U8) => true,
-            SubkeyspaceItemChannelPrefix.HashCS when span.StartsWith(SubkeyspaceItemChannelPrefix.U8) => true,
-            SubkeyspaceEventChannelPrefix.HashCS when span.StartsWith(SubkeyspaceEventChannelPrefix.U8) => true,
-            _ => false,
-        };
-    }
-
-    [AsciiHash("__keyspace@")]
-    private static partial class KeyspaceChannelPrefix { }
-    [AsciiHash("__keyevent@")]
-    private static partial class KeyeventChannelPrefix { }
-    [AsciiHash("__subkeyspace@")]
-    private static partial class SubkeyspaceChannelPrefix { }
-    [AsciiHash("__subkeyevent@")]
-    private static partial class SubkeyeventChannelPrefix { }
-    [AsciiHash("__subkeyspaceitem@")]
-    private static partial class SubkeyspaceItemChannelPrefix { }
-    [AsciiHash("__subkeyspaceevent@")]
-    private static partial class SubkeyspaceEventChannelPrefix { }
+        => RespChannels.AsRedisChannel(ChannelPrefix, in reader, options);
 
     [AsciiHash("*2\r\n$4\r\npong\r\n$")]
     private static partial class ArrayPong_LC_Bulk { }

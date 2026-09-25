@@ -1,5 +1,8 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
+using RESPite;
+using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -44,5 +47,94 @@ public static partial class PubSub
 
         return context.SendAsync<long>(
             $"{channel.GetPublishCommand()}{channel}{message}", flags, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>PUBSUB CHANNELS: the channels this server has subscribers for.</summary>
+    /// <param name="pubsub">The pub/sub command group.</param>
+    /// <param name="pattern">Only report channels matching this, or everything when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>The answer is one node's</b>, not the deployment's: a cluster propagates a publish across the
+    /// bus, but each node only knows the subscribers attached to it. Asking a different node is asking a
+    /// different question.
+    /// </remarks>
+    public static ValueTask<RedisChannel[]> ChannelsAsync(this in RespPubSub pubsub, RedisChannel pattern = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    {
+        // the names come back prefixed, and a caller never used the prefixed form - it belongs to the
+        // wire, exactly as it does on the way out
+        var handler = ChannelArrayHandler.For(pubsub.Context.ChannelPrefix);
+        return pattern.IsNullOrEmpty
+            ? pubsub.Context.SendAsync($"{RedisCommand.PUBSUB}{RespLiterals.Channels}", flags, handler, cancellationToken)
+            : pubsub.Context.SendAsync($"{RedisCommand.PUBSUB}{RespLiterals.Channels}{pattern}", flags, handler, cancellationToken);
+    }
+
+    /// <summary>PUBSUB NUMPAT: how many pattern subscriptions this server is serving.</summary>
+    /// <param name="pubsub">The pub/sub command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks><inheritdoc cref="ChannelsAsync" path="/remarks"/></remarks>
+    public static ValueTask<long> PatternCountAsync(this in RespPubSub pubsub, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => pubsub.Context.SendAsync<long>($"{RedisCommand.PUBSUB}{RespLiterals.NumPat}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>PUBSUB NUMSUB: how many subscribers this server has for one channel.</summary>
+    /// <param name="pubsub">The pub/sub command group.</param>
+    /// <param name="channel">The channel to count.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks><inheritdoc cref="ChannelsAsync" path="/remarks"/></remarks>
+    public static ValueTask<long> SubscriberCountAsync(this in RespPubSub pubsub, RedisChannel channel, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => pubsub.Context.SendAsync($"{RedisCommand.PUBSUB}{RespLiterals.NumSub}{channel}", flags, NumSubHandler.Instance, cancellationToken);
+
+    /// <summary>Reads <c>PUBSUB CHANNELS</c>: a flat array of channel names.</summary>
+    /// <remarks>
+    /// <b>Literal channels, never patterns.</b> What comes back is what somebody subscribed to, and a
+    /// name containing <c>*</c> is a name rather than a pattern - reading them as patterns would make a
+    /// channel called <c>news.*</c> compare equal to a subscription it has nothing to do with.
+    /// </remarks>
+    private sealed class ChannelArrayHandler : IRespHandler<RedisChannel[]>
+    {
+        private static readonly ChannelArrayHandler Unprefixed = new(default);
+
+        private readonly RedisChannel _prefix;
+
+        private ChannelArrayHandler(RedisChannel prefix) => _prefix = prefix;
+
+        /// <summary>The handler for a given prefix; the common case of none is a singleton.</summary>
+        /// <param name="prefix">The configured channel prefix, if any.</param>
+        internal static ChannelArrayHandler For(in RedisChannel prefix)
+            => prefix.IsNullOrEmpty ? Unprefixed : new(prefix);
+
+        public RedisChannel[] Parse(ref RespReader reader)
+        {
+            if (reader.IsNull || !reader.IsAggregate) return [];
+
+            var prefix = _prefix;
+            return reader.ReadPastArray(
+                ref prefix,
+                static (ref RedisChannel prefix, ref RespReader reader)
+                    => RespChannels.AsRedisChannel(prefix.Span, in reader, RedisChannel.RedisChannelOptions.None),
+                scalar: true) ?? [];
+        }
+    }
+
+    /// <summary>Reads <c>PUBSUB NUMSUB</c>: name/count pairs, of which we asked for exactly one.</summary>
+    private sealed class NumSubHandler : IRespHandler<long>
+    {
+        internal static readonly NumSubHandler Instance = new();
+
+        public long Parse(ref RespReader reader)
+        {
+            if (reader.IsAggregate
+                && reader.TryMoveNext() && reader.IsScalar // the name, which we already know
+                && reader.TryMoveNext() && reader.IsScalar
+                && reader.TryReadInt64(out var count)
+                && !reader.TryMoveNext()) // one channel in, one pair out
+            {
+                return count;
+            }
+
+            throw new RespException("Unexpected PUBSUB NUMSUB reply.");
+        }
     }
 }

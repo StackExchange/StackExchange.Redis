@@ -50,3 +50,20 @@ public static partial class RespDatabaseExtensions
         public RespPubSub PubSub => new(context.Raw);
     }
 }
+
+public static partial class RespServerExtensions
+{
+    extension(in RespServerContext context)
+    {
+        /// <summary>
+        /// The pub/sub commands of this server.
+        /// </summary>
+        /// <remarks>
+        /// <b>The same group, reached from a server</b>, because the <c>PUBSUB</c> introspection commands
+        /// answer about the node that was asked - how many subscribers <i>it</i> is serving - while
+        /// <c>PUBLISH</c> is database-scoped and reaches everyone. One group with two doors keeps a
+        /// caller from having to know which of those two shapes a given command has.
+        /// </remarks>
+        public RespPubSub PubSub => new(context.Raw);
+    }
+}
