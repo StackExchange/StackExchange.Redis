@@ -474,28 +474,16 @@ namespace StackExchange.Redis
         }
 
         public bool ScriptExists(string script, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script));
-            return ExecuteSync(msg, ResultProcessor.Boolean);
-        }
+            => Wait(Context.Scripts.ExistsAsync(ScriptHash.Hash(script), flags));
 
         public bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1));
-            return ExecuteSync(msg, ResultProcessor.Boolean);
-        }
+            => Wait(Context.Scripts.ExistsAsync(ScriptHash.Encode(sha1), flags));
 
         public Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script));
-            return ExecuteAsync(msg, ResultProcessor.Boolean);
-        }
+            => Context.Scripts.ExistsAsync(ScriptHash.Hash(script), flags).AsTask(asyncState, flags);
 
         public Task<bool> ScriptExistsAsync(byte[] sha1, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1));
-            return ExecuteAsync(msg, ResultProcessor.Boolean);
-        }
+            => Context.Scripts.ExistsAsync(ScriptHash.Encode(sha1), flags).AsTask(asyncState, flags);
 
         public void ScriptFlush(CommandFlags flags = CommandFlags.None)
         {

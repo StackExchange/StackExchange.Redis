@@ -484,4 +484,43 @@ public static partial class Scripts
     /// </remarks>
     public static ValueTask FlushAsync(this in RespScripts scripts, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => scripts.Context.SendAsync($"{RedisCommand.SCRIPT}{RespLiterals.Flush}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>SCRIPT EXISTS: whether this server already holds a script, by its hash.</summary>
+    /// <param name="scripts">The scripting command group.</param>
+    /// <param name="hash">The script's SHA1, hex-encoded.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>One hash, one answer.</b> The command is variadic and replies with one flag per hash asked
+    /// about, but <c>IServer</c> asks about exactly one - so this does too, rather than handing back a
+    /// one-element array for the caller to unwrap.
+    /// </remarks>
+    public static ValueTask<bool> ExistsAsync(this in RespScripts scripts, RedisValue hash, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => scripts.Context.SendAsync(
+            $"{RedisCommand.SCRIPT}{RespLiterals.Exists}{hash}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+            ScriptExistsHandler.Instance,
+            cancellationToken);
+
+    /// <summary>Reads <c>SCRIPT EXISTS</c>: one flag per hash asked about, and we asked about one.</summary>
+    private sealed class ScriptExistsHandler : IRespHandler<bool>
+    {
+        internal static readonly ScriptExistsHandler Instance = new();
+
+        public bool Parse(ref RespReader reader)
+        {
+            // a scalar is tolerated as well as the array, exactly as the shipped processor does: the
+            // reply shape is the server's to choose and both have been seen
+            if (reader.IsNull) return false;
+            if (reader.IsScalar) return reader.ReadBoolean();
+
+            if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
+            {
+                var exists = reader.ReadBoolean();
+                if (!reader.TryMoveNext()) return exists;
+            }
+
+            throw new RespException("Unexpected SCRIPT EXISTS reply.");
+        }
+    }
 }

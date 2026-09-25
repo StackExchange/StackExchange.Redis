@@ -254,6 +254,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Load { get; }
 
+        /// <summary>The <c>EXISTS</c> subcommand of <c>SCRIPT</c>; hashes follow it.</summary>
+        [Resp]
+        internal static partial RespFragment Exists { get; }
+
         /// <summary>The <c>FLUSH</c> subcommand of <c>SCRIPT</c>.</summary>
         [Resp]
         internal static partial RespFragment Flush { get; }
