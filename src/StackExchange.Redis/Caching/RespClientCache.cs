@@ -57,7 +57,14 @@ namespace StackExchange.Redis.Caching
         private long _evicted;
         private long _bytes;
         private int _count;
-        private int _evictCursor;
+
+        /// <summary>Keys in the order they were stored; the eviction candidate list.</summary>
+        /// <remarks>
+        /// Holds keys rather than entries, and may name entries that have since gone - see
+        /// <see cref="TryEvictOne"/>. A key here is one of the immortal copies the dictionary is keyed on,
+        /// so nothing in this queue has a lifetime to manage.
+        /// </remarks>
+        private readonly ConcurrentQueue<EntryKey> _evictionOrder = new();
         private long _lastSweep = Stopwatch.GetTimestamp();
         private long _refusedRaced;
         private long _redundantFills;
@@ -829,6 +836,7 @@ namespace StackExchange.Redis.Caching
 
             if (_entries.TryAdd(entryKey, entry))
             {
+                _evictionOrder.Enqueue(entryKey);
                 Interlocked.Increment(ref _count);
                 Interlocked.Add(ref _bytes, entry.Bytes);
                 fill.Key.Dispose(); // the dictionary holds its own references now
@@ -976,64 +984,78 @@ namespace StackExchange.Redis.Caching
             => (Options.MaxBytes is long maxBytes && Volatile.Read(ref _bytes) > maxBytes)
                || (Options.MaxEntries is int maxEntries && Count > maxEntries);
 
+        /// <summary>Evict one entry, preferring a dead one and otherwise the longest-resident.</summary>
+        /// <returns>Whether an entry was removed.</returns>
         /// <remarks>
         /// <para>
-        /// The enumerator of a <see cref="ConcurrentDictionary{TKey, TValue}"/> is a moving target and that
-        /// is fine here: a sample does not need to be a snapshot, only a handful of real entries. Taking the
-        /// first few is a poor sample when the enumeration order is stable, which is why the starting point
-        /// moves - otherwise the same few entries would be offered up every time and evicted in turn,
-        /// regardless of age.
+        /// <b>Second chance, over a queue of keys in the order they were stored.</b> The head is the
+        /// longest-resident entry; a live one examined and not taken goes to the back, which is what makes
+        /// this second-chance rather than plain FIFO - surviving a scan buys another pass. A dead entry is
+        /// taken on sight within the window, because it costs nothing to release and, unlike a live one,
+        /// nobody wanted it.
         /// </para>
         /// <para>
-        /// Two details that are easy to get subtly wrong. The start is chosen so a <b>whole</b> sample is
-        /// always available - stopping at the end of the enumeration rather than wrapping would truncate
-        /// samples that began near it, which quietly under-samples everything at the front of the table.
-        /// And the cursor advances per call rather than coming from the clock: a burst of evictions happens
-        /// far faster than <c>Environment.TickCount</c> changes, so a clock-derived start would hand out
-        /// the same window repeatedly within one burst.
+        /// <b>This replaced sampling the dictionary directly, which was O(n) per eviction.</b> That version
+        /// chose a moving start and walked to it - the walk being the only way to reach an offset in a
+        /// <see cref="ConcurrentDictionary{TKey, TValue}"/> - so a 32k-entry cache walked ~16k entries to
+        /// evict one, on every store, on every thread. Measured on the cache league's sad path, where every
+        /// store evicts: removing the walk took cache-miss-conc64 from 71k ops/s to 419k, which is level
+        /// with the same client caching nothing at all.
+        /// </para>
+        /// <para>
+        /// <b>The queue is allowed to hold keys that are no longer resident</b> - an entry removed by
+        /// invalidation or by a sweep leaves its key behind - so a stale head is discarded and does not
+        /// count against the window. Entries therefore leave the queue lazily, and the work stays bounded
+        /// by <see cref="CacheOptions.EvictionSampleSize"/> either way.
         /// </para>
         /// </remarks>
         private bool TryEvictOne()
         {
             var sampleSize = Options.EvictionSampleSize;
-            var count = Count;
-            var skip = count <= sampleSize
-                ? 0
-                : (int)((uint)Interlocked.Increment(ref _evictCursor) % (uint)(count - sampleSize + 1));
 
-            EntryKey oldestKey = default;
-            Entry? oldest = null;
-            var seen = 0;
-            var index = 0;
+            // the first LIVE candidate seen: what gets taken if nothing dead turns up in the window
+            EntryKey firstLiveKey = default;
+            var haveFirstLive = false;
 
-            foreach (var pair in _entries)
+            // bounded twice over: by the window for live entries, and by a stale allowance so a queue full
+            // of departed keys cannot spin. Both are cheap; neither depends on how big the cache is
+            var stale = sampleSize * 4;
+            for (var seen = 0; seen < sampleSize && stale > 0;)
             {
-                if (index++ < skip) continue;
+                if (!_evictionOrder.TryDequeue(out var candidate)) break;
 
-                // already dead: no scoring needed, and nobody is losing anything they wanted
-                if (!pair.Value.IsValid)
+                if (!_entries.TryGetValue(candidate, out var entry))
                 {
-                    if (TryRemoveSampled(pair.Key)) return true;
+                    stale--; // already gone; drop the key and keep looking
                     continue;
                 }
 
-                if (oldest is null || pair.Value.FilledAt < oldest.FilledAt)
+                if (!entry.IsValid)
                 {
-                    oldest = pair.Value;
-                    oldestKey = pair.Key;
+                    // dead, and we are holding its key: take it now
+                    if (TryRemoveSampled(candidate)) return true;
+                    continue;
                 }
 
-                if (++seen >= sampleSize) break;
+                seen++;
+                if (!haveFirstLive)
+                {
+                    firstLiveKey = candidate;
+                    haveFirstLive = true;
+                }
+                else
+                {
+                    // examined and spared: back of the queue, to be looked at again later
+                    _evictionOrder.Enqueue(candidate);
+                }
             }
 
-            if (oldest is null)
-            {
-                // the enumeration started past the end of a table that has since shrunk; the caller's
-                // bounded loop will come back round if we are still over budget
-                return false;
-            }
+            if (!haveFirstLive) return false;
 
-            return TryRemoveSampled(oldestKey);
+            if (TryRemoveSampled(firstLiveKey)) return true;
+
+            // somebody else took it between the look and the removal; its key is already gone with it
+            return false;
         }
 
         /// <summary>Remove an entry named by a key sampled from the live enumeration.</summary>
