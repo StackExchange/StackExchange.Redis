@@ -835,8 +835,17 @@ namespace StackExchange.Redis.Caching
             // removing would strand that key's reference - and disposing our own copy instead would release
             // the wrong one.
             var entry = new Entry(response, fill.Dependencies, stored);
-            if (fill.Replaces
-                && _entries.TryGetValue(entryKey, out var previous)
+
+            // A DEAD resident entry is replaced too, not only a refresh. Invalidation does no work beyond
+            // stamping a generation, so an invalidated entry stays in the dictionary until Sweep reclaims
+            // it - ten seconds later, by default. Without this, TryAdd below fails against that corpse and
+            // the fill is written off as redundant, which means the key cannot be re-cached until the
+            // sweep. Under sustained writes keys are re-invalidated faster than they are swept, so the
+            // cache never recovers: it decays to a 0% hit rate and then costs pure overhead. Found by the
+            // RespFest cache league, where this cache served 0.0% of reads under churn against 58-82% for
+            // every other client, and the cached build was slower than the same build with caching off.
+            if (_entries.TryGetValue(entryKey, out var previous)
+                && (fill.Replaces || !previous.IsValid)
                 && _entries.TryUpdate(entryKey, entry, previous))
             {
                 Interlocked.Add(ref _bytes, entry.Bytes - previous.Bytes);
