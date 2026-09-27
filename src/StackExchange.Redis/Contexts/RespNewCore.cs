@@ -114,6 +114,10 @@ namespace StackExchange.Redis
                 : multiplexer.IsConnected ? RespClusterState.No
                 : RespClusterState.Unknown;
 
+        internal bool RoutesBySlotForTest => _topology.RoutesBySlot;
+
+        internal string TopologyStateForTest => _topology.State.ToString();
+
         /// <summary>The one database this core can reach; see <c>GetDatabase</c>.</summary>
         internal int Database => _router.Database;
 

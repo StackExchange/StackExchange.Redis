@@ -185,6 +185,28 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
+        /// <b>Deferred is the interesting one</b>: no connection, nothing in flight, and nothing has
+        /// failed - this endpoint simply has not been asked for anything yet, which on a lazily-dialled
+        /// core is the ordinary state of most of a cluster and is not a fault.
+        /// </remarks>
+        internal override RespConnectionState ConnectionStateNow(in RedisKey key, CommandFlags flags)
+        {
+            lock (_sync)
+            {
+                if (_disposed) return RespConnectionState.Unroutable;
+                if (_connection is { IsClosed: false }) return RespConnectionState.Connected;
+                if (_connecting is not null) return RespConnectionState.Connecting;
+            }
+
+            // outside the lock: a failed attempt has already cleared _connecting, and the count is what
+            // distinguishes "tried and is not working" from "nobody has needed this yet"
+            return Volatile.Read(ref _connectRetryCount) > 0
+                ? RespConnectionState.Connecting
+                : RespConnectionState.Deferred;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
         /// <b>An observation, not a borrowed guess.</b> The handshake read this server's version out of
         /// its own <c>HELLO</c> reply on this very connection, so the answer describes the node that will
         /// actually run the command - which is the whole question.

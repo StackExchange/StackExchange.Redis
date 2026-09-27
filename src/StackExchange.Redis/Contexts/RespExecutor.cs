@@ -172,6 +172,18 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual bool IsReachable(in RedisKey key, CommandFlags flags) => true;
 
+        /// <summary>How close this executor is to being able to serve the given key.</summary>
+        /// <param name="key">The key whose routing is being asked about; may be null for "anywhere".</param>
+        /// <param name="flags">The flags that would be used, which can steer to a replica.</param>
+        /// <remarks>
+        /// <b>Derived from <see cref="IsReachable"/> by default, not answered independently.</b> An
+        /// executor that knows only whether it can be reached - a fake, a stream over one socket - must
+        /// not have that answer ignored because it did not know about this richer question. Only an
+        /// executor that can actually tell "not dialled" from "failing" overrides this.
+        /// </remarks>
+        internal virtual RespConnectionState ConnectionStateNow(in RedisKey key, CommandFlags flags)
+            => IsReachable(in key, flags) ? RespConnectionState.Connected : RespConnectionState.Deferred;
+
         /// <summary>What the server that would serve this command can do.</summary>
         /// <param name="command">The command, whose routing decides which server answers.</param>
         /// <param name="key">The key being addressed, or default when nothing steers the choice.</param>
@@ -370,6 +382,24 @@ namespace StackExchange.Redis
         /// </remarks>
         public bool IsConnected(in RedisKey key, CommandFlags flags)
             => ResolveFor(in key, RedisCommand.PING, flags) is { } target && target.IsReachable(in key, flags);
+
+        /// <summary>The routing question, answered with the detail a boolean cannot carry.</summary>
+        /// <param name="key">The key whose routing is being asked about; null means "anywhere".</param>
+        /// <param name="flags">
+        /// The flags that would be used. <b>Required, not optional</b>: which endpoint serves a key depends
+        /// on the primary/replica preference, so without them this would answer about a different endpoint
+        /// from the one a command would actually use - and <c>DemandReplica</c> with no replica is
+        /// <see cref="RespConnectionState.Unroutable"/> rather than merely unconnected.
+        /// </param>
+        /// <remarks>
+        /// <b>Additive: <see cref="IsConnected"/> is deliberately left alone.</b> It is public API with a
+        /// documented meaning and no internal caller depends on it, so widening it would be a behaviour
+        /// change for existing users in exchange for very little. This answers the question it could not.
+        /// </remarks>
+        internal RespConnectionState GetConnectionState(in RedisKey key, CommandFlags flags)
+            => ResolveFor(in key, RedisCommand.PING, flags) is { } target
+                ? target.ConnectionStateNow(in key, flags)
+                : RespConnectionState.Unroutable;
 
         /// <summary>Which endpoint would serve - or did serve - a command for the given key.</summary>
         /// <param name="key">The key whose routing is being asked about; null means "anywhere".</param>

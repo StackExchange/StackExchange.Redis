@@ -71,6 +71,10 @@ namespace StackExchange.Redis
         internal override bool IsReachable(in RedisKey key, CommandFlags flags) => _inner.IsReachable(in key, flags);
 
         /// <inheritdoc/>
+        internal override RespConnectionState ConnectionStateNow(in RedisKey key, CommandFlags flags)
+            => _inner.ConnectionStateNow(in key, flags);
+
+        /// <inheritdoc/>
         internal override bool TryGetLocalFeatures(out RedisFeatures features) => _inner.TryGetLocalFeatures(out features);
 
         /// <inheritdoc/>

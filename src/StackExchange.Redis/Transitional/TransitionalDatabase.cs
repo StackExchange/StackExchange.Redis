@@ -249,6 +249,16 @@ namespace StackExchange.Redis
         public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
             => Router.IsConnected(in key, flags);
 
+        /// <summary>
+        /// <see cref="IsConnected"/> with the detail a boolean cannot carry; internal while the shape settles.
+        /// </summary>
+        /// <param name="key">The key whose routing is being asked about; null means "anywhere".</param>
+        /// <param name="flags">The flags that would be used; they decide primary versus replica, and so which endpoint is being asked about.</param>
+        internal RespConnectionState GetConnectionState(RedisKey key, CommandFlags flags = CommandFlags.None)
+            => Router.GetConnectionState(in key, flags);
+
+        internal string RouterKindForTest => Router.GetType().Name;
+
         /// <inheritdoc/>
         /// <remarks>Off the fallback: the executor is the router, so it is the one that can answer.</remarks>
         public System.Net.EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)

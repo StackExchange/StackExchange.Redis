@@ -258,10 +258,32 @@ namespace StackExchange.Redis
         {
             internal static readonly ClusterInfoHandler Instance = new();
 
+            /// <remarks>
+            /// <para>
+            /// <b><c>CLUSTER INFO</c> does not report <c>cluster_enabled</c>; <c>INFO</c> does.</b> This
+            /// looked for that field, which cannot appear in this reply, so it answered
+            /// <see cref="ServerType.Standalone"/> for every server including a cluster - and the handshake
+            /// then OVERWROTE a correctly seeded cluster topology with it. The whole core stopped routing
+            /// by slot and sent every key to whichever endpoint keyless routing picked, which the server
+            /// answered with <c>MOVED</c>.
+            /// </para>
+            /// <para>
+            /// Measured against the test topology: a cluster node answers
+            /// <c>cluster_state:ok|cluster_slots_assigned:16384|...</c> with no <c>cluster_enabled</c> line
+            /// anywhere, and a standalone answers <c>-ERR This instance has cluster support disabled</c> -
+            /// an error, which the caller already turns into <see cref="ServerType.Standalone"/>. So a
+            /// successful reply is itself the signal, and <c>cluster_state</c> is what identifies it.
+            /// </para>
+            /// <para>
+            /// <c>cluster_enabled:1</c> is still accepted, for a proxy that answers this in <c>INFO</c>'s
+            /// shape rather than the server's.
+            /// </para>
+            /// </remarks>
             public ServerType Parse(ref RespReader reader)
-                => reader.TryGetSpan(out var span) && Contains(span, "cluster_enabled:1"u8)
-                    ? ServerType.Cluster
-                    : ServerType.Standalone;
+                => reader.TryGetSpan(out var span)
+                    && (Contains(span, "cluster_state:"u8) || Contains(span, "cluster_enabled:1"u8))
+                        ? ServerType.Cluster
+                        : ServerType.Standalone;
 
             private static bool Contains(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
             {
