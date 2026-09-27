@@ -140,6 +140,14 @@ namespace StackExchange.Redis
                 // already sent. Without it the registry is null, which also meant no NOSCRIPT repair -
                 // see the null-registry branch in Scripts.Methods
                 .WithScriptCache(_multiplexer.ScriptCache)
+
+                // As with the script cache, the multiplexer's and not one of this core's own: invalidation
+                // arrives on whichever connection is tracking, and RespPushDispatch applies it to
+                // multiplexer.ClientCache, so a context holding any other instance would fill one cache and
+                // have a different one invalidated. Without this the new core had NO cache at all - not a
+                // cold one, an absent one - so every counter read zero and the client-side cache silently
+                // did nothing whenever the engine flag was on.
+                .WithCache(_multiplexer.ClientCache)
                 .AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix)
                 .WithServices(_features)
                 .WithExecutor(database == _router.Database ? _router : Rebind(database)));
