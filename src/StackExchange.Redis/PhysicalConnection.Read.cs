@@ -33,6 +33,50 @@ internal sealed partial class PhysicalConnection
     // commits that land before the parser gets back around to waiting just coalesce into one wake, which
     // is fine: the parser always re-checks the buffer's actual state rather than trusting the signal count.
     private SemaphoreSlim? _fillSignal;
+
+    /// <summary>
+    /// How many times the parse loop polls <see cref="_fillSignal"/> before parking.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The filler is usually only microseconds ahead of the parser, so parking costs more than the wait it
+    /// replaces - and that cost is the whole of what this split gives back on shapes with nothing to parse.
+    /// Polling briefly first recovers about half of it.
+    /// </para>
+    /// <para>
+    /// Measured on this reader, three repeats, 64 concurrent callers, spin off versus on:
+    /// <c>incr-conc64</c> 948,764 -> 973,230 ops/s (+2.6%, and the two sets of repeats do not overlap) with
+    /// CPU per operation falling 12.19 -> 11.90us - it removes park/unpark work rather than trading CPU for
+    /// throughput. <c>get-1k-conc64</c> (+1.3%) and <c>get-8k-conc64</c> (+0.6%) both sit inside overlapping
+    /// ranges and are not significant, which is the expected shape: this helps exactly where parking was the
+    /// cost, and nowhere else.
+    /// </para>
+    /// <para>
+    /// 200 because it saturates there - 1000, 4000 and 16,000 all measured within noise of it on the
+    /// equivalent loop in the v4 core, which carries a port of this same split.
+    /// </para>
+    /// </remarks>
+    private const int FillSpin = 200;
+
+    /// <summary>
+    /// Spinning needs somebody else to be running on another core to be worth anything; on a single
+    /// processor the filler cannot make progress while this thread spins, so it is pure delay.
+    /// </summary>
+    private static readonly bool SpinBeforePark = Environment.ProcessorCount > 1;
+
+    /// <summary>Poll for the fill signal a bounded number of times; false means "nothing yet, go and park".</summary>
+    private static bool TrySpinForFill(SemaphoreSlim signal)
+    {
+        if (!SpinBeforePark) return false;
+
+        for (var i = 0; i < FillSpin; i++)
+        {
+            if (signal.Wait(0)) return true;
+            Thread.SpinWait(20);
+        }
+
+        return false;
+    }
     private Exception? _fillerFault;
 
     // Filler lifecycle flags. Every *decision* based on them is taken under _readBufferLock (the filler's
@@ -159,7 +203,7 @@ internal sealed partial class PhysicalConnection
             while (true)
             {
                 _readStatus = ReadStatus.ReadAsync;
-                await fillSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (!TrySpinForFill(fillSignal)) await fillSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
 
                 _readStatus = ReadStatus.TryParseResult;
                 ParseAvailableFrames();
@@ -435,7 +479,7 @@ internal sealed partial class PhysicalConnection
             while (true)
             {
                 _readStatus = ReadStatus.ReadSync;
-                fillSignal.Wait(cancellationToken);
+                if (!TrySpinForFill(fillSignal)) fillSignal.Wait(cancellationToken);
 
                 _readStatus = ReadStatus.TryParseResult;
                 ParseAvailableFrames();
