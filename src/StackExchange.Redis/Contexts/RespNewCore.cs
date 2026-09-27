@@ -528,6 +528,22 @@ namespace StackExchange.Redis
 
             var profile = Profiling.ProfiledCommand.NewWithContext(session, server);
             profile.SetOperation(command, flags, database, operation.Diagnostics.CreatedDateTime, operation.Diagnostics.CreatedTimestamp);
+
+            // ENQUEUED IS HERE, and it has to be set by somebody: nothing did, so EnqueuedTimeStamp stayed
+            // zero and both spans either side of it were nonsense - CreationToEnqueued measured back to the
+            // epoch and EnqueuedToSending measured forward from it. MovedProfiling asserts they are
+            // positive, which is a fair thing to ask of a timing record.
+            //
+            // This is the right moment rather than a convenient one: routing has resolved, so the endpoint
+            // is known - which is why the profile is started here at all - and the operation is about to be
+            // handed to a connection. The shipped core stamps it at the equivalent point, as the message
+            // goes to a bridge.
+            //
+            // Null connection type: this core does not yet distinguish interactive from subscription at
+            // this point, and the shipped core also passes null where it does not know (PhysicalBridge).
+            // Claiming "interactive" would be right most of the time, which is not the same as right.
+            profile.SetEnqueued(null);
+
             operation.Profile = profile;
             return profile;
         }

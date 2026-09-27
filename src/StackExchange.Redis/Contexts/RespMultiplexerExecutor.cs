@@ -178,8 +178,24 @@ namespace StackExchange.Redis
             => _forChannel?.Invoke(channel);
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// <b><c>MultipleSlots</c> is refused here, not routed.</b> Both sentinels are negative, so a single
+        /// <c>slot >= 0</c> test sent "these keys disagree" down the same path as "this command names no
+        /// key" - anywhere will do - and a cross-slot TRANSACTION was therefore dispatched to an arbitrary
+        /// node, which answered CROSSSLOT. The caller saw a server error where the rule is the client's to
+        /// enforce, and the shipped core enforces it: <c>ServerSelectionStrategy</c> throws for
+        /// <c>MultipleSlots</c> before anything is sent.
+        /// <para>
+        /// The per-request check in <c>Route</c> did not cover this: it sees one rendered command, and a
+        /// transaction is cross-slot across SEVERAL commands that are each single-slot. That combination is
+        /// computed by <c>RespTransaction.SlotOf</c> and arrives here.
+        /// </para>
+        /// </remarks>
         internal override RespExecutorBase? ResolveForSlot(int slot, RedisCommand command, CommandFlags flags)
-            => _topology.RoutesBySlot && slot >= 0 ? _forSlot(slot, command, flags) : _any(command, flags);
+        {
+            if (slot == ServerSelectionStrategy.MultipleSlots) ThrowCrossSlot();
+            return _topology.RoutesBySlot && slot >= 0 ? _forSlot(slot, command, flags) : _any(command, flags);
+        }
 
         internal override RespExecutorBase? ResolveFor(in RedisKey key, RedisCommand command, CommandFlags flags)
         {
