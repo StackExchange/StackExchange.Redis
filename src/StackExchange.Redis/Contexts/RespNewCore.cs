@@ -202,11 +202,51 @@ namespace StackExchange.Redis
             return server is null ? Any(database, command, flags) : Executor(database, server.EndPoint);
         }
 
+        /// <summary>The executor for a command with no key, which any acceptable server could serve.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Prefers an endpoint this core has already dialled.</b> The core connects lazily, so in a
+        /// cluster most endpoints have no connection until something needs them - while the selector's
+        /// keyless choice ROUND-ROBINS (<c>AnyServer</c> advances an offset every call). Taking the first
+        /// answer therefore opened a new socket for a command any existing connection could have served,
+        /// and made keyless routing differ from call to call.
+        /// </para>
+        /// <para>
+        /// That was visible from outside: <c>IsConnected(default)</c> resolves a keyless route and asks
+        /// whether THAT endpoint is connected, so on a six-node cluster with one endpoint dialled it
+        /// answered true or false depending on where the round-robin happened to land - the same code and
+        /// the same healthy cluster giving different answers on consecutive calls.
+        /// </para>
+        /// <para>
+        /// <b>Asked through the selector rather than by scanning our own connections</b>, so only servers
+        /// the selector would have offered are considered and its primary/replica rules still decide. The
+        /// loop is bounded by the endpoint count, and the first answer is kept as the fallback for when
+        /// nothing is dialled yet - which is every keyless command on a fresh multiplexer, so there has to
+        /// be one.
+        /// </para>
+        /// </remarks>
         private RespExecutorBase? Any(int database, RedisCommand command, CommandFlags flags)
         {
-            var server = _multiplexer.ServerSelectionStrategy.Select(
-                ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: true);
-            if (server is not null) return Executor(database, server.EndPoint);
+            var strategy = _multiplexer.ServerSelectionStrategy;
+            ServerEndPoint? fallback = null;
+
+            var attempts = _multiplexer.GetEndPoints().Length;
+            if (attempts < 1) attempts = 1;
+
+            for (var i = 0; i < attempts; i++)
+            {
+                var candidate = strategy.Select(
+                    ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: true);
+                if (candidate is null) break;
+
+                fallback ??= candidate;
+                if (_endpoints.TryGetValue(candidate.EndPoint, out var dialled) && dialled.IsConnectedNow)
+                {
+                    return Executor(database, candidate.EndPoint);
+                }
+            }
+
+            if (fallback is not null) return Executor(database, fallback.EndPoint);
 
             var endpoints = _multiplexer.GetEndPoints();
             return endpoints.Length == 0 ? null : Executor(database, endpoints[0]);
