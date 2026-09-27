@@ -93,7 +93,11 @@ namespace StackExchange.Redis
             var serverType = ServerType.Standalone;
             var knowServerType = false;
             Version? version = null;
-            if (preferResp3)
+            // Disabled in the command map counts as "the server will not do this", and has to be answered
+            // without sending: a disabled command throws RedisCommandException before it reaches a socket,
+            // which is not the RedisServerException these catches expect, so it would escape and fail the
+            // whole handshake rather than being the ordinary decline every one of them is written for.
+            if (preferResp3 && context.Raw.CommandMap.IsAvailable(RedisCommand.HELLO))
             {
                 try
                 {
@@ -121,16 +125,30 @@ namespace StackExchange.Redis
             if (!knowServerType)
             {
                 // no HELLO, or a HELLO that did not say. CLUSTER INFO is unambiguous and works on RESP2;
-                // a server where CLUSTER is unavailable is, by that very fact, not a cluster
-                try
-                {
-                    serverType = await context.SendAsync(
-                        $"{RedisCommand.CLUSTER}{RespLiterals.Info}",
-                        handler: ClusterInfoHandler.Instance).ConfigureAwait(false);
-                }
-                catch (RedisServerException)
+                // a server where CLUSTER is unavailable is, by that very fact, not a cluster.
+                //
+                // "Unavailable" includes disabled in the command map, which is how the proxy maps express
+                // it - and that case has to be answered WITHOUT sending, because a disabled command throws
+                // RedisCommandException before it reaches a socket. That is not a RedisServerException, so
+                // it sailed past the catch below and failed the whole handshake: connecting through envoy
+                // or twemproxy died with "This operation has been disabled in the command-map and cannot
+                // be used: CLUSTER" instead of concluding, correctly, that this is not a cluster.
+                if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CLUSTER))
                 {
                     serverType = ServerType.Standalone;
+                }
+                else
+                {
+                    try
+                    {
+                        serverType = await context.SendAsync(
+                            $"{RedisCommand.CLUSTER}{RespLiterals.Info}",
+                            handler: ClusterInfoHandler.Instance).ConfigureAwait(false);
+                    }
+                    catch (RedisServerException)
+                    {
+                        serverType = ServerType.Standalone;
+                    }
                 }
             }
 
@@ -139,7 +157,7 @@ namespace StackExchange.Redis
             // draining against an unset topology is exactly the window that loses per-slot ordering
             topology?.OnServerType(serverType);
 
-            if (clientName is { Length: > 0 })
+            if (clientName is { Length: > 0 } && context.Raw.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
                 try
                 {
