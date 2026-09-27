@@ -38,6 +38,17 @@ namespace StackExchange.Redis
         private readonly Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? _startProfile;
         private readonly EndPoint? _endpoint;
         private readonly bool _queueWhileDisconnected;
+
+        /// <summary>How long a connection attempt may take before it is abandoned; zero or less means no limit.</summary>
+        /// <remarks>
+        /// <b>Without this a stalled connect hangs the endpoint permanently.</b> One attempt is in flight at
+        /// a time and everything that arrives meanwhile goes to the backlog behind it, so a connect that
+        /// never completes is not one slow command - it is every command on this endpoint, for ever. The
+        /// shipped core bounds the same step with <c>ConnectTimeout</c> (see <c>PhysicalConnection</c>);
+        /// this had no bound at all, which is what left <c>ReconnectRetryPolicyUnitTests</c> hanging under
+        /// the new core rather than failing its ping.
+        /// </remarks>
+        private readonly int _connectTimeoutMilliseconds;
         private readonly object _sync = new();
 
         private RespConnection? _connection;
@@ -89,6 +100,7 @@ namespace StackExchange.Redis
         /// </param>
         /// <param name="startProfile">Begins a profiling record for a command, when anyone is profiling.</param>
         /// <param name="select">Supplies <c>SELECT</c> frames when this connection serves several databases.</param>
+        /// <param name="connectTimeoutMilliseconds">How long a connection attempt may take before it is abandoned; zero or less means no limit.</param>
         internal RespEndpointExecutor(
             Func<CancellationToken, Task<RespConnection>> connect,
             int database = 0,
@@ -96,8 +108,10 @@ namespace StackExchange.Redis
             bool queueWhileDisconnected = true,
             Func<RedisFeatures?>? features = null,
             Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? startProfile = null,
-            SelectPreamble? select = null)
+            SelectPreamble? select = null,
+            int connectTimeoutMilliseconds = 0)
         {
+            _connectTimeoutMilliseconds = connectTimeoutMilliseconds;
             _features = features;
             _startProfile = startProfile;
             _connect = connect ?? throw new ArgumentNullException(nameof(connect));
@@ -839,11 +853,67 @@ namespace StackExchange.Redis
             _connecting = Task.Run(ConnectAsync);
         }
 
+        /// <summary>Connect, giving up after <see cref="_connectTimeoutMilliseconds"/>.</summary>
+        /// <remarks>
+        /// <b>Raced rather than merely cancelled.</b> Cancelling only helps for a connect that watches the
+        /// token, and the interesting stalls are the ones that do not - a tunnel hook, a handshake waiting
+        /// on a server that has stopped answering. So the token is cancelled <i>and</i> the wait is
+        /// abandoned, because a caller that is still waiting after the deadline has not been helped by
+        /// asking nicely.
+        /// <para>
+        /// An abandoned attempt is still observed: if it eventually produces a connection nobody is waiting
+        /// for, that connection is disposed rather than left holding a socket, and its fault is swallowed
+        /// because the caller has already been told about the timeout.
+        /// </para>
+        /// </remarks>
+        private async Task<RespConnection> ConnectWithinTimeoutAsync()
+        {
+            var timeoutMilliseconds = _connectTimeoutMilliseconds;
+            if (timeoutMilliseconds <= 0) return await _connect(CancellationToken.None).ConfigureAwait(false);
+
+            var cancel = new CancellationTokenSource();
+            var pending = _connect(cancel.Token);
+
+            if (pending.IsCompleted)
+            {
+                cancel.Dispose();
+                return await pending.ConfigureAwait(false);
+            }
+
+            using (var delay = new CancellationTokenSource())
+            {
+                if (await Task.WhenAny(pending, Task.Delay(timeoutMilliseconds, delay.Token)).ConfigureAwait(false) == pending)
+                {
+                    delay.Cancel(); // stop the timer rather than leave it to fire into nothing
+                    cancel.Dispose();
+                    return await pending.ConfigureAwait(false);
+                }
+            }
+
+            cancel.Cancel();
+            Abandon(pending, cancel);
+            throw new TimeoutException(
+                $"The connection attempt to {_endpoint?.ToString() ?? "the endpoint"} did not complete within {timeoutMilliseconds}ms.");
+
+            static void Abandon(Task<RespConnection> pending, CancellationTokenSource cancel)
+                => _ = pending.ContinueWith(
+                    static (task, state) =>
+                    {
+                        ((CancellationTokenSource)state!).Dispose();
+                        if (task.IsCompletedSuccessfully) _ = task.Result.DisposeAsync();
+                        else _ = task.Exception; // observed, so it is not an unobserved-exception event
+                    },
+                    cancel,
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+        }
+
         private async Task<RespConnection> ConnectAsync()
         {
             try
             {
-                var connection = await _connect(CancellationToken.None).ConfigureAwait(false);
+                var connection = await ConnectWithinTimeoutAsync().ConfigureAwait(false);
                 Interlocked.Increment(ref _connects);
 
                 bool drain;

@@ -331,7 +331,8 @@ namespace StackExchange.Redis
             _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected,
             () => _observed.TryGetValue(endpoint, out var features) ? features : null,
             StartProfile,
-            _select);
+            _select,
+            _multiplexer.RawConfig.ConnectTimeout);
 
         /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
         /// <remarks>
@@ -375,7 +376,8 @@ namespace StackExchange.Redis
             _multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected,
             () => _observed.TryGetValue(endpoint, out var features) ? features : null,
             StartProfile,
-            _select);
+            _select,
+            _multiplexer.RawConfig.ConnectTimeout);
 
         /// <summary>Open a socket, hand it to the new stack, and bring it up.</summary>
         /// <remarks>
