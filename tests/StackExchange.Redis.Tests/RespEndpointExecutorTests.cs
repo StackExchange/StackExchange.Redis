@@ -212,13 +212,28 @@ public class RespEndpointExecutorTests
     [Fact]
     public async Task WithoutQueueingADisconnectedSendFailsImmediately()
     {
-        var endpoint = new Endpoint { Gate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        // The FIRST command still dials, and only what follows a failure fails fast.
+        //
+        // This used to assert "and it did not even try" for the first command too. FailFast is about not
+        // queueing behind a connection that is DOWN, and it was written for a core that dials every
+        // endpoint during connect - so by the time a command ran there was either a connection or a known
+        // failure, and "no connection" could only mean the second. This core dials on demand, where
+        // "nothing has needed this endpoint yet" is neither, and refusing it meant a FailFast multiplexer
+        // could never issue its first command at all: ClientKillTests failed against a healthy server.
+        //
+        // Nothing is weakened, because the connect settles it either way - a server that cannot be
+        // reached fails the attempt and the backlog is drained with that failure, which is fail-fast
+        // arrived at honestly - and a send AFTER that failure is refused without dialling again.
+        var endpoint = new Endpoint { FailWith = new InvalidOperationException("no route to host") };
         await using var executor = new RespEndpointExecutor(endpoint.ConnectAsync, queueWhileDisconnected: false);
         var context = Wrap(executor);
 
+        await Assert.ThrowsAnyAsync<Exception>(async () => await context.Strings.GetAsync("k"));
+        Assert.Equal(1, endpoint.Attempts); // it tried once, because nothing else was going to
+
         var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () => await context.Strings.GetAsync("k"));
         Assert.Equal(ConnectionFailureType.SocketClosed, ex.FailureType);
-        Assert.Equal(0, endpoint.Attempts); // and it did not even try
+        Assert.Equal(1, endpoint.Attempts); // and now it does not try again: this one IS disconnected
     }
 
     [Fact]

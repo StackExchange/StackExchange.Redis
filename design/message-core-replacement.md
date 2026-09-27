@@ -1553,3 +1553,30 @@ Engine-flag failures went 133 -> 87 over one working session. These are what is 
   two `ReconnectRetryPolicyUnitTests` cases still fail. Nothing to fix here; it resolves when the old
   core goes, and is noted so the failures are not chased again.
 
+- **Several remaining failures are the two cores disagreeing, not the new core being wrong.**
+  `BacklogTests` (4) calls `server.SimulateConnectionFailure`, which reaches
+  `ServerEndPoint.interactive` - the OLD core's bridge. The new core's own connection is untouched, so
+  the command that the test expects to fail succeeds. Same shape as the `IReconnectRetryPolicy`
+  residual. These want either a new-core-aware simulation hook or to be left until the old core goes;
+  chasing them as new-core bugs wastes the effort.
+
+- **`AbortOnConnectFailTests` (4) is message parity, not behaviour.** The new core throws
+  `RedisConnectionException` correctly; the text is its own literal ("The connection is not
+  available.") where the tests want the shipped `ExceptionFactory.NoConnectionAvailable` wording ("No
+  connection is active/available to service this operation: ..."). That factory needs a multiplexer, a
+  `Message` and a `ServerEndPoint`, none of which `RespPayloadOperation.EnsureFaulted` has, so closing
+  it is a plumbing decision rather than a one-line fix - the same shared-wording argument as
+  `MultiSlotMessage`.
+
+- **DECISION TAKEN UNDER UNCERTAINTY, worth reviewing: FailFast now dials once.** `BacklogPolicy.FailFast`
+  was refusing a command when the executor had no connection - including when it had never dialled -
+  so a FailFast multiplexer could never issue its FIRST command against a healthy server
+  (`ClientKillTests`, 4 failures). The shipped core never had to decide this, because it dials every
+  endpoint during connect; lazy dialling creates the question. The exemption is one ATTEMPT, not one
+  success - counting successes would leave FailFast permanently disengaged against a server that is
+  down - after which a disconnected send is refused as the policy says.
+  `RespEndpointExecutorTests.WithoutQueueingADisconnectedSendFailsImmediately` asserted "and it did not
+  even try" and has been changed to assert both halves. If the original intent was deliberate about the
+  never-dialled case too, the alternative fix is to have the multiplexer warm the new core's executors
+  during connect, and this should be reverted.
+

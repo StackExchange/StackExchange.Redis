@@ -464,7 +464,9 @@ namespace StackExchange.Redis
                     // start connecting anyway: the caller will fail this batch, but the next one should
                     // not have to wait for a connection nobody has asked for yet. Callers that CAN wait
                     // call PrepareRunAsync first and so do not reach this at all.
-                    if (!_disposed && _queueWhileDisconnected) EnsureConnecting(); // already holding _sync
+                    // NeverConnected too: under FailFast the first command is backlogged rather than
+                    // refused (see NeverConnected), and a backlog nobody dials for would simply wait
+                    if (!_disposed && (_queueWhileDisconnected || NeverConnected)) EnsureConnecting(); // already holding _sync
 
                     return false;
                 }
@@ -541,7 +543,7 @@ namespace StackExchange.Redis
                 connection = _connection;
                 if (connection is null || connection.IsClosed || _writeSlotHeld)
                 {
-                    if (!_queueWhileDisconnected && !_writeSlotHeld) return false;
+                    if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected) return false;
 
                     operation.MarkQueued();
                     (_backlog ??= new()).Enqueue(operation);
@@ -596,7 +598,7 @@ namespace StackExchange.Redis
                 {
                     // a claim is deliberately handled by the SAME branch as no-connection: both mean
                     // "not writable right now", and both are answered by the backlog, in arrival order
-                    if (!_queueWhileDisconnected && !_writeSlotHeld)
+                    if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected)
                     {
                         operation.EnsureFaulted(request.Flags);
                         return operation;
@@ -906,6 +908,30 @@ namespace StackExchange.Redis
         /// driven by demand, so the question is asked where the demand arrives.
         /// </para>
         /// </remarks>
+        /// <summary>
+        /// Whether a connection has never been ATTEMPTED here - not merely never achieved.
+        /// </summary>
+        /// <remarks>
+        /// <b>FailFast is about not queueing behind a connection that is DOWN.</b> It was written for a
+        /// core that dials every endpoint during connect, where by the time a command is issued there is
+        /// either a connection or a known failure - so "no connection" could only mean the second. This
+        /// core dials on demand, and "nothing has needed this endpoint yet" is neither: refusing it made
+        /// the FIRST command on a FailFast multiplexer fail against a perfectly healthy server.
+        /// <para>
+        /// Backlogging instead does not weaken the policy, because the connect settles it either way: a
+        /// server that cannot be reached fails the attempt, and <c>ConnectAsync</c> drains the backlog with
+        /// that failure - which is fail-fast, arrived at honestly.
+        /// </para>
+        /// <para>
+        /// <b>Attempted, not achieved</b>, and the difference is the whole exemption: counting only
+        /// successes would leave this true for ever against a server that is down, so FailFast would never
+        /// engage at all and every command would dial again. One attempt is the grace; after it, a
+        /// disconnected send is refused as the policy says.
+        /// </para>
+        /// </remarks>
+        private bool NeverConnected
+            => Volatile.Read(ref _connects) == 0 && Volatile.Read(ref _connectRetryCount) == 0;
+
         private bool DueForConnectRetry()
         {
             if (Volatile.Read(ref _connectRetryCount) <= 0 && _connection is null && _connects == 0)
