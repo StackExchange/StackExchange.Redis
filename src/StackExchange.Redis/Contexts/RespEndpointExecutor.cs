@@ -49,6 +49,19 @@ namespace StackExchange.Redis
         /// the new core rather than failing its ping.
         /// </remarks>
         private readonly int _connectTimeoutMilliseconds;
+
+        /// <summary>The caller's reconnect backoff, asked before every attempt after the first failure.</summary>
+        /// <remarks>
+        /// <b>A function, not a value</b>, because the policy is read from configuration that can be
+        /// rebound underneath a long-lived executor - the same reason the features probe is a function.
+        /// </remarks>
+        private readonly Func<IReconnectRetryPolicy?>? _retryPolicy;
+
+        /// <summary>How many reconnects have already been refused or failed since the last success.</summary>
+        private long _connectRetryCount;
+
+        /// <summary><see cref="Environment.TickCount"/> when the last attempt started.</summary>
+        private int _lastConnectTicks = Environment.TickCount;
         private readonly object _sync = new();
 
         private RespConnection? _connection;
@@ -101,6 +114,7 @@ namespace StackExchange.Redis
         /// <param name="startProfile">Begins a profiling record for a command, when anyone is profiling.</param>
         /// <param name="select">Supplies <c>SELECT</c> frames when this connection serves several databases.</param>
         /// <param name="connectTimeoutMilliseconds">How long a connection attempt may take before it is abandoned; zero or less means no limit.</param>
+        /// <param name="retryPolicy">The reconnect backoff to consult before re-attempting a failed connect.</param>
         internal RespEndpointExecutor(
             Func<CancellationToken, Task<RespConnection>> connect,
             int database = 0,
@@ -109,9 +123,11 @@ namespace StackExchange.Redis
             Func<RedisFeatures?>? features = null,
             Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? startProfile = null,
             SelectPreamble? select = null,
-            int connectTimeoutMilliseconds = 0)
+            int connectTimeoutMilliseconds = 0,
+            Func<IReconnectRetryPolicy?>? retryPolicy = null)
         {
             _connectTimeoutMilliseconds = connectTimeoutMilliseconds;
+            _retryPolicy = retryPolicy;
             _features = features;
             _startProfile = startProfile;
             _connect = connect ?? throw new ArgumentNullException(nameof(connect));
@@ -850,7 +866,36 @@ namespace StackExchange.Redis
         private void EnsureConnecting()
         {
             if (_connecting is not null) return;
+            if (!DueForConnectRetry()) return; // the backoff said not yet; the caller backlogs or is declined
             _connecting = Task.Run(ConnectAsync);
+        }
+
+        /// <summary>Whether the configured backoff permits another attempt now.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The first attempt is never asked about</b>, matching the shipped core: a policy describes how
+        /// to back off from a FAILURE, and there has not been one yet. So the count passed is zero for the
+        /// first retry, one for the second, and it resets on a successful connect - which is the sequence
+        /// <c>ReconnectRetryPolicyUnitTests</c> asserts, and which the new core did not produce at all
+        /// because it reconnected immediately and unconditionally however often it was asked.
+        /// </para>
+        /// <para>
+        /// Asked per attempt rather than from a heartbeat, because this core has no heartbeat: attempts are
+        /// driven by demand, so the question is asked where the demand arrives.
+        /// </para>
+        /// </remarks>
+        private bool DueForConnectRetry()
+        {
+            if (Volatile.Read(ref _connectRetryCount) <= 0 && _connection is null && _connects == 0)
+            {
+                return true; // never connected and never failed: this is the first attempt
+            }
+
+            var policy = _retryPolicy?.Invoke();
+            if (policy is null) return true;
+
+            var elapsed = unchecked(Environment.TickCount - Volatile.Read(ref _lastConnectTicks));
+            return policy.ShouldRetry(Volatile.Read(ref _connectRetryCount), elapsed);
         }
 
         /// <summary>Connect, giving up after <see cref="_connectTimeoutMilliseconds"/>.</summary>
@@ -913,8 +958,10 @@ namespace StackExchange.Redis
         {
             try
             {
+                Volatile.Write(ref _lastConnectTicks, Environment.TickCount);
                 var connection = await ConnectWithinTimeoutAsync().ConfigureAwait(false);
                 Interlocked.Increment(ref _connects);
+                Volatile.Write(ref _connectRetryCount, 0); // a success starts the backoff over
 
                 bool drain;
                 lock (_sync)
@@ -940,6 +987,8 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
+                Interlocked.Increment(ref _connectRetryCount);
+
                 Queue<RespPayloadOperation>? stranded;
                 lock (_sync)
                 {
