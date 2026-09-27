@@ -255,19 +255,21 @@ namespace StackExchange.Redis
                     return false;
                 }
 
-                if (empty)
-                {
-                    // conditions held but there is nothing to run; the watches must still be released
-                    if (conditions is not null) Unwatch(connection);
-                    return true;
-                }
-
+                // NO SHORT-CIRCUIT FOR AN EMPTY BODY WITH CONDITIONS. This used to UNWATCH and report
+                // success, which skips the one thing a conditional transaction is for: the conditions
+                // holding is not the answer, the server adjudicating the WATCH at EXEC is. A watched key
+                // that drifted after the checks passed was therefore never noticed - ExecuteAsync returned
+                // true, WasWatchConflict stayed false, and no EXEC reached the server at all.
+                //
+                // MULTI/EXEC with nothing between them is a legitimate, cheap transaction, and it is what
+                // makes the server answer nil when a watch drifted. TrySendOver already builds that run;
+                // a truly empty transaction - no conditions either - returned above and never gets here.
                 // written THROUGH the target, not straight to the connection: the executor is what knows
                 // whether a SELECT is due in front of the MULTI, and a transaction holds none of that
                 if (connection != target.CurrentConnection
                     || !TrySendOver(
                         connection,
-                        queue!,
+                        queue ?? EmptyBody,
                         out var exec,
                         conditions is null ? null : OnAborted,
                         (run, count) => target.TryWriteRun(connection, run, count),
@@ -293,6 +295,9 @@ namespace StackExchange.Redis
                 if (claimed) target.ReleaseWrites();
             }
         }
+
+        /// <summary>The body of a transaction that has conditions and no commands; see the send path.</summary>
+        private static readonly List<RespPayloadOperation> EmptyBody = new();
 
         private void OnAborted() => _watchConflict = true;
 
@@ -651,11 +656,18 @@ namespace StackExchange.Redis
             {
                 foreach (var operation in queued)
                 {
-                    // aborted: the command did not run, so it is NOT applied - which the retry layer reads
-                    operation.TrySetException(
-                        operation.Token,
-                        new RedisServerException(RedisErrorKind.None, flags, "The transaction was aborted; a watched key changed."),
-                        definite: true);
+                    // CANCELLED, not faulted. An abort is the transaction working: a watched key changed,
+                    // so nothing ran. The shipped surface reports that by transitioning every queued
+                    // command to Canceled - RespMessageBase.TrySetCanceledInline exists for precisely this
+                    // case and says so - while Execute returns false. Faulting them with a server
+                    // exception instead told callers a command had FAILED, when what happened is that it
+                    // did not run, and every test that asserts OperationCanceledException saw the wrong
+                    // type.
+                    //
+                    // Inline, for the reason that method documents: these never reached a socket, so there
+                    // is no read loop to head-of-line block, and callers read .Status immediately rather
+                    // than awaiting - "cancelled, and the continuation will run shortly" is not enough.
+                    operation.TrySetCanceledInline(operation.Token);
                 }
 
                 return false;

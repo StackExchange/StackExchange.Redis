@@ -122,8 +122,14 @@ public class RespTransactionTests
     [Fact]
     public async Task AnAbortedTransactionReportsThatNothingRan()
     {
-        // a null EXEC reply means a watched key changed: the commands did not run, which is a distinct
-        // outcome from failing, and every queued command has to be told
+        // A null EXEC reply means a watched key changed: the commands did not run, which is a distinct
+        // outcome from failing, and every queued command has to be told.
+        //
+        // TOLD BY CANCELLATION, not by a fault, and this test used to assert the opposite. The shipped
+        // surface cancels - RedisTransaction calls inner.Cancel() on exactly this reply, and
+        // RespMessageBase.TrySetCanceledInline exists for the case and says so - while TransactionWatchDrift
+        // and the retry end-to-end tests assert OperationCanceledException against a real server. A fault
+        // says the command FAILED; what happened is that it did not run.
         var (endpoint, transport) = await ConnectedAsync();
         var tran = new RespTransactionExecutor(endpoint);
         var context = new RespDatabaseContext(new RespContext().WithExecutor(tran));
@@ -135,9 +141,8 @@ public class RespTransactionTests
         transport.Reply("+OK\r\n+QUEUED\r\n+QUEUED\r\n*-1\r\n");
 
         Assert.False(await executing);
-        var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await first);
-        Assert.Contains("aborted", ex.Message);
-        await Assert.ThrowsAsync<RedisServerException>(async () => await second);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await first);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await second);
     }
 
     [Fact]
@@ -301,6 +306,15 @@ public class RespTransactionTests
     [Fact]
     public async Task AConditionWithNothingQueuedStillReleasesItsWatch()
     {
+        // The watch is released by the EXEC, not by an UNWATCH, and that difference is not cosmetic.
+        //
+        // This used to short-circuit: conditions held, nothing queued, so UNWATCH and report success. That
+        // skips the one thing a conditional transaction is for - the conditions holding is not the answer,
+        // the server adjudicating the WATCH at EXEC is. A key that drifted after the checks passed was
+        // never noticed, ExecuteAsync returned true and WasWatchConflict stayed false.
+        // TransactionWatchDriftTests.WatchDrift_ConditionOnlyTransaction_Aborts asserts the EXEC reaches
+        // the server for exactly this reason, and the shipped surface sends one whenever it has not
+        // electively aborted. MULTI/EXEC with nothing between them is a legitimate, cheap transaction.
         var (endpoint, transport) = await ConnectedAsync();
         var before = transport.Written;
 
@@ -309,10 +323,15 @@ public class RespTransactionTests
 
         var executing = tran.ExecuteAsync();
         var first = transport.Written.Substring(before.Length);
-        transport.Reply("+OK\r\n:1\r\n");
+        transport.Reply("+OK\r\n:1\r\n"); // WATCH, then the condition holds
+
+        // the MULTI/EXEC is written only once the condition's reply has been read, so wait for it to
+        // appear rather than answering a run that has not been sent yet
+        await WaitFor(() => transport.Written.Contains("EXEC"));
+        transport.Reply("+OK\r\n*0\r\n"); // MULTI, then an EXEC that committed nothing
 
         Assert.True(await executing);
-        Assert.Equal("*1|$7|UNWATCH|", transport.Written.Substring(before.Length + first.Length));
+        Assert.Equal("*1|$5|MULTI|*1|$4|EXEC|", transport.Written.Substring(before.Length + first.Length));
     }
 
     private static async Task WaitFor(Func<bool> condition, int millis = 5000)
