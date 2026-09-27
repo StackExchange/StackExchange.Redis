@@ -1506,3 +1506,50 @@ bug however many times it is run.
 - **What happens to `ResultProcessor`?** The typed-parse story on the new surface is `IRespHandler<T>`;
   the classic one is `ResultProcessor<T>`. They are two implementations of one idea and the core work is
   the moment to collapse them — or to decide deliberately not to.
+
+### 8a. Questions raised while driving the engine failures down (2026-09-27)
+
+Engine-flag failures went 133 -> 87 over one working session. These are what is left that is a
+*decision* rather than a defect, recorded so they are not rediscovered.
+
+- **What should `RespResult.RefCount` report?** `RespResultLeaseSharingTests` (7 failures) asserts an
+  absolute count - 1 for a result alone, 2 once a lease is taken - and its class summary says that is
+  the intent: "the underlying buffer should survive until the result and every lease have been
+  disposed". Under the new core it measures **14**, because the reply shares one read buffer with
+  every other reply in it. So either the property is per-result and the new core is exposing the
+  buffer's count, or the semantics have legitimately changed and the assertions should be deltas. The
+  test cannot be fixed without deciding which; nothing else depends on the answer.
+
+- **Should `tran.Scripts.EvaluateAsync` be refused inside a transaction?**
+  `MultiMessageInTransactionTests.TheFrameSurfacesComposedPairIsRefused` asserts a
+  `NotSupportedException` mentioning "positional EXEC result array". Traced: the executor reports
+  `Accumulates = true`, so `Scripts` takes the documented inline-body branch - one frame, no composed
+  pair - queues normally, and the test hangs because it awaits without calling `Execute`. Inlining is
+  what the shipped core does and what §7j defends. So either the test encodes a newer intent for the
+  frame surface, or it is asserting against a behaviour that was deliberately chosen. Deliberately not
+  changed.
+
+- **Should `IsConnected(key)` mean "a socket exists now" or "a command would succeed"?** It is public
+  API with a documented meaning and no internal caller - `KeyPrefixed`, `RetryDatabase` and
+  `MultiGroupDatabase` only forward it - so it was left exactly as it was, and `RespConnectionState`
+  was added alongside (internal) to answer what a bool cannot. Under lazy dialling a KEYED
+  `IsConnected` still reports `false` for an endpoint that is merely undialled, which is the "not yet
+  versus broken" ambiguity in its remaining form. Promoting the enum to public is trivial if wanted.
+
+- **`MOVED` to the same endpoint needs a reconnect, and the naive fix deadlocks.** Diagnosed and
+  reverted rather than left half-done; see §7l. The rule is right and the shipped core spells it
+  `MarkNeedsReconnect`; retiring `_connection` directly fixes the four batch cases and hangs the four
+  retry ones, with or without disposing, because it does not coordinate with `_writeSlotHeld` -
+  exactly what `OnSendRefused`'s own comment warns about. It wants a flag acted on at a safe point,
+  not a field nulled from a read loop.
+
+- **The new core emits `SCRIPT` before every `EVAL`.** `ProfilingTests.Simple` expects
+  `SET,EVAL,EVAL,GET,ECHO` and sees `SET,SCRIPT,EVAL,SCRIPT,EVAL,GET,ECHO`, so the script hash is not
+  being retained between calls. Same family as the three pre-existing `ScriptLoadPairingTests`
+  failures. Not yet investigated.
+
+- **Two cores keep two sets of books while both are live.** `IReconnectRetryPolicy` sees the new core's
+  per-executor counts interleaved with `PhysicalBridge`'s - traced as one extra consult - which is why
+  two `ReconnectRetryPolicyUnitTests` cases still fail. Nothing to fix here; it resolves when the old
+  core goes, and is noted so the failures are not chased again.
+
