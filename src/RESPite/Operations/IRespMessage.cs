@@ -89,4 +89,15 @@ internal interface IRespMessage : IValueTaskSource
 
     /// <summary>Cancel using the operation's own token; for cancellation callbacks only.</summary>
     void TrySetCanceled();
+
+    /// <summary>
+    /// Time the operation out; for the backstop deadline only.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a timeout rather than a cancellation, and the difference is not cosmetic: a
+    /// cancellation is a <b>definite</b> outcome - it says the command did not happen - whereas a
+    /// deadline says only that we stopped waiting. The request may well have been written and executed,
+    /// so telling retry it definitely was not would be a lie that costs a duplicate write.
+    /// </remarks>
+    void TrySetTimedOut();
 }

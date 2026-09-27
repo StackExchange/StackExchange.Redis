@@ -3,6 +3,6 @@
   "parallelizeAssembly": true,
   "maxParallelThreads": "2x",
   "parallelizeTestCollections": true,
-  "diagnosticMessages": false,
+  "diagnosticMessages": true,
   "longRunningTestSeconds": 60
 }

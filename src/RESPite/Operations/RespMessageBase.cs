@@ -278,10 +278,24 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         {
             _cancellationRegistration = cancellationToken.Register(CancellationCallback, this);
         }
+        else
+        {
+            // Nothing else will ever end this operation if the connection loses it, so arm the backstop.
+            // Only when the caller supplied nothing: a caller with a token has said how long they are
+            // willing to wait, and second-guessing that is not this layer's business.
+            var backstop = OperationBackstop.Token;
+            if (backstop.CanBeCanceled)
+            {
+                _cancellationRegistration = backstop.Register(BackstopCallback, this);
+            }
+        }
     }
 
     private static readonly Action<object?> CancellationCallback =
         static state => ((IRespMessage)state!).TrySetCanceled();
+
+    private static readonly Action<object?> BackstopCallback =
+        static state => ((IRespMessage)state!).TrySetTimedOut();
 
     private void UnregisterCancellation()
     {
@@ -446,6 +460,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             _asyncCore.RunContinuationsAsynchronously = true;
         }
     }
+
+    /// <inheritdoc/>
+    void IRespMessage.TrySetTimedOut() => TrySetTimeout();
 
     /// <inheritdoc/>
     void IRespMessage.TrySetCanceled()
