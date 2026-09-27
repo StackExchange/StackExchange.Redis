@@ -76,6 +76,19 @@ namespace StackExchange.Redis
         public override bool CanWritePreamble => _active() is { CanWritePreamble: true };
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Forwarded, like the other capabilities.</b> Not forwarding it meant a view over a batch or a
+        /// transaction answered "no, I send each command as it arrives" while queueing every one of them -
+        /// and the answer is consulted for correctness, not tuning: <c>Scripts</c> asks it to decide
+        /// whether to inline a script body, so over a wrapper it would pair SCRIPT LOAD with EVALSHA
+        /// inside MULTI/EXEC and shift every result in the EXEC array.
+        /// </remarks>
+        internal override bool Accumulates => _active() is { Accumulates: true };
+
+        /// <inheritdoc/>
+        internal override bool Transactional => _active() is { Transactional: true };
+
+        /// <inheritdoc/>
         public override ValueTask<RespPayload> SendAsync(
             RespRequest preamble,
             RespRequest request,

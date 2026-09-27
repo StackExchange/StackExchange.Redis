@@ -352,7 +352,18 @@ namespace StackExchange.Redis
         /// to <c>Keys.TimeToLiveAsync</c> and re-deriving it here would be a second place to keep in step.
         /// </para>
         /// </remarks>
-        private async ValueTask<RedisValueWithExpiry> GetWithExpiry(RedisKey key, CommandFlags flags)
+        /// <summary>
+        /// The refusal, <b>outside</b> the async machinery so that it is thrown rather than returned.
+        /// </summary>
+        /// <remarks>
+        /// <b>An async method does not throw; it hands back a faulted task.</b> That is the wrong shape
+        /// here, and not merely stylistically: a transaction operation that does not throw returns a task
+        /// which only completes when <c>Execute</c> runs, so a caller who discards it - which is exactly
+        /// what a caller checking for the refusal does - is left holding a task nobody will ever complete.
+        /// The guard existed and was inside the state machine, so the exception went into a task the
+        /// caller had already thrown away, and the operation hung instead of being refused.
+        /// </remarks>
+        private ValueTask<RedisValueWithExpiry> GetWithExpiry(RedisKey key, CommandFlags flags)
         {
             if (this is IBatch)
             {
@@ -360,6 +371,11 @@ namespace StackExchange.Redis
                     "This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
             }
 
+            return GetWithExpiryCore(key, flags);
+        }
+
+        private async ValueTask<RedisValueWithExpiry> GetWithExpiryCore(RedisKey key, CommandFlags flags)
+        {
             var pendingExpiry = _inner.Keys.TimeToLiveAsync(key, flags);
             var pendingValue = _inner.Strings.GetAsync(key, flags);
 

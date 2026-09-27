@@ -1124,6 +1124,16 @@ public static partial class Hashes
         }
 
         var context = hashes.Context;
+
+        // The remarks above are the rule; this is the rule enforced. The connection-local HIMPORT PREPARE
+        // would land in the EXEC array and desync every result after it, so a transaction has to refuse
+        // rather than silently drop the preamble. A batch is fine and is deliberately not caught here.
+        if (context.Executor is { Transactional: true })
+        {
+            throw new NotSupportedException(
+                "HashImport is not supported inside a transaction; the connection-local HIMPORT PREPARE cannot be injected into a MULTI/EXEC without desyncing the EXEC result array.");
+        }
+
         var preamble = ImportPrepareCommand(context, fieldSet);
         try
         {

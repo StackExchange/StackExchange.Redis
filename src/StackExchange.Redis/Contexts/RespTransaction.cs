@@ -65,6 +65,9 @@ namespace StackExchange.Redis
         internal override bool Accumulates => true;
 
         /// <inheritdoc/>
+        internal override bool Transactional => true;
+
+        /// <inheritdoc/>
         public override int Database => _inner.Database;
 
         /// <summary>

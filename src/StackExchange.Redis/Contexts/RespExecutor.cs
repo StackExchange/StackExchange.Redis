@@ -421,6 +421,24 @@ namespace StackExchange.Redis
         internal virtual bool Accumulates => false;
 
         /// <summary>
+        /// Whether this executor wraps what it sends in <c>MULTI</c>/<c>EXEC</c>.
+        /// </summary>
+        /// <remarks>
+        /// <b>Narrower than <see cref="Accumulates"/>, and the difference is load-bearing.</b> A batch also
+        /// accumulates, but it is an ordered pipeline with no aggregate reply, so a command may still
+        /// inject a connection-local preamble there. Inside <c>MULTI</c>/<c>EXEC</c> it may not: an extra
+        /// frame lands in the <c>EXEC</c> array and desyncs every result after it, which is the same
+        /// reason <c>SELECT</c>-injection is forbidden there.
+        /// <para>
+        /// Asked rather than type-tested, as the other capabilities are. The shipped core spells this as a
+        /// hand-written <c>this is ITransaction</c> in each affected method - four of them, each somewhere
+        /// different, which <c>MultiMessageInTransactionTests</c> describes as "the safety is someone
+        /// remembered, four times".
+        /// </para>
+        /// </remarks>
+        internal virtual bool Transactional => false;
+
+        /// <summary>
         /// Write a <b>preamble</b> immediately before a request, on the same connection and with nothing
         /// interleaved.
         /// </summary>
@@ -666,6 +684,18 @@ namespace StackExchange.Redis
                 if (executor.CanWritePreamble)
                 {
                     response = await executor.SendAsync(head, body, gate, cancellationToken).ForAwait();
+                }
+                else if (executor.Accumulates)
+                {
+                    // The sequential fallback below cannot work here, and would not fail - it would HANG.
+                    // Nothing is sent until the run is, so awaiting the preamble waits for a send that this
+                    // very call is holding up; see the remarks on Accumulates, which predict exactly this.
+                    // The shipped core refuses the same shape up front, in QueuedMessage's constructor, and
+                    // this is that refusal for the context surface.
+                    throw new NotSupportedException(
+                        "This command is not supported inside a transaction or batch: it expands into several "
+                        + "messages, and only the outer one would be written - every extra message would add a "
+                        + "slot to the positional EXEC result array.");
                 }
                 else
                 {
