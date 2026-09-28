@@ -223,16 +223,27 @@ namespace StackExchange.Redis
         /// that decision was for - the exception can say "still in the backlog" rather than "unknown",
         /// and <c>FaultContext.NotApplied</c> can then tell retry the server never saw it.
         /// </remarks>
-        internal void EnsureFaulted(CommandFlags flags)
-            => TrySetException(
-                Token,
-                new RedisConnectionException(
-                    ConnectionFailureType.SocketClosed,
-                    flags,
-                    "The connection is not available.",
-                    null,
-                    (CommandStatus)Diagnostics.Status),
-                definite: false);
+        internal void EnsureFaulted(CommandFlags flags) => EnsureFaulted(flags, null);
+
+        /// <summary>Fail this command because it could not be sent.</summary>
+        /// <param name="flags">The command's flags, which the exception carries.</param>
+        /// <param name="fault">
+        /// The failure to report, when the caller can describe it better than this can. The fallback says
+        /// only that a connection was not available, which is true and nearly useless: the shipped core
+        /// answers the same situation with which endpoints were tried, what each of them last failed with,
+        /// and how far connecting had got - and callers have been reading that for years.
+        /// </param>
+        internal void EnsureFaulted(CommandFlags flags, Exception? fault)
+        {
+            fault ??= new RedisConnectionException(
+                ConnectionFailureType.SocketClosed,
+                flags,
+                "The connection is not available.",
+                null,
+                (CommandStatus)Diagnostics.Status);
+
+            TrySetException(Token, fault, definite: false);
+        }
 
         /// <summary>Turn a reply frame into a payload, or an error reply into an exception.</summary>
         /// <param name="frame">The complete reply frame.</param>

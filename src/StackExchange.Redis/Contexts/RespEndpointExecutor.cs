@@ -119,6 +119,11 @@ namespace StackExchange.Redis
         /// Makes the accumulator this endpoint counts outcomes into, or null when nobody is counting.
         /// </param>
         /// <param name="onCircuitBroken">Announces that this endpoint's breaker has tripped.</param>
+        /// <param name="noConnection">
+        /// Describes "no connection was available" the way the shipped core describes it - which endpoints
+        /// were tried, what each last failed with, how far connecting had got. Null falls back to a bare
+        /// statement that a connection was not available.
+        /// </param>
         internal RespEndpointExecutor(
             Func<CancellationToken, Task<RespConnection>> connect,
             int database = 0,
@@ -130,10 +135,12 @@ namespace StackExchange.Redis
             int connectTimeoutMilliseconds = 0,
             Func<IReconnectRetryPolicy?>? retryPolicy = null,
             Func<Availability.CircuitBreaker.Accumulator?>? circuitBreaker = null,
-            Action? onCircuitBroken = null)
+            Action? onCircuitBroken = null,
+            Func<RedisCommand, Exception>? noConnection = null)
         {
             _circuitBreakerFactory = circuitBreaker;
             _onCircuitBroken = onCircuitBroken;
+            _noConnection = noConnection;
             _circuitBreaker = circuitBreaker?.Invoke();
             _connectTimeoutMilliseconds = connectTimeoutMilliseconds;
             _retryPolicy = retryPolicy;
@@ -366,7 +373,7 @@ namespace StackExchange.Redis
             if (!connection.Send(head, body, new Decision(gate, target), static d => d.IsNeeded(), out wroteHead))
             {
                 RespPayloadOperation.DiscardReply(head);
-                body.EnsureFaulted(request.Flags);
+                body.EnsureFaulted(request.Flags, NoConnection(request.Command));
                 return new ValueTask<RespPayload>(body, body.Token);
             }
 
@@ -703,6 +710,13 @@ namespace StackExchange.Redis
         /// <summary>Told when this endpoint's breaker has tripped, so the failure can be announced.</summary>
         private readonly Action? _onCircuitBroken;
 
+        /// <inheritdoc cref="RespPayloadOperation.EnsureFaulted(CommandFlags, Exception?)"/>
+        private readonly Func<RedisCommand, Exception>? _noConnection;
+
+        /// <summary>The failure a command gets when there was nothing to send it on.</summary>
+        /// <param name="command">The command, so the diagnosis can name it.</param>
+        private Exception? NoConnection(RedisCommand command) => _noConnection?.Invoke(command);
+
         private RespPayloadOperation Dispatch(in RespRequest request, CancellationToken cancellationToken)
             => Dispatch(in request, Database, cancellationToken);
 
@@ -762,7 +776,7 @@ namespace StackExchange.Redis
             {
                 if (_disposed)
                 {
-                    operation.EnsureFaulted(request.Flags);
+                    operation.EnsureFaulted(request.Flags, NoConnection(request.Command));
                     return operation;
                 }
 
@@ -773,7 +787,7 @@ namespace StackExchange.Redis
                     // "not writable right now", and both are answered by the backlog, in arrival order
                     if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected)
                     {
-                        operation.EnsureFaulted(request.Flags);
+                        operation.EnsureFaulted(request.Flags, NoConnection(request.Command));
                         return operation;
                     }
 
@@ -843,7 +857,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            operation.EnsureFaulted(flags);
+            operation.EnsureFaulted(flags, NoConnection(RedisCommand.NONE));
         }
 
         /// <inheritdoc/>
@@ -1033,7 +1047,7 @@ namespace StackExchange.Redis
             {
                 var operation = waiting.Dequeue();
                 if (_connection is { IsClosed: false } connection && Send(connection, operation)) continue;
-                operation.EnsureFaulted(CommandFlags.None);
+                operation.EnsureFaulted(CommandFlags.None, NoConnection(RedisCommand.NONE));
             }
         }
 
@@ -1209,6 +1223,7 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 Interlocked.Increment(ref _connectRetryCount);
+                var fault = AsConnectionFault(ex);
 
                 Queue<RespPayloadOperation>? stranded;
                 lock (_sync)
@@ -1219,15 +1234,47 @@ namespace StackExchange.Redis
                 }
 
                 // a failed connect fails what was waiting for it; holding them for a later attempt would
-                // be a queue that grows without bound while a server is down
+                // be a queue that grows without bound while a server is down.
+                //
+                // Told as "no connection was available to service this", not as "the dial failed", and the
+                // difference is the caller's point of view: a command that never left the backlog did not
+                // fail to connect, it failed to find anywhere to go - which is the question the shipped
+                // diagnosis answers, naming every endpoint tried and what each last failed with. The dial's
+                // own error survives as the inner exception, where it belongs.
                 if (stranded is not null)
                 {
-                    while (stranded.Count != 0) Fail(stranded.Dequeue(), ex);
+                    var unavailable = NoConnection(RedisCommand.NONE) ?? fault;
+                    while (stranded.Count != 0) Fail(stranded.Dequeue(), unavailable);
                 }
 
-                throw;
+                throw fault;
             }
         }
+
+        /// <summary>Present a failed dial as a connection failure, whatever it arrived as.</summary>
+        /// <param name="ex">What the connect attempt threw.</param>
+        /// <remarks>
+        /// <b>A caller should not have to know how we open sockets.</b> A dial that fails throws whatever
+        /// the platform throws - a <c>SocketException</c>, an <c>AuthenticationException</c> from the TLS
+        /// handshake, an <c>IOException</c> - and those were reaching callers unwrapped, so code catching
+        /// <see cref="RedisConnectionException"/> (which is every caller that has ever handled this) caught
+        /// nothing and code catching <see cref="RedisException"/> caught nothing either. The shipped core
+        /// has always presented this as a connection failure with the platform error as the inner
+        /// exception, and that is the contract being kept here.
+        /// <para>
+        /// A <see cref="RedisException"/> passes through untouched: it is already the vocabulary, and
+        /// wrapping it would bury a perfectly good diagnosis one level deeper.
+        /// </para>
+        /// </remarks>
+        private Exception AsConnectionFault(Exception ex)
+            => ex is RedisException or ObjectDisposedException
+                ? ex
+                : new RedisConnectionException(
+                    ConnectionFailureType.UnableToConnect,
+                    CommandFlags.CommandRetryAlways,
+                    $"It was not possible to connect to the redis server(s): {Format.ToString(_endpoint)}. {ex.Message}",
+                    ex,
+                    CommandStatus.WaitingToBeSent);
 
         private static void Fail(RespPayloadOperation operation, Exception exception)
             => operation.TrySetException(operation.Token, exception, definite: false);

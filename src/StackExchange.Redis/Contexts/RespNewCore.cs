@@ -568,7 +568,13 @@ namespace StackExchange.Redis
             _multiplexer.RawConfig.ConnectTimeout,
             () => _multiplexer.RawConfig.ReconnectRetryPolicy,
             () => _multiplexer.EffectiveCircuitBreaker?.CreateAccumulator(),
-            () => OnCircuitBroken(endpoint));
+            () => OnCircuitBroken(endpoint),
+            command => ExceptionFactory.NoConnectionAvailable(
+                _multiplexer,
+                null,
+                _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false),
+                default,
+                command));
 
         /// <summary>Announce that an endpoint's circuit breaker has judged it unhealthy.</summary>
         /// <param name="endpoint">The endpoint whose breaker tripped.</param>

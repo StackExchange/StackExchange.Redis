@@ -254,8 +254,11 @@ public class RespEndpointExecutorTests
 
         endpoint.Gate.SetResult(true);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await pending);
-        Assert.Equal("no route to host", ex.Message);
+        // presented as a connection failure with the dial's own error inside it: a caller should not have
+        // to know how sockets are opened, and every caller that has ever handled this catches
+        // RedisConnectionException
+        var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () => await pending);
+        Assert.Equal("no route to host", ex.InnerException?.Message);
         Assert.Equal(0, executor.BacklogCount); // failed, not held for a later attempt
     }
 
@@ -278,8 +281,8 @@ public class RespEndpointExecutorTests
 
         endpoint.Gate.SetResult(true);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await first);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await second);
+        Assert.Equal("down", (await Assert.ThrowsAsync<RedisConnectionException>(async () => await first)).InnerException?.Message);
+        Assert.Equal("down", (await Assert.ThrowsAsync<RedisConnectionException>(async () => await second)).InnerException?.Message);
 
         // and the endpoint is usable again once the server is back: the failure was per-attempt, not
         // a permanent state the executor latched

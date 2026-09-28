@@ -1869,6 +1869,36 @@ commands sent on it, and ask `IServer.Execute("CLIENT", "INFO")` for the answer 
 its context over `RespMessageExecutor`, the Message shim, so the write goes out on this core's socket
 and the question is put to the shipped core's. One core, one socket, and they agree again.
 
+### 9b-v. The failure surface, and what the remaining engine failures actually are
+
+Triaged from the messages rather than the names, the engine-flag failures fall into four groups, and
+naming them is what makes the queue finite.
+
+**Failure-surface parity** was the largest and is the one being worked. A dial that fails throws
+whatever the platform throws - a `SocketException`, a TLS `AuthenticationException`, an `IOException` -
+and those were reaching callers unwrapped, so code catching `RedisConnectionException` (which is every
+caller that has ever handled this) caught nothing. Wrapped now, with the platform error as the inner.
+
+Separately, a command that never left the backlog is told "no connection was available to service
+this", not "the dial failed": it did not fail to connect, it failed to find anywhere to go. That is the
+question `ExceptionFactory.NoConnectionAvailable` answers - naming every endpoint tried, what each last
+failed with, and how far connecting had got - and callers have been reading it for years.
+
+**Dual-core artefacts**, which will evaporate rather than be fixed, and the group is larger than it
+looked: everything that drives failure through `SimulateConnectionFailure` kills only the shipped
+bridge, so this core's socket stays up and the command simply succeeds. That is `BacklogTests` (4),
+`AbortOnConnectFailTests` (2 of the 4), `AsyncTests` (2), `Issue2392Tests` (1), and by the same shape
+`ServerExecuteDatabaseTests` (2) and `ReconnectRetryPolicyUnitTests` (2). Worth noting the alternative
+to waiting for D2: teach `SimulateConnectionFailure` to reach this core's connection too, which would
+turn nine of them from artefacts into real coverage of this core's reconnect and backlog behaviour.
+
+**Known-hard**: `MovedUnitTests` (4), the MOVED-to-same-endpoint reconnect, already diagnosed and
+reverted once - the naive retire deadlocks on the write slot.
+
+**Test isolation rather than core behaviour**: the scan/randomkey/script family, which fails with keys
+belonging to *other test classes* (`FlushFetchRandomKey` finding `...NewCoreScanTests-ScanTests-...`).
+Parallel classes sharing a database; visible here only because the timing differs.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather
