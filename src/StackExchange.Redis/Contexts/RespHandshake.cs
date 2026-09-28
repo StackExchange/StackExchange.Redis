@@ -219,6 +219,28 @@ namespace StackExchange.Redis
                 }
             }
 
+            // The version, when HELLO did not give one - which is every RESP2 connection, since the field
+            // only exists in a reply RESP2 servers do not send. It matters more than it sounds: several
+            // commands are CHOSEN from what the server supports (an all-GET BITFIELD goes out as
+            // BITFIELD_RO where that exists, which is what lets a replica serve it), so a core that cannot
+            // answer "what can this server do?" picks the writable spelling and a replica read is refused.
+            //
+            // A round trip, and only on the connections that have no other way to learn it. The
+            // alternative was reading it off somebody else's topology, which is the coupling being removed.
+            if (version is null && context.Raw.CommandMap.IsAvailable(RedisCommand.INFO))
+            {
+                try
+                {
+                    version = await context.SendAsync(
+                        $"{RedisCommand.INFO}{RespLiterals.Server}",
+                        handler: ServerVersionHandler.Instance).ConfigureAwait(false);
+                }
+                catch (RedisServerException)
+                {
+                    // INFO can be restricted or renamed; an unknown version falls back the way it did
+                }
+            }
+
             if (clientName is { Length: > 0 } && context.Raw.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
                 try
@@ -461,6 +483,44 @@ namespace StackExchange.Redis
                 }
 
                 return false;
+            }
+        }
+
+        /// <summary>Reads <c>redis_version</c> out of <c>INFO SERVER</c>.</summary>
+        /// <remarks>
+        /// <c>redis_version</c> specifically, and not the several other <c>*_version</c> fields a fork or a
+        /// proxy may also report: those describe something else, and taking whichever appeared first would
+        /// have the client enable commands on the strength of an unrelated number.
+        /// </remarks>
+        private sealed class ServerVersionHandler : IRespHandler<Version?>
+        {
+            internal static readonly ServerVersionHandler Instance = new();
+
+            private static ReadOnlySpan<byte> Field => "redis_version:"u8;
+
+            public Version? Parse(ref RespReader reader)
+            {
+                if (!reader.TryGetSpan(out var span)) return null;
+
+                for (var i = 0; i + Field.Length <= span.Length; i++)
+                {
+                    if (!span.Slice(i, Field.Length).SequenceEqual(Field)) continue;
+                    if (i != 0 && span[i - 1] != (byte)'\n') continue; // mid-line: a longer field name
+
+                    var value = span.Slice(i + Field.Length);
+                    var end = value.IndexOf((byte)'\r');
+                    if (end < 0) end = value.IndexOf((byte)'\n');
+                    if (end >= 0) value = value.Slice(0, end);
+
+#if NETCOREAPP3_1_OR_GREATER
+                    var text = System.Text.Encoding.UTF8.GetString(value);
+#else
+                    var text = System.Text.Encoding.UTF8.GetString(value.ToArray());
+#endif
+                    return Format.TryParseVersion(text, out var parsed) ? parsed : null;
+                }
+
+                return null;
             }
         }
 

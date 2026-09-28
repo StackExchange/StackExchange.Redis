@@ -68,7 +68,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private readonly ConcurrentDictionary<EndPoint, RedisFeatures> _observed = new();
         private readonly RespMultiplexerExecutor _router;
-        private readonly MultiplexerFeatureProbe _features;
+        private readonly NewCoreFeatureProbe _features;
 
         internal RespNewCore(ConnectionMultiplexer multiplexer)
         {
@@ -89,7 +89,7 @@ namespace StackExchange.Redis
                 // replica OVER; a cluster learns the same thing from a reply it reads anyway
                 WantsRoles = multiplexer.RawConfig.EndPoints.Count > 1,
             };
-            _features = new MultiplexerFeatureProbe(multiplexer);
+            _features = new NewCoreFeatureProbe(this);
             _select = new SelectPreamble(new RespContext(multiplexer.RawConfig.CommandMap));
             _defaultDatabase = multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault();
             _router = Rebind(multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
@@ -234,14 +234,26 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private RespExecutorBase? ForSlot(int database, int slot, RedisCommand command, CommandFlags flags)
+            => EndpointForSlot(slot, command, flags) is { } endpoint ? Executor(database, endpoint) : null;
+
+        /// <summary>Which endpoint serves a slot, with no executor involved.</summary>
+        /// <param name="slot">The hash slot.</param>
+        /// <param name="command">The command, which decides whether a replica is eligible.</param>
+        /// <param name="flags">The caller's preference.</param>
+        /// <remarks>
+        /// Separate from <see cref="ForSlot"/> because one caller wants the answer and not the machinery:
+        /// the feature probe asks "which server would take this?" purely to read its version, and creating
+        /// - or worse, dialling - an executor to answer that would make a question into an action.
+        /// </remarks>
+        private EndPoint? EndpointForSlot(int slot, RedisCommand command, CommandFlags flags)
         {
             if (_topology.Owners(slot) is { } owners && ChooseByRole(owners, command, flags) is { } chosen)
             {
-                return Executor(database, chosen);
+                return chosen;
             }
 
             var server = _multiplexer.ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: true);
-            return server is null ? Any(database, command, flags) : Executor(database, server.EndPoint);
+            return server is null ? EndpointForAny(command, flags) : server.EndPoint;
         }
 
         /// <summary>Which of a slot's servers should take this command.</summary>
@@ -330,6 +342,13 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private RespExecutorBase? Any(int database, RedisCommand command, CommandFlags flags)
+            => EndpointForAny(command, flags) is { } endpoint ? Executor(database, endpoint) : null;
+
+        /// <inheritdoc cref="Any"/>
+        /// <param name="command">The command.</param>
+        /// <param name="flags">The caller's preference.</param>
+        /// <remarks>See <see cref="EndpointForSlot"/> for why the endpoint and the executor are separated.</remarks>
+        private EndPoint? EndpointForAny(RedisCommand command, CommandFlags flags)
         {
             // A keyless replica read, answered from our own roles. There is no slot to look the pairing up
             // by here, which is why the flat role record exists beside the map: in a cluster every replica
@@ -338,7 +357,7 @@ namespace StackExchange.Redis
                 && Message.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica
                 && PickReplica(_topology.Replicas) is { } replica)
             {
-                return Executor(database, replica);
+                return replica;
             }
 
             var strategy = _multiplexer.ServerSelectionStrategy;
@@ -356,14 +375,14 @@ namespace StackExchange.Redis
                 fallback ??= candidate;
                 if (_endpoints.TryGetValue(candidate.EndPoint, out var dialled) && dialled.IsConnectedNow)
                 {
-                    return Executor(database, candidate.EndPoint);
+                    return candidate.EndPoint;
                 }
             }
 
-            if (fallback is not null) return Executor(database, fallback.EndPoint);
+            if (fallback is not null) return fallback.EndPoint;
 
             var endpoints = _multiplexer.GetEndPoints();
-            return endpoints.Length == 0 ? null : Executor(database, endpoints[0]);
+            return endpoints.Length == 0 ? null : endpoints[0];
         }
 
         /// <summary>The executor for the server this client is subscribed on for a channel, if any.</summary>
@@ -668,8 +687,22 @@ namespace StackExchange.Redis
         private bool Follow(in RespRedirect redirect, RespPayloadOperation operation)
             => _router.TryFollowRedirect(in redirect, operation);
 
+        /// <summary>Which endpoint would take this command, routed exactly as the command would be.</summary>
+        /// <param name="command">The command.</param>
+        /// <param name="key">The key, or a null key for a command that names none.</param>
+        /// <param name="flags">The caller's preference.</param>
+        /// <remarks>
+        /// The same two-way split <c>ResolveFor</c> makes, so that "which server answers this?" cannot
+        /// drift from where the command actually goes - two routing rules with one of them only used by a
+        /// feature check is exactly the kind of near-duplicate that stays wrong for months.
+        /// </remarks>
+        private EndPoint? RouteEndpoint(RedisCommand command, in RedisKey key, CommandFlags flags)
+            => _topology.RoutesBySlot && !key.IsNull
+                ? EndpointForSlot(ServerSelectionStrategy.GetHashSlot(key), command, flags)
+                : EndpointForAny(command, flags);
+
         /// <summary>
-        /// Answers "what can the server that would take this command do", from the multiplexer's topology.
+        /// Answers "what can the server that would take this command do", from what this core observed.
         /// </summary>
         /// <remarks>
         /// <para>
@@ -681,19 +714,39 @@ namespace StackExchange.Redis
         /// nothing except a reference to a type that is being deleted.
         /// </para>
         /// <para>
-        /// Borrowed rather than reimplemented, in the same sense as the topology: <c>SelectServer</c>
-        /// already knows about replica preference, reachability and the configured default version.
+        /// <b>It then read the version off the SHIPPED core's <c>ServerEndPoint</c>, which is the coupling
+        /// section 9 exists to remove</b> - the third of the three, after routing and roles. The version
+        /// this core needs is one its own handshake already learns, from <c>HELLO</c> where the connection
+        /// speaks RESP3 and from <c>INFO SERVER</c> where it does not, and recorded per endpoint before the
+        /// connection is handed back.
+        /// </para>
+        /// <para>
+        /// The selector remains the fallback for the same reason it does in routing: while nothing has been
+        /// dialled there is nothing to have observed, and answering from the other core's knowledge is
+        /// better than answering from the configured default. It goes with the rest of the fallbacks in
+        /// phase D.
+        /// </para>
+        /// <para>
+        /// <b>The bool is not a formality.</b> It says whether this is an observation or a guess, and
+        /// callers choose command spellings on it - a server reported as older than it is sends the
+        /// writable form of a command a replica would have served read-only.
         /// </para>
         /// </remarks>
-        private sealed class MultiplexerFeatureProbe(ConnectionMultiplexer multiplexer) : IRespServerFeatures
+        private sealed class NewCoreFeatureProbe(RespNewCore core) : IRespServerFeatures
         {
             public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
             {
-                var server = multiplexer.SelectServer(command, flags, key);
+                if (core.RouteEndpoint(command, in key, flags) is { } endpoint
+                    && core._observed.TryGetValue(endpoint, out features))
+                {
+                    return true;
+                }
 
-                // usable either way - the configured default version stands in - but only a selected server
+                var server = core._multiplexer.SelectServer(command, flags, key);
+
+                // usable either way - the configured default version stands in - but only a known server
                 // makes this an observation rather than a guess, which is what the bool reports
-                features = new RedisFeatures(server is null ? multiplexer.RawConfig.DefaultVersion : server.Version);
+                features = new RedisFeatures(server is null ? core._multiplexer.RawConfig.DefaultVersion : server.Version);
                 return server is not null;
             }
         }

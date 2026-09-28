@@ -1660,8 +1660,25 @@ told something untrue about where their read ran.
 names one endpoint, and the previous replicas may no longer replicate that slot. They return with the
 next `CLUSTER SLOTS`; until then a preference resolves to the primary, which is what "prefer" means.
 
-**C. Features.** Replace `MultiplexerFeatureProbe`, which asks `multiplexer.SelectServer` purely to
-read a version.
+**C. Features.** DONE. `MultiplexerFeatureProbe` read the version off the SHIPPED core's
+`ServerEndPoint` - the third coupling, after routing and roles. It is now answered from what this
+core's own handshake observed, recorded per endpoint before the connection is handed back.
+
+Both protocols, which needed one addition: `HELLO` reports the version and RESP2 connections do not
+send one, so an `INFO SERVER` fills that half. It matters more than it sounds - several commands are
+CHOSEN from what the server supports (an all-GET `BITFIELD` goes out as `BITFIELD_RO` where that
+exists, which is what lets a replica serve it), so a core that cannot answer "what can this server do?"
+picks the writable spelling and a replica read is then refused.
+
+Routing and the probe share one path (`RouteEndpoint`, over the same `EndpointForSlot`/`EndpointForAny`
+the executors use), so "which server answers this?" cannot drift from where the command actually goes.
+Splitting the endpoint choice out of executor creation is what makes that possible: the probe wants the
+answer, not the machinery, and creating - let alone dialling - an executor to read a version would turn
+a question into an action.
+
+The selector remains the fallback, for the same reason it does in routing: while nothing has been
+dialled there is nothing to have observed, and the other core's knowledge beats the configured default.
+It goes with the rest of the fallbacks in D.
 
 **D. Stop dialling twice.** With A-C the multiplexer need not create `ServerEndPoint`s or bridges when
 the engine flag is on, and `PhysicalBridge`/`PhysicalConnection` become deletable.
