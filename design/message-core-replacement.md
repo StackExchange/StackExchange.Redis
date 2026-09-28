@@ -1790,13 +1790,24 @@ workload named database 0 throughout; and commands that name no database - `PING
 `CLIENT` family - were reported as running in database 0 rather than as db-free, which the shipped
 core decides from `Message.RequiresDatabase` and this now shares.
 
+The missing commands in `LowAllocationEnumerable` turned out to be an ordering bug one layer down, in
+RESPite, and a general one rather than anything about profiling. `RespMessageBase` published the
+outcome and *then* called `OnFinished`, which is what pushes a profiled command into its session.
+Publishing runs an awaiting continuation inline, so a caller could be back from its await, have
+finished waiting on every task, and be asking for the results before the last few records had been
+pushed. Not dropped - late, by microseconds, which is why the count varied run to run (988-999 of
+1,000) and why it only showed under a blocking `WaitAll`: an `await` adds a scheduling hop that hides
+it. `OnFinished` now runs before publishing, which is the same ordering the shipped core has always
+had - `Message.Complete` records the performance data before it activates continuations. Worth noting
+this is the second instance of exactly the hazard `Mark`'s own remarks describe; the remedy was
+applied there and not to its neighbour.
+
 **What remains is a semantic question rather than a bug.** `ProfilingTests` asserts
 `EnqueuedToSending > 0`, and on a warm connection this core has no queue between those two points -
-the operation is stamped and written in the same breath, so the honest measurement is zero. The
-shipped core always has a bridge hop there. Either the stage is meaningless for this core and the
-assertion should be relaxed for it, or the stamps should be placed at points that keep the shipped
-meaning. `LowAllocationEnumerable` also still loses a handful of commands out of 1,000 (991 of the
-expected GETs carry the right database), which is not yet explained.
+the operation is stamped and written in the same breath, so the honest measurement is zero, and it
+fails only under enough load to make it so. The shipped core always has a bridge hop there. Either the
+stage is meaningless for this core and the assertion should be relaxed for it, or the stamps should be
+placed at points that keep the shipped meaning.
 
 ### 9c. What this buys beyond tidiness
 

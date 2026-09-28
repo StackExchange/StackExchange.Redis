@@ -205,13 +205,23 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
     }
 
-    /// <summary>Called once the outcome is set, however it ended.</summary>
+    /// <summary>Called as this life ends, <b>before</b> the outcome is published.</summary>
     /// <remarks>
+    /// <para>
     /// <b>The one that cannot be done from outside.</b> It has to fire for every ending - a reply, a
     /// server error, a cancellation, a timeout, a connection fault - and for fire-and-forget commands
     /// that nobody ever consumes. There is no single point above this that sees all of those;
     /// <see cref="OnReset"/> comes close but fires on <i>consumption</i>, which the unconsumed ones never
     /// reach.
+    /// </para>
+    /// <para>
+    /// <b>Before, for the same reason <see cref="Mark"/> is, and it was afterwards.</b> Publishing runs an
+    /// awaiting continuation - inline, on this thread, when one is already registered - so a caller can be
+    /// back from its await and looking at whatever this was supposed to record before this has run at all.
+    /// The symptom was a profiling session losing a handful of commands out of a thousand: not dropped,
+    /// merely pushed after the caller had finished waiting and asked for the results. The shipped core
+    /// orders it the same way, recording the command before it activates continuations.
+    /// </para>
     /// </remarks>
     protected virtual void OnFinished()
     {
@@ -483,6 +493,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private bool Complete(TResponse response, bool definite)
     {
         var pulse = Mark(definite);
+        OnFinished();
         _asyncCore.SetResult(response);
         Pulse(pulse);
         return true;
@@ -491,6 +502,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private bool Fail(Exception exception, bool definite)
     {
         var pulse = Mark(definite);
+        OnFinished();
         _asyncCore.SetException(exception);
         Pulse(pulse);
         return true;
@@ -523,10 +535,14 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         return pulse;
     }
 
+    /// <summary>Wake a synchronous waiter, if there is one that has not already been told.</summary>
+    /// <param name="pulse">Whether anybody is waiting on the monitor.</param>
+    /// <remarks>
+    /// Strictly after the outcome is published, which is the opposite constraint from
+    /// <see cref="OnFinished"/>: a waiter woken before the result exists would read one that is not there.
+    /// </remarks>
     private void Pulse(bool pulse)
     {
-        OnFinished();
-
         if (!pulse) return;
         lock (this)
         {
