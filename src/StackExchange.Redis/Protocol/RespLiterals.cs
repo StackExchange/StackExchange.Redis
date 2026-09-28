@@ -34,6 +34,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Info { get; }
 
+        /// <summary>The <c>REPLICATION</c> section of <c>INFO</c>, which names this server's role.</summary>
+        [Resp]
+        internal static partial RespFragment Replication { get; }
+
         /// <summary>The <c>LEN</c> operand of <c>LCS</c>.</summary>
         [Resp]
         internal static partial RespFragment Len { get; }

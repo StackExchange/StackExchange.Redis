@@ -83,7 +83,12 @@ namespace StackExchange.Redis
             // Unknown is exactly the state that window is for: slots are computed speculatively - a hash
             // per key until the first handshake reports back - and RespHandshake settles it via
             // OnServerType. See RespTopology, which says this in its own remarks.
-            _topology = new RespTopology(SeedTopology(multiplexer));
+            _topology = new RespTopology(SeedTopology(multiplexer))
+            {
+                // only worth an INFO REPLICATION per connection when there is something to prefer a
+                // replica OVER; a cluster learns the same thing from a reply it reads anyway
+                WantsRoles = multiplexer.RawConfig.EndPoints.Count > 1,
+            };
             _features = new MultiplexerFeatureProbe(multiplexer);
             _select = new SelectPreamble(new RespContext(multiplexer.RawConfig.CommandMap));
             _defaultDatabase = multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault();
@@ -119,6 +124,11 @@ namespace StackExchange.Redis
         internal bool HasSlotMapForTest => _topology.HasSlotMap;
 
         internal System.Net.EndPoint? SlotOwnerForTest(int slot) => _topology.SlotOwner(slot);
+
+        internal EndPoint[] SlotReplicasForTest(int slot)
+            => _topology.Owners(slot)?.Replicas ?? Array.Empty<EndPoint>();
+
+        internal string RoleOfForTest(EndPoint endpoint) => _topology.RoleOf(endpoint).ToString();
 
         internal string TopologyStateForTest => _topology.State.ToString();
 
@@ -217,22 +227,84 @@ namespace StackExchange.Redis
         /// exactly as it did before rather than routing wrongly.
         /// </para>
         /// <para>
-        /// Replica preference is still the selector's, because roles are not in the map yet (phase B) - so
-        /// a command that asks for one takes the old path deliberately rather than being quietly served a
-        /// primary.
+        /// Replica preference is answered from the map too, because the <c>CLUSTER SLOTS</c> that filled it
+        /// names the replicas of each range - and that pairing is the part no other source has: a server
+        /// being "a replica" says nothing about WHICH slots it replicates. A demand this map cannot satisfy
+        /// still falls through to the selector rather than being quietly served a primary.
         /// </para>
         /// </remarks>
         private RespExecutorBase? ForSlot(int database, int slot, RedisCommand command, CommandFlags flags)
         {
-            if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.None
-                && _topology.SlotOwner(slot) is { } owner)
+            if (_topology.Owners(slot) is { } owners && ChooseByRole(owners, command, flags) is { } chosen)
             {
-                return Executor(database, owner);
+                return Executor(database, chosen);
             }
 
             var server = _multiplexer.ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: true);
             return server is null ? Any(database, command, flags) : Executor(database, server.EndPoint);
         }
+
+        /// <summary>Which of a slot's servers should take this command.</summary>
+        /// <param name="owners">The primary and replicas for the slot.</param>
+        /// <param name="command">The command, which decides whether a replica is even eligible.</param>
+        /// <param name="flags">The caller's preference.</param>
+        /// <returns>The endpoint, or null when the map cannot honour what was asked for.</returns>
+        /// <remarks>
+        /// <b>The command outranks the preference, and that is not a courtesy.</b> A write is refused by a
+        /// replica, so sending one there on a <see cref="CommandFlags.PreferReplica"/> would turn a
+        /// preference into a failure. <c>Route</c> already throws for the harder case - a write that
+        /// DEMANDED a replica - so by here "primary-only" simply means the preference does not apply.
+        /// <para>
+        /// Null for an unsatisfiable demand rather than the primary: a caller who demanded a replica and
+        /// got a primary has been told something untrue about where their read ran. The selector may still
+        /// know a replica this map does not, and if nobody does the demand fails, which is what a demand is.
+        /// </para>
+        /// </remarks>
+        private EndPoint? ChooseByRole(RespTopology.SlotOwners owners, RedisCommand command, CommandFlags flags)
+        {
+            if (command.IsPrimaryOnly()) return owners.Primary;
+
+            switch (Message.GetPrimaryReplicaFlags(flags))
+            {
+                case CommandFlags.DemandReplica:
+                    return PickReplica(owners.Replicas);
+                case CommandFlags.PreferReplica:
+                    return PickReplica(owners.Replicas) ?? owners.Primary;
+                default:
+                    return owners.Primary;
+            }
+        }
+
+        /// <summary>Choose one of a set of replicas.</summary>
+        /// <param name="replicas">The candidates; may be empty.</param>
+        /// <returns>The chosen endpoint, or null when there are none.</returns>
+        /// <remarks>
+        /// <b>Round-robin from a rotating offset, preferring one already connected.</b> Taking the first
+        /// every time would put every replica read of a range on one node, which is most of what asking for
+        /// a replica is for; always taking the next would dial a fresh socket for a read an existing
+        /// connection could serve, because this core connects lazily.
+        /// <para>
+        /// Scanning FROM the rotating offset gets both: once several are up the offset spreads across them,
+        /// and while none is up it still advances, so the replicas get dialled rather than one of them
+        /// being picked forever.
+        /// </para>
+        /// </remarks>
+        private EndPoint? PickReplica(EndPoint[] replicas)
+        {
+            if (replicas.Length == 0) return null;
+
+            var offset = (uint)Interlocked.Increment(ref _replicaRotation);
+            for (var i = 0; i < replicas.Length; i++)
+            {
+                var candidate = replicas[(offset + (uint)i) % (uint)replicas.Length];
+                if (_endpoints.TryGetValue(candidate, out var dialled) && dialled.IsConnectedNow) return candidate;
+            }
+
+            return replicas[offset % (uint)replicas.Length];
+        }
+
+        /// <summary>Advances every time a replica is chosen; see <see cref="PickReplica"/>.</summary>
+        private int _replicaRotation;
 
         /// <summary>The executor for a command with no key, which any acceptable server could serve.</summary>
         /// <remarks>
@@ -259,6 +331,16 @@ namespace StackExchange.Redis
         /// </remarks>
         private RespExecutorBase? Any(int database, RedisCommand command, CommandFlags flags)
         {
+            // A keyless replica read, answered from our own roles. There is no slot to look the pairing up
+            // by here, which is why the flat role record exists beside the map: in a cluster every replica
+            // replicates SOMETHING, and for a command that names no key that is all the question needs.
+            if (!command.IsPrimaryOnly()
+                && Message.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica
+                && PickReplica(_topology.Replicas) is { } replica)
+            {
+                return Executor(database, replica);
+            }
+
             var strategy = _multiplexer.ServerSelectionStrategy;
             ServerEndPoint? fallback = null;
 
@@ -513,6 +595,7 @@ namespace StackExchange.Redis
                 database,
                 config.Protocol is null or RedisProtocol.Resp3,
                 _topology,
+                endpoint,
                 cancellationToken).ConfigureAwait(false);
 
             // recorded BEFORE the connection is handed back, for the same reason the topology is: the

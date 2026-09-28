@@ -66,6 +66,11 @@ namespace StackExchange.Redis
         /// Told what the server turned out to be, before this returns. See the remarks: setting it here
         /// rather than afterwards is what makes the ordering invariant structural.
         /// </param>
+        /// <param name="endpoint">
+        /// Which endpoint this connection reached, when the caller knows. Only used to record a role: a
+        /// standalone server names its own side of a replication pair and nothing else in the reply says
+        /// which server said it.
+        /// </param>
         /// <param name="cancellationToken">Cancels the handshake.</param>
         /// <returns>What the connection ended up speaking, and what it turned out to be.</returns>
         internal static async Task<RespHandshakeResult> PerformAsync(
@@ -76,6 +81,7 @@ namespace StackExchange.Redis
             int database = 0,
             bool preferResp3 = true,
             RespTopology? topology = null,
+            EndPoint? endpoint = null,
             CancellationToken cancellationToken = default)
         {
             if (password is not null)
@@ -179,12 +185,37 @@ namespace StackExchange.Redis
 
                     foreach (var range in ranges)
                     {
-                        topology.SetSlotRange(range.From, range.To, range.Endpoint);
+                        topology.SetSlotRange(range.From, range.To, range.Endpoint, range.Replicas);
                     }
                 }
                 catch (RedisServerException)
                 {
                     // no map from this server; the selector still answers
+                }
+            }
+
+            // The standalone counterpart, and it is a DIFFERENT question: a cluster reply names every
+            // node's role at once, while INFO REPLICATION names only the server answering it - hence the
+            // endpoint, which is the one thing the reply does not contain.
+            //
+            // Asked only when it can change a decision. With one endpoint configured there is nothing to
+            // prefer a replica OVER, so the round trip would be spent to learn something routing cannot
+            // act on, on every connection, forever.
+            else if (serverType != ServerType.Cluster
+                && topology is { WantsRoles: true }
+                && endpoint is not null
+                && context.Raw.CommandMap.IsAvailable(RedisCommand.INFO))
+            {
+                try
+                {
+                    var role = await context.SendAsync(
+                        $"{RedisCommand.INFO}{RespLiterals.Replication}",
+                        handler: ReplicationRoleHandler.Instance).ConfigureAwait(false);
+                    topology.OnRole(endpoint, role);
+                }
+                catch (RedisServerException)
+                {
+                    // INFO can be restricted; an unknown role routes the way it did before
                 }
             }
 
@@ -243,10 +274,11 @@ namespace StackExchange.Redis
         /// text parsing, and the <c>NODES</c> parser - <c>ClusterConfiguration</c> - takes a
         /// <c>ServerSelectionStrategy</c>, which is precisely the coupling this exists to remove.
         /// <para>
-        /// Each entry is <c>[from, to, [ip, port, id, ...], replica...]</c>. Only the first host is taken:
-        /// it is the primary for that range, and roles are phase B. An entry that cannot be read is skipped
-        /// rather than failing the probe - a partial map still routes the slots it knows and falls back for
-        /// the rest, where a thrown handshake would leave the core with no map at all.
+        /// Each entry is <c>[from, to, [ip, port, id, ...], replica...]</c>: the first host is the primary
+        /// for that range and every host after it is a replica of it, which is where a
+        /// <see cref="CommandFlags.PreferReplica"/> read for a key is answered from. An entry that cannot be
+        /// read is skipped rather than failing the probe - a partial map still routes the slots it knows and
+        /// falls back for the rest, where a thrown handshake would leave the core with no map at all.
         /// </para>
         /// </remarks>
         /// <summary>One contiguous run of slots and the endpoint serving it.</summary>
@@ -255,7 +287,7 @@ namespace StackExchange.Redis
         /// - <c>SanityChecks.ValueTupleNotReferenced</c> enforces it, and caught this - because the
         /// down-level targets would take a package dependency for it.
         /// </remarks>
-        internal readonly struct SlotRange(int from, int to, EndPoint endpoint)
+        internal readonly struct SlotRange(int from, int to, EndPoint endpoint, EndPoint[]? replicas)
         {
             /// <summary>First slot, inclusive.</summary>
             internal int From { get; } = from;
@@ -263,8 +295,11 @@ namespace StackExchange.Redis
             /// <summary>Last slot, inclusive.</summary>
             internal int To { get; } = to;
 
-            /// <summary>The endpoint serving the range.</summary>
+            /// <summary>The primary serving the range.</summary>
             internal EndPoint Endpoint { get; } = endpoint;
+
+            /// <summary>The endpoints replicating it; null when the reply listed none.</summary>
+            internal EndPoint[]? Replicas { get; } = replicas;
         }
 
         internal sealed class ClusterSlotsHandler : IRespHandler<List<SlotRange>>
@@ -294,34 +329,60 @@ namespace StackExchange.Redis
                     }
 
                     // the primary for this range: [ip, port, id, ...]
-                    EndPoint? endpoint = null;
-                    var hostParts = reader.AggregateLength();
-                    if (hostParts >= 2 && reader.TryMoveNext())
-                    {
-                        var host = reader.ReadString();
-                        if (reader.TryMoveNext() && reader.TryReadInt64(out var port) && !string.IsNullOrEmpty(host))
-                        {
-                            _ = Format.TryParseEndPoint(host + ":" + port.ToString(CultureInfo.InvariantCulture), out endpoint);
-                        }
+                    var endpoint = TryReadHost(ref reader);
 
-                        for (var skipped = 2; skipped < hostParts; skipped++)
-                        {
-                            if (!reader.TryMoveNext()) break;
-                            reader.SkipChildren();
-                        }
+                    // every host after the first replicates it. Read rather than skipped, because this is
+                    // the only place the pairing is stated: which replicas serve THESE slots, as opposed to
+                    // the flat "is a replica" that INFO gives for one server.
+                    List<EndPoint>? replicas = null;
+                    for (var part = 3; part < parts; part++)
+                    {
+                        if (!reader.TryMoveNext()) break;
+                        if (TryReadHost(ref reader) is { } replica) (replicas ??= new()).Add(replica);
                     }
 
-                    // replicas, and any trailing entries: phase B reads these, phase A routes without them
-                    for (var part = 3; part < parts; part++)
+                    if (endpoint is not null)
+                    {
+                        ranges.Add(new SlotRange((int)from, (int)to, endpoint, replicas?.ToArray()));
+                    }
+                }
+
+                return ranges;
+            }
+
+            /// <summary>Read one <c>[ip, port, id, ...]</c> host entry, consuming all of it either way.</summary>
+            /// <param name="reader">Positioned on the host entry.</param>
+            /// <returns>The endpoint, or null if this entry was not one.</returns>
+            /// <remarks>
+            /// <b>Consuming all of it is the point, not a detail.</b> A host entry that was half-read leaves
+            /// the reader inside an aggregate the caller believes it has passed, and every range after it is
+            /// then read from the wrong place - a map that is wrong is far worse than a map that is short,
+            /// because nothing downstream can tell.
+            /// </remarks>
+            private static EndPoint? TryReadHost(ref RespReader reader)
+            {
+                EndPoint? endpoint = null;
+                var hostParts = reader.AggregateLength();
+                if (hostParts >= 2 && reader.TryMoveNext())
+                {
+                    var host = reader.ReadString();
+                    if (reader.TryMoveNext() && reader.TryReadInt64(out var port) && !string.IsNullOrEmpty(host))
+                    {
+                        _ = Format.TryParseEndPoint(host + ":" + port.ToString(CultureInfo.InvariantCulture), out endpoint);
+                    }
+
+                    for (var skipped = 2; skipped < hostParts; skipped++)
                     {
                         if (!reader.TryMoveNext()) break;
                         reader.SkipChildren();
                     }
-
-                    if (endpoint is not null) ranges.Add(new SlotRange((int)from, (int)to, endpoint));
+                }
+                else
+                {
+                    reader.SkipChildren();
                 }
 
-                return ranges;
+                return endpoint;
             }
         }
 
@@ -375,6 +436,34 @@ namespace StackExchange.Redis
         /// The fallback for a server that had no <c>HELLO</c> to tell us with. A bulk string of
         /// <c>key:value</c> lines, and exactly one line matters.
         /// </remarks>
+        /// <summary>Reads this server's own replication role out of <c>INFO REPLICATION</c>.</summary>
+        /// <remarks>
+        /// <c>role:master</c> or <c>role:slave</c> - the wire spelling, which is not the one this library
+        /// uses in its own names and must not be "corrected" here. A reply that says neither leaves the
+        /// role <see cref="RespEndpointRole.Unknown"/>, which routes as it did before rather than guessing.
+        /// </remarks>
+        private sealed class ReplicationRoleHandler : IRespHandler<RespEndpointRole>
+        {
+            internal static readonly ReplicationRoleHandler Instance = new();
+
+            public RespEndpointRole Parse(ref RespReader reader)
+            {
+                if (!reader.TryGetSpan(out var span)) return RespEndpointRole.Unknown;
+                if (Contains(span, "role:slave"u8)) return RespEndpointRole.Replica;
+                return Contains(span, "role:master"u8) ? RespEndpointRole.Primary : RespEndpointRole.Unknown;
+            }
+
+            private static bool Contains(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
+            {
+                for (var i = 0; i + needle.Length <= haystack.Length; i++)
+                {
+                    if (haystack.Slice(i, needle.Length).SequenceEqual(needle)) return true;
+                }
+
+                return false;
+            }
+        }
+
         private sealed class ClusterInfoHandler : IRespHandler<ServerType>
         {
             internal static readonly ClusterInfoHandler Instance = new();

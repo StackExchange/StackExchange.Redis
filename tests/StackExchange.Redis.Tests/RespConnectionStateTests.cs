@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -127,5 +127,114 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
 
         Assert.True(checkedSlots > 40, $"only {checkedSlots} slots were mapped; the probe did not populate");
         Log($"slot map agrees with the cluster on {checkedSlots} sampled slots");
+    }
+
+    /// <summary>
+    /// The replica half of the same map: which servers replicate THESE slots, which is the part no other
+    /// source can supply.
+    /// </summary>
+    /// <remarks>
+    /// "This server is a replica" and "this server replicates slot 42" are different facts, and only the
+    /// second can route a <see cref="CommandFlags.PreferReplica"/> read for a key. That is why the pairing
+    /// is kept per range rather than as a flat set of replicas - a cluster with three shards has three
+    /// answers to the question, not one.
+    /// <para>
+    /// Checked against the cluster's own configuration rather than against the shipped map, so it cannot
+    /// pass by one copy of the answer agreeing with another copy; and routed for real through
+    /// <c>IdentifyEndpoint</c>, so it is the routing decision under test and not just the table.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheNewCoreRoutesAReplicaPreferenceFromItsOwnMap()
+    {
+        Skip.IfNoCluster();
+        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+        var db = Transitional(conn.GetDatabase());
+        await db.PingAsync();
+
+        var core = ((ConnectionMultiplexer)conn).NewCore;
+        Assert.True(core.HasSlotMapForTest, "the new core did not fill a slot map of its own");
+
+        var config = conn.GetServer(conn.GetEndPoints()[0]).ClusterConfiguration;
+        Assert.NotNull(config);
+
+        var checkedSlots = 0;
+        for (var slot = 0; slot < 16384; slot += 337)
+        {
+            var replicas = core.SlotReplicasForTest(slot);
+            if (replicas.Length == 0) continue;
+
+            var node = config!.GetBySlot(slot);
+            Assert.NotNull(node);
+
+            // the cluster's own children of the primary that owns this slot
+            var expected = node!.Children.Select(child => child.EndPoint).ToList();
+            foreach (var replica in replicas)
+            {
+                Assert.Contains(replica, expected);
+                Assert.NotEqual(node.EndPoint, replica);
+                Assert.Equal(nameof(RespEndpointRole.Replica), core.RoleOfForTest(replica));
+            }
+
+            checkedSlots++;
+        }
+
+        Assert.True(checkedSlots > 40, $"only {checkedSlots} slots carried replicas; the probe did not populate them");
+        Log($"replica sets agree with the cluster on {checkedSlots} sampled slots");
+
+        // and the routing itself, not merely the table it reads: a key whose slot has replicas goes to the
+        // primary by default and to one of ITS replicas when a replica is preferred
+        RedisKey key = Me();
+        var owner = core.SlotOwnerForTest(ServerSelectionStrategy.GetHashSlot(key));
+        var slotReplicas = core.SlotReplicasForTest(ServerSelectionStrategy.GetHashSlot(key));
+        Assert.NotNull(owner);
+        Assert.NotEmpty(slotReplicas);
+
+        Assert.Equal(owner, await db.IdentifyEndpointAsync(key));
+        Assert.Contains(await db.IdentifyEndpointAsync(key, CommandFlags.PreferReplica), slotReplicas);
+    }
+
+    /// <summary>
+    /// The standalone half: a primary/replica pair has no slots at all, and still has to answer which
+    /// server is which.
+    /// </summary>
+    /// <remarks>
+    /// <b>Learned per connection, because that is the only thing that knows.</b> <c>INFO REPLICATION</c>
+    /// names the role of the server answering it and nothing else in the reply says which server that was,
+    /// so the endpoint is supplied by the caller that dialled it. A cluster gets the same facts for free
+    /// from a reply it reads anyway, which is why only this side pays a round trip - and only when more
+    /// than one endpoint is configured, since with one there is nothing to prefer a replica over.
+    /// <para>
+    /// Roles appear as endpoints are dialled, not up front: this core connects on demand, so the replica is
+    /// unknown until something routes to it. That is the ordering under test here.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheNewCoreLearnsStandaloneRolesAsItDialsEndpoints()
+    {
+        await using var conn = Create(
+            configuration: TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort,
+            log: Writer);
+        var db = Transitional(conn.GetDatabase());
+        await db.PingAsync();
+
+        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var primary = conn.GetEndPoints().First(x => Format.ToString(x).EndsWith(TestConfig.Current.PrimaryPort.ToString()));
+        var replica = conn.GetEndPoints().First(x => Format.ToString(x).EndsWith(TestConfig.Current.ReplicaPort.ToString()));
+
+        Assert.Equal(nameof(RespEndpointRole.Primary), core.RoleOfForTest(primary));
+
+        // the replica has not been needed yet, so nothing has asked it anything
+        Assert.Equal(nameof(RespEndpointRole.Unknown), core.RoleOfForTest(replica));
+
+        // routing to it is not enough - IdentifyEndpoint answers from the routing table without sending
+        // anything, and this core opens a socket only when there is something to put on it
+        Assert.Equal(replica, await db.IdentifyEndpointAsync(Me(), CommandFlags.DemandReplica));
+        Assert.Equal(nameof(RespEndpointRole.Unknown), core.RoleOfForTest(replica));
+
+        // an actual read is what dials it, and the handshake on that connection is what names it
+        await db.StringGetAsync(Me(), CommandFlags.DemandReplica);
+        Assert.Equal(nameof(RespEndpointRole.Replica), core.RoleOfForTest(replica));
+        Log($"{Format.ToString(primary)} is the primary, {Format.ToString(replica)} the replica");
     }
 }

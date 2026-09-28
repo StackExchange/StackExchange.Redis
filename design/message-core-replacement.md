@@ -1621,16 +1621,44 @@ What remains, by size:
 
 ### 9b. The plan, in the order it has to happen
 
-**A. The new core owns the slot map.** `RespTopology` gains an `EndPoint?[16384]`, filled by a
-`CLUSTER SLOTS` the NEW core issues after its own handshake reports cluster. `ForSlot` consults it and
-falls back to the selector only while it is empty, so the change is safe before it is complete.
-`CLUSTER SLOTS` rather than `CLUSTER NODES` deliberately: its reply is nested arrays needing no text
-parsing, and `ClusterConfiguration` - the NODES parser - takes a `ServerSelectionStrategy`, which is
-the coupling being removed.
+**A. The new core owns the slot map.** DONE. `RespTopology` gains a `SlotOwners?[16384]`, filled by a
+`CLUSTER SLOTS` the NEW core issues after its own handshake reports cluster - on that connection,
+before the backlog drains, for the same ordering reason `OnServerType` is set there. `ForSlot`
+consults it and falls back to the selector only while it is empty, so the change was safe before it
+was complete. `CLUSTER SLOTS` rather than `CLUSTER NODES` deliberately: its reply is nested arrays
+needing no text parsing, and `ClusterConfiguration` - the NODES parser - takes a
+`ServerSelectionStrategy`, which is the coupling being removed. A `MOVED` teaches the map directly,
+since the server naming the new owner is more current than any rediscovery.
 
-**B. Roles and selectability.** Primary/replica per endpoint, so `PreferReplica`/`DemandReplica`
-resolve without `ServerEndPoint`. The same `CLUSTER SLOTS` reply carries replicas; standalone needs
-`INFO replication`.
+Proved rather than assumed: `TheNewCoreFillsAndRoutesFromItsOwnSlotMap` checks the map against the
+CLUSTER's own configuration, not against the shipped map, so it cannot pass by one copy equalling
+another.
+
+**B. Roles and selectability.** DONE. Primary/replica per endpoint, so `PreferReplica`/`DemandReplica`
+resolve without `ServerEndPoint`.
+
+Two records, because there are two questions and only one of them has a slot in it. Per range, the
+same `CLUSTER SLOTS` entry that names the primary names its replicas, and that pairing is the part no
+other source has - "this server is a replica" says nothing about WHICH slots it replicates, so a keyed
+`PreferReplica` can only be answered from the range. Per endpoint, a flat role map answers the keyless
+case and the standalone one, where there is no slot to look anything up by.
+
+`INFO REPLICATION` supplies the standalone half, and it needs the endpoint passed in: the reply names
+the role of whoever answered it and nothing in the reply says who that was. Asked only when more than
+one endpoint is configured - with one there is nothing to prefer a replica OVER, so the round trip
+would buy a fact routing cannot act on, on every connection, forever. A cluster pays nothing, having
+read the same facts out of a reply it wanted anyway.
+
+Choosing among replicas is round-robin from a rotating offset, preferring one already connected:
+taking the first every time puts every replica read of a range on one node, which is most of what
+asking for a replica is for, while always taking the next dials a fresh socket for a read an existing
+connection could serve. An unsatisfiable *demand* returns null rather than the primary, so it falls
+through to the selector and then fails - a caller who demanded a replica and got a primary has been
+told something untrue about where their read ran.
+
+`MOVED` records the new owner with NO replicas rather than carrying the old range's across: a `MOVED`
+names one endpoint, and the previous replicas may no longer replicate that slot. They return with the
+next `CLUSTER SLOTS`; until then a preference resolves to the primary, which is what "prefer" means.
 
 **C. Features.** Replace `MultiplexerFeatureProbe`, which asks `multiplexer.SelectServer` purely to
 read a version.
@@ -1638,8 +1666,15 @@ read a version.
 **D. Stop dialling twice.** With A-C the multiplexer need not create `ServerEndPoint`s or bridges when
 the engine flag is on, and `PhysicalBridge`/`PhysicalConnection` become deletable.
 
-A is the keystone: nothing else can move first, and it is what stops MOVED handling, routing and
+A was the keystone: nothing else could move first, and it is what stops MOVED handling, routing and
 connection state being three answers from two places.
+
+Not a regression, but uncovered while measuring A and B: `ClusterEndpointFormUnitTests.`
+`MovedRedirectUsesThePreferredForm` fails twice under the engine flag because the new core does not
+reclassify a redirect whose target cannot be routed to (`?:port`, `:port`) as
+`UnknownRedirectTarget` - `ResultProcessor` does that, and nothing on the new path does. It fails
+identically before A, so it belongs with the other new-core error-shape gaps rather than with this
+work.
 
 ### 9c. What this buys beyond tidiness
 

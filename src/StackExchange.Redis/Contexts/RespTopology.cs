@@ -1,4 +1,7 @@
-﻿using System.Net;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Net;
 using System.Threading;
 
 namespace StackExchange.Redis
@@ -18,6 +21,25 @@ namespace StackExchange.Redis
 
         /// <summary>Known to be a cluster; slots decide routing.</summary>
         Yes = 2,
+    }
+
+    /// <summary>Which side of a replication pair an endpoint is, as far as this core has been told.</summary>
+    /// <remarks>
+    /// <b>Three states again, and for the same reason <see cref="RespClusterState"/> has three.</b> "We
+    /// have not asked" is not "it is a primary": a <see cref="CommandFlags.DemandReplica"/> answered from
+    /// a default of <see cref="Primary"/> would silently send a read to the wrong side, where answered
+    /// from <see cref="Unknown"/> it defers to whoever does know.
+    /// </remarks>
+    internal enum RespEndpointRole
+    {
+        /// <summary>Nobody has said.</summary>
+        Unknown = 0,
+
+        /// <summary>Accepts writes; the owner of its slots.</summary>
+        Primary = 1,
+
+        /// <summary>Replicates a primary; may serve reads.</summary>
+        Replica = 2,
     }
 
     /// <summary>
@@ -147,7 +169,33 @@ namespace StackExchange.Redis
 
         // ---- the slot map -------------------------------------------------------------------------------
 
-        /// <summary>Which endpoint owns each slot, or null while nothing has said.</summary>
+        /// <summary>Who serves one contiguous run of slots.</summary>
+        /// <remarks>
+        /// <b>One instance per range, referenced from every slot in it</b>, so a three-primary cluster is
+        /// three objects behind 16,384 references rather than 16,384 objects - and so a read is an index
+        /// and a field, with no search and no lock.
+        /// <para>
+        /// Immutable, which is what lets the whole answer for a slot - primary AND its replicas - be
+        /// swapped with one reference write. A mutable pair would let a reader see a new primary beside
+        /// the old primary's replicas, which is a routing table nobody ever published.
+        /// </para>
+        /// </remarks>
+        internal sealed class SlotOwners
+        {
+            internal SlotOwners(EndPoint primary, EndPoint[]? replicas)
+            {
+                Primary = primary;
+                Replicas = replicas is { Length: > 0 } ? replicas : Array.Empty<EndPoint>();
+            }
+
+            /// <summary>The endpoint that accepts writes for these slots.</summary>
+            internal EndPoint Primary { get; }
+
+            /// <summary>The endpoints replicating them; empty, never null.</summary>
+            internal EndPoint[] Replicas { get; }
+        }
+
+        /// <summary>Who owns each slot, or null while nothing has said.</summary>
         /// <remarks>
         /// <b>This core's own map, and the point of it is that it is its own.</b> Routing used to resolve a
         /// slot through <c>ServerSelectionStrategy</c>, whose map is a <c>ServerEndPoint[]</c> filled from a
@@ -160,7 +208,7 @@ namespace StackExchange.Redis
         /// standalone deployment never needs 16,384 of anything.
         /// </para>
         /// </remarks>
-        private EndPoint?[]? _slots;
+        private SlotOwners?[]? _slots;
 
         /// <summary>Whether this core has a slot map of its own yet.</summary>
         /// <remarks>
@@ -169,34 +217,48 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool HasSlotMap => Volatile.Read(ref _slots) is not null;
 
-        /// <summary>The endpoint that owns a slot, or null if this core has not been told.</summary>
+        /// <summary>Who serves a slot, or null if this core has not been told.</summary>
         /// <param name="slot">The hash slot.</param>
-        internal EndPoint? SlotOwner(int slot)
+        internal SlotOwners? Owners(int slot)
         {
             var map = Volatile.Read(ref _slots);
             return map is null || (uint)slot >= (uint)map.Length ? null : Volatile.Read(ref map[slot]);
         }
 
-        /// <summary>Record that one endpoint owns an inclusive range of slots.</summary>
+        /// <summary>The endpoint that owns a slot, or null if this core has not been told.</summary>
+        /// <param name="slot">The hash slot.</param>
+        internal EndPoint? SlotOwner(int slot) => Owners(slot)?.Primary;
+
+        /// <summary>Record who serves an inclusive range of slots.</summary>
         /// <param name="from">First slot, inclusive.</param>
         /// <param name="to">Last slot, inclusive.</param>
-        /// <param name="endpoint">The endpoint serving them.</param>
+        /// <param name="primary">The endpoint accepting writes for them.</param>
+        /// <param name="replicas">The endpoints replicating it, if any.</param>
         /// <remarks>
         /// Written per slot rather than as ranges because reads are on the command path and must be an
         /// index, not a search; 16,384 references is 128KB once per deployment.
+        /// <para>
+        /// The roles fall out of the same reply, and are recorded here rather than by the caller so that
+        /// "what the map says" and "what role an endpoint has" cannot disagree - a keyless
+        /// <c>PreferReplica</c> and a keyed one would otherwise be answered from two sources.
+        /// </para>
         /// </remarks>
-        internal void SetSlotRange(int from, int to, EndPoint endpoint)
+        internal void SetSlotRange(int from, int to, EndPoint primary, EndPoint[]? replicas = null)
         {
-            if (endpoint is null || from < 0 || to < from || to >= RedisClusterSlotCount) return;
+            if (primary is null || from < 0 || to < from || to >= RedisClusterSlotCount) return;
 
             var map = Volatile.Read(ref _slots);
             if (map is null)
             {
-                var created = new EndPoint?[RedisClusterSlotCount];
+                var created = new SlotOwners?[RedisClusterSlotCount];
                 map = Interlocked.CompareExchange(ref _slots, created, null) ?? created;
             }
 
-            for (var slot = from; slot <= to; slot++) Volatile.Write(ref map[slot], endpoint);
+            var owners = new SlotOwners(primary, replicas);
+            for (var slot = from; slot <= to; slot++) Volatile.Write(ref map[slot], owners);
+
+            OnRole(primary, RespEndpointRole.Primary);
+            foreach (var replica in owners.Replicas) OnRole(replica, RespEndpointRole.Replica);
         }
 
         /// <summary>Move a single slot, as a <c>MOVED</c> says to.</summary>
@@ -206,13 +268,86 @@ namespace StackExchange.Redis
         /// <b>Only when a map already exists.</b> One <c>MOVED</c> is evidence about one slot, not grounds
         /// to invent a map in which every other slot is unknown - that would flip routing from "ask the
         /// selector" to "ask a map that knows almost nothing", which is worse than not having one.
+        /// <para>
+        /// The new owner arrives with no replicas, and inventing some would be worse than having none: a
+        /// <c>MOVED</c> names one endpoint, and carrying the OLD range's replicas across would point
+        /// replica reads at nodes that no longer replicate this slot. They come back with the next
+        /// <c>CLUSTER SLOTS</c>; until then a replica preference resolves to the primary, which is what
+        /// "prefer" means.
+        /// </para>
         /// </remarks>
         internal void OnSlotMoved(int slot, EndPoint endpoint)
         {
             var map = Volatile.Read(ref _slots);
             if (map is not null && (uint)slot < (uint)map.Length && endpoint is not null)
             {
-                Volatile.Write(ref map[slot], endpoint);
+                Volatile.Write(ref map[slot], new SlotOwners(endpoint, null));
+                OnRole(endpoint, RespEndpointRole.Primary);
+            }
+        }
+
+        // ---- roles --------------------------------------------------------------------------------------
+
+        /// <summary>What role each endpoint plays, as far as anyone has said.</summary>
+        /// <remarks>
+        /// <b>Separate from the slot map because the question outlives it.</b> A standalone primary/replica
+        /// pair has no slots at all and still has to answer <see cref="CommandFlags.PreferReplica"/>, and a
+        /// keyless command in a cluster has no slot to look the answer up by.
+        /// </remarks>
+        private readonly ConcurrentDictionary<EndPoint, RespEndpointRole> _roles = new();
+
+        /// <summary>The endpoints known to be replicas, for choosing one without a slot.</summary>
+        /// <remarks>
+        /// A snapshot array rather than a filter over <see cref="_roles"/>: the read is on the routing path
+        /// and wants an index, while the write happens once per endpoint per discovery. Replaced wholesale
+        /// so a reader either sees the old set or the new one, never a half-built one.
+        /// </remarks>
+        private EndPoint[] _replicaSet = Array.Empty<EndPoint>();
+
+        /// <summary>Whether it is worth asking a standalone server which side of a pair it is.</summary>
+        /// <remarks>
+        /// <b>A cost guard, not a correctness one.</b> The cluster map reports roles for free, inside a
+        /// reply that is being read anyway; a standalone server needs its own <c>INFO REPLICATION</c>, one
+        /// per connection. With a single endpoint configured there is nothing to prefer a replica OVER, so
+        /// that round trip buys a fact routing cannot act on - and it would be paid on every connection.
+        /// </remarks>
+        internal bool WantsRoles { get; set; }
+
+        /// <summary>Whether anything is known about any endpoint's role.</summary>
+        /// <remarks>False means "defer to whoever does know" rather than "there are no replicas".</remarks>
+        internal bool HasRoles => !_roles.IsEmpty;
+
+        /// <summary>What role an endpoint plays, as far as anyone has said.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        internal RespEndpointRole RoleOf(EndPoint endpoint)
+            => endpoint is not null && _roles.TryGetValue(endpoint, out var role) ? role : RespEndpointRole.Unknown;
+
+        /// <summary>The endpoints currently believed to be replicas.</summary>
+        internal EndPoint[] Replicas => Volatile.Read(ref _replicaSet);
+
+        /// <summary>Record what role an endpoint plays.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="role">What it turned out to be.</param>
+        /// <remarks>
+        /// Idempotent, and cheap when it is: the snapshot is only rebuilt when the answer actually changed,
+        /// so re-running a handshake against an unchanged cluster allocates nothing.
+        /// </remarks>
+        internal void OnRole(EndPoint endpoint, RespEndpointRole role)
+        {
+            if (endpoint is null || role == RespEndpointRole.Unknown) return;
+
+            if (_roles.TryGetValue(endpoint, out var existing) && existing == role) return;
+            _roles[endpoint] = role;
+
+            lock (_roles)
+            {
+                var replicas = new List<EndPoint>();
+                foreach (var pair in _roles)
+                {
+                    if (pair.Value == RespEndpointRole.Replica) replicas.Add(pair.Key);
+                }
+
+                Volatile.Write(ref _replicaSet, replicas.Count == 0 ? Array.Empty<EndPoint>() : replicas.ToArray());
             }
         }
 
