@@ -211,9 +211,14 @@ namespace StackExchange.Redis
                 }
             }
 
-            // The standalone counterpart, and it is a DIFFERENT question: a cluster reply names every
-            // node's role at once, while INFO REPLICATION names only the server answering it - hence the
-            // endpoint, which is the one thing the reply does not contain.
+            // The standalone counterpart of CLUSTER SLOTS, and it earns its round trip the same way: not by
+            // naming this server's role - which would only ever describe the one endpoint that answered -
+            // but by naming the OTHER side. A primary lists its replicas and a replica names its primary,
+            // so one connection describes the pair, and a replica nobody has had reason to dial still has
+            // a role. That is what makes a lazily-connecting core able to answer DemandReplica at all.
+            //
+            // ROLE rather than INFO REPLICATION: the same facts as a structured reply instead of a text
+            // section to scan, and it is what the shipped core parses too.
             //
             // Asked only when it can change a decision. With one endpoint configured there is nothing to
             // prefer a replica OVER, so the round trip would be spent to learn something routing cannot
@@ -221,18 +226,23 @@ namespace StackExchange.Redis
             else if (serverType != ServerType.Cluster
                 && topology is { WantsRoles: true }
                 && endpoint is not null
-                && context.Raw.CommandMap.IsAvailable(RedisCommand.INFO))
+                && context.Raw.CommandMap.IsAvailable(RedisCommand.ROLE))
             {
                 try
                 {
                     var role = await context.SendAsync(
-                        $"{RedisCommand.INFO}{RespLiterals.Replication}",
-                        handler: ReplicationRoleHandler.Instance).ConfigureAwait(false);
-                    topology.OnRole(endpoint, role);
+                        $"{RedisCommand.ROLE}",
+                        handler: RoleHandler.Instance).ConfigureAwait(false);
+
+                    topology.OnRole(endpoint, role.Role);
+                    if (role.Peers is not null)
+                    {
+                        foreach (var peer in role.Peers) topology.OnRole(peer, role.PeerRole);
+                    }
                 }
                 catch (RedisServerException)
                 {
-                    // INFO can be restricted; an unknown role routes the way it did before
+                    // ROLE can be restricted or renamed; unknown roles route the way they did before
                 }
             }
 
@@ -475,31 +485,116 @@ namespace StackExchange.Redis
         /// The fallback for a server that had no <c>HELLO</c> to tell us with. A bulk string of
         /// <c>key:value</c> lines, and exactly one line matters.
         /// </remarks>
-        /// <summary>Reads this server's own replication role out of <c>INFO REPLICATION</c>.</summary>
+        /// <summary>What <c>ROLE</c> said: this server's side of the pair, and who is on the other.</summary>
         /// <remarks>
-        /// <c>role:master</c> or <c>role:slave</c> - the wire spelling, which is not the one this library
-        /// uses in its own names and must not be "corrected" here. A reply that says neither leaves the
-        /// role <see cref="RespEndpointRole.Unknown"/>, which routes as it did before rather than guessing.
+        /// <b>The peers are the point.</b> This core connects on demand, so asking only "what am I?" would
+        /// leave every endpoint nothing has yet dialled with no role - and a <see cref="CommandFlags"/>
+        /// <c>.DemandReplica</c> refused for that reason would be refusing over laziness rather than over
+        /// topology. A primary lists its replicas and a replica names its primary, so one reply describes
+        /// both sides.
         /// </remarks>
-        private sealed class ReplicationRoleHandler : IRespHandler<RespEndpointRole>
+        internal readonly struct RoleReply(RespEndpointRole role, RespEndpointRole peerRole, List<EndPoint>? peers)
         {
-            internal static readonly ReplicationRoleHandler Instance = new();
+            /// <summary>What the answering server is.</summary>
+            internal RespEndpointRole Role { get; } = role;
 
-            public RespEndpointRole Parse(ref RespReader reader)
-            {
-                if (!reader.TryGetSpan(out var span)) return RespEndpointRole.Unknown;
-                if (Contains(span, "role:slave"u8)) return RespEndpointRole.Replica;
-                return Contains(span, "role:master"u8) ? RespEndpointRole.Primary : RespEndpointRole.Unknown;
-            }
+            /// <summary>What everything in <see cref="Peers"/> is.</summary>
+            internal RespEndpointRole PeerRole { get; } = peerRole;
 
-            private static bool Contains(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
+            /// <summary>The servers on the other side of the relationship; null when the reply named none.</summary>
+            internal List<EndPoint>? Peers { get; } = peers;
+        }
+
+        /// <summary>Reads <c>ROLE</c>: a role, and whoever is on the other side of it.</summary>
+        /// <remarks>
+        /// Three shapes, and only two are useful here. A primary answers
+        /// <c>["master", offset, [[ip, port, offset], ...]]</c> and a replica
+        /// <c>["slave", ip, port, state, offset]</c> - note the replica names its primary as two separate
+        /// scalars, not as a nested entry, which is why the two are parsed apart rather than shared. A
+        /// sentinel answers something else entirely and is left <see cref="RespEndpointRole.Unknown"/>,
+        /// which routes as before rather than guessing.
+        /// <para>
+        /// A reply that stops making sense partway is kept as far as it parsed: the role alone is still
+        /// worth having, and it is the half that is certain by then.
+        /// </para>
+        /// </remarks>
+        private sealed class RoleHandler : IRespHandler<RoleReply>
+        {
+            internal static readonly RoleHandler Instance = new();
+
+            public RoleReply Parse(ref RespReader reader)
             {
-                for (var i = 0; i + needle.Length <= haystack.Length; i++)
+                if (!reader.IsAggregate || reader.IsNull || !reader.TryMoveNext() || !reader.IsScalar)
                 {
-                    if (haystack.Slice(i, needle.Length).SequenceEqual(needle)) return true;
+                    return default;
                 }
 
-                return false;
+                // "slave" is the wire spelling and remains so; "replica" is accepted for anything that
+                // reports the newer word, since neither is this library's own naming
+                if (reader.Is("master"u8)) return ParsePrimary(ref reader);
+                if (reader.Is("slave"u8) || reader.Is("replica"u8)) return ParseReplica(ref reader);
+                return default;
+            }
+
+            private static RoleReply ParsePrimary(ref RespReader reader)
+            {
+                // offset, then the replicas
+                if (!reader.TryMoveNext() || !reader.TryMoveNext() || !reader.IsAggregate)
+                {
+                    return new RoleReply(RespEndpointRole.Primary, RespEndpointRole.Unknown, null);
+                }
+
+                List<EndPoint>? peers = null;
+                var count = reader.AggregateLength();
+                for (var i = 0; i < count; i++)
+                {
+                    if (!reader.TryMoveNext()) break;
+
+                    // [ip, port, offset] - and the port is a STRING here, unlike CLUSTER SLOTS
+                    var parts = reader.AggregateLength();
+                    if (parts < 2 || !reader.TryMoveNext())
+                    {
+                        reader.SkipChildren();
+                        continue;
+                    }
+
+                    var host = reader.ReadString();
+                    string? port = null;
+                    if (reader.TryMoveNext()) port = reader.ReadString();
+
+                    for (var skipped = 2; skipped < parts; skipped++)
+                    {
+                        if (!reader.TryMoveNext()) break;
+                        reader.SkipChildren();
+                    }
+
+                    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port)
+                        && Format.TryParseEndPoint(host + ":" + port, out var peer))
+                    {
+                        (peers ??= new()).Add(peer);
+                    }
+                }
+
+                return new RoleReply(RespEndpointRole.Primary, RespEndpointRole.Replica, peers);
+            }
+
+            private static RoleReply ParseReplica(ref RespReader reader)
+            {
+                // the primary's host and port, as two scalars at this level
+                if (!reader.TryMoveNext()) return new RoleReply(RespEndpointRole.Replica, RespEndpointRole.Unknown, null);
+                var host = reader.ReadString();
+
+                string? port = null;
+                if (reader.TryMoveNext()) port = reader.IsScalar ? reader.ReadString() : null;
+
+                List<EndPoint>? peers = null;
+                if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port)
+                    && Format.TryParseEndPoint(host + ":" + port, out var primary))
+                {
+                    peers = new() { primary };
+                }
+
+                return new RoleReply(RespEndpointRole.Replica, RespEndpointRole.Primary, peers);
             }
         }
 

@@ -196,21 +196,21 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
 
     /// <summary>
     /// The standalone half: a primary/replica pair has no slots at all, and still has to answer which
-    /// server is which.
+    /// server is which - for BOTH servers, from one connection.
     /// </summary>
     /// <remarks>
-    /// <b>Learned per connection, because that is the only thing that knows.</b> <c>INFO REPLICATION</c>
-    /// names the role of the server answering it and nothing else in the reply says which server that was,
-    /// so the endpoint is supplied by the caller that dialled it. A cluster gets the same facts for free
-    /// from a reply it reads anyway, which is why only this side pays a round trip - and only when more
-    /// than one endpoint is configured, since with one there is nothing to prefer a replica over.
+    /// <b>The peer is the part that matters, not this server's own role.</b> This core connects on demand,
+    /// so a replica nothing has yet had reason to dial would have no role at all - and refusing a
+    /// <see cref="CommandFlags.DemandReplica"/> for that reason would be refusing over laziness rather
+    /// than over topology. <c>ROLE</c> on the primary lists its replicas, so one connection describes the
+    /// pair, exactly as one <c>CLUSTER SLOTS</c> describes a whole cluster.
     /// <para>
-    /// Roles appear as endpoints are dialled, not up front: this core connects on demand, so the replica is
-    /// unknown until something routes to it. That is the ordering under test here.
+    /// Asked only when more than one endpoint is configured, since with one there is nothing to prefer a
+    /// replica over.
     /// </para>
     /// </remarks>
     [Fact]
-    public async Task TheNewCoreLearnsStandaloneRolesAsItDialsEndpoints()
+    public async Task TheNewCoreLearnsBothStandaloneRolesFromOneConnection()
     {
         await using var conn = Create(
             configuration: TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort,
@@ -224,17 +224,11 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
 
         Assert.Equal(nameof(RespEndpointRole.Primary), core.RoleOfForTest(primary));
 
-        // the replica has not been needed yet, so nothing has asked it anything
-        Assert.Equal(nameof(RespEndpointRole.Unknown), core.RoleOfForTest(replica));
-
-        // routing to it is not enough - IdentifyEndpoint answers from the routing table without sending
-        // anything, and this core opens a socket only when there is something to put on it
-        Assert.Equal(replica, await db.IdentifyEndpointAsync(Me(), CommandFlags.DemandReplica));
-        Assert.Equal(nameof(RespEndpointRole.Unknown), core.RoleOfForTest(replica));
-
-        // an actual read is what dials it, and the handshake on that connection is what names it
-        await db.StringGetAsync(Me(), CommandFlags.DemandReplica);
+        // the replica has not been dialled - the PING went to the primary - and is known anyway, because
+        // the primary named it. This is the assertion that matters: without the peers, this would be
+        // Unknown until something happened to connect to it.
         Assert.Equal(nameof(RespEndpointRole.Replica), core.RoleOfForTest(replica));
+        Assert.Equal(replica, await db.IdentifyEndpointAsync(Me(), CommandFlags.DemandReplica));
         Log($"{Format.ToString(primary)} is the primary, {Format.ToString(replica)} the replica");
     }
 

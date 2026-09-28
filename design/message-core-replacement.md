@@ -1720,8 +1720,22 @@ the engine suite from 72 failures to 98, including every `GetFromRightNodeBasedO
 `BITFIELD`-reaches-a-replica tests.
 
 **So the fallbacks are not tidiness debt - they are covering a real gap, and the gap is eager
-discovery.** D2 is not "the next step after D1"; it is the prerequisite for it. What the attempt
-produced instead is the finding below, which was a live bug the fallbacks were hiding.
+discovery.** D2 is not "the next step after D1"; it is the prerequisite for it.
+
+**Half of that gap has since closed, from the same observation that made A work.** Discovery does not
+need a connection per endpoint - it needs ONE connection that describes the deployment. A cluster
+already had this: `CLUSTER SLOTS` names every node and every role from whichever node answers. The
+standalone equivalent is `ROLE`, whose value here is not the answering server's own role but the other
+side of it: a primary lists its replicas, a replica names its primary. So one connection now yields
+both roles of a pair, and a replica nothing has had reason to dial has a role anyway.
+
+`ROLE` rather than `INFO REPLICATION`, which the first version used: the same facts as a structured
+reply rather than a text section to scan, and it is what the shipped core parses too.
+
+What remains is narrower than "eager discovery": the FIRST routing decision, before any connection
+exists at all. Commands could be corrected at drain; `IdentifyEndpoint` cannot, because it asks without
+sending. Closing that means the new core connecting before the first question rather than on it, which
+is a deliberate change to the lazy design and is the real content of D2.
 
 **Detection was reading the wrong evidence.** `CLUSTER INFO` is a diagnostic command, and an error from
 it was being read as "standalone" - which is wrong for anything implementing the routing surface
