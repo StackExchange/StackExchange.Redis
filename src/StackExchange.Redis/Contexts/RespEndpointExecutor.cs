@@ -31,7 +31,7 @@ namespace StackExchange.Redis
     /// do anything about it.
     /// </para>
     /// </remarks>
-    internal sealed class RespEndpointExecutor : RespExecutorBase, IAsyncDisposable
+    internal sealed class RespEndpointExecutor : RespExecutorBase, IAsyncDisposable, IRespOutcomeObserver
     {
         private readonly Func<CancellationToken, Task<RespConnection>> _connect;
         private readonly Func<RedisFeatures?>? _features;
@@ -115,6 +115,10 @@ namespace StackExchange.Redis
         /// <param name="select">Supplies <c>SELECT</c> frames when this connection serves several databases.</param>
         /// <param name="connectTimeoutMilliseconds">How long a connection attempt may take before it is abandoned; zero or less means no limit.</param>
         /// <param name="retryPolicy">The reconnect backoff to consult before re-attempting a failed connect.</param>
+        /// <param name="circuitBreaker">
+        /// Makes the accumulator this endpoint counts outcomes into, or null when nobody is counting.
+        /// </param>
+        /// <param name="onCircuitBroken">Announces that this endpoint's breaker has tripped.</param>
         internal RespEndpointExecutor(
             Func<CancellationToken, Task<RespConnection>> connect,
             int database = 0,
@@ -124,8 +128,13 @@ namespace StackExchange.Redis
             Func<RespPayloadOperation, RedisCommand, CommandFlags, int, EndPoint?, object?>? startProfile = null,
             SelectPreamble? select = null,
             int connectTimeoutMilliseconds = 0,
-            Func<IReconnectRetryPolicy?>? retryPolicy = null)
+            Func<IReconnectRetryPolicy?>? retryPolicy = null,
+            Func<Availability.CircuitBreaker.Accumulator?>? circuitBreaker = null,
+            Action? onCircuitBroken = null)
         {
+            _circuitBreakerFactory = circuitBreaker;
+            _onCircuitBroken = onCircuitBroken;
+            _circuitBreaker = circuitBreaker?.Invoke();
             _connectTimeoutMilliseconds = connectTimeoutMilliseconds;
             _retryPolicy = retryPolicy;
             _features = features;
@@ -337,10 +346,12 @@ namespace StackExchange.Redis
 
             var head = RespPayloadOperation.Rent();
             head.Attach(preamble.Span, preamble.Flags, default);
+            head.Observer = this;
 
             var body = RespPayloadOperation.Rent();
             body.Attach(request.Span, request.Flags, cancellationToken);
             body.Slot = request.Slot;
+            body.Observer = this;
             _startProfile?.Invoke(body, request.Command, request.Flags, Database, _endpoint);
 
             // The gate is asked INSIDE the connection's write lock, which is the whole point of this
@@ -519,6 +530,14 @@ namespace StackExchange.Redis
         /// <summary>Write a run, preceded by a <c>SELECT</c> if this connection is on another database.</summary>
         internal bool SendRun(RespConnection connection, IRespMessage[] run, int count, int database)
         {
+            // a batch's and a transaction's operations are built by the composing executor rather than by
+            // Dispatch, so this is where they learn who counts their outcome. Without it a deployment whose
+            // EXEC always fails was never judged unhealthy - the breaker saw only the single sends.
+            for (var i = 0; i < count; i++)
+            {
+                if (run[i] is RespPayloadOperation operation) operation.Observer = this;
+            }
+
             if (_select is null || database < 0) return connection.Send(run, count);
 
             var sent = connection.Send(
@@ -599,6 +618,91 @@ namespace StackExchange.Redis
             return connection.Send(operation);
         }
 
+        /// <summary>Where this endpoint's outcomes are counted; null when nobody is counting.</summary>
+        /// <remarks>
+        /// Replaced when a trip is actuated, so each connection's lifetime gets its own counters - which is
+        /// what the shipped core gets structurally, by building an accumulator per <c>PhysicalConnection</c>.
+        /// </remarks>
+        private Availability.CircuitBreaker.Accumulator? _circuitBreaker;
+
+        private readonly Func<Availability.CircuitBreaker.Accumulator?>? _circuitBreakerFactory;
+
+        /// <summary>Strictly healthy -> tripped -> actuated, then healthy again with fresh counters.</summary>
+        private int _circuitBreakerState;
+
+        private const int CircuitHealthy = 0, CircuitTripped = 1, CircuitActuated = 2;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Runs per completed command, on the completion thread</b>, so it does as little as it can: the
+        /// accumulator decides what counts as a failure and a null fault is a success. If it trips, the
+        /// teardown is handed to the pool rather than done here - failing a backlog and building a detailed
+        /// exception is not work to put on the thread that just finished somebody's GET. The shipped core
+        /// makes the same split, in <c>PhysicalConnection.ObserveMessageResult</c>.
+        /// </remarks>
+        void IRespOutcomeObserver.ObserveOutcome(Exception? fault)
+        {
+            var accumulator = Volatile.Read(ref _circuitBreaker);
+            if (accumulator is null || !accumulator.Trip(fault)) return;
+
+            if (Interlocked.CompareExchange(ref _circuitBreakerState, CircuitTripped, CircuitHealthy) == CircuitHealthy)
+            {
+                ThreadPool.QueueUserWorkItem(s_CircuitBroken, this);
+            }
+        }
+
+        private static readonly WaitCallback s_CircuitBroken = static state =>
+        {
+            var executor = (RespEndpointExecutor)state!;
+            try
+            {
+                executor.ActuateTrip();
+            }
+            catch
+            {
+                // a breaker that cannot tear down is not a reason to bring the process down with it
+            }
+        };
+
+        /// <summary>Act on a trip, at most once per connection lifetime.</summary>
+        /// <remarks>
+        /// <b>The notification matters more than the teardown here.</b> Dropping the connection stops us
+        /// sending into a server the breaker has judged unhealthy, but it is the <c>ConnectionFailed</c>
+        /// event that a connection group listens for, and without it a tripped member is simply a member
+        /// that keeps failing.
+        /// <para>
+        /// Fresh counters afterwards, so the next connection starts clean rather than inheriting the
+        /// judgement that condemned the last one.
+        /// </para>
+        /// </remarks>
+        private void ActuateTrip()
+        {
+            if (Interlocked.CompareExchange(ref _circuitBreakerState, CircuitActuated, CircuitTripped) != CircuitTripped)
+            {
+                return;
+            }
+
+            RespConnection? doomed;
+            lock (_sync)
+            {
+                doomed = _connection;
+                _connection = null;
+            }
+
+            _onCircuitBroken?.Invoke();
+
+            // disposed from the pool rather than from a completion path: this is the same connection whose
+            // read loop delivered the reply that tripped us, and tearing it down from inside itself is the
+            // self-join that the MOVED work already found the hard way
+            if (doomed is not null) _ = doomed.DisposeAsync();
+
+            Volatile.Write(ref _circuitBreaker, _circuitBreakerFactory?.Invoke());
+            Volatile.Write(ref _circuitBreakerState, CircuitHealthy);
+        }
+
+        /// <summary>Told when this endpoint's breaker has tripped, so the failure can be announced.</summary>
+        private readonly Action? _onCircuitBroken;
+
         private RespPayloadOperation Dispatch(in RespRequest request, CancellationToken cancellationToken)
             => Dispatch(in request, Database, cancellationToken);
 
@@ -630,6 +734,7 @@ namespace StackExchange.Redis
             var operation = RespPayloadOperation.Rent();
             operation.Attach(request.Span, request.Flags, cancellationToken);
             operation.Database = database;
+            operation.Observer = this;
 
             // started HERE, where the endpoint is finally known: a profiled command reports which server
             // answered it, and until routing has resolved there is no honest answer to that.

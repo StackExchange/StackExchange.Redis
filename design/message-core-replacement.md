@@ -1832,6 +1832,43 @@ what the code there says it intends. The payload's own `RefCountedBuffer` is bot
 but it would also let readers on that path start SHARING where they currently copy, which is a lifetime
 change rather than a pool change, and wants its own look.
 
+### 9b-iv. Availability: the breaker saw nothing this core did
+
+A circuit breaker counts outcomes, and every outcome it was counting belonged to the shipped core. Under
+the engine flag the commands run on the new core's socket, so a breaker configured by the caller
+observed only handshake and heartbeat traffic - which meant it never tripped, a group never rerouted
+away from a failing member, and a retry policy with failover configured rode out a server answering
+`LOADING` to everything.
+
+Observed from `OnFinished`, which is the one hook that sees every ending - a reply, a server error, a
+cancellation, a timeout, a connection fault - and is the same point the shipped core observes at, in
+`Message.Complete`. The operation carries who is counting, set where it is created, because by
+completion time the routing decision is gone and the answer has to be the endpoint the command actually
+went to. Runs are set in `SendRun` rather than at creation, since a batch's and a transaction's
+operations are built by the composing executor: without that a deployment whose `EXEC` always failed
+was never judged unhealthy, because the breaker only ever saw single sends.
+
+A trip hands the teardown to the pool rather than doing it inline, exactly as
+`PhysicalConnection.ObserveMessageResult` does - failing a backlog and building a detailed exception is
+not work to put on the thread that just finished somebody's `GET` - and the connection is disposed from
+there rather than from the completion path, which is the self-join the MOVED work already found the
+hard way. The announcement is an ordinary `ConnectionFailed`, which is what a trip is from everybody
+else's point of view and specifically what a connection group listens for; the shipped core reaches the
+same event by a longer road through `PhysicalBridge.RecordConnectionFailed`.
+
+Fresh counters after actuating, so the next connection starts clean rather than inheriting the
+judgement that condemned the last one - which is what the shipped core gets structurally, by building
+an accumulator per `PhysicalConnection`.
+
+Two in that family remain and are not breaker-related: `WithRetry_Transaction_BatchExecute_`
+`DoesNotWaitForReplies` and `WithRetry_ForwardsProbes`.
+
+Also confirmed as dual-core artefacts rather than bugs, and added to the 9a list:
+`ServerExecuteDatabaseTests` (2). They assert that a connection's selected database moves with the
+commands sent on it, and ask `IServer.Execute("CLIENT", "INFO")` for the answer - but `IServer` builds
+its context over `RespMessageExecutor`, the Message shim, so the write goes out on this core's socket
+and the question is put to the shipped core's. One core, one socket, and they agree again.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather

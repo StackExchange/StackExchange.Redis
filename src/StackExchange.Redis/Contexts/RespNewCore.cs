@@ -566,7 +566,31 @@ namespace StackExchange.Redis
             StartProfile,
             _select,
             _multiplexer.RawConfig.ConnectTimeout,
-            () => _multiplexer.RawConfig.ReconnectRetryPolicy);
+            () => _multiplexer.RawConfig.ReconnectRetryPolicy,
+            () => _multiplexer.EffectiveCircuitBreaker?.CreateAccumulator(),
+            () => OnCircuitBroken(endpoint));
+
+        /// <summary>Announce that an endpoint's circuit breaker has judged it unhealthy.</summary>
+        /// <param name="endpoint">The endpoint whose breaker tripped.</param>
+        /// <remarks>
+        /// Raised as an ordinary connection failure, which is what it is from everybody else's point of
+        /// view - and specifically what a connection group listens for when it reroutes away from a member.
+        /// The shipped core arrives at the same event by a longer road, through
+        /// <c>PhysicalBridge.RecordConnectionFailed</c>.
+        /// </remarks>
+        private void OnCircuitBroken(EndPoint endpoint)
+            => _multiplexer.OnConnectionFailed(
+                endpoint,
+                ConnectionType.Interactive,
+                ConnectionFailureType.CircuitBreaker,
+                new RedisConnectionException(
+                    ConnectionFailureType.CircuitBreaker,
+                    CommandFlags.CommandRetryAlways,
+                    "The circuit breaker for this endpoint has tripped.",
+                    null,
+                    CommandStatus.Unknown),
+                reconfigure: true,
+                physicalName: null);
 
         /// <summary>Open a socket, hand it to the new stack, and bring it up.</summary>
         /// <remarks>

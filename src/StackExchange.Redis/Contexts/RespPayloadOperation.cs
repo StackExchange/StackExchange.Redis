@@ -161,7 +161,24 @@ namespace StackExchange.Redis
         /// caller reads the result, because a fire-and-forget command has no reader and would otherwise
         /// never appear in a profile at all.
         /// </remarks>
-        protected override void OnFinished() => Profile?.SetCompleted();
+        protected override void OnFinished(Exception? fault)
+        {
+            Profile?.SetCompleted();
+
+            // and the circuit breaker, from the same hook and for the same reason: this is the one point
+            // that sees EVERY ending - a reply, a server error, a cancellation, a timeout, a connection
+            // fault - which is exactly the set an availability breaker is counting. The shipped core
+            // observes at the equivalent point, in Message.Complete.
+            Observer?.ObserveOutcome(fault);
+        }
+
+        /// <summary>Told how this command ended, for availability accounting; null when nobody is counting.</summary>
+        /// <remarks>
+        /// On the operation rather than looked up at completion time because by then the routing decision
+        /// is long gone - and the answer has to be the endpoint this command actually went to, not whichever
+        /// one it would be routed to now.
+        /// </remarks>
+        internal IRespOutcomeObserver? Observer { get; set; }
 
         /// <inheritdoc/>
         /// <remarks>
@@ -174,6 +191,7 @@ namespace StackExchange.Redis
         protected override void OnReset()
         {
             HasFollowedRedirect = false;
+            Observer = null;
             UnroutableRedirectMessage = null;
             ExpectsQueuedReceipt = false;
             Slot = ServerSelectionStrategy.NoSlot;

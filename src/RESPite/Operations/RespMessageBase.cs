@@ -223,7 +223,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// orders it the same way, recording the command before it activates continuations.
     /// </para>
     /// </remarks>
-    protected virtual void OnFinished()
+    /// <param name="fault">How it ended, or null if it succeeded.</param>
+    protected virtual void OnFinished(Exception? fault)
     {
     }
 
@@ -493,7 +494,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private bool Complete(TResponse response, bool definite)
     {
         var pulse = Mark(definite);
-        OnFinished();
+        OnFinished(null);
         _asyncCore.SetResult(response);
         Pulse(pulse);
         return true;
@@ -502,7 +503,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private bool Fail(Exception exception, bool definite)
     {
         var pulse = Mark(definite);
-        OnFinished();
+        OnFinished(exception);
         _asyncCore.SetException(exception);
         Pulse(pulse);
         return true;
