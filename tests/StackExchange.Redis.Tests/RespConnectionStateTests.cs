@@ -85,4 +85,47 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
         Log($"primary: {db.GetConnectionState(Me())}");
         Log($"demand replica: {db.GetConnectionState(Me(), CommandFlags.DemandReplica)}");
     }
+
+    /// <summary>
+    /// The new core routes a key from a slot map it filled itself, not from the shipped selector's.
+    /// </summary>
+    /// <remarks>
+    /// This is the measurable end of the two-core coupling: the selector's map is a
+    /// <c>ServerEndPoint[]</c> filled from a <c>CLUSTER NODES</c> the SHIPPED core issued during its
+    /// auto-configure, so consulting it meant this core could not route until the other had connected.
+    /// The handshake now issues its own <c>CLUSTER SLOTS</c>, and what it learned has to AGREE with the
+    /// cluster's own view - a map that disagreed would send every key to a node that answers MOVED.
+    /// </remarks>
+    [Fact]
+    public async Task TheNewCoreFillsAndRoutesFromItsOwnSlotMap()
+    {
+        Skip.IfNoCluster();
+        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+        var db = Transitional(conn.GetDatabase());
+        await db.PingAsync();
+
+        var core = ((ConnectionMultiplexer)conn).NewCore;
+        Assert.True(core.RoutesBySlotForTest, "the cluster was not detected");
+        Assert.True(core.HasSlotMapForTest, "the new core did not fill a slot map of its own");
+
+        var config = conn.GetServer(conn.GetEndPoints()[0]).ClusterConfiguration;
+        Assert.NotNull(config);
+
+        // compared against the cluster's OWN view rather than against the shipped map, so this does not
+        // simply assert that one copy equals another copy
+        var checkedSlots = 0;
+        for (var slot = 0; slot < 16384; slot += 337)
+        {
+            var mine = core.SlotOwnerForTest(slot);
+            if (mine is null) continue;
+
+            var theirs = config.GetBySlot(slot);
+            Assert.NotNull(theirs);
+            Assert.Equal(theirs!.EndPoint, mine);
+            checkedSlots++;
+        }
+
+        Assert.True(checkedSlots > 40, $"only {checkedSlots} slots were mapped; the probe did not populate");
+        Log($"slot map agrees with the cluster on {checkedSlots} sampled slots");
+    }
 }

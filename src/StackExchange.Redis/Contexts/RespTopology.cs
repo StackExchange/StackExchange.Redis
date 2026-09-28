@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System.Net;
+using System.Threading;
 
 namespace StackExchange.Redis
 {
@@ -143,5 +144,79 @@ namespace StackExchange.Redis
 
         /// <summary>The server type, as far as anyone knows.</summary>
         internal ServerType ServerType => RoutesBySlot ? ServerType.Cluster : ServerType.Standalone;
+
+        // ---- the slot map -------------------------------------------------------------------------------
+
+        /// <summary>Which endpoint owns each slot, or null while nothing has said.</summary>
+        /// <remarks>
+        /// <b>This core's own map, and the point of it is that it is its own.</b> Routing used to resolve a
+        /// slot through <c>ServerSelectionStrategy</c>, whose map is a <c>ServerEndPoint[]</c> filled from a
+        /// <c>CLUSTER NODES</c> that the SHIPPED core issued during its auto-configure - so this core could
+        /// not route until the other one had connected, and both had to stay up for every command. That one
+        /// fact is behind every symptom in section 9a.
+        /// <para>
+        /// Endpoints rather than executors: an executor is created on demand and may be retired, while the
+        /// answer "slot 42 lives at 127.0.0.1:7001" outlives both. Allocated on first write, because a
+        /// standalone deployment never needs 16,384 of anything.
+        /// </para>
+        /// </remarks>
+        private EndPoint?[]? _slots;
+
+        /// <summary>Whether this core has a slot map of its own yet.</summary>
+        /// <remarks>
+        /// The caller falls back to the shipped selector while this is false, which is what lets the map be
+        /// adopted before it is complete: an empty map routes exactly as before rather than routing wrongly.
+        /// </remarks>
+        internal bool HasSlotMap => Volatile.Read(ref _slots) is not null;
+
+        /// <summary>The endpoint that owns a slot, or null if this core has not been told.</summary>
+        /// <param name="slot">The hash slot.</param>
+        internal EndPoint? SlotOwner(int slot)
+        {
+            var map = Volatile.Read(ref _slots);
+            return map is null || (uint)slot >= (uint)map.Length ? null : Volatile.Read(ref map[slot]);
+        }
+
+        /// <summary>Record that one endpoint owns an inclusive range of slots.</summary>
+        /// <param name="from">First slot, inclusive.</param>
+        /// <param name="to">Last slot, inclusive.</param>
+        /// <param name="endpoint">The endpoint serving them.</param>
+        /// <remarks>
+        /// Written per slot rather than as ranges because reads are on the command path and must be an
+        /// index, not a search; 16,384 references is 128KB once per deployment.
+        /// </remarks>
+        internal void SetSlotRange(int from, int to, EndPoint endpoint)
+        {
+            if (endpoint is null || from < 0 || to < from || to >= RedisClusterSlotCount) return;
+
+            var map = Volatile.Read(ref _slots);
+            if (map is null)
+            {
+                var created = new EndPoint?[RedisClusterSlotCount];
+                map = Interlocked.CompareExchange(ref _slots, created, null) ?? created;
+            }
+
+            for (var slot = from; slot <= to; slot++) Volatile.Write(ref map[slot], endpoint);
+        }
+
+        /// <summary>Move a single slot, as a <c>MOVED</c> says to.</summary>
+        /// <param name="slot">The slot that moved.</param>
+        /// <param name="endpoint">Where the server says it went.</param>
+        /// <remarks>
+        /// <b>Only when a map already exists.</b> One <c>MOVED</c> is evidence about one slot, not grounds
+        /// to invent a map in which every other slot is unknown - that would flip routing from "ask the
+        /// selector" to "ask a map that knows almost nothing", which is worse than not having one.
+        /// </remarks>
+        internal void OnSlotMoved(int slot, EndPoint endpoint)
+        {
+            var map = Volatile.Read(ref _slots);
+            if (map is not null && (uint)slot < (uint)map.Length && endpoint is not null)
+            {
+                Volatile.Write(ref map[slot], endpoint);
+            }
+        }
+
+        /// <summary>The slot count a cluster deployment uses; mirrors the shipped constant.</summary>
+        private const int RedisClusterSlotCount = 16384;
     }
 }

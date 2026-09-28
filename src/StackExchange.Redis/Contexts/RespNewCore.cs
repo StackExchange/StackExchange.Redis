@@ -116,6 +116,10 @@ namespace StackExchange.Redis
 
         internal bool RoutesBySlotForTest => _topology.RoutesBySlot;
 
+        internal bool HasSlotMapForTest => _topology.HasSlotMap;
+
+        internal System.Net.EndPoint? SlotOwnerForTest(int slot) => _topology.SlotOwner(slot);
+
         internal string TopologyStateForTest => _topology.State.ToString();
 
         /// <summary>The one database this core can reach; see <c>GetDatabase</c>.</summary>
@@ -200,8 +204,32 @@ namespace StackExchange.Redis
         /// part of choosing a node, not a separate step, and <c>ServerSelectionStrategy</c> already knows
         /// which endpoints are replicas and which are reachable.
         /// </remarks>
+        /// <summary>The executor for a keyed command, from this core's own slot map where it has one.</summary>
+        /// <remarks>
+        /// <b>Our map first, the shipped selector only as a fallback.</b> That selector's map is a
+        /// <c>ServerEndPoint[]</c> filled from a <c>CLUSTER NODES</c> the SHIPPED core issued during its
+        /// auto-configure, so consulting it is what made this core unable to route until the other one had
+        /// connected - the single fact behind every two-core symptom in section 9a. The handshake now fills
+        /// a map of our own from <c>CLUSTER SLOTS</c> on the connection it just brought up.
+        /// <para>
+        /// Falling back while the map is empty is what makes this safe to adopt before it is finished: a
+        /// deployment whose server will not answer <c>CLUSTER SLOTS</c>, or one still mid-discovery, routes
+        /// exactly as it did before rather than routing wrongly.
+        /// </para>
+        /// <para>
+        /// Replica preference is still the selector's, because roles are not in the map yet (phase B) - so
+        /// a command that asks for one takes the old path deliberately rather than being quietly served a
+        /// primary.
+        /// </para>
+        /// </remarks>
         private RespExecutorBase? ForSlot(int database, int slot, RedisCommand command, CommandFlags flags)
         {
+            if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.None
+                && _topology.SlotOwner(slot) is { } owner)
+            {
+                return Executor(database, owner);
+            }
+
             var server = _multiplexer.ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: true);
             return server is null ? Any(database, command, flags) : Executor(database, server.EndPoint);
         }
@@ -289,7 +317,13 @@ namespace StackExchange.Redis
                 : _multiplexer.RawConfig.TryResp3();
 
         private void OnSlotMoved(int slot, EndPoint endpoint)
-            => _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
+        {
+            // our own map learns directly from the redirect - the server just told us where the slot went,
+            // which is more current than anything a rediscovery would find - and the shipped core is still
+            // asked to reconfigure, because its map is what everything else reads until phase D
+            _topology.OnSlotMoved(slot, endpoint);
+            _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
+        }
 
         private void OnTopologySuspect()
             => _multiplexer.ReconfigureIfNeeded(null, false, "unroutable redirect");

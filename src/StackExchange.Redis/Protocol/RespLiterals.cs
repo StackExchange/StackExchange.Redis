@@ -38,6 +38,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Len { get; }
 
+        /// <summary>The <c>SLOTS</c> sub-command, as used by <c>CLUSTER SLOTS</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Slots { get; }
+
         /// <summary>The <c>IDX</c> operand of <c>LCS</c>.</summary>
         [Resp]
         internal static partial RespFragment Idx { get; }

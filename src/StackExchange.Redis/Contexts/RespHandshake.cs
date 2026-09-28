@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -157,6 +160,34 @@ namespace StackExchange.Redis
             // draining against an unset topology is exactly the window that loses per-slot ordering
             topology?.OnServerType(serverType);
 
+            // AND THE MAP, on the same connection, before the backlog drains - for the same reason. This is
+            // what lets this core route a slot itself instead of asking ServerSelectionStrategy, whose map
+            // only exists because the shipped core connected and ran its own auto-configure.
+            //
+            // Failure is not fatal and must not be: routing falls back to the selector while the map is
+            // empty, so a server that will not answer CLUSTER SLOTS - a proxy, a permission - costs the
+            // improvement and nothing else.
+            if (serverType == ServerType.Cluster
+                && topology is not null
+                && context.Raw.CommandMap.IsAvailable(RedisCommand.CLUSTER))
+            {
+                try
+                {
+                    var ranges = await context.SendAsync(
+                        $"{RedisCommand.CLUSTER}{RespLiterals.Slots}",
+                        handler: ClusterSlotsHandler.Instance).ConfigureAwait(false);
+
+                    foreach (var range in ranges)
+                    {
+                        topology.SetSlotRange(range.From, range.To, range.Endpoint);
+                    }
+                }
+                catch (RedisServerException)
+                {
+                    // no map from this server; the selector still answers
+                }
+            }
+
             if (clientName is { Length: > 0 } && context.Raw.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
                 try
@@ -202,6 +233,96 @@ namespace StackExchange.Redis
             internal ServerType? Mode { get; } = mode;
 
             internal Version? Version { get; } = version;
+        }
+
+        /// <summary>
+        /// Reads <c>CLUSTER SLOTS</c> into the ranges this core routes on.
+        /// </summary>
+        /// <remarks>
+        /// <b><c>SLOTS</c> rather than <c>NODES</c>, deliberately.</b> The reply is nested arrays needing no
+        /// text parsing, and the <c>NODES</c> parser - <c>ClusterConfiguration</c> - takes a
+        /// <c>ServerSelectionStrategy</c>, which is precisely the coupling this exists to remove.
+        /// <para>
+        /// Each entry is <c>[from, to, [ip, port, id, ...], replica...]</c>. Only the first host is taken:
+        /// it is the primary for that range, and roles are phase B. An entry that cannot be read is skipped
+        /// rather than failing the probe - a partial map still routes the slots it knows and falls back for
+        /// the rest, where a thrown handshake would leave the core with no map at all.
+        /// </para>
+        /// </remarks>
+        /// <summary>One contiguous run of slots and the endpoint serving it.</summary>
+        /// <remarks>
+        /// A named struct rather than a tuple: <c>System.ValueTuple</c> is not referenced by this assembly
+        /// - <c>SanityChecks.ValueTupleNotReferenced</c> enforces it, and caught this - because the
+        /// down-level targets would take a package dependency for it.
+        /// </remarks>
+        internal readonly struct SlotRange(int from, int to, EndPoint endpoint)
+        {
+            /// <summary>First slot, inclusive.</summary>
+            internal int From { get; } = from;
+
+            /// <summary>Last slot, inclusive.</summary>
+            internal int To { get; } = to;
+
+            /// <summary>The endpoint serving the range.</summary>
+            internal EndPoint Endpoint { get; } = endpoint;
+        }
+
+        internal sealed class ClusterSlotsHandler : IRespHandler<List<SlotRange>>
+        {
+            internal static readonly ClusterSlotsHandler Instance = new();
+
+            public List<SlotRange> Parse(ref RespReader reader)
+            {
+                var ranges = new List<SlotRange>();
+                var entries = reader.AggregateLength();
+
+                for (var i = 0; i < entries; i++)
+                {
+                    if (!reader.TryMoveNext()) break;
+                    var parts = reader.AggregateLength();
+                    if (parts < 3)
+                    {
+                        reader.SkipChildren();
+                        continue;
+                    }
+
+                    if (!reader.TryMoveNext() || !reader.TryReadInt64(out var from)
+                        || !reader.TryMoveNext() || !reader.TryReadInt64(out var to)
+                        || !reader.TryMoveNext())
+                    {
+                        break; // the reply is not the shape it promised; keep whatever parsed cleanly
+                    }
+
+                    // the primary for this range: [ip, port, id, ...]
+                    EndPoint? endpoint = null;
+                    var hostParts = reader.AggregateLength();
+                    if (hostParts >= 2 && reader.TryMoveNext())
+                    {
+                        var host = reader.ReadString();
+                        if (reader.TryMoveNext() && reader.TryReadInt64(out var port) && !string.IsNullOrEmpty(host))
+                        {
+                            _ = Format.TryParseEndPoint(host + ":" + port.ToString(CultureInfo.InvariantCulture), out endpoint);
+                        }
+
+                        for (var skipped = 2; skipped < hostParts; skipped++)
+                        {
+                            if (!reader.TryMoveNext()) break;
+                            reader.SkipChildren();
+                        }
+                    }
+
+                    // replicas, and any trailing entries: phase B reads these, phase A routes without them
+                    for (var part = 3; part < parts; part++)
+                    {
+                        if (!reader.TryMoveNext()) break;
+                        reader.SkipChildren();
+                    }
+
+                    if (endpoint is not null) ranges.Add(new SlotRange((int)from, (int)to, endpoint));
+                }
+
+                return ranges;
+            }
         }
 
         private sealed class HelloHandler : IRespHandler<HelloReply>
