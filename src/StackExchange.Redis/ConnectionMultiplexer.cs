@@ -1560,6 +1560,13 @@ namespace StackExchange.Redis
 
         private RespNewCore? _newCore;
 
+        /// <summary>The new core, but only if something has already built it.</summary>
+        /// <remarks>
+        /// For callers that want to act on it WITHOUT bringing it into existence - asking whether it holds
+        /// a connection should not be the thing that gives it one.
+        /// </remarks>
+        internal RespNewCore? NewCoreIfCreated => Volatile.Read(ref _newCore);
+
         /// <summary>The new core over this multiplexer, created on first use.</summary>
         /// <remarks>
         /// One per multiplexer, sharing its topology, script cache and subscription registry - it owns only

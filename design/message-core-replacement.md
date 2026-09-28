@@ -1884,13 +1884,31 @@ this", not "the dial failed": it did not fail to connect, it failed to find anyw
 question `ExceptionFactory.NoConnectionAvailable` answers - naming every endpoint tried, what each last
 failed with, and how far connecting had got - and callers have been reading it for years.
 
-**Dual-core artefacts**, which will evaporate rather than be fixed, and the group is larger than it
-looked: everything that drives failure through `SimulateConnectionFailure` kills only the shipped
-bridge, so this core's socket stays up and the command simply succeeds. That is `BacklogTests` (4),
-`AbortOnConnectFailTests` (2 of the 4), `AsyncTests` (2), `Issue2392Tests` (1), and by the same shape
-`ServerExecuteDatabaseTests` (2) and `ReconnectRetryPolicyUnitTests` (2). Worth noting the alternative
-to waiting for D2: teach `SimulateConnectionFailure` to reach this core's connection too, which would
-turn nine of them from artefacts into real coverage of this core's reconnect and backlog behaviour.
+**Dual-core artefacts** - everything that drives failure through `SimulateConnectionFailure`, which
+killed only the shipped bridge, so this core's socket stayed up and the command simply succeeded. That
+is why the group reads as "no exception was thrown" rather than as a wrong exception.
+
+**These have since been converted rather than waited out**: the simulation now reaches this core's
+connections too, and the test-only `AllowConnect` gate is honoured by this core's dial for the same
+reason - a client that reconnects on a socket the test believes it has forbidden is not testing what
+the test says. Doing that turned silent successes into sharp failures, and two of them were real bugs.
+
+**A FailFast endpoint never reconnected.** `BacklogPolicy.FailFast` refuses a command rather than
+queueing it, and refusing without dialling is correct for the command - but nothing else was ever going
+to dial, so an endpoint that dropped once stayed down forever and the deployment never recovered from a
+blip. The recovery is armed where the connection is LOST rather than per command, which keeps the
+refusal free and still gets the endpoint back.
+
+**The retry backoff had no timer, so "not yet" meant "not ever".** This core dials on demand; when the
+policy declined an attempt, nothing came back to ask again, and anything already in the backlog waited
+for the operation backstop to time it out two minutes later. Measured exactly that: 2m29s per test. The
+shipped core does not have this problem because its bridge heartbeat retries whether or not anybody
+asks, and `EnsureConnecting` now arms the same kind of timer - a poll that defers to the policy rather
+than a second opinion about when to retry.
+
+What remains in that family is narrower and named: `BacklogTests` (3) want this core's backlog to appear
+in `GetBridgeStatus`/`PendingUnsentItems`, which it does not report at all; the rest are recovery-timing
+differences between the two cores that D2 settles by leaving only one.
 
 **Known-hard**: `MovedUnitTests` (4), the MOVED-to-same-endpoint reconnect, already diagnosed and
 reverted once - the naive retire deadlocks on the write slot.

@@ -613,6 +613,20 @@ namespace StackExchange.Redis
         {
             var config = _multiplexer.RawConfig;
 
+            // the test-only gate, honoured here for the same reason SimulateConnectionFailure is: it names
+            // a state of the whole client, and a client that reconnects on a socket the test believes it
+            // has forbidden is not testing what the test says. The shipped path checks it in
+            // PhysicalConnection.BeginConnectAsync; this is the same check for this core's dial.
+            if (!_multiplexer.AllowConnect)
+            {
+                throw new RedisConnectionException(
+                    ConnectionFailureType.InternalFailure,
+                    CommandFlags.None,
+                    "Aborting (AllowConnect: False)",
+                    null,
+                    CommandStatus.WaitingToBeSent);
+            }
+
             // the shared chain: tunnel, proxy, socket, TLS. This used to be a bare socket here, which
             // silently ignored every one of those - and the TLS I added to it first was a second copy of
             // the shipped logic, which is worse than none: two versions of a security decision, free to
@@ -783,6 +797,40 @@ namespace StackExchange.Redis
                 features = new RedisFeatures(server is null ? core._multiplexer.RawConfig.DefaultVersion : server.Version);
                 return server is not null;
             }
+        }
+
+        /// <summary>For testing only: drop this core's connections to an endpoint.</summary>
+        /// <param name="endpoint">The endpoint to disconnect from.</param>
+        /// <param name="failureType">Which of its connections to drop.</param>
+        /// <returns>Whether anything was dropped.</returns>
+        /// <remarks>
+        /// <b>The simulation has to reach BOTH cores or it tests nothing.</b> It was reaching only the
+        /// shipped bridge, so under the engine flag the socket actually carrying commands stayed up and
+        /// every test built on "now break the connection" quietly observed a command succeeding - which is
+        /// why that family reads as "no exception was thrown" rather than as a wrong exception.
+        /// <para>
+        /// Coarser than the shipped simulation, which breaks one direction of the socket to reproduce a
+        /// specific fault. This drops the connection outright, which is the part those tests are actually
+        /// about: the connection went away, and what happens next.
+        /// </para>
+        /// </remarks>
+        internal bool SimulateConnectionFailure(EndPoint endpoint, SimulatedFailureType failureType)
+        {
+            var dropped = false;
+
+            if ((failureType & SimulatedFailureType.AllInteractive) != 0
+                && _endpoints.TryGetValue(endpoint, out var interactive))
+            {
+                dropped |= interactive.DropConnection();
+            }
+
+            if ((failureType & SimulatedFailureType.AllSubscription) != 0
+                && _subscriptions.TryGetValue(endpoint, out var subscription))
+            {
+                dropped |= subscription.DropConnection();
+            }
+
+            return dropped;
         }
 
         /// <inheritdoc/>

@@ -689,6 +689,31 @@ namespace StackExchange.Redis
                 return;
             }
 
+            // disposed from the pool rather than from a completion path: this is the same connection whose
+            // read loop delivered the reply that tripped us, and tearing it down from inside itself is the
+            // self-join that the MOVED work already found the hard way
+            var dropped = DropConnection();
+
+            _onCircuitBroken?.Invoke();
+            _ = dropped;
+
+            Volatile.Write(ref _circuitBreaker, _circuitBreakerFactory?.Invoke());
+            Volatile.Write(ref _circuitBreakerState, CircuitHealthy);
+        }
+
+        /// <summary>Drop whatever connection this endpoint currently holds, if any.</summary>
+        /// <returns>Whether there was one to drop.</returns>
+        /// <remarks>
+        /// <b>Never from a completion path or a read loop</b> - disposing a connection from inside itself
+        /// is a self-join, which the MOVED work already found the hard way. Callers are the trip worker and
+        /// the test-only failure simulation, both of which arrive from somewhere else.
+        /// <para>
+        /// The backlog is deliberately left alone: a dropped connection is exactly the case it exists for,
+        /// and the next command dials again and drains it.
+        /// </para>
+        /// </remarks>
+        internal bool DropConnection()
+        {
             RespConnection? doomed;
             lock (_sync)
             {
@@ -696,15 +721,16 @@ namespace StackExchange.Redis
                 _connection = null;
             }
 
-            _onCircuitBroken?.Invoke();
+            if (doomed is null) return false;
+            _ = doomed.DisposeAsync();
 
-            // disposed from the pool rather than from a completion path: this is the same connection whose
-            // read loop delivered the reply that tripped us, and tearing it down from inside itself is the
-            // self-join that the MOVED work already found the hard way
-            if (doomed is not null) _ = doomed.DisposeAsync();
-
-            Volatile.Write(ref _circuitBreaker, _circuitBreakerFactory?.Invoke());
-            Volatile.Write(ref _circuitBreakerState, CircuitHealthy);
+            // AND START GETTING IT BACK. Losing a connection is the event that should lead to a reconnect,
+            // and under FailFast nothing else will ever ask for one: those commands are refused without
+            // dialling, deliberately, so an endpoint that dropped once stayed down forever and the
+            // deployment never recovered from a blip. Armed rather than dialled, so the retry policy still
+            // decides when - and so this costs nothing per command, which is what the refusal is for.
+            if (!_disposed) ArmConnectRetry();
+            return true;
         }
 
         /// <summary>Told when this endpoint's breaker has tripped, so the failure can be announced.</summary>
@@ -1077,9 +1103,61 @@ namespace StackExchange.Redis
         private void EnsureConnecting()
         {
             if (_connecting is not null) return;
-            if (!DueForConnectRetry()) return; // the backoff said not yet; the caller backlogs or is declined
+            if (!DueForConnectRetry())
+            {
+                // THE BACKOFF SAYING "not yet" USED TO MEAN "not ever". Nothing else came back: this core
+                // dials on demand, so if no command happened to arrive after the delay elapsed, the
+                // endpoint simply stayed down - and anything already in the backlog waited for the
+                // operation backstop to time it out, two minutes later, rather than for a reconnect.
+                //
+                // The shipped core does not have this problem because its bridge heartbeat retries on a
+                // timer whether or not anybody asks. This is that timer: a poll that defers to the policy
+                // rather than a second opinion about when to retry.
+                ArmConnectRetry();
+                return;
+            }
+
             _connecting = Task.Run(ConnectAsync);
         }
+
+        /// <summary>Come back later and ask the policy again, since nobody else will.</summary>
+        /// <remarks>
+        /// Single-flight, and it stops of its own accord: a successful connect ends the loop, and so does
+        /// disposal. While a server stays down it keeps asking, which is what the shipped bridge does too.
+        /// </remarks>
+        private void ArmConnectRetry()
+        {
+            if (_disposed || Interlocked.Exchange(ref _connectRetryArmed, 1) != 0) return;
+            _ = RetryWhenDueAsync();
+        }
+
+        private async Task RetryWhenDueAsync()
+        {
+            try
+            {
+                await Task.Delay(ConnectRetryPollMilliseconds).ConfigureAwait(false);
+            }
+            finally
+            {
+                Volatile.Write(ref _connectRetryArmed, 0);
+            }
+
+            lock (_sync)
+            {
+                // somebody else may have connected, or this may be over entirely
+                if (_disposed || _connection is { IsClosed: false }) return;
+                EnsureConnecting(); // re-asks the policy, and re-arms if it is still too early
+            }
+        }
+
+        private int _connectRetryArmed;
+
+        /// <summary>How often to re-ask the retry policy while an endpoint is down.</summary>
+        /// <remarks>
+        /// Not itself a retry interval - the policy decides that. This only bounds how long after the
+        /// policy says "now" the attempt actually happens.
+        /// </remarks>
+        private const int ConnectRetryPollMilliseconds = 250;
 
         /// <summary>Whether the configured backoff permits another attempt now.</summary>
         /// <remarks>

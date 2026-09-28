@@ -1655,6 +1655,10 @@ namespace StackExchange.Redis
         {
             interactive?.SimulateConnectionFailure(failureType);
             subscription?.SimulateConnectionFailure(failureType);
+
+            // and the other core's connections, which are the ones actually carrying commands under the
+            // engine flag. Breaking only this one meant the simulation broke a socket nothing was using.
+            Multiplexer.NewCoreIfCreated?.SimulateConnectionFailure(EndPoint, failureType);
         }
 
         internal bool HasPendingCallerFacingItems()
