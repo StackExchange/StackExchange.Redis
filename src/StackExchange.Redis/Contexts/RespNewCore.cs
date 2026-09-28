@@ -594,7 +594,11 @@ namespace StackExchange.Redis
                 _multiplexer.SetAuthSuspect,
                 cancellationToken).ConfigureAwait(false);
 
-            var connection = new RespClientConnection(transport, Follow, config.IncludeDetailInExceptions);
+            // the configured response pool goes to the connection, not just to the shipped core's reader:
+            // every reply this core reads lands in an inbound buffer, and a caller who supplied a pool
+            // asked to own the memory the replies live in
+            var connection = new RespClientConnection(
+                transport, Follow, config.IncludeDetailInExceptions, config.ResponseBufferPool);
             var context = new RespDatabaseContext(
                 new RespContext(config.CommandMap, database: 0)
                     .WithExecutor(new RespConnectionExecutor(connection, 0)));

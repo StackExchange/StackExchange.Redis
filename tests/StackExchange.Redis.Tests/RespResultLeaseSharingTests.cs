@@ -12,6 +12,14 @@ namespace StackExchange.Redis.Tests;
 /// a contiguous scalar payload should be handed out by reference rather than copied, and the underlying
 /// buffer should survive until the result and every lease have been disposed.
 /// </summary>
+/// <remarks>
+/// <b>Asserted as changes to the count, never as the count itself.</b> A result that shares the receive
+/// buffer shares it with whatever else landed in the same read, so the absolute number says how replies
+/// happened to pack rather than anything about this result - it was 2 for a 4KB blob and 5 for a two-byte
+/// one, and neither is a fact worth pinning. What the sharing contract actually claims is the delta:
+/// taking a lease adds exactly one reference (a COPY would add none), disposing it removes exactly one,
+/// and disposing it again removes nothing.
+/// </remarks>
 public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private async Task<(IInternalConnectionMultiplexer Conn, RespResult Result, string Expected)> GetBlobAsync(int size = 4096)
@@ -31,11 +39,11 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         await using var _ = conn;
         using (result)
         {
-            Assert.Equal(1, result.RefCount);
+            var baseline = result.RefCount;
 
             using var lease = result.ReadScalar().ReadLease();
             Assert.NotNull(lease);
-            Assert.Equal(2, result.RefCount); // the lease shares the buffer; nothing was copied
+            Assert.Equal(baseline + 1, result.RefCount); // the lease shares the buffer; a copy would add none
             Assert.Equal(expected, Encoding.UTF8.GetString(lease!.Span));
         }
     }
@@ -62,10 +70,11 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         await using var _ = conn;
         using (result)
         {
+            var baseline = result.RefCount;
             var lease = result.ReadScalar().ReadLease();
             lease!.Dispose();
 
-            Assert.Equal(1, result.RefCount);
+            Assert.Equal(baseline, result.RefCount);
             Assert.Equal(expected, (string?)result.ReadScalar().ReadRedisValue()); // still readable
         }
     }
@@ -76,13 +85,14 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         var (conn, result, _) = await GetBlobAsync();
         await using var __ = conn;
 
+        var baseline = result.RefCount;
         var lease = result.ReadScalar().ReadLease();
-        Assert.Equal(2, result.RefCount);
+        Assert.Equal(baseline + 1, result.RefCount);
 
         lease!.Dispose();
         lease.Dispose();
         lease.Dispose();
-        Assert.Equal(1, result.RefCount);
+        Assert.Equal(baseline, result.RefCount); // three disposals, one release
 
         result.Dispose();
         result.Dispose();
@@ -97,15 +107,16 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         await using var _ = conn;
         using (result)
         {
+            var baseline = result.RefCount;
             var a = result.ReadScalar().ReadLease();
             var b = result.ReadScalar().ReadLease();
-            Assert.Equal(3, result.RefCount);
+            Assert.Equal(baseline + 2, result.RefCount);
 
             a!.Dispose();
-            Assert.Equal(2, result.RefCount);
+            Assert.Equal(baseline + 1, result.RefCount);
             Assert.Equal(expected, Encoding.UTF8.GetString(b!.Span)); // unaffected by a's disposal
             b.Dispose();
-            Assert.Equal(1, result.RefCount);
+            Assert.Equal(baseline, result.RefCount);
         }
     }
 
@@ -143,8 +154,9 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         await db.StringSetAsync(key, "hi");
 
         using var result = await db.ExecuteRespAsync("GET", new RedisKeyOrValue[] { key });
+        var baseline = result.RefCount;
         using var lease = result.ReadScalar().ReadLease();
-        Assert.Equal(2, result.RefCount);
+        Assert.Equal(baseline + 1, result.RefCount); // shared, not copied, even for two bytes
         Assert.Equal("hi", Encoding.UTF8.GetString(lease!.Span));
     }
 
@@ -158,9 +170,10 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         await db.StringSetAsync(key, "");
 
         using var result = await db.ExecuteRespAsync("GET", new RedisKeyOrValue[] { key });
+        var baseline = result.RefCount;
         using var lease = result.ReadScalar().ReadLease();
         Assert.Same(ReadOnlyLease<byte>.Empty, lease); // the read-only sibling now serves this call site
-        Assert.Equal(1, result.RefCount); // no reference taken, so nothing to strand
+        Assert.Equal(baseline, result.RefCount); // no reference taken, so nothing to strand
     }
 
     [Fact]
@@ -231,6 +244,11 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
         const int Size = 256 * 1024; // comfortably more than one receive buffer, so the lease must copy
         await db.HashSetAsync(key, "field", new string('y', Size));
 
+        // Where the rent comes from differs by core and the assertion deliberately does not care: the
+        // shipped reader chunks a reply this size and the lease has to assemble a copy, while the new one
+        // grows its inbound buffer to hold the frame and hands the lease a window onto it. Either way the
+        // memory the reply lives in must come from the pool the caller supplied - which the new core did
+        // not do at all, renting every inbound buffer from the default and accepting the setting silently.
         var before = pool.RentCount;
         using var lease = await db.HashGetLeaseAsync(key, "field");
         Assert.NotNull(lease);

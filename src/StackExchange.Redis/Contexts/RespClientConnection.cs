@@ -75,7 +75,9 @@ namespace StackExchange.Redis
     internal sealed class RespClientConnection(
         RESPite.Transports.DuplexTransport transport,
         RespRedirectRouter router,
-        bool includeDetailInExceptions = true) : RespConnection(transport), IRespPreambleTarget
+        bool includeDetailInExceptions = true,
+        System.Buffers.MemoryPool<byte>? receiveBufferPool = null)
+        : RespConnection(transport, receiveBufferPool), IRespPreambleTarget
     {
         private HashSet<long>? _claims;
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
@@ -90,11 +91,24 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     /// <summary>Create a connection over a transport, and begin receiving.</summary>
     /// <param name="transport">The transport; this connection takes it over.</param>
-    public RespConnection(DuplexTransport transport)
+    /// <param name="receiveBufferPool">
+    /// Where inbound buffers are rented from; null for the default. A host that lets its users supply a
+    /// pool has to pass it here, or the setting is accepted and silently ignored.
+    /// </param>
+    public RespConnection(DuplexTransport transport, MemoryPool<byte>? receiveBufferPool = null)
     {
+        _receiveBufferPool = receiveBufferPool;
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _transport.Start(this);
     }
+
+    /// <summary>Where inbound buffers are rented from; null for the default.</summary>
+    /// <remarks>
+    /// <b>Every reply this connection reads lands here</b>, and payloads retained from it keep it alive -
+    /// so a caller who supplies a pool is asking to own the memory the replies live in, not merely some
+    /// staging copy of them. Renting from the default instead honoured the setting nowhere that mattered.
+    /// </remarks>
+    private readonly MemoryPool<byte>? _receiveBufferPool;
 
     /// <summary>Total bytes handed to the transport.</summary>
     public long BytesSent => Volatile.Read(ref _bytesSent);
@@ -671,7 +685,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         // and every roll rented a larger array than the last. Measured at 4KB replies it turned a saved
         // memcpy into a net allocation LOSS. Grow only when one message genuinely needs more room.
         var size = Math.Max(pending + incoming, DefaultBufferSize);
-        var replacement = RefCountedBuffer.Rent(size, null);
+        var replacement = RefCountedBuffer.Rent(size, _receiveBufferPool);
         if (pending != 0) buffer!.GetSpan().Slice(_start, pending).CopyTo(replacement.GetSpan());
 
         buffer?.Release(); // our reference; any reservations keep it alive until they are done

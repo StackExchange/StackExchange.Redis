@@ -1809,6 +1809,29 @@ fails only under enough load to make it so. The shipped core always has a bridge
 stage is meaningless for this core and the assertion should be relaxed for it, or the stamps should be
 placed at points that keep the shipped meaning.
 
+### 9b-iii. Reference counts, and a configured pool that was accepted and ignored
+
+`RespResultLeaseSharingTests` asserted absolute `RefCount` values, and they no longer mean what they
+did. A result that SHARES the receive buffer shares it with whatever else landed in the same read, so
+the number describes how replies happened to pack rather than anything about this result - measured at
+2 for a 4KB blob and 5 for a two-byte one. The sharing contract is a delta, not a total: taking a lease
+adds exactly one reference (a copy would add none), disposing it removes exactly one, disposing it
+again removes nothing. Rewritten that way the assertions are stronger, not weaker - they no longer
+depend on buffer packing - and they pass, which is also the evidence that nothing is over-retaining.
+
+The last one in that file was a real defect rather than an expectation: `RespConnection` rented every
+inbound buffer with a null pool, so `ConfigurationOptions.ResponseBufferPool` was accepted and silently
+ignored by this core. That is not a staging detail - payloads are retained from those buffers, so a
+caller who supplies a pool is asking to own the memory the replies live in. The shipped core has always
+honoured it (`PhysicalConnection.ReaderBufferPool`); this one now does too.
+
+Not done, and worth considering separately: `RespPayload.GetReader()` attaches no services, so a lease
+that has to copy rents from the default pool rather than from the pool the data came from - which is
+what the code there says it intends. The payload's own `RefCountedBuffer` is both an
+`IPayloadReservationProvider` and an `IBufferPoolProvider`, so handing it over would fix that for free -
+but it would also let readers on that path start SHARING where they currently copy, which is a lifetime
+change rather than a pool change, and wants its own look.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather
