@@ -1699,24 +1699,39 @@ the deployment, the role map covers standalone, and the reachability preference 
 `DemandReplica` with no replica returning null even matches shipped semantics exactly - `AnyServer`
 leaves `fallback` unset on that branch and returns null too.
 
-**The one thing blocking D1 is a startup-window decision, and it needs an answer rather than more
-code.** The selector's map exists at construction; ours does not. So for a keyed command in a cluster,
-between `SeedTopology` reporting cluster and this core's own `CLUSTER SLOTS` landing, there is nothing
-of ours to route on. Three options:
+**D1 was attempted and does not hold up yet; the reason is worth recording, because it is not the
+reason that was expected.** The plan assumed the obstacle was the startup window - that between
+`SeedTopology` reporting cluster and this core's own `CLUSTER SLOTS` landing there is nothing of ours
+to route a keyed command on - and that the fix was one of: accept a `MOVED`, seed the map once at
+construction, or re-resolve the route as the backlog drains. The third is genuinely cheap: the command
+is backlogged behind the very connection whose handshake fills the map, so the answer arrives in time
+and only the ORDER of the two steps makes it unusable, and the handoff a redirect already uses
+(`TryResend`) is all the machinery it needs.
 
-1. **Accept one redirect.** Route to any endpoint, take the `MOVED`, follow it - the new core has
-   redirect handling, and this is what every client that does not pre-fetch does. Costs one round trip
-   on the first keyed command against a cold cluster, per multiplexer. Removes the coupling outright.
-2. **Seed the map once at construction** from the selector, if it happens to have one. Still a
-   coupling, but a one-time copy at startup rather than a per-command call - and it evaporates in D2,
-   when the shipped core no longer connects and option 1 becomes the only behaviour anyway.
-3. **Re-route at drain.** The command IS backlogged behind its own handshake, and that handshake fills
-   the map before the backlog drains - so the information arrives in time, and only the fact that the
-   route was chosen before the queue makes it unusable. Re-resolving as the backlog drains costs
-   nothing at steady state and closes the window properly. The largest change of the three.
+**But `IdentifyEndpoint` asks the question without sending anything**, and `ClusterTests.TestIdentity`
+asserts it agrees with the cluster's own view on a multiplexer where nothing has been dialled. There is
+no backlog to correct, so no drain-time trick reaches it: the map has to EXIST before the first
+question, which means eager discovery, which is D2.
 
-Worth noting 3 is the only one that preserves the property `RespTopology`'s remarks are written
-around - that no request exists which cannot be routed - rather than trading it for a redirect.
+Roles fail on the same rock and more visibly. This core connects on demand, so a replica nothing has
+had reason to dial has no role - and `DemandReplica` answered from that would refuse a perfectly good
+replica for no reason other than laziness. Measured: removing the selector from keyless routing took
+the engine suite from 72 failures to 98, including every `GetFromRightNodeBasedOnFlags` case and the
+`BITFIELD`-reaches-a-replica tests.
+
+**So the fallbacks are not tidiness debt - they are covering a real gap, and the gap is eager
+discovery.** D2 is not "the next step after D1"; it is the prerequisite for it. What the attempt
+produced instead is the finding below, which was a live bug the fallbacks were hiding.
+
+**Detection was reading the wrong evidence.** `CLUSTER INFO` is a diagnostic command, and an error from
+it was being read as "standalone" - which is wrong for anything implementing the routing surface
+without the diagnostic one: a proxy, an alternative implementation, and the in-process test server,
+which serves `CLUSTER NODES` and `CLUSTER SLOTS` and has no `CLUSTER INFO` at all. Slot routing was
+switched off entirely for such a deployment. `CLUSTER SLOTS` is now asked anyway when `CLUSTER INFO`
+declines, and a reply carrying ranges settles it - better evidence in any case, being the very thing
+routing uses. Invisible in the suite today because the selector fallback masks the consequence (the
+shipped core detects clusters from `INFO`'s `cluster_enabled` and gets the right answer), so it has a
+test of its own: `AServerThatServesSlotsWithoutClusterInfoIsStillACluster`.
 
 **D2: the multiplexer stops DIALLING.** Much larger, and not gated on D1: endpoint discovery, the
 connect handshake `ConnectAsync` waits on, `IsConnected`, `IServer`, sentinel, tiebreakers and

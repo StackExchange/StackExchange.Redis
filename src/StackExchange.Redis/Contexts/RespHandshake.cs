@@ -101,6 +101,7 @@ namespace StackExchange.Redis
             var protocol = RedisProtocol.Resp2;
             var serverType = ServerType.Standalone;
             var knowServerType = false;
+            var clusterInfoDeclined = false;
             Version? version = null;
             // Disabled in the command map counts as "the server will not do this", and has to be answered
             // without sending: a disabled command throws RedisCommandException before it reaches a socket,
@@ -156,8 +157,44 @@ namespace StackExchange.Redis
                     }
                     catch (RedisServerException)
                     {
+                        // Standalone is the LIKELY reading, not a settled one, and the difference matters:
+                        // CLUSTER INFO is only one of the ways a deployment says it is a cluster, and a
+                        // server that implements the routing surface without the diagnostic one - a proxy,
+                        // a fake, an implementation that simply never needed INFO - answers an error here
+                        // and a perfectly good map to CLUSTER SLOTS. Concluding standalone from this alone
+                        // turns off slot routing for a deployment that plainly has slots.
                         serverType = ServerType.Standalone;
+                        clusterInfoDeclined = true;
                     }
+                }
+            }
+
+            // THE MAP, on the same connection - and it is asked BEFORE the server type is published, which
+            // is a change from simply trusting CLUSTER INFO. A reply carrying slot ranges is itself proof
+            // of a cluster, and a stronger one than the diagnostic command: it is the very thing routing
+            // would use. So a server that declined CLUSTER INFO gets asked anyway, and an answer overrides
+            // the standalone assumption that decline produced.
+            //
+            // Failure is not fatal and must not be: routing falls back to the selector while the map is
+            // empty, so a server that will not answer CLUSTER SLOTS - a proxy, a permission - costs the
+            // improvement and nothing else.
+            List<SlotRange>? ranges = null;
+            if ((serverType == ServerType.Cluster || clusterInfoDeclined)
+                && topology is not null
+                && context.Raw.CommandMap.IsAvailable(RedisCommand.CLUSTER))
+            {
+                try
+                {
+                    ranges = await context.SendAsync(
+                        $"{RedisCommand.CLUSTER}{RespLiterals.Slots}",
+                        handler: ClusterSlotsHandler.Instance).ConfigureAwait(false);
+
+                    // slots exist, so this is a cluster whatever CLUSTER INFO did or did not say
+                    if (ranges.Count != 0) serverType = ServerType.Cluster;
+                }
+                catch (RedisServerException)
+                {
+                    // no map from this server; the selector still answers
                 }
             }
 
@@ -166,31 +203,11 @@ namespace StackExchange.Redis
             // draining against an unset topology is exactly the window that loses per-slot ordering
             topology?.OnServerType(serverType);
 
-            // AND THE MAP, on the same connection, before the backlog drains - for the same reason. This is
-            // what lets this core route a slot itself instead of asking ServerSelectionStrategy, whose map
-            // only exists because the shipped core connected and ran its own auto-configure.
-            //
-            // Failure is not fatal and must not be: routing falls back to the selector while the map is
-            // empty, so a server that will not answer CLUSTER SLOTS - a proxy, a permission - costs the
-            // improvement and nothing else.
-            if (serverType == ServerType.Cluster
-                && topology is not null
-                && context.Raw.CommandMap.IsAvailable(RedisCommand.CLUSTER))
+            if (ranges is not null && topology is not null)
             {
-                try
+                foreach (var range in ranges)
                 {
-                    var ranges = await context.SendAsync(
-                        $"{RedisCommand.CLUSTER}{RespLiterals.Slots}",
-                        handler: ClusterSlotsHandler.Instance).ConfigureAwait(false);
-
-                    foreach (var range in ranges)
-                    {
-                        topology.SetSlotRange(range.From, range.To, range.Endpoint, range.Replicas);
-                    }
-                }
-                catch (RedisServerException)
-                {
-                    // no map from this server; the selector still answers
+                    topology.SetSlotRange(range.From, range.To, range.Endpoint, range.Replicas);
                 }
             }
 

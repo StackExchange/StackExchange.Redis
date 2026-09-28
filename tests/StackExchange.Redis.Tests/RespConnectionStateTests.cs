@@ -237,4 +237,38 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
         Assert.Equal(nameof(RespEndpointRole.Replica), core.RoleOfForTest(replica));
         Log($"{Format.ToString(primary)} is the primary, {Format.ToString(replica)} the replica");
     }
+
+    /// <summary>
+    /// A server that serves slots but does not answer <c>CLUSTER INFO</c> is still a cluster.
+    /// </summary>
+    /// <remarks>
+    /// <b>The diagnostic command is not the deployment.</b> Detection asked <c>CLUSTER INFO</c> and read an
+    /// error as "standalone", which is wrong for anything that implements the routing surface without the
+    /// diagnostic one - a proxy, an alternative implementation, and the in-process test server used here,
+    /// which serves <c>CLUSTER NODES</c> and <c>CLUSTER SLOTS</c> and has no <c>CLUSTER INFO</c> at all.
+    /// The cost was not subtle: slot routing was switched off entirely for such a deployment, so every key
+    /// went wherever keyless routing landed and came back <c>MOVED</c>.
+    /// <para>
+    /// A reply carrying slot ranges is the better evidence anyway - it is the very thing routing uses - so
+    /// a decline now leaves the question open and <c>CLUSTER SLOTS</c> settles it.
+    /// </para>
+    /// <para>
+    /// Only visible with a test of its own today: the routing fallback to the shipped selector hides the
+    /// consequence, because that core detects clusters from <c>INFO</c>'s <c>cluster_enabled</c> instead
+    /// and gets the right answer. It stops being hidden the moment that fallback goes.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AServerThatServesSlotsWithoutClusterInfoIsStillACluster()
+    {
+        using var server = new InProcessTestServer(Output) { ServerType = ServerType.Cluster };
+        await using var conn = await server.ConnectAsync();
+        var db = Transitional(conn.GetDatabase());
+        await db.PingAsync();
+
+        var core = ((ConnectionMultiplexer)conn).NewCore;
+        Log($"topology={core.TopologyStateForTest} hasMap={core.HasSlotMapForTest}");
+        Assert.Equal(nameof(RespClusterState.Yes), core.TopologyStateForTest);
+        Assert.True(core.HasSlotMapForTest, "a cluster that answered CLUSTER SLOTS should have left a map");
+    }
 }
