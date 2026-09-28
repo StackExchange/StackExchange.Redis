@@ -1580,3 +1580,72 @@ Engine-flag failures went 133 -> 87 over one working session. These are what is 
   never-dialled case too, the alternative fix is to have the multiplexer warm the new core's executors
   during connect, and this should be reverted.
 
+## 9. Ending the two-core era: the new core needs its own topology
+
+### 9a. Why this is the priority, stated as measurement rather than opinion
+
+The command surface is done; the topology half has not started. That asymmetry is what makes the
+engine flag feel like a constant fight - and the fight is structural, not incidental.
+
+The new core owns **sockets**. It does not own **which sockets, or what is on the end of them**:
+
+```
+ForSlot(slot)  -> _multiplexer.ServerSelectionStrategy.Select(...)  -> ServerEndPoint  (old core)
+Any(...)       -> same
+OnSlotMoved    -> _multiplexer.ReconfigureIfNeeded(...)             (old core re-discovers)
+features       -> _multiplexer.SelectServer(...)
+```
+
+`RespTopology` is 147 lines holding a tri-state - cluster, not cluster, unknown. **No slot map, no
+endpoint registry, no roles.** The map it routes on is `ServerSelectionStrategy.map`, a
+`ServerEndPoint[16384]` filled by `ConnectionMultiplexer.UpdateClusterRange` from a `CLUSTER NODES`
+that the OLD core issued during its own auto-configure. So the old core must connect for the new core
+to route at all, and both cores are live for every command.
+
+Every dual-core symptom met so far is one shape:
+
+| symptom | cause |
+|---|---|
+| `IsConnected(default)` non-deterministic | selector reports the OLD core's connection state |
+| `IReconnectRetryPolicy` sees `0,0,1` | both cores count against one policy instance |
+| `BacklogTests` (4) | `SimulateConnectionFailure` reaches `ServerEndPoint.interactive` only |
+| cluster detection overwrote a correct topology | two probes, two answers, last writer won |
+
+What remains, by size:
+
+| | lines | status |
+|---|---:|---|
+| `RedisDatabase`, `Message`, `ResultProcessor`, `RedisTransaction`, `RedisBatch` | ~13,200 | replaced; 2 engine-gated fallbacks left |
+| `ServerEndPoint` (+`.Maintenance`), `ServerSelectionStrategy` | ~2,980 | **no new-core equivalent** |
+| `PhysicalBridge`, `PhysicalConnection` (all parts) | ~3,860 | blocked behind the above |
+
+### 9b. The plan, in the order it has to happen
+
+**A. The new core owns the slot map.** `RespTopology` gains an `EndPoint?[16384]`, filled by a
+`CLUSTER SLOTS` the NEW core issues after its own handshake reports cluster. `ForSlot` consults it and
+falls back to the selector only while it is empty, so the change is safe before it is complete.
+`CLUSTER SLOTS` rather than `CLUSTER NODES` deliberately: its reply is nested arrays needing no text
+parsing, and `ClusterConfiguration` - the NODES parser - takes a `ServerSelectionStrategy`, which is
+the coupling being removed.
+
+**B. Roles and selectability.** Primary/replica per endpoint, so `PreferReplica`/`DemandReplica`
+resolve without `ServerEndPoint`. The same `CLUSTER SLOTS` reply carries replicas; standalone needs
+`INFO replication`.
+
+**C. Features.** Replace `MultiplexerFeatureProbe`, which asks `multiplexer.SelectServer` purely to
+read a version.
+
+**D. Stop dialling twice.** With A-C the multiplexer need not create `ServerEndPoint`s or bridges when
+the engine flag is on, and `PhysicalBridge`/`PhysicalConnection` become deletable.
+
+A is the keystone: nothing else can move first, and it is what stops MOVED handling, routing and
+connection state being three answers from two places.
+
+### 9c. What this buys beyond tidiness
+
+A real share of the remaining engine failures are dual-core artefacts that would evaporate rather
+than need fixing - `BacklogTests` (4) and two `ReconnectRetryPolicyUnitTests` are positively
+identified, and the connection-lifecycle groups are suspected. Fixing those individually is partly
+wasted work; the cache, cluster-detection, cross-slot and transaction-abort bugs found alongside them
+were genuine and worth having regardless.
+
