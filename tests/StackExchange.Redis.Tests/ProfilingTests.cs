@@ -91,7 +91,13 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(dbId, command.Db);
         Assert.Equal(conn.GetEndPoints()[0], command.EndPoint);
         Assert.True(command.CreationToEnqueued > TimeSpan.Zero, nameof(command.CreationToEnqueued));
-        Assert.True(command.EnqueuedToSending > TimeSpan.Zero, nameof(command.EnqueuedToSending));
+
+        // >= rather than >, because zero is a legitimate answer rather than a missing measurement. The
+        // stage means "how long it sat in a queue", and on a warm connection the new core has no queue
+        // between those two points - the operation is stamped and written in the same breath, so the
+        // elapsed time is genuinely below the stopwatch's resolution. It failed only under enough load to
+        // make that common. ResponseToCompletion below has always been >= for the same kind of reason.
+        Assert.True(command.EnqueuedToSending >= TimeSpan.Zero, nameof(command.EnqueuedToSending));
         Assert.True(command.SentToResponse > TimeSpan.Zero, nameof(command.SentToResponse));
         Assert.True(command.ResponseToCompletion >= TimeSpan.Zero, nameof(command.ResponseToCompletion));
         Assert.True(command.ElapsedTime > TimeSpan.Zero, nameof(command.ElapsedTime));
