@@ -1683,6 +1683,47 @@ It goes with the rest of the fallbacks in D.
 **D. Stop dialling twice.** With A-C the multiplexer need not create `ServerEndPoint`s or bridges when
 the engine flag is on, and `PhysicalBridge`/`PhysicalConnection` become deletable.
 
+D is two halves, and only the first is close.
+
+**D1: the new core stops READING the shipped topology.** What is left in `RespNewCore` after C is a
+short list, and it is worth writing down because it is shorter than it looks. `RawConfig`,
+`GetEndPoints`, `ClientName`, `ClientCache`, `CurrentProfilingSession` and `SetAuthSuspect` are
+configuration and services, not topology, and they stay. The topology reads are:
+`ServerSelectionStrategy` (x4, all routing fallbacks), `SelectServer` (x1, the probe's fallback),
+`GetSubscribedServer` (x1), `GetServerEndPoint` (x2, profiling and the script cache), and
+`ReconfigureIfNeeded` (x2, telling the OTHER core what a redirect revealed - which is a notification,
+not a dependency).
+
+Everything needed to replace the routing fallbacks already exists: `CLUSTER SLOTS` names every node in
+the deployment, the role map covers standalone, and the reachability preference reads `_endpoints`.
+`DemandReplica` with no replica returning null even matches shipped semantics exactly - `AnyServer`
+leaves `fallback` unset on that branch and returns null too.
+
+**The one thing blocking D1 is a startup-window decision, and it needs an answer rather than more
+code.** The selector's map exists at construction; ours does not. So for a keyed command in a cluster,
+between `SeedTopology` reporting cluster and this core's own `CLUSTER SLOTS` landing, there is nothing
+of ours to route on. Three options:
+
+1. **Accept one redirect.** Route to any endpoint, take the `MOVED`, follow it - the new core has
+   redirect handling, and this is what every client that does not pre-fetch does. Costs one round trip
+   on the first keyed command against a cold cluster, per multiplexer. Removes the coupling outright.
+2. **Seed the map once at construction** from the selector, if it happens to have one. Still a
+   coupling, but a one-time copy at startup rather than a per-command call - and it evaporates in D2,
+   when the shipped core no longer connects and option 1 becomes the only behaviour anyway.
+3. **Re-route at drain.** The command IS backlogged behind its own handshake, and that handshake fills
+   the map before the backlog drains - so the information arrives in time, and only the fact that the
+   route was chosen before the queue makes it unusable. Re-resolving as the backlog drains costs
+   nothing at steady state and closes the window properly. The largest change of the three.
+
+Worth noting 3 is the only one that preserves the property `RespTopology`'s remarks are written
+around - that no request exists which cannot be routed - rather than trading it for a redirect.
+
+**D2: the multiplexer stops DIALLING.** Much larger, and not gated on D1: endpoint discovery, the
+connect handshake `ConnectAsync` waits on, `IsConnected`, `IServer`, sentinel, tiebreakers and
+maintenance events all assume bridges exist. This is where `BacklogTests`, `ReconnectRetryPolicyUnit`
+`Tests` and `AbortOnConnectFailTests` stop being dual-core artefacts, because there stops being a
+second core.
+
 A was the keystone: nothing else could move first, and it is what stops MOVED handling, routing and
 connection state being three answers from two places.
 
