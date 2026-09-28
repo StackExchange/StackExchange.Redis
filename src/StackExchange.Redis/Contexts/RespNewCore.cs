@@ -594,7 +594,7 @@ namespace StackExchange.Redis
                 _multiplexer.SetAuthSuspect,
                 cancellationToken).ConfigureAwait(false);
 
-            var connection = new RespClientConnection(transport, Follow);
+            var connection = new RespClientConnection(transport, Follow, config.IncludeDetailInExceptions);
             var context = new RespDatabaseContext(
                 new RespContext(config.CommandMap, database: 0)
                     .WithExecutor(new RespConnectionExecutor(connection, 0)));

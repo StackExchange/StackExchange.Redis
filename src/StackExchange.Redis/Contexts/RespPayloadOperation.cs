@@ -121,6 +121,25 @@ namespace StackExchange.Redis
         /// <summary>The flags the request carried, which the retry and redirect layers read.</summary>
         internal CommandFlags Flags => _flags;
 
+        /// <summary>
+        /// Set when the server redirected somewhere that cannot be dialled; the error this reply becomes
+        /// says so instead of restating the raw redirect.
+        /// </summary>
+        /// <remarks>
+        /// <b>A redirect nobody can follow is not a redirect, and reporting it as one is misleading in a
+        /// specific way</b>: the caller is told the slot moved to a place, when in fact the server said it
+        /// does not know where the slot went. The distinction has a kind of its own
+        /// (<see cref="RedisErrorKind.UnknownRedirectTarget"/>) because retry policy reads it - the
+        /// command provably never ran, so it is safe to retry once the topology is refreshed, which is not
+        /// true of an arbitrary server error.
+        /// <para>
+        /// Carried on the operation rather than decided here because only the connection has the parsed
+        /// redirect, and only <c>ParseFrame</c> turns a frame into an exception. This is the handoff
+        /// between them.
+        /// </para>
+        /// </remarks>
+        internal string? UnroutableRedirectMessage { get; set; }
+
         /// <summary>The profiling record for this command, when anyone is profiling.</summary>
         /// <remarks>
         /// Lives in <c>Diagnostics.HostState</c>, which design notes section 4 reserved for exactly this:
@@ -155,6 +174,7 @@ namespace StackExchange.Redis
         protected override void OnReset()
         {
             HasFollowedRedirect = false;
+            UnroutableRedirectMessage = null;
             ExpectsQueuedReceipt = false;
             Slot = ServerSelectionStrategy.NoSlot;
             Profile = null; // the next life gets its own record, or none
@@ -219,6 +239,11 @@ namespace StackExchange.Redis
             var reader = new RespReader(frame);
             if (reader.TryMoveNext(checkError: false) && reader.IsError)
             {
+                if (UnroutableRedirectMessage is { } unroutable)
+                {
+                    throw new RedisServerException(RedisErrorKind.UnknownRedirectTarget, _flags, unroutable);
+                }
+
                 throw new RedisServerException(
                     RedisErrorKindMetadata.Classify(reader),
                     _flags,

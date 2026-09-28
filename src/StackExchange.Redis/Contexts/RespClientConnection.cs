@@ -74,7 +74,8 @@ namespace StackExchange.Redis
     /// </remarks>
     internal sealed class RespClientConnection(
         RESPite.Transports.DuplexTransport transport,
-        RespRedirectRouter router) : RespConnection(transport), IRespPreambleTarget
+        RespRedirectRouter router,
+        bool includeDetailInExceptions = true) : RespConnection(transport), IRespPreambleTarget
     {
         private HashSet<long>? _claims;
 
@@ -243,6 +244,19 @@ namespace StackExchange.Redis
             if (!RespRedirect.TryParse(frame, out var redirect)) return false;
             if (message is not RespPayloadOperation operation) return false;
 
+            // A redirect we cannot follow is not a redirect: "?" means the server does not know where the
+            // slot went either, so there is nowhere to send this. Asked FIRST, ahead of the caller's
+            // preferences, because it is a statement about the reply rather than about what to do with it
+            // - a caller who said NoRedirect still wants to know the server could not name a target, and
+            // the topology refresh is worth requesting either way. That ordering matches the shipped core,
+            // which classifies this before it consults NoRedirect at all.
+            if (redirect.IsUnroutable)
+            {
+                router(in redirect, operation);
+                operation.UnroutableRedirectMessage = DescribeUnroutable(in redirect);
+                return false;
+            }
+
             // A caller can decline redirects outright, and NoRedirect is not a hint: the server's error is
             // surfaced unchanged. What uses it depends on that - a transaction's queued commands and the
             // topology probes must stay on the connection they chose, and a caller diagnosing a cluster
@@ -255,17 +269,20 @@ namespace StackExchange.Redis
             // command fails with the server's own error, which says more than a hang would.
             if (operation.HasFollowedRedirect) return false;
 
-            // and a redirect we cannot follow is not a redirect: "?" means the server does not know
-            // where the slot went either, so there is nowhere to send this. It becomes the error it
-            // already is, and the topology refresh is the router's business.
-            if (redirect.IsUnroutable)
-            {
-                router(in redirect, operation);
-                return false;
-            }
-
             operation.HasFollowedRedirect = true;
             return router(in redirect, operation);
         }
+
+        /// <summary>The error a caller sees when the server named a target that cannot be dialled.</summary>
+        /// <param name="redirect">The redirect, whose target is the whole of the information.</param>
+        /// <remarks>
+        /// Quotes what the server wrote, because with no routable endpoint there is nothing else to name -
+        /// and the same text under <c>IncludeDetailInExceptions=false</c> is withheld for the same reason
+        /// every other detail is, matching the shipped wording so the two paths read alike.
+        /// </remarks>
+        private string DescribeUnroutable(in RespRedirect redirect)
+            => includeDetailInExceptions
+                ? $"The server redirected hashslot {redirect.Slot} to '{redirect.Target}', which does not identify a node that can be connected to; a topology refresh has been requested. "
+                : "The server redirected to an endpoint that does not identify a node that can be connected to; a topology refresh has been requested. ";
     }
 }

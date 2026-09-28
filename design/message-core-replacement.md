@@ -1756,12 +1756,19 @@ second core.
 A was the keystone: nothing else could move first, and it is what stops MOVED handling, routing and
 connection state being three answers from two places.
 
-Not a regression, but uncovered while measuring A and B: `ClusterEndpointFormUnitTests.`
-`MovedRedirectUsesThePreferredForm` fails twice under the engine flag because the new core does not
-reclassify a redirect whose target cannot be routed to (`?:port`, `:port`) as
-`UnknownRedirectTarget` - `ResultProcessor` does that, and nothing on the new path does. It fails
-identically before A, so it belongs with the other new-core error-shape gaps rather than with this
-work.
+Uncovered while measuring A and B and since fixed: the new core did not reclassify a redirect whose
+target cannot be routed to (`?:port`, `:port`) as `UnknownRedirectTarget` - `ResultProcessor` does
+that, and nothing on the new path did. The connection already recognised the case (it is why the
+topology refresh was requested) but let the raw `MOVED` text stand as the error, so a caller was told
+the slot moved somewhere when the server had actually said it does not know where the slot went. The
+kind is read by retry policy, and the distinction is exactly the one that matters there: a command
+redirected nowhere provably never ran.
+
+Two details worth keeping: the check now precedes `NoRedirect` rather than following it, because it is
+a statement about the reply rather than about what to do with it - which is also the shipped ordering;
+and the message is cleared in `OnReset`, without which the pooled operation handed a stale redirect
+diagnosis to whatever command reused it, which is how the first version turned a `CROSSSLOT` error
+into a redirect message.
 
 ### 9c. What this buys beyond tidiness
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using RESPite.Messages;
 
@@ -23,12 +23,21 @@ namespace StackExchange.Redis
     /// </remarks>
     internal readonly struct RespRedirect
     {
-        private RespRedirect(bool isMoved, int slot, EndPoint? endpoint)
+        private RespRedirect(bool isMoved, int slot, EndPoint? endpoint, string target)
         {
             IsMoved = isMoved;
             Slot = slot;
             Endpoint = endpoint;
+            Target = target;
         }
+
+        /// <summary>What the server actually wrote as the target, before any parsing of it.</summary>
+        /// <remarks>
+        /// Kept because an UNROUTABLE target is the one case where the text is the whole of the
+        /// information: there is no endpoint to name in a diagnostic, so the diagnostic has to quote what
+        /// the server said. Costs nothing - the string is built to parse the endpoint anyway.
+        /// </remarks>
+        public string? Target { get; }
 
         /// <summary>Whether this was <c>MOVED</c> (permanent) rather than <c>ASK</c> (this command only).</summary>
         public bool IsMoved { get; }
@@ -95,7 +104,7 @@ namespace StackExchange.Redis
                 ? parsed
                 : null;
 
-            redirect = new RespRedirect(isMoved, slot, endpoint);
+            redirect = new RespRedirect(isMoved, slot, endpoint, target);
             return true;
         }
 

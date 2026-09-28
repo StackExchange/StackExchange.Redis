@@ -192,7 +192,10 @@ public class RespRedirectFollowingTests
     public async Task AnUnroutableRedirectAsksForATopologyRefreshAndStillFails()
     {
         // "?" means the server does not know where the slot went either; there is nowhere to send this,
-        // so the error stands - but it IS a signal that our view of the cluster is wrong
+        // so the command still fails - but it IS a signal that our view of the cluster is wrong, and it is
+        // NOT the ordinary "the slot moved to somewhere" that the raw text would imply. The shipped core
+        // reclassifies it for exactly that reason and this path now matches: retry policy reads the kind,
+        // and a command redirected nowhere provably never ran.
         RespMultiplexerExecutor muxer = null!;
         var suspect = 0;
 
@@ -212,7 +215,8 @@ public class RespRedirectFollowingTests
         node.Transport.Reply("-MOVED 1 ?:6379\r\n");
 
         var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await pending);
-        Assert.StartsWith("MOVED", ex.Message);
+        Assert.Equal(RedisErrorKind.UnknownRedirectTarget, ex.Kind);
+        Assert.Contains("'?:6379'", ex.Message);
         Assert.Equal(1, suspect);
     }
 
