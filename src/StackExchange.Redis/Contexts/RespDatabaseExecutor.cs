@@ -86,6 +86,15 @@ namespace StackExchange.Redis
             => _inner.IdentifyEndpointAsync(key, flags, cancellationToken);
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Forwarded: the preamble belongs to the connection this view sits over, and a <c>SCRIPT LOAD</c>
+        /// names no database, so there is nothing of this view's own to apply to it.
+        /// </remarks>
+        internal override ValueTask SendPreambleAsync(
+            RespRequest preamble, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+            => _inner.SendPreambleAsync(preamble, gate, cancellationToken);
+
+        /// <inheritdoc/>
         /// <remarks>Named with THIS view's database, which is the only thing this type adds.</remarks>
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {

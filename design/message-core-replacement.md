@@ -1770,6 +1770,34 @@ and the message is cleared in `OnReset`, without which the pooled operation hand
 diagnosis to whatever command reused it, which is how the first version turned a `CROSSSLOT` error
 into a redirect message.
 
+### 9b-ii. Preambles, and what profiling still disagrees about
+
+A preamble - the `SCRIPT LOAD` in front of an `EVALSHA`, the `HIMPORT PREPARE` in front of a
+`HIMPORT SET` - can be written as a pair when a connection is warm, and cannot when it is not. The
+cold path fell back to sending it as an ordinary command, which was correct and wrong in two ways at
+once.
+
+It appeared in the caller's **profiling session**, as a `SCRIPT` they never issued and could not
+reproduce, and it never told the **gate** it had succeeded - so the belief stayed unset in exactly the
+case the fallback always covers, the first evaluation. Every later call then re-sent the preamble,
+forever: correct, invisible to every test that only checks results, and precisely the round trip the
+pairing exists to remove. `SendPreambleAsync` is now one path for both sequential cases, overridden by
+whoever owns a connection and forwarded by the router and the per-database view.
+
+Two profiling disagreements found alongside it, both fixed: a per-database view's commands were
+reported against the CONNECTION's database rather than their own, so profiling a dedicated-database
+workload named database 0 throughout; and commands that name no database - `PING`, `ECHO`, the
+`CLIENT` family - were reported as running in database 0 rather than as db-free, which the shipped
+core decides from `Message.RequiresDatabase` and this now shares.
+
+**What remains is a semantic question rather than a bug.** `ProfilingTests` asserts
+`EnqueuedToSending > 0`, and on a warm connection this core has no queue between those two points -
+the operation is stamped and written in the same breath, so the honest measurement is zero. The
+shipped core always has a bridge hop there. Either the stage is meaningless for this core and the
+assertion should be relaxed for it, or the stamps should be placed at points that keep the shipped
+meaning. `LowAllocationEnumerable` also still loses a handful of commands out of 1,000 (991 of the
+expected GETs carry the right database), which is not yet explained.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather

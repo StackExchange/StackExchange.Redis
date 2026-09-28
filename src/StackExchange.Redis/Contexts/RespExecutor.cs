@@ -293,6 +293,27 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual bool TrySendBatch(List<RespPayloadOperation> operations) => false;
 
+        /// <summary>Send a preamble on its own, awaiting it, when it could not be paired with its request.</summary>
+        /// <param name="preamble">The preamble frame.</param>
+        /// <param name="gate">The condition the preamble establishes, to be told if it succeeds.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <remarks>
+        /// <b>Not the same as sending it as a command, which is what this replaces, and the difference is
+        /// two bugs.</b> A preamble is the client's own machinery: it does not belong in a profiling
+        /// session, where it appeared as a <c>SCRIPT</c> the caller never issued and could not reproduce;
+        /// and its success is what the gate exists to remember, so not telling the gate left the belief
+        /// unset in exactly the case this path always covers - the first evaluation, before a connection is
+        /// warm enough to pair on. Every later call then re-sent the preamble, forever, correctly and
+        /// pointlessly.
+        /// <para>
+        /// The default here can do neither, having no connection to record against and no profiling to
+        /// suppress; whoever owns a connection overrides it.
+        /// </para>
+        /// </remarks>
+        internal virtual async ValueTask SendPreambleAsync(
+            RespRequest preamble, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+            => (await SendAsync(preamble, cancellationToken).ForAwait())?.Release();
+
         /// <summary>
         /// Write an already-assembled run to <paramref name="connection"/>, adding whatever this executor
         /// needs in front of it.
@@ -731,8 +752,10 @@ namespace StackExchange.Redis
                 {
                     // sequential fallback: wait for the preamble, then send. Ordering is what matters, and
                     // awaiting gives it - at the cost of the round trip a unit would have saved. The gate is
-                    // not consulted here: it asks about a connection, and this path has no notion of one.
-                    (await executor.SendAsync(head, cancellationToken).ForAwait())?.Release();
+                    // not CONSULTED here - it asks about a connection, and the decision has already been
+                    // made by the time this path is chosen - but it is told, which is a different question;
+                    // see SendPreambleAsync.
+                    await executor.SendPreambleAsync(head, gate, cancellationToken).ForAwait();
                     response = await executor.SendAsync(body, cancellationToken).ForAwait();
                 }
 

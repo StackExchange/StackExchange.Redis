@@ -220,6 +220,18 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Routed like anything else, and forwarded so that whoever owns the connection can keep the
+        /// preamble out of a profiling session and tell the gate it succeeded. Not forwarding it meant the
+        /// base implementation ran here - sending the preamble as an ordinary command - so a
+        /// <c>SCRIPT LOAD</c> the caller never issued appeared in their profile and the belief it
+        /// establishes was never recorded.
+        /// </remarks>
+        internal override ValueTask SendPreambleAsync(
+            RespRequest preamble, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+            => Route(in preamble).SendPreambleAsync(preamble, gate, cancellationToken);
+
+        /// <inheritdoc/>
         public override RespPayload Send(in RespRequest request) => Route(in request).Send(in request);
 
         /// <inheritdoc/>

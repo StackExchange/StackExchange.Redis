@@ -330,7 +330,7 @@ namespace StackExchange.Redis
                 // Do what an executor WITHOUT the capability does - send them in sequence - rather than
                 // calling the base, which throws: this executor can pair in general, just not this instant,
                 // and the first EVALSHA on a cold connection is exactly that instant.
-                if (connection is null || connection.IsClosed) return SequentialAsync(preamble, request, cancellationToken);
+                if (connection is null || connection.IsClosed) return SequentialAsync(preamble, request, gate, cancellationToken);
             }
 
             var target = connection as IRespPreambleTarget;
@@ -415,17 +415,54 @@ namespace StackExchange.Redis
         /// Awaiting the preamble gives the ordering at the cost of the round trip a pair would have saved,
         /// which is the same trade <c>AwaitPair</c> makes for an executor that cannot pair at all.
         /// <para>
-        /// The gate is not consulted, deliberately: it asks a question about a connection, and the reason
-        /// this path exists is that there is not one yet. Sending a preamble that turns out to have been
-        /// unnecessary is harmless for both of today's gates - a redundant <c>SCRIPT LOAD</c> or
+        /// The gate is not <i>consulted</i>, deliberately: it asks a question about a connection, and the
+        /// reason this path exists is that there is not one yet. Sending a preamble that turns out to have
+        /// been unnecessary is harmless for both of today's gates - a redundant <c>SCRIPT LOAD</c> or
         /// <c>HIMPORT PREPARE</c> is idempotent - whereas skipping a needed one is not.
+        /// </para>
+        /// <para>
+        /// <b>But it is told, which is a different question and was the bug.</b> Not recording left the
+        /// belief unset forever in the one case this path always covers: the FIRST evaluation on a fresh
+        /// connection. Nothing ever learned the script was loaded, so every later call re-sent the
+        /// <c>SCRIPT LOAD</c> as well - correct, and permanently paying for a round trip the whole design
+        /// exists to remove. It survived the suite because the result is right either way.
+        /// </para>
+        /// <para>
+        /// Recorded against whatever connection is live once the preamble has landed, which is sound for
+        /// the scope that needs it: a script is the SERVER's, and this executor is one endpoint, so any
+        /// live connection of its own answers the same. A connection-local belief would not be safe to
+        /// record this way - and is not, because the gate that holds one claims in <c>IsNeeded</c> and
+        /// does nothing here.
         /// </para>
         /// </remarks>
         private async ValueTask<RespPayload> SequentialAsync(
-            RespRequest preamble, RespRequest request, CancellationToken cancellationToken)
+            RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken)
         {
-            (await SendAsync(preamble, cancellationToken).ForAwait())?.Release();
+            await SendPreambleAsync(preamble, gate, cancellationToken).ForAwait();
             return await SendAsync(request, cancellationToken).ForAwait();
+        }
+
+        /// <inheritdoc/>
+        internal override async ValueTask SendPreambleAsync(
+            RespRequest preamble, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
+        {
+            // dispatched rather than sent, so the preamble stays out of any profiling session
+            var head = Dispatch(in preamble, Database, cancellationToken, profile: false);
+            (await new ValueTask<RespPayload>(head, head.Token).ForAwait())?.Release();
+
+            // told AFTER the await, so the connection recorded against is one that exists, and only on
+            // success - a preamble that threw did not establish anything.
+            //
+            // Recorded against whatever connection is live by then, which is sound for the scope that needs
+            // it: a script is the SERVER's, and this executor is one endpoint, so any live connection of its
+            // own answers the same question. A connection-local belief would not be safe to record this
+            // way, and is not - the gate that holds one claims in IsNeeded and does nothing here.
+            if (gate is not null)
+            {
+                RespConnection? established;
+                lock (_sync) established = _disposed ? null : _connection;
+                if (established is IRespPreambleTarget target && !established.IsClosed) gate.OnEstablished(target);
+            }
         }
 
         /// <inheritdoc/>
@@ -575,14 +612,45 @@ namespace StackExchange.Redis
         /// command inside the connection's write lock.
         /// </remarks>
         internal RespPayloadOperation Dispatch(in RespRequest request, int database, CancellationToken cancellationToken)
+            => Dispatch(in request, database, cancellationToken, profile: true);
+
+        /// <summary>Send, optionally keeping the command out of any profiling session.</summary>
+        /// <param name="request">The rendered request.</param>
+        /// <param name="database">The database the command belongs to.</param>
+        /// <param name="cancellationToken">Cancels the request before it is sent.</param>
+        /// <param name="profile">
+        /// Whether this command belongs in a profiling session. False for a PREAMBLE, which is the client's
+        /// own machinery rather than a command the caller issued: the shipped core does not report a
+        /// <c>SCRIPT LOAD</c> it inserted either, and a session that listed one would be reporting work
+        /// nobody asked for, in a sequence the caller cannot reproduce.
+        /// </param>
+        private RespPayloadOperation Dispatch(
+            in RespRequest request, int database, CancellationToken cancellationToken, bool profile)
         {
             var operation = RespPayloadOperation.Rent();
             operation.Attach(request.Span, request.Flags, cancellationToken);
             operation.Database = database;
 
             // started HERE, where the endpoint is finally known: a profiled command reports which server
-            // answered it, and until routing has resolved there is no honest answer to that
-            _startProfile?.Invoke(operation, request.Command, request.Flags, Database, _endpoint);
+            // answered it, and until routing has resolved there is no honest answer to that.
+            //
+            // THE COMMAND'S database, not this executor's. One connection is shared by several databases
+            // through per-database views, and the view's commands were being reported against the
+            // connection's database instead of their own - so profiling a dedicated-database workload named
+            // database 0 for every command in it.
+            //
+            // And -1 for a command that names no database at all: PING, ECHO, the CLIENT family. The
+            // shipped core reports those as db-free, from this same predicate, and a profile that claimed
+            // they ran "in database 0" would be inventing a fact about them.
+            if (profile && _startProfile is { } start)
+            {
+                start(
+                    operation,
+                    request.Command,
+                    request.Flags,
+                    Message.RequiresDatabase(request.Command) ? database : -1,
+                    _endpoint);
+            }
 
             RespConnection? connection;
             lock (_sync)
