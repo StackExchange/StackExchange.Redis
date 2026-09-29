@@ -2241,23 +2241,34 @@ That is `SO10504853` and `Issue2392`, and it was mistaken for a fire-and-forget 
 fire-and-forget leaves anything owing at the moment of close. Fixed independently, and it also stopped
 an asynchronously-disposed multiplexer holding this core's sockets open.
 
-What remains after that is **entirely the two-socket artefact**, and it is now precisely identifiable
-rather than suspected. Measured with the short-circuit in: the 12 remaining failures are all
-`HotKeysTests`/`HotKeysClusterTests`, and every one has the same shape -
+What remained after that looked like the two-socket artefact, and **D2.4 has disproved that**. The
+explanation recorded here previously - that `HotKeysTests` fails because START and STOP travel on the
+shipped core's socket while the fire-and-forget increments travel on this one, so STOP can overtake them -
+was wrong, or at least not the whole of it. With `IServer` on this core's socket (D2.4 landed) and the
+short-circuit re-enabled, the engine-flag count goes **12 -> 24**, and the twelve casualties are the same
+twelve `HotKeysTests`/`HotKeysClusterTests` as before.
 
-    await server.HotKeysStartAsync(...);          // SHIPPED core's socket
-    await db.KeyDeleteAsync(key, FireAndForget);  // this core's socket
-    ... 20 fire-and-forget increments ...
-    await server.HotKeysStopAsync(...);           // SHIPPED core's socket again
+They cannot be an ordering race between two sockets, because there is now one socket: the increments and
+the `HOTKEYS` commands funnel through the same `RespEndpointExecutor` into the same pending queue, in
+arrival order. `DatabaseTests.CountKeys`, which really was that race, passes.
 
-Fire-and-forget that returns before the write lands removes the only thing that was ordering the two
-sockets against each other, so STOP can reach the server ahead of the increments it was supposed to
-measure. `DatabaseTests.CountKeys` was the same shape (fire-and-forget writes, then
-`IServer.DatabaseSizeAsync`) and passes once the close drain is in, because there the race is narrower.
+What is known:
 
-Under one core this cannot happen: both halves are the same connection and FIFO settles it. So the async
-half is blocked on **D2.4**, not on anything about fire-and-forget, and taking it early would trade one
-failure for twelve. Net if landed today: 26 -> 37. The sync half stays in on its own.
+- It buys exactly one test, `Issue2392Tests.Execute`, which wants a fire-and-forget command against a
+  dead server not to throw at a caller who declined the result.
+- In the standalone case the failing assertion is specifically the NETWORK metric
+  (`result.NetworkBytesByKey.IsEmpty` is true when it should not be); `HotKeysTests` CPU-only variants
+  pass. The cluster variants fail on CPU too, but there the slots really do spread across sockets.
+- These are real servers (the suite requires 8.6), so the accounting being asked about is the server's.
+
+What is not known is why a caller not waiting for its own replies changes what the server measures, given
+the bytes are written either way and in the same order. That is the question to answer next; the guess
+worth testing first is whether the 21 commands now reach the server in one read where they previously
+arrived one at a time, and whether per-key network attribution is per-read rather than per-command.
+
+So the async half stays out, and the reason is now "unexplained" rather than "blocked on D2.4" - which is
+a worse position to be in than the record previously claimed, and worth saying plainly. The sync half
+stays in on its own.
 
 `RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
 observation: the decision is per-composition, and each composition answers it where it queues.
@@ -2390,7 +2401,7 @@ caller sees it. Two tracking clients per endpoint would also mean duplicate inva
 broadcast mode - `RespInProcTrackingTests` asserts `Single` on the tracking client and caught exactly
 that when both cores asked.
 
-### 9b-xi. The rotating "flake" family is one artefact, and it is D2.4's
+### 9b-xi. The rotating "flake" family was one artefact, and D2.4 closed it
 
 **Nine to twelve of the remaining engine-flag failures rotate identity between runs, and they are not
 flaky tests.** Every one has the same shape: an `IServer` call on the SHIPPED socket, fire-and-forget
@@ -2406,8 +2417,9 @@ default suite because the race is narrow, and they pass or fail per run accordin
 `Transitional*` twin. `HotKeysTests` is the same thing made deterministic by the async fire-and-forget
 short-circuit, which is why 9b-vi and this section resolve together.
 
-Under one core these are all FIFO on one connection. Counting them as separate failures overstates what
-is left: **D2.4 closes this whole group at once.**
+Under one core these are all FIFO on one connection. **D2.4 closed the whole group at once** - engine-flag
+failures went 23 to 12 on that one change, and every member of this family went with it. The prediction
+held; the same reasoning applied to `HotKeysTests` did not, and 9b-vi records that correction.
 
 ### 9c. What this buys beyond tidiness
 
