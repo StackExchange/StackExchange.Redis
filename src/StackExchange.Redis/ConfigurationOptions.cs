@@ -1146,6 +1146,7 @@ namespace StackExchange.Redis
 #endif
             RequestBufferPool = RequestBufferPool,
             ResponseBufferPool = ResponseBufferPool,
+            ConnectMode = ConnectMode,
         };
 
         /// <summary>
@@ -1800,6 +1801,17 @@ namespace StackExchange.Redis
         /// The buffer pool to use when buffering responses, and for allocating <see cref="Lease{Byte}"/> results.
         /// </summary>
         public MemoryPool<byte>? ResponseBufferPool { get; set; }
+
+        /// <summary>
+        /// How eagerly connections to the configured endpoints are opened.
+        /// </summary>
+        /// <remarks>
+        /// <b>Internal while it would be a promise the client cannot keep.</b> It governs the new core, and
+        /// the shipped one still dials every endpoint regardless - so a caller asking for
+        /// <see cref="ConnectMode.Lazy"/> today would still get every socket opened, by the other half.
+        /// It goes public with the step that stops that happening; see design notes 9d.
+        /// </remarks>
+        internal ConnectMode ConnectMode { get; set; } = ConnectMode.Lazy;
 
         /// <summary>
         /// The buffer pool to use when buffering requests.

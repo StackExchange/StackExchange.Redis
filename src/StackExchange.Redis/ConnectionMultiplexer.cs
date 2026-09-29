@@ -709,6 +709,8 @@ namespace StackExchange.Redis
                 killMe = null;
                 Interlocked.Increment(ref muxer._connectCompletedCount);
 
+                await muxer.ConnectNewCoreAsync().ForAwait();
+
                 if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                 {
                     // Initialize the Sentinel handlers
@@ -728,6 +730,21 @@ namespace StackExchange.Redis
                 if (log is TextWriterLogger twLogger) twLogger.Release();
             }
         }
+
+        /// <summary>Open whatever the configured <see cref="ConnectMode"/> says to open, before returning.</summary>
+        /// <remarks>
+        /// <b>Governs this core only, which is why the default is <see cref="ConnectMode.Lazy"/> and not the
+        /// historical <see cref="ConnectMode.Eager"/>.</b> The shipped core still dials every endpoint of
+        /// its own, so anything opened here is a socket IN ADDITION to that rather than instead of it -
+        /// which is exactly what the connection-counting tests noticed. The default moves when the other
+        /// core stops dialling and the count means what it says again; see design notes 9d, D2.1/D2.8.
+        /// <para>
+        /// Never allowed to fail the connect: the shipped core has already decided whether this multiplexer
+        /// connected, against the same servers, and a second opinion could only disagree with it.
+        /// </para>
+        /// </remarks>
+        private Task ConnectNewCoreAsync()
+            => NewCoreEngine ? NewCore.ConnectEagerlyAsync(RawConfig.ConnectMode) : Task.CompletedTask;
 
         private static void Validate([NotNull] ConfigurationOptions? config)
         {
@@ -818,6 +835,8 @@ namespace StackExchange.Redis
 
                 killMe = null;
                 Interlocked.Increment(ref muxer._connectCompletedCount);
+
+                muxer.ConnectNewCoreAsync().Wait(muxer.SyncConnectTimeout(true));
 
                 if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                 {

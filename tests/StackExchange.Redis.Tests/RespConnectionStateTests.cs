@@ -296,7 +296,7 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
         // nothing has been sent, so nothing has dialled
         Assert.False(core.HasSlotMapForTest, "no command has been issued, so nothing should have connected");
 
-        Assert.True(await core.ConnectEagerlyAsync(), "eager connect should have brought an endpoint up");
+        Assert.True(await core.ConnectEagerlyAsync(ConnectMode.Discover), "eager connect should have brought an endpoint up");
 
         Assert.True(core.HasSlotMapForTest, "one handshake should have mapped the deployment");
         Assert.Equal(1, core.ConnectedEndpointCountForTest);
@@ -314,5 +314,30 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
 
         Assert.True(checkedSlots > 40, $"only {checkedSlots} slots were mapped from the one connection");
         Log($"one connection mapped {checkedSlots} sampled slots");
+    }
+
+    /// <summary>
+    /// The mode is a real choice: nothing, one, or everything.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why it is a setting rather than a default.</b> A caller who places keys deliberately - hash tags,
+    /// a shard per tenant - touches a known and small part of a large deployment, and opening a socket to
+    /// every node of it is cost with no return. A caller treating the keyspace as opaque reaches everything
+    /// eventually, so opening everything up front costs nothing and answers every question immediately.
+    /// Neither is the right default for the other.
+    /// </remarks>
+    [Fact]
+    public async Task ConnectModeGovernsHowMuchIsOpened()
+    {
+        Skip.IfNoCluster();
+        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+        var core = ((ConnectionMultiplexer)conn).NewCore;
+
+        Assert.False(await core.ConnectEagerlyAsync(ConnectMode.Lazy), "Lazy should open nothing");
+        Assert.Equal(0, core.ConnectedEndpointCountForTest);
+
+        Assert.True(await core.ConnectEagerlyAsync(ConnectMode.Eager), "Eager should open the endpoints");
+        Assert.Equal(conn.GetEndPoints().Length, core.ConnectedEndpointCountForTest);
+        Log($"Eager opened {core.ConnectedEndpointCountForTest} of {conn.GetEndPoints().Length} endpoints");
     }
 }

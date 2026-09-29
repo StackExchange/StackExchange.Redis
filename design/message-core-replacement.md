@@ -1956,6 +1956,23 @@ happens. Eager-once changes only WHEN the first connection is made, not what it 
 round trip anywhere in it; the entire content of the decision is whether `ConnectAsync` blocks on that
 first connection so that `IsConnected` and `IdentifyEndpoint` have an answer before the first command.
 
+**Resolved as a setting rather than a verdict, which is better than either answer.** It is a genuine
+trade, not a default with a workaround: a caller who places keys deliberately - hash tags, a shard per
+tenant, a keyspace partitioned on purpose - touches a small and known part of a large deployment, and
+opening a socket to every node of it is cost with no return. A caller treating the keyspace as opaque
+reaches everything eventually, so opening everything up front costs them nothing and answers every
+question immediately. Neither is the right default for the other, which is the definition of a setting.
+
+`ConnectMode` therefore has all three: `Lazy` opens nothing, `Discover` opens one, `Eager` opens every
+configured endpoint. It is `internal` for now and defaults to `Lazy`, both for the same reason: while
+the shipped core still dials every endpoint of its own, anything opened here is a socket IN ADDITION to
+that rather than instead of it, so a caller asking for `Lazy` today would still get every socket opened
+by the other half - a promise the client cannot keep. It goes public, and the default moves, with D2.8.
+
+**And the connection-counting tests are not the authority on this.** They encode "the shipped core
+dialled N sockets", which is a fact about the implementation rather than about desired behaviour; when
+the count changes for the right reason the expectations change with it.
+
 Nothing below is blocked on this except D2.1 and D2.3, but those two are the spine.
 
 #### The obligations to re-home, with where each lives today

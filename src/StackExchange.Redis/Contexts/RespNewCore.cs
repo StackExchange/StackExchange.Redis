@@ -833,12 +833,13 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>Bring one connection up, so the deployment has described itself before anybody asks.</summary>
+        /// <summary>Bring connections up, so the deployment has described itself before anybody asks.</summary>
+        /// <param name="mode">How much to open; <see cref="ConnectMode.Lazy"/> opens nothing.</param>
         /// <param name="cancellationToken">Abandons the wait.</param>
         /// <returns>Whether an endpoint came up.</returns>
         /// <remarks>
         /// <para>
-        /// <b>One, not all - which is the whole of "eager-once".</b> The configured endpoints are dial
+        /// <b>Under <see cref="ConnectMode.Discover"/>: one, not all.</b> The configured endpoints are dial
         /// targets and need no discovering; what needs discovering is where the slots live and which
         /// servers are replicas, and a single connection's handshake answers both for the WHOLE deployment
         /// (<c>CLUSTER SLOTS</c> names every node, <c>ROLE</c> names the other side of a pair). So a
@@ -858,14 +859,25 @@ namespace StackExchange.Redis
         /// opinion nobody asked for.
         /// </para>
         /// </remarks>
-        internal async Task<bool> ConnectEagerlyAsync(CancellationToken cancellationToken = default)
+        internal async Task<bool> ConnectEagerlyAsync(
+            ConnectMode mode = ConnectMode.Discover, CancellationToken cancellationToken = default)
         {
+            if (mode == ConnectMode.Lazy) return false;
+
+            var any = false;
             foreach (var endpoint in _multiplexer.GetEndPoints())
             {
                 try
                 {
                     await Endpoint(endpoint).ConnectNowAsync(cancellationToken).ConfigureAwait(false);
-                    if (_endpoints.TryGetValue(endpoint, out var up) && up.IsConnectedNow) return true;
+                    if (_endpoints.TryGetValue(endpoint, out var up) && up.IsConnectedNow)
+                    {
+                        any = true;
+
+                        // Discover stops at the first success, because that connection's handshake has
+                        // already described the whole deployment; Eager goes on to open the rest
+                        if (mode == ConnectMode.Discover) return true;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -877,7 +889,7 @@ namespace StackExchange.Redis
                 if (cancellationToken.IsCancellationRequested) break;
             }
 
-            return false;
+            return any;
         }
 
         /// <summary>For testing only: drop this core's connections to an endpoint.</summary>
