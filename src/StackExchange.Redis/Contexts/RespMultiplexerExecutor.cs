@@ -82,6 +82,18 @@ namespace StackExchange.Redis
             _onTopologySuspect = onTopologySuspect;
         }
 
+        /// <summary>Whether the endpoints this routes to have their timeout sweep driven.</summary>
+        /// <remarks><inheritdoc cref="RespEndpointExecutor.HeartbeatDriven" path="/remarks"/></remarks>
+        internal bool HeartbeatDriven { get; init; }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Answered here rather than forwarded to whichever endpoint a command would reach, because the
+        /// question is asked before routing - by a synchronous caller deciding whether to impose its own
+        /// timer - and every endpoint this core makes is swept on the same heartbeat.
+        /// </remarks>
+        internal override bool EnforcesTimeouts => HeartbeatDriven;
+
         /// <summary>Follow a redirect, or decline it and let the reply stand as an error.</summary>
         /// <param name="redirect">What the server said.</param>
         /// <param name="operation">The command that was redirected; not yet completed.</param>

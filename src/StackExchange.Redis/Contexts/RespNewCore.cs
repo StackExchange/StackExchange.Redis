@@ -214,7 +214,10 @@ namespace StackExchange.Redis
             endpoint => Executor(database, endpoint),
             OnSlotMoved,
             OnTopologySuspect,
-            channel => SubscribedExecutor(database, channel));
+            channel => SubscribedExecutor(database, channel))
+        {
+            HeartbeatDriven = true,
+        };
 
         /// <summary>
         /// Which endpoint owns a slot, according to the multiplexer's own topology.
@@ -569,6 +572,7 @@ namespace StackExchange.Redis
             server: () => ModelledServer(endpoint))
         {
             IsSubscriptionEndpoint = true,
+            HeartbeatDriven = true,
         };
 
         /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
@@ -627,7 +631,10 @@ namespace StackExchange.Redis
                 commandAndKey),
             () => _multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure ?? true,
             () => _multiplexer.TimeoutMilliseconds,
-            () => ModelledServer(endpoint));
+            () => ModelledServer(endpoint))
+        {
+            HeartbeatDriven = true,
+        };
 
         /// <summary>The <see cref="ServerEndPoint"/> this client models for an endpoint, if it models one.</summary>
         /// <remarks>

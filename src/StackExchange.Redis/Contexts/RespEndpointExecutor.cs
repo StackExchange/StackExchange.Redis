@@ -229,6 +229,19 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>Whether something drives this executor's <see cref="OnHeartbeat"/>.</summary>
+        /// <remarks>
+        /// <b>What makes <see cref="EnforcesTimeouts"/> an honest answer rather than a hopeful one.</b>
+        /// The sweep is the whole of this core's timeout enforcement, and the sweep happens because the
+        /// multiplexer heartbeat calls it - so an executor built directly over a transport, as the tests
+        /// do, genuinely does not time anything out except at the two-minute backstop. Claiming otherwise
+        /// would make a synchronous caller stand back from its own timer and wait out that backstop.
+        /// </remarks>
+        internal bool HeartbeatDriven { get; init; }
+
+        /// <inheritdoc/>
+        internal override bool EnforcesTimeouts => HeartbeatDriven;
+
         /// <summary>Whether this executor owns the endpoint's subscription connection.</summary>
         /// <remarks>
         /// Only used to describe a fault: the tail on a timeout names one connection's counters, and the
