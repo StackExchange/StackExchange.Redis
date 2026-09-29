@@ -269,11 +269,9 @@ namespace StackExchange.Redis
             // has explicitly declined it, so the pipeline never captures one and the executor hands back
             // null". The executor simply never did.
             //
-            // SYNCHRONOUS ONLY, deliberately. The same short-circuit on SendAsync loses commands, and the
-            // reason is not about fire-and-forget at all: returning before the write means a caller can
-            // dispose the multiplexer while the command is still queued. SO10504853Tests does exactly that
-            // - KeyDelete(F&F) inside a using block - and the delete never lands. That is a disposal
-            // ordering gap, and it has to be fixed before the async half can follow; see design notes.
+            // SYNCHRONOUS ONLY so far: the same short-circuit on SendAsync still breaks the scripting
+            // tests, and neither of the two obvious causes turned out to be it. See design notes 9b-vi
+            // for what has been ruled out.
             if ((request.Flags & CommandFlags.FireAndForget) != 0)
             {
                 RespPayloadOperation.DiscardReply(operation);

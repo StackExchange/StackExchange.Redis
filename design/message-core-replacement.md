@@ -2151,15 +2151,27 @@ is exactly the one `Parse` documents. Short-circuiting the SYNCHRONOUS `Send` is
 `SynchronousFireAndForgetReturnsDefaultRatherThanThrowing`; it is only `SendAsync` that breaks things,
 and the breakage is not about fire-and-forget.
 
-**It is a disposal ordering gap.** `SO10504853Tests.LoopLotsOfTrivialStuff` issues
-`KeyDelete(key, FireAndForget)` and then disposes the multiplexer immediately - inside the same `using`.
-While the caller waited for a reply, that wait also guaranteed the command had reached the server.
-Returning before the write lets disposal race it, and the delete is simply lost: the test expects 1 and
-sees 4, the key never having been cleared. The shipped core does not have this problem because
-`CloseAsync` drains what is queued.
+**Two candidate causes have been tried and ruled out, which is the useful part of the record.**
 
-So the remaining work is not "find the right layer" but "make disposal flush", after which the async
-half follows immediately. The sync half is in.
+*Disposal racing the write.* `SO10504853Tests.LoopLotsOfTrivialStuff` issues
+`KeyDelete(key, FireAndForget)` and disposes the multiplexer immediately, inside the same `using`; the
+delete was lost and the test saw 4 where it wanted 1. A bounded drain on close - wait for each
+endpoint's backlog and pending queue to empty, honouring the `allowCommandsToComplete` that
+`CloseAsync` already advertises - does fix that test. It is NOT kept, because it regressed two others
+(`TheEndpointExecutorReconnectsAfterARealSocketDies` and `DisconnectAndReconnect...Sync`): a connection
+that is dead with operations still pending never reaches zero, so close waits out the whole timeout.
+A drain has to distinguish "still going" from "never going to finish" before it can land, which the
+shipped `QuitAllServers` sidesteps by sending an actual `QUIT`.
+
+*Pairing jumping the backlog.* The preamble pair writes straight into the connection's write lock,
+walking past anything queued - so a script issued while earlier commands were still waiting could go out
+ahead of them, which would explain a script running before the `DELETE` it was meant to follow. Making
+the pair fall back to sequential whenever a backlog exists changed nothing, so that is not the
+mechanism either.
+
+What remains failing under an async short-circuit is exactly `ScriptingTests.MultiIncrWithoutReplies`,
+`MultiIncrByWithoutReplies` and `TestRandomThingFromForum`, in both surface variants: a key the script
+should have incremented reads back as absent. The sync half is in and safe.
 
 `RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
 observation: the decision is per-composition, and each composition answers it where it queues.
