@@ -3014,11 +3014,42 @@ namespace StackExchange.Redis
 
             if (allowCommandsToComplete)
             {
+                // this core first, for the reason the synchronous Close does it first: it has no QUIT to
+                // send, and what it owes is commands that may not have reached the wire yet. This was
+                // MISSING here while Close had it, so every `await using` - which is to say every caller
+                // that disposes asynchronously - dropped whatever the new core still owed. It shows up as a
+                // fire-and-forget command issued immediately before disposal never happening at all.
+                if (NewCoreIfCreated is { } core)
+                {
+                    try
+                    {
+                        await core.DrainAsync(RawConfig.AsyncTimeout).ForAwait();
+                    }
+                    catch
+                    {
+                        // best efforts: a close that throws is worse than a command that did not land
+                    }
+                }
+
                 var quits = QuitAllServers();
                 await WaitAllIgnoreErrorsAsync("quit", quits, RawConfig.AsyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();
+
+            // the core's connections are its own; nothing above closes them. Also missing here, which left
+            // an asynchronously-disposed multiplexer holding its sockets open.
+            if (Interlocked.Exchange(ref _newCore, null) is { } closing)
+            {
+                try
+                {
+                    await closing.DisposeAsync().ForAwait();
+                }
+                catch
+                {
+                    // as above: the sockets are going away either way
+                }
+            }
         }
 
         private void DisposeAndClearServers()

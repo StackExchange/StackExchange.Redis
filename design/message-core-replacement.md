@@ -1,4 +1,4 @@
-﻿# Replacing the message core — plan
+﻿﻿# Replacing the message core — plan
 
 **Status: planning only. Nothing here is built.** Written 2026-09-19, after the batch/transaction work
 ran into the shim rather than through it.
@@ -2187,15 +2187,33 @@ naive version waited out the whole timeout for commands stranded behind a connec
 coming back, which is the ordinary state of a shutdown after a failure. `CloseAsync` advertises
 `allowCommandsToComplete`; this core now honours it.
 
-*The async half is still out, and the reason has changed again.* With the drain and the ordering fix
-both in, a focused run passes - `SO10504853`, the scripting tests, `Issue2392` - but the full suite goes
-33 to 48. Some of that is a genuine two-core artefact: `HotKeysTests` issues fire-and-forget increments
-on this core's socket and then calls `HotKeysStop` through `IServer`, which is the SHIPPED core's
-socket, so the ordering that used to come free from a blocking call is gone and the two sockets race.
-That one resolves at D2.4. But the rest - `DatabaseTests.CountKeys`,
-`EndpointResolutionUnitTests.RedirectToANewNodeDoesNotDuplicateIt`, three of the lease-sharing tests,
-and `SO10504853` itself returning under full-suite concurrency - is not explained, and appears only
-under load. The sync half stays in on its own.
+*The async half is still out, and the residue is now fully explained.* Two separate things were behind
+what earlier looked like load-dependent noise.
+
+The first was a plain omission: **`CloseAsync` never drained this core** while the synchronous `Close`
+did. Every `await using` - which is every test and most callers - therefore dropped whatever this core
+still owed, and a fire-and-forget command issued immediately before disposal simply never happened.
+That is `SO10504853` and `Issue2392`, and it was mistaken for a fire-and-forget problem because only
+fire-and-forget leaves anything owing at the moment of close. Fixed independently, and it also stopped
+an asynchronously-disposed multiplexer holding this core's sockets open.
+
+What remains after that is **entirely the two-socket artefact**, and it is now precisely identifiable
+rather than suspected. Measured with the short-circuit in: the 12 remaining failures are all
+`HotKeysTests`/`HotKeysClusterTests`, and every one has the same shape -
+
+    await server.HotKeysStartAsync(...);          // SHIPPED core's socket
+    await db.KeyDeleteAsync(key, FireAndForget);  // this core's socket
+    ... 20 fire-and-forget increments ...
+    await server.HotKeysStopAsync(...);           // SHIPPED core's socket again
+
+Fire-and-forget that returns before the write lands removes the only thing that was ordering the two
+sockets against each other, so STOP can reach the server ahead of the increments it was supposed to
+measure. `DatabaseTests.CountKeys` was the same shape (fire-and-forget writes, then
+`IServer.DatabaseSizeAsync`) and passes once the close drain is in, because there the race is narrower.
+
+Under one core this cannot happen: both halves are the same connection and FIFO settles it. So the async
+half is blocked on **D2.4**, not on anything about fire-and-forget, and taking it early would trade one
+failure for twelve. Net if landed today: 26 -> 37. The sync half stays in on its own.
 
 `RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
 observation: the decision is per-composition, and each composition answers it where it queues.
