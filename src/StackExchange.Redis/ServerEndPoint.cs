@@ -900,13 +900,13 @@ namespace StackExchange.Redis
             interactive?.GetCounters(counters.Interactive);
             subscription?.GetCounters(counters.Subscription);
 
-            // and whatever is queued in the other core, which is where commands actually wait under the
-            // engine flag - see RespNewCore.BacklogCount. Added rather than substituted: both are real
-            // queues for as long as both cores exist, and "waiting to be sent" is the sum of them.
+            // and whatever the other core is doing, which under the engine flag is where the commands
+            // actually are - see RespNewCore.BacklogCount. Added rather than substituted: both cores'
+            // queues, sockets and op counts are real for as long as both cores exist.
             if (Multiplexer.NewCoreIfCreated is { } core)
             {
-                counters.Interactive.PendingUnsentItems += core.BacklogCount(EndPoint, ConnectionType.Interactive);
-                counters.Subscription.PendingUnsentItems += core.BacklogCount(EndPoint, ConnectionType.Subscription);
+                core.AddCounters(EndPoint, ConnectionType.Interactive, counters.Interactive);
+                core.AddCounters(EndPoint, ConnectionType.Subscription, counters.Subscription);
             }
 
             return counters;

@@ -2057,6 +2057,16 @@ Each step is independently shippable and leaves the tree green.
   exist. That closes the three `BacklogTests`. A backlog exists to be seen, and a client waiting on one
   it is told is empty is the diagnostic failing exactly when it is needed.
 
+  **And the rest of the reporting, which was the half left over.** The same fold now carries operation
+  counts, socket counts and sent-awaiting-response per endpoint, and `GetBridgeStatus` carries this core's
+  byte counters (`last-in`, `cur-in`) - so a client under the engine flag no longer reports itself idle
+  while it is busy, and a timeout no longer describes an idle shipped bridge instead of the socket the
+  command was on. `LockingTests.TestOpCountByVersionLocal_UpLevel` is the assertion that measures it.
+
+  The `CountsMultiplexerOps` opt-out survives for one narrow reason, now recorded on it: the suites that
+  exercise this surface WITHOUT the flag build a core of their own beside the multiplexer's, and nothing
+  has told the multiplexer that core exists, so nothing can count it.
+
   What remains of the reporting half is connection state on the public surface, plus two parity gaps
   found by pushing the failure messages to match:
 

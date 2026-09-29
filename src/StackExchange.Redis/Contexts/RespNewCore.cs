@@ -1017,6 +1017,17 @@ namespace StackExchange.Redis
             return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.BacklogCount : 0;
         }
 
+        /// <summary>Fold an endpoint's counters into a snapshot the shipped surface reports.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections to count.</param>
+        /// <param name="counters">The snapshot to add to.</param>
+        /// <remarks><inheritdoc cref="BacklogCount" path="/remarks"/></remarks>
+        internal void AddCounters(EndPoint endpoint, ConnectionType connectionType, ConnectionCounters counters)
+        {
+            var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
+            if (endpoint is not null && map.TryGetValue(endpoint, out var executor)) executor.AddCounters(counters);
+        }
+
         /// <summary>This core's state for an endpoint, or null when it has no executor for it.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="connectionType">Which of its connections to describe.</param>

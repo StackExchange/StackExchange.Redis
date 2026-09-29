@@ -229,6 +229,43 @@ namespace StackExchange.Redis
             }
         }
 
+        private long _operationCount;
+        private long _socketCount;
+
+        /// <summary>Commands this executor has dispatched, for the life of the executor.</summary>
+        /// <remarks>
+        /// <b>Counted so that the client's own counters are not wrong about it.</b> Under the engine flag
+        /// the commands are on this core's socket and the shipped bridge counts nothing, so
+        /// <c>GetCounters().Interactive.OperationCount</c> did not move no matter what the caller did -
+        /// which is a counter reporting that the client is idle while it is busy.
+        /// </remarks>
+        internal long OperationCount => Volatile.Read(ref _operationCount);
+
+        /// <summary>Connections this executor has opened, including reconnects.</summary>
+        internal long SocketCount => Volatile.Read(ref _socketCount);
+
+        /// <summary>Fold this endpoint's counters into a snapshot the shipped surface reports.</summary>
+        /// <param name="counters">The snapshot to add to.</param>
+        /// <remarks>
+        /// <b>Added rather than substituted</b>, as the backlog already was: both cores' queues and sockets
+        /// are real for as long as both cores exist, so every one of these is a sum.
+        /// </remarks>
+        internal void AddCounters(ConnectionCounters counters)
+        {
+            RespConnection? connection;
+            int backlog;
+            lock (_sync)
+            {
+                connection = _connection is { IsClosed: false } live ? live : null;
+                backlog = _backlog?.Count ?? 0;
+            }
+
+            counters.OperationCount += OperationCount;
+            counters.SocketCount += SocketCount;
+            counters.PendingUnsentItems += backlog;
+            counters.SentItemsAwaitingResponse += connection?.PendingCount ?? 0;
+        }
+
         /// <summary>Whether something drives this executor's <see cref="OnHeartbeat"/>.</summary>
         /// <remarks>
         /// <b>What makes <see cref="EnforcesTimeouts"/> an honest answer rather than a hopeful one.</b>
@@ -706,6 +743,7 @@ namespace StackExchange.Redis
                     operation.Observer = this;
                     operation.Server = Server;
                     operation.IsSubscription = IsSubscriptionEndpoint;
+                    Interlocked.Increment(ref _operationCount);
                 }
             }
 
@@ -1127,6 +1165,7 @@ namespace StackExchange.Redis
             operation.Observer = this;
             operation.Server = Server;
             operation.IsSubscription = IsSubscriptionEndpoint;
+            Interlocked.Increment(ref _operationCount);
 
             // started HERE, where the endpoint is finally known: a profiled command reports which server
             // answered it, and until routing has resolved there is no honest answer to that.
@@ -1672,6 +1711,7 @@ namespace StackExchange.Redis
                     }
 
                     _connection = connection;
+                    Interlocked.Increment(ref _socketCount);
 
                     // if somebody owns the write slot they are waiting on this very task, and THEY will
                     // drain - draining here as well would write the backlog out from under them
