@@ -2240,6 +2240,35 @@ engine suite it fixes ten and costs twenty-one, all of them connection-counting 
 two `ConnectMode` tests that assert lazy preconditions. Those become correct rather than merely
 different at D2.8, and that is when to pay for them.
 
+### 9b-viii. Configured command timeouts are not applied to commands in flight
+
+**The gap, and it is a large one.** `SyncTimeout` and `AsyncTimeout` do not reach an operation that has
+been written and is waiting for a reply. The synchronous wait is `Wait(token, TimeSpan.Zero)`, and zero
+is the monitor's *no deadline* case - so a command against a server that has stopped answering blocks
+until `OperationBackstop` cancels it, which is two minutes by default. `AsyncTests.AsyncTimeoutIsNoticed`
+pauses the server with `CLIENT PAUSE 4000` against a 1,000ms timeout and sees no exception at all.
+
+**What it is not.** Passing the configured value into `Wait` is the obvious fix and is wrong on its own:
+it fixes nothing in that family and breaks `MaintenanceRelaxationTests`, which then reports a connection
+failure where it wants a timeout. Adding the relaxation-aware value
+(`ServerEndPoint.GetEffectiveTimeoutMilliseconds`, so a maintenance window still rescues what it was
+raised to rescue) does not change that. Tried, measured, reverted.
+
+**What it needs** is what the shipped core does: a sweep over operations that have been WRITTEN, driven
+by a timer, failing those past their deadline - `PhysicalBridge` does this from the heartbeat. Two things
+make it more than a small change, and both are in the most delicate part of the system:
+
+- `IRespMessage.TrySetTimedOut` exists but has exactly one caller, the backstop; there is no sweep seam,
+  so `RespConnection` needs one over `_pending`.
+- A timed-out operation must **stay in the pending queue**. Replies are matched positionally, so
+  removing it would mis-address every reply after it; it has to be completed while its slot keeps
+  consuming the frame that eventually arrives. `Drain` then hands a frame to an operation that has
+  already been completed, and that path needs to be correct rather than merely not crash.
+
+The multiplexer heartbeat is the natural driver, as it is for the shipped core, which also gets the
+relaxation and the dead-connection detection right by consulting
+`GetEffectiveTimeoutMilliseconds` there.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather
