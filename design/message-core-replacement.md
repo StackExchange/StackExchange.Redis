@@ -2145,10 +2145,24 @@ that executor serves runs as well as single sends. A transaction of fire-and-for
 each queued reply: `+QUEUED` receipts and then the positional `EXEC` array. Discarding them there
 shifted every result.
 
-**Where it belongs** is the single-send path on the context - where the comment quoted above already
-lives - so that a command composed into a batch or a transaction keeps its reply for whoever is
-distributing them. `RespOperationBatch` and `RespTransaction` already have their own fire-and-forget
-handling, which is the other half of the same observation: the decision is per-composition, not per-write.
+**Narrowed by bisecting the two halves, and the answer was not the layer at all.** The executor IS the
+right place - `RespClientCacheTests` asserts a null result for a fire-and-forget send, so the contract
+is exactly the one `Parse` documents. Short-circuiting the SYNCHRONOUS `Send` is safe and fixes
+`SynchronousFireAndForgetReturnsDefaultRatherThanThrowing`; it is only `SendAsync` that breaks things,
+and the breakage is not about fire-and-forget.
+
+**It is a disposal ordering gap.** `SO10504853Tests.LoopLotsOfTrivialStuff` issues
+`KeyDelete(key, FireAndForget)` and then disposes the multiplexer immediately - inside the same `using`.
+While the caller waited for a reply, that wait also guaranteed the command had reached the server.
+Returning before the write lets disposal race it, and the delete is simply lost: the test expects 1 and
+sees 4, the key never having been cleared. The shipped core does not have this problem because
+`CloseAsync` drains what is queued.
+
+So the remaining work is not "find the right layer" but "make disposal flush", after which the async
+half follows immediately. The sync half is in.
+
+`RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
+observation: the decision is per-composition, and each composition answers it where it queues.
 
 ### 9b-vii. MOVED to the endpoint we are already on
 

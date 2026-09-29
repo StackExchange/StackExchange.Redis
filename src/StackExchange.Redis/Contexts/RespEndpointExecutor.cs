@@ -259,6 +259,27 @@ namespace StackExchange.Redis
         public override RespPayload Send(in RespRequest request)
         {
             var operation = Dispatch(in request, default);
+
+            // FIRE-AND-FORGET DECLINES THE OUTCOME, INCLUDING THE BAD ONES. Waiting here returned the real
+            // result and the real exception to a caller who had said they were not going to look - so a
+            // command issued this way against a server that had just gone away threw at them. The reply is
+            // drained and discarded exactly as a preamble's is: still sent, still completed, nobody told.
+            //
+            // Null rather than a payload, which is what Parse already expects and documents: "the caller
+            // has explicitly declined it, so the pipeline never captures one and the executor hands back
+            // null". The executor simply never did.
+            //
+            // SYNCHRONOUS ONLY, deliberately. The same short-circuit on SendAsync loses commands, and the
+            // reason is not about fire-and-forget at all: returning before the write means a caller can
+            // dispose the multiplexer while the command is still queued. SO10504853Tests does exactly that
+            // - KeyDelete(F&F) inside a using block - and the delete never lands. That is a disposal
+            // ordering gap, and it has to be fixed before the async half can follow; see design notes.
+            if ((request.Flags & CommandFlags.FireAndForget) != 0)
+            {
+                RespPayloadOperation.DiscardReply(operation);
+                return null!;
+            }
+
             return operation.Wait(operation.Token, TimeSpan.Zero);
         }
 
