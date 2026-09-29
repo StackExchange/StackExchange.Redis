@@ -358,6 +358,7 @@ namespace StackExchange.Redis
             var body = RespPayloadOperation.Rent();
             body.Attach(request.Span, request.Flags, cancellationToken);
             body.Slot = request.Slot;
+            body.Command = request.Command;
             body.Observer = this;
             _startProfile?.Invoke(body, request.Command, request.Flags, Database, _endpoint);
 
@@ -797,6 +798,7 @@ namespace StackExchange.Redis
             var operation = RespPayloadOperation.Rent();
             operation.Attach(request.Span, request.Flags, cancellationToken);
             operation.Database = database;
+            operation.Command = request.Command;
             operation.Observer = this;
 
             // started HERE, where the endpoint is finally known: a profiled command reports which server
@@ -1344,8 +1346,13 @@ namespace StackExchange.Redis
                 // own error survives as the inner exception, where it belongs.
                 if (stranded is not null)
                 {
-                    var unavailable = NoConnection(RedisCommand.NONE) ?? fault;
-                    while (stranded.Count != 0) Fail(stranded.Dequeue(), unavailable);
+                    // each told in terms of ITS OWN command, since that is what the caller asked for and
+                    // what the shipped diagnosis names; they are only in one queue by accident of timing
+                    while (stranded.Count != 0)
+                    {
+                        var operation = stranded.Dequeue();
+                        Fail(operation, NoConnection(operation.Command) ?? fault);
+                    }
                 }
 
                 throw fault;

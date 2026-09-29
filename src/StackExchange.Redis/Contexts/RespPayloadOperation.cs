@@ -121,6 +121,17 @@ namespace StackExchange.Redis
         /// <summary>The flags the request carried, which the retry and redirect layers read.</summary>
         internal CommandFlags Flags => _flags;
 
+        /// <summary>Which command this is, for diagnostics after the request itself is gone.</summary>
+        /// <remarks>
+        /// <b>Kept for the same reason <see cref="Slot"/> and <see cref="Database"/> are</b>: the rendered
+        /// request is bytes and the caller's frame is released, so by the time this command fails there is
+        /// nothing left to say what it was. It matters most on the backlog, which is exactly where a
+        /// failure is reported without the command ever having been written - and "no connection was
+        /// available to service this operation" is a good deal less useful when it cannot name the
+        /// operation.
+        /// </remarks>
+        internal RedisCommand Command { get; set; }
+
         /// <summary>
         /// Set when the server redirected somewhere that cannot be dialled; the error this reply becomes
         /// says so instead of restating the raw redirect.
@@ -191,6 +202,7 @@ namespace StackExchange.Redis
         protected override void OnReset()
         {
             HasFollowedRedirect = false;
+            Command = RedisCommand.NONE;
             Observer = null;
             UnroutableRedirectMessage = null;
             ExpectsQueuedReceipt = false;

@@ -2048,7 +2048,23 @@ Each step is independently shippable and leaves the tree green.
   why this is not another `ServerSelectionStrategy` dependency in disguise: it is state held here, not a
   question asked per command.
 
-  The reporting half remains: counters, backlog visibility, and connection state on the public surface.
+  **The backlog is now visible too.** `GetCounters` and `GetBridgeStatus` fold in this core's queue per
+  endpoint and connection type - added, not substituted, since both queues are real while both cores
+  exist. That closes the three `BacklogTests`. A backlog exists to be seen, and a client waiting on one
+  it is told is empty is the diagnostic failing exactly when it is needed.
+
+  What remains of the reporting half is connection state on the public surface, plus two parity gaps
+  found by pushing the failure messages to match:
+
+  - **A backlogged command that cannot be sent should time out IN THE BACKLOG**, with the shipped
+    wording ("The message timed out in the backlog attempting to..."). This core instead fails it
+    immediately when the connect attempt strands the queue. Different behaviour, not different text -
+    `AbortOnConnectFailTests.DisconnectAndNoReconnect...` is the one that says so.
+  - **The failure names the command but not the key** ("...to service this operation: GET" where the
+    shipped core says "GET {key}"). The rendered request is bytes and the key reference is gone by the
+    time it fails, so this needs the key carried on the operation for diagnostics, as the command now
+    is. Worth doing - a timeout that cannot name the key is a poor bug report - but it is a deliberate
+    per-operation cost rather than a free fix.
 
   Note the ordering this leaves. Selectability was a prerequisite for D2.3 but not a sufficient one -
   the timing blocker is still there, and it is answered by `ConnectMode` defaulting to something other
