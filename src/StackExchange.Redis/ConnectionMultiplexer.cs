@@ -1469,6 +1469,10 @@ namespace StackExchange.Redis
 
                 CheckTopologyRefreshDue(now);
 
+                // the other core's endpoints, for the same reason the snapshot below is pulsed: a late
+                // reply announces itself to nobody, so noticing one is work that happens on a clock
+                NewCoreIfCreated?.OnHeartbeat();
+
                 var tmp = GetServerSnapshot();
                 int token = 0;
                 bool isRooted = pulse?.IsRooted(out token) ?? false, hasPendingCallerFacingItems = false;

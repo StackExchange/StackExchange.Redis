@@ -565,7 +565,8 @@ namespace StackExchange.Redis
             StartProfile,
             _select,
             _multiplexer.RawConfig.ConnectTimeout,
-            () => _multiplexer.RawConfig.ReconnectRetryPolicy);
+            () => _multiplexer.RawConfig.ReconnectRetryPolicy,
+            server: () => ModelledServer(endpoint));
 
         /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
         /// <remarks>
@@ -622,7 +623,19 @@ namespace StackExchange.Redis
                 command,
                 commandAndKey),
             () => _multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure ?? true,
-            () => _multiplexer.TimeoutMilliseconds);
+            () => _multiplexer.TimeoutMilliseconds,
+            () => ModelledServer(endpoint));
+
+        /// <summary>The <see cref="ServerEndPoint"/> this client models for an endpoint, if it models one.</summary>
+        /// <remarks>
+        /// <b>Shared with the shipped core on purpose.</b> Beliefs about a server that are not facts about a
+        /// socket - whether a maintenance window is open, what it announced, when it closed - are recorded
+        /// once, by whichever core saw the notification, and both read the same record. Duplicating them
+        /// would make the two cores disagree about the same server, which is the failure mode design notes
+        /// section 9 is trying to remove rather than reproduce.
+        /// </remarks>
+        private ServerEndPoint? ModelledServer(EndPoint endpoint)
+            => _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
 
         /// <summary>Announce that an endpoint's circuit breaker has judged it unhealthy.</summary>
         /// <param name="endpoint">The endpoint whose breaker tripped.</param>
@@ -1075,6 +1088,19 @@ namespace StackExchange.Redis
         }
 
         private const int DrainPollMilliseconds = 5;
+
+        /// <summary>Periodic upkeep, driven by the multiplexer's heartbeat.</summary>
+        /// <remarks>
+        /// The shipped core pulses every <c>ServerEndPoint</c> from the same timer; this is the equivalent
+        /// for the endpoints this core owns. Timeouts are the work that has to happen on a clock rather
+        /// than in response to something: nothing arrives to tell you a reply is late.
+        /// </remarks>
+        internal void OnHeartbeat()
+        {
+            var timeout = _multiplexer.AsyncTimeoutMilliseconds;
+            foreach (var pair in _endpoints) pair.Value.OnHeartbeat(timeout);
+            foreach (var pair in _subscriptions) pair.Value.OnHeartbeat(timeout);
+        }
 
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()

@@ -125,6 +125,11 @@ namespace StackExchange.Redis
         /// Null means abandon, which is the safe reading when nobody has said.
         /// </param>
         /// <param name="backlogTimeoutMilliseconds">How long a command may wait in the backlog.</param>
+        /// <param name="server">
+        /// This endpoint's modelled server, for the beliefs that live there rather than on a connection -
+        /// principally whether a maintenance window is relaxing timeouts. A function because the executor
+        /// can outlive any particular <c>ServerEndPoint</c>, and null when nobody models this endpoint.
+        /// </param>
         /// <param name="noConnection">
         /// Describes "no connection was available" the way the shipped core describes it - which endpoints
         /// were tried, what each last failed with, how far connecting had got. Null falls back to a bare
@@ -144,8 +149,10 @@ namespace StackExchange.Redis
             Action? onCircuitBroken = null,
             Func<RedisCommand, string?, Exception>? noConnection = null,
             Func<bool>? abortPendingOnConnectionFailure = null,
-            Func<int>? backlogTimeoutMilliseconds = null)
+            Func<int>? backlogTimeoutMilliseconds = null,
+            Func<ServerEndPoint?>? server = null)
         {
+            _server = server;
             _circuitBreakerFactory = circuitBreaker;
             _onCircuitBroken = onCircuitBroken;
             _noConnection = noConnection;
@@ -171,6 +178,17 @@ namespace StackExchange.Redis
         /// decision that makes the injection necessary.
         /// </remarks>
         private readonly SelectPreamble? _select;
+
+        private readonly Func<ServerEndPoint?>? _server;
+        private ServerEndPoint? _serverCache;
+
+        /// <summary>This endpoint's modelled server, or null when nobody models it.</summary>
+        /// <remarks>
+        /// Resolved once and kept: the lookup walks the multiplexer's endpoint table, and this is asked on
+        /// the timeout path where a dictionary probe per command would be pure overhead. A miss is not
+        /// cached, so an endpoint that becomes modelled later is still picked up.
+        /// </remarks>
+        private ServerEndPoint? Server => _serverCache ??= _server?.Invoke();
 
         /// <inheritdoc/>
         public override int Database { get; }
@@ -614,7 +632,11 @@ namespace StackExchange.Redis
             // EXEC always fails was never judged unhealthy - the breaker saw only the single sends.
             for (var i = 0; i < count; i++)
             {
-                if (run[i] is RespPayloadOperation operation) operation.Observer = this;
+                if (run[i] is RespPayloadOperation operation)
+                {
+                    operation.Observer = this;
+                    operation.Server = Server;
+                }
             }
 
             if (_select is null || database < 0) return connection.Send(run, count);
@@ -882,6 +904,43 @@ namespace StackExchange.Redis
             Volatile.Write(ref _lastConnectFault, fault);
         }
 
+        /// <summary>Periodic upkeep: time out whatever has waited too long, queued or in flight.</summary>
+        /// <param name="timeoutMilliseconds">The configured command timeout.</param>
+        /// <remarks>
+        /// <b>Driven by the multiplexer heartbeat, which is where the shipped core does this too.</b> A
+        /// command that has been WRITTEN has nothing else bounding it: the caller's wait had no deadline
+        /// and the operation backstop is two minutes away, so a server that stops answering - paused,
+        /// wedged, gone quiet - left commands hanging rather than timing out.
+        /// <para>
+        /// The RELAXED timeout where a maintenance window says so, since a window exists precisely to
+        /// rescue commands that would otherwise expire while a server is moved.
+        /// </para>
+        /// </remarks>
+        internal void OnHeartbeat(int timeoutMilliseconds)
+        {
+            ExpireBacklog();
+
+            if (timeoutMilliseconds <= 0) return;
+
+            RespConnection? connection;
+            lock (_sync) connection = _connection;
+            if (connection is null || connection.IsClosed) return;
+
+            timeoutMilliseconds = EffectiveTimeout(timeoutMilliseconds);
+            if (timeoutMilliseconds > 0) connection.ExpirePending(TimeSpan.FromMilliseconds(timeoutMilliseconds));
+        }
+
+        /// <summary>The timeout that actually applies, after any maintenance window has had its say.</summary>
+        /// <param name="timeoutMilliseconds">The configured timeout.</param>
+        /// <remarks>
+        /// A window exists precisely to rescue commands that would otherwise expire while a server is being
+        /// moved, so every sweep that can end a command has to ask - the queued ones as much as the written
+        /// ones, because a command waiting for a connection to a server that is mid-migration is the exact
+        /// case the window is for.
+        /// </remarks>
+        private int EffectiveTimeout(int timeoutMilliseconds)
+            => Server is { } server ? server.GetEffectiveTimeoutMilliseconds(timeoutMilliseconds) : timeoutMilliseconds;
+
         /// <summary>Fail anything that has waited longer than it agreed to.</summary>
         /// <remarks>
         /// <b>The other half of letting a backlog survive a failed connect.</b> Commands wait because a
@@ -895,7 +954,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private void ExpireBacklog()
         {
-            var timeout = _backlogTimeoutMilliseconds?.Invoke() ?? 0;
+            var timeout = EffectiveTimeout(_backlogTimeoutMilliseconds?.Invoke() ?? 0);
             if (timeout <= 0) return;
 
             List<RespPayloadOperation>? expired = null;
@@ -926,14 +985,34 @@ namespace StackExchange.Redis
 
             foreach (var operation in expired)
             {
-                Fail(
-                    operation,
-                    new RedisConnectionException(
+                // the type follows the shipped rule, which is not cosmetic: a connection exception is
+                // reported only when connecting has actually been FAILING, because then the timeout is a
+                // symptom and the connection fault is the cause. A command merely waiting behind a connect
+                // that is slow rather than broken timed out, and callers catch RedisTimeoutException for
+                // that - see ExceptionFactory.Timeout's `logConnectionException`.
+                var maintenance = operation.MaintenanceTypeForFault;
+                Exception fault;
+                if (last is null)
+                {
+                    fault = new RedisTimeoutException(operation.Flags, text, CommandStatus.WaitingInBacklog)
+                    {
+                        MaintenanceType = maintenance,
+                    };
+                }
+                else
+                {
+                    fault = new RedisConnectionException(
                         ConnectionFailureType.UnableToConnect,
                         operation.Flags,
                         text,
                         last,
-                        CommandStatus.WaitingInBacklog));
+                        CommandStatus.WaitingInBacklog)
+                    {
+                        MaintenanceType = maintenance,
+                    };
+                }
+
+                Fail(operation, fault);
             }
         }
 
@@ -976,6 +1055,7 @@ namespace StackExchange.Redis
             operation.Database = database;
             operation.Command = request.Command;
             operation.Observer = this;
+            operation.Server = Server;
 
             // started HERE, where the endpoint is finally known: a profiled command reports which server
             // answered it, and until routing has resolved there is no honest answer to that.

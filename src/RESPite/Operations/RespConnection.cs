@@ -126,6 +126,33 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// <summary>Operations written and still awaiting a reply.</summary>
     public int PendingCount => _pending.Count;
 
+    /// <summary>Time out anything that has been awaiting a reply for too long.</summary>
+    /// <param name="olderThan">How long an operation may wait before it is declared timed out.</param>
+    /// <returns>How many were timed out by this call.</returns>
+    /// <remarks>
+    /// <b>Nothing is dequeued, and that is the whole subtlety.</b> Replies are matched to this queue
+    /// POSITIONALLY - the head answers the next frame - so removing a timed-out operation would re-address
+    /// every reply after it to the wrong command. It stays where it is, already completed, and its slot
+    /// still consumes the frame that eventually arrives; <c>Drain</c> ignores the result of delivering to
+    /// an operation that has already ended, which is what makes that safe.
+    /// <para>
+    /// A timeout is deliberately not a cancellation: the request may well have been written and executed,
+    /// so this says only that we stopped waiting.
+    /// </para>
+    /// </remarks>
+    internal int ExpirePending(TimeSpan olderThan)
+    {
+        if (olderThan <= TimeSpan.Zero || _pending.IsEmpty) return 0;
+
+        var expired = 0;
+        foreach (var message in _pending)
+        {
+            if (message.TryTimeoutIfOlderThan(olderThan)) expired++;
+        }
+
+        return expired;
+    }
+
     /// <summary>Whether the connection has closed, for any reason.</summary>
     public bool IsClosed => Volatile.Read(ref _closed) != 0;
 

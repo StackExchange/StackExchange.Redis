@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     /// of the receive buffer instead is a real win and a separate piece of work.
     /// </para>
     /// </remarks>
-        internal sealed class RespPayloadOperation : RespMessageBase<RespPayload>
+        internal sealed class RespPayloadOperation : RespMessageBase<RespPayload>, IFaultSubject
     {
         /// <summary>
         /// Recycled operations, so a steady-state send allocates no operation at all.
@@ -215,7 +215,64 @@ namespace StackExchange.Redis
             => new RedisTimeoutException(
                 _flags,
                 $"Timeout awaiting a response ({Diagnostics.Age.TotalMilliseconds:n0}ms), command={CommandAndKey}",
-                (CommandStatus)Diagnostics.Status);
+                (CommandStatus)Diagnostics.Status)
+            {
+                MaintenanceType = MaintenanceTypeForFault,
+            };
+
+        /// <summary>Which announced disruption, if any, a fault on this command should be blamed on.</summary>
+        /// <remarks>
+        /// <b>Bounded by this command's own age rather than the configured timeout</b>, which is the same
+        /// question <see cref="ExceptionFactory"/> asks with less to go on. A window that closed while this
+        /// command was outstanding still counts - a command that timed out was waiting for its whole
+        /// timeout before anybody looked, so reading the <i>active</i> type would report
+        /// <see cref="Maintenance.MaintenanceNotificationType.None"/> for a timeout maintenance plainly
+        /// caused. The shipped core has to approximate the age from configuration; here the operation
+        /// knows exactly how long it waited.
+        /// </remarks>
+        internal Maintenance.MaintenanceNotificationType MaintenanceTypeForFault
+            => Server?.GetMaintenanceTypeForFault((int)Diagnostics.Age.TotalMilliseconds)
+                ?? Maintenance.MaintenanceNotificationType.None;
+
+        /// <summary>The server this command was sent to, when it is one this client models.</summary>
+        /// <remarks>
+        /// Carried on the operation for the same reason <see cref="Observer"/> is: by the time a fault is
+        /// built the routing decision is long gone, and the answer has to be the endpoint this command
+        /// actually went to.
+        /// </remarks>
+        internal ServerEndPoint? Server { get; set; }
+
+        /// <inheritdoc/>
+        string IFaultSubject.CommandAndKey => CommandAndKey;
+
+        /// <inheritdoc/>
+        string IFaultSubject.CommandString => Command.ToString();
+
+        /// <inheritdoc/>
+        CommandFlags IFaultSubject.Flags => _flags;
+
+        /// <inheritdoc/>
+        CommandStatus IFaultSubject.Status => (CommandStatus)Diagnostics.Status;
+
+        /// <inheritdoc/>
+        bool IFaultSubject.IsBacklogged => (CommandStatus)Diagnostics.Status == CommandStatus.WaitingInBacklog;
+
+        /// <inheritdoc/>
+        bool IFaultSubject.IsAsync => IsAwaited;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// This core gives the subscription connection its own executor rather than a flag on the command,
+        /// so the question is answered by whoever dispatched it; see <see cref="IsSubscription"/>.
+        /// </remarks>
+        bool IFaultSubject.IsForSubscriptionBridge => IsSubscription;
+
+        /// <inheritdoc/>
+        /// <remarks>Already computed by routing, which is the only thing that needed it.</remarks>
+        int IFaultSubject.GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => Slot;
+
+        /// <summary>Whether this command was sent on the subscription connection.</summary>
+        internal bool IsSubscription { get; set; }
 
         /// <inheritdoc/>
         protected override void OnSent() => Profile?.SetRequestSent();
@@ -258,6 +315,8 @@ namespace StackExchange.Redis
             HasFollowedRedirect = false;
             Command = RedisCommand.NONE;
             Observer = null;
+            Server = null;
+            IsSubscription = false;
             UnroutableRedirectMessage = null;
             ExpectsQueuedReceipt = false;
             Slot = ServerSelectionStrategy.NoSlot;

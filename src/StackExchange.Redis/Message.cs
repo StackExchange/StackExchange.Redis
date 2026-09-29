@@ -51,8 +51,20 @@ namespace StackExchange.Redis
         public ILogger Log => log;
     }
 
-    internal abstract partial class Message : ICompletable
+    internal abstract partial class Message : ICompletable, IFaultSubject
     {
+        /// <inheritdoc/>
+        bool IFaultSubject.IsAsync => ResultBoxIsAsync;
+
+        /// <inheritdoc/>
+        CommandStatus IFaultSubject.Status => Status;
+
+        /// <inheritdoc/>
+        bool IFaultSubject.IsBacklogged => IsBacklogged;
+
+        /// <inheritdoc/>
+        bool IFaultSubject.IsForSubscriptionBridge => IsForSubscriptionBridge;
+
         public readonly int Db;
 
         private uint _highIntegrityToken;

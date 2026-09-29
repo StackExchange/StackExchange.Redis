@@ -100,4 +100,15 @@ internal interface IRespMessage : IValueTaskSource
     /// so telling retry it definitely was not would be a lie that costs a duplicate write.
     /// </remarks>
     void TrySetTimedOut();
+
+    /// <summary>Time the operation out, but only if it has been waiting longer than this.</summary>
+    /// <param name="age">How long an operation may wait before it is declared timed out.</param>
+    /// <returns>Whether THIS call was the one that timed it out.</returns>
+    /// <remarks>
+    /// <b>One call rather than "ask the age, then time it out", because the two must not be separable.</b>
+    /// A sweep that read an age and acted on it afterwards would race the reply it is deciding about, and
+    /// claim an outcome for an operation that had just succeeded. The claim is the same one every other
+    /// outcome makes, so whoever gets there first wins and the loser does nothing.
+    /// </remarks>
+    bool TryTimeoutIfOlderThan(TimeSpan age);
 }

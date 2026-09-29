@@ -266,7 +266,28 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
+        /// <summary>Report that a command ran out of time, with everything known about why.</summary>
+        /// <param name="multiplexer">The client the command was issued through.</param>
+        /// <param name="baseErrorMessage">How to open the report; a default is chosen when this is empty.</param>
+        /// <param name="message">The command that timed out.</param>
+        /// <param name="server">The server it was sent to, when that is known.</param>
+        /// <param name="lastConnectionFault">
+        /// What connecting last failed with, when the caller has it to hand. The shipped core reads it off
+        /// the bridge; a core that has no bridge passes it directly, and the reading is what decides whether
+        /// a backlog timeout is reported as a connection fault or as a timeout.
+        /// </param>
+        internal static Exception Timeout(
+            ConnectionMultiplexer multiplexer,
+            string? baseErrorMessage,
+            IFaultSubject message,
+            ServerEndPoint? server,
+            RedisConnectionException? lastConnectionFault)
+            => Timeout(multiplexer, baseErrorMessage, message, server, WriteResult.TimeoutBeforeWrite, null, lastConnectionFault);
+
+        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, IFaultSubject message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
+            => Timeout(multiplexer, baseErrorMessage, message, server, result, bridge, null);
+
+        private static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, IFaultSubject message, ServerEndPoint? server, WriteResult? result, PhysicalBridge? bridge, RedisConnectionException? lastConnectionFault)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
@@ -279,7 +300,7 @@ namespace StackExchange.Redis
                     : "The timeout was reached before the message could be written to the output buffer, and it was not sent";
             }
 
-            var lastConnectionException = bridge?.LastException as RedisConnectionException;
+            var lastConnectionException = lastConnectionFault ?? bridge?.LastException as RedisConnectionException;
             var logConnectionException = message.IsBacklogged && lastConnectionException is not null;
 
             if (!string.IsNullOrEmpty(baseErrorMessage))
@@ -309,7 +330,7 @@ namespace StackExchange.Redis
                 Add(data, sb, "Timeout", "timeout", Format.ToString(multiplexer.TimeoutMilliseconds));
                 try
                 {
-                    if (message != null && message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
+                    if (message is Message physical && physical.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
                     {
                         Add(data, sb, "Write-State", null, ws.ToString());
                         Add(data, sb, "Read-State", null, rs.ToString());
@@ -338,6 +359,7 @@ namespace StackExchange.Redis
             // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
             // and we have a more direct cause: we had no connection to send it on.
             var msgFlags = message?.Flags ?? CommandFlags.CommandRetryNever;
+
             // If the server had announced a disruption, say so on the fault: "timeout" and "timeout during an
             // announced failover" call for very different reactions from whoever reads the log.
             //
@@ -346,7 +368,7 @@ namespace StackExchange.Redis
             // closed by the time this runs - which used to report None for a timeout maintenance plainly
             // caused. The timeout that applied is the bound on how far back to look; take the async one when
             // this message was awaited, since the two can be configured very differently.
-            var applicableTimeout = message?.ResultBoxIsAsync == true
+            var applicableTimeout = message?.IsAsync == true
                 ? multiplexer.AsyncTimeoutMilliseconds
                 : multiplexer.TimeoutMilliseconds;
             var maintenanceType = server?.GetMaintenanceTypeForFault(applicableTimeout)
@@ -383,13 +405,13 @@ namespace StackExchange.Redis
         private static void AddCommonDetail(
             List<Tuple<string, string>> data,
             StringBuilder sb,
-            Message? message,
+            IFaultSubject? message,
             ConnectionMultiplexer multiplexer,
             ServerEndPoint? server)
         {
-            if (message != null)
+            if (message is Message head)
             {
-                message.TryGetHeadMessages(out var now, out var next);
+                head.TryGetHeadMessages(out var now, out var next);
                 if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.CommandString);
                 if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.CommandString);
             }
@@ -431,7 +453,7 @@ namespace StackExchange.Redis
 
                 if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
-                    var log = server.GetStormLog(message);
+                    var log = message is Message stormSubject ? server.GetStormLog(stormSubject) : null;
                     if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
                 }
@@ -463,7 +485,7 @@ namespace StackExchange.Redis
             Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
 
-        private static void AddExceptionDetail(Exception? exception, Message? message, ServerEndPoint? server, string? label)
+        private static void AddExceptionDetail(Exception? exception, IFaultSubject? message, ServerEndPoint? server, string? label)
         {
             if (exception != null)
             {

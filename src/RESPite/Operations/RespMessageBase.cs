@@ -78,7 +78,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         Flag_MetadataParser = 1 << 5,   // the parser wants to see attributes/metadata itself
         Flag_InlineParser = 1 << 6,     // the parser is safe to run on the IO thread
         Flag_Indefinite = 1 << 7,       // the outcome does not prove the pipeline is done with us
-        Flag_Queued = 1 << 8;           // accepted by an owner that will send it later - a backlog
+        Flag_Queued = 1 << 8,           // accepted by an owner that will send it later - a backlog
+        Flag_Awaited = 1 << 9;          // an async consumer attached a continuation; nobody is blocked on it
 
     private const int FlagMask = 0xFFFF;
 
@@ -227,6 +228,16 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     protected virtual void OnFinished(Exception? fault)
     {
     }
+
+    /// <summary>Whether an async consumer attached a continuation, rather than blocking on the result.</summary>
+    /// <remarks>
+    /// <b>One-way and only ever a positive claim.</b> A continuation is attached exactly once, by the
+    /// machinery behind <c>await</c>, and only when the result was not already available - so "true" is
+    /// certain. "False" means only that nobody has attached one yet, which covers a synchronous waiter, a
+    /// fire-and-forget, and an <c>await</c> that has not reached the operation. Callers use it to describe a
+    /// fault, never to decide one.
+    /// </remarks>
+    protected bool IsAwaited => HasFlag(Flag_Awaited);
 
     // ---- state helpers ------------------------------------------------------------------------------
     private static int Pack(short version, int flags) => (version << 16) | (flags & FlagMask);
@@ -486,6 +497,10 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     void IRespMessage.TrySetTimedOut() => TrySetTimeout();
 
     /// <inheritdoc/>
+    bool IRespMessage.TryTimeoutIfOlderThan(TimeSpan age)
+        => _diagnostics.Age >= age && TrySetTimeout();
+
+    /// <inheritdoc/>
     void IRespMessage.TrySetCanceled()
     {
         // the cancellation callback races everything else; the claim decides, and losing is normal
@@ -706,7 +721,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
     {
         _asyncCore.OnCompleted(continuation, state, token, flags);
-        SetFlag(Flag_NoPulse); // an async consumer will never be blocked in Wait
+        SetFlag(Flag_NoPulse | Flag_Awaited); // an async consumer will never be blocked in Wait
     }
 
     ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _asyncCore.GetStatus(token);
