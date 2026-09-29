@@ -340,4 +340,55 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
         Assert.Equal(conn.GetEndPoints().Length, core.ConnectedEndpointCountForTest);
         Log($"Eager opened {core.ConnectedEndpointCountForTest} of {conn.GetEndPoints().Length} endpoints");
     }
+
+    /// <summary>
+    /// Owning a slot and being usable are different facts, and this core now holds both.
+    /// </summary>
+    /// <remarks>
+    /// <b>The second blocker on routing without the shipped selector, and the one that survived eager
+    /// connect.</b> The slot map says which endpoint SERVES a slot; it says nothing about whether that
+    /// endpoint may be used - retiring, redundant, the wrong server type, being migrated away from.
+    /// Routing from ownership alone sent work to a retired server, which is how the gap was found.
+    /// <para>
+    /// These are decisions the client makes rather than facts read from a server, so they are pushed as
+    /// they are made rather than discovered on a handshake. While both cores exist they are still
+    /// <c>ServerEndPoint</c>'s decisions; when only this core remains they are made here, and the reading
+    /// side does not change.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ARetiringServerIsNotSelectableEvenThoughItStillOwnsItsSlots()
+    {
+        Skip.IfNoCluster();
+        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+        var db = Transitional(conn.GetDatabase());
+        await db.PingAsync();
+
+        var core = ((ConnectionMultiplexer)conn).NewCore;
+        Assert.True(core.HasSlotMapForTest, "the cluster was not mapped");
+
+        // a slot this core knows the owner of
+        var owner = Enumerable.Range(0, 16384)
+            .Select(slot => core.SlotOwnerForTest(slot))
+            .FirstOrDefault(x => x is not null);
+        Assert.NotNull(owner);
+        Assert.True(core.IsSelectableForTest(owner!), "nothing is barred yet");
+
+        var server = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(owner!);
+        try
+        {
+            server.SetUnselectable(UnselectableFlags.Retiring);
+
+            // the ownership is unchanged - it still serves those slots - but it must not be chosen
+            Assert.Equal(owner, core.SlotOwnerForTest(Enumerable.Range(0, 16384).First(s => Equals(core.SlotOwnerForTest(s), owner))));
+            Assert.False(core.IsSelectableForTest(owner!), "a retiring server must not be selected for new work");
+        }
+        finally
+        {
+            server.ClearUnselectable(UnselectableFlags.Retiring);
+        }
+
+        Assert.True(core.IsSelectableForTest(owner!), "and it is usable again once it is no longer retiring");
+        Log($"{Format.ToString(owner!)} owns slots throughout; selectability moved independently");
+    }
 }

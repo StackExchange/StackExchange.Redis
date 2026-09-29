@@ -351,6 +351,48 @@ namespace StackExchange.Redis
         /// <summary>The endpoints currently believed to be replicas.</summary>
         internal EndPoint[] Replicas => Volatile.Read(ref _replicaSet);
 
+        /// <summary>Endpoints that must not be chosen for new work, and why.</summary>
+        /// <remarks>
+        /// <b>Ownership and usability are different questions, and the slot map only answers the first.</b>
+        /// The map says which endpoint SERVES a slot; it says nothing about whether that endpoint may be
+        /// used right now - it may be retiring, redundant, the wrong server type for this deployment, or
+        /// being migrated away from. Routing from ownership alone sent work to a retired server and to one
+        /// mid-maintenance, which is how this gap was found: it is the second of the two blockers on
+        /// removing the fallback to <c>ServerSelectionStrategy</c>, and the one that survived eager connect.
+        /// <para>
+        /// <b>Pushed rather than polled.</b> These are decisions the client makes about a server - during
+        /// reconfiguration, retirement, a maintenance notification - rather than facts read from it, so
+        /// there is nothing to discover on a handshake. While both cores exist the decisions are still
+        /// <c>ServerEndPoint</c>'s and arrive here as they are made; when only this core remains they are
+        /// made here, and nothing about the reading side changes.
+        /// </para>
+        /// </remarks>
+        private readonly ConcurrentDictionary<EndPoint, bool> _unselectable = new();
+
+        /// <summary>Whether an endpoint may be chosen for new work.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// Silent on whether it is CONNECTED, which is a separate question with a separate answer
+        /// (<see cref="RespConnectionState"/>): an endpoint nothing has dialled yet is perfectly
+        /// selectable, and one that is connected may still be retiring.
+        /// </remarks>
+        internal bool IsSelectable(EndPoint endpoint)
+            => endpoint is not null && !_unselectable.ContainsKey(endpoint);
+
+        /// <summary>Whether anything at all is currently barred, so the common case can skip the check.</summary>
+        internal bool HasUnselectable => !_unselectable.IsEmpty;
+
+        /// <summary>Record whether an endpoint may be chosen for new work.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="selectable">Whether it may be chosen.</param>
+        internal void OnSelectable(EndPoint endpoint, bool selectable)
+        {
+            if (endpoint is null) return;
+
+            if (selectable) _unselectable.TryRemove(endpoint, out _);
+            else _unselectable[endpoint] = true;
+        }
+
         /// <summary>Record what role an endpoint plays.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="role">What it turned out to be.</param>

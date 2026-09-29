@@ -130,6 +130,8 @@ namespace StackExchange.Redis
 
         internal string RoleOfForTest(EndPoint endpoint) => _topology.RoleOf(endpoint).ToString();
 
+        internal bool IsSelectableForTest(EndPoint endpoint) => _topology.IsSelectable(endpoint);
+
         internal int ConnectedEndpointCountForTest
         {
             get
@@ -294,6 +296,11 @@ namespace StackExchange.Redis
         /// </remarks>
         private EndPoint? ChooseByRole(RespTopology.SlotOwners owners, RedisCommand command, CommandFlags flags)
         {
+            // A slot's owner that may not be used is not an answer: null falls through to the selector,
+            // which knows what to do instead. Checked only when something is actually barred, since the
+            // overwhelmingly common case is that nothing is.
+            if (_topology.HasUnselectable && !_topology.IsSelectable(owners.Primary)) return null;
+
             if (command.IsPrimaryOnly()) return owners.Primary;
 
             switch (Message.GetPrimaryReplicaFlags(flags))
@@ -326,13 +333,17 @@ namespace StackExchange.Redis
             if (replicas.Length == 0) return null;
 
             var offset = (uint)Interlocked.Increment(ref _replicaRotation);
+            EndPoint? usable = null;
             for (var i = 0; i < replicas.Length; i++)
             {
                 var candidate = replicas[(offset + (uint)i) % (uint)replicas.Length];
+                if (!_topology.IsSelectable(candidate)) continue; // retiring, redundant, being migrated from
+
+                usable ??= candidate;
                 if (_endpoints.TryGetValue(candidate, out var dialled) && dialled.IsConnectedNow) return candidate;
             }
 
-            return replicas[offset % (uint)replicas.Length];
+            return usable;
         }
 
         /// <summary>Advances every time a replica is chosen; see <see cref="PickReplica"/>.</summary>
@@ -891,6 +902,12 @@ namespace StackExchange.Redis
 
             return any;
         }
+
+        /// <summary>Told that an endpoint may or may not be chosen for new work.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="selectable">Whether it may be chosen.</param>
+        /// <remarks>See <c>RespTopology.IsSelectable</c> for why this is pushed rather than discovered.</remarks>
+        internal void OnSelectable(EndPoint endpoint, bool selectable) => _topology.OnSelectable(endpoint, selectable);
 
         /// <summary>For testing only: drop this core's connections to an endpoint.</summary>
         /// <param name="endpoint">The endpoint to disconnect from.</param>

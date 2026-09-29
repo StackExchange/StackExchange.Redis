@@ -2035,6 +2035,24 @@ Each step is independently shippable and leaves the tree green.
   server-type filtering. *Done when* the three `BacklogTests` and the `AbortOnConnectFail`/`AsyncTests`
   recovery-timing group pass, and routing can answer "may this server be used?" without asking
   `ServerSelectionStrategy`.
+
+  **Selectability is done.** `RespTopology` holds which endpoints are barred from new work, and routing
+  consults it: a slot's owner that may not be used is not an answer, so the choice falls through rather
+  than sending work to a retiring server. `PickReplica` skips barred candidates the same way.
+
+  **Pushed rather than discovered, and that is the design rather than an expedient.** Retiring,
+  redundant, wrong-server-type and mid-maintenance are all decisions the CLIENT makes about a server
+  during reconfiguration - there is nothing to read from a connection, so a handshake could never learn
+  them. While both cores exist the decisions are still `ServerEndPoint`'s and arrive as they are made;
+  when only this core remains they are made here, and nothing about the reading side changes. That is
+  why this is not another `ServerSelectionStrategy` dependency in disguise: it is state held here, not a
+  question asked per command.
+
+  The reporting half remains: counters, backlog visibility, and connection state on the public surface.
+
+  Note the ordering this leaves. Selectability was a prerequisite for D2.3 but not a sufficient one -
+  the timing blocker is still there, and it is answered by `ConnectMode` defaulting to something other
+  than `Lazy`, which waits on D2.8. So D2.3 now needs only a default change, not new mechanism.
 - **D2.3 - Retire the routing fallbacks (this is D1).** With D2.1 done, the selector calls in
   `EndpointForSlot`/`EndpointForAny` and the probe's `SelectServer` come out. *Done when*
   `RespNewCore` names `ServerSelectionStrategy` nowhere.

@@ -585,6 +585,7 @@ namespace StackExchange.Redis
                 if (unselectableReasons != oldFlags)
                 {
                     Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                    PublishSelectable();
                 }
             }
         }
@@ -598,9 +599,24 @@ namespace StackExchange.Redis
                 if (unselectableReasons != oldFlags)
                 {
                     Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                    PublishSelectable();
                 }
             }
         }
+
+        /// <summary>Tell the other core what this one has just decided about this server.</summary>
+        /// <remarks>
+        /// <b>A decision, not an observation</b>: whether a server is retiring or redundant is something the
+        /// client concludes during reconfiguration, so there is nothing for the other core to discover on a
+        /// connection - it has to be told. Pushed only when the answer CHANGES, which is rare.
+        /// <para>
+        /// <c>DidNotRespond</c> is deliberately not special-cased away here even though the other core
+        /// tracks connectivity itself: agreeing that a server which did not respond should not be picked
+        /// for new work costs nothing, and disagreeing about it would be worse.
+        /// </para>
+        /// </remarks>
+        private void PublishSelectable()
+            => Multiplexer.NewCoreIfCreated?.OnSelectable(EndPoint, unselectableReasons == UnselectableFlags.None);
 
         public override string ToString() => Format.ToString(EndPoint);
 
