@@ -2122,6 +2122,30 @@ The second risk is scope: steps D2.4 through D2.7 are each a surface with its ow
 them is on the critical path to *routing* correctness. They can be sequenced by test count rather than
 by architecture, and should be.
 
+### 9b-vi. Fire-and-forget declines the outcome, and this core does not let it
+
+**The gap.** `CommandFlags.FireAndForget` means the caller has declined the result - and that includes
+the bad ones. This core returns the real result and, worse, the real exception: a command issued
+fire-and-forget against a server that had just gone away throws at a caller who said they were not
+going to look. `Issue2392Tests.Execute` and
+`RespEndToEndTests.SynchronousFireAndForgetReturnsDefaultRatherThanThrowing` both say so, and the
+design already assumes it is handled - `Parse`'s remarks state that "the caller has explicitly declined
+it, so the pipeline never captures one and the executor hands back null". The executor simply never
+did.
+
+**Attempted in `RespEndpointExecutor.Send`/`SendAsync`, and that is the wrong layer.** Both target tests
+passed; the engine suite went 38 -> 61 and the DEFAULT suite broke, which is the part worth recording.
+The failures were counting mismatches rather than crashes - `ScriptingTests.MultiIncrWithoutReplies`
+expecting 1 and getting 0, `SO10504853Tests.LoopLotsOfTrivialStuff` expecting 1 and getting 3 - because
+that executor serves runs as well as single sends. A transaction of fire-and-forget commands still needs
+each queued reply: `+QUEUED` receipts and then the positional `EXEC` array. Discarding them there
+shifted every result.
+
+**Where it belongs** is the single-send path on the context - where the comment quoted above already
+lives - so that a command composed into a batch or a transaction keeps its reply for whoever is
+distributing them. `RespOperationBatch` and `RespTransaction` already have their own fire-and-forget
+handling, which is the other half of the same observation: the decision is per-composition, not per-write.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather
