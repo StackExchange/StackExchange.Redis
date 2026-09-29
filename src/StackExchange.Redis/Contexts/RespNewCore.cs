@@ -690,7 +690,10 @@ namespace StackExchange.Redis
             // every reply this core reads lands in an inbound buffer, and a caller who supplied a pool
             // asked to own the memory the replies live in
             var connection = new RespClientConnection(
-                transport, Follow, config.IncludeDetailInExceptions, config.ResponseBufferPool);
+                transport,
+                (in RespRedirect redirect, RespPayloadOperation operation) => Follow(endpoint, in redirect, operation),
+                config.IncludeDetailInExceptions,
+                config.ResponseBufferPool);
             var context = new RespDatabaseContext(
                 new RespContext(config.CommandMap, database: 0)
                     .WithExecutor(new RespConnectionExecutor(connection, 0)));
@@ -780,8 +783,77 @@ namespace StackExchange.Redis
             return profile;
         }
 
-        private bool Follow(in RespRedirect redirect, RespPayloadOperation operation)
-            => _router.TryFollowRedirect(in redirect, operation);
+        /// <summary>Decide what to do about a redirect that arrived on one endpoint's connection.</summary>
+        /// <param name="from">The endpoint whose connection received it.</param>
+        /// <param name="redirect">What the server said.</param>
+        /// <param name="operation">The command that was redirected; not yet completed.</param>
+        /// <remarks>
+        /// <b>A <c>MOVED</c> pointing at the endpoint we are already talking to is not about the slot map
+        /// at all.</b> It happens when a name resolves to something that has changed underneath - DNS, a
+        /// load balancer, a proxy - so the address is still right and the CONNECTION is stale. Re-sending
+        /// on the same socket gets the same answer forever, which is exactly how it presented: the second
+        /// <c>MOVED</c> surfaced to the caller as an error, because a command is only allowed to follow one.
+        /// <para>
+        /// The shipped core marks the bridge for reconnect and lets its reader loop act on it. This drops
+        /// the connection and re-queues the command, which then goes out on the replacement.
+        /// </para>
+        /// </remarks>
+        private bool Follow(EndPoint from, in RespRedirect redirect, RespPayloadOperation operation)
+        {
+            if (redirect.IsMoved && redirect.Endpoint is { } target && Equals(target, from))
+            {
+                ReconnectAndResend(from, operation);
+                return true; // ours now; the operation must not be completed with the redirect
+            }
+
+            return _router.TryFollowRedirect(in redirect, operation);
+        }
+
+        /// <summary>Replace an endpoint's connection, then send the command again on the new one.</summary>
+        /// <param name="endpoint">The endpoint to reconnect.</param>
+        /// <param name="operation">The command to re-send once it has.</param>
+        /// <remarks>
+        /// <b>On the pool, never here.</b> This is called from the read loop of the very connection being
+        /// dropped, and disposing a connection from inside its own loop is a self-join - which an earlier
+        /// attempt at this found the hard way, and is why it was reverted rather than patched. The circuit
+        /// breaker hands its teardown off for the same reason.
+        /// </remarks>
+        private void ReconnectAndResend(EndPoint endpoint, RespPayloadOperation operation)
+            => ThreadPool.QueueUserWorkItem(
+                static state => ((Reconnect)state!).Run(),
+                new Reconnect(this, endpoint, operation));
+
+        /// <summary>The work a same-endpoint <c>MOVED</c> hands to the pool.</summary>
+        /// <remarks>
+        /// A named type rather than a tuple: <c>System.ValueTuple</c> is not referenced by this assembly -
+        /// <c>SanityChecks.ValueTupleNotReferenced</c> enforces it, and caught this - because the
+        /// down-level targets would take a package dependency for it.
+        /// </remarks>
+        private sealed class Reconnect(RespNewCore core, EndPoint endpoint, RespPayloadOperation operation)
+        {
+            internal void Run()
+            {
+                try
+                {
+                    // immediately: the drop was deliberate and the remedy IS the reconnect, so the backoff
+                    // meant for a refusing server would only strand the re-sent command
+                    core.Endpoint(endpoint).DropConnection(reconnectImmediately: true);
+
+                    // backlogged behind that reconnect and written on whatever replaces it.
+                    // HasFollowedRedirect is already set, so a second MOVED stands as the error it is
+                    // rather than looping.
+                    var database = operation.Database < 0 ? core._defaultDatabase : operation.Database;
+                    if (!core.Executor(database, endpoint).TryResend(operation))
+                    {
+                        operation.EnsureFaulted(operation.Flags, null);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    operation.EnsureFaulted(operation.Flags, ex);
+                }
+            }
+        }
 
         /// <summary>Which endpoint would take this command, routed exactly as the command would be.</summary>
         /// <param name="command">The command.</param>

@@ -2150,6 +2150,33 @@ lives - so that a command composed into a batch or a transaction keeps its reply
 distributing them. `RespOperationBatch` and `RespTransaction` already have their own fire-and-forget
 handling, which is the other half of the same observation: the decision is per-composition, not per-write.
 
+### 9b-vii. MOVED to the endpoint we are already on
+
+**Not a statement about the slot map.** A `MOVED` naming the endpoint the reply arrived on happens when
+a name resolves to something that has changed underneath - DNS, a load balancer, a proxy - so the
+address is still right and the CONNECTION is stale. Re-sending on the same socket gets the same answer
+forever, and since a command may follow only one redirect, the second `MOVED` surfaced to the caller as
+an error. That is what `MovedUnitTests` has been failing on.
+
+The remedy is the shipped one: replace the connection, then send the command again on its replacement.
+Two things had to exist first, and both now do - `DropConnection`, and the habit of handing teardown to
+the pool rather than doing it on the read loop of the connection being dropped, which is the self-join
+an earlier attempt at this found and was reverted for.
+
+**And a third thing, which was the actual blocker.** After the drop, the resend sat in the backlog until
+it timed out, because `EnsureConnecting` consulted the reconnect backoff - an interval meant for a
+server that is refusing us, applied to a connection we had just deliberately closed. `DropConnection`
+now takes `reconnectImmediately` for that case. Relaxing the backoff generally was tried first and is
+wrong: `ReconnectRetryPolicyUnitTests` asserts the policy IS consulted, and three more of its cases
+failed.
+
+**Where it stands: the behaviour works, the test does not pass.** The wire trace shows exactly what is
+wanted - `SET` on the old connection answered `-MOVED`, a new connection, `SET` answered `+OK`, then the
+`GET` reading the value back - and the test now fails five asserts later on
+`SetCmdCount == 2`, reporting 3. The server counts a `SET` that produces no response line, which points
+at one reaching the connection being dropped; it needs the fake server instrumented rather than another
+guess.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather

@@ -745,7 +745,7 @@ namespace StackExchange.Redis
         /// and the next command dials again and drains it.
         /// </para>
         /// </remarks>
-        internal bool DropConnection()
+        internal bool DropConnection(bool reconnectImmediately = false)
         {
             RespConnection? doomed;
             lock (_sync)
@@ -763,7 +763,17 @@ namespace StackExchange.Redis
             // dialling, deliberately, so an endpoint that dropped once stayed down forever and the
             // deployment never recovered from a blip. Armed rather than dialled, so the retry policy still
             // decides when - and so this costs nothing per command, which is what the refusal is for.
-            if (!_disposed) ArmConnectRetry();
+            if (_disposed) return true;
+
+            if (reconnectImmediately)
+            {
+                lock (_sync) EnsureConnecting(force: true);
+            }
+            else
+            {
+                ArmConnectRetry();
+            }
+
             return true;
         }
 
@@ -1230,10 +1240,19 @@ namespace StackExchange.Redis
         /// Single-flight: everybody who arrives while a connect is in progress waits on that one rather
         /// than starting a competing attempt. Called with the lock held.
         /// </remarks>
-        private void EnsureConnecting()
+        private void EnsureConnecting() => EnsureConnecting(force: false);
+
+        /// <summary>Start connecting, optionally ignoring the backoff.</summary>
+        /// <param name="force">
+        /// True when the connection was dropped ON PURPOSE - a <c>MOVED</c> to ourselves, whose entire
+        /// remedy is "reconnect and try again". The backoff exists to space out attempts against a server
+        /// that is refusing us, and nothing here is refusing: waiting out that interval just means the
+        /// re-sent command sits in the backlog until it times out, which is what it did.
+        /// </param>
+        private void EnsureConnecting(bool force)
         {
             if (_connecting is not null) return;
-            if (!DueForConnectRetry())
+            if (!force && !DueForConnectRetry())
             {
                 // THE BACKOFF SAYING "not yet" USED TO MEAN "not ever". Nothing else came back: this core
                 // dials on demand, so if no command happened to arrive after the delay elapsed, the
