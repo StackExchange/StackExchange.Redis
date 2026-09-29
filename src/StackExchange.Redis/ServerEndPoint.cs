@@ -1484,10 +1484,7 @@ namespace StackExchange.Redis
             var password = config.Password ?? "";
             var clientName = Multiplexer.ClientName;
 
-            if (!string.IsNullOrWhiteSpace(clientName))
-            {
-                clientName = nameSanitizer.Replace(clientName, "");
-            }
+            clientName = SanitizeClientName(clientName);
 
             // NOTE:
             // we might send the auth and client-name *twice* in RESP3 mode; this is intentional:
@@ -1702,6 +1699,18 @@ namespace StackExchange.Redis
         }
         internal static string ClientInfoSanitize(string? value)
             => string.IsNullOrWhiteSpace(value) ? "" : nameSanitizer.Replace(value!.Trim(), "-");
+
+        /// <summary>A client name the server will accept, or empty if there is nothing to set.</summary>
+        /// <param name="value">The configured name.</param>
+        /// <remarks>
+        /// <b>Characters are REMOVED rather than replaced</b>, which is the difference from
+        /// <see cref="ClientInfoSanitize"/> and is not arbitrary: <c>CLIENT SETNAME</c> rejects a name with a
+        /// space outright, so "Test Rig" has to become "TestRig" and not "Test-Rig" - <c>ConfigTests.ClientName</c>
+        /// reads the result. Shared so that a second handshake cannot get it subtly different; the new core's
+        /// did, sent the name with its space in, had it refused, and left the connection nameless.
+        /// </remarks>
+        internal static string SanitizeClientName(string? value)
+            => string.IsNullOrWhiteSpace(value) ? "" : nameSanitizer.Replace(value!, "");
 
         private void ClearMemoized()
         {

@@ -540,7 +540,7 @@ namespace StackExchange.Redis
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithScriptCache(_multiplexer.ScriptCache)
                 .WithServices(_features)
-                .WithExecutor(Endpoint(endpoint)));
+                .WithExecutor(ServerExecutor(endpoint)));
 
         /// <summary>
         /// A context that sends on the connection deliveries arrive on for an endpoint.
@@ -749,12 +749,14 @@ namespace StackExchange.Redis
                 context,
                 config.User,
                 credentials ? config.Password : null,
-                _multiplexer.ClientName,
+                ServerEndPoint.SanitizeClientName(_multiplexer.ClientName),
                 database,
                 config.Protocol is null or RedisProtocol.Resp3,
                 _topology,
                 endpoint,
                 subscription ? null : _multiplexer.ClientCache,
+                _multiplexer.GetFullLibraryName(),
+                ServerEndPoint.ClientInfoSanitize(Utils.GetLibVersion()),
                 cancellationToken).ConfigureAwait(false);
 
             // recorded BEFORE the connection is handed back, for the same reason the topology is: the
@@ -1065,6 +1067,45 @@ namespace StackExchange.Redis
         {
             var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
             return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.LastConnectFault : null;
+        }
+
+        /// <summary>Re-announce the library name on every connection this core already has.</summary>
+        /// <param name="libraryName">The name to report, suffixes included.</param>
+        /// <remarks>
+        /// <b>The other half of <c>ConnectionMultiplexer.AddLibraryNameSuffix</c>.</b> A suffix added after
+        /// connecting has to reach the connections that are already up, and that retro-fix goes through
+        /// <c>IServer.Execute</c> - which reaches whichever core <c>IServer</c> is on and no other. While
+        /// both cores exist one of them is always missed, so this is asked directly.
+        /// <para>
+        /// Fire-and-forget, and every failure swallowed: the name is a diagnostic, and a connection is not
+        /// worth losing over one. The subscription connections are included because <c>CLIENT LIST</c> shows
+        /// them too, and an unnamed one there is exactly as unhelpful.
+        /// </para>
+        /// </remarks>
+        internal void SetLibraryName(string libraryName)
+        {
+            if (string.IsNullOrWhiteSpace(libraryName)) return;
+            if (!_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.CLIENT)) return;
+
+            foreach (var pair in _endpoints) Announce(pair.Key, pair.Value);
+            foreach (var pair in _subscriptions) Announce(pair.Key, pair.Value);
+
+            void Announce(EndPoint endpoint, RespEndpointExecutor executor)
+            {
+                if (!executor.IsConnectedNow) return;
+                try
+                {
+                    var context = new RespContext(_multiplexer.RawConfig.CommandMap, database: -1)
+                        .WithExecutor(executor.WithDatabase(-1));
+                    _ = context.SendAsync(
+                        $"{RedisCommand.CLIENT}{RedisLiterals.SETINFO}{RedisLiterals.lib_name}{(RedisValue)libraryName}",
+                        CommandFlags.FireAndForget);
+                }
+                catch
+                {
+                    // best efforts, as the shipped retro-fix is; see the remarks
+                }
+            }
         }
 
         /// <summary>Told that an endpoint may or may not be chosen for new work.</summary>

@@ -771,7 +771,43 @@ namespace StackExchange.Redis
         /// not yet connected - minus creating one, because a redirected command already has its own and
         /// somebody is already awaiting it.
         /// </remarks>
-        internal override bool TryResend(RespPayloadOperation operation) => Enqueue(operation);
+        internal override bool TryResend(RespPayloadOperation operation)
+        {
+            Reprofile(operation, isMoved: true);
+            return Enqueue(operation);
+        }
+
+        /// <summary>Give a redirected command its own profiling record, linked to the one it came from.</summary>
+        /// <param name="operation">The command being re-sent.</param>
+        /// <param name="isMoved">Whether the redirect was a <c>MOVED</c> rather than an <c>ASK</c>.</param>
+        /// <remarks>
+        /// <b>A retransmission is a second command as far as a profile is concerned</b>, and that is what
+        /// makes a profile useful here: it went to one server, was told to go elsewhere, and went - two
+        /// timings, joined by <c>RetransmissionOf</c>, and each naming the endpoint it actually reached.
+        /// Reusing one record collapses that into a single entry against whichever server happened to be
+        /// last, which is the version of events least like what happened.
+        /// <para>
+        /// The old record is finished first, because it IS finished: the reply that ended it was the
+        /// redirect. Its timings are complete and nothing more will be added to it. <c>ProfiledCommand</c>
+        /// has carried <c>NewAttachedToSameContext</c> for exactly this since the shipped core started
+        /// re-issuing, so the shape is borrowed rather than invented.
+        /// </para>
+        /// </remarks>
+        private void Reprofile(RespPayloadOperation operation, bool isMoved)
+        {
+            if (operation.Profile is not { } previous || Server is not { } server) return;
+
+            previous.SetCompleted();
+            var profile = Profiling.ProfiledCommand.NewAttachedToSameContext(previous, server, isMoved);
+            profile.SetOperation(
+                operation.Command,
+                operation.Flags,
+                operation.Database,
+                operation.Diagnostics.CreatedDateTime,
+                operation.Diagnostics.CreatedTimestamp);
+            profile.SetEnqueued(null);
+            operation.Profile = profile;
+        }
 
         /// <inheritdoc/>
         /// <remarks>
@@ -789,6 +825,8 @@ namespace StackExchange.Redis
                 connection = _disposed ? null : _connection;
                 if (connection is null || connection.IsClosed) return false;
             }
+
+            Reprofile(operation, isMoved: false);
 
             var asking = RespPayloadOperation.Rent();
             asking.Attach(AskingFrame, CommandFlags.None, default);

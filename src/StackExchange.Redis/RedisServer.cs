@@ -60,7 +60,10 @@ namespace StackExchange.Redis
                 multiplexer.CommandMap,
                 database: -1,
                 serverType: server.ServerType)
-                .WithExecutor(new RespMessageExecutor(this, -1))
+                .WithExecutor(
+                    multiplexer.NewCoreIfCreated is { } newCore && ConnectionMultiplexer.NewCoreEngine
+                        ? newCore.ServerExecutor(server.EndPoint)
+                        : new RespMessageExecutor(this, -1))
                 .WithScriptCache(multiplexer.ScriptCache)
                 .WithServices(new ServerFeatureProbe(this));
 

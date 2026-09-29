@@ -31,19 +31,32 @@ public partial class ConnectionMultiplexer
         var libName = GetFullLibraryName(); // note this also checks SetClientLibrary
         if (string.IsNullOrWhiteSpace(libName) || !CommandMap.IsAvailable(RedisCommand.CLIENT)) return; // disabled on no lib name
 
-        // note that during initial handshake we use raw Message; this is low frequency - no
-        // concern over overhead of Execute here
-        var args = new object[] { RedisLiterals.SETINFO, RedisLiterals.lib_name, libName };
-        foreach (var server in GetServers())
+        // the other core's connections, which IServer.Execute below does not reach: it reaches whichever
+        // core IServer is on, and while both exist that is one of the two. See RespNewCore.SetLibraryName.
+        NewCoreIfCreated?.SetLibraryName(libName);
+
+        // Sent through the pipeline rather than through IServer.Execute, which is what this used to do.
+        // IServer is a ROUTING abstraction and the routing has moved: under the engine flag its commands go
+        // on the other core's socket, so a retro-fix issued that way named the wrong connection and left the
+        // one it was trying to fix unnamed. What this wants is "this endpoint's interactive connection", which
+        // is a ServerEndPoint and not an IServer.
+        foreach (var endpoint in GetServerSnapshot())
         {
             try
             {
                 // note we can only fixup the *interactive* channel; that's tolerable here
-                if (server.IsConnected)
-                {
-                    // best effort only
-                    server.Execute("CLIENT", args, CommandFlags.FireAndForget);
-                }
+                if (!endpoint.IsConnected) continue;
+
+                // best effort only
+                var msg = Message.Create(
+                    -1,
+                    CommandFlags.FireAndForget,
+                    RedisCommand.CLIENT,
+                    RedisLiterals.SETINFO,
+                    RedisLiterals.lib_name,
+                    libName.AsRedisValue());
+                msg.SetInternalCall();
+                ExecuteSyncImpl(msg, ResultProcessor.DemandOK, endpoint);
             }
             catch (Exception ex)
             {

@@ -75,6 +75,10 @@ namespace StackExchange.Redis
         /// The client-side cache whose invalidations this connection must ask for, or null when there is
         /// none. Interactive connections only - a subscription connection reads nothing to invalidate.
         /// </param>
+        /// <param name="libraryName">
+        /// What to report as <c>lib-name</c>, suffixes included, or null/empty to report nothing.
+        /// </param>
+        /// <param name="libraryVersion">What to report as <c>lib-ver</c>, or null/empty to report nothing.</param>
         /// <param name="cancellationToken">Cancels the handshake.</param>
         /// <returns>What the connection ended up speaking, and what it turned out to be.</returns>
         internal static async Task<RespHandshakeResult> PerformAsync(
@@ -87,6 +91,8 @@ namespace StackExchange.Redis
             RespTopology? topology = null,
             EndPoint? endpoint = null,
             Caching.RespClientCache? clientCache = null,
+            string? libraryName = null,
+            string? libraryVersion = null,
             CancellationToken cancellationToken = default)
         {
             if (password is not null)
@@ -290,18 +296,9 @@ namespace StackExchange.Redis
                 }
             }
 
-            if (clientName is { Length: > 0 } && context.Raw.CommandMap.IsAvailable(RedisCommand.CLIENT))
+            if (context.Raw.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
-                try
-                {
-                    await context.SendAsync($"{RedisCommand.CLIENT}{RedisLiterals.SETNAME}{(RedisValue)clientName}")
-                        .ConfigureAwait(false);
-                }
-                catch (RedisServerException)
-                {
-                    // CLIENT can be disabled or renamed; a nameless connection still works, and failing
-                    // the handshake over a diagnostic nicety would be the wrong trade
-                }
+                await IdentifyAsync(context, clientName, libraryName, libraryVersion).ConfigureAwait(false);
             }
 
             if (clientCache is not null)
@@ -315,6 +312,56 @@ namespace StackExchange.Redis
             }
 
             return new RespHandshakeResult(protocol, serverType, version);
+        }
+
+        /// <summary>Tell the server who is calling: the client's name, and the library and version.</summary>
+        /// <param name="context">The connection being brought up.</param>
+        /// <param name="clientName">The connection name, already sanitised, or empty for none.</param>
+        /// <param name="libraryName">The library name to report, or empty for none.</param>
+        /// <param name="libraryVersion">The library version to report, or empty for none.</param>
+        /// <remarks>
+        /// <b>Every one of these is a diagnostic, so none of them may fail the handshake.</b> They are what
+        /// somebody reads out of <c>CLIENT LIST</c> at three in the morning to find out which application is
+        /// holding a connection - valuable, and not worth a connection over. <c>CLIENT</c> can be renamed or
+        /// disabled, <c>SETINFO</c> arrived in 7.2, and an old server answers it with an error; all of that
+        /// is ordinary and each step is tried independently so that one decline does not lose the others.
+        /// </remarks>
+        private static async Task IdentifyAsync(
+            RespDatabaseContext context, string? clientName, string? libraryName, string? libraryVersion)
+        {
+            if (clientName is { Length: > 0 })
+            {
+                await TellAsync(context, RedisLiterals.SETNAME, default, clientName).ConfigureAwait(false);
+            }
+
+            if (libraryName is { Length: > 0 })
+            {
+                await TellAsync(context, RedisLiterals.SETINFO, RedisLiterals.lib_name, libraryName).ConfigureAwait(false);
+            }
+
+            if (libraryVersion is { Length: > 0 })
+            {
+                await TellAsync(context, RedisLiterals.SETINFO, RedisLiterals.lib_ver, libraryVersion).ConfigureAwait(false);
+            }
+
+            static async Task TellAsync(RespDatabaseContext context, RedisValue verb, RedisValue field, string value)
+            {
+                try
+                {
+                    if (field.IsNull)
+                    {
+                        await context.SendAsync($"{RedisCommand.CLIENT}{verb}{(RedisValue)value}").ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await context.SendAsync($"{RedisCommand.CLIENT}{verb}{field}{(RedisValue)value}").ConfigureAwait(false);
+                    }
+                }
+                catch (RedisServerException)
+                {
+                    // declined; see the remarks - a nameless connection still works
+                }
+            }
         }
 
         /// <summary>Ask the server to tell this connection when the keys it reads change.</summary>
