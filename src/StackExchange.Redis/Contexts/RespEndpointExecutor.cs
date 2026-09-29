@@ -486,16 +486,35 @@ namespace StackExchange.Redis
         private async ValueTask<RespPayload> SequentialAsync(
             RespRequest preamble, RespRequest request, IRespPreambleGate? gate, CancellationToken cancellationToken)
         {
-            await SendPreambleAsync(preamble, gate, cancellationToken).ForAwait();
-            return await SendAsync(request, cancellationToken).ForAwait();
+            // BOTH QUEUED, THEN AWAITED - not "await the preamble, then send". Awaiting first let anything
+            // the caller issued in the meantime go out in between: a script whose SCRIPT LOAD was still in
+            // flight had its EVALSHA written AFTER the reads that followed it at the call site, so those
+            // reads saw the state from before the script ran. Ordering is per connection and Dispatch
+            // already preserves it, so the await bought nothing and cost exactly that.
+            //
+            // The preamble still precedes the request on the wire, which is all EVALSHA needs: the server
+            // processes them in order, so the script is loaded by the time the hash is used.
+            var head = Dispatch(in preamble, Database, cancellationToken, profile: false);
+            var body = SendAsync(request, cancellationToken);
+
+            await Established(head, gate).ForAwait();
+            return await body.ForAwait();
         }
 
         /// <inheritdoc/>
-        internal override async ValueTask SendPreambleAsync(
+        internal override ValueTask SendPreambleAsync(
             RespRequest preamble, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
         {
             // dispatched rather than sent, so the preamble stays out of any profiling session
             var head = Dispatch(in preamble, Database, cancellationToken, profile: false);
+            return new ValueTask(Established(head, gate));
+        }
+
+        /// <summary>Await a preamble's reply and, if it succeeded, tell the gate.</summary>
+        /// <param name="head">The preamble, already on its way.</param>
+        /// <param name="gate">The condition it establishes; null when nobody is counting.</param>
+        private async Task Established(RespPayloadOperation head, IRespPreambleGate? gate)
+        {
             (await new ValueTask<RespPayload>(head, head.Token).ForAwait())?.Release();
 
             // told AFTER the await, so the connection recorded against is one that exists, and only on

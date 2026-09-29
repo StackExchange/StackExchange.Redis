@@ -2169,9 +2169,20 @@ ahead of them, which would explain a script running before the `DELETE` it was m
 the pair fall back to sequential whenever a backlog exists changed nothing, so that is not the
 mechanism either.
 
-What remains failing under an async short-circuit is exactly `ScriptingTests.MultiIncrWithoutReplies`,
-`MultiIncrByWithoutReplies` and `TestRandomThingFromForum`, in both surface variants: a key the script
-should have incremented reads back as absent. The sync half is in and safe.
+*The scripting failures were a third thing entirely, and it is now fixed.* A minimal repro narrowed it
+to the concurrency shape rather than to fire-and-forget: the script task and the reads that follow it
+are all started before any of them is awaited. `SequentialAsync` - the no-connection fallback for a
+preamble pair - **awaited the preamble's reply before sending the request**, so everything the caller
+issued in between went out in between. The `EVALSHA` was written after the `GET`s that followed it at
+the call site, and they read the state from before the script ran.
+
+Fire-and-forget only exposed it: returning early leaves the connection cold, and a cold connection is
+exactly what selects that path. Both frames are now queued in order and only then awaited, which is all
+`EVALSHA` ever needed - the server processes them in order, so the script is loaded by the time the hash
+is used - and it costs one less round trip than awaiting did.
+
+What still blocks the async half is the disposal race above, plus `HotKeysTests`. The sync half is in
+and safe.
 
 `RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
 observation: the decision is per-composition, and each composition answers it where it queues.
