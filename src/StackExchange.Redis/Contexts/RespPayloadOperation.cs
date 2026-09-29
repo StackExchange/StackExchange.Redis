@@ -204,6 +204,20 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// <b>The library's own timeout type, which is what callers catch.</b> A bare
+        /// <see cref="TimeoutException"/> is accurate and nobody handles it: every caller that has ever
+        /// dealt with a timeout from this library catches <see cref="RedisTimeoutException"/>, and the
+        /// shipped core has always thrown one. It carries the flags and how far the command got, both of
+        /// which the retry layer reads to decide whether re-sending is safe.
+        /// </remarks>
+        protected override Exception CreateTimeoutException()
+            => new RedisTimeoutException(
+                _flags,
+                $"Timeout awaiting a response ({Diagnostics.Age.TotalMilliseconds:n0}ms), command={CommandAndKey}",
+                (CommandStatus)Diagnostics.Status);
+
+        /// <inheritdoc/>
         protected override void OnSent() => Profile?.SetRequestSent();
 
         /// <inheritdoc/>

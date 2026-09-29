@@ -499,7 +499,15 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// pipeline has not told us anything; it may still write the request and complete us later.
     /// </remarks>
     private bool TrySetTimeout()
-        => TryClaimOutcome(Token) && Fail(new TimeoutException(), definite: false);
+        => TryClaimOutcome(Token) && Fail(CreateTimeoutException(), definite: false);
+
+    /// <summary>The exception a timeout produces.</summary>
+    /// <remarks>
+    /// <b>Virtual because the host has a vocabulary and this layer does not.</b> A bare
+    /// <see cref="TimeoutException"/> is correct and useless: callers catch the library's own timeout
+    /// type, and have for years. RESPite has no business knowing what that type is, so it asks.
+    /// </remarks>
+    protected virtual Exception CreateTimeoutException() => new TimeoutException();
 
     private bool Complete(TResponse response, bool definite)
     {
