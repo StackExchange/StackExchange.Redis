@@ -265,4 +265,54 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
         Assert.Equal(nameof(RespClusterState.Yes), core.TopologyStateForTest);
         Assert.True(core.HasSlotMapForTest, "a cluster that answered CLUSTER SLOTS should have left a map");
     }
+
+    /// <summary>
+    /// One connection, brought up on purpose, describes the whole deployment.
+    /// </summary>
+    /// <remarks>
+    /// <b>The mechanism for "eager-once", ahead of the wiring that will use it.</b> This core dials on
+    /// demand, so everything it knows arrives because a command needed a socket - which leaves every
+    /// question answered WITHOUT sending (<c>IsConnected</c>, <c>IdentifyEndpoint</c>) with nothing behind
+    /// it until somebody happens to issue one. Connecting deliberately is what <c>ConnectAsync</c> will
+    /// wait for.
+    /// <para>
+    /// ONE connection, not all: the configured endpoints need no discovering, and a single handshake
+    /// answers the rest for the whole deployment - <c>CLUSTER SLOTS</c> names every node. So a six-node
+    /// cluster is fully mapped here having opened one socket, which is the property under test.
+    /// </para>
+    /// <para>
+    /// Not yet called from <c>Connect</c>: while the shipped core still dials every endpoint of its own,
+    /// doing this at startup adds a socket rather than replacing one, and tests that count connections say
+    /// so. It lands with the step that stops the other core dialling; see design notes 9d.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task EagerConnectMapsTheWholeClusterFromOneConnection()
+    {
+        Skip.IfNoCluster();
+        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+        var core = ((ConnectionMultiplexer)conn).NewCore;
+
+        // nothing has been sent, so nothing has dialled
+        Assert.False(core.HasSlotMapForTest, "no command has been issued, so nothing should have connected");
+
+        Assert.True(await core.ConnectEagerlyAsync(), "eager connect should have brought an endpoint up");
+
+        Assert.True(core.HasSlotMapForTest, "one handshake should have mapped the deployment");
+        Assert.Equal(1, core.ConnectedEndpointCountForTest);
+
+        var config = conn.GetServer(conn.GetEndPoints()[0]).ClusterConfiguration;
+        Assert.NotNull(config);
+
+        var checkedSlots = 0;
+        for (var slot = 0; slot < 16384; slot += 337)
+        {
+            if (core.SlotOwnerForTest(slot) is not { } mine) continue;
+            Assert.Equal(config!.GetBySlot(slot)?.EndPoint, mine);
+            checkedSlots++;
+        }
+
+        Assert.True(checkedSlots > 40, $"only {checkedSlots} slots were mapped from the one connection");
+        Log($"one connection mapped {checkedSlots} sampled slots");
+    }
 }

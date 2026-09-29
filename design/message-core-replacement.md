@@ -1998,15 +1998,40 @@ Nothing below is blocked on this except D2.1 and D2.3, but those two are the spi
 
 Each step is independently shippable and leaves the tree green.
 
-- **D2.1 - Own the connect.** Implement D2.0's answer. `ConnectAsync` waits on this core; `AbortOnConnectFail`
-  is decided from its result. *Done when* a multiplexer under the flag reports `IsConnected` correctly
-  before any command is issued, and `ClusterTests.TestIdentity` passes without the selector fallback.
-- **D2.2 - Own the reporting.** Connection state, counters, status, backlog visibility, and the
-  `ConnectionFailed`/`ConnectionRestored` events sourced from this core. *Done when* the three
-  `BacklogTests` and the `AbortOnConnectFail`/`AsyncTests` recovery-timing group pass.
+- **D2.1 - Own the connect.** Implement D2.0's answer. `ConnectAsync` waits on this core;
+  `AbortOnConnectFail` is decided from its result. *Done when* a multiplexer under the flag reports
+  `IsConnected` correctly before any command is issued, and `ClusterTests.TestIdentity` passes without
+  the selector fallback.
+
+  **Tried, measured, and deferred - it cannot land before D2.8.** The mechanism works and is in tree:
+  `RespNewCore.ConnectEagerlyAsync` brings up one endpoint and its handshake maps a six-node cluster,
+  which `EagerConnectMapsTheWholeClusterFromOneConnection` asserts. Wiring it into `ConnectAsync` cost
+  18 further failures, and they are all the same complaint: while the shipped core still dials every
+  endpoint of its own, connecting eagerly ADDS a socket rather than replacing one. Tests that count
+  connections notice - `DefaultOptionsTests.VanillaResp2ConnectsWithSeparatePubSubConnection`,
+  `MaintenanceNotificationTests` (expected 1, got 2), `ServerRetirementUnitTests`,
+  `UnroutableRedirectUnitTests`. So D2.1 and D2.8 are one step, not two, and the ordering in this
+  section was wrong: eager connect does not PRECEDE the shipped core standing down, it replaces it.
+- **D2.2 - Own the reporting AND selectability.** Connection state, counters, status, backlog
+  visibility, and the `ConnectionFailed`/`ConnectionRestored` events sourced from this core - plus the
+  selectability rules D2.3 turns out to depend on: retirement, unselectable flags, maintenance state,
+  server-type filtering. *Done when* the three `BacklogTests` and the `AbortOnConnectFail`/`AsyncTests`
+  recovery-timing group pass, and routing can answer "may this server be used?" without asking
+  `ServerSelectionStrategy`.
 - **D2.3 - Retire the routing fallbacks (this is D1).** With D2.1 done, the selector calls in
   `EndpointForSlot`/`EndpointForAny` and the probe's `SelectServer` come out. *Done when*
   `RespNewCore` names `ServerSelectionStrategy` nowhere.
+
+  **There is a SECOND blocker here, independent of timing, and it was found by assuming there was not.**
+  With the map filled eagerly, `ClusterTests.TestIdentity` does pass without the fallback - the timing
+  problem really was the timing problem. But removing the fallback still cost 18 failures, because the
+  map and the selector answer different questions. The map says who OWNS a slot. The selector
+  additionally says whether that server may be USED: retired (`ServerRetirementUnitTests`), marked
+  unselectable, mid-maintenance (`MaintenanceNotificationTests`), or the wrong server type. Routing from
+  ownership alone sent work to a retired server and to one being migrated away from.
+
+  Selectability is therefore part of D2.2, not a free consequence of D2.1, and D2.3 is blocked on it.
+  The keyless half needs the same thing for the same reason, measured separately at 21 failures.
 - **D2.4 - Move `IServer` onto this core.** Replace `RespMessageExecutor` in `RedisServer.GetContext`.
   *Done when* `ServerExecuteDatabaseTests` passes without special-casing.
 - **D2.5 - Own subscriptions**, including the RESP2 second connection.

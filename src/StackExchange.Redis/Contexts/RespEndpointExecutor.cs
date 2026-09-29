@@ -701,6 +701,29 @@ namespace StackExchange.Redis
             Volatile.Write(ref _circuitBreakerState, CircuitHealthy);
         }
 
+        /// <summary>Bring this endpoint up now, and wait for it.</summary>
+        /// <param name="cancellationToken">Abandons the wait; the attempt itself carries on.</param>
+        /// <remarks>
+        /// <b>The one thing an on-demand core has no other way to say.</b> Everything else here dials
+        /// because a command needed it, so "is this endpoint up?" could only be answered by sending
+        /// something. Connecting is what <c>ConnectAsync</c> has to wait for, and what makes the topology
+        /// probes on that first handshake land before anybody asks a question that depends on them.
+        /// </remarks>
+        internal Task ConnectNowAsync(CancellationToken cancellationToken = default)
+        {
+            Task<RespConnection>? pending;
+            lock (_sync)
+            {
+                if (_disposed) return Task.CompletedTask;
+                if (_connection is { IsClosed: false }) return Task.CompletedTask;
+
+                EnsureConnecting(); // may decline on backoff, in which case it has armed a retry
+                pending = _connecting;
+            }
+
+            return pending is null ? Task.CompletedTask : pending.WaitAsync(cancellationToken);
+        }
+
         /// <summary>Drop whatever connection this endpoint currently holds, if any.</summary>
         /// <returns>Whether there was one to drop.</returns>
         /// <remarks>

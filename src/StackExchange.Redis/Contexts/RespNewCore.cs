@@ -130,6 +130,20 @@ namespace StackExchange.Redis
 
         internal string RoleOfForTest(EndPoint endpoint) => _topology.RoleOf(endpoint).ToString();
 
+        internal int ConnectedEndpointCountForTest
+        {
+            get
+            {
+                var count = 0;
+                foreach (var pair in _endpoints)
+                {
+                    if (pair.Value.IsConnectedNow) count++;
+                }
+
+                return count;
+            }
+        }
+
         internal string TopologyStateForTest => _topology.State.ToString();
 
         /// <summary>The one database this core can reach; see <c>GetDatabase</c>.</summary>
@@ -252,6 +266,12 @@ namespace StackExchange.Redis
                 return chosen;
             }
 
+            // Still the selector when our map cannot answer, and eager connect did NOT make this removable -
+            // which was the expectation, and the measurement said otherwise. Timing was only one of two
+            // blockers: the map says who OWNS a slot, and the selector additionally says whether that
+            // server may be used at all - retired, unselectable, mid-maintenance, the wrong server type.
+            // Routing from ownership alone sent work to a retired server and to one being migrated away
+            // from. See section 9d, D2.2: selectability has to move before this goes.
             var server = _multiplexer.ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: true);
             return server is null ? EndpointForAny(command, flags) : server.EndPoint;
         }
@@ -350,9 +370,7 @@ namespace StackExchange.Redis
         /// <remarks>See <see cref="EndpointForSlot"/> for why the endpoint and the executor are separated.</remarks>
         private EndPoint? EndpointForAny(RedisCommand command, CommandFlags flags)
         {
-            // A keyless replica read, answered from our own roles. There is no slot to look the pairing up
-            // by here, which is why the flat role record exists beside the map: in a cluster every replica
-            // replicates SOMETHING, and for a command that names no key that is all the question needs.
+            // A keyless replica read, answered from our own roles WHERE WE HAVE THEM.
             if (!command.IsPrimaryOnly()
                 && Message.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica
                 && PickReplica(_topology.Replicas) is { } replica)
@@ -360,6 +378,13 @@ namespace StackExchange.Redis
                 return replica;
             }
 
+            // And the selector for the rest, which is NOT the same fallback the slot map had, and the
+            // difference is why this one is still here after eager connect removed that one. A slot map is
+            // a fact about the deployment, and one handshake settles it. Keyless routing is a question
+            // about SELECTABILITY - is this server retired, unselectable, a sentinel, the right server type
+            // for this command - and that is a surface this core does not model at all. Removing it was
+            // measured: 21 further failures across sentinel, server retirement, maintenance notifications
+            // and the redirect unit tests, none of them about roles. See section 9d, D2.2.
             var strategy = _multiplexer.ServerSelectionStrategy;
             ServerEndPoint? fallback = null;
 
@@ -806,6 +831,53 @@ namespace StackExchange.Redis
                 features = new RedisFeatures(server is null ? core._multiplexer.RawConfig.DefaultVersion : server.Version);
                 return server is not null;
             }
+        }
+
+        /// <summary>Bring one connection up, so the deployment has described itself before anybody asks.</summary>
+        /// <param name="cancellationToken">Abandons the wait.</param>
+        /// <returns>Whether an endpoint came up.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>One, not all - which is the whole of "eager-once".</b> The configured endpoints are dial
+        /// targets and need no discovering; what needs discovering is where the slots live and which
+        /// servers are replicas, and a single connection's handshake answers both for the WHOLE deployment
+        /// (<c>CLUSTER SLOTS</c> names every node, <c>ROLE</c> names the other side of a pair). So a
+        /// hundred-node cluster still opens one socket here and dials the rest when traffic asks for them.
+        /// </para>
+        /// <para>
+        /// <b>What it buys is timing, not information.</b> These probes already rode on whichever
+        /// connection happened to come up first; doing it during <c>ConnectAsync</c> is what lets
+        /// <c>IsConnected</c> and <c>IdentifyEndpoint</c> - which answer without sending anything - be
+        /// answered at all before the first command. That was what stopped the routing fallbacks from
+        /// being removed; see section 9d.
+        /// </para>
+        /// <para>
+        /// Endpoints are tried in order and the first success wins, because a configured endpoint that is
+        /// down is ordinary. Failure is reported rather than thrown: the shipped core's own verdict still
+        /// decides whether the multiplexer connected, and disagreeing with it here would be a second
+        /// opinion nobody asked for.
+        /// </para>
+        /// </remarks>
+        internal async Task<bool> ConnectEagerlyAsync(CancellationToken cancellationToken = default)
+        {
+            foreach (var endpoint in _multiplexer.GetEndPoints())
+            {
+                try
+                {
+                    await Endpoint(endpoint).ConnectNowAsync(cancellationToken).ConfigureAwait(false);
+                    if (_endpoints.TryGetValue(endpoint, out var up) && up.IsConnectedNow) return true;
+                }
+                catch (Exception ex)
+                {
+                    // an endpoint that will not come up is ordinary; the next one is tried, and if none
+                    // does the caller is told rather than thrown at
+                    _multiplexer.OnInternalError(ex, endpoint);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+            }
+
+            return false;
         }
 
         /// <summary>For testing only: drop this core's connections to an endpoint.</summary>
