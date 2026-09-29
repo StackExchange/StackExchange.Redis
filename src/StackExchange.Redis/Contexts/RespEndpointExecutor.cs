@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1244,6 +1245,27 @@ namespace StackExchange.Redis
         private bool Send(RespConnection connection, RespPayloadOperation operation)
         {
             if (_select is null || operation.Database < 0) return connection.Send(operation);
+
+            // A SERVER THAT HAS ONLY ONE DATABASE CANNOT BE ASKED FOR ANOTHER, and this said nothing: the
+            // SELECT was injected regardless, so a command addressed to database 1 on a cluster - or
+            // through a proxy whose command map has no SELECT - went out as though it had worked. The
+            // shipped core refuses at exactly this point, when it decides whether a SELECT is needed, and
+            // says which database it could not switch to.
+            if (operation.Database != 0
+                && connection is IRespPreambleTarget { Server: { SupportsDatabases: false } })
+            {
+                Fail(
+                    operation,
+                    new RedisConnectionException(
+                        ConnectionFailureType.ProtocolFailure,
+                        operation.Flags,
+                        "The command could not be written.",
+                        new RedisCommandException(
+                            "Multiple databases are not supported on this server; cannot switch to database: "
+                            + operation.Database.ToString(CultureInfo.InvariantCulture)),
+                        CommandStatus.WaitingToBeSent));
+                return true; // handled: completed, rather than refused back to the caller
+            }
 
             var sent = connection.Send(
                 operation, new Selector(connection, _select, operation.Database), static s => s.Preamble(), out var head);

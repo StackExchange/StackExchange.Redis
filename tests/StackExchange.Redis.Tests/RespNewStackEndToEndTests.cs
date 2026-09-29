@@ -446,6 +446,14 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
         await using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort);
         var context = conn.GetDatabase().Context;
 
+        // ...and under the engine flag the database is NOT the shim, so there is no shim here to refuse
+        // anything. Skipped rather than relaxed: the claim is about what the Message pipeline can promise,
+        // and it stays true where that pipeline is what runs the command.
+        if (context.Raw.Executor is not RespMessageExecutor)
+        {
+            Assert.Skip("requires the Message shim; with the new core as the engine, this context can cancel");
+        }
+
         using var cts = new CancellationTokenSource();
         await Assert.ThrowsAsync<NotImplementedException>(
             async () => await context.Strings.GetAsync(Me(), cancellationToken: cts.Token));
