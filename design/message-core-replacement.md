@@ -1917,6 +1917,110 @@ reverted once - the naive retire deadlocks on the write slot.
 belonging to *other test classes* (`FlushFetchRandomKey` finding `...NewCoreScanTests-ScanTests-...`).
 Parallel classes sharing a database; visible here only because the timing differs.
 
+### 9d. D2, fully defined: the multiplexer stops dialling
+
+**The statement.** Under the engine flag, `ConnectionMultiplexer` creates no `PhysicalBridge` and opens
+no `PhysicalConnection`. Every socket to every server belongs to `RespNewCore`. `ServerEndPoint` may
+survive for a while as a metadata record - it is where several beliefs currently live - but it stops
+owning connections. When the flag becomes the only behaviour, `PhysicalBridge`,
+`PhysicalConnection` (6,567 lines across its partials) and most of `ServerEndPoint` (1,701) delete.
+
+All three types are `internal` and appear nowhere in `PublicAPI.Shipped.txt`, so the deletion is not a
+binary break. What IS public, and therefore constrains the design rather than being a casualty of it:
+`IServer` and everything on it, `IsConnected`/`IsConnecting`, `GetStatus`/`GetCounters`/`GetStormLog`,
+the `ConnectionFailed`/`ConnectionRestored`/`ErrorMessage`/`InternalError` events,
+`ClusterConfiguration`, and the sentinel surface.
+
+#### D2.0 The one decision that gates everything: eager or lazy
+
+This core dials on demand. The shipped core dials every configured endpoint during `ConnectAsync` and
+does not return until it has an answer. That difference is the whole of D2's difficulty, and it has to
+be settled before the rest is designed rather than discovered underneath it.
+
+- **Lazy** keeps this core's present behaviour and is cheaper for a client that touches one node of a
+  large cluster. But `ConnectAsync` then has nothing to wait for, `IsConnected` has nothing to report
+  before the first command, and `IdentifyEndpoint` - which asks without sending - cannot be answered
+  from a map nothing has filled. Section 9b measured that last one: it is what stopped D1.
+- **Eager** means this core connects to the configured endpoints during `ConnectAsync`, exactly as the
+  shipped one does. Every question above is then answerable at the same moment it is answerable today,
+  and the behaviour a caller sees does not change with the flag. The cost is the thing the lazy design
+  was avoiding.
+- **Eager-once** is the likely answer: connect to ONE endpoint during `ConnectAsync` and let that
+  connection's `CLUSTER SLOTS`/`ROLE` describe the deployment (which is already how this core
+  discovers - see 9b B), then dial the rest on demand. `ConnectAsync` has something to wait for,
+  discovery is complete before the first command, and a 100-node cluster still opens one socket.
+
+Nothing below is blocked on this except D2.1 and D2.3, but those two are the spine.
+
+#### The obligations to re-home, with where each lives today
+
+1. **Connect-time discovery and the `ConnectAsync` gate.** `ReconfigureAsync` resolves DNS, walks the
+   configured endpoints, connects, auto-configures, proactively dials discovered cluster nodes, and
+   decides whether the connect succeeded at all (`AbortOnConnectFail`). This core does discovery
+   already; what it has no notion of is "the connect is finished".
+2. **The heartbeat.** `OnHeartbeat` sweeps the client cache, checks whether a topology refresh is due,
+   and pulses every `ServerEndPoint` - which is where keep-alives, connect retries, timeout scanning
+   and backlog nudging happen. This core now has a reconnect timer (9b-v) and the operation backstop,
+   which is two of those; the rest have no counterpart.
+3. **Connection state on the public surface.** `IsConnected` is `_serverSnapshot.Any(s => s.IsConnected)`
+   and `s.IsConnected` is `interactive?.IsConnected == true` - a bridge property. `RespConnectionState`
+   already exists for this core (Unroutable/Deferred/Connecting/Connected); it has to become what those
+   properties read.
+4. **Counters and status.** `GetStatus`, `GetCounters`, `GetBridgeStatus`, `PendingUnsentItems`,
+   `BacklogMessagesPending`. Three `BacklogTests` currently fail purely because this core's backlog is
+   invisible to them.
+5. **Events.** `ConnectionFailed`/`ConnectionRestored` are raised from the bridge's failure handling.
+   This core raises `ConnectionFailed` for a circuit-breaker trip (9b-iv) and nothing else.
+6. **Topology maintenance.** `AutoConfigureAsync`, `SetClusterConfiguration`, `UpdateNodeRelations`,
+   tiebreakers, `SetUnselectable`, `OnSeenInTopology`/`OnMissingFromTopology`. Phases A and B moved the
+   ROUTING half of this; the admin half - what `ClusterConfiguration` reports and what
+   `ServerSelectionStrategy` publishes - is still the shipped core's.
+7. **Subscriptions.** `RedisSubscriber` reaches for bridges directly; RESP2 needs a second connection
+   per endpoint, which this core models but does not yet own end to end.
+8. **`IServer`.** `RedisServer` builds its context over `RespMessageExecutor` - the Message shim - so
+   every admin command still goes through the shipped path. This is why `ServerExecuteDatabaseTests`
+   reads as a dual-core artefact.
+9. **Sentinel.** `ConnectionMultiplexer.Sentinel` manages its own connections and failover.
+10. **Maintenance events.** `PhysicalConnection.Maintenance` parses the Azure/AMR push notifications
+    that drive the relaxation windows; four `MaintenanceRelaxation*` tests hang off it.
+11. **Per-server beliefs.** `IsScriptLoaded`/`AddScript`/`FlushScriptCache` and the `RunId` check that
+    invalidates them; this core borrows these from `ServerEndPoint` deliberately (`connection.Server`).
+12. **Profiling context.** `StartProfile` needs a `ServerEndPoint` to name the server in a
+    `ProfiledCommand`.
+
+#### Sequencing
+
+Each step is independently shippable and leaves the tree green.
+
+- **D2.1 - Own the connect.** Implement D2.0's answer. `ConnectAsync` waits on this core; `AbortOnConnectFail`
+  is decided from its result. *Done when* a multiplexer under the flag reports `IsConnected` correctly
+  before any command is issued, and `ClusterTests.TestIdentity` passes without the selector fallback.
+- **D2.2 - Own the reporting.** Connection state, counters, status, backlog visibility, and the
+  `ConnectionFailed`/`ConnectionRestored` events sourced from this core. *Done when* the three
+  `BacklogTests` and the `AbortOnConnectFail`/`AsyncTests` recovery-timing group pass.
+- **D2.3 - Retire the routing fallbacks (this is D1).** With D2.1 done, the selector calls in
+  `EndpointForSlot`/`EndpointForAny` and the probe's `SelectServer` come out. *Done when*
+  `RespNewCore` names `ServerSelectionStrategy` nowhere.
+- **D2.4 - Move `IServer` onto this core.** Replace `RespMessageExecutor` in `RedisServer.GetContext`.
+  *Done when* `ServerExecuteDatabaseTests` passes without special-casing.
+- **D2.5 - Own subscriptions**, including the RESP2 second connection.
+- **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
+  `ServerEndPoint`.
+- **D2.7 - Maintenance and sentinel.**
+- **D2.8 - Stop constructing bridges under the flag**, then delete `PhysicalBridge` and
+  `PhysicalConnection` when the flag becomes the only behaviour.
+
+#### What would tell us it is going wrong
+
+The honest risk is that D2.1 makes this core eager and the reason the lazy design existed reasserts
+itself - a large cluster paying connect cost it did not pay before. The measurement to keep is
+connections opened per multiplexer at steady state, which "eager-once" should leave at one plus
+whatever traffic demands.
+
+The second risk is scope: steps D2.4 through D2.7 are each a surface with its own tests, and none of
+them is on the critical path to *routing* correctness. They can be sequenced by test count rather than
+by architecture, and should be.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather
