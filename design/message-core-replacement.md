@@ -2316,6 +2316,30 @@ own connections are dropped during the test's `CLIENT PAUSE 4000` (measured at t
 the sweep disabled, one with it enabled), and they are dropped because they are there at all. That is
 D2.8's business - stop constructing bridges - not this section's.
 
+### 9b-ix. The reconnect retry policy is consulted by both cores, and the sequence cannot be right
+
+**Two remaining `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases` cases, and the cause is the
+arrangement rather than either core.** `ConfigurationOptions.ReconnectRetryPolicy` is one object, and
+under the engine flag both `PhysicalBridge` and `RespEndpointExecutor` ask it. The test asserts the exact
+sequence of counts the policy was handed - `"0,1"` or `"0,1,2"` - so any interleaving of two independent
+askers produces something it rejects. The original symptom said so plainly: `0,0,1`, which is one asker's
+first question twice.
+
+**What was tried, and what it cost.** The new core's gate exempted only the never-connected case, so a
+socket the SERVER dropped - nothing failed, nothing to back off from - still consulted the policy. That
+is wrong on its own terms, and fixing it (exempt any attempt with no failure behind it, and number the
+retries from zero as `PhysicalBridge` does by asking before it increments) makes `FailureMode.Success`
+pass, where the policy should be consulted not at all.
+
+It also breaks the three cases that were passing, from `"0,1,2"` to `"0"`, and the reason is worth the
+record: with the exemption in place the new core asks **once per failure run**, and a run ends whenever
+a connect succeeds - which it does, repeatedly, because the injected failures are shared with the other
+core's reconnects. The old gate produced a rising sequence only by asking on attempts that were not
+retries at all.
+
+So the trade is one test for three, and it was reverted. The correct version of the gate is the one
+described above; it becomes assertable at **D2.8**, when there is one asker.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather
