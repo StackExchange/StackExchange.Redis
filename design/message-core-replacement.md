@@ -2340,6 +2340,41 @@ retries at all.
 So the trade is one test for three, and it was reverted. The correct version of the gate is the one
 described above; it becomes assertable at **D2.8**, when there is one asker.
 
+### 9b-x. Client-side caching has to be negotiated on the connection that reads
+
+**`CLIENT TRACKING` is per-connection, and in per-key mode the server registers what THAT connection
+read.** It was being asked for in `ServerEndPoint.EnableClientTrackingAsync`, on the shipped core's
+socket, while under the engine flag every read happens on this core's. Broadcast mode survived that -
+the server pushes on the tracking connection whoever did the reading - and per-key did not: nothing was
+ever registered, so nothing was ever invalidated, and the cache served stale data indefinitely. That is
+the failure shape the refusal-on-RESP2 rule exists to prevent, arrived at from the other direction.
+
+`RespHandshake` now asks, on the interactive connection it is bringing up, and the shipped handshake
+stops asking when the other core owns the reads. The REFUSAL stays where it was, and deliberately: it is
+a statement about the configuration, and it has to be made while somebody is still connecting, where the
+caller sees it. Two tracking clients per endpoint would also mean duplicate invalidation pushes in
+broadcast mode - `RespInProcTrackingTests` asserts `Single` on the tracking client and caught exactly
+that when both cores asked.
+
+### 9b-xi. The rotating "flake" family is one artefact, and it is D2.4's
+
+**Nine to twelve of the remaining engine-flag failures rotate identity between runs, and they are not
+flaky tests.** Every one has the same shape: an `IServer` call on the SHIPPED socket, fire-and-forget
+writes on THIS core's socket, and then a read that has to see them. They pass in isolation and under the
+default suite because the race is narrow, and they pass or fail per run according to scheduling.
+
+    server.FlushDatabase(dbId, FireAndForget);                     // shipped socket
+    for (...) db.StringSet(prefix + i, ..., FireAndForget);        // this core's socket
+    var count = server.Keys(dbId, prefix + "*").Count();           // shipped socket  -> 999 of 1000
+
+`KeyTests.TestScan`, `KeyTests.FlushFetchRandomKey` (flush on one socket, `RANDOMKEY` on the other) and
+`SortedSetTests.SortedSetRangeViaScript` are the recurring members, each with its `NewCore*` and
+`Transitional*` twin. `HotKeysTests` is the same thing made deterministic by the async fire-and-forget
+short-circuit, which is why 9b-vi and this section resolve together.
+
+Under one core these are all FIFO on one connection. Counting them as separate failures overstates what
+is left: **D2.4 closes this whole group at once.**
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather

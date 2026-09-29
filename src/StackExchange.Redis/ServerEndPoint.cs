@@ -841,6 +841,15 @@ namespace StackExchange.Redis
                 throw new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.CommandRetryNever, Message);
             }
 
+            // The REFUSAL above still belongs here, even when the other core owns the reads: it is a
+            // statement about the configuration, and it has to be made while somebody is still connecting,
+            // where the caller sees it. The REGISTRATION does not. Tracking has to be asked for by the
+            // connection that does the reading - per-key mode registers what that connection read - so under
+            // the engine flag this socket has nothing to be told about, and asking anyway buys a second
+            // tracking client per endpoint: duplicate pushes in broadcast mode, and registrations against a
+            // connection that reads nothing in per-key mode. RespHandshake asks on the one that does.
+            if (ConnectionMultiplexer.NewCoreEngine) return;
+
             var options = cache.Options;
             var broadcast = options.ResolvedTrackingMode == CacheTrackingMode.Broadcast;
             var prefixes = options.Prefixes;

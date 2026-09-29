@@ -737,6 +737,7 @@ namespace StackExchange.Redis
                 config.Protocol is null or RedisProtocol.Resp3,
                 _topology,
                 endpoint,
+                subscription ? null : _multiplexer.ClientCache,
                 cancellationToken).ConfigureAwait(false);
 
             // recorded BEFORE the connection is handed back, for the same reason the topology is: the

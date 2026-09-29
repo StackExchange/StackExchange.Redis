@@ -71,6 +71,10 @@ namespace StackExchange.Redis
         /// standalone server names its own side of a replication pair and nothing else in the reply says
         /// which server said it.
         /// </param>
+        /// <param name="clientCache">
+        /// The client-side cache whose invalidations this connection must ask for, or null when there is
+        /// none. Interactive connections only - a subscription connection reads nothing to invalidate.
+        /// </param>
         /// <param name="cancellationToken">Cancels the handshake.</param>
         /// <returns>What the connection ended up speaking, and what it turned out to be.</returns>
         internal static async Task<RespHandshakeResult> PerformAsync(
@@ -82,6 +86,7 @@ namespace StackExchange.Redis
             bool preferResp3 = true,
             RespTopology? topology = null,
             EndPoint? endpoint = null,
+            Caching.RespClientCache? clientCache = null,
             CancellationToken cancellationToken = default)
         {
             if (password is not null)
@@ -299,12 +304,85 @@ namespace StackExchange.Redis
                 }
             }
 
+            if (clientCache is not null)
+            {
+                await EnableClientTrackingAsync(context, clientCache, protocol).ConfigureAwait(false);
+            }
+
             if (database > 0)
             {
                 await context.SendAsync($"{RedisCommand.SELECT}{database}").ConfigureAwait(false);
             }
 
             return new RespHandshakeResult(protocol, serverType, version);
+        }
+
+        /// <summary>Ask the server to tell this connection when the keys it reads change.</summary>
+        /// <param name="context">The connection being brought up.</param>
+        /// <param name="cache">The cache the invalidations are for.</param>
+        /// <param name="protocol">What the handshake settled on; tracking needs RESP3.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>It has to be THIS connection, which is the whole reason this exists here.</b> Invalidations
+        /// arrive as out-of-band pushes on the connection that asked for them, and in per-key mode the
+        /// server registers what <i>that connection</i> read. Negotiating tracking on the shipped core's
+        /// socket while the reads happen on this one gave a cache that was filled and never invalidated:
+        /// broadcast mode survived it, because the server pushes regardless of who read, and per-key did
+        /// not - `RespInProcTrackingTests.PerKeyTrackingAsksForNoBroadcastAndStillInvalidates` is the
+        /// difference made visible.
+        /// </para>
+        /// <para>
+        /// <b>It refuses loudly rather than degrading</b>, as <c>ServerEndPoint.EnableClientTrackingAsync</c>
+        /// does: a cache that is filled but never invalidated is silently, durably wrong, so a connection
+        /// that cannot establish tracking fails instead of serving stale data.
+        /// </para>
+        /// </remarks>
+        private static async Task EnableClientTrackingAsync(
+            RespDatabaseContext context, Caching.RespClientCache cache, RedisProtocol protocol)
+        {
+            if (protocol != RedisProtocol.Resp3)
+            {
+                const string Message =
+                    "Client-side caching requires RESP3: invalidation arrives as an out-of-band push, which"
+                    + " RESP2 cannot deliver on this connection. Set Protocol = RedisProtocol.Resp3, or clear"
+                    + " ConfigurationOptions.ClientCache.";
+                throw new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.CommandRetryNever, Message);
+            }
+
+            var options = cache.Options;
+            var prefixes = options.Prefixes;
+            var command = RedisCommand.CLIENT;
+
+            // CLIENT TRACKING ON [BCAST] [PREFIX p]...
+            if (options.ResolvedTrackingMode == Caching.CacheTrackingMode.Broadcast)
+            {
+                if (prefixes.Count == 0)
+                {
+                    await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}{RedisLiterals.BCAST}")
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    // built as values rather than composed in the interpolation, because the number of
+                    // PREFIX pairs is not known until here
+                    var args = new RedisValue[3 + (prefixes.Count * 2)];
+                    var index = 0;
+                    args[index++] = RedisLiterals.TRACKING;
+                    args[index++] = RedisLiterals.ON;
+                    args[index++] = RedisLiterals.BCAST;
+                    foreach (var prefix in prefixes)
+                    {
+                        args[index++] = RedisLiterals.PREFIX;
+                        args[index++] = prefix.AsRedisValue();
+                    }
+
+                    await context.SendAsync($"{command}{args}").ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}").ConfigureAwait(false);
+            }
         }
 
         /// <summary>Reads the <c>proto</c> field out of a <c>HELLO</c> reply.</summary>
