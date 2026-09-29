@@ -3017,9 +3017,13 @@ namespace StackExchange.Redis
 
         private Task[] QuitAllServers()
         {
-            var quits = new Task[2 * servers.Count];
+            // SIZED INSIDE THE LOCK, which it was not: the count was read first and the iteration done
+            // after taking it, so a server discovered in between - a sentinel deployment is still finding
+            // them while it shuts down - overran the array and threw IndexOutOfRangeException out of
+            // CloseAsync. Rare, and a crash on the way out is still a crash.
             lock (servers)
             {
+                var quits = new Task[2 * servers.Count];
                 var iter = servers.GetEnumerator();
                 int index = 0;
                 while (iter.MoveNext())
@@ -3028,8 +3032,9 @@ namespace StackExchange.Redis
                     quits[index++] = server.Close(ConnectionType.Interactive);
                     quits[index++] = server.Close(ConnectionType.Subscription);
                 }
+
+                return quits;
             }
-            return quits;
         }
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
