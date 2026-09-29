@@ -614,12 +614,13 @@ namespace StackExchange.Redis
             () => _multiplexer.RawConfig.ReconnectRetryPolicy,
             () => _multiplexer.EffectiveCircuitBreaker?.CreateAccumulator(),
             () => OnCircuitBroken(endpoint),
-            command => ExceptionFactory.NoConnectionAvailable(
+            (command, commandAndKey) => ExceptionFactory.NoConnectionAvailable(
                 _multiplexer,
                 null,
                 _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false),
                 default,
-                command),
+                command,
+                commandAndKey),
             () => _multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure ?? true,
             () => _multiplexer.TimeoutMilliseconds);
 

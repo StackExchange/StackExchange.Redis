@@ -141,7 +141,7 @@ namespace StackExchange.Redis
             Func<IReconnectRetryPolicy?>? retryPolicy = null,
             Func<Availability.CircuitBreaker.Accumulator?>? circuitBreaker = null,
             Action? onCircuitBroken = null,
-            Func<RedisCommand, Exception>? noConnection = null,
+            Func<RedisCommand, string?, Exception>? noConnection = null,
             Func<bool>? abortPendingOnConnectionFailure = null,
             Func<int>? backlogTimeoutMilliseconds = null)
         {
@@ -383,7 +383,7 @@ namespace StackExchange.Redis
             if (!connection.Send(head, body, new Decision(gate, target), static d => d.IsNeeded(), out wroteHead))
             {
                 RespPayloadOperation.DiscardReply(head);
-                body.EnsureFaulted(request.Flags, NoConnection(request.Command));
+                body.EnsureFaulted(request.Flags, NoConnection(request.Command, body.CommandAndKey));
                 return new ValueTask<RespPayload>(body, body.Token);
             }
 
@@ -771,7 +771,7 @@ namespace StackExchange.Redis
         private readonly Action? _onCircuitBroken;
 
         /// <inheritdoc cref="RespPayloadOperation.EnsureFaulted(CommandFlags, Exception?)"/>
-        private readonly Func<RedisCommand, Exception>? _noConnection;
+        private readonly Func<RedisCommand, string?, Exception>? _noConnection;
 
         /// <summary>Whether a failed connect abandons the backlog; see <c>BacklogPolicy</c>.</summary>
         private readonly Func<bool>? _abortPendingOnConnectionFailure;
@@ -867,7 +867,9 @@ namespace StackExchange.Redis
 
         /// <summary>The failure a command gets when there was nothing to send it on.</summary>
         /// <param name="command">The command, so the diagnosis can name it.</param>
-        private Exception? NoConnection(RedisCommand command) => _noConnection?.Invoke(command);
+        /// <param name="commandAndKey">The command and the key it named, when that can be recovered.</param>
+        private Exception? NoConnection(RedisCommand command, string? commandAndKey = null)
+            => _noConnection?.Invoke(command, commandAndKey);
 
         private RespPayloadOperation Dispatch(in RespRequest request, CancellationToken cancellationToken)
             => Dispatch(in request, Database, cancellationToken);
@@ -929,7 +931,7 @@ namespace StackExchange.Redis
             {
                 if (_disposed)
                 {
-                    operation.EnsureFaulted(request.Flags, NoConnection(request.Command));
+                    operation.EnsureFaulted(request.Flags, NoConnection(request.Command, operation.CommandAndKey));
                     return operation;
                 }
 
@@ -940,7 +942,7 @@ namespace StackExchange.Redis
                     // "not writable right now", and both are answered by the backlog, in arrival order
                     if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected)
                     {
-                        operation.EnsureFaulted(request.Flags, NoConnection(request.Command));
+                        operation.EnsureFaulted(request.Flags, NoConnection(request.Command, operation.CommandAndKey));
                         return operation;
                     }
 
@@ -1011,7 +1013,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            operation.EnsureFaulted(flags, NoConnection(RedisCommand.NONE));
+            operation.EnsureFaulted(flags, NoConnection(operation.Command, operation.CommandAndKey));
         }
 
         /// <inheritdoc/>
@@ -1201,7 +1203,7 @@ namespace StackExchange.Redis
             {
                 var operation = waiting.Dequeue();
                 if (_connection is { IsClosed: false } connection && Send(connection, operation)) continue;
-                operation.EnsureFaulted(CommandFlags.None, NoConnection(RedisCommand.NONE));
+                operation.EnsureFaulted(CommandFlags.None, NoConnection(operation.Command, operation.CommandAndKey));
             }
         }
 

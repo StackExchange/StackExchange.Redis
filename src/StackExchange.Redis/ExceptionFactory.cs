@@ -113,9 +113,15 @@ namespace StackExchange.Redis
             Message? message,
             ServerEndPoint? server,
             ReadOnlySpan<ServerEndPoint> serverSnapshot = default,
-            RedisCommand command = default)
+            RedisCommand command = default,
+            string? commandAndKey = null)
         {
-            string commandLabel = GetLabel(multiplexer.RawConfig.IncludeDetailInExceptions, message?.Command ?? command, message);
+            // commandAndKey is for a caller that has no Message to describe - the new core renders straight
+            // to bytes - but can still say what the command was and which key it named. Honoured only when
+            // detail is wanted, exactly as the Message path is: the key is the detail.
+            string commandLabel = commandAndKey is { Length: > 0 } && message is null
+                ? (multiplexer.RawConfig.IncludeDetailInExceptions ? commandAndKey : command.ToString())
+                : GetLabel(multiplexer.RawConfig.IncludeDetailInExceptions, message?.Command ?? command, message);
 
             if (server != null)
             {

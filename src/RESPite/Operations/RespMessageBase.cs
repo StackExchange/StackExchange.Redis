@@ -316,6 +316,16 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     }
 
     // ---- the request payload ------------------------------------------------------------------------
+    /// <summary>The request as rendered, for diagnostics; empty once it has been released.</summary>
+    /// <remarks>
+    /// <b>Read WITHOUT reserving, and only for describing this operation</b> - naming the command and key
+    /// in an error, say. A reservation means "I am about to write these bytes"; this is a reader that must
+    /// not pretend to. It is therefore only safe from the caller's own unwind, where the operation is not
+    /// going to be sent and its buffer cannot be recycled underneath: see the callers.
+    /// </remarks>
+    protected ReadOnlyMemory<byte> RequestForDiagnostics
+        => Volatile.Read(ref _requestRefCount) == 0 ? default : _request;
+
     /// <inheritdoc/>
     public bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true)
     {

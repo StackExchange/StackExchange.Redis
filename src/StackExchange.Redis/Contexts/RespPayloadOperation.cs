@@ -121,6 +121,46 @@ namespace StackExchange.Redis
         /// <summary>The flags the request carried, which the retry and redirect layers read.</summary>
         internal CommandFlags Flags => _flags;
 
+        /// <summary>How this command should be named in a diagnostic: the command and its first key.</summary>
+        /// <remarks>
+        /// <b>Read off the rendered frame rather than carried alongside it.</b> The bytes are already here
+        /// - they have to be, to be written - so the key costs nothing until something actually goes wrong
+        /// and needs to name it. Paid on the caller's own unwind, where this operation is not going to be
+        /// sent, rather than on every command against the chance that one fails.
+        /// <para>
+        /// The FIRST argument, which is the key for the overwhelming majority of commands and is what the
+        /// shipped <c>Message.CommandAndKey</c> reports. It is an approximation for the few where the first
+        /// argument is something else - a subcommand, a script body - and a slightly wrong label on an
+        /// error is a far better trade than carrying a key on every operation ever issued.
+        /// </para>
+        /// </remarks>
+        internal string CommandAndKey
+        {
+            get
+            {
+                var command = Command == RedisCommand.NONE ? string.Empty : Command.ToString();
+                var frame = RequestForDiagnostics;
+                if (frame.IsEmpty) return command;
+
+                try
+                {
+                    var reader = new RespReader(frame.Span);
+                    if (!reader.TryMoveNext() || !reader.IsAggregate) return command;
+                    if (reader.AggregateLength() < 2) return command;
+                    if (!reader.TryMoveNext()) return command; // the command itself
+                    if (!reader.TryMoveNext() || !reader.IsScalar) return command;
+
+                    var key = reader.ReadString();
+                    return string.IsNullOrEmpty(key) ? command : $"{command} {key}";
+                }
+                catch
+                {
+                    // a diagnostic that throws is worse than a diagnostic that is vague
+                    return command;
+                }
+            }
+        }
+
         /// <summary>Which command this is, for diagnostics after the request itself is gone.</summary>
         /// <remarks>
         /// <b>Kept for the same reason <see cref="Slot"/> and <see cref="Database"/> are</b>: the rendered

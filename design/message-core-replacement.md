@@ -2073,11 +2073,17 @@ Each step is independently shippable and leaves the tree green.
     than broken - retired, breaker-tripped, simulated - to write down a reason, since it has no fault of
     its own. "No connection became available" followed by nothing is a diagnosis that does not
     diagnose.
-  - **The failure names the command but not the key** ("...to service this operation: GET" where the
-    shipped core says "GET {key}"). The rendered request is bytes and the key reference is gone by the
-    time it fails, so this needs the key carried on the operation for diagnostics, as the command now
-    is. Worth doing - a timeout that cannot name the key is a poor bug report - but it is a deliberate
-    per-operation cost rather than a free fix.
+  - **The failure names the command but not the key.** DONE, and for free: the key is read off the
+    RENDERED FRAME at failure time rather than carried alongside it. The bytes are already there - they
+    have to be, to be written - so nothing is paid until something goes wrong and needs to name it, and
+    what is paid happens on the caller's own unwind, where the operation is not going to be sent.
+    Carrying a `RedisKey` on every operation against the chance that one fails was the alternative, and
+    is strictly worse.
+
+    The FIRST argument is taken, which is the key for the overwhelming majority of commands and is what
+    `Message.CommandAndKey` reports. An approximation for the few where the first argument is a
+    subcommand or a script body - and a slightly wrong label on an error is a far better trade than a
+    field on every operation ever issued.
 
   Note the ordering this leaves. Selectability was a prerequisite for D2.3 but not a sufficient one -
   the timing blocker is still there, and it is answered by `ConnectMode` defaulting to something other
