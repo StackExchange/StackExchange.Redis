@@ -191,6 +191,24 @@ namespace StackExchange.Redis
         /// </remarks>
         internal string? UnroutableRedirectMessage { get; set; }
 
+        /// <summary>
+        /// Set when a redirect was DECLINED rather than unfollowable; the error says so, naming where the
+        /// server said the slot went.
+        /// </summary>
+        /// <remarks>
+        /// <b><c>CommandFlags.NoRedirect</c> is asked for by somebody diagnosing a cluster</b>, and the raw
+        /// <c>MOVED 3828 127.0.0.1:7000</c> is the one thing they can already see - what they need told is
+        /// that the client had somewhere to send it and did not, because they said so. The shipped core
+        /// rewords it for exactly that reason, and <c>ClusterTests.IntentionalWrongServer</c> reads the
+        /// wording.
+        /// <para>
+        /// Kept apart from <see cref="UnroutableRedirectMessage"/> because the two are different facts with
+        /// different retry consequences: this command provably did not run and the topology is fine, where an
+        /// unroutable target says the topology is not.
+        /// </para>
+        /// </remarks>
+        internal string? DeclinedRedirectMessage { get; set; }
+
         /// <summary>The profiling record for this command, when anyone is profiling.</summary>
         /// <remarks>
         /// Lives in <c>Diagnostics.HostState</c>, which design notes section 4 reserved for exactly this:
@@ -349,6 +367,7 @@ namespace StackExchange.Redis
             Server = null;
             IsSubscription = false;
             UnroutableRedirectMessage = null;
+            DeclinedRedirectMessage = null;
             ExpectsQueuedReceipt = false;
             Slot = ServerSelectionStrategy.NoSlot;
             Profile = null; // the next life gets its own record, or none
@@ -427,6 +446,11 @@ namespace StackExchange.Redis
                 if (UnroutableRedirectMessage is { } unroutable)
                 {
                     throw new RedisServerException(RedisErrorKind.UnknownRedirectTarget, _flags, unroutable);
+                }
+
+                if (DeclinedRedirectMessage is { } declined)
+                {
+                    throw new RedisServerException(RedisErrorKind.Moved, _flags, declined);
                 }
 
                 throw new RedisServerException(

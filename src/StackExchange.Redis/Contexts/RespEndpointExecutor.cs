@@ -1133,6 +1133,59 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>Refuse, before sending, what the caller is not permitted to send HERE.</summary>
+        /// <param name="request">The rendered request.</param>
+        /// <param name="database">The database the command will run against, or -1 for none.</param>
+        /// <remarks>
+        /// <b>The checks the shipped pipeline makes once a server has been named</b>, which is what this
+        /// executor is: <c>ConnectionMultiplexer.ExecuteAsyncImpl</c> refuses an admin command with
+        /// <c>AllowAdmin</c> off, and a primary-only command aimed at a replica, in the branch where the
+        /// caller chose the server. Both have to be answered by whoever holds that choice, and here that is
+        /// this type.
+        /// <para>
+        /// Both refusals are about what would happen if the command DID go, so both belong before the send:
+        /// "Command cannot be issued to a replica" is a statement the client can make on its own, and a
+        /// server error saying READONLY instead is a worse answer arrived at more slowly. The admin gate is
+        /// stronger still - the point of it is that the command is not sent.
+        /// </para>
+        /// <para>
+        /// Costs a switch on the command, and the sub-command is recovered from the frame only for the one
+        /// command whose answer depends on it. Nothing is paid at all while <c>AllowAdmin</c> is on and the
+        /// endpoint is a primary, which is the overwhelmingly common case.
+        /// </para>
+        /// </remarks>
+        private void Validate(in RespRequest request, int database)
+        {
+            // "no database" is a real answer for a server-scoped context, and a command that needs one has
+            // to say so rather than quietly run against whatever the connection last selected. Message's
+            // constructor makes the same refusal for the shipped pipeline; a core without Message has to
+            // make it somewhere, and this is where the database is finally known.
+            if (database < 0
+                && request.Command != RedisCommand.NONE
+                && request.Command != RedisCommand.UNKNOWN
+                && Message.RequiresDatabase(request.Command))
+            {
+                throw ExceptionFactory.DatabaseRequired(
+                    Server?.Multiplexer.RawConfig.IncludeDetailInExceptions ?? false, request.Command);
+            }
+
+            if (Server is not { } server) return; // nobody models this endpoint; nothing to judge it against
+
+            var config = server.Multiplexer.RawConfig;
+            if (!config.AllowAdmin
+                && Message.IsAdminCommand(
+                    request.Command,
+                    RespMessageExecutor.TryGetSubCommand(in request, out var subCommand) ? subCommand : null))
+            {
+                throw ExceptionFactory.AdminModeNotEnabled(config.IncludeDetailInExceptions, request.Command, null, server);
+            }
+
+            if (server.IsReplica && !server.AllowReplicaWrites && request.Command.IsPrimaryOnly())
+            {
+                throw ExceptionFactory.PrimaryOnly(config.IncludeDetailInExceptions, request.Command, null, server);
+            }
+        }
+
         /// <summary>The failure a command gets when there was nothing to send it on.</summary>
         /// <param name="command">The command, so the diagnosis can name it.</param>
         /// <param name="commandAndKey">The command and the key it named, when that can be recovered.</param>
@@ -1167,6 +1220,8 @@ namespace StackExchange.Redis
         private RespPayloadOperation Dispatch(
             in RespRequest request, int database, CancellationToken cancellationToken, bool profile)
         {
+            Validate(in request, database);
+
             var operation = RespPayloadOperation.Rent();
             operation.Attach(request.Span, request.Flags, cancellationToken);
             operation.Database = database;

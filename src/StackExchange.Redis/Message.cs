@@ -244,14 +244,26 @@ namespace StackExchange.Redis
         /// <summary>
         /// Things with the potential to cause harm, or to reveal configuration information.
         /// </summary>
-        public bool IsAdmin
+        public bool IsAdmin => IsAdminCommand(Command, TryGetSubCommand(out var subCommand) ? subCommand : null);
+
+        /// <summary>
+        /// <inheritdoc cref="IsAdmin" path="/summary"/>
+        /// </summary>
+        /// <param name="command">The command.</param>
+        /// <param name="subCommand">Its sub-command, where one was recognised.</param>
+        /// <remarks>
+        /// <b>Static so that a core with no <see cref="Message"/> can ask the same question.</b> The answer
+        /// is a property of the command and its sub-command and nothing else; it was only ever an instance
+        /// member because that is where the sub-command happened to be reachable. A second copy of this list
+        /// would be a second place for <c>AllowAdmin</c> to disagree with itself.
+        /// </remarks>
+        internal static bool IsAdminCommand(RedisCommand command, SubCommand? subCommand)
         {
-            get
             {
-                switch (Command)
+                switch (command)
                 {
-                    case RedisCommand.CLIENT when TryGetSubCommand(out var subCommand):
-                        switch (subCommand)
+                    case RedisCommand.CLIENT when subCommand is { } sub:
+                        switch (sub)
                         {
                             case SubCommand.GetName:
                             case SubCommand.SetName:

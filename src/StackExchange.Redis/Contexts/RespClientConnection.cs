@@ -263,7 +263,14 @@ namespace StackExchange.Redis
             // surfaced unchanged. What uses it depends on that - a transaction's queued commands and the
             // topology probes must stay on the connection they chose, and a caller diagnosing a cluster
             // wants to be told where the server said the slot went rather than quietly following it.
-            if ((operation.Flags & CommandFlags.NoRedirect) != 0) return false;
+            if ((operation.Flags & CommandFlags.NoRedirect) != 0)
+            {
+                // ...but SAY so, rather than restating the redirect the caller can already read. The raw
+                // error is the one thing they have; what they are missing is that the client knew where to
+                // send it and did not because they asked it not to.
+                if (redirect.IsMoved) operation.DeclinedRedirectMessage = DescribeDeclined(in redirect, operation);
+                return false;
+            }
 
             // ONCE IS ENOUGH. The shipped core sets NoRedirect when it re-issues, on the reasoning that a
             // second redirect for the same command is pathological rather than routine - a redirect loop
@@ -274,6 +281,15 @@ namespace StackExchange.Redis
             operation.HasFollowedRedirect = true;
             return router(in redirect, operation);
         }
+
+        /// <summary>The error a caller sees when they declined a redirect the client could have followed.</summary>
+        /// <param name="redirect">The redirect, whose target and slot are what the caller wants named.</param>
+        /// <param name="operation">The command, so the message can name it.</param>
+        /// <remarks>Worded as the shipped core words it, because the two paths are read by the same people.</remarks>
+        private string DescribeDeclined(in RespRedirect redirect, RespPayloadOperation operation)
+            => includeDetailInExceptions
+                ? $"Key has MOVED to Endpoint {redirect.Target} and hashslot {redirect.Slot} but CommandFlags.NoRedirect was specified - redirect not followed for {operation.CommandAndKey}. "
+                : "Key has MOVED but CommandFlags.NoRedirect was specified - redirect not followed. ";
 
         /// <summary>The error a caller sees when the server named a target that cannot be dialled.</summary>
         /// <param name="redirect">The redirect, whose target is the whole of the information.</param>

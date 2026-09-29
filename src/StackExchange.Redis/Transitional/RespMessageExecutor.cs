@@ -207,7 +207,7 @@ namespace StackExchange.Redis
         /// when <c>AllowAdmin</c> is off. The shipped ad-hoc message exposes its first argument for exactly
         /// this reason; once the command is rendered, the frame is the only copy of it left.
         /// </remarks>
-        private static bool TryGetSubCommand(in RespRequest request, out Message.SubCommand subCommand)
+        internal static bool TryGetSubCommand(in RespRequest request, out Message.SubCommand subCommand)
         {
             // the command token is not an argument here, so index 0 IS the sub-command; and the span must
             // be big enough for every argument, because resolving refuses a short one rather than filling

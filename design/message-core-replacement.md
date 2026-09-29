@@ -2131,25 +2131,37 @@ Each step is independently shippable and leaves the tree green.
   regressions**, and every one is a check the shipped `Message` pipeline was performing on this surface's
   behalf. That is the actual content of D2.4, and it is five distinct pieces:
 
-  1. **Admin and replica refusals.** `LibraryNameSuffixAdminTests.AdminClientSubCommandsStillRequireAdmin`
-     and `MultiPrimaryTests.CannotFlushReplica` expect `RedisCommandException` before anything is sent;
-     without the pipeline's `CheckMessage`/`AllowReplicaWrites` the command goes to the server and comes
-     back as `RedisServerException`. A *safety* regression, not just a failing test - this is the reason the
-     swap is not landed as it stands.
-  2. **Server-pinned commands must not follow a redirect, and must report one the shipped way.**
-     `ClusterTests.IntentionalWrongServer` wants "Key has MOVED to Endpoint ..." and gets the raw
-     `MOVED 3828 127.0.0.1:7000`; `ClusterTests.MovedProfiling` counts one command fewer than it expects.
-     An endpoint the caller named explicitly is not a routing suggestion.
-  3. **The database-required refusal.** `RespServerContextTests.ADatabaseScopedCommandIsRefused` relies on
-     `Message`'s constructor throwing for a database-scoped command with no database; nothing on this path
-     checks.
-  4. **The connection's identity.** `ConfigTests.ClientName` reads null and `ClientLibraryName` reads
-     `SE.Redis` without its suffix, so the new core's handshake does not set the name the way the shipped
-     one does - a real gap that only shows up once `IServer` reads its own connection.
-  5. **One unexplained fault**, worth its own look rather than assuming: `NewCoreScanTests.SetScanLarge`
-     fails with `Timeout awaiting response (0ms elapsed), command=` - a timeout with no elapsed time and no
-     command, which is not a plausible timeout and suggests an operation that was faulted before it was
-     attached.
+  1. **Admin and replica refusals. DONE.** `RespEndpointExecutor.Validate` makes both before sending, which
+     is where the shipped pipeline makes them once a server has been named
+     (`ConnectionMultiplexer.ExecuteAsyncImpl`, in the branch where the caller chose it). `Message.IsAdmin`
+     became a static `IsAdminCommand(command, subCommand)` so a core without `Message` can ask the same
+     question rather than keep a second copy of the list. This was the safety part: without it an admin
+     command with `AllowAdmin` off went to the server and came back as `RedisServerException`.
+  2. **The declined-redirect wording. DONE.** `NoRedirect` is honoured either way, but the raw
+     `MOVED 3828 127.0.0.1:7000` is the one thing a caller diagnosing a cluster can already see; what they
+     need told is that the client knew where to send it and did not, because they said so. Reported through
+     `DeclinedRedirectMessage`, alongside the existing unroutable-target override, and classified as
+     `RedisErrorKind.Moved` - a different fact from an unroutable target, with different retry consequences.
+  3. **The database-required refusal. DONE.** Also in `Validate`, using `Message.RequiresDatabase`: "no
+     database" is a real answer for a server-scoped context, and a command that needs one has to say so
+     rather than quietly run against whatever the connection last selected.
+  4. **`NewCoreScanTests.SetScanLarge`. Fixed by (3)**, which is worth noting because the symptom named
+     nothing at all: `Timeout awaiting response (0ms elapsed), command=`. An operation faulted before it
+     carried a command is what that looks like.
+
+  **Six of the twelve remain, measured with the swap temporarily enabled**, and both are the same shape -
+  the client's own identity lives on one core's connection while something reads the other's:
+
+  - `ConfigTests.ClientName` asks `CLIENT GETNAME` through `IServer` and reads null, and
+    `ConfigTests.ClientLibraryName` reads `SE.Redis` without the suffix it just added.
+    `AddLibraryNameSuffix` retro-fixes connections through `IServer.Execute`, so under the swap it
+    fixes the new core's connection while the test reads the id of the shipped one. The handshake also
+    does not send `CLIENT SETINFO lib-name`/`lib-ver` at all.
+  - `ClusterTests.MovedProfiling` counts four commands where it wants five, so the profiling record for a
+    followed redirect is one short on this path.
+
+  Neither is a blocker in principle; both need the identity handshake and the profiling record to be this
+  core's own, which is D2.6's business (re-home the per-server beliefs) as much as D2.4's.
 - **D2.5 - Own subscriptions**, including the RESP2 second connection.
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
