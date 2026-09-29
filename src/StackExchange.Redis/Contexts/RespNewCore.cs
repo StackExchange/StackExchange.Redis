@@ -903,6 +903,22 @@ namespace StackExchange.Redis
             return any;
         }
 
+        /// <summary>How many commands are waiting for a connection to this endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections to count.</param>
+        /// <remarks>
+        /// <b>Reported so the client's own diagnostics are not wrong about it.</b> A backlog exists to be
+        /// visible - it is what <c>GetCounters</c>, <c>GetStatus</c> and the timeout exception text are for
+        /// - and under the engine flag the commands queue HERE while the shipped bridge, which is what
+        /// those surfaces read, queues nothing and reports zero. A client waiting on a backlog it is told
+        /// is empty is the diagnostic failing exactly when it is needed.
+        /// </remarks>
+        internal int BacklogCount(EndPoint endpoint, ConnectionType connectionType)
+        {
+            var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
+            return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.BacklogCount : 0;
+        }
+
         /// <summary>Told that an endpoint may or may not be chosen for new work.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="selectable">Whether it may be chosen.</param>

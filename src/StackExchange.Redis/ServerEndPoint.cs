@@ -899,6 +899,16 @@ namespace StackExchange.Redis
             var counters = new ServerCounters(EndPoint);
             interactive?.GetCounters(counters.Interactive);
             subscription?.GetCounters(counters.Subscription);
+
+            // and whatever is queued in the other core, which is where commands actually wait under the
+            // engine flag - see RespNewCore.BacklogCount. Added rather than substituted: both are real
+            // queues for as long as both cores exist, and "waiting to be sent" is the sum of them.
+            if (Multiplexer.NewCoreIfCreated is { } core)
+            {
+                counters.Interactive.PendingUnsentItems += core.BacklogCount(EndPoint, ConnectionType.Interactive);
+                counters.Subscription.PendingUnsentItems += core.BacklogCount(EndPoint, ConnectionType.Subscription);
+            }
+
             return counters;
         }
 
@@ -906,7 +916,11 @@ namespace StackExchange.Redis
         {
             try
             {
-                return GetBridge(connectionType, false)?.GetStatus() ?? BridgeStatus.Zero;
+                var status = GetBridge(connectionType, false)?.GetStatus() ?? BridgeStatus.Zero;
+                var queued = Multiplexer.NewCoreIfCreated?.BacklogCount(EndPoint, connectionType) ?? 0;
+                return queued == 0
+                    ? status
+                    : status with { BacklogMessagesPending = status.BacklogMessagesPending + queued };
             }
             catch (Exception ex)
             {
