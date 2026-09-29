@@ -1582,6 +1582,10 @@ Engine-flag failures went 133 -> 87 over one working session. These are what is 
 
 ## 9. Ending the two-core era: the new core needs its own topology
 
+> For the chain as it stands today - what happens between `db.StringGet(key)` and the socket, and which
+> of `ServerEndPoint`/`PhysicalBridge`/`PhysicalConnection`'s jobs went where - see `command-flow.md`.
+> This section is the plan for what is left; that one is the map of what exists.
+
 ### 9a. Why this is the priority, stated as measurement rather than opinion
 
 The command surface is done; the topology half has not started. That asymmetry is what makes the
