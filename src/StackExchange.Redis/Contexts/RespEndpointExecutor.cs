@@ -188,6 +188,29 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>Commands this endpoint can still be expected to finish.</summary>
+        /// <remarks>
+        /// <b>"Still going", not "not yet answered", and the distinction is the whole of it.</b> Written
+        /// commands count only while the connection that carries them is alive - once it is gone they are
+        /// about to be faulted, not completed. Queued commands count only while there is a connection or one
+        /// on the way; a backlog with nothing dialling it is waiting for something that is not coming, which
+        /// is precisely the state a shutdown finds after a connection failure. Counting those made closing
+        /// wait out its whole timeout for commands that could never land.
+        /// </remarks>
+        internal int UnfinishedCount
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    var live = _connection is { IsClosed: false };
+                    var pending = live ? _connection!.PendingCount : 0;
+                    var queued = live || _connecting is not null ? _backlog?.Count ?? 0 : 0;
+                    return pending + queued;
+                }
+            }
+        }
+
         /// <summary>How many commands are waiting for a connection.</summary>
         public int BacklogCount
         {

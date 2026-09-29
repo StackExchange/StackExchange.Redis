@@ -2969,6 +2969,14 @@ namespace StackExchange.Redis
 
             if (allowCommandsToComplete)
             {
+                // this core first: it has no QUIT to send, and what it owes is commands that may not have
+                // reached the wire yet. Blocking here rather than awaiting, because this is the
+                // synchronous close - the same bound as the quits below.
+                if (NewCoreIfCreated is { } core)
+                {
+                    core.DrainAsync(RawConfig.AsyncTimeout).Wait(RawConfig.AsyncTimeout);
+                }
+
                 var quits = QuitAllServers();
                 WaitAllIgnoreErrors(quits);
             }

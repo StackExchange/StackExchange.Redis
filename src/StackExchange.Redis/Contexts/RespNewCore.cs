@@ -1034,6 +1034,48 @@ namespace StackExchange.Redis
             return dropped;
         }
 
+        /// <summary>Let outstanding commands finish, before this core is torn down.</summary>
+        /// <param name="timeoutMilliseconds">How long to wait before giving up on the stragglers.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Closing is allowed to be orderly, and this core had no way to be.</b> Disposal tore the
+        /// connections down at once, so anything still queued - or written but not yet on the wire, since
+        /// the transport's flush signals its writer rather than promising delivery - was lost. A caller who
+        /// awaits every command never notices; one who does not is exactly who this is for, and
+        /// <c>CloseAsync</c> already advertises <c>allowCommandsToComplete</c> as meaning otherwise.
+        /// </para>
+        /// <para>
+        /// Waits only on work that can still finish - see <c>UnfinishedCount</c> - because the alternative
+        /// is waiting out the full timeout for commands stranded behind a connection that is never coming
+        /// back, which is the ordinary state of a shutdown that follows a failure.
+        /// </para>
+        /// <para>
+        /// Polled rather than signalled: this runs once per multiplexer, at the end of its life, and a
+        /// completion source per endpoint would be machinery maintained forever for that one moment.
+        /// </para>
+        /// </remarks>
+        internal async Task DrainAsync(int timeoutMilliseconds)
+        {
+            if (timeoutMilliseconds <= 0) return;
+
+            var deadline = Environment.TickCount + timeoutMilliseconds;
+            while (Unfinished() != 0)
+            {
+                if (unchecked(deadline - Environment.TickCount) <= 0) return;
+                await Task.Delay(DrainPollMilliseconds).ConfigureAwait(false);
+            }
+
+            int Unfinished()
+            {
+                var total = 0;
+                foreach (var pair in _endpoints) total += pair.Value.UnfinishedCount;
+                foreach (var pair in _subscriptions) total += pair.Value.UnfinishedCount;
+                return total;
+            }
+        }
+
+        private const int DrainPollMilliseconds = 5;
+
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()
         {

@@ -2181,8 +2181,21 @@ exactly what selects that path. Both frames are now queued in order and only the
 `EVALSHA` ever needed - the server processes them in order, so the script is loaded by the time the hash
 is used - and it costs one less round trip than awaiting did.
 
-What still blocks the async half is the disposal race above, plus `HotKeysTests`. The sync half is in
-and safe.
+*The drain is now in, and correct.* It waits only on work that can still finish - written commands while
+their connection is alive, queued commands while there is a connection or one on the way - because the
+naive version waited out the whole timeout for commands stranded behind a connection that was never
+coming back, which is the ordinary state of a shutdown after a failure. `CloseAsync` advertises
+`allowCommandsToComplete`; this core now honours it.
+
+*The async half is still out, and the reason has changed again.* With the drain and the ordering fix
+both in, a focused run passes - `SO10504853`, the scripting tests, `Issue2392` - but the full suite goes
+33 to 48. Some of that is a genuine two-core artefact: `HotKeysTests` issues fire-and-forget increments
+on this core's socket and then calls `HotKeysStop` through `IServer`, which is the SHIPPED core's
+socket, so the ordering that used to come free from a blocking call is gone and the two sockets race.
+That one resolves at D2.4. But the rest - `DatabaseTests.CountKeys`,
+`EndpointResolutionUnitTests.RedirectToANewNodeDoesNotDuplicateIt`, three of the lease-sharing tests,
+and `SO10504853` itself returning under full-suite concurrency - is not explained, and appears only
+under load. The sync half stays in on its own.
 
 `RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
 observation: the decision is per-composition, and each composition answers it where it queues.
