@@ -2170,12 +2170,25 @@ now takes `reconnectImmediately` for that case. Relaxing the backoff generally w
 wrong: `ReconnectRetryPolicyUnitTests` asserts the policy IS consulted, and three more of its cases
 failed.
 
-**Where it stands: the behaviour works, the test does not pass.** The wire trace shows exactly what is
-wanted - `SET` on the old connection answered `-MOVED`, a new connection, `SET` answered `+OK`, then the
-`GET` reading the value back - and the test now fails five asserts later on
-`SetCmdCount == 2`, reporting 3. The server counts a `SET` that produces no response line, which points
-at one reaching the connection being dropped; it needs the fake server instrumented rather than another
-guess.
+**The behaviour is complete; what was left is a lazy-connect artefact.** Instrumenting the fake server
+settled it, and the first reading was wrong: the failing assertion is not `SetCmdCount` but
+`TotalClientCount` one line below, and the two happened to disagree by the same numbers. The server
+handles exactly two `SET`s - `PROBE Set #1 on client 2`, `PROBE Set #2 on client 3` - which is what the
+test asks for.
+
+What differs is the connection count. The baseline is taken after a `PING`, and with `ConnectMode.Lazy`
+this core has not dialled by then, so `initialConnectionCount` is 1 (the shipped core's) where the
+test's model expects the client to be connected. It then sees three: shipped, ours, and ours again
+after the reconnect.
+
+**Confirmed by flipping the default**: with `ConnectMode.Discover`, all 22 `MovedUnitTests` pass. So the
+`MOVED`-to-self work is done, and these tests are gated on eager connect rather than on redirect
+handling - which makes them evidence for D2.0 rather than a MOVED bug.
+
+The default stays `Lazy` regardless, because flipping it is a package deal: measured across the whole
+engine suite it fixes ten and costs twenty-one, all of them connection-counting expectations plus the
+two `ConnectMode` tests that assert lazy preconditions. Those become correct rather than merely
+different at D2.8, and that is when to pay for them.
 
 ### 9c. What this buys beyond tidiness
 
