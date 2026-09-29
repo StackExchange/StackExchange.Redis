@@ -566,7 +566,10 @@ namespace StackExchange.Redis
             _select,
             _multiplexer.RawConfig.ConnectTimeout,
             () => _multiplexer.RawConfig.ReconnectRetryPolicy,
-            server: () => ModelledServer(endpoint));
+            server: () => ModelledServer(endpoint))
+        {
+            IsSubscriptionEndpoint = true,
+        };
 
         /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
         /// <remarks>
@@ -1005,6 +1008,27 @@ namespace StackExchange.Redis
         {
             var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
             return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.BacklogCount : 0;
+        }
+
+        /// <summary>This core's state for an endpoint, or null when it has no executor for it.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections to describe.</param>
+        /// <remarks>
+        /// <inheritdoc cref="BacklogCount" path="/remarks"/>
+        /// </remarks>
+        internal PhysicalBridge.BridgeStatus? ConnectionStatus(EndPoint endpoint, ConnectionType connectionType)
+        {
+            var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
+            return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.GetStatus() : null;
+        }
+
+        /// <summary>What connecting to an endpoint last failed with, as this core saw it.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections to ask about.</param>
+        internal RedisConnectionException? LastConnectFault(EndPoint endpoint, ConnectionType connectionType)
+        {
+            var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
+            return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.LastConnectFault : null;
         }
 
         /// <summary>Told that an endpoint may or may not be chosen for new work.</summary>

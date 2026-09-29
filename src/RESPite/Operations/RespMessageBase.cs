@@ -497,6 +497,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     void IRespMessage.TrySetTimedOut() => TrySetTimeout();
 
     /// <inheritdoc/>
+    bool IRespMessage.IsFinished => HasFlag(Flag_OutcomeKnown);
+
+    /// <inheritdoc/>
     bool IRespMessage.TryTimeoutIfOlderThan(TimeSpan age)
         => _diagnostics.Age >= age && TrySetTimeout();
 

@@ -1472,7 +1472,6 @@ namespace StackExchange.Redis
                 // the other core's endpoints, for the same reason the snapshot below is pulsed: a late
                 // reply announces itself to nobody, so noticing one is work that happens on a clock
                 NewCoreIfCreated?.OnHeartbeat();
-
                 var tmp = GetServerSnapshot();
                 int token = 0;
                 bool isRooted = pulse?.IsRooted(out token) ?? false, hasPendingCallerFacingItems = false;
@@ -2894,6 +2893,14 @@ namespace StackExchange.Redis
         }
 
         internal void OnAsyncTimeout() => Interlocked.Increment(ref asyncTimeouts);
+
+        /// <summary>Count a command that timed out while its caller was blocked on it.</summary>
+        /// <remarks>
+        /// The shipped core counts this inline in <c>ExecuteSyncImpl</c>, where the blocking wait itself
+        /// gives up. A core whose sync wait has no deadline of its own - because a sweep ends every command,
+        /// awaited or not - has to count from wherever the sweep lands, which is the command's completion.
+        /// </remarks>
+        internal void OnSyncTimeout() => Interlocked.Increment(ref syncTimeouts);
 
         /// <summary>
         /// Sends request to all compatible clients to reconfigure or reconnect.

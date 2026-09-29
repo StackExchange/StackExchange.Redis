@@ -2240,34 +2240,53 @@ engine suite it fixes ten and costs twenty-one, all of them connection-counting 
 two `ConnectMode` tests that assert lazy preconditions. Those become correct rather than merely
 different at D2.8, and that is when to pay for them.
 
-### 9b-viii. Configured command timeouts are not applied to commands in flight
+### 9b-viii. Configured command timeouts, and the diagnostics that make one useful (fixed)
 
-**The gap, and it is a large one.** `SyncTimeout` and `AsyncTimeout` do not reach an operation that has
-been written and is waiting for a reply. The synchronous wait is `Wait(token, TimeSpan.Zero)`, and zero
-is the monitor's *no deadline* case - so a command against a server that has stopped answering blocks
-until `OperationBackstop` cancels it, which is two minutes by default. `AsyncTests.AsyncTimeoutIsNoticed`
-pauses the server with `CLIENT PAUSE 4000` against a 1,000ms timeout and sees no exception at all.
+**The gap.** `SyncTimeout` and `AsyncTimeout` did not reach an operation that had been written and was
+waiting for a reply. The synchronous wait is `Wait(token, TimeSpan.Zero)`, and zero is the monitor's *no
+deadline* case - so a command against a server that had stopped answering blocked until
+`OperationBackstop` cancelled it, two minutes later.
 
-**What it is not.** Passing the configured value into `Wait` is the obvious fix and is wrong on its own:
-it fixes nothing in that family and breaks `MaintenanceRelaxationTests`, which then reports a connection
-failure where it wants a timeout. Adding the relaxation-aware value
-(`ServerEndPoint.GetEffectiveTimeoutMilliseconds`, so a maintenance window still rescues what it was
-raised to rescue) does not change that. Tried, measured, reverted.
+**What it was not.** Passing the configured value into `Wait` is the obvious fix and is wrong on its own:
+it fixed nothing in that family and broke `MaintenanceRelaxationTests`, which then reported a connection
+failure where it wanted a timeout. Adding the relaxation-aware value did not change that. Tried,
+measured, reverted.
 
-**What it needs** is what the shipped core does: a sweep over operations that have been WRITTEN, driven
-by a timer, failing those past their deadline - `PhysicalBridge` does this from the heartbeat. Two things
-make it more than a small change, and both are in the most delicate part of the system:
+**What it needed** was what the shipped core does: a sweep over operations that have been WRITTEN, driven
+by the multiplexer heartbeat. `RespConnection.ExpirePending` walks `_pending` and times out whatever has
+waited too long, and `RespEndpointExecutor.OnHeartbeat` drives it with the relaxation-aware timeout.
 
-- `IRespMessage.TrySetTimedOut` exists but has exactly one caller, the backstop; there is no sweep seam,
-  so `RespConnection` needs one over `_pending`.
-- A timed-out operation must **stay in the pending queue**. Replies are matched positionally, so
-  removing it would mis-address every reply after it; it has to be completed while its slot keeps
-  consuming the frame that eventually arrives. `Drain` then hands a frame to an operation that has
-  already been completed, and that path needs to be correct rather than merely not crash.
+Three things fell out of it that were not obvious in advance, and each was a real defect of its own:
 
-The multiplexer heartbeat is the natural driver, as it is for the shipped core, which also gets the
-relaxation and the dead-connection detection right by consulting
-`GetEffectiveTimeoutMilliseconds` there.
+- **A timed-out operation stays in the pending queue.** Replies are matched positionally, so removing it
+  would mis-address every reply after it. That makes "queued" and "still going" different questions, and
+  `UnfinishedCount` was asking the first while meaning the second - so closing waited out the full
+  timeout for commands that had already given up. Hence `RespConnection.UnfinishedPendingCount`.
+- **The window has to be consulted on every sweep**, the backlog as much as the written queue: a command
+  waiting for a connection to a server that is mid-migration is precisely what a maintenance window
+  exists to rescue.
+- **`ExpireBacklog` was reporting the wrong exception type.** It always raised
+  `RedisConnectionException`; the shipped rule is that a connection fault is reported only when
+  connecting has actually been *failing*, because then the timeout is a symptom and the connect fault is
+  the cause. A command behind a connect that is merely slow has timed out. Sweeping the backlog from the
+  heartbeat is what first exercised the difference.
+
+**And then the diagnostics, which are most of the value.** A timeout exception's worth is its tail -
+`qs`, `qu`, `in`, `last-in`, `cur-in`, the thread-pool counters, `sync-ops`/`async-ops` - and this core
+produced none of it, because `ExceptionFactory` required a `Message`. That dependency was incidental:
+`IFaultSubject` is the subset a fault report actually needs (what the command was, which key, how far it
+got, which connection type, whether anyone awaited it), implemented by both `Message` and
+`RespPayloadOperation`. `ServerEndPoint.GetBridgeStatus` now merges this core's connection state into the
+same `BridgeStatus` every diagnostic surface already reads, so the tail describes the socket the command
+was actually on rather than an idle bridge reporting zeroes.
+
+**What remains, and it is not this.** `AsyncTests.AsyncTimeoutIsNoticed` now satisfies every assertion in
+its body - message wording, `last-in`, `cur-in`, `Redis-Last-Result-Bytes`, and `async timeouts: 1` - and
+still does not pass, because under the engine flag the test's teardown finds an ambient connection
+failure that the shipped-only run does not have. It is pre-existing and independent: the shipped core's
+own connections are dropped during the test's `CLIENT PAUSE 4000` (measured at two such failures with
+the sweep disabled, one with it enabled), and they are dropped because they are there at all. That is
+D2.8's business - stop constructing bridges - not this section's.
 
 ### 9c. What this buys beyond tidiness
 

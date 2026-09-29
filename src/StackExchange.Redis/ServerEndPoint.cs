@@ -916,11 +916,35 @@ namespace StackExchange.Redis
         {
             try
             {
-                var status = GetBridge(connectionType, false)?.GetStatus() ?? BridgeStatus.Zero;
-                var queued = Multiplexer.NewCoreIfCreated?.BacklogCount(EndPoint, connectionType) ?? 0;
-                return queued == 0
-                    ? status
-                    : status with { BacklogMessagesPending = status.BacklogMessagesPending + queued };
+                var bridge = GetBridge(connectionType, false)?.GetStatus();
+
+                // the OTHER core's connection, when it owns one: under the engine flag the commands are on
+                // its socket and the shipped bridge - which is what every diagnostic surface reads - is
+                // idle and reports zeroes. A timeout that says "nothing outstanding, nothing read" about a
+                // connection with work on it is the diagnostic failing exactly when it is needed
+                var other = Multiplexer.NewCoreIfCreated?.ConnectionStatus(EndPoint, connectionType);
+                if (other is not { } mine) return bridge ?? BridgeStatus.Zero;
+                if (bridge is not { } theirs) return mine;
+
+                return theirs with
+                {
+                    IsWriterActive = theirs.IsWriterActive || mine.IsWriterActive,
+                    BacklogMessagesPending = theirs.BacklogMessagesPending + mine.BacklogMessagesPending,
+                    BacklogMessagesPendingCounter = theirs.BacklogMessagesPendingCounter + mine.BacklogMessagesPendingCounter,
+                    BacklogStatus = mine.BacklogStatus == BacklogStatus.Inactive ? theirs.BacklogStatus : mine.BacklogStatus,
+                    Connection = theirs.Connection with
+                    {
+                        MessagesSentAwaitingResponse =
+                            theirs.Connection.MessagesSentAwaitingResponse + mine.Connection.MessagesSentAwaitingResponse,
+
+                        // the newest fact wins rather than a sum: these describe "what did the last reply
+                        // look like", which has one answer per connection and no meaningful total
+                        BytesLastResult = mine.Connection.BytesLastResult != 0
+                            ? mine.Connection.BytesLastResult
+                            : theirs.Connection.BytesLastResult,
+                        BytesInBuffer = theirs.Connection.BytesInBuffer + mine.Connection.BytesInBuffer,
+                    },
+                };
             }
             catch (Exception ex)
             {

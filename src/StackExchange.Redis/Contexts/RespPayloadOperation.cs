@@ -212,13 +212,33 @@ namespace StackExchange.Redis
         /// which the retry layer reads to decide whether re-sending is safe.
         /// </remarks>
         protected override Exception CreateTimeoutException()
-            => new RedisTimeoutException(
-                _flags,
-                $"Timeout awaiting a response ({Diagnostics.Age.TotalMilliseconds:n0}ms), command={CommandAndKey}",
-                (CommandStatus)Diagnostics.Status)
+        {
+            var elapsed = (int)Diagnostics.Age.TotalMilliseconds;
+            if (Server is not { Multiplexer: { } multiplexer } server)
             {
-                MaintenanceType = MaintenanceTypeForFault,
-            };
+                // nobody models this endpoint - an executor built directly over a transport, which the tests
+                // do and nothing else does. Say the true thing that can be said without a client.
+                return new RedisTimeoutException(
+                    _flags,
+                    $"Timeout awaiting response ({elapsed}ms elapsed), command={CommandAndKey}",
+                    (CommandStatus)Diagnostics.Status)
+                {
+                    MaintenanceType = MaintenanceTypeForFault,
+                };
+            }
+
+            // the timeout that APPLIED, which is what the reader needs in order to judge the elapsed number
+            // next to it - the configured one raised by any maintenance window, exactly as the sweep that
+            // raised this decided it
+            var configured = IsAwaited ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds;
+            var timeout = server.GetEffectiveTimeoutMilliseconds(configured);
+
+            return ExceptionFactory.Timeout(
+                multiplexer,
+                $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)",
+                this,
+                server);
+        }
 
         /// <summary>Which announced disruption, if any, a fault on this command should be blamed on.</summary>
         /// <remarks>
@@ -286,6 +306,17 @@ namespace StackExchange.Redis
         protected override void OnFinished(Exception? fault)
         {
             Profile?.SetCompleted();
+
+            // the client's own timeout tally, which GetStatus and GetCounters report. The shipped core
+            // counts in two places because it raises the two kinds in two places - async on the bridge
+            // heartbeat, sync in the caller's own wait. This core raises both from one sweep, so the
+            // question "was anybody awaiting this" is asked here instead; see RespMessageBase.IsAwaited
+            // for why a false answer means only "not as far as we know".
+            if (fault is RedisTimeoutException && Server is { Multiplexer: { } multiplexer })
+            {
+                if (IsAwaited) multiplexer.OnAsyncTimeout();
+                else multiplexer.OnSyncTimeout();
+            }
 
             // and the circuit breaker, from the same hook and for the same reason: this is the one point
             // that sees EVERY ending - a reply, a server error, a cancellation, a timeout, a connection

@@ -222,12 +222,68 @@ namespace StackExchange.Redis
                 lock (_sync)
                 {
                     var live = _connection is { IsClosed: false };
-                    var pending = live ? _connection!.PendingCount : 0;
+                    var pending = live ? _connection!.UnfinishedPendingCount : 0;
                     var queued = live || _connecting is not null ? _backlog?.Count ?? 0 : 0;
                     return pending + queued;
                 }
             }
         }
+
+        /// <summary>Whether this executor owns the endpoint's subscription connection.</summary>
+        /// <remarks>
+        /// Only used to describe a fault: the tail on a timeout names one connection's counters, and the
+        /// command has to say which of an endpoint's two it was on. This core routes subscriptions by giving
+        /// them their own executor rather than by flagging the command, so the executor is what knows.
+        /// </remarks>
+        internal bool IsSubscriptionEndpoint { get; init; }
+
+        /// <summary>This endpoint's state, in the shape the client's diagnostics already speak.</summary>
+        /// <remarks>
+        /// <b>Reported through <see cref="PhysicalBridge.BridgeStatus"/> rather than a new shape of its
+        /// own.</b> Every surface that shows connection state - <c>GetCounters</c>, <c>GetStatus</c>, the
+        /// tail on a timeout exception - reads that struct, and callers have been reading those fields for
+        /// years. Answering the same questions in a different vocabulary would mean teaching every one of
+        /// those surfaces about a second core, which is the opposite of the direction of travel.
+        /// <para>
+        /// The fields this core genuinely has no answer for keep the "not applicable" sentinels rather than
+        /// a plausible zero: there is no socket-level byte count and no pipe, because there is no pipe.
+        /// </para>
+        /// </remarks>
+        internal PhysicalBridge.BridgeStatus GetStatus()
+        {
+            RespConnection? connection;
+            int backlog;
+            bool writing;
+            lock (_sync)
+            {
+                connection = _connection;
+                backlog = _backlog?.Count ?? 0;
+                writing = _writeSlotHeld;
+            }
+
+            var live = connection is { IsClosed: false } ? connection : null;
+            return new PhysicalBridge.BridgeStatus
+            {
+                IsWriterActive = writing,
+                BacklogMessagesPending = backlog,
+                BacklogMessagesPendingCounter = backlog,
+                BacklogStatus = backlog == 0 ? PhysicalBridge.BacklogStatus.Inactive : PhysicalBridge.BacklogStatus.Started,
+                Connection = new PhysicalConnection.ConnectionStatus
+                {
+                    MessagesSentAwaitingResponse = live?.PendingCount ?? 0,
+                    BytesAvailableOnSocket = -1,
+                    BytesInReadPipe = -1,
+                    BytesInWritePipe = -1,
+                    BytesLastResult = live?.BytesLastResult ?? 0,
+                    BytesInBuffer = live?.BytesInBuffer ?? 0,
+                    ReadStatus = PhysicalConnection.ReadStatus.NA,
+                    WriteStatus = PhysicalConnection.WriteStatus.NA,
+                },
+            };
+        }
+
+        /// <summary>What connecting to this endpoint last failed with, or null if it has not.</summary>
+        internal RedisConnectionException? LastConnectFault => Volatile.Read(ref _lastConnectFault) as RedisConnectionException;
 
         /// <summary>How many commands are waiting for a connection.</summary>
         public int BacklogCount
@@ -636,6 +692,7 @@ namespace StackExchange.Redis
                 {
                     operation.Observer = this;
                     operation.Server = Server;
+                    operation.IsSubscription = IsSubscriptionEndpoint;
                 }
             }
 
@@ -1056,6 +1113,7 @@ namespace StackExchange.Redis
             operation.Command = request.Command;
             operation.Observer = this;
             operation.Server = Server;
+            operation.IsSubscription = IsSubscriptionEndpoint;
 
             // started HERE, where the endpoint is finally known: a profiled command reports which server
             // answered it, and until routing has resolved there is no honest answer to that.

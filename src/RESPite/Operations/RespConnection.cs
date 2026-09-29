@@ -86,6 +86,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     private long _bytesSent;
     private long _bytesReceived;
+    private long _bytesLastResult;
     private Exception? _fault;
     private int _closed;
 
@@ -125,6 +126,52 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     /// <summary>Operations written and still awaiting a reply.</summary>
     public int PendingCount => _pending.Count;
+
+    /// <summary>Operations awaiting a reply that can still be finished by one.</summary>
+    /// <remarks>
+    /// <b>Not <see cref="PendingCount"/>, and the gap is the point.</b> A timed-out or otherwise
+    /// already-ended operation keeps its place in the queue so that the reply it no longer wants is still
+    /// matched to the right slot - see <see cref="ExpirePending"/> - so the queue's depth answers "how many
+    /// replies are still owed", which is what a diagnostic wants, and not "how much work could still
+    /// complete", which is what anybody waiting for quiet needs. Waiting on the first number waits out the
+    /// full timeout for commands that have already given up.
+    /// </remarks>
+    internal int UnfinishedPendingCount
+    {
+        get
+        {
+            var count = 0;
+            foreach (var message in _pending)
+            {
+                if (!message.IsFinished) count++;
+            }
+
+            return count;
+        }
+    }
+
+    /// <summary>The size of the last complete reply frame read, in bytes.</summary>
+    /// <remarks>
+    /// <b>Diagnostics, and specifically timeout diagnostics.</b> "The last thing we read was 0 bytes"
+    /// separates a connection that is idle from one that is mid-reply, which is the first question anybody
+    /// asks of a command that did not come back. Callers have read this as <c>last-in</c> for years.
+    /// </remarks>
+    public long BytesLastResult => Volatile.Read(ref _bytesLastResult);
+
+    /// <summary>Bytes read from the transport that have not yet formed a complete frame.</summary>
+    /// <remarks>
+    /// Reported as <c>cur-in</c>. Read without synchronisation on purpose: the two ends move only on the
+    /// read loop, so the worst this can be is one frame out of date, and a diagnostic that took a lock on
+    /// the IO path to be exact would be paying for precision nobody can use.
+    /// </remarks>
+    public long BytesInBuffer
+    {
+        get
+        {
+            var pending = Volatile.Read(ref _end) - Volatile.Read(ref _start);
+            return pending > 0 ? pending : 0;
+        }
+    }
 
     /// <summary>Time out anything that has been awaiting a reply for too long.</summary>
     /// <param name="olderThan">How long an operation may wait before it is declared timed out.</param>
@@ -746,6 +793,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             var frame = buffer.GetSpan().Slice(_start, length);
             _start += length;
+            Volatile.Write(ref _bytesLastResult, length);
 
             if (IsOutOfBand(frame) && OnOutOfBand(frame)) continue;
 

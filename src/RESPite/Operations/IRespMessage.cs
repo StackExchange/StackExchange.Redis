@@ -31,6 +31,15 @@ internal interface IRespMessage : IValueTaskSource
     /// <summary>Whether the reply may be parsed on the IO thread rather than handed off.</summary>
     bool AllowInlineParsing { get; }
 
+    /// <summary>Whether this operation's outcome is already known.</summary>
+    /// <remarks>
+    /// <b>Asked of operations still in a connection's pending queue</b>, which sounds contradictory and is
+    /// not: a timed-out operation keeps its place in that queue because replies are matched to it
+    /// positionally, so "queued" and "still going" stop being the same question the moment anything can end
+    /// an operation early. Waiting for one of these to finish waits for something that already has.
+    /// </remarks>
+    bool IsFinished { get; }
+
     /// <summary>Block until the outcome is known, or <paramref name="timeout"/> elapses.</summary>
     /// <param name="token">The version this caller holds.</param>
     /// <param name="timeout">How long to wait; <see cref="TimeSpan.Zero"/> waits indefinitely.</param>
