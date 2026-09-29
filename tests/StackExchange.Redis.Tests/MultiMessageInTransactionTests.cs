@@ -200,12 +200,31 @@ public class MultiMessageInTransactionTests(ITestOutputHelper output, SharedConn
     /// used to need a cast to the context, which is exactly the "unreachable by accident" defence the
     /// refusal replaces.
     /// </para>
+    /// <para>
+    /// <b>The new core does not need the refusal, and that is the better answer rather than a divergence
+    /// to be reconciled.</b> <c>Scripts</c> asks its executor whether it accumulates, and an accumulating
+    /// one is sent the script BODY as an <c>EVAL</c> - one frame, nothing composed, nothing to shift in the
+    /// <c>EXEC</c> array. So under the engine flag a script inside a transaction simply works, and behaves
+    /// like every other queued command: deferred until <c>EXEC</c>. Awaiting it before then hangs, which is
+    /// true of any transaction command and is why this half of the test does not await it.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task TheFrameSurfacesComposedPairIsRefused()
     {
         await using var muxer = Create();
         var tran = muxer.GetDatabase().CreateTransaction();
+
+        if (ConnectionMultiplexer.NewCoreEngine)
+        {
+            // nothing is composed, so there is nothing to refuse: the script is queued like anything else
+            var script = tran.Scripts.EvaluateAsync("return 1", [], []);
+            Assert.False(script.IsCompleted, "SCRIPT-DEFERRED-OK");
+            Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
+            using var result = await script;
+            Assert.Equal("1", result.ReadScalar().ReadString());
+            return;
+        }
 
         var ex = await Assert.ThrowsAsync<NotSupportedException>(
             async () => await tran.Scripts.EvaluateAsync("return 1", [], []));
