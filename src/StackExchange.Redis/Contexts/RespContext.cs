@@ -411,14 +411,15 @@ namespace StackExchange.Redis
         /// </exception>
         internal RespContext WithDatabase(int database)
         {
-            var executor = Executor switch
+            var executor = Executor;
+            if (executor is not null)
             {
-                null => null,                                        // nothing to route yet; WithExecutor comes later
-                RespMessageExecutor message => message.WithDatabase(database),
-                { } other when other.Database == database => other,  // already there; nothing to do
-                { } other => throw new NotSupportedException(
-                    $"This context's executor ({other.GetType().Name}) runs against database {other.Database} and cannot be re-pointed at database {database}."),
-            };
+                // nothing to route yet is fine - WithExecutor comes later - but an executor that cannot be
+                // re-pointed has to say so, rather than let a command run against the wrong database
+                executor = executor.WithDatabase(database)
+                    ?? throw new NotSupportedException(
+                        $"This context's executor ({Executor!.GetType().Name}) runs against database {Executor.Database} and cannot be re-pointed at database {database}.");
+            }
 
             return new RespContext(CommandMap, KeyPrefix, default, database, _serverType, executor, _services).WithSameTopology(this);
         }

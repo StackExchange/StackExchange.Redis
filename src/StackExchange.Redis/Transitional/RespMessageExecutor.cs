@@ -60,7 +60,7 @@ namespace StackExchange.Redis
         /// the message it builds. So re-pointing is a new executor over the same target, not a new target -
         /// which is why <see cref="RespContext.WithDatabase"/> can offer it at all.
         /// </remarks>
-        internal RespMessageExecutor WithDatabase(int database)
+        internal override RespExecutorBase WithDatabase(int database)
             => database == Database ? this : new RespMessageExecutor(_target, database, _server);
 
         /// <inheritdoc/>

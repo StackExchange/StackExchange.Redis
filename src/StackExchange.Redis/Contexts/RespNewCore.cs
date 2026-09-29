@@ -604,6 +604,23 @@ namespace StackExchange.Redis
                 : byEndpoint.GetOrAdd(endpoint, new RespDatabaseExecutor(owner, database));
         }
 
+        /// <summary>This endpoint's connection, as an executor that names no database.</summary>
+        /// <param name="endpoint">The endpoint the caller has already chosen.</param>
+        /// <remarks>
+        /// <b>For <c>IServer</c>, which names a server and no database.</b> Database <c>-1</c> is not
+        /// "database zero": it means no <c>SELECT</c> is written, so a keyless server command leaves the
+        /// connection's current selection alone - which is the behaviour
+        /// <c>ServerExecuteDatabaseTests.CommandsNeedingNoDatabaseLeaveTheSelectionAlone</c> pins. A member
+        /// that does need one moves the context with <c>WithDatabase</c>, and gets a view over this same
+        /// socket.
+        /// <para>
+        /// Sharing the socket is the point rather than a saving: <c>IServer</c> on its own connection means
+        /// a flush, a scan or a <c>CLIENT INFO</c> races the commands it is meant to describe. That is the
+        /// artefact design notes 9b-xi measures.
+        /// </para>
+        /// </remarks>
+        internal RespExecutorBase ServerExecutor(EndPoint endpoint) => Endpoint(endpoint).WithDatabase(-1);
+
         /// <summary>The one executor that owns this endpoint's connection.</summary>
         private RespEndpointExecutor Endpoint(EndPoint endpoint)
             => _endpoints.TryGetValue(endpoint, out var existing)

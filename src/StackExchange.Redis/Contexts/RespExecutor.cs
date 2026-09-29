@@ -241,6 +241,17 @@ namespace StackExchange.Redis
         {
         }
 
+        /// <summary>The same target, sending to a different database; null if it cannot be re-pointed.</summary>
+        /// <param name="database">The database index, or -1 for "no database".</param>
+        /// <remarks>
+        /// <b>Asked rather than assumed, because only some executors can move.</b> A database is a property
+        /// of what finally writes: one that owns a connection can offer a view over it per database, and one
+        /// that composes - a batch, a transaction - cannot, because its run is already committed to a
+        /// database. Null is the honest answer for those, and <see cref="RespContext.WithDatabase"/> turns it
+        /// into a refusal that names the type rather than a silent move that lies about where a command went.
+        /// </remarks>
+        internal virtual RespExecutorBase? WithDatabase(int database) => Database == database ? this : null;
+
         /// <summary>Whether this executor times out an operation itself, with a diagnostic.</summary>
         /// <remarks>
         /// <b>About which exception a caller sees, not whether one arrives.</b> An executor that answers

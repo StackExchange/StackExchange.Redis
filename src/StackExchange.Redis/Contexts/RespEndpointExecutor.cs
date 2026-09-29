@@ -279,6 +279,15 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         internal override bool EnforcesTimeouts => HeartbeatDriven;
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>A view over this connection, which is the whole point of <see cref="RespDatabaseExecutor"/>.</b>
+        /// One endpoint has one socket whatever database a command names, and the <c>SELECT</c> that makes
+        /// the naming true is written in front of the command inside the write lock.
+        /// </remarks>
+        internal override RespExecutorBase WithDatabase(int database)
+            => database == Database ? this : new RespDatabaseExecutor(this, database);
+
         /// <summary>Whether this executor owns the endpoint's subscription connection.</summary>
         /// <remarks>
         /// Only used to describe a fault: the tail on a timeout names one connection's counters, and the

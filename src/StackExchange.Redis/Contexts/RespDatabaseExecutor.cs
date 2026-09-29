@@ -48,6 +48,11 @@ namespace StackExchange.Redis
         public override bool CanCancel => _inner.CanCancel;
 
         /// <inheritdoc/>
+        /// <remarks>Re-pointed by asking the connection's owner for another view, not by stacking one.</remarks>
+        internal override RespExecutorBase WithDatabase(int database)
+            => database == Database ? this : _inner.WithDatabase(database);
+
+        /// <inheritdoc/>
         /// <remarks>
         /// <b>Forwarded, like the other capabilities.</b> Not forwarding it meant a view over a batch or a
         /// transaction answered "no, I send each command as it arrives" while queueing every one of them -

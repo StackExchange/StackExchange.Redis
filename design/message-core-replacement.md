@@ -2118,6 +2118,38 @@ Each step is independently shippable and leaves the tree green.
   The keyless half needs the same thing for the same reason, measured separately at 21 failures.
 - **D2.4 - Move `IServer` onto this core.** Replace `RespMessageExecutor` in `RedisServer.GetContext`.
   *Done when* `ServerExecuteDatabaseTests` passes without special-casing.
+
+  **The swap itself is one line, and it has been done and measured.** `RespNewCore.ServerExecutor` hands
+  back this endpoint's connection as an executor naming database `-1`, and `RespContext.WithDatabase` can
+  now re-point it because `WithDatabase` is a virtual on `RespExecutorBase` rather than a cast to
+  `RespMessageExecutor` (that part is landed - it is a refactor with no behaviour change, and the seam is
+  what D2.4 needs).
+
+  With the swap in: `ServerExecuteDatabaseTests` passes, and so does the whole 9b-xi family -
+  `KeyTests.TestScan`, `FlushFetchRandomKey`, the lease-sharing pair, `HotKeysTests`. The engine-flag count
+  was unchanged at 24, because the swap trades those intermittent artefacts for **twelve deterministic
+  regressions**, and every one is a check the shipped `Message` pipeline was performing on this surface's
+  behalf. That is the actual content of D2.4, and it is five distinct pieces:
+
+  1. **Admin and replica refusals.** `LibraryNameSuffixAdminTests.AdminClientSubCommandsStillRequireAdmin`
+     and `MultiPrimaryTests.CannotFlushReplica` expect `RedisCommandException` before anything is sent;
+     without the pipeline's `CheckMessage`/`AllowReplicaWrites` the command goes to the server and comes
+     back as `RedisServerException`. A *safety* regression, not just a failing test - this is the reason the
+     swap is not landed as it stands.
+  2. **Server-pinned commands must not follow a redirect, and must report one the shipped way.**
+     `ClusterTests.IntentionalWrongServer` wants "Key has MOVED to Endpoint ..." and gets the raw
+     `MOVED 3828 127.0.0.1:7000`; `ClusterTests.MovedProfiling` counts one command fewer than it expects.
+     An endpoint the caller named explicitly is not a routing suggestion.
+  3. **The database-required refusal.** `RespServerContextTests.ADatabaseScopedCommandIsRefused` relies on
+     `Message`'s constructor throwing for a database-scoped command with no database; nothing on this path
+     checks.
+  4. **The connection's identity.** `ConfigTests.ClientName` reads null and `ClientLibraryName` reads
+     `SE.Redis` without its suffix, so the new core's handshake does not set the name the way the shipped
+     one does - a real gap that only shows up once `IServer` reads its own connection.
+  5. **One unexplained fault**, worth its own look rather than assuming: `NewCoreScanTests.SetScanLarge`
+     fails with `Timeout awaiting response (0ms elapsed), command=` - a timeout with no elapsed time and no
+     command, which is not a plausible timeout and suggests an operation that was faulted before it was
+     attached.
 - **D2.5 - Own subscriptions**, including the RESP2 second connection.
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
