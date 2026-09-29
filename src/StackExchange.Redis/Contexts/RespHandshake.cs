@@ -178,8 +178,18 @@ namespace StackExchange.Redis
             // Failure is not fatal and must not be: routing falls back to the selector while the map is
             // empty, so a server that will not answer CLUSTER SLOTS - a proxy, a permission - costs the
             // improvement and nothing else.
+            //
+            // ...and asked ONCE, not per connection. The map describes the deployment, not this socket, so
+            // a second connection re-asking learns nothing - it just pays a round trip and, mid-reshard,
+            // lets two nodes' differing answers flap the map by whichever order sockets happened to open.
+            // The signal that it is worth asking again is a redirect, not a new connection.
+            //
+            // The first connection of ANY kind still asks, subscription connections included: a client that
+            // only ever subscribes still has to know where things live.
             List<SlotRange>? ranges = null;
+            var knowSlots = topology is { HasSlotMap: true, SlotMapSuspect: false };
             if ((serverType == ServerType.Cluster || clusterInfoDeclined)
+                && !knowSlots
                 && topology is not null
                 && context.Raw.CommandMap.IsAvailable(RedisCommand.CLUSTER))
             {
@@ -197,6 +207,12 @@ namespace StackExchange.Redis
                     // no map from this server; the selector still answers
                 }
             }
+
+            // A map we already hold is itself the answer to "is this a cluster?", and saying so here is what
+            // makes the skip above safe. Without it a server that declines CLUSTER INFO - a proxy, the
+            // in-process test server - would be read as standalone on its SECOND connection and publish that,
+            // downgrading a topology the first connection had correctly established.
+            if (knowSlots) serverType = ServerType.Cluster;
 
             // BEFORE the connection is handed back, and that ordering is the point: the endpoint executor
             // publishes the connection and drains its backlog the moment this returns, and a backlog
@@ -226,6 +242,7 @@ namespace StackExchange.Redis
             else if (serverType != ServerType.Cluster
                 && topology is { WantsRoles: true }
                 && endpoint is not null
+                && topology.RoleOf(endpoint) == RespEndpointRole.Unknown
                 && context.Raw.CommandMap.IsAvailable(RedisCommand.ROLE))
             {
                 try

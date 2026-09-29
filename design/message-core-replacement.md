@@ -1945,10 +1945,16 @@ be settled before the rest is designed rather than discovered underneath it.
   shipped one does. Every question above is then answerable at the same moment it is answerable today,
   and the behaviour a caller sees does not change with the flag. The cost is the thing the lazy design
   was avoiding.
-- **Eager-once** is the likely answer: connect to ONE endpoint during `ConnectAsync` and let that
-  connection's `CLUSTER SLOTS`/`ROLE` describe the deployment (which is already how this core
-  discovers - see 9b B), then dial the rest on demand. `ConnectAsync` has something to wait for,
-  discovery is complete before the first command, and a 100-node cluster still opens one socket.
+- **Eager-once** is the answer: connect to ONE endpoint during `ConnectAsync`, then dial the rest on
+  demand. `ConnectAsync` has something to wait for, discovery is complete before the first command, and
+  a 100-node cluster still opens one socket.
+
+**And it buys no discovery we lack, which is worth stating plainly because the first version of this
+section implied otherwise.** The configured endpoints are the dial targets - nothing has to be
+discovered to start - and `CLUSTER SLOTS`/`ROLE` already ride on the first handshake whenever that
+happens. Eager-once changes only WHEN the first connection is made, not what it asks. There is no extra
+round trip anywhere in it; the entire content of the decision is whether `ConnectAsync` blocks on that
+first connection so that `IsConnected` and `IdentifyEndpoint` have an answer before the first command.
 
 Nothing below is blocked on this except D2.1 and D2.3, but those two are the spine.
 

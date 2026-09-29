@@ -210,6 +210,26 @@ namespace StackExchange.Redis
         /// </remarks>
         private SlotOwners?[]? _slots;
 
+        /// <summary>Whether something has suggested the slot map is out of date.</summary>
+        /// <remarks>
+        /// <b>The reason a connection re-asks, rather than the connection itself being the reason.</b> Every
+        /// handshake used to issue <c>CLUSTER SLOTS</c>, so a six-node cluster paid six probes to learn one
+        /// map - eleven with a subscription connection to each - and every reconnect paid again. Worse than
+        /// the round trips, two nodes mid-reshard answer differently, so the map flapped between their views
+        /// for no reason but the order sockets happened to open.
+        /// <para>
+        /// A redirect is the honest signal: the server has just said a slot is not where we thought. Set
+        /// there, cleared by the probe that acts on it.
+        /// </para>
+        /// </remarks>
+        internal bool SlotMapSuspect
+        {
+            get => Volatile.Read(ref _slotMapSuspect) != 0;
+            set => Volatile.Write(ref _slotMapSuspect, value ? 1 : 0);
+        }
+
+        private int _slotMapSuspect;
+
         /// <summary>Whether this core has a slot map of its own yet.</summary>
         /// <remarks>
         /// The caller falls back to the shipped selector while this is false, which is what lets the map be
@@ -259,6 +279,8 @@ namespace StackExchange.Redis
 
             OnRole(primary, RespEndpointRole.Primary);
             foreach (var replica in owners.Replicas) OnRole(replica, RespEndpointRole.Replica);
+
+            SlotMapSuspect = false; // answered by whoever just told us
         }
 
         /// <summary>Move a single slot, as a <c>MOVED</c> says to.</summary>
@@ -283,6 +305,10 @@ namespace StackExchange.Redis
             {
                 Volatile.Write(ref map[slot], new SlotOwners(endpoint, null));
                 OnRole(endpoint, RespEndpointRole.Primary);
+
+                // one slot is corrected; the rest of the map came from the same reply and is now suspect,
+                // so the next connection re-asks instead of trusting it indefinitely
+                SlotMapSuspect = true;
             }
         }
 

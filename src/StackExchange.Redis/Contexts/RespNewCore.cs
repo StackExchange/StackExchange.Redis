@@ -426,8 +426,17 @@ namespace StackExchange.Redis
             _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
         }
 
+        /// <summary>The server redirected somewhere it could not name, so our map is wrong somewhere.</summary>
+        /// <remarks>
+        /// Marks the map suspect as well as asking the other core to reconfigure: an unroutable redirect is
+        /// the server saying it does not know where a slot went either, which is as strong a statement that
+        /// our copy is stale as a <c>MOVED</c> is - and the next connection is what acts on it.
+        /// </remarks>
         private void OnTopologySuspect()
-            => _multiplexer.ReconfigureIfNeeded(null, false, "unroutable redirect");
+        {
+            _topology.SlotMapSuspect = true;
+            _multiplexer.ReconfigureIfNeeded(null, false, "unroutable redirect");
+        }
 
         /// <summary>One executor - and so one socket - per endpoint for RESP2 deliveries, created on demand.</summary>
         private readonly ConcurrentDictionary<EndPoint, RespEndpointExecutor> _subscriptions = new();
