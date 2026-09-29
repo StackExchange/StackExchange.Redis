@@ -2056,10 +2056,23 @@ Each step is independently shippable and leaves the tree green.
   What remains of the reporting half is connection state on the public surface, plus two parity gaps
   found by pushing the failure messages to match:
 
-  - **A backlogged command that cannot be sent should time out IN THE BACKLOG**, with the shipped
-    wording ("The message timed out in the backlog attempting to..."). This core instead fails it
-    immediately when the connect attempt strands the queue. Different behaviour, not different text -
-    `AbortOnConnectFailTests.DisconnectAndNoReconnect...` is the one that says so.
+  - **A backlogged command that cannot be sent should time out IN THE BACKLOG.** DONE, and it was a
+    real defect rather than wording: a failed connect abandoned the whole queue, unconditionally, which
+    is `BacklogPolicy.FailFast`'s behaviour applied to callers who did not ask for it. Under the default
+    policy a command waits, up to its own timeout, precisely so that a transient failure does not become
+    the caller's problem - and one failed dial is the most transient thing there is. Killing the queue
+    on it left the backlog unable to do the one job it has.
+
+    Three parts, because the first alone made things worse. `AbortPendingOnConnectionFailure` is now
+    honoured, so the queue survives; a sweep on the retry tick fails whatever has waited longer than the
+    timeout, since otherwise the only bound was the two-minute operation backstop - measured at 2m29s
+    per affected test; and a failed connect now arms the retry timer, which only a DECLINED one did, so
+    after a genuine failure nothing came back to retry or to expire anything.
+
+    The diagnosis names why there is no connection, which needed a connection that was CLOSED rather
+    than broken - retired, breaker-tripped, simulated - to write down a reason, since it has no fault of
+    its own. "No connection became available" followed by nothing is a diagnosis that does not
+    diagnose.
   - **The failure names the command but not the key** ("...to service this operation: GET" where the
     shipped core says "GET {key}"). The rendered request is bytes and the key reference is gone by the
     time it fails, so this needs the key carried on the operation for diagnostics, as the command now

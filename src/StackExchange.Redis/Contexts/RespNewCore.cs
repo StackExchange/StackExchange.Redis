@@ -619,7 +619,9 @@ namespace StackExchange.Redis
                 null,
                 _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false),
                 default,
-                command));
+                command),
+            () => _multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure ?? true,
+            () => _multiplexer.TimeoutMilliseconds);
 
         /// <summary>Announce that an endpoint's circuit breaker has judged it unhealthy.</summary>
         /// <param name="endpoint">The endpoint whose breaker tripped.</param>

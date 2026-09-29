@@ -110,6 +110,13 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// </remarks>
     private readonly MemoryPool<byte>? _receiveBufferPool;
 
+    /// <summary>Why this connection ended, or null while it has not.</summary>
+    /// <remarks>
+    /// <b>The question a waiting command needs answered.</b> "No connection became available" is not a
+    /// diagnosis by itself; what the caller wants to know is what happened to the one they had.
+    /// </remarks>
+    public Exception? Fault => Volatile.Read(ref _fault);
+
     /// <summary>Total bytes handed to the transport.</summary>
     public long BytesSent => Volatile.Read(ref _bytesSent);
 
@@ -752,7 +759,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     {
         if (Interlocked.Exchange(ref _closed, 1) != 0) return;
 
-        _fault = fault;
+        Volatile.Write(ref _fault, fault);
         var reason = fault ?? ClosedFault();
 
         // our own reference on the receive buffer; outstanding payloads keep it alive past this

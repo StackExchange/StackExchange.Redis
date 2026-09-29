@@ -119,6 +119,11 @@ namespace StackExchange.Redis
         /// Makes the accumulator this endpoint counts outcomes into, or null when nobody is counting.
         /// </param>
         /// <param name="onCircuitBroken">Announces that this endpoint's breaker has tripped.</param>
+        /// <param name="abortPendingOnConnectionFailure">
+        /// Whether a failed connect abandons what was queued, or leaves it to wait for a later attempt.
+        /// Null means abandon, which is the safe reading when nobody has said.
+        /// </param>
+        /// <param name="backlogTimeoutMilliseconds">How long a command may wait in the backlog.</param>
         /// <param name="noConnection">
         /// Describes "no connection was available" the way the shipped core describes it - which endpoints
         /// were tried, what each last failed with, how far connecting had got. Null falls back to a bare
@@ -136,11 +141,15 @@ namespace StackExchange.Redis
             Func<IReconnectRetryPolicy?>? retryPolicy = null,
             Func<Availability.CircuitBreaker.Accumulator?>? circuitBreaker = null,
             Action? onCircuitBroken = null,
-            Func<RedisCommand, Exception>? noConnection = null)
+            Func<RedisCommand, Exception>? noConnection = null,
+            Func<bool>? abortPendingOnConnectionFailure = null,
+            Func<int>? backlogTimeoutMilliseconds = null)
         {
             _circuitBreakerFactory = circuitBreaker;
             _onCircuitBroken = onCircuitBroken;
             _noConnection = noConnection;
+            _abortPendingOnConnectionFailure = abortPendingOnConnectionFailure;
+            _backlogTimeoutMilliseconds = backlogTimeoutMilliseconds;
             _circuitBreaker = circuitBreaker?.Invoke();
             _connectTimeoutMilliseconds = connectTimeoutMilliseconds;
             _retryPolicy = retryPolicy;
@@ -746,6 +755,7 @@ namespace StackExchange.Redis
             }
 
             if (doomed is null) return false;
+            RecordFault(doomed);
             _ = doomed.DisposeAsync();
 
             // AND START GETTING IT BACK. Losing a connection is the event that should lead to a reconnect,
@@ -762,6 +772,98 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="RespPayloadOperation.EnsureFaulted(CommandFlags, Exception?)"/>
         private readonly Func<RedisCommand, Exception>? _noConnection;
+
+        /// <summary>Whether a failed connect abandons the backlog; see <c>BacklogPolicy</c>.</summary>
+        private readonly Func<bool>? _abortPendingOnConnectionFailure;
+
+        /// <summary>How long a command may wait in the backlog, in milliseconds.</summary>
+        private readonly Func<int>? _backlogTimeoutMilliseconds;
+
+        /// <summary>Why there is no connection: the last one's fault, or the last attempt's.</summary>
+        /// <remarks>
+        /// <b>A lost connection counts, not only a failed dial.</b> A command waiting in the backlog is
+        /// usually waiting because the connection it would have used went away, and by the time the first
+        /// retry is even due there may be no attempt to report - so reporting only attempts left the
+        /// diagnosis saying that nothing was available without saying why.
+        /// </remarks>
+        private Exception? _lastConnectFault;
+
+        /// <summary>Remember why a connection ended.</summary>
+        /// <param name="connection">The connection that is going away.</param>
+        /// <remarks>
+        /// A connection that was CLOSED rather than broken has no fault of its own to report - a retirement,
+        /// a circuit-breaker trip, a simulated failure - so one is written down instead. "No connection
+        /// became available" followed by nothing is a diagnosis that does not diagnose, and "the connection
+        /// was closed" is at least true and at least distinguishes it from never having had one.
+        /// </remarks>
+        private void RecordFault(RespConnection? connection)
+        {
+            if (connection is null) return;
+
+            var fault = connection.Fault ?? new RedisConnectionException(
+                ConnectionFailureType.SocketClosed,
+                CommandFlags.None,
+                $"The connection to {Format.ToString(_endpoint)} was closed.",
+                null,
+                CommandStatus.Unknown);
+
+            Volatile.Write(ref _lastConnectFault, fault);
+        }
+
+        /// <summary>Fail anything that has waited longer than it agreed to.</summary>
+        /// <remarks>
+        /// <b>The other half of letting a backlog survive a failed connect.</b> Commands wait because a
+        /// failure may be transient - that is what the queue is for - but waiting has to end, and it ends
+        /// at the timeout the caller already has. Without this the only bound was the operation backstop,
+        /// two minutes later, which is not a timeout so much as a last resort.
+        /// <para>
+        /// Reported as the backlog timeout it is, naming what the connection attempts have been failing
+        /// with: a caller told only "timed out" has to guess whether anything was even being tried.
+        /// </para>
+        /// </remarks>
+        private void ExpireBacklog()
+        {
+            var timeout = _backlogTimeoutMilliseconds?.Invoke() ?? 0;
+            if (timeout <= 0) return;
+
+            List<RespPayloadOperation>? expired = null;
+            lock (_sync)
+            {
+                if (_backlog is not { Count: > 0 } backlog) return;
+
+                var keep = new Queue<RespPayloadOperation>(backlog.Count);
+                while (backlog.Count != 0)
+                {
+                    var operation = backlog.Dequeue();
+                    if (operation.Diagnostics.Age.TotalMilliseconds >= timeout) (expired ??= new()).Add(operation);
+                    else keep.Enqueue(operation);
+                }
+
+                _backlog = keep.Count == 0 ? null : keep;
+            }
+
+            if (expired is null) return;
+
+            // built rather than borrowed: ExceptionFactory.Timeout needs a Message, which this core does
+            // not have - so the wording is matched here, including the inner exception the shipped text
+            // quotes, because that is what callers read and what tests assert
+            var last = Volatile.Read(ref _lastConnectFault);
+            var text = last is null
+                ? $"The message timed out in the backlog attempting to send because no connection became available ({timeout}ms)"
+                : $"The message timed out in the backlog attempting to send because no connection became available ({timeout}ms) - Last Connection Exception: {last.Message}";
+
+            foreach (var operation in expired)
+            {
+                Fail(
+                    operation,
+                    new RedisConnectionException(
+                        ConnectionFailureType.UnableToConnect,
+                        operation.Flags,
+                        text,
+                        last,
+                        CommandStatus.WaitingInBacklog));
+            }
+        }
 
         /// <summary>The failure a command gets when there was nothing to send it on.</summary>
         /// <param name="command">The command, so the diagnosis can name it.</param>
@@ -888,6 +990,7 @@ namespace StackExchange.Redis
         {
             // the connection died between our reading it and our writing to it. Backlog rather than fail:
             // this command never reached a socket, so it is exactly the case the backlog exists for
+            RecordFault(connection);
             lock (_sync)
             {
                 if (ReferenceEquals(_connection, connection)) _connection = null;
@@ -1167,6 +1270,8 @@ namespace StackExchange.Redis
                 Volatile.Write(ref _connectRetryArmed, 0);
             }
 
+            ExpireBacklog(); // whoever has waited long enough stops waiting, connected or not
+
             lock (_sync)
             {
                 // somebody else may have connected, or this may be over entirely
@@ -1327,6 +1432,7 @@ namespace StackExchange.Redis
             {
                 Interlocked.Increment(ref _connectRetryCount);
                 var fault = AsConnectionFault(ex);
+                Volatile.Write(ref _lastConnectFault, fault);
 
                 Queue<RespPayloadOperation>? stranded;
                 lock (_sync)
@@ -1336,24 +1442,41 @@ namespace StackExchange.Redis
                     _backlog = null;
                 }
 
-                // a failed connect fails what was waiting for it; holding them for a later attempt would
-                // be a queue that grows without bound while a server is down.
+                // WHETHER a failed connect kills what was waiting for it is the caller's policy, and this
+                // used to decide unconditionally that it did. That is BacklogPolicy.FailFast's behaviour
+                // applied to everybody: under the default policy a command is supposed to wait, up to its
+                // own timeout, for a connection to become available - the queue exists precisely so that a
+                // transient failure does not become the caller's problem, and one failed dial is the most
+                // transient thing there is. Killing the queue on it left the backlog unable to do the one
+                // job it has.
                 //
-                // Told as "no connection was available to service this", not as "the dial failed", and the
-                // difference is the caller's point of view: a command that never left the backlog did not
-                // fail to connect, it failed to find anywhere to go - which is the question the shipped
-                // diagnosis answers, naming every endpoint tried and what each last failed with. The dial's
-                // own error survives as the inner exception, where it belongs.
+                // Bounded either way: what is NOT aborted here is still bounded by each operation's own
+                // timeout, which is what makes "queue until it is answerable" safe rather than unlimited.
                 if (stranded is not null)
                 {
-                    // each told in terms of ITS OWN command, since that is what the caller asked for and
-                    // what the shipped diagnosis names; they are only in one queue by accident of timing
-                    while (stranded.Count != 0)
+                    var abandon = _abortPendingOnConnectionFailure?.Invoke() ?? true;
+                    if (abandon)
                     {
-                        var operation = stranded.Dequeue();
-                        Fail(operation, NoConnection(operation.Command) ?? fault);
+                        // each told in terms of ITS OWN command, since that is what the caller asked for
+                        // and what the shipped diagnosis names; they are only in one queue by accident of
+                        // timing
+                        while (stranded.Count != 0)
+                        {
+                            var operation = stranded.Dequeue();
+                            Fail(operation, NoConnection(operation.Command) ?? fault);
+                        }
+                    }
+                    else
+                    {
+                        PutBack(stranded);
                     }
                 }
+
+                // A FAILED attempt has to lead to another one, which a DECLINED attempt already did. Only
+                // the decline armed the timer, so after a genuine failure nothing came back: whatever was
+                // put back sat there with nothing to retry it and nothing to expire it, which is the
+                // two-minute backstop again by a different road.
+                if (!_disposed) ArmConnectRetry();
 
                 throw fault;
             }
@@ -1383,6 +1506,28 @@ namespace StackExchange.Redis
                     $"It was not possible to connect to the redis server(s): {Format.ToString(_endpoint)}. {ex.Message}",
                     ex,
                     CommandStatus.WaitingToBeSent);
+
+        /// <summary>Return commands to the front of the backlog, having not sent them.</summary>
+        /// <param name="waiting">What was taken off the queue, in arrival order.</param>
+        /// <remarks>
+        /// <b>At the FRONT</b>, which is the same rule <c>PrepareRunAsync</c> follows when a run it was
+        /// holding never gets written: these were queued before anything that has arrived since, and
+        /// putting them behind it would reorder the caller's commands to no purpose.
+        /// </remarks>
+        private void PutBack(Queue<RespPayloadOperation> waiting)
+        {
+            if (waiting.Count == 0) return;
+
+            lock (_sync)
+            {
+                if (_backlog is { Count: > 0 })
+                {
+                    foreach (var later in _backlog) waiting.Enqueue(later);
+                }
+
+                _backlog = waiting;
+            }
+        }
 
         private static void Fail(RespPayloadOperation operation, Exception exception)
             => operation.TrySetException(operation.Token, exception, definite: false);
