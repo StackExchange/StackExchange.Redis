@@ -2106,67 +2106,40 @@ Each step is independently shippable and leaves the tree green.
   `EndpointForSlot`/`EndpointForAny` and the probe's `SelectServer` come out. *Done when*
   `RespNewCore` names `ServerSelectionStrategy` nowhere.
 
-  **There is a SECOND blocker here, independent of timing, and it was found by assuming there was not.**
-  With the map filled eagerly, `ClusterTests.TestIdentity` does pass without the fallback - the timing
-  problem really was the timing problem. But removing the fallback still cost 18 failures, because the
-  map and the selector answer different questions. The map says who OWNS a slot. The selector
-  additionally says whether that server may be USED: retired (`ServerRetirementUnitTests`), marked
-  unselectable, mid-maintenance (`MaintenanceNotificationTests`), or the wrong server type. Routing from
-  ownership alone sent work to a retired server and to one being migrated away from.
+  **Blocked on exactly one thing now, and it is measured.** Removing both fallbacks costs 33 failures as
+  it stands; two of the three causes have since been fixed, and the third is the mode default:
 
-  Selectability is therefore part of D2.2, not a free consequence of D2.1, and D2.3 is blocked on it.
-  The keyless half needs the same thing for the same reason, measured separately at 21 failures.
-- **D2.4 - Move `IServer` onto this core. DONE.** `RedisServer.GetContext` takes this endpoint's
-  connection at database `-1` (`RespNewCore.ServerExecutor`) whenever this core exists, and
-  `RespContext.WithDatabase` can re-point it because `WithDatabase` is a virtual on `RespExecutorBase`
-  rather than a cast to `RespMessageExecutor`. The swap is one line; everything below is what had to be
-  true first.
+  1. **Roles were only known for endpoints this core had dialled** - it learns them from its own
+     handshakes, and it dials lazily, so in the ordinary standalone pair the replica is never dialled and a
+     `DemandReplica` read had no replica to choose. Roles are pushed from `ServerEndPoint` now, the way
+     selectability already was, and seeded at construction from the snapshot the multiplexer holds. FIXED.
+  2. **Everything undialled was being published as UNSELECTABLE.** `UnselectableFlags.DidNotRespond` is set
+     until the SHIPPED bridge has connected at least once, and under the engine flag those bridges largely
+     do not connect at all - so every endpoint this core had not used was barred from ever being chosen.
+     The flag is excluded from what is pushed now; connectivity is the one thing this core tracks for
+     itself, and it can tell "nobody has dialled this" from "this is down", which that flag cannot. FIXED,
+     and it was a live defect rather than only a D2.3 blocker.
+  3. **The slot map is empty until this core has dialled something**, because `CLUSTER SLOTS` is read by
+     its own handshake. That is the whole of what is left. Measured: with both fallbacks removed and (1)
+     and (2) in, the 22 remaining failures are 19 cluster-routing cases plus the 3 already known - and
+     setting `ConnectMode.Discover`, which opens ONE socket at connect and fills the map from it, takes
+     every one of those 19 to zero.
 
-  **Engine-flag failures: 23 -> 12, and the whole 9b-xi family went with it** - `KeyTests.TestScan`,
-  `FlushFetchRandomKey`, `SortedSetRangeViaScript`, the lease-sharing pair, every `HotKeysTests`, and half
-  of `MovedUnitTests`. That is what "one socket" buys: those were never flaky tests, they were two
-  connections racing, and FIFO on one settles all of them at once.
+  **What `Discover` costs today is 28 failures elsewhere, and they are all the dual-core artefact**:
+  connection counts (`ClusterTests.ConnectUsesSingleSocket`, the Azure/vanilla pub-sub cases,
+  `ExceptionFactoryTests`' message text), and the unit suites whose fake servers are set up before a
+  connection is expected (`UnroutableRedirectUnitTests`, `MaintenanceNotificationTests`,
+  `ConfigTests.BeforeSocketConnect`). One more socket than the test expects, because the shipped core is
+  still dialling everything as well. **D2.8 removes that**, and then the mode default can move and the
+  fallbacks come out together.
 
-  Five checks had to move across from the `Message` pipeline first, each of them something the shipped core
-  decides once the caller has named a server:
-
-  1. **Admin and replica refusals**, in `RespEndpointExecutor.Validate`. `Message.IsAdmin` became a static
-     `IsAdminCommand(command, subCommand)` so this core asks the same question rather than keeping a second
-     copy of the list. The safety half: without it an admin command with `AllowAdmin` off reached the server.
-  2. **The database-required refusal**, same place, using `Message.RequiresDatabase`. "No database" is a real
-     answer for a server-scoped context, and running against whatever the connection last selected is the
-     failure it exists to prevent. This also fixed `NewCoreScanTests.SetScanLarge`, whose symptom named
-     nothing at all (`Timeout awaiting response (0ms elapsed), command=` - an operation faulted before it
-     carried a command).
-  3. **The declined-redirect wording.** `NoRedirect` was honoured but reported the raw
-     `MOVED 3828 127.0.0.1:7000`, which is the one thing the caller could already see; what they needed told
-     is that the client knew where to send it and did not, because they said so.
-  4. **The connection's identity.** The handshake now sends `CLIENT SETNAME` with the name SANITISED the way
-     the shipped one sanitises it - characters removed, not replaced, because `SETNAME` rejects a space, so
-     "Test Rig" has to become "TestRig" and the unsanitised version was being refused and silently dropped -
-     plus `CLIENT SETINFO lib-name`/`lib-ver`. And `AddLibraryNameSuffix`'s retro-fix stopped going through
-     `IServer.Execute`: `IServer` is a routing abstraction and the routing had moved, so the fixup was
-     naming the wrong connection. It addresses the endpoint's own bridge directly, and asks this core to
-     fix its own connections as well.
-  5. **A redirect is profiled as its own retransmission**, linked by `RetransmissionOf` - two timings, each
-     naming the endpoint it actually reached. One record collapses that into an entry against whichever
-     server was last, which is the version of events least like what happened.
-
-  **Two things found afterwards, both of them about the same mistake: asking "is there a core?" instead of
-  "should there be one?".**
-
-  - The context is MEMOISED, and the executor was chosen with `NewCoreIfCreated`. An `IServer` touched
-    before anything else - which `GetServer(...).Ping()` is, in test after test - therefore got the shipped
-    executor and kept it for the life of the object, so half of D2.4 applied or not according to call order.
-    It is `NewCore` now, gated on the flag so the shipped path still creates nothing.
-  - `IServer.Ping` was not on the context at all: `RedisBase.Ping` builds a `Message`. So "ping the server
-    to bring it up" brought up the shipped connection and left the interesting one un-dialled -
-    `MovedUnitTests` sees that as a socket count. Overridden on `RedisServer`.
-
-  And one D2.2 gap the ping change exposed: **`IServer.IsConnected` answered from the shipped bridge alone**,
-  so it said "not connected" about a server that had just replied. Either core's connection counts now - on
-  that public surface only, because `ServerEndPoint.IsConnected` is also what the shipped selector routes by
-  and there it has to keep meaning "this bridge is up".
+  Also kept, because it is what will replace the keyless fallback: `EndpointForAny` now makes a role-aware
+  choice of its own - a replica when one is preferred and known, otherwise a selectable endpoint that is
+  not a known replica, preferring one already dialled. The selector is consulted first and still decides
+  when it can; the local choice is the answer for when it goes. The role filter is not optional: without
+  it a write goes to whichever endpoint happened to be dialled, which on a primary/replica pair is the
+  replica as soon as one replica read has been served - caught by the pre-send check as
+  `Command cannot be issued to a replica: BITFIELD`.
 
 - **D2.5 - Own subscriptions**, including the RESP2 second connection.
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of

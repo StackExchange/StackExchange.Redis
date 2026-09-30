@@ -230,7 +230,17 @@ namespace StackExchange.Redis
         public bool IsReplica
         {
             get => isReplica;
-            set => SetConfig(ref isReplica, value);
+            set
+            {
+                var changed = isReplica != value;
+                SetConfig(ref isReplica, value);
+
+                // ...and tell the other core, which learns roles only from its own handshakes and dials
+                // lazily: without this the replica of an ordinary standalone pair is never dialled, so its
+                // role is never learned, so a DemandReplica read has no replica to choose and goes to the
+                // primary. See RespNewCore.OnRole.
+                if (changed) PublishRole();
+            }
         }
 
         public bool ReplicaReadOnly
@@ -610,13 +620,29 @@ namespace StackExchange.Redis
         /// client concludes during reconfiguration, so there is nothing for the other core to discover on a
         /// connection - it has to be told. Pushed only when the answer CHANGES, which is rare.
         /// <para>
-        /// <c>DidNotRespond</c> is deliberately not special-cased away here even though the other core
-        /// tracks connectivity itself: agreeing that a server which did not respond should not be picked
-        /// for new work costs nothing, and disagreeing about it would be worse.
+        /// <b><c>DidNotRespond</c> is excluded, and that reversed an earlier decision.</b> It was left in on
+        /// the reasoning that agreeing about a server which did not respond costs nothing - but it is set
+        /// until THIS core's bridge has connected at least once, and under the engine flag this core's
+        /// bridges largely do not connect at all, because the other one carries the commands. So every
+        /// endpoint it had not dialled was published as unselectable, permanently: a replica that the other
+        /// core would happily have used was barred from ever being chosen, and a <c>DemandReplica</c> read
+        /// went to the primary instead. Connectivity is the one thing that core does track for itself, and
+        /// it distinguishes "nobody has dialled this yet" from "this is down" - which this flag cannot.
         /// </para>
         /// </remarks>
         private void PublishSelectable()
-            => Multiplexer.NewCoreIfCreated?.OnSelectable(EndPoint, unselectableReasons == UnselectableFlags.None);
+            => Multiplexer.NewCoreIfCreated?.OnSelectable(
+                EndPoint,
+                (unselectableReasons & ~UnselectableFlags.DidNotRespond) == UnselectableFlags.None);
+
+        /// <summary>Tell the other core what this server turned out to be.</summary>
+        /// <remarks>
+        /// This core learns roles from its own handshakes and dials lazily, so an endpoint it has not needed
+        /// has no role - and a <c>DemandReplica</c> read then has no replica to choose. See
+        /// <c>RespNewCore.OnRole</c>, which says the rest.
+        /// </remarks>
+        private void PublishRole()
+            => Multiplexer?.NewCoreIfCreated?.OnRole(EndPoint, isReplica);
 
         public override string ToString() => Format.ToString(EndPoint);
 

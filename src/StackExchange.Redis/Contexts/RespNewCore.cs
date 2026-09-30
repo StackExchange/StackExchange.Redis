@@ -98,6 +98,7 @@ namespace StackExchange.Redis
             _select = new SelectPreamble(new RespContext(multiplexer.RawConfig.CommandMap));
             _defaultDatabase = multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault();
             _router = Rebind(multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
+            SeedRoles();
         }
 
         /// <summary>What this core should believe about cluster-ness before its own first handshake.</summary>
@@ -276,14 +277,15 @@ namespace StackExchange.Redis
                 return chosen;
             }
 
-            // Still the selector when our map cannot answer, and eager connect did NOT make this removable -
-            // which was the expectation, and the measurement said otherwise. Timing was only one of two
-            // blockers: the map says who OWNS a slot, and the selector additionally says whether that
-            // server may be used at all - retired, unselectable, mid-maintenance, the wrong server type.
-            // Routing from ownership alone sent work to a retired server and to one being migrated away
-            // from. See section 9d, D2.2: selectability has to move before this goes.
+            // Still the selector when our map cannot answer, and the reason is now down to ONE thing: the
+            // map is empty until this core has dialled something, because CLUSTER SLOTS is read by its own
+            // handshake. Measured - with the fallback removed, every cluster-routing casualty disappears
+            // under ConnectMode.Discover, which opens one socket at connect and fills the map from it. See
+            // section 9d, D2.3: what is left is the mode default, and that waits on D2.8.
             var server = _multiplexer.ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: true);
-            return server is null ? EndpointForAny(command, flags) : server.EndPoint;
+            if (server is not null) return server.EndPoint;
+
+            return EndpointForAny(command, flags);
         }
 
         /// <summary>Which of a slot's servers should take this command.</summary>
@@ -389,44 +391,55 @@ namespace StackExchange.Redis
         /// <remarks>See <see cref="EndpointForSlot"/> for why the endpoint and the executor are separated.</remarks>
         private EndPoint? EndpointForAny(RedisCommand command, CommandFlags flags)
         {
-            // A keyless replica read, answered from our own roles WHERE WE HAVE THEM.
-            if (!command.IsPrimaryOnly()
-                && Message.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica
-                && PickReplica(_topology.Replicas) is { } replica)
+            // A replica read, answered from our own roles WHERE WE HAVE THEM.
+            var wantsReplica = !command.IsPrimaryOnly()
+                && Message.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica;
+
+            if (wantsReplica && PickReplica(_topology.Replicas) is { } replica) return replica;
+
+            // ...and the selector for the keyless choice, for the same reason and with the same measurement:
+            // it knows every configured endpoint's role and selectability without this core having dialled
+            // any of them. The role-aware choice below is what will replace it.
+            var keyless = _multiplexer.ServerSelectionStrategy.Select(
+                ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: true);
+            if (keyless is not null
+                && _topology.IsSelectable(keyless.EndPoint)
+                && _endpoints.TryGetValue(keyless.EndPoint, out var already)
+                && already.IsConnectedNow)
             {
-                return replica;
+                return keyless.EndPoint;
             }
-
-            // And the selector for the rest, which is NOT the same fallback the slot map had, and the
-            // difference is why this one is still here after eager connect removed that one. A slot map is
-            // a fact about the deployment, and one handshake settles it. Keyless routing is a question
-            // about SELECTABILITY - is this server retired, unselectable, a sentinel, the right server type
-            // for this command - and that is a surface this core does not model at all. Removing it was
-            // measured: 21 further failures across sentinel, server retirement, maintenance notifications
-            // and the redirect unit tests, none of them about roles. See section 9d, D2.2.
-            var strategy = _multiplexer.ServerSelectionStrategy;
-            ServerEndPoint? fallback = null;
-
-            var attempts = _multiplexer.GetEndPoints().Length;
-            if (attempts < 1) attempts = 1;
-
-            for (var i = 0; i < attempts; i++)
-            {
-                var candidate = strategy.Select(
-                    ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: true);
-                if (candidate is null) break;
-
-                fallback ??= candidate;
-                if (_endpoints.TryGetValue(candidate.EndPoint, out var dialled) && dialled.IsConnectedNow)
-                {
-                    return candidate.EndPoint;
-                }
-            }
-
-            if (fallback is not null) return fallback.EndPoint;
 
             var endpoints = _multiplexer.GetEndPoints();
-            return endpoints.Length == 0 ? null : endpoints[0];
+            if (endpoints.Length == 0) return keyless?.EndPoint;
+
+            // ROLE FIRST, and this is the half that cannot be skipped: without it a write goes to whichever
+            // endpoint happened to be dialled, which on a primary/replica pair is the replica as soon as one
+            // replica read has been served. The server refuses it, and the pre-send check refuses it sooner
+            // (`Command cannot be issued to a replica: BITFIELD`) - which is how it was found.
+            if (Choose(endpoints, requirePrimary: !wantsReplica) is { } chosen) return chosen;
+
+            // ...and then without the role filter, because a client connected only to replicas still has to
+            // send somewhere: the server's own refusal is a better answer than inventing one here.
+            return Choose(endpoints, requirePrimary: false) ?? keyless?.EndPoint ?? endpoints[0];
+
+            EndPoint? Choose(EndPoint[] candidates, bool requirePrimary)
+            {
+                EndPoint? usable = null;
+                foreach (var candidate in candidates)
+                {
+                    if (!_topology.IsSelectable(candidate)) continue;
+                    if (requirePrimary && _topology.RoleOf(candidate) == RespEndpointRole.Replica) continue;
+
+                    // PREFERRING ONE ALREADY DIALLED, for the reason the replica rotation does: this core
+                    // connects lazily, so taking the first answer would open a socket for a command an
+                    // existing connection could serve.
+                    usable ??= candidate;
+                    if (_endpoints.TryGetValue(candidate, out var dialled) && dialled.IsConnectedNow) return candidate;
+                }
+
+                return usable;
+            }
         }
 
         /// <summary>The executor for the server this client is subscribed on for a channel, if any.</summary>
@@ -1132,6 +1145,41 @@ namespace StackExchange.Redis
         /// <param name="selectable">Whether it may be chosen.</param>
         /// <remarks>See <c>RespTopology.IsSelectable</c> for why this is pushed rather than discovered.</remarks>
         internal void OnSelectable(EndPoint endpoint, bool selectable) => _topology.OnSelectable(endpoint, selectable);
+
+        /// <summary>Told what role an endpoint turned out to play.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="isReplica">Whether it replicates a primary.</param>
+        /// <remarks>
+        /// <b>Pushed for the same reason selectability is, and with a sharper consequence.</b> This core
+        /// learns roles from its OWN handshakes, and it dials lazily - so in the ordinary standalone pair
+        /// the replica is never dialled, its role is never learned, and a <c>DemandReplica</c> read has no
+        /// replica to choose. It went to the primary instead, silently, which
+        /// <c>BitTests.BitFieldAllGetGoesOutAsReadOnlyAndReachesAReplica</c> reads off the profile.
+        /// <para>
+        /// The client already knows: reconfiguration reads <c>INFO replication</c> for every configured
+        /// endpoint whether or not this core has dialled it. Borrowing that is not a dependency on the
+        /// selector - it is one fact, discovered once, told to whoever needs it.
+        /// </para>
+        /// </remarks>
+        internal void OnRole(EndPoint endpoint, bool isReplica)
+            => _topology.OnRole(endpoint, isReplica ? RespEndpointRole.Replica : RespEndpointRole.Primary);
+
+        /// <summary>Take the roles the client already knows, for endpoints this core has not dialled.</summary>
+        /// <remarks>
+        /// The push above only fires on a CHANGE, and a change that happened before this core existed is one
+        /// nobody repeats - so a core created after the first reconfiguration would start with no roles at
+        /// all. Seeded once, at construction, from the snapshot the multiplexer already holds.
+        /// </remarks>
+        private void SeedRoles()
+        {
+            foreach (var server in _multiplexer.GetServerSnapshot())
+            {
+                if (server.EndPoint is { } endpoint && server.ServerType != ServerType.Sentinel)
+                {
+                    _topology.OnRole(endpoint, server.IsReplica ? RespEndpointRole.Replica : RespEndpointRole.Primary);
+                }
+            }
+        }
 
         /// <summary>For testing only: drop this core's connections to an endpoint.</summary>
         /// <param name="endpoint">The endpoint to disconnect from.</param>
