@@ -2177,25 +2177,32 @@ Each step is independently shippable and leaves the tree green.
 
 #### Where the engine flag stands
 
-**Nine failures, of which four are stable and five rotate.** Down from 33. The default suite is 11,171/0
-and RESPite 1,947/0, both unchanged throughout, so nothing here has cost the shipped core anything.
+**Three failures, down from 33.** Two are `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases`, which
+9b-ix records as unanswerable while both cores consult one policy object - it becomes assertable at D2.8.
+The third rotates among the lease-sharing cases and is a flake. The default suite is 11,171/0 and RESPite
+1,947/0, both unchanged throughout, so none of this has cost the shipped core anything.
 
-The four that are stable:
+Three findings from the last stretch are worth keeping, because each was something other than what it
+looked like:
 
-- `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases` x2 - not answerable while both cores consult one
-  policy object; 9b-ix carries the corrected gate and the measurement.
-- `RetryTests.RetryEndToEndTests.WithRetry_Transaction_BatchExecute_DoesNotWaitForReplies` x2 - **not
-  diagnosed.** `((IBatch)tran).Execute()` maps onto `ExecuteAsync(FireAndForget)`, and the test asserts the
-  per-command proxy is NOT settled when it returns, because the server is still sitting on the EXEC reply.
-  It is settled. Worth chasing on its own: something is completing those proxies while the reply is still
-  in flight, which is the opposite of the fire-and-forget guarantee the shape is built on.
+- **A fire-and-forget EXEC was being awaited.** `IBatch.Execute()` on a transaction maps onto
+  `Execute(CommandFlags.FireAndForget)`, and this core awaited the reply anyway - so the call blocked for
+  the round trip (half a second against `SlowExecServer`) and settled every queued command's task before
+  returning, which is the opposite of what the shape promises. The queued operations are still completed
+  when the reply lands, because `RespExecOperation` distributes the array while parsing it whether or not
+  anybody is waiting; so declining the EXEC's own reply costs nothing. `false` is the shipped answer here,
+  and "did not commit" is the absence of an answer the caller declined rather than a claim of failure.
 
-The five that rotate are all the "F&F writes, then ask the server what it saw" family - `MovedProfiling`,
-`MovedUnitTests` on cluster, a lease-sharing case, a `TransactionTests` condition, `RespResultTests`. The
-tail GREW when the async fire-and-forget short-circuit landed, and that is expected rather than
-mysterious: a caller that no longer waits for its own replies exposes every test that assumed it did.
-9b-vi states the rule. Each one is a small, honest test change of the kind `IncrementTwenty` already is,
-and the work is worth doing because each of them is also a latent trap for a real caller.
+- **An unpulsed core claiming to enforce timeouts turned one wedge into eleven failures.** The suites that
+  exercise this surface without the engine flag build a core of their own beside the multiplexer's, and the
+  heartbeat only ever pulsed `_newCore`. Those executors are built by `RespNewCore` and so say
+  `HeartbeatDriven`, which makes `EnforcesTimeouts` true, which makes a synchronous caller stand back from
+  its own timer - so a stalled command waited out the two-minute operation backstop instead of failing at
+  5s, and everything queued behind it waited too. Measured once at eleven failures with 143-second waits.
+  Every core registers for the pulse now, weakly, because registration must not be what keeps a core alive.
+
+- **`DatabaseTests.CountKeys` needed the 9b-vi round trip**, per database rather than per connection: it
+  writes fire-and-forget into two dedicated databases and then asks the server to count them.
 
 #### What would tell us it is going wrong
 

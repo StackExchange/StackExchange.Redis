@@ -96,6 +96,14 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
             dba.StringIncrement(key, flags: CommandFlags.FireAndForget);
             dbb.StringIncrement(key, flags: CommandFlags.FireAndForget);
 
+            // one awaited round trip per database before asking the server to count them. Fire-and-forget
+            // promises the command is SENT, not that it has happened, so a DBSIZE issued straight after can
+            // legitimately see fewer keys than were written - and a caller that waits for each reply only
+            // gets the ordering by accident. One command routed into each database establishes that the
+            // writes before it have been executed there.
+            _ = dba.KeyExists(key);
+            _ = dbb.KeyExists(key);
+
             var server = GetAnyPrimary(conn);
             var c0 = server.DatabaseSizeAsync(db1Id);
             var c1 = server.DatabaseSizeAsync(db2Id);

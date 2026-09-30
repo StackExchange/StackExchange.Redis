@@ -288,11 +288,72 @@ namespace StackExchange.Redis
                     claimed = false;
                 }
 
+                // FIRE-AND-FORGET DECLINES THE EXEC'S REPLY, which is the whole of what `IBatch.Execute`
+                // means on a transaction: the run is written, and the caller does not wait for it.
+                //
+                // Awaiting here regardless made `((IBatch)tran).Execute()` block for the round trip - half
+                // a second against RetryEndToEndTests' SlowExecServer - and, worse, every queued command's
+                // task was settled before it returned, which is the opposite of the guarantee the shape is
+                // built on. `WithRetry_Transaction_BatchExecute_DoesNotWaitForReplies` is named after it.
+                //
+                // The queued operations are still completed when the reply lands: RespExecOperation
+                // distributes the array while parsing it, whether or not anybody is waiting on the EXEC
+                // itself. So a caller who kept the per-command tasks still gets their results - which is
+                // what the second half of that test asserts.
+                //
+                // FALSE is the shipped answer for this case: RedisTransaction hands back
+                // `CompletedTask<bool>.FromDefault(false)` for a fire-and-forget EXEC. "Did not commit" is
+                // not a claim that it failed; it is the absence of an answer the caller declined.
+                if ((flags & CommandFlags.FireAndForget) != 0)
+                {
+                    DiscardExec(exec);
+                    return false;
+                }
+
                 return await exec.ConfigureAwait(false);
             }
             finally
             {
                 if (claimed) target.ReleaseWrites();
+            }
+        }
+
+        /// <summary>Consume an <c>EXEC</c> reply nobody asked for.</summary>
+        /// <param name="exec">The pending result.</param>
+        /// <remarks>
+        /// <b>Consumed exactly once, which is the rule for anything backed by an
+        /// <c>IValueTaskSource</c></b> - the source is not released until its result is taken, and a pooled
+        /// one that is never released can hand a stale token to the next caller. The same rule, and the same
+        /// reason, as <c>TransitionalSync.Wait</c>'s deliberately non-droppable <c>GetAwaiter().GetResult()</c>.
+        /// </remarks>
+        private static void DiscardExec(ValueTask<bool> exec)
+        {
+            if (exec.IsCompleted)
+            {
+                try
+                {
+                    _ = exec.GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // declined; the queued commands report their own outcomes
+                }
+
+                return;
+            }
+
+            _ = Awaited(exec);
+
+            static async Task Awaited(ValueTask<bool> exec)
+            {
+                try
+                {
+                    _ = await exec.ConfigureAwait(false);
+                }
+                catch
+                {
+                    // declined; see above
+                }
             }
         }
 

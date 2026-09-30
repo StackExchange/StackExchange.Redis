@@ -1470,8 +1470,15 @@ namespace StackExchange.Redis
                 CheckTopologyRefreshDue(now);
 
                 // the other core's endpoints, for the same reason the snapshot below is pulsed: a late
-                // reply announces itself to nobody, so noticing one is work that happens on a clock
-                NewCoreIfCreated?.OnHeartbeat();
+                // reply announces itself to nobody, so noticing one is work that happens on a clock.
+                //
+                // EVERY core over this multiplexer, not just the one it built for itself. The suites that
+                // exercise the new surface without the engine flag construct their own beside it, and an
+                // unpulsed core is one that claims to enforce timeouts (`HeartbeatDriven`) and does not - so
+                // a stalled command waits out the two-minute operation backstop instead of failing at its
+                // own timeout. That turns one wedged connection into every test queued behind it: measured
+                // once at eleven failures and 143-second waits where the configured timeout was 5s.
+                PulseCores();
                 var tmp = GetServerSnapshot();
                 int token = 0;
                 bool isRooted = pulse?.IsRooted(out token) ?? false, hasPendingCallerFacingItems = false;
@@ -1581,6 +1588,35 @@ namespace StackExchange.Redis
                 : inner;
 
         private RespNewCore? _newCore;
+
+        /// <summary>Every core built over this multiplexer, so the heartbeat can reach all of them.</summary>
+        /// <remarks>
+        /// <b>Weak, because registration must not be what keeps a core alive.</b> The suites that exercise
+        /// the new surface without the engine flag build one per multiplexer and let it be collected; a
+        /// strong list here would quietly change that, and a leak on a type that owns sockets is the worst
+        /// kind. What the list owes is the pulse, for as long as the core exists and no longer.
+        /// </remarks>
+        private readonly List<WeakReference<RespNewCore>> _cores = new();
+
+        /// <summary>Register a core for this multiplexer's heartbeat.</summary>
+        /// <param name="core">The core, which pulses itself from here on.</param>
+        internal void RegisterCore(RespNewCore core)
+        {
+            lock (_cores) _cores.Add(new WeakReference<RespNewCore>(core));
+        }
+
+        /// <summary>Pulse every core that still exists, dropping the entries for those that do not.</summary>
+        private void PulseCores()
+        {
+            lock (_cores)
+            {
+                for (var i = _cores.Count - 1; i >= 0; i--)
+                {
+                    if (_cores[i].TryGetTarget(out var core)) core.OnHeartbeat();
+                    else _cores.RemoveAt(i);
+                }
+            }
+        }
 
         /// <summary>The new core, but only if something has already built it.</summary>
         /// <remarks>
