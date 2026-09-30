@@ -2381,8 +2381,13 @@ D2.8's business - stop constructing bridges - not this section's.
 arrangement rather than either core.** `ConfigurationOptions.ReconnectRetryPolicy` is one object, and
 under the engine flag both `PhysicalBridge` and `RespEndpointExecutor` ask it. The test asserts the exact
 sequence of counts the policy was handed - `"0,1"` or `"0,1,2"` - so any interleaving of two independent
-askers produces something it rejects. The original symptom said so plainly: `0,0,1`, which is one asker's
-first question twice.
+askers produces something it rejects.
+
+**Measured rather than inferred.** Instrumenting both call sites for `FailureMode.SlowNonConnect` gives,
+in order: `NEWCORE 0`, `BRIDGE 0`, `NEWCORE 1` - which is the `"0,0,1"` the test reports. The other cases
+show only `NEWCORE`, and they pass. So it is two askers, each counting correctly from its own zero, and
+neither is wrong: with two cores there really are two sets of connections backing off. What cannot be
+right until there is one is the *sequence a single policy object observes*.
 
 **What was tried, and what it cost.** The new core's gate exempted only the never-connected case, so a
 socket the SERVER dropped - nothing failed, nothing to back off from - still consulted the policy. That
