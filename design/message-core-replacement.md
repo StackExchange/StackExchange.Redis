@@ -2518,6 +2518,29 @@ another run held the slot, with one more command issued in between.
 symptom, and was checked both ways - it fails deterministically with either half of the fix removed, and
 passes fourteen consecutive runs with both in.
 
+### 9b-xiii. OPEN: a shared RESP3 connection wedges, rarely, and everything queues behind it
+
+**Seen twice, both times as a cascade rather than a failure.** Once as eleven failures with 143-second
+waits (9b-vi's `EnforcesTimeouts` half explained why the cascade was so wide, and fixing that did not
+address the stall itself), and once as thirty-three - every one of them a `RedisTimeoutException` on a
+RESP3 connection reporting **`qs: 6094`**: six thousand commands sent and awaiting a reply. Neither run
+reproduced; the same build gave 4 and 3 failures on the next two attempts, and the default suite is
+unaffected in both cases.
+
+`qs` that size means replies stopped being matched to the queue at all - a stalled read loop, or a
+desynchronised one. What is known:
+
+- It is the SHARED fixture connection, and RESP3 in both sightings.
+- It is not specific to the change in flight when it appeared. The second sighting followed the `INFO`
+  move; `INFO` was then verified separately (`ConfigTests.GetInfo` asserts the section grouping and the
+  `CPU` key under both protocols, and passes), and two further full runs of the same build were clean.
+- The visible failures are always *other* tests - whatever was queued behind it - so the test that
+  wedged it is not identifiable from the output.
+
+Worth instrumenting deliberately rather than waiting for a third sighting: the useful evidence would be
+the connection's own state at the moment `PendingCount` starts growing without bound, and whether
+`Drain` has stopped being called or has stopped consuming.
+
 ### 9c. What this buys beyond tidiness
 
 A real share of the remaining engine failures are dual-core artefacts that would evaporate rather

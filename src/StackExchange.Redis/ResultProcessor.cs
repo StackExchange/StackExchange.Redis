@@ -1532,36 +1532,14 @@ namespace StackExchange.Redis
             {
                 if (reader.IsScalar)
                 {
-                    string category = Normalize(null);
-                    var list = new List<Tuple<string, KeyValuePair<string, string>>>();
-                    if (!reader.IsNull)
-                    {
-                        using var stringReader = new StringReader(reader.ReadString()!);
-                        while (stringReader.ReadLine() is string line)
-                        {
-                            if (string.IsNullOrWhiteSpace(line)) continue;
-                            if (line.StartsWith("# "))
-                            {
-                                category = Normalize(line.Substring(2));
-                                continue;
-                            }
-                            int idx = line.IndexOf(':');
-                            if (idx < 0) continue;
-                            var pair = new KeyValuePair<string, string>(
-                                line.Substring(0, idx).Trim(),
-                                line.Substring(idx + 1).Trim());
-                            list.Add(Tuple.Create(category, pair));
-                        }
-                    }
-                    var final = list.GroupBy(x => x.Item1, x => x.Item2).ToArray();
-                    SetResult(message, final);
+                    // ONE parse, shared with the context surface's INFO. Two readers of a text format with
+                    // "#" headers, blank lines and colons inside values would be two chances to describe the
+                    // same deployment differently; see Diagnostics.ParseInfo, which is where it lives.
+                    SetResult(message, Diagnostics.ParseInfo(reader.IsNull ? null : reader.ReadString()));
                     return true;
                 }
                 return false;
             }
-
-            private static string Normalize(string? category) =>
-                category.IsNullOrWhiteSpace() ? "miscellaneous" : category.Trim();
         }
 
         internal sealed class Int64DefaultValueProcessor : ResultProcessor<long>

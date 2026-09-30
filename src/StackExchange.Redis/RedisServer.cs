@@ -414,41 +414,29 @@ namespace StackExchange.Redis
         private static IGrouping<string, KeyValuePair<string, string>>[] InfoDefault =>
             Array.Empty<IGrouping<string, KeyValuePair<string, string>>>();
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>On the context surface</b>, which for a server means this endpoint's own connection - see
+        /// D2.4. <c>INFO</c> is node-local by nature: the answer describes the server that was asked, so
+        /// sending it anywhere else answers a different question.
+        /// </remarks>
         public IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
+            => Wait(Context.Diagnostics.InfoAsync(section, flags));
 
-            return ExecuteSync(msg, ResultProcessor.Info, defaultValue: InfoDefault);
-        }
-
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="Info" path="/remarks"/></remarks>
         public Task<IGrouping<string, KeyValuePair<string, string>>[]> InfoAsync(RedisValue section = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
+            => Context.Diagnostics.InfoAsync(section, flags).AsTask(asyncState, flags);
 
-            return ExecuteAsync(msg, ResultProcessor.Info, defaultValue: InfoDefault);
-        }
-
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="Info" path="/remarks"/></remarks>
         public string? InfoRaw(RedisValue section = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
+            => Wait(Context.Diagnostics.InfoRawAsync(section, flags));
 
-            return ExecuteSync(msg, ResultProcessor.String);
-        }
-
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="Info" path="/remarks"/></remarks>
         public Task<string?> InfoRawAsync(RedisValue section = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
-
-            return ExecuteAsync(msg, ResultProcessor.String);
-        }
+            => Context.Diagnostics.InfoRawAsync(section, flags).AsTask(asyncState, flags);
 
         IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags)
             => KeysAsync(database, pattern, pageSize, CursorUtils.Origin, 0, flags);

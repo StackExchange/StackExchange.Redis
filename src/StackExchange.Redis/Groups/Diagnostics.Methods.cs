@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
@@ -107,6 +109,96 @@ public static partial class Diagnostics
     /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
     public static ValueTask ResetSlowLogAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync($"{RedisCommand.SLOWLOG}{RespLiterals.Reset}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>INFO: everything the server will say about itself, verbatim.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="section">One section, or every section when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks><inheritdoc cref="LatencyDoctorAsync" path="/remarks"/></remarks>
+    public static ValueTask<string?> InfoRawAsync(
+        this in RespDiagnostics diagnostics,
+        RedisValue section = default,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => section.IsNullOrEmpty
+            ? diagnostics.Context.SendAsync<string?>(
+                $"{RedisCommand.INFO}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), cancellationToken: cancellationToken)
+            : diagnostics.Context.SendAsync<string?>(
+                $"{RedisCommand.INFO}{section}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), cancellationToken: cancellationToken);
+
+    /// <summary>INFO, grouped by the section headers the server writes into it.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="section">One section, or every section when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>The grouping is the whole of the parse</b>, and it is shared with the shipped processor rather
+    /// than written twice: <c>INFO</c> is a text format with its own quirks - <c>#</c> headers, blank
+    /// lines, values containing colons - and two readers of it would be two chances to disagree about a
+    /// deployment's own description of itself. See <see cref="ParseInfo"/>.
+    /// </remarks>
+    public static ValueTask<IGrouping<string, KeyValuePair<string, string>>[]> InfoAsync(
+        this in RespDiagnostics diagnostics,
+        RedisValue section = default,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => section.IsNullOrEmpty
+            ? diagnostics.Context.SendAsync(
+                $"{RedisCommand.INFO}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), InfoHandler.Instance, cancellationToken)
+            : diagnostics.Context.SendAsync(
+                $"{RedisCommand.INFO}{section}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), InfoHandler.Instance, cancellationToken);
+
+    /// <summary>Group an <c>INFO</c> payload by its <c>#</c> section headers.</summary>
+    /// <param name="text">The reply, or null when the server said nothing.</param>
+    /// <remarks>
+    /// <b>One implementation, two callers.</b> <c>ResultProcessor.Info</c> reads the same format for the
+    /// shipped pipeline; keeping the parse here and calling it from there means a deployment cannot be
+    /// described two different ways depending on which core asked. Lines before any header - and any line
+    /// with no header above it at all - are "miscellaneous", which is the shipped behaviour and what
+    /// callers index by.
+    /// </remarks>
+    internal static IGrouping<string, KeyValuePair<string, string>>[] ParseInfo(string? text)
+    {
+        var category = NormalizeSection(null);
+        var list = new List<Tuple<string, KeyValuePair<string, string>>>();
+        if (text is not null)
+        {
+            using var lines = new System.IO.StringReader(text);
+            while (lines.ReadLine() is string line)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (line.StartsWith("# ", StringComparison.Ordinal))
+                {
+                    category = NormalizeSection(line.Substring(2));
+                    continue;
+                }
+
+                var idx = line.IndexOf(':');
+                if (idx < 0) continue;
+                list.Add(Tuple.Create(
+                    category,
+                    new KeyValuePair<string, string>(line.Substring(0, idx).Trim(), line.Substring(idx + 1).Trim())));
+            }
+        }
+
+        return list.GroupBy(x => x.Item1, x => x.Item2).ToArray();
+    }
+
+    private static string NormalizeSection(string? category)
+        => string.IsNullOrWhiteSpace(category) ? "miscellaneous" : category!.Trim();
+
+    /// <summary>Reads <c>INFO</c> and groups it; see <see cref="ParseInfo"/>.</summary>
+    private sealed class InfoHandler : IRespHandler<IGrouping<string, KeyValuePair<string, string>>[]>
+    {
+        internal static readonly InfoHandler Instance = new();
+
+        public IGrouping<string, KeyValuePair<string, string>>[] Parse(ref RespReader reader)
+        {
+            if (!reader.IsScalar) throw new RespException("Unexpected INFO reply.");
+            return ParseInfo(reader.IsNull ? null : reader.ReadString());
+        }
+    }
 
     /// <summary>Reads <c>TIME</c>: unix seconds, then microseconds within that second.</summary>
     private sealed class ServerTimeHandler : IRespHandler<DateTime>
