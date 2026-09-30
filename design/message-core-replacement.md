@@ -2152,6 +2152,22 @@ Each step is independently shippable and leaves the tree green.
      naming the endpoint it actually reached. One record collapses that into an entry against whichever
      server was last, which is the version of events least like what happened.
 
+  **Two things found afterwards, both of them about the same mistake: asking "is there a core?" instead of
+  "should there be one?".**
+
+  - The context is MEMOISED, and the executor was chosen with `NewCoreIfCreated`. An `IServer` touched
+    before anything else - which `GetServer(...).Ping()` is, in test after test - therefore got the shipped
+    executor and kept it for the life of the object, so half of D2.4 applied or not according to call order.
+    It is `NewCore` now, gated on the flag so the shipped path still creates nothing.
+  - `IServer.Ping` was not on the context at all: `RedisBase.Ping` builds a `Message`. So "ping the server
+    to bring it up" brought up the shipped connection and left the interesting one un-dialled -
+    `MovedUnitTests` sees that as a socket count. Overridden on `RedisServer`.
+
+  And one D2.2 gap the ping change exposed: **`IServer.IsConnected` answered from the shipped bridge alone**,
+  so it said "not connected" about a server that had just replied. Either core's connection counts now - on
+  that public surface only, because `ServerEndPoint.IsConnected` is also what the shipped selector routes by
+  and there it has to keep meaning "this bridge is up".
+
 - **D2.5 - Own subscriptions**, including the RESP2 second connection.
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.

@@ -1037,6 +1037,20 @@ namespace StackExchange.Redis
             return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.BacklogCount : 0;
         }
 
+        /// <summary>Whether this core has a live connection to an endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// <b>Asked by <c>IServer.IsConnected</c>, which is a question about the client and not about a
+        /// bridge.</b> Under the engine flag the connection carrying this endpoint's commands is this core's,
+        /// so a surface that reported only the shipped bridge answered "not connected" about a server it was
+        /// actively talking to - which <c>ClusterTopologyUnitTests</c> reads immediately after a successful
+        /// ping.
+        /// </remarks>
+        internal bool IsConnected(EndPoint endpoint)
+            => endpoint is not null
+                && ((_endpoints.TryGetValue(endpoint, out var interactive) && interactive.IsConnectedNow)
+                    || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.IsConnectedNow));
+
         /// <summary>Fold an endpoint's counters into a snapshot the shipped surface reports.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="connectionType">Which of its connections to count.</param>

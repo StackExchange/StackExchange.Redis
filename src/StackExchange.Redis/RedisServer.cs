@@ -60,12 +60,44 @@ namespace StackExchange.Redis
                 multiplexer.CommandMap,
                 database: -1,
                 serverType: server.ServerType)
-                .WithExecutor(
-                    multiplexer.NewCoreIfCreated is { } newCore && ConnectionMultiplexer.NewCoreEngine
-                        ? newCore.ServerExecutor(server.EndPoint)
-                        : new RespMessageExecutor(this, -1))
+                .WithExecutor(ServerExecutor())
                 .WithScriptCache(multiplexer.ScriptCache)
                 .WithServices(new ServerFeatureProbe(this));
+
+        /// <summary>What finally writes this server's commands.</summary>
+        /// <remarks>
+        /// <b>This core's socket for this endpoint under the engine flag</b>, so that a server command and
+        /// the database commands it is meant to describe are ordered by one connection rather than racing
+        /// two - see design notes D2.4, and 9b-xi for what that was costing.
+        /// <para>
+        /// <c>NewCore</c> rather than <c>NewCoreIfCreated</c>, and the difference is load-bearing because
+        /// the context this feeds is MEMOISED. Asking "if created" meant an <c>IServer</c> touched before
+        /// anything else - which <c>GetServer(...).Ping()</c> is, in test after test - got the shipped
+        /// executor and kept it for the life of the object, so half the point of D2.4 came and went
+        /// according to call order. The flag check is what keeps the shipped path from creating a core it
+        /// does not want.
+        /// </para>
+        /// </remarks>
+        private RespExecutorBase ServerExecutor()
+            => ConnectionMultiplexer.NewCoreEngine
+                ? multiplexer.NewCore.ServerExecutor(server.EndPoint)
+                : new RespMessageExecutor(this, -1);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Overridden so that a server's PING goes where the server's other commands go.</b>
+        /// <see cref="RedisBase.Ping"/> builds a <c>Message</c> and sends it down the shipped pipeline,
+        /// which under the engine flag is a different socket from the one this <c>IServer</c> is otherwise
+        /// on - so "ping the server to bring it up", which is what half the suite opens with, brought up
+        /// the wrong connection and left the interesting one still un-dialled. That is visible as a
+        /// connection count: <c>MovedUnitTests</c> counts sockets before and after a redirect.
+        /// </remarks>
+        public override TimeSpan Ping(CommandFlags flags = CommandFlags.None) => Wait(Context.PingMeasureAsync(flags));
+
+        /// <inheritdoc/>
+        /// <remarks><inheritdoc cref="Ping" path="/remarks"/></remarks>
+        public override Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
+            => Context.PingMeasureAsync(flags).AsTask(asyncState, flags);
 
         /// <summary>The non-null spelling these members promise.</summary>
         /// <param name="pending">The reply, which the server may omit.</param>
@@ -97,7 +129,17 @@ namespace StackExchange.Redis
 
         public RedisFeatures Features => server.GetFeatures();
 
-        public bool IsConnected => server.IsConnected;
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>Either core's connection counts, because the caller is asking about the client.</b> Under the
+        /// engine flag the socket carrying this endpoint's commands is the new core's, so answering from the
+        /// shipped bridge alone reported "not connected" about a server that had just replied. Deliberately
+        /// only on this public surface: <c>ServerEndPoint.IsConnected</c> is also what the shipped selector
+        /// routes by, and that has to keep meaning "this bridge is up".
+        /// </remarks>
+        public bool IsConnected
+            => server.IsConnected
+                || (ConnectionMultiplexer.NewCoreEngine && multiplexer.NewCoreIfCreated?.IsConnected(server.EndPoint) == true);
 
         bool IServer.IsSlave => IsReplica;
         public bool IsReplica => server.IsReplica;
