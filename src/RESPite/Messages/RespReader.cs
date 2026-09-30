@@ -1390,7 +1390,8 @@ public ref partial struct RespReader
                     {
                         case LengthPrefixResult.Length:
                             // still need to valid terminating CRLF
-                            if (remaining.Length < consumed + _length + 2) break; // need more data
+                            // long: _length can be up to int.MaxValue, so this sum can overflow int
+                            if (remaining.Length < (long)consumed + _length + 2) break; // need more data
                             UnsafeAssertClLf(1 + consumed + _length);
 
                             _flags = RespFlags.IsScalar | RespFlags.IsInlineScalar;
@@ -1418,7 +1419,8 @@ public ref partial struct RespReader
                             break;
                         case LengthPrefixResult.Length:
                             // still need to valid terminating CRLF
-                            if (remaining.Length < consumed + _length + 2) break; // need more data
+                            // long: _length can be up to int.MaxValue, so this sum can overflow int
+                            if (remaining.Length < (long)consumed + _length + 2) break; // need more data
                             UnsafeAssertClLf(1 + consumed + _length);
 
                             _flags = RespFlags.IsScalar | RespFlags.IsInlineScalar | RespFlags.IsStreaming;
