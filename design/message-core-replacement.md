@@ -2276,15 +2276,13 @@ a keyed read - which is the honest statement of what the assertions need.
 Worth keeping as a general lesson, because it will recur: **anything that asks the server what it just
 saw has to round-trip first.** Fire-and-forget promises the command is sent, not that it has happened.
 
-*What is deliberately NOT done yet: the same short-circuit on `RespDatabaseExecutor`*, the per-database
-view. It should be there - otherwise `GetDatabase(3)` throws at a fire-and-forget caller where
-`GetDatabase(0)` does not, and the behaviour depends on which database you happened to be on. Measured:
-it costs eight more tests, all but two of them the same "F&F writes, then ask the server what it saw"
-shape on a dedicated database (`DatabaseTests.CountKeys`, `ScanTests.KeysScan`, `ScansIScanning`,
-`KeyTests.TestScan` and their twins). The two that are not that shape want looking at rather than
-assuming: `EndpointResolutionUnitTests.RedirectToANewNodeDoesNotDuplicateIt` throws
-`ArgumentException: The specified endpoint is not defined`, and `ClusterTests.MovedProfiling` fails an
-`Assert.True` on RESP3. Its own change, with its own test fixes.
+*And the same short-circuit on `RespDatabaseExecutor`*, the per-database view, which had to be there:
+otherwise `GetDatabase(3)` throws at a fire-and-forget caller where `GetDatabase(0)` does not, and the
+behaviour depends on which database you happened to be on. It cost eight tests when first measured and
+three by the time it landed - D2.4 and the `CountKeys` round trip had already taken the rest - and all
+three were the same shape again, on a dedicated database this time: `ScanTests.KeysScan`,
+`ScansIScanning` and `KeyTests.TestScan` write fire-and-forget and then ask the server to scan them. One
+awaited round trip on the same database each.
 
 `RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
 observation: the decision is per-composition, and each composition answers it where it queues.

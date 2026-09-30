@@ -105,6 +105,16 @@ namespace StackExchange.Redis
         {
             var operation = _inner.Dispatch(in request, Database, cancellationToken);
 
+            // Fire-and-forget declines the outcome here for the same reason it does on the executor this is
+            // a view over - and it has to, or the behaviour depends on which database the caller happened to
+            // be on: `GetDatabase(3)` would throw at a caller who said they were not looking, where
+            // `GetDatabase(0)` does not.
+            if ((request.Flags & CommandFlags.FireAndForget) != 0)
+            {
+                RespPayloadOperation.DiscardReply(operation);
+                return default;
+            }
+
             return new ValueTask<RespPayload>(operation, operation.Token);
         }
 
