@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -120,6 +120,26 @@ public class SelectInjectionTests
         var second = transport.Written.Substring(before.Length);
         Assert.DoesNotContain("SELECT", second);
         Assert.Equal("*2|$3|GET|$1|b|", second);
+    }
+
+    /// <summary>
+    /// A command written as a PAIR - a script and its <c>SCRIPT LOAD</c> - carries its <c>SELECT</c> too.
+    /// </summary>
+    /// <remarks>
+    /// <b>The pair path had its own write and skipped the injection entirely</b>, so a script issued for
+    /// database 3 ran against whatever the connection was last <c>SELECT</c>ed onto. Silent, and exactly the
+    /// failure this class exists to prevent - found as <c>RespResultTests.ScriptEvaluateReadOnlyResp_Works</c>
+    /// reading null from a key it had just written, intermittently, on a connection other tests were moving.
+    /// </remarks>
+    [Fact]
+    public async Task APairedPreambleCarriesTheSelectToo()
+    {
+        var (transport, context) = ForDatabase(3);
+
+        _ = context.Scripts.EvaluateAsync("return 1", default, default);
+        await WaitFor(() => transport.Written.Contains("EVAL"));
+
+        Assert.StartsWith("*2|$6|SELECT|$1|3|", transport.Written);
     }
 
     /// <summary>Database 0 needs nothing: a fresh connection is already there.</summary>

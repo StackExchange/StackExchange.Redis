@@ -2150,32 +2150,29 @@ Each step is independently shippable and leaves the tree green.
 
 #### Where the engine flag stands
 
-**Three failures, down from 33.** Two are `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases`, which
-9b-ix records as unanswerable while both cores consult one policy object - it becomes assertable at D2.8.
-The third rotates among the lease-sharing cases and is a flake. The default suite is 11,171/0 and RESPite
-1,947/0, both unchanged throughout, so none of this has cost the shipped core anything.
+**Two stable failures, down from 33.** Three consecutive runs gave 3, 5 and 2; the third was exactly the
+pair below, and everything else was a different member each time.
 
-Three findings from the last stretch are worth keeping, because each was something other than what it
-looked like:
+- `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases` x2 - 9b-ix: not answerable while both cores
+  consult one policy object. Assertable at D2.8.
 
-- **A fire-and-forget EXEC was being awaited.** `IBatch.Execute()` on a transaction maps onto
-  `Execute(CommandFlags.FireAndForget)`, and this core awaited the reply anyway - so the call blocked for
-  the round trip (half a second against `SlowExecServer`) and settled every queued command's task before
-  returning, which is the opposite of what the shape promises. The queued operations are still completed
-  when the reply lands, because `RespExecOperation` distributes the array while parsing it whether or not
-  anybody is waiting; so declining the EXEC's own reply costs nothing. `false` is the shipped answer here,
-  and "did not commit" is the absence of an answer the caller declined rather than a claim of failure.
+The default suite is 11,172/0 and RESPite 1,947/0 throughout.
 
-- **An unpulsed core claiming to enforce timeouts turned one wedge into eleven failures.** The suites that
-  exercise this surface without the engine flag build a core of their own beside the multiplexer's, and the
-  heartbeat only ever pulsed `_newCore`. Those executors are built by `RespNewCore` and so say
-  `HeartbeatDriven`, which makes `EnforcesTimeouts` true, which makes a synchronous caller stand back from
-  its own timer - so a stalled command waited out the two-minute operation backstop instead of failing at
-  5s, and everything queued behind it waited too. Measured once at eleven failures with 143-second waits.
-  Every core registers for the pulse now, weakly, because registration must not be what keeps a core alive.
+**Two of the things that used to rotate turned out not to be flaky at all**, which is worth recording
+because "flaky" was the wrong diagnosis twice in a row:
 
-- **`DatabaseTests.CountKeys` needed the 9b-vi round trip**, per database rather than per connection: it
-  writes fire-and-forget into two dedicated databases and then asks the server to count them.
+- `RespResultLeaseSharingTests` asserts CHANGES to `RespResult.RefCount`, and that count belongs to the
+  receive BUFFER rather than to the result - so on the shared fixture another test's payload being
+  released between the two reads moves it. They read as load-dependent and were measuring a number
+  somebody else was also changing. Private connections now.
+- `BatchTests.TestBatchSent` was the write-slot ordering bug in 9b-xii.
+
+What is left in the rotating column is `ClusterTests.MovedProfiling` (RESP3),
+`RespResultTests.ScriptEvaluateReadOnlyResp_Works` and `RespAggregateTimingTests` - each seen once across
+three runs. `ScriptEvaluateReadOnlyResp_Works` reads null from a key it has just written, which looks like
+a wrong-database script; the obvious mechanism was checked and ruled out - the paired preamble path DOES
+carry its `SELECT`, and `SelectInjectionTests.APairedPreambleCarriesTheSelectToo` now pins that so the
+next reader does not have to re-derive it.
 
 #### What would tell us it is going wrong
 

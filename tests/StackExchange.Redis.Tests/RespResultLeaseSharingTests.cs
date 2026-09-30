@@ -19,12 +19,18 @@ namespace StackExchange.Redis.Tests;
 /// one, and neither is a fact worth pinning. What the sharing contract actually claims is the delta:
 /// taking a lease adds exactly one reference (a COPY would add none), disposing it removes exactly one,
 /// and disposing it again removes nothing.
+/// <para>
+/// <b>And on a PRIVATE connection, for the same reason one step further.</b> The count belongs to the
+/// receive buffer, not to this result - so on the shared fixture another test's payload being released
+/// between the two reads moves it, and the delta is no longer a statement about the lease. These read as
+/// flaky under load and were not: they were measuring a number somebody else was also changing.
+/// </para>
 /// </remarks>
 public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private async Task<(IInternalConnectionMultiplexer Conn, RespResult Result, string Expected)> GetBlobAsync(int size = 4096)
     {
-        var conn = Create();
+        var conn = Create(shared: false);
         var db = conn.GetDatabase();
         RedisKey key = Me();
         var expected = new string('x', size - 8) + "-the-end";
@@ -147,7 +153,7 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
     [Fact]
     public async Task ShortPayloadIsAlsoShared()
     {
-        var conn = Create();
+        var conn = Create(shared: false);
         await using var _ = conn;
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -163,7 +169,7 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
     [Fact]
     public async Task EmptyPayloadUsesTheSharedEmptyLease_AndTakesNoReference()
     {
-        var conn = Create();
+        var conn = Create(shared: false);
         await using var _ = conn;
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -179,7 +185,7 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
     [Fact]
     public async Task NullReplyTakesNoLease()
     {
-        var conn = Create();
+        var conn = Create(shared: false);
         await using var _ = conn;
         var db = conn.GetDatabase();
         RedisKey key = Me(); // never set
@@ -194,7 +200,7 @@ public class RespResultLeaseSharingTests(ITestOutputHelper output, SharedConnect
     {
         // the null replies are process-wide singletons on fixed buffers; disposing one must not
         // poison it for every later caller
-        var conn = Create();
+        var conn = Create(shared: false);
         await using var _ = conn;
         var db = conn.GetDatabase();
         RedisKey key = Me();
