@@ -2142,6 +2142,31 @@ Each step is independently shippable and leaves the tree green.
   `Command cannot be issued to a replica: BITFIELD`.
 
 - **D2.5 - Own subscriptions**, including the RESP2 second connection.
+
+  **What is still on the old core, counted rather than guessed at.** Instrumenting
+  `ConnectionMultiplexer.CheckMessage` - which every `Message` passes through - over one engine-flag suite
+  run gives 22,542 messages, and the distribution decides the order to do this in:
+
+  | count | caller |
+  | ----: | ------ |
+  | 15,820 | `RedisSubscriber.Publish`/`PublishAsync` |
+  | 1,967 | `RedisDatabase.ScriptEvaluate*Async` (the fallback, not the transitional surface) |
+  | 1,954 | `RedisDatabase.ExecuteRespAsync`, `RedisDatabase.StringSetAsync` (likewise) |
+  | 1,527 | `RedisServer.ExecuteSync`/`ExecuteAsync` - the `IServer` members still on `Message` |
+  | 408 | `RedisSubscriber.Ping`/`PingAsync` |
+  | ~600 | the subscription machinery: `EnsureSubscribedToServer*`, `UnsubscribeFromServerAsync`, `ResubscribeToServer`, `ClusterPubSub` |
+  | 90 | `RedisSubscriber.IdentifyEndpointAsync` |
+
+  **`Publish` is DONE**, and it was the right first slice for a reason the table makes obvious: sixty-nine
+  per cent of the traffic, and the only pub/sub member that is simply a command. It routes itself -
+  `PubSub.PublishAsync` asks the executor to resolve the channel, which prefers the server this client
+  already holds a subscription on, which is the same rule the shipped path expresses by passing
+  `GetSubscribedServer`, and the stronger rule for `SPUBLISH`.
+
+  What remains is the part that is a different shape: subscribing registers a handler and outlives the
+  call, so `Subscription`, `EnsureSubscribedToServer`, the resubscribe-on-reconnect path and the RESP2
+  second connection all have to move together. `RespNewCore` already has the connection
+  (`SubscriptionEndpoint`, `SubscriptionContext`) and nothing but its own tests uses it.
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
 - **D2.7 - Maintenance and sentinel.**
