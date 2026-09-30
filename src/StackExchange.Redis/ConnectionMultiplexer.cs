@@ -2420,6 +2420,42 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Brings the primary/replica role of each known node into line with the <c>CLUSTER NODES</c> view.
+        /// </summary>
+        /// <remarks>
+        /// The slot map alone is not enough: after a failover it can be entirely correct while the role flags are
+        /// stale, and a write routed to a node still flagged as a replica is refused client-side. Roles otherwise
+        /// only refresh from the periodic <c>INFO replication</c> check, so this is what lets a topology refresh
+        /// actually repair a failover. Never creates a server - a node we do not hold has no flag to be stale.
+        /// </remarks>
+        internal void ApplyClusterRoles(ClusterConfiguration configuration, ClusterTopology? topology)
+        {
+            foreach (var node in configuration.Nodes)
+            {
+                if (node.IgnoreFromClient || node.EndPoint is null) continue;
+
+                var listed = topology?[node.NodeId];
+                var server = TryResolveServerEndPoint(node.EndPoint);
+                if (server is null && listed is not null)
+                {
+                    foreach (var identity in listed.Identities)
+                    {
+                        if ((server = TryResolveServerEndPoint(identity)) is not null) break;
+                    }
+                }
+
+                // SLOTS wins where it has a view, as it does for the slot map: taking the role from a different
+                // reply would let the two disagree about a node, which is the failure being repaired. NODES speaks
+                // only for the nodes SLOTS omits, i.e. those serving no slots
+                var isReplica = listed?.IsReplica ?? node.IsReplica;
+                if (server is not null && server.ServerType == ServerType.Cluster && server.IsReplica != isReplica)
+                {
+                    server.IsReplica = isReplica;
+                }
+            }
+        }
+
+        /// <summary>
         /// Applies the slot map from the <c>CLUSTER SLOTS</c> view, which supersedes
         /// <see cref="UpdateClusterRange(ClusterConfiguration)"/> when the answering server supplied one.
         /// </summary>

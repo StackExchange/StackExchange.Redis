@@ -210,6 +210,16 @@ namespace StackExchange.Redis
                 ServerEndPoint? server = multiplexer?.GetServerEndPoint(endpoint, provenance: ServerProvenance.Redirect);
                 if (server != null)
                 {
+                    // a MOVED names the node that now owns the slot, and only a primary can own one. If we still
+                    // believe it is a replica we have not caught up with a failover, and the resend below would be
+                    // refused client-side as a write to a replica - with no MOVED to follow, so nothing else would
+                    // correct it before the next scheduled role check. The next topology refresh remains the
+                    // authority and can overrule this
+                    if (isMoved && ServerType == ServerType.Cluster && server.IsReplica)
+                    {
+                        server.IsReplica = false;
+                    }
+
                     bool retry = false;
                     if ((message.Flags & CommandFlags.NoRedirect) == 0)
                     {

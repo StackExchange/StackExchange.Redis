@@ -526,6 +526,7 @@ namespace StackExchange.Redis
                 {
                     Multiplexer.UpdateClusterRange(configuration);
                 }
+                Multiplexer.ApplyClusterRoles(configuration, ClusterTopology);
                 Multiplexer.Trace("Resolving genealogy...");
                 UpdateNodeRelations(configuration);
                 Multiplexer.Trace("Cluster configured");

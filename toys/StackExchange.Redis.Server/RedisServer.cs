@@ -123,6 +123,32 @@ namespace StackExchange.Redis.Server
             }
             throw new KeyNotFoundException($"Source node not found for slot {hashSlot}");
         }
+        /// <summary>
+        /// Promotes <paramref name="replica"/> in place of its primary, as a completed <c>CLUSTER FAILOVER</c> does:
+        /// it takes the old primary's slots, the old primary becomes a replica of it, and any other replicas of
+        /// the old primary follow. Nothing is announced; a client finds out from a <c>-MOVED</c>, or by asking.
+        /// </summary>
+        public void Failover(EndPoint replica)
+        {
+            if (ServerType != ServerType.Cluster) throw new InvalidOperationException($"Server mode is {ServerType}");
+            if (!TryGetNode(replica ?? throw new ArgumentNullException(nameof(replica)), out var promoted)) throw new KeyNotFoundException($"Node not found: {Format.ToString(replica)}");
+            var demoted = GetPrimaryOf(promoted) ?? throw new InvalidOperationException($"Not a replica: {Format.ToString(replica)}");
+
+            var slots = demoted.Slots.ToArray();
+            foreach (var pair in _nodes)
+            {
+                if (pair.Value.PrimaryId == demoted.Id) pair.Value.PrimaryId = promoted.Id;
+            }
+            promoted.PrimaryId = null;
+            promoted.Flags &= ~NodeFlags.Replica;
+            promoted.UpdateSlots(slots);
+
+            demoted.PrimaryId = promoted.Id;
+            demoted.Flags |= NodeFlags.Replica;
+            demoted.UpdateSlots([]);
+            Log($"failover: {Format.ToString(replica)} promoted, {demoted.Host}:{demoted.Port} demoted");
+        }
+
         public bool Migrate(Span<byte> key, EndPoint to) => Migrate(ServerSelectionStrategy.GetClusterSlot(key), to);
         public bool Migrate(in RedisKey key, EndPoint to) => Migrate(GetHashSlot(key), to);
 
@@ -713,6 +739,14 @@ namespace StackExchange.Redis.Server
             return TypedRedisValue.OK;
         }
 
+        // no read/write distinction is enforced (the topology decides who answers), but a client that has put a
+        // replica connection into read mode must be able to take it out again when that node is promoted
+        [RedisCommand(1)]
+        protected virtual TypedRedisValue Readonly(RedisClient client, in RedisRequest request) => TypedRedisValue.OK;
+
+        [RedisCommand(1)]
+        protected virtual TypedRedisValue Readwrite(RedisClient client, in RedisRequest request) => TypedRedisValue.OK;
+
         [RedisCommand(1)]
         protected virtual TypedRedisValue Unwatch(RedisClient client, in RedisRequest request)
         {
@@ -1226,7 +1260,7 @@ namespace StackExchange.Redis.Server
 
             private readonly RedisServer _server;
             public RedisServer Server => _server;
-            public NodeFlags Flags { get; }
+            public NodeFlags Flags { get; internal set; }
             public Node(RedisServer server, EndPoint endpoint, NodeFlags flags)
             {
                 Host = GetHost(endpoint, out var port);
