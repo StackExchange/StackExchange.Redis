@@ -2231,44 +2231,45 @@ naive version waited out the whole timeout for commands stranded behind a connec
 coming back, which is the ordinary state of a shutdown after a failure. `CloseAsync` advertises
 `allowCommandsToComplete`; this core now honours it.
 
-*The async half is still out, and the residue is now fully explained.* Two separate things were behind
-what earlier looked like load-dependent noise.
+*The async half is now in, and what was actually blocking it was nothing about fire-and-forget.* Three
+separate things had to be true first, and only the first was about this core at all.
 
-The first was a plain omission: **`CloseAsync` never drained this core** while the synchronous `Close`
-did. Every `await using` - which is every test and most callers - therefore dropped whatever this core
-still owed, and a fire-and-forget command issued immediately before disposal simply never happened.
-That is `SO10504853` and `Issue2392`, and it was mistaken for a fire-and-forget problem because only
-fire-and-forget leaves anything owing at the moment of close. Fixed independently, and it also stopped
-an asynchronously-disposed multiplexer holding this core's sockets open.
+**One: `CloseAsync` never drained this core** while the synchronous `Close` did. Every `await using` -
+which is every test and most callers - therefore dropped whatever this core still owed, and a
+fire-and-forget command issued immediately before disposal simply never happened. That is `SO10504853`
+and `Issue2392`, and it was mistaken for a fire-and-forget problem because only fire-and-forget leaves
+anything owing at the moment of close. Fixed independently.
 
-What remained after that looked like the two-socket artefact, and **D2.4 has disproved that**. The
-explanation recorded here previously - that `HotKeysTests` fails because START and STOP travel on the
-shipped core's socket while the fire-and-forget increments travel on this one, so STOP can overtake them -
-was wrong, or at least not the whole of it. With `IServer` on this core's socket (D2.4 landed) and the
-short-circuit re-enabled, the engine-flag count goes **12 -> 24**, and the twelve casualties are the same
-twelve `HotKeysTests`/`HotKeysClusterTests` as before.
+**Two: D2.4.** With `IServer` on the shipped core's socket and the writes on this one, returning before
+the write landed removed the only thing ordering the two against each other. `DatabaseTests.CountKeys` is
+that race exactly. Fixed by D2.4, and 9b-xi records the family.
 
-They cannot be an ordering race between two sockets, because there is now one socket: the increments and
-the `HOTKEYS` commands funnel through the same `RespEndpointExecutor` into the same pending queue, in
-arrival order. `DatabaseTests.CountKeys`, which really was that race, passes.
+**Three, and this is the one that was misdiagnosed twice: a caller that does not wait for its own replies
+no longer establishes that the server has EXECUTED them.** After D2.4 the short-circuit still cost twelve
+`HotKeysTests`, which cannot be a two-socket race because there is one socket. The measurement that
+settled it: with the short-circuit in, `HOTKEYS` reports **nothing at all** - `cpuKeys=0`, `netKeys=0` -
+while the key itself reads `20`, so the increments ran. They ran, and `HOTKEYS STOP` had already closed
+the window they were supposed to be measured in. One awaited round trip anywhere between the writes and
+the STOP makes every one of those tests pass, and it has to be a command routed by the same key, so that
+on a cluster it reaches the node the increments went to.
 
-What is known:
+So the tests were relying on an accident: awaiting each fire-and-forget command was itself a round trip,
+because this core completed such a command only when its reply arrived. That is precisely what
+fire-and-forget is supposed not to do. The workload is now written once, in `IncrementTwenty`, ending in
+a keyed read - which is the honest statement of what the assertions need.
 
-- It buys exactly one test, `Issue2392Tests.Execute`, which wants a fire-and-forget command against a
-  dead server not to throw at a caller who declined the result.
-- In the standalone case the failing assertion is specifically the NETWORK metric
-  (`result.NetworkBytesByKey.IsEmpty` is true when it should not be); `HotKeysTests` CPU-only variants
-  pass. The cluster variants fail on CPU too, but there the slots really do spread across sockets.
-- These are real servers (the suite requires 8.6), so the accounting being asked about is the server's.
+Worth keeping as a general lesson, because it will recur: **anything that asks the server what it just
+saw has to round-trip first.** Fire-and-forget promises the command is sent, not that it has happened.
 
-What is not known is why a caller not waiting for its own replies changes what the server measures, given
-the bytes are written either way and in the same order. That is the question to answer next; the guess
-worth testing first is whether the 21 commands now reach the server in one read where they previously
-arrived one at a time, and whether per-key network attribution is per-read rather than per-command.
-
-So the async half stays out, and the reason is now "unexplained" rather than "blocked on D2.4" - which is
-a worse position to be in than the record previously claimed, and worth saying plainly. The sync half
-stays in on its own.
+*What is deliberately NOT done yet: the same short-circuit on `RespDatabaseExecutor`*, the per-database
+view. It should be there - otherwise `GetDatabase(3)` throws at a fire-and-forget caller where
+`GetDatabase(0)` does not, and the behaviour depends on which database you happened to be on. Measured:
+it costs eight more tests, all but two of them the same "F&F writes, then ask the server what it saw"
+shape on a dedicated database (`DatabaseTests.CountKeys`, `ScanTests.KeysScan`, `ScansIScanning`,
+`KeyTests.TestScan` and their twins). The two that are not that shape want looking at rather than
+assuming: `EndpointResolutionUnitTests.RedirectToANewNodeDoesNotDuplicateIt` throws
+`ArgumentException: The specified endpoint is not defined`, and `ClusterTests.MovedProfiling` fails an
+`Assert.True` on RESP3. Its own change, with its own test fixes.
 
 `RespOperationBatch` and `RespTransaction` keep their own handling, which is the other half of the same
 observation: the decision is per-composition, and each composition answers it where it queues.
@@ -2420,6 +2421,30 @@ short-circuit, which is why 9b-vi and this section resolve together.
 Under one core these are all FIFO on one connection. **D2.4 closed the whole group at once** - engine-flag
 failures went 23 to 12 on that one change, and every member of this family went with it. The prediction
 held; the same reasoning applied to `HotKeysTests` did not, and 9b-vi records that correction.
+
+### 9b-xii. OPEN: `TestBatchSent` fails WRONGTYPE, rarely, on both cores
+
+**Not diagnosed, recorded so it is not mistaken for noise.** `BatchTests.TestBatchSent` and its
+`NewCore`/`Transitional` twins failed once each across two suite runs with
+`RedisServerException: WRONGTYPE`, and pass in isolation every time. The test's shape is:
+
+    _ = db.KeyDeleteAsync(key);              // task discarded, NOT fire-and-forget
+    _ = db.StringSetAsync(key, "batch-sent");
+    var batch = db.CreateBatch();
+    ... KeyDelete, SetAdd, SetAdd, SetAdd ...
+    batch.Execute();
+
+`WRONGTYPE` means the batch's `SADD` reached the server while the key was still the STRING written on the
+line above - so the batch's own `DEL`, or the whole batch, overtook a command issued before it. That is
+the exact failure the write-slot acquisition was introduced to fix (see `_writeSlotHeld`, which records
+this test as how it was found), so either that fix has a remaining window or this is a second mechanism.
+
+What is known: it appears on the DEFAULT suite as well as under the engine flag, so it is the new core's
+batch path rather than anything about the engine flag; and five default-suite runs earlier in the same
+session were clean, so it is rare rather than new. It is not obviously connected to the async
+fire-and-forget change that was in flight when it appeared - nothing in the test is fire-and-forget - but
+that change perturbs timing on this path, so "rare and pre-existing" is a hypothesis rather than a
+finding.
 
 ### 9c. What this buys beyond tidiness
 

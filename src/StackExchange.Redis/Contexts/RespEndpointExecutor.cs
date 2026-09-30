@@ -425,10 +425,6 @@ namespace StackExchange.Redis
             // Null rather than a payload, which is what Parse already expects and documents: "the caller
             // has explicitly declined it, so the pipeline never captures one and the executor hands back
             // null". The executor simply never did.
-            //
-            // SYNCHRONOUS ONLY so far: the same short-circuit on SendAsync still breaks the scripting
-            // tests, and neither of the two obvious causes turned out to be it. See design notes 9b-vi
-            // for what has been ruled out.
             if ((request.Flags & CommandFlags.FireAndForget) != 0)
             {
                 RespPayloadOperation.DiscardReply(operation);
@@ -442,6 +438,18 @@ namespace StackExchange.Redis
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             var operation = Dispatch(in request, cancellationToken);
+
+            // <inheritdoc/> of the reasoning in Send, which this is the async twin of: fire-and-forget
+            // declines the outcome, including the bad ones. The reply is drained and discarded; nobody is
+            // told. What took so long to land was not this, but its consequence - a caller that does not
+            // wait for its own replies no longer establishes that the server has EXECUTED them, and three
+            // separate things had been quietly relying on that. See design notes 9b-vi.
+            if ((request.Flags & CommandFlags.FireAndForget) != 0)
+            {
+                RespPayloadOperation.DiscardReply(operation);
+                return default;
+            }
+
             return new ValueTask<RespPayload>(operation, operation.Token);
         }
 

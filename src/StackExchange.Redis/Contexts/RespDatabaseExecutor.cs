@@ -104,6 +104,7 @@ namespace StackExchange.Redis
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             var operation = _inner.Dispatch(in request, Database, cancellationToken);
+
             return new ValueTask<RespPayload>(operation, operation.Token);
         }
 
