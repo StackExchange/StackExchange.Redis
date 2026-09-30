@@ -181,6 +181,55 @@ public class RespOperationBatchTests
         Assert.Equal(before, transport.Written.Length);
     }
 
+    /// <summary>
+    /// A run that has to WAIT for the write slot still goes ahead of anything issued after it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Owning the slot has always meant "ahead of everything issued since I took it". Waiting for it did
+    /// not, and the gap was silent: the outgoing holder drained the backlog before handing over, so a
+    /// single command issued while a batch was queuing for the slot was written in front of that batch.
+    /// </para>
+    /// <para>
+    /// <c>BatchTests.TestBatchSent</c> found it as a <c>WRONGTYPE</c>, rarely and only under load - it
+    /// writes a string, batches a <c>DEL</c> plus three <c>SADD</c>s, and then reads the set. With the
+    /// <c>SMEMBERS</c> written before the batch, it read the string. Reordering two commands is the worst
+    /// failure shape available here, so this pins the order rather than the symptom.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ARunWaitingForTheSlotStillPrecedesWhatFollowsIt()
+    {
+        var (endpoint, transport) = await ConnectedAsync();
+        var writtenBefore = transport.Written;
+        var direct = new RespDatabaseContext(new RespContext().WithExecutor(endpoint));
+
+        // somebody else owns the write side; a run cannot take it and has to queue for it
+        Assert.True(await endpoint.PrepareRunAsync());
+
+        var batch = new RespOperationBatchExecutor(endpoint);
+        var batched = new RespDatabaseContext(new RespContext().WithExecutor(batch));
+        _ = batched.Strings.GetAsync("run");
+        var running = batch.ExecuteAsync();
+
+        // ...and this is issued AFTER the run, so it must be written after it, even though the run is
+        // still waiting and this one could be written immediately
+        var after = direct.Strings.GetAsync("after");
+
+        Assert.False(running.IsCompleted, "the run should be waiting for the slot");
+        Assert.False(after.IsCompleted);
+
+        endpoint.ReleaseWrites();
+        await running;
+        await WaitFor(() => transport.Written.Length > writtenBefore.Length + 20);
+
+        var added = transport.Written.Substring(writtenBefore.Length);
+        Assert.Equal("*2|$3|GET|$3|run|*2|$3|GET|$5|after|", added);
+
+        transport.Reply("$1\r\nR\r\n$1\r\nA\r\n");
+        Assert.Equal("A", (string?)await after);
+    }
+
     private static async Task WaitFor(Func<bool> condition, int millis = 5000)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();

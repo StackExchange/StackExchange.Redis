@@ -1417,29 +1417,38 @@ namespace StackExchange.Redis
                     {
                         if (_disposed) return false;
 
-                        if (held && !captured)
-                        {
-                            // taken under the lock the moment the slot is ours, so nothing can slip in
-                            // between owning it and deciding what counts as "earlier"
-                            earlier = _backlog;
-                            _backlog = null;
-                            captured = true;
-                        }
-
                         if (!held)
                         {
                             if (_writeSlotHeld)
                             {
                                 slotWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                                 (_writeWaiters ??= new()).Enqueue(slotWait);
+
+                                // CAPTURED WHEN WE ASK, not when we win, and this is the correction that
+                                // makes waiting an ordering guarantee too. "Earlier" has to mean earlier
+                                // than the moment this run was issued; anything that arrives while we wait
+                                // was issued after it and must be written after it. Capturing on winning
+                                // instead put every such command in front of the run - and, worse, the
+                                // outgoing holder drained them itself, so they were written before this run
+                                // even existed on the wire. BatchTests.TestBatchSent found that as a
+                                // WRONGTYPE: a SMEMBERS issued after a batch ran before the batch's DEL.
+                                if (!captured)
+                                {
+                                    earlier = _backlog;
+                                    _backlog = null;
+                                    captured = true;
+                                }
                             }
                             else
                             {
                                 _writeSlotHeld = true;
                                 held = true;
-                                earlier = _backlog;
-                                _backlog = null;
-                                captured = true;
+                                if (!captured)
+                                {
+                                    earlier = _backlog;
+                                    _backlog = null;
+                                    captured = true;
+                                }
                             }
                         }
 
@@ -1491,25 +1500,24 @@ namespace StackExchange.Redis
             }
             finally
             {
-                if (held)
+                // never written, so they go back at the FRONT: they were queued before anything that has
+                // arrived since, and losing that is losing the ordering this method exists for. Restored
+                // whether or not the slot was ever held, because it is claimed when we ASK - so a wait that
+                // ends in failure is also a wait that is holding somebody else's commands.
+                if (earlier is { Count: > 0 })
                 {
-                    // never written, so they go back at the FRONT: they were queued before anything that
-                    // has arrived since, and losing that is losing the ordering this method exists for
-                    if (earlier is { Count: > 0 })
+                    lock (_sync)
                     {
-                        lock (_sync)
+                        if (_backlog is { Count: > 0 })
                         {
-                            if (_backlog is { Count: > 0 })
-                            {
-                                foreach (var later in _backlog) earlier.Enqueue(later);
-                            }
-
-                            _backlog = earlier;
+                            foreach (var later in _backlog) earlier.Enqueue(later);
                         }
-                    }
 
-                    ReleaseWrites();
+                        _backlog = earlier;
+                    }
                 }
+
+                if (held) ReleaseWrites();
             }
         }
 
@@ -1518,6 +1526,20 @@ namespace StackExchange.Redis
         {
             while (true)
             {
+                lock (_sync)
+                {
+                    // HANDED ON BEFORE DRAINING when somebody is waiting, which is the other half of
+                    // capturing "earlier" at ask time. A waiter already owns everything that was queued
+                    // when it asked; what is in the backlog now arrived after that, so draining it here
+                    // would write it in front of a run that was issued before it. The waiter drains it
+                    // itself, after its own run, when it releases.
+                    if (_writeWaiters is { Count: > 0 })
+                    {
+                        _writeWaiters.Dequeue().TrySetResult(true);
+                        return;
+                    }
+                }
+
                 DrainBacklog();
 
                 lock (_sync)

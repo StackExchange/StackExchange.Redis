@@ -2467,29 +2467,36 @@ Under one core these are all FIFO on one connection. **D2.4 closed the whole gro
 failures went 23 to 12 on that one change, and every member of this family went with it. The prediction
 held; the same reasoning applied to `HotKeysTests` did not, and 9b-vi records that correction.
 
-### 9b-xii. OPEN: `TestBatchSent` fails WRONGTYPE, rarely, on both cores
+### 9b-xii. A run WAITING for the write slot did not keep its place in the order (fixed)
 
-**Not diagnosed, recorded so it is not mistaken for noise.** `BatchTests.TestBatchSent` and its
-`NewCore`/`Transitional` twins failed once each across two suite runs with
-`RedisServerException: WRONGTYPE`, and pass in isolation every time. The test's shape is:
+**The symptom was `BatchTests.TestBatchSent` failing `WRONGTYPE`, rarely, on both cores** - and passing in
+isolation every time, which is what kept it looking like noise. The shape:
 
-    _ = db.KeyDeleteAsync(key);              // task discarded, NOT fire-and-forget
-    _ = db.StringSetAsync(key, "batch-sent");
-    var batch = db.CreateBatch();
-    ... KeyDelete, SetAdd, SetAdd, SetAdd ...
+    _ = db.KeyDeleteAsync(key);
+    _ = db.StringSetAsync(key, "batch-sent");     // key is now a STRING
+    var batch = db.CreateBatch();                 // DEL, then SADD x3
     batch.Execute();
+    var result = db.SetMembersAsync(key);         // must run AFTER the batch
 
-`WRONGTYPE` means the batch's `SADD` reached the server while the key was still the STRING written on the
-line above - so the batch's own `DEL`, or the whole batch, overtook a command issued before it. That is
-the exact failure the write-slot acquisition was introduced to fix (see `_writeSlotHeld`, which records
-this test as how it was found), so either that fix has a remaining window or this is a second mechanism.
+`WRONGTYPE` means the `SMEMBERS` reached the server while the key was still that string: it overtook the
+batch that was issued before it.
 
-What is known: it appears on the DEFAULT suite as well as under the engine flag, so it is the new core's
-batch path rather than anything about the engine flag; and five default-suite runs earlier in the same
-session were clean, so it is rare rather than new. It is not obviously connected to the async
-fire-and-forget change that was in flight when it appeared - nothing in the test is fire-and-forget - but
-that change perturbs timing on this path, so "rare and pre-existing" is a hypothesis rather than a
-finding.
+**Owning the write slot has always meant "ahead of everything issued since I took it". WAITING for it
+meant nothing at all**, and that was the hole. Two halves, both now closed:
+
+- `PrepareRunAsync` captured the backlog as its *earlier* set when it WON the slot. Everything queued
+  while it waited was therefore counted as earlier and written IN FRONT of the run - the opposite of the
+  truth, since those commands were issued after it. It captures when it ASKS now.
+- `ReleaseWrites` drained the backlog before handing the slot to a waiter, so the OUTGOING holder wrote
+  those commands, before the waiting run existed on the wire at all. It hands on first when somebody is
+  waiting; the waiter drains what accumulated, after its own run, when it releases.
+
+Needs a concurrent slot holder to show at all, which is why it was load-dependent: a batch issued while
+another run held the slot, with one more command issued in between.
+
+`RespOperationBatchTests.ARunWaitingForTheSlotStillPrecedesWhatFollowsIt` pins the ORDER rather than the
+symptom, and was checked both ways - it fails deterministically with either half of the fix removed, and
+passes fourteen consecutive runs with both in.
 
 ### 9c. What this buys beyond tidiness
 
