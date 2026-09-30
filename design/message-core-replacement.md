@@ -2150,8 +2150,8 @@ Each step is independently shippable and leaves the tree green.
   | count | caller |
   | ----: | ------ |
   | 15,820 | `RedisSubscriber.Publish`/`PublishAsync` |
-  | 1,967 | `RedisDatabase.ScriptEvaluate*Async` (the fallback, not the transitional surface) |
-  | 1,954 | `RedisDatabase.ExecuteRespAsync`, `RedisDatabase.StringSetAsync` (likewise) |
+  | 1,967 | `RedisDatabase.ScriptEvaluate*Async` - **not work to do**; see below |
+  | 1,954 | `RedisDatabase.ExecuteRespAsync`, `RedisDatabase.StringSetAsync` - likewise |
   | 1,527 | `RedisServer.ExecuteSync`/`ExecuteAsync` - the `IServer` members still on `Message` |
   | 408 | `RedisSubscriber.Ping`/`PingAsync` |
   | ~600 | the subscription machinery: `EnsureSubscribedToServer*`, `UnsubscribeFromServerAsync`, `ResubscribeToServer`, `ClusterPubSub` |
@@ -2163,10 +2163,32 @@ Each step is independently shippable and leaves the tree green.
   already holds a subscription on, which is the same rule the shipped path expresses by passing
   `GetSubscribedServer`, and the stronger rule for `SPUBLISH`.
 
-  What remains is the part that is a different shape: subscribing registers a handler and outlives the
-  call, so `Subscription`, `EnsureSubscribedToServer`, the resubscribe-on-reconnect path and the RESP2
-  second connection all have to move together. `RespNewCore` already has the connection
+  **The 3,921 `RedisDatabase` rows are not work at all**, which is worth knowing before anybody plans
+  around them. Tracing the callers: 1,998 are `OldScriptEvaluateAsync_DoesNotCorruptUnderLoad` and 1,998
+  are `ExecuteRespAndScriptEvaluateResp_DoNotLeakRentedBuffers` - two load tests that exercise the shipped
+  `RedisDatabase` deliberately, one of them saying so in its name. They go when the old surface goes, not
+  at D2.8.
+
+  **What is left is therefore smaller than the table suggests**: the subscription machinery, and the
+  `IServer` members that still build a `Message` (SENTINEL 462, HOTKEYS 212, CONFIG 210, SCAN 175,
+  CLUSTER 132, ROLE 108, SCRIPT 75, INFO 53, CLIENT 32, COMMAND 30, KEYS 18, SLOWLOG 10, REPLICAOF 4,
+  LATENCY 3, MEMORY 2). The second of those is a mechanical per-member move; the first is one piece.
+
+  **One caveat on the inventory**: it counts `CheckMessage` callers, and the handshake and reconfiguration
+  write through `WriteDirectOrQueueFireAndForgetAsync`, which does not pass through it. So the
+  configuration machinery's own traffic is invisible here and has to be accounted for separately - it is
+  the other thing keeping the bridges alive.
+
+  **What remains of D2.5 is the part that is a different shape**: subscribing registers a handler and
+  outlives the call, so `Subscription`, `EnsureSubscribedToServer`, the resubscribe-on-reconnect path and
+  the RESP2 second connection all have to move together. `RespNewCore` already has the connection
   (`SubscriptionEndpoint`, `SubscriptionContext`) and nothing but its own tests uses it.
+
+  Two members that look separable and are not: `RedisSubscriber.Ping` must travel on the SUBSCRIBER
+  connection (and degrades to `UNSUBSCRIBE` on servers that will not answer `PING` there), and
+  `IdentifyEndpointAsync` reads the identity of the connection its `PUBSUB NUMSUB` went out on. Both need
+  "which subscription connection", which is a question only the registry can answer - so they move with
+  it rather than before it.
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
 - **D2.7 - Maintenance and sentinel.**
