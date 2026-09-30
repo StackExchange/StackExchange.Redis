@@ -1045,6 +1045,28 @@ namespace StackExchange.Redis
         /// <summary>Zero means "never", so a tick count that lands on it moves by one.</summary>
         private static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
 
+        /// <summary>
+        /// Subscribes to the configuration-change broadcast on a RESP3 connection. With RESP3 there is no
+        /// separate subscription connection, and so no subscription handshake - which is where RESP2 subscribes
+        /// to it. Left at that, the channel would silently have no subscriber, and the manual
+        /// <c>PUBLISH</c> that clients have long used to announce a topology change would reach nobody.
+        /// </summary>
+        /// <remarks>
+        /// Done once the connection is known to be RESP3 rather than as part of the handshake: a connection
+        /// that fell back to RESP2 must not be put into subscriber mode.
+        /// </remarks>
+        private void SubscribeToConfigurationChannel(PhysicalBridge bridge)
+        {
+            var channel = Multiplexer.ConfigurationChangedChannel;
+            if (channel is null || !SupportsSubscriptions || !Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)) return;
+
+            var msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(channel));
+            msg.SetSource(ResultProcessor.TrackSubscriptions, null);
+#pragma warning disable CS0618 // Type or member is obsolete
+            bridge.TryWriteSync(msg, isReplica);
+#pragma warning restore CS0618
+        }
+
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             try
@@ -1071,6 +1093,10 @@ namespace StackExchange.Redis
                         // TracerProcessor which is executing this line inside a SetResultCore().
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+                        if (isResp3 && bridge == interactive)
+                        {
+                            SubscribeToConfigurationChannel(bridge);
+                        }
                     }
                     else if (SupportsSubscriptions && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
                     {
