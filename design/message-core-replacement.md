@@ -2175,6 +2175,28 @@ Each step is independently shippable and leaves the tree green.
 - **D2.8 - Stop constructing bridges under the flag**, then delete `PhysicalBridge` and
   `PhysicalConnection` when the flag becomes the only behaviour.
 
+#### Where the engine flag stands
+
+**Nine failures, of which four are stable and five rotate.** Down from 33. The default suite is 11,171/0
+and RESPite 1,947/0, both unchanged throughout, so nothing here has cost the shipped core anything.
+
+The four that are stable:
+
+- `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases` x2 - not answerable while both cores consult one
+  policy object; 9b-ix carries the corrected gate and the measurement.
+- `RetryTests.RetryEndToEndTests.WithRetry_Transaction_BatchExecute_DoesNotWaitForReplies` x2 - **not
+  diagnosed.** `((IBatch)tran).Execute()` maps onto `ExecuteAsync(FireAndForget)`, and the test asserts the
+  per-command proxy is NOT settled when it returns, because the server is still sitting on the EXEC reply.
+  It is settled. Worth chasing on its own: something is completing those proxies while the reply is still
+  in flight, which is the opposite of the fire-and-forget guarantee the shape is built on.
+
+The five that rotate are all the "F&F writes, then ask the server what it saw" family - `MovedProfiling`,
+`MovedUnitTests` on cluster, a lease-sharing case, a `TransactionTests` condition, `RespResultTests`. The
+tail GREW when the async fire-and-forget short-circuit landed, and that is expected rather than
+mysterious: a caller that no longer waits for its own replies exposes every test that assumed it did.
+9b-vi states the rule. Each one is a small, honest test change of the kind `IncrementTwenty` already is,
+and the work is worth doing because each of them is also a latent trap for a real caller.
+
 #### What would tell us it is going wrong
 
 The honest risk is that D2.1 makes this core eager and the reason the lazy design existed reasserts
