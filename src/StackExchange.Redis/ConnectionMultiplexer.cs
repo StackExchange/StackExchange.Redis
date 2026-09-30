@@ -329,7 +329,9 @@ namespace StackExchange.Redis
                     && ConfigurationChangedChannel != null
                     && CommandMap.IsAvailable(RedisCommand.PUBLISH))
                 {
-                    RedisValue channel = ConfigurationChangedChannel;
+                    // as a channel, not a value: the prefix applies to this one too, or it would be published to a
+                    // name that nobody (who subscribed to the prefixed one) is listening on
+                    var channel = RedisChannel.Literal(ConfigurationChangedChannel);
                     foreach (var node in serverNodes)
                     {
                         if (!node.IsConnected) continue;

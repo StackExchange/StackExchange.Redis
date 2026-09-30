@@ -747,6 +747,11 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1)]
         protected virtual TypedRedisValue Readwrite(RedisClient client, in RedisRequest request) => TypedRedisValue.OK;
 
+        // accepted and ignored: topology is whatever the test says it is, but a client that calls ReplicaOf expects
+        // an answer (and then broadcasts the change)
+        [RedisCommand(3)]
+        protected virtual TypedRedisValue Replicaof(RedisClient client, in RedisRequest request) => TypedRedisValue.OK;
+
         [RedisCommand(1)]
         protected virtual TypedRedisValue Unwatch(RedisClient client, in RedisRequest request)
         {

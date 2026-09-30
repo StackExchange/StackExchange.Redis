@@ -14,12 +14,21 @@ public class ConfigurationChannelUnitTests(ITestOutputHelper log)
 {
     private const string Channel = "__Booksleeve_MasterChanged";
 
-    [Fact]
-    public async Task PublishingToTheConfigurationChannelIsHeard()
+    private static ConfigurationOptions Configure(InProcessTestServer server, bool prefix)
     {
-        using var server = new InProcessTestServer(log);
         var config = server.GetClientConfig();
         config.ConfigurationChannel = Channel; // the test server turns this off by default
+        if (prefix) config.ChannelPrefix = RedisChannel.Literal("testuser-");
+        return config;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublishingToTheConfigurationChannelIsHeard(bool prefix)
+    {
+        using var server = new InProcessTestServer(log);
+        var config = Configure(server, prefix);
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
 
         var heard = new TaskCompletionSource<EndPointEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -36,5 +45,29 @@ public class ConfigurationChannelUnitTests(ITestOutputHelper log)
         }
 
         Assert.True(heard.Task.IsCompleted, "the configuration channel has no subscriber");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheLibrarysOwnBroadcastIsHeard(bool prefix)
+    {
+        // the channel is subscribed with the channel prefix applied, so it must be fired with it too - or a
+        // client that changes a server's role announces it to a channel that nobody is listening on
+        using var server = new InProcessTestServer(log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(Configure(server, prefix));
+
+        var heard = new TaskCompletionSource<EndPointEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        conn.ConfigurationChangedBroadcast += (_, e) => heard.TrySetResult(e);
+
+        var admin = conn.GetServer(server.DefaultEndPoint);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!heard.Task.IsCompleted && DateTime.UtcNow < deadline)
+        {
+            await admin.ReplicaOfAsync(null!); // broadcasts the change once it is made
+            await Task.WhenAny(heard.Task, Task.Delay(100));
+        }
+
+        Assert.True(heard.Task.IsCompleted, "the broadcast was not heard");
     }
 }

@@ -689,7 +689,7 @@ namespace StackExchange.Redis
             var channel = multiplexer.ConfigurationChangedChannel;
             if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
             {
-                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
+                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, RedisChannel.Literal(channel), RedisLiterals.Wildcard);
                 msg.SetInternalCall();
                 return msg;
             }
