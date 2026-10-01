@@ -99,6 +99,8 @@ public class RespSurfaceServerParityTests
     private const string PairsReply = "*2\r\n$9\r\nmaxmemory\r\n$1\r\n0\r\n";
     private const string KeysReply = "*1\r\n$1\r\nk\r\n";
     private const string RoleReply = "*3\r\n$6\r\nmaster\r\n:3129659\r\n*0\r\n";
+    private const string SubscribeReply = "*3\r\n$9\r\nsubscribe\r\n$4\r\nchan\r\n:1\r\n";
+    private const string UnsubscribeReply = "*3\r\n$11\r\nunsubscribe\r\n$4\r\nchan\r\n:0\r\n";
     private const string ClientListLine =
         "id=7 addr=127.0.0.1:1234 name=someName age=1 idle=0 flags=N db=0 sub=0 psub=0 multi=-1 cmd=client|list";
     private static readonly string ClientListReply = $"${ClientListLine.Length}\r\n{ClientListLine}\r\n";
@@ -308,6 +310,67 @@ public class RespSurfaceServerParityTests
 
         var keys = await new RespKeys(new RespContext().WithExecutor(new FakeExecutor(KeysReply))).MatchingArray("*");
         Assert.Equal("k", Assert.Single(keys).ToString());
+    }
+
+    /// <summary>
+    /// The six (un)subscribe spellings, against the <c>Message</c> the shipped subscription builds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not yet wired to anything</b>, and pinned anyway: <c>PubSub.SubscribeAsync</c> is how
+    /// subscribing will reach this core, and the part that has to be right first is which of the six
+    /// commands a channel's options select - get that wrong and a pattern subscription silently becomes a
+    /// literal one. Proving it against <c>Subscription.GetSubscriptionMessage</c> means the mapping is
+    /// settled before the routing that depends on it is attempted; see design notes D2.5.
+    /// </para>
+    /// <para>
+    /// <c>KeyRouted</c> appears on purpose: it changes where a subscription goes, not what it is called,
+    /// so a key-routed literal channel must still say <c>SUBSCRIBE</c>.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(RedisChannel.RedisChannelOptions.None)]
+    [InlineData(RedisChannel.RedisChannelOptions.MultiNode)]
+    [InlineData(RedisChannel.RedisChannelOptions.Pattern)]
+    [InlineData(RedisChannel.RedisChannelOptions.Pattern | RedisChannel.RedisChannelOptions.MultiNode)]
+    [InlineData(RedisChannel.RedisChannelOptions.Sharded)]
+    [InlineData(RedisChannel.RedisChannelOptions.KeyRouted)]
+    internal void SubscribeSpellingsMatchTheShippedOnes(RedisChannel.RedisChannelOptions options)
+    {
+        var channel = new RedisChannel("chan"u8.ToArray(), options);
+        var subscription = new ConnectionMultiplexer.SingleNodeSubscription(CommandFlags.None);
+
+        foreach (var action in new[] { ConnectionMultiplexer.SubscriptionAction.Subscribe, ConnectionMultiplexer.SubscriptionAction.Unsubscribe })
+        {
+            var classic = subscription.GetSubscriptionMessage(channel, action, CommandFlags.None, internalCall: false);
+            var modern = PubSub.SubscribeCommand(channel, subscribe: action == ConnectionMultiplexer.SubscriptionAction.Subscribe);
+
+            Assert.Equal(classic.Command, modern);
+        }
+    }
+
+    /// <summary>And the frames agree too, not just the command words.</summary>
+    [Fact]
+    public void SubscribeFramesMatchTheShippedOnes()
+    {
+        RedisChannel channel = RedisChannel.Literal("chan");
+        var subscription = new ConnectionMultiplexer.SingleNodeSubscription(CommandFlags.None);
+
+        Assert.Equal(
+            Classic(subscription.GetSubscriptionMessage(channel, ConnectionMultiplexer.SubscriptionAction.Subscribe, CommandFlags.None, false)),
+            Modern(ctx => Discard(new RespPubSub(ctx.Raw).SubscribeAsync(channel)), SubscribeReply));
+
+        Assert.Equal(
+            Classic(subscription.GetSubscriptionMessage(channel, ConnectionMultiplexer.SubscriptionAction.Unsubscribe, CommandFlags.None, false)),
+            Modern(ctx => Discard(new RespPubSub(ctx.Raw).UnsubscribeAsync(channel)), UnsubscribeReply));
+    }
+
+    [Fact]
+    public async Task TheConfirmationHandlerReadsTheCount()
+    {
+        RedisChannel channel = RedisChannel.Literal("chan");
+        Assert.Equal(1, await new RespPubSub(new RespContext().WithExecutor(new FakeExecutor(SubscribeReply))).SubscribeAsync(channel));
+        Assert.Equal(0, await new RespPubSub(new RespContext().WithExecutor(new FakeExecutor(UnsubscribeReply))).UnsubscribeAsync(channel));
     }
 
     [Fact]

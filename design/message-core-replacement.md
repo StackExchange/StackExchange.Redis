@@ -2184,11 +2184,55 @@ Each step is independently shippable and leaves the tree green.
   the RESP2 second connection all have to move together. `RespNewCore` already has the connection
   (`SubscriptionEndpoint`, `SubscriptionContext`) and nothing but its own tests uses it.
 
-  Two members that look separable and are not: `RedisSubscriber.Ping` must travel on the SUBSCRIBER
-  connection (and degrades to `UNSUBSCRIBE` on servers that will not answer `PING` there), and
-  `IdentifyEndpointAsync` reads the identity of the connection its `PUBSUB NUMSUB` went out on. Both need
-  "which subscription connection", which is a question only the registry can answer - so they move with
-  it rather than before it.
+  **Attempted, and deliberately not landed - with the blocker identified.** The outbound half was
+  written: `PubSub` gained internal `SubscribeAsync`/`UnsubscribeAsync`, the six spellings chosen by the
+  channel's options, and `SingleNodeSubscription`'s send sites routed through this core under the flag.
+  It got the pub/sub suites green (221 tests, twice) and then the rest of the suite took it apart. The
+  routing is reverted; the group methods and the spelling mapping are kept and pinned in
+  `RespSurfaceServerParityTests` against `Subscription.GetSubscriptionMessage`, so the next attempt starts
+  from a settled mapping rather than re-deriving it.
+
+  **The blocker, stated once so it is not rediscovered: a subscription must record WHICH CORE holds it.**
+  Everything else followed from not having that. `Subscription.IsConnectedAny` asks
+  `ServerEndPoint.IsSubscriberConnected`, which describes the shipped bridge's socket; make it ask this
+  core instead and every subscription the SHIPPED path owns is then judged by the wrong core. While both
+  cores can own subscriptions, that question has one right answer per subscription and no field to hold
+  it. The observable failure was precise: kill the connection, downgrade to RESP2, and the
+  re-subscription slips past the publish - the in-process server's transcript reads `PUBLISH => :0`
+  followed by three late `SUBSCRIBE`s. So the next attempt wants the ownership field first, and probably
+  wants to move ALL subscriptions at once rather than per-channel.
+
+  **Four things it found that are worth keeping, and three of them are fixed.**
+
+  - **`SubscriptionEndpoint` trusted an ASSUMPTION about RESP3.** It used the ordinary connection whenever
+    `KnowOrAssumeResp3` said yes - including when "yes" came from configuration rather than a negotiated
+    fact. Safe for every other reader of that question and not for this one, because subscribing is
+    **sticky**: under RESP2 a connection that subscribes enters subscriber mode and refuses everything but
+    (un)subscribe, `PING` and `QUIT`. Guessing wrong does not cost a socket, it poisons the ordinary
+    connection for every command after it - 46 failures, reported in the server's own words as
+    `ERR only [P|S][UN]SUBSCRIBE / PING / QUIT allowed in this context (got: 'PUBLISH')`. Now: an endpoint
+    that already has a subscription socket keeps it; otherwise the ordinary connection is used only for
+    **known** RESP3. **Fixed**, and worth having regardless of the port.
+  - **This core did not refuse a command the map had disabled.** `RespEndpointExecutor.Validate` checked
+    database, admin mode and primary-only, but not availability - the shipped pipeline refuses while
+    rendering, where `MessageWriter` throws on an empty mapped name, and a core that renders its own
+    frames had nowhere making that refusal. `ConfigTests.ConnectWithSubscribeDisabled` asks for it by
+    name. **Fixed**, and it applies to every ported command, not just `SUBSCRIBE`.
+  - **`Ping` really is inseparable**, as the notes above said. `PubSubTests.TestBasicPubSubFireAndForget`
+    is the proof: subscribe fire-and-forget, ping the subscriber to flush, publish, expect the delivery.
+    With the subscribe on this core's socket and the ping still on the bridge's, the ping flushed nothing
+    and the publish overtook the subscribe at the server. A five-second wait cannot recover a message that
+    was never going to arrive.
+  - **"Simply known" is wrong wherever a redirect is possible.** A sharded or key-routed channel sent to
+    the wrong node answers `-MOVED` and the subscription then lives on the node it was redirected TO, so
+    the server chosen before the send is exactly the wrong answer -
+    `ClusterShardedTests.SubscribeToWrongServerAsync` in one line: `Expected: 127.0.0.1:7000, Actual:
+    127.0.0.1:7001`. Closing that needs the send to report where it FINISHED rather than where it was
+    aimed, which is the same capability `IdentifyEndpointAsync` wants.
+
+  **What is left of D2.5**, then: the ownership field, the single-node routing it unblocks,
+  `MultiNodeSubscription`, the resubscribe-on-reconnect path, and `IdentifyEndpointAsync`.
+
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
 - **D2.7 - Maintenance and sentinel.**

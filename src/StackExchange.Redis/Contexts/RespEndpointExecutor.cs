@@ -1218,6 +1218,18 @@ namespace StackExchange.Redis
             if (Server is not { } server) return; // nobody models this endpoint; nothing to judge it against
 
             var config = server.Multiplexer.RawConfig;
+
+            // A command the map has disabled is refused BEFORE anything else judges it, because "you have
+            // turned this off" outranks every other reason it might not run. The shipped pipeline makes
+            // this refusal while rendering - MessageWriter throws when the mapped name is empty - and a
+            // core that renders its own frames has to make it somewhere; found by porting SUBSCRIBE, which
+            // is what ConfigTests.ConnectWithSubscribeDisabled asks about.
+            if (request.Command is not (RedisCommand.NONE or RedisCommand.UNKNOWN)
+                && !config.CommandMap.IsAvailable(request.Command))
+            {
+                throw ExceptionFactory.CommandDisabled(request.Command);
+            }
+
             if (!config.AllowAdmin
                 && Message.IsAdminCommand(
                     request.Command,

@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
 using RESPite.Messages;
@@ -85,6 +86,110 @@ public static partial class PubSub
     /// <remarks><inheritdoc cref="ChannelsAsync" path="/remarks"/></remarks>
     public static ValueTask<long> SubscriberCountAsync(this in RespPubSub pubsub, RedisChannel channel, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => pubsub.Context.SendAsync($"{RedisCommand.PUBSUB}{RespLiterals.NumSub}{channel}", flags, NumSubHandler.Instance, cancellationToken);
+
+    /// <summary>SUBSCRIBE, PSUBSCRIBE or SSUBSCRIBE, chosen by what kind of channel this is.</summary>
+    /// <param name="pubsub">The pub/sub command group.</param>
+    /// <param name="channel">The channel or pattern to subscribe to.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Internal: subscribing is not a command, it is a registration</b>, and the thing that owns the
+    /// registration is the multiplexer - handlers, queues, and which server currently holds the
+    /// subscription all outlive this call. So the public way to subscribe stays
+    /// <see cref="ISubscriber"/>, and this is how that reaches the server. See design notes D2.5.
+    /// </para>
+    /// <para>
+    /// <b>The context decides the connection, not this.</b> Under RESP2 a subscription needs its own
+    /// socket and under RESP3 it does not, which is <c>RespNewCore.SubscriptionContext</c>'s business;
+    /// what arrives here is already the right one.
+    /// </para>
+    /// <para>
+    /// Answers the server's own count of what this connection is now subscribed to, which is the third
+    /// element of the confirmation and the number the shipped <c>TrackSubscriptionsProcessor</c> records.
+    /// </para>
+    /// </remarks>
+    internal static ValueTask<long> SubscribeAsync(
+        this in RespPubSub pubsub,
+        RedisChannel channel,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => pubsub.Context.SendAsync(
+            $"{SubscribeCommand(channel, subscribe: true)}{channel}",
+            flags,
+            SubscriptionConfirmationHandler.Instance,
+            cancellationToken);
+
+    /// <summary>UNSUBSCRIBE, PUNSUBSCRIBE or SUNSUBSCRIBE, chosen the same way.</summary>
+    /// <param name="pubsub">The pub/sub command group.</param>
+    /// <param name="channel">The channel or pattern to stop receiving.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks><inheritdoc cref="SubscribeAsync" path="/remarks"/></remarks>
+    internal static ValueTask<long> UnsubscribeAsync(
+        this in RespPubSub pubsub,
+        RedisChannel channel,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => pubsub.Context.SendAsync(
+            $"{SubscribeCommand(channel, subscribe: false)}{channel}",
+            flags,
+            SubscriptionConfirmationHandler.Instance,
+            cancellationToken);
+
+    /// <summary>Which of the six spellings this channel wants.</summary>
+    /// <param name="channel">The channel, whose options carry the answer.</param>
+    /// <param name="subscribe">Subscribing rather than unsubscribing.</param>
+    /// <remarks>
+    /// <b>The same mapping as <c>Subscription.GetSubscriptionMessage</c></b>, and the same two options
+    /// masked out of the question: <c>KeyRouted</c> and <c>IgnoreChannelPrefix</c> change where a
+    /// subscription goes and how its name is written, not which command says it. A sharded channel is the
+    /// one that genuinely is a different command, because <c>SSUBSCRIBE</c> is slot-scoped.
+    /// </remarks>
+    internal static RedisCommand SubscribeCommand(in RedisChannel channel, bool subscribe)
+    {
+        const RedisChannel.RedisChannelOptions OptionsMask = ~(
+            RedisChannel.RedisChannelOptions.KeyRouted | RedisChannel.RedisChannelOptions.IgnoreChannelPrefix);
+
+        return (channel.Options & OptionsMask) switch
+        {
+            RedisChannel.RedisChannelOptions.None or RedisChannel.RedisChannelOptions.MultiNode =>
+                subscribe ? RedisCommand.SUBSCRIBE : RedisCommand.UNSUBSCRIBE,
+            RedisChannel.RedisChannelOptions.Pattern or
+                RedisChannel.RedisChannelOptions.Pattern | RedisChannel.RedisChannelOptions.MultiNode =>
+                subscribe ? RedisCommand.PSUBSCRIBE : RedisCommand.PUNSUBSCRIBE,
+            RedisChannel.RedisChannelOptions.Sharded =>
+                subscribe ? RedisCommand.SSUBSCRIBE : RedisCommand.SUNSUBSCRIBE,
+            _ => throw new ArgumentException(
+                $"Unable to determine pub/sub operation for '{(subscribe ? "Subscribe" : "Unsubscribe")}' against '{channel.Options}'"),
+        };
+    }
+
+    /// <summary>Reads a subscribe/unsubscribe confirmation: the kind, the channel, and the count.</summary>
+    /// <remarks>
+    /// <b>The count is the only part not already known</b> - the caller chose the command and the channel -
+    /// and it is how many subscriptions this CONNECTION now holds, not how many subscribers the channel
+    /// has. Under RESP3 the confirmation arrives as a push frame, which the dispatcher deliberately hands
+    /// back for ordinary matching rather than consuming; this reads it either way.
+    /// </remarks>
+    private sealed class SubscriptionConfirmationHandler : IRespHandler<long>
+    {
+        internal static readonly SubscriptionConfirmationHandler Instance = new();
+
+        public long Parse(ref RespReader reader)
+        {
+            if (reader.IsAggregate && reader.AggregateLength() >= 3
+                && reader.TryMoveNext() && reader.IsScalar // the kind
+                && reader.TryMoveNext() // the channel, which may be nil on an empty unsubscribe
+                && reader.TryMoveNext() && reader.IsScalar
+                && reader.TryReadInt64(out var count))
+            {
+                return count;
+            }
+
+            throw new RespException("Unexpected subscription confirmation.");
+        }
+    }
 
     /// <summary>Reads <c>PUBSUB CHANNELS</c>: a flat array of channel names.</summary>
     /// <remarks>

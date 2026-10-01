@@ -544,11 +544,28 @@ namespace StackExchange.Redis
         /// </remarks>
         internal RespEndpointExecutor SubscriptionEndpoint(EndPoint endpoint)
         {
-            if (KnowOrAssumeResp3(endpoint)) return Endpoint(endpoint);
+            // an endpoint that already has one keeps it, whatever the protocol turned out to be: moving
+            // later subscriptions to the ordinary connection while earlier ones live here would split one
+            // endpoint's subscriptions across two sockets for no benefit
+            if (_subscriptions.TryGetValue(endpoint, out var existing)) return existing;
 
-            return _subscriptions.TryGetValue(endpoint, out var existing)
-                ? existing
-                : _subscriptions.GetOrAdd(endpoint, CreateSubscription(endpoint));
+            // KNOWN RESP3, not assumed, and this is the one place that distinction is load-bearing rather
+            // than cosmetic. Subscribing is STICKY: under RESP2 a connection that subscribes enters
+            // subscriber mode and refuses everything but (un)subscribe, PING and QUIT - so guessing RESP3
+            // and guessing wrong does not merely cost a socket, it poisons the ordinary connection for
+            // every command that follows. `Resp3DowngradeTests.SubscribeQueuedBeforeDowngradeDoesNotPoisonInteractive`
+            // is that hazard written down, and `Resp3HandshakeTests` reports it as
+            // "ERR only [P|S][UN]SUBSCRIBE / PING / QUIT allowed in this context (got: 'PUBLISH')".
+            //
+            // So an unknown protocol takes the safe branch and opens a socket of its own. Under RESP3 that
+            // is one socket more than necessary until something has handshaken this endpoint - which
+            // ordinary traffic does almost immediately - and it is never WRONG, which the alternative is.
+            if (_protocols.TryGetValue(endpoint, out var known) && known >= RedisProtocol.Resp3)
+            {
+                return Endpoint(endpoint);
+            }
+
+            return _subscriptions.GetOrAdd(endpoint, CreateSubscription(endpoint));
         }
 
         /// <summary>
