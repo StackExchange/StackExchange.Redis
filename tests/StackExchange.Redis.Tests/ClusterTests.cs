@@ -53,15 +53,26 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
                 Log($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
                 Log($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
             }
+            // One socket each, and the point is the upper bound: a reconnect loop that opened a second
+            // one would show as 2 and still fail. The lower bound needs a moment's grace, because the
+            // subscription socket is dialled asynchronously under the engine flag - connect completes
+            // and the socket lands just after, so an immediate read can legitimately see 0 where the
+            // shipped core, which creates its bridge inline, could never see anything but 1.
+            var expectedSubscription = TestContext.Current.IsResp3() ? 0 : 1;
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline
+                && conn.GetEndPoints().Any(
+                    ep => conn.GetServer(ep).GetCounters().Subscription.SocketCount < expectedSubscription))
+            {
+                await Task.Delay(50, TestContext.Current.CancellationToken);
+            }
+
             foreach (var ep in conn.GetEndPoints())
             {
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                // no subscription socket on THIS core where one connection carries everything: under
-                // RESP3, and under the engine flag at any protocol
-                var sharesOneConnection = TestContext.Current.IsResp3() || ConnectionMultiplexer.NewCoreEngine;
-                Assert.Equal(sharesOneConnection ? 0 : 1, counters.Subscription.SocketCount);
+                Assert.Equal(expectedSubscription, counters.Subscription.SocketCount);
             }
         }
     }

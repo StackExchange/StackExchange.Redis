@@ -3130,3 +3130,40 @@ by never having asked.
 **What this leaves**: the interactive bridge, which is the harder one - the connect wait and the
 `ReconfigureAsync` beliefs both run through it (D2.8), and those have to move together with "stop
 constructing" for the same reason this step did.
+
+### 9f. The configuration channel went with the subscription bridge, and the connect gate is still shut
+
+**Removing the subscription bridge silently removed the configuration channel under RESP2**, and the
+narrower test filter I measured 9e with did not cover it. Under RESP2 the shipped core subscribes that
+channel as **the last step of the subscription bridge's handshake** - `ServerEndPoint`'s
+`connType == ConnectionType.Subscription` block, with its own note that nothing ordinary can follow it,
+because the connection is in subscriber mode from then on. So the bridge going away takes the client's
+only way of hearing "the topology moved" with it. `ConfigurationChannelUnitTests` reads it plainly: *the
+configuration channel has no subscriber*.
+
+Two halves, and the second is the interesting one:
+
+1. This core's subscription socket now subscribes the channel in the same position, for the same reason.
+2. **It has to be dialled by CONNECTING, not by anyone asking.** The socket is dialled lazily, when
+   something subscribes - and nothing ever does, because the only subscriber is the library itself, on
+   that socket's own establish. A client that only ever calls `ReplicaOfAsync` (still a shipped
+   `Message` on the interactive bridge) never touches this core at all, so nothing connected and the
+   broadcast reached nobody. `ActivateServer` now dials it under the flag, in the same branch and on the
+   same `KnowOrAssumeResp3` condition the shipped core uses to activate its bridge - so an endpoint that
+   turns out to speak RESP3 is left holding a spare socket, exactly as the shipped core was left holding
+   a spare bridge.
+
+**And the connect gate is confirmed still shut, now with a number.** Dialling fire-and-forget gives up
+something the shipped core guaranteed: that connect completes only when BOTH legs are up.
+`ClusterTests.ConnectUsesSingleSocket` catches it as a subscription socket count of zero on whichever
+iteration looks early enough. The obvious fix - have `IsSubscriberConnected` consult this core's
+subscription leg - was tried and is **much worse: 39 failures and a ten-minute run**, the same
+connect-wait hang this core has walked into before. It was phrased defensively ("not *waiting* for one"
+rather than "has one", so an endpoint nobody dialled is ready by having nothing to wait for) and that
+was still not enough, because a dial whose establish hook never runs holds its record for the full
+timeout and the gate stays shut for every connect behind it.
+
+So the lower bound is a test's business for now - `ConnectUsesSingleSocket` waits briefly for the count
+to arrive, keeping the upper bound it actually exists to protect (a reconnect loop opening a second
+socket still reads 2 and still fails). The real fix belongs with the interactive bridge's connect wait,
+which is the same problem and wants solving once.

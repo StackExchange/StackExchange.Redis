@@ -726,9 +726,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         };
         await using var conn = ConnectionMultiplexer.Connect(options);
         Assert.True(conn.IsConnected);
-        // one socket where one connection carries everything: under RESP3, and under the engine flag at
-        // any protocol, where the subscription leg is the other core's and has no bridge here
-        Assert.Equal(options.TryResp3() || ConnectionMultiplexer.NewCoreEngine ? 1 : 2, count);
+        Assert.Equal(options.TryResp3() ? 1 : 2, count);
 
         var endpoint = conn.GetServerSnapshot()[0];
         var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive)?.TryConnect(null);

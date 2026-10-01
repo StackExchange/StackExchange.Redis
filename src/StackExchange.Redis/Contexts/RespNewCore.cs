@@ -955,11 +955,16 @@ namespace StackExchange.Redis
             // the channel ends up subscribed twice and a publish reports two subscribers where the caller
             // asked for one. `Resp3DowngradeTests` measures that too, from the other side, as a RESP2
             // connection carrying both a handshake's `INFO` and a `SUBSCRIBE`.
+            //
+            // Two reasons to want one, and the second is not a caller's at all: the library's own
+            // configuration channel also lives on the subscription socket under RESP2, and nothing else
+            // will ever ask for it - a lazily-dialled socket that waits for a subscribe waits for ever
+            // when the only subscriber is the thing that rides the socket's own handshake.
             if (!subscription
                 && result.Protocol < RedisProtocol.Resp3
-                && config.TryResp3()
                 && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
-                && _multiplexer.NewCoreOwnsAnySubscription())
+                && (_multiplexer.NewCoreOwnsAnySubscription()
+                    || _multiplexer.ConfigurationChangedChannel is not null))
             {
                 DialSubscriptionSocket(endpoint);
             }
@@ -1002,6 +1007,18 @@ namespace StackExchange.Redis
                     // subscribed" and the re-ensure below does nothing at all
                     _multiplexer.ForgetSubscriptionsOn(endpoint);
                     _multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+
+                    // ...and the configuration-change broadcast, which under RESP2 belongs HERE rather
+                    // than on the ordinary connection - subscribing it there would put the connection
+                    // carrying ordinary commands into subscriber mode. The shipped core does exactly this
+                    // and in exactly this position: the last step of the SUBSCRIPTION bridge's handshake
+                    // (`ServerEndPoint.WriteDirectOrQueueFireAndForget`'s connType check), with the same
+                    // note that nothing ordinary can follow it. So a bridge that stops being constructed
+                    // takes the client's only way of hearing "the topology moved" with it unless this
+                    // does the same thing - `ConfigurationChannelUnitTests` reads that as "the
+                    // configuration channel has no subscriber".
+                    await SubscribeToConfigurationChannelAsync(context, cancellationToken)
+                        .ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -1020,6 +1037,40 @@ namespace StackExchange.Redis
             return connection;
         }
 
+        /// <summary>Dial a subscription socket for the library's own configuration channel.</summary>
+        /// <param name="endpoint">The endpoint being activated.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Because the configuration channel is subscribed by CONNECTING, not by anyone asking.</b>
+        /// Under RESP2 it lives on the subscription socket - subscribing it on the ordinary connection
+        /// would put the connection carrying ordinary commands into subscriber mode - and this core dials
+        /// that socket lazily, when something subscribes. Nothing ever does: the only subscriber is the
+        /// library itself, on the socket's own establish. So a client that never touches pub/sub or a
+        /// database never hears "the topology moved" at all.
+        /// </para>
+        /// <para>
+        /// <c>ConfigurationChannelUnitTests.TheLibrarysOwnBroadcastIsHeard</c> is exactly that client: it
+        /// only ever calls <c>ReplicaOfAsync</c>, which is still a shipped <c>Message</c> on the
+        /// interactive bridge, so this core had no reason to connect and the broadcast reached nobody.
+        /// </para>
+        /// <para>
+        /// Conditioned on <c>KnowOrAssumeResp3</c>, which is the same question the shipped core asks in
+        /// the same place before activating its subscription bridge - so an endpoint that turns out to
+        /// speak RESP3 after all is left holding a spare subscription socket, exactly as the shipped core
+        /// would have been left holding a spare bridge.
+        /// </para>
+        /// </remarks>
+        internal void DialSubscriptionSocketForConfigurationChannel(EndPoint endpoint)
+        {
+            if (_multiplexer.ConfigurationChangedChannel is null
+                || !_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
+            {
+                return;
+            }
+
+            DialSubscriptionSocket(endpoint);
+        }
+
         /// <summary>Start this endpoint's subscription connection, without waiting for it.</summary>
         /// <param name="endpoint">The endpoint whose deliveries now need a socket of their own.</param>
         /// <remarks>
@@ -1034,13 +1085,14 @@ namespace StackExchange.Redis
             // recorded BEFORE the dial starts, not inside it: the point of the record is that a publish
             // issued between here and the re-place can see that one is coming, and a record written from
             // the worker is written too late to be seen by the thing it exists to hold back.
-            var settled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _settling[endpoint] = settled;
+            _settling[endpoint] = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             ThreadPool.QueueUserWorkItem(
                 static async state =>
                 {
-                    var (core, ep, tcs) = ((RespNewCore, EndPoint, TaskCompletionSource<bool>))state!;
+                    var dial = (SubscriptionDial)state!;
+                    var core = dial.Core;
+                    var ep = dial.Endpoint;
                     try
                     {
                         await core.SubscriptionEndpoint(ep).ConnectNowAsync(CancellationToken.None)
@@ -1065,7 +1117,20 @@ namespace StackExchange.Redis
                         core.SubscriptionsSettled(ep);
                     }
                 },
-                (this, endpoint, settled));
+                new SubscriptionDial(this, endpoint));
+        }
+
+        /// <summary>The state a queued dial needs, as a class because this library cannot use tuples.</summary>
+        /// <remarks>
+        /// <c>System.ValueTuple</c> is not referenced - net461 would need the package, and
+        /// <c>SanityChecks.ValueTupleNotReferenced</c> fails the build's intent if one creeps in. A single
+        /// allocation per dial, and a dial is already opening a socket.
+        /// </remarks>
+        private sealed class SubscriptionDial(RespNewCore core, EndPoint endpoint)
+        {
+            public RespNewCore Core => core;
+
+            public EndPoint Endpoint => endpoint;
         }
 
         private readonly ConcurrentDictionary<EndPoint, TaskCompletionSource<bool>> _settling = new();

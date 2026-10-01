@@ -1915,8 +1915,18 @@ namespace StackExchange.Redis
             // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
             if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
             {
-                // Intentionally not logging the sub connection
-                server.Activate(ConnectionType.Subscription, null);
+                if (NewCoreEngine)
+                {
+                    // the same leg, on the core that owns it: there is no subscription bridge to activate
+                    // under the flag, and the configuration channel is subscribed by CONNECTING rather
+                    // than by anyone asking for it - see the method's own notes
+                    server.Multiplexer.NewCore.DialSubscriptionSocketForConfigurationChannel(server.EndPoint);
+                }
+                else
+                {
+                    // Intentionally not logging the sub connection
+                    server.Activate(ConnectionType.Subscription, null);
+                }
             }
         }
 
