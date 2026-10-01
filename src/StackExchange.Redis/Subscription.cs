@@ -280,17 +280,13 @@ public partial class ConnectionMultiplexer
             // in-flight counts as placed, or two calls race each other onto different cores
             if (IsPlaced || _sendingVia is not null) return _onNewCore ? SendViaNewCore() : null;
 
-            // A subscription that would SHARE the ordinary connection still goes to the shipped path, and
-            // the write-time reroute does NOT replace this - the two do different jobs. Choosing the right
-            // socket when the protocol is already known is the fast path; the reroute is the safety net
-            // for a send composed before the protocol was known and written after it settled otherwise.
-            //
-            // Measured by removing this: `Resp3DowngradeTests` then fails on TIMING rather than
-            // correctness - nothing is poisoned, but rerouting at the write has to DIAL the subscription
-            // socket first, and the in-process server's transcript shows `PUBLISH => :0` landing before
-            // the re-subscribe arrives. The shipped core does not pay that because it dials its
-            // subscription bridge the moment a downgrade is detected. Doing the same here is what unblocks
-            // removing the decline; see design notes D2.5.
+            // A subscription that would SHARE the ordinary connection still goes to the shipped path. Three
+            // things now protect that case here - the compose-time socket choice, the write-time reroute,
+            // and dialling a subscription socket the moment a connection comes up below the expected
+            // protocol - and it is STILL not enough to take it, because what remains is not correctness
+            // but ORDER: the re-subscribe has to be on the wire before whatever the caller does next, and
+            // the establish path offers no such guarantee. `Resp3DowngradeTests` measures it as
+            // `PUBLISH => :0` arriving before the re-subscribe. See design notes D2.5.
             var core = subscriber.multiplexer.NewCore;
             if (!core.WouldSubscribeOnItsOwnSocket(server.EndPoint)) return null;
 

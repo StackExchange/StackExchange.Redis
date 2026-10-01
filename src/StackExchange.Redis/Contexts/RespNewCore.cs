@@ -961,6 +961,33 @@ namespace StackExchange.Redis
             // RESP3, where a push can land on any connection
             connection.OnPush = frame => RespPushDispatch.Dispatch(frame, _multiplexer);
 
+            // A connection that asked for RESP3 and was answered less than that needs a SUBSCRIPTION
+            // socket, and needs it now rather than when something next subscribes. The shipped core
+            // reaches the same conclusion in the same place - `OnFullyEstablished`'s
+            // `else if (SupportsSubscriptions && Protocol > Resp2) Activate(Subscription)` - and for the
+            // same reason: subscriptions composed while RESP3 was expected are about to be re-placed, and
+            // a re-place that has to dial first loses the race against whatever the caller does next.
+            // `Resp3DowngradeTests` measures exactly that race, as `PUBLISH => :0` arriving before the
+            // re-subscribe.
+            //
+            // Not awaited: this is the establish path, so waiting for another connection here would wait
+            // behind the one being established.
+            //
+            // Only when this core actually HOLDS a subscription for the endpoint, which is not a
+            // refinement but the whole correctness of it: unconditionally, a socket gets dialled for an
+            // endpoint whose subscriptions belong to the shipped bridge, and then re-placed onto it - so
+            // the channel ends up subscribed twice and a publish reports two subscribers where the caller
+            // asked for one. `Resp3DowngradeTests` measures that too, from the other side, as a RESP2
+            // connection carrying both a handshake's `INFO` and a `SUBSCRIBE`.
+            if (!subscription
+                && result.Protocol < RedisProtocol.Resp3
+                && config.TryResp3()
+                && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
+                && _multiplexer.NewCoreHoldsSubscriptionsOn(endpoint))
+            {
+                DialSubscriptionSocket(endpoint);
+            }
+
             // ...and under RESP3 this connection carries the configuration-change broadcast, because there
             // is no subscription connection to carry it. Backported alongside #3254, which fixed exactly
             // this for the shipped core: the channel is how a client is told BY HAND that the topology
@@ -994,6 +1021,10 @@ namespace StackExchange.Redis
             {
                 try
                 {
+                    // the records FIRST: this socket is new and carries nothing, so anything still
+                    // recorded against this endpoint is stale - and left in place it reads as "already
+                    // subscribed" and the re-ensure below does nothing at all
+                    _multiplexer.ForgetSubscriptionsOn(endpoint);
                     _multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                 }
                 catch (Exception ex)
@@ -1006,6 +1037,31 @@ namespace StackExchange.Redis
 
             return connection;
         }
+
+        /// <summary>Start this endpoint's subscription connection, without waiting for it.</summary>
+        /// <param name="endpoint">The endpoint whose deliveries now need a socket of their own.</param>
+        /// <remarks>
+        /// <b>Fire-and-forget on the pool, never inline.</b> This runs while another connection is being
+        /// established, and dialling one connection from inside another's establish path would wait
+        /// behind it - which is the same reason the shipped core's re-subscribe is fire-and-forget where
+        /// it sits. Failure is ordinary: the socket will be dialled by the next subscribe if it is still
+        /// wanted.
+        /// </remarks>
+        private void DialSubscriptionSocket(EndPoint endpoint)
+            => ThreadPool.QueueUserWorkItem(
+                static state =>
+                {
+                    var (core, ep) = ((RespNewCore, EndPoint))state!;
+                    try
+                    {
+                        _ = core.SubscriptionEndpoint(ep).ConnectNowAsync(CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        core._multiplexer.OnInternalError(ex, ep);
+                    }
+                },
+                (this, endpoint));
 
         /// <summary>Subscribe this connection to the configuration-change broadcast.</summary>
         /// <param name="context">A context over the connection to subscribe on.</param>

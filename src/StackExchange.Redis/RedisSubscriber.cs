@@ -85,6 +85,29 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>Forget every subscription recorded against an endpoint, because its socket is new.</summary>
+        /// <param name="endpoint">The endpoint whose subscription connection has just been established.</param>
+        /// <remarks>
+        /// <b>A fresh socket carries no subscriptions, so a record naming it is stale by definition</b> -
+        /// and nothing else notices, which is the gap this closes. Liveness for this core is
+        /// "is there a connected subscription socket for that endpoint", which a REPLACEMENT socket
+        /// satisfies while carrying nothing; the re-ensure that should follow a reconnect then reads
+        /// "already subscribed" and does nothing. The shipped core gets this for free, because its
+        /// liveness is the bridge connection's own state and a disconnect clears the records on the way
+        /// through.
+        /// </remarks>
+        internal void ForgetSubscriptionsOn(EndPoint endpoint)
+        {
+            foreach (var pair in subscriptions)
+            {
+                if (pair.Value.NamesEndpoint(endpoint)
+                    && TryResolveServerEndPoint(endpoint) is { } server)
+                {
+                    pair.Value.TryRemoveEndpoint(server);
+                }
+            }
+        }
+
         internal ServerEndPoint? GetSubscribedServer(in RedisChannel channel)
         {
             if (!channel.IsNullOrEmpty && subscriptions.TryGetValue(channel, out Subscription? sub))
