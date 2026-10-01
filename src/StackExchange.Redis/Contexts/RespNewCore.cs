@@ -501,6 +501,25 @@ namespace StackExchange.Redis
         /// <summary>How many sockets exist purely for deliveries; zero unless something subscribed.</summary>
         internal int SubscriptionConnectionCount => _subscriptions.Count;
 
+        /// <summary>Which endpoint a channel's subscription belongs on, after any redirect.</summary>
+        /// <param name="channel">The channel or pattern.</param>
+        /// <param name="command">The subscribe command, which decides whether a replica is eligible.</param>
+        /// <param name="flags">The caller's preference.</param>
+        /// <remarks>
+        /// <b>Asked AFTER a sharded subscribe rather than before it</b>, because a <c>-MOVED</c> both
+        /// moves the subscription and teaches this core where the slot went - <c>OnSlotMoved</c> updates
+        /// the map on the way through - so the owner afterwards IS the answer, and no "where did the send
+        /// finish" channel back from the executor is needed to learn it. A channel with no slot answers
+        /// null: nothing about it was routed by key, so wherever it was aimed is where it is.
+        /// </remarks>
+        internal EndPoint? EndpointForChannel(in RedisChannel channel, RedisCommand command, CommandFlags flags)
+        {
+            if (!channel.IsKeyRouted && !channel.IsSharded) return null;
+
+            var slot = ServerSelectionStrategy.GetClusterSlot((byte[])channel!);
+            return slot == ServerSelectionStrategy.NoSlot ? null : EndpointForSlot(slot, command, flags);
+        }
+
         /// <summary>
         /// Whether a subscription on this endpoint would get a socket of its own, rather than sharing the
         /// ordinary connection.

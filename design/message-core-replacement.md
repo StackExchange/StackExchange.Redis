@@ -2275,15 +2275,27 @@ Each step is independently shippable and leaves the tree green.
      answer `PING` in subscriber mode is an unsubscribe from something nobody subscribed to, which is a
      round trip only where a subscription exists.
 
-  **Declined, and staying on the shipped path:** channels that can be REDIRECTED. A sharded or key-routed
-  subscribe sent to the wrong node answers `-MOVED` and then lives on the node it was redirected TO, so
-  the server chosen before the send is the wrong answer and recording it is worse than not knowing
+  **Redirect-capable channels followed, and it did NOT need a "where did the send finish" channel.** A
+  sharded or key-routed subscribe sent to the wrong node answers `-MOVED` and then lives on the node it
+  was redirected TO, so the server chosen before the send is the wrong answer
   (`ClusterShardedTests.SubscribeToWrongServerAsync`: `Expected: 127.0.0.1:7000, Actual: 127.0.0.1:7001`).
-  Closing that needs the send to report where it FINISHED rather than where it was aimed - the same
-  capability `IdentifyEndpointAsync` wants, so those two move together. Also declined: no server selected
-  is "ours, nothing to do yet" rather than "not ours", because falling through there let the BRIDGE
-  subscribe and then this core subscribe as well - two subscribers on one channel, every message
-  delivered twice (`Resp3HandshakeTests`, as `PUBLISH => :2`).
+  Two things close it, and neither is a new executor contract:
+
+  - **The redirect has to be followed onto the SUBSCRIPTION socket.** `TryFollowRedirect` resolved every
+    target through `_forEndpoint`, which is the ordinary connection - so following a redirected
+    `SSUBSCRIBE` the obvious way would fix the routing and poison the connection, because under RESP2 a
+    subscribe on the ordinary socket puts it into subscriber mode. There is now a second resolver for the
+    six subscriber-mode commands, and under RESP3 the two resolve to the same executor so it costs
+    nothing.
+  - **Where it landed is re-resolved from the SLOT afterwards, not reported by the send.** A `-MOVED`
+    both moves the subscription and teaches this core where the slot went, because `OnSlotMoved` updates
+    the map on the way through - so the owner afterwards IS the answer.
+    `RespNewCore.EndpointForChannel` asks it, and a channel with no slot answers null, meaning "where it
+    was aimed".
+
+  Also worth keeping: no server selected is "ours, nothing to do yet" rather than "not ours", because
+  falling through there let the BRIDGE subscribe and then this core subscribe as well - two subscribers on
+  one channel, every message delivered twice (`Resp3HandshakeTests`, as `PUBLISH => :2`).
 
   **Three fixes came out of it that stand on their own.** `SubscriptionEndpoint` trusted an ASSUMPTION
   about RESP3 and had to be made to require a negotiated one - subscribing is sticky, so guessing wrong
@@ -2306,8 +2318,10 @@ Each step is independently shippable and leaves the tree green.
   than trusting the record, so the cost was redundant `SUBSCRIBE`s on reconfigure rather than a lost
   subscription. Corrected with the negation it was missing.
 
-  **What is left of D2.5**: the redirect-capable channels (sharded and key-routed), and
-  `IdentifyEndpointAsync` - which want the same thing, a send that reports where it finished.
+  **What is left of D2.5**: `IdentifyEndpointAsync`, which reads the identity of the connection its
+  `PUBSUB NUMSUB` went out on. The slot trick above does not serve it - the question is asked of an
+  arbitrary channel, not a routed one - so it is the one member that genuinely wants the send to report
+  where it finished.
 
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.

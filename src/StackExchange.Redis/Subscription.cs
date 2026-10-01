@@ -241,15 +241,11 @@ public partial class ConnectionMultiplexer
         {
             if (!ConnectionMultiplexer.NewCoreEngine) return null;
 
-            const RedisChannel.RedisChannelOptions CanRedirect =
-                RedisChannel.RedisChannelOptions.Sharded | RedisChannel.RedisChannelOptions.KeyRouted;
-            if ((channel.Options & CanRedirect) != 0) return null;
-
             // refused before the no-server shortcut: "you have turned SUBSCRIBE off" is an answer the
             // caller gets now, not one that waits for a server, and a subscribe that quietly succeeded
             // against a disabled command would register a handler nothing can ever feed
-            subscriber.multiplexer.CommandMap.AssertAvailable(
-                PubSub.SubscribeCommand(channel, action == SubscriptionAction.Subscribe));
+            var command = PubSub.SubscribeCommand(channel, action == SubscriptionAction.Subscribe);
+            subscriber.multiplexer.CommandMap.AssertAvailable(command);
 
             if (server is null) return Task.CompletedTask;
 
@@ -290,7 +286,15 @@ public partial class ConnectionMultiplexer
                     // ENDPOINT only on confirmation, so nothing reads this as "already subscribed"
                     _onNewCore = true;
                     _sendingVia = server;
-                    return Settle(context.SubscribeAsync(target, Flags | flags), this, server, place: true);
+                    return Settle(
+                        context.SubscribeAsync(target, Flags | flags),
+                        this,
+                        server,
+                        place: true,
+                        subscriber: subscriber,
+                        placed: target,
+                        command: command,
+                        flags: Flags | flags);
                 }
 
                 return Settle(context.UnsubscribeAsync(target, Flags | flags), this, server);
@@ -300,7 +304,11 @@ public partial class ConnectionMultiplexer
                 ValueTask<long> pending,
                 Subscription? self = null,
                 ServerEndPoint? server = null,
-                bool place = false)
+                bool place = false,
+                RedisSubscriber? subscriber = null,
+                RedisChannel placed = default,
+                RedisCommand command = default,
+                CommandFlags flags = default)
             {
                 try
                 {
@@ -313,11 +321,28 @@ public partial class ConnectionMultiplexer
 
                 if (self is null || server is null) return;
 
-                // recorded, or forgotten, only once the server has confirmed: a subscription the server
-                // has not acknowledged must stay retryable, and one it has not yet dropped can still
-                // deliver
-                if (place) self.AddEndpoint(server);
-                else self.TryRemoveEndpoint(server);
+                if (!place)
+                {
+                    self.TryRemoveEndpoint(server);
+                    return;
+                }
+
+                // WHERE IT ENDED UP, which is not always where it was aimed: a sharded or key-routed
+                // subscribe sent to the wrong node answers -MOVED, and following that both moves the
+                // subscription and teaches this core where the slot went. So the slot's owner afterwards
+                // is the answer, and the endpoint is re-resolved rather than assumed. A channel that is
+                // not key-routed has no slot and answers null, in which case it is where it was aimed.
+                if (subscriber is not null
+                    && subscriber.multiplexer.NewCore.EndpointForChannel(placed, command, flags) is { } landed
+                    && !Equals(landed, server.EndPoint)
+                    && subscriber.multiplexer.GetServerEndPoint(landed, ServerProvenance.Configured, activate: false)
+                        is { } moved)
+                {
+                    self.AddEndpoint(moved);
+                    return;
+                }
+
+                self.AddEndpoint(server);
             }
         }
 

@@ -44,6 +44,7 @@ namespace StackExchange.Redis
         private readonly Func<RedisCommand, CommandFlags, RespExecutorBase?> _any;
         private readonly Func<RedisChannel, RespExecutorBase?>? _forChannel;
         private readonly Func<EndPoint, RespExecutorBase?>? _forEndpoint;
+        private readonly Func<EndPoint, RespExecutorBase?>? _forSubscriptionEndpoint;
         private readonly Action<int, EndPoint>? _onSlotMoved;
         private readonly Action? _onTopologySuspect;
 
@@ -62,6 +63,10 @@ namespace StackExchange.Redis
         /// <param name="onSlotMoved">Told when a <c>MOVED</c> reveals the slot map is stale.</param>
         /// <param name="forChannel">Resolves the server this client is subscribed on for a channel, if any.</param>
         /// <param name="onTopologySuspect">Told when a redirect could not be followed at all.</param>
+        /// <param name="forSubscriptionEndpoint">
+        /// Resolves a redirect target to the executor a SUBSCRIPTION belongs on, which is not the same
+        /// executor as an ordinary command's.
+        /// </param>
         internal RespMultiplexerExecutor(
             RespTopology topology,
             Func<int, RedisCommand, CommandFlags, RespExecutorBase?> forSlot,
@@ -70,9 +75,11 @@ namespace StackExchange.Redis
             Func<EndPoint, RespExecutorBase?>? forEndpoint = null,
             Action<int, EndPoint>? onSlotMoved = null,
             Action? onTopologySuspect = null,
-            Func<RedisChannel, RespExecutorBase?>? forChannel = null)
+            Func<RedisChannel, RespExecutorBase?>? forChannel = null,
+            Func<EndPoint, RespExecutorBase?>? forSubscriptionEndpoint = null)
         {
             _forChannel = forChannel;
+            _forSubscriptionEndpoint = forSubscriptionEndpoint;
             _topology = topology ?? throw new ArgumentNullException(nameof(topology));
             _forSlot = forSlot ?? throw new ArgumentNullException(nameof(forSlot));
             _any = any ?? throw new ArgumentNullException(nameof(any));
@@ -121,7 +128,14 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            var target = _forEndpoint?.Invoke(redirect.Endpoint!);
+            // A SUBSCRIBE that gets redirected must be re-sent on the target's SUBSCRIPTION connection,
+            // not its ordinary one. Under RESP2 those are different sockets, and writing a subscribe to
+            // the ordinary one puts it into subscriber mode - so following the redirect the obvious way
+            // would fix the routing and break the connection, which is a worse trade than not following
+            // it. Under RESP3 the two resolve to the same executor and this costs nothing.
+            var target = IsSubscriptionCommand(operation.Command)
+                ? _forSubscriptionEndpoint?.Invoke(redirect.Endpoint!) ?? _forEndpoint?.Invoke(redirect.Endpoint!)
+                : _forEndpoint?.Invoke(redirect.Endpoint!);
             if (target is null) return false;
 
             if (redirect.IsMoved) _onSlotMoved?.Invoke(redirect.Slot, redirect.Endpoint!);
@@ -130,6 +144,21 @@ namespace StackExchange.Redis
                 ? target.TryResend(operation)
                 : target.TryResendAsking(operation);
         }
+
+        /// <summary>Whether this command puts a connection into, or takes it out of, subscriber mode.</summary>
+        /// <param name="command">The command.</param>
+        /// <remarks>
+        /// All six spellings, because an <c>UNSUBSCRIBE</c> is as much a subscriber-mode command as a
+        /// <c>SUBSCRIBE</c> - and a redirected one still has to reach the socket the subscription is on,
+        /// or it unsubscribes something somewhere else.
+        /// </remarks>
+        private static bool IsSubscriptionCommand(RedisCommand command) => command switch
+        {
+            RedisCommand.SUBSCRIBE or RedisCommand.UNSUBSCRIBE => true,
+            RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE => true,
+            RedisCommand.SSUBSCRIBE or RedisCommand.SUNSUBSCRIBE => true,
+            _ => false,
+        };
 
         /// <inheritdoc/>
         public override int Database { get; }
