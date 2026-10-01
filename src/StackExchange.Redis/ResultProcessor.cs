@@ -681,6 +681,11 @@ namespace StackExchange.Redis
                                     case RedisCommand.SUBSCRIBE:
                                     case RedisCommand.SSUBSCRIBE:
                                     case RedisCommand.PSUBSCRIBE:
+                                        // the owner as well as the endpoint: a subscription can move
+                                        // between the two cores - a protocol downgrade re-homes one - and
+                                        // whoever last established it is who should be asked whether it
+                                        // is still live
+                                        Subscription?.OnSubscribedViaBridge();
                                         Subscription?.AddEndpoint(ep);
                                         break;
                                     default:

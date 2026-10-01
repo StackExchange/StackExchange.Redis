@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Threading.Tasks;
@@ -63,6 +64,27 @@ namespace StackExchange.Redis
         /// This may be null if there is a subscription, but we don't have a connected server at the moment.
         /// This behavior is fine but IsConnected checks, but is a subtle difference in <see cref="ISubscriber.SubscribedEndpoint(RedisChannel)"/>.
         /// </remarks>
+        /// <summary>Whether the new core holds any of this client's subscriptions on an endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// <b>What the subscriber's <c>Ping</c> needs to know, and the reason it is a different question
+        /// from "does that core have a subscription socket".</b> A server that will not answer <c>PING</c>
+        /// in subscriber mode is pinged by unsubscribing from something nobody subscribed to - which is a
+        /// round trip only where a subscription already exists, because an unsubscribe against a
+        /// connection holding none has nothing to confirm. So the ping has to go on the connection that
+        /// holds THIS CLIENT's subscriptions, and <c>Subscription</c> is the only thing that knows which
+        /// core that is. See design notes D2.5.
+        /// </remarks>
+        internal bool NewCoreHoldsSubscriptionsOn(EndPoint endpoint)
+        {
+            foreach (var pair in subscriptions)
+            {
+                if (pair.Value.IsHeldByNewCoreOn(endpoint)) return true;
+            }
+
+            return false;
+        }
+
         internal ServerEndPoint? GetSubscribedServer(in RedisChannel channel)
         {
             if (!channel.IsNullOrEmpty && subscriptions.TryGetValue(channel, out Subscription? sub))
@@ -200,13 +222,67 @@ namespace StackExchange.Redis
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
             var msg = CreatePingMessage(flags);
+            if (TryPingViaNewCore(msg, flags) is { } pending) return pending.GetAwaiter().GetResult();
+
             return ExecuteSync(msg, ResultProcessor.ResponseTimer);
         }
 
         public override Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = CreatePingMessage(flags);
+            if (TryPingViaNewCore(msg, flags) is { } pending) return pending;
+
             return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
+        }
+
+        /// <summary>
+        /// Time a round trip on the connection deliveries arrive on; null when that is not this core's.
+        /// </summary>
+        /// <param name="routing">The message that would have been sent, used to choose the server and the spelling.</param>
+        /// <param name="flags">The caller's flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>This has to travel on the SUBSCRIBER connection, and that is the whole point of it.</b>
+        /// Callers ping the subscriber to flush it - "has my <c>SUBSCRIBE</c> been processed yet?" - so a
+        /// ping on any other socket answers a question nobody asked, and a publish issued afterwards can
+        /// still overtake the subscribe at the server. <c>PubSubTests.TestBasicPubSubFireAndForget</c> is
+        /// that sequence exactly, and a five-second wait cannot recover a message that was never going to
+        /// arrive.
+        /// </para>
+        /// <para>
+        /// <b>And only when this core holds subscriptions there</b>, not merely when it has a subscription
+        /// socket: the fallback probe for a server that will not answer <c>PING</c> in subscriber mode is
+        /// an unsubscribe from something nobody subscribed to, which has nothing to confirm on a
+        /// connection holding none. See <c>ConnectionMultiplexer.NewCoreHoldsSubscriptionsOn</c>.
+        /// </para>
+        /// </remarks>
+        private Task<TimeSpan>? TryPingViaNewCore(Message routing, CommandFlags flags)
+        {
+            if (!ConnectionMultiplexer.NewCoreEngine) return null;
+            if (multiplexer.SelectServer(routing) is not { } server) return null;
+            if (!multiplexer.NewCoreHoldsSubscriptionsOn(server.EndPoint)) return null;
+
+            var context = multiplexer.NewCore.SubscriptionContext(server.EndPoint);
+            if (routing.Command == RedisCommand.PING)
+            {
+                return Measured(new RespDatabaseContext(context).PingMeasureAsync(flags));
+            }
+
+            // the timestamp is taken BEFORE the send, not before the await: a ValueTask handed to a timing
+            // helper has already done its writing by the time the helper runs
+            var started = Stopwatch.GetTimestamp();
+            return Timed(
+                new RespPubSub(context).UnsubscribeAsync(RedisChannel.Literal(multiplexer.UniqueId), flags), started);
+
+            static async Task<TimeSpan> Measured(ValueTask<TimeSpan> pending) => await pending.ConfigureAwait(false);
+
+            static async Task<TimeSpan> Timed(ValueTask<long> pending, long started)
+            {
+                _ = await pending.ConfigureAwait(false);
+                return TimeSpan.FromTicks(
+                    (long)((TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency)
+                        * (Stopwatch.GetTimestamp() - started)));
+            }
         }
 
         private Message CreatePingMessage(CommandFlags flags)

@@ -501,6 +501,49 @@ namespace StackExchange.Redis
         /// <summary>How many sockets exist purely for deliveries; zero unless something subscribed.</summary>
         internal int SubscriptionConnectionCount => _subscriptions.Count;
 
+        /// <summary>
+        /// Whether a subscription on this endpoint would get a socket of its own, rather than sharing the
+        /// ordinary connection.
+        /// </summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Asked so a caller can decline a subscription whose socket is not yet DECIDED.</b> Sharing
+        /// the ordinary connection is right under RESP3 and is also where issue #3154 lives: this core
+        /// chooses the socket when a send is COMPOSED, so a subscribe composed while RESP3 was expected
+        /// and written after a reconnect negotiated RESP2 lands on the ordinary connection and puts it
+        /// into subscriber mode. The shipped core has a tested answer for that window
+        /// (<c>Resp3DowngradeTests</c>) and this one does not yet.
+        /// </para>
+        /// <para>
+        /// So the answer is yes only when the choice cannot change underneath it: this endpoint already
+        /// has a subscription socket, or its protocol has been NEGOTIATED as RESP2. An unknown protocol
+        /// says no - treating unknown as "probably RESP2" accepts exactly the subscriptions a later
+        /// downgrade can re-home. See design notes D2.5.
+        /// </para>
+        /// </remarks>
+        internal bool WouldSubscribeOnItsOwnSocket(EndPoint endpoint)
+            => _subscriptions.ContainsKey(endpoint)
+                || (_protocols.TryGetValue(endpoint, out var negotiated) && negotiated < RedisProtocol.Resp3);
+
+        /// <summary>Whether the connection a subscription on this endpoint lives on is up.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// Asks about the socket <see cref="SubscriptionEndpoint"/> would choose, and deliberately does
+        /// not create one: this is a question, and asking it must not dial. See
+        /// <c>ConnectionMultiplexer.Subscription</c> for why it has to be put to the core that actually
+        /// holds the subscription.
+        /// </remarks>
+        internal bool IsSubscriptionConnected(EndPoint endpoint)
+        {
+            if (_subscriptions.TryGetValue(endpoint, out var dedicated)) return dedicated.IsConnectedNow;
+
+            return _protocols.TryGetValue(endpoint, out var negotiated)
+                && negotiated >= RedisProtocol.Resp3
+                && _endpoints.TryGetValue(endpoint, out var interactive)
+                && interactive.IsConnectedNow;
+        }
+
         /// <summary>How many sockets this core currently holds to one endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
@@ -854,6 +897,28 @@ namespace StackExchange.Redis
             // deliveries arrive here: on the subscription connection under RESP2, and on this one under
             // RESP3, where a push can land on any connection
             connection.OnPush = frame => RespPushDispatch.Dispatch(frame, _multiplexer);
+
+            // A connection deliveries arrive on is useless until the subscriptions are on it again, and
+            // nothing else was going to notice: the shipped core re-subscribes when its own subscription
+            // bridge establishes, so a socket THIS core brought back had no equivalent trigger and the
+            // subscriptions stayed off until something unrelated happened to ask.
+            //
+            // Fire-and-forget, for the reason the shipped caller gives where it does the same thing: this
+            // is the establish path, and waiting for a reply here waits behind the connection being
+            // established.
+            if (subscription)
+            {
+                try
+                {
+                    _multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+                }
+                catch (Exception ex)
+                {
+                    // best efforts: a subscription that cannot be re-established must not fail the dial,
+                    // or nothing on this connection works either
+                    _multiplexer.OnInternalError(ex);
+                }
+            }
 
             return connection;
         }

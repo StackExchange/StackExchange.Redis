@@ -133,6 +133,184 @@ public partial class ConnectionMultiplexer
             => throw new ArgumentException(
                 $"Unable to determine pub/sub operation for '{action}' against '{options}'");
 
+        /// <summary>Whether the NEW core's connection is the one holding this subscription.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Whether a subscription is live is a question about ONE connection</b>, and while both cores
+        /// exist the two give different answers: <see cref="ServerEndPoint.IsSubscriberConnected"/>
+        /// describes the shipped bridge's socket, <c>RespNewCore.IsSubscriptionConnected</c> this core's.
+        /// Ask the wrong one and a subscription reads as live because a connection it is not on happens to
+        /// be up - after which nothing ever re-subscribes it, which is a silently dead subscription rather
+        /// than an error.
+        /// </para>
+        /// <para>
+        /// Recorded by whoever actually sent the (un)subscribe, in both directions: a subscription can
+        /// MOVE between cores - a protocol downgrade re-homes one - so the shipped processor clears it
+        /// again when a bridge establishes one. See design notes D2.5.
+        /// </para>
+        /// </remarks>
+        private volatile bool _onNewCore;
+
+        /// <summary>Record that the shipped path holds this subscription.</summary>
+        /// <remarks><inheritdoc cref="_onNewCore" path="/remarks/para[2]"/></remarks>
+        internal void OnSubscribedViaBridge() => _onNewCore = false;
+
+        /// <summary>Whether this subscription is live on a server, asked of whoever holds it.</summary>
+        /// <param name="server">The server, or null when none is recorded.</param>
+        /// <remarks><inheritdoc cref="_onNewCore" path="/remarks/para[1]"/></remarks>
+        private protected bool IsLiveOn(ServerEndPoint? server)
+        {
+            if (server is null) return false;
+
+            return _onNewCore
+                ? server.Multiplexer.NewCore.IsSubscriptionConnected(server.EndPoint)
+                : server.IsSubscriberConnected;
+        }
+
+        /// <summary>Whether this subscription is held by the new core on one endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// Asked by the subscriber's <c>Ping</c>, which needs the connection that holds THIS CLIENT's
+        /// subscriptions rather than merely a subscription-shaped one: its fallback probe is to
+        /// unsubscribe from something nobody subscribed to, which is only a round trip where a
+        /// subscription exists.
+        /// </remarks>
+        internal bool IsHeldByNewCoreOn(EndPoint endpoint) => _onNewCore && NamesEndpoint(endpoint);
+
+        /// <summary>Whether some connection is already carrying this subscription.</summary>
+        /// <remarks>
+        /// Asked so that ownership can be STICKY: a subscription already placed keeps going to the core
+        /// that placed it, because the two cores' unsubscribes do not reach each other's sockets.
+        /// </remarks>
+        private protected abstract bool IsPlaced { get; }
+
+        /// <summary>
+        /// Send one (un)subscribe through the new core and record what it did; null when this core is not
+        /// taking it, in which case the caller falls through to the shipped path.
+        /// </summary>
+        /// <param name="subscriber">Owns the multiplexer, and so the core.</param>
+        /// <param name="channel">The channel or pattern.</param>
+        /// <param name="action">Whether this subscribes or unsubscribes.</param>
+        /// <param name="flags">The caller's flags.</param>
+        /// <param name="server">The server to send to.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Three declines, each one a lesson from a failing test rather than caution.</b> A channel
+        /// that can be REDIRECTED stays on the shipped path: a sharded or key-routed subscribe sent to the
+        /// wrong node answers <c>-MOVED</c> and then lives on the node it was redirected TO, so the server
+        /// chosen before the send is the wrong answer and recording it is worse than not knowing
+        /// (<c>ClusterShardedTests.SubscribeToWrongServerAsync</c>). A subscription that would SHARE the
+        /// ordinary connection stays there too; see <c>RespNewCore.WouldSubscribeOnItsOwnSocket</c>. And
+        /// no server selected is "ours, nothing to do yet" rather than "not ours": falling through there
+        /// let the BRIDGE subscribe and then this core subscribe as well, which the server reports as two
+        /// subscribers and which delivers everything twice (<c>Resp3HandshakeTests</c>, as
+        /// <c>PUBLISH => :2</c>).
+        /// </para>
+        /// <para>
+        /// <b>The bookkeeping is the caller's rather than inferred from the reply.</b> The shipped path
+        /// reads the server off the connection its confirmation arrived on; here the server was chosen
+        /// before the send, so for the channels this accepts it is simply known - which is also why the
+        /// redirect case had to be declined rather than guessed at.
+        /// </para>
+        /// </remarks>
+        internal Task? TrySendViaNewCore(
+            RedisSubscriber subscriber,
+            in RedisChannel channel,
+            SubscriptionAction action,
+            CommandFlags flags,
+            ServerEndPoint? server)
+        {
+            if (!ConnectionMultiplexer.NewCoreEngine) return null;
+
+            const RedisChannel.RedisChannelOptions CanRedirect =
+                RedisChannel.RedisChannelOptions.Sharded | RedisChannel.RedisChannelOptions.KeyRouted;
+            if ((channel.Options & CanRedirect) != 0) return null;
+
+            // refused before the no-server shortcut: "you have turned SUBSCRIBE off" is an answer the
+            // caller gets now, not one that waits for a server, and a subscribe that quietly succeeded
+            // against a disabled command would register a handler nothing can ever feed
+            subscriber.multiplexer.CommandMap.AssertAvailable(
+                PubSub.SubscribeCommand(channel, action == SubscriptionAction.Subscribe));
+
+            if (server is null) return Task.CompletedTask;
+
+            // OWNERSHIP IS STICKY, and that is the difference between this working and leaking a
+            // subscription. Whether this core would take a FRESH subscription changes over time - it
+            // depends on the negotiated protocol, which is unknown at first - so deciding per call let one
+            // core subscribe and the other unsubscribe, and the channel stayed subscribed on a connection
+            // nobody was tracking. `Issue1101Tests.ExecuteWithUnsubscribe*` reads that as
+            // "expected 0 subscribers, found 1" after unsubscribing everything.
+            //
+            // So: something already holding this subscription decides where the next command for it goes,
+            // in either direction. Only a subscription nothing holds is free to be placed, and then it is
+            // placed where the socket choice cannot change underneath it.
+            // copied out of the `in` parameter, because the local function below cannot capture one
+            var target = channel;
+
+            if (IsPlaced) return _onNewCore ? SendViaNewCore() : null;
+
+            var core = subscriber.multiplexer.NewCore;
+            if (!core.WouldSubscribeOnItsOwnSocket(server.EndPoint)) return null;
+
+            return SendViaNewCore();
+
+            Task SendViaNewCore()
+            {
+                var context = new RespPubSub(subscriber.multiplexer.NewCore.SubscriptionContext(server.EndPoint));
+
+                // Recorded at SEND time for a subscribe, not on completion, and that is the
+                // fire-and-forget case taken seriously rather than an optimisation: a caller who declines
+                // the outcome then immediately pings the subscriber to flush it, and the ping has to find
+                // this core holding the subscription or it goes out on the other one's socket and flushes
+                // nothing - PubSubTests.TestBasicPubSubFireAndForget. Where it turns out wrong, the next
+                // EnsureSubscriptions corrects it, because IsLiveOn then answers false.
+                if (action == SubscriptionAction.Subscribe)
+                {
+                    _onNewCore = true; // before the endpoint, so a reader never sees one without the other
+                    AddEndpoint(server);
+                    return Settle(context.SubscribeAsync(target, Flags | flags));
+                }
+
+                return Settle(context.UnsubscribeAsync(target, Flags | flags), this, server);
+            }
+
+            static async Task Settle(
+                ValueTask<long> pending, Subscription? self = null, ServerEndPoint? server = null)
+            {
+                await pending.ConfigureAwait(false);
+
+                // an unsubscribe forgets the endpoint only once the server has confirmed it, because until
+                // then deliveries can still arrive and the subscription is still there to be re-used
+                if (self is not null && server is not null) self.TryRemoveEndpoint(server);
+            }
+        }
+
+        /// <summary>Block for a send, unless the caller declined the outcome.</summary>
+        /// <param name="subscriber">Supplies the timeout.</param>
+        /// <param name="sent">The send.</param>
+        /// <param name="flags">The caller's flags.</param>
+        /// <remarks>
+        /// <b>Fire-and-forget must not block here, and that is a deadlock rather than a slowdown.</b>
+        /// <c>EnsureSubscriptions</c> is called fire-and-forget from inside a <c>SetResultCore</c> - the
+        /// shipped code says so where it calls it - so a synchronous wait on that path waits for a reply
+        /// that cannot be read until the reader it is blocking returns. The send has already been issued
+        /// by the time this is reached.
+        /// </remarks>
+        private protected static void WaitUnlessDeclined(RedisSubscriber subscriber, Task sent, CommandFlags flags)
+        {
+            if ((flags & CommandFlags.FireAndForget) != 0) return;
+
+            sent.Wait(subscriber.multiplexer.TimeoutMilliseconds);
+        }
+
+        /// <summary>Await a send and answer true, for the callers that promise a bool.</summary>
+        /// <param name="sent">The send.</param>
+        private protected static async Task<bool> AsTrue(Task sent)
+        {
+            await sent.ForAwait();
+            return true;
+        }
+
         public void Add(Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue)
         {
             if (handler != null)
@@ -207,17 +385,20 @@ public partial class ConnectionMultiplexer
     // used for most subscriptions; routed to a single node
     internal sealed class SingleNodeSubscription(CommandFlags flags) : Subscription(flags)
     {
-        internal override bool IsConnectedAny() => _currentServer is { IsSubscriberConnected: true };
+        internal override bool IsConnectedAny() => IsLiveOn(_currentServer);
 
         internal override int GetConnectionCount() => IsConnectedAny() ? 1 : 0;
 
         internal override bool IsConnectedTo(EndPoint endpoint)
         {
             var server = _currentServer;
-            return server is { IsSubscriberConnected: true } && server.EndPoint == endpoint;
+            return server is not null && server.EndPoint == endpoint && IsLiveOn(server);
         }
 
         internal override void AddEndpoint(ServerEndPoint server) => _currentServer = server;
+
+        /// <inheritdoc/>
+        private protected override bool IsPlaced => Volatile.Read(ref _currentServer) is not null;
 
         internal override bool NamesEndpoint(EndPoint endpoint)
             => Volatile.Read(ref _currentServer) is { } server && server.EndPoint == endpoint;
@@ -242,6 +423,12 @@ public partial class ConnectionMultiplexer
             var server = _currentServer;
             if (server is not null)
             {
+                if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Unsubscribe, flags, server) is { } sent)
+                {
+                    WaitUnlessDeclined(subscriber, sent, flags);
+                    return true;
+                }
+
                 var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 return subscriber.multiplexer.ExecuteSyncImpl(message, Processor, server);
             }
@@ -259,6 +446,11 @@ public partial class ConnectionMultiplexer
             var server = _currentServer;
             if (server is not null)
             {
+                if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Unsubscribe, flags, server) is { } sent)
+                {
+                    return AsTrue(sent);
+                }
+
                 var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 return subscriber.multiplexer.ExecuteAsyncImpl(message, Processor, asyncState, server);
             }
@@ -277,7 +469,7 @@ public partial class ConnectionMultiplexer
         internal override void RemoveDisconnectedEndpoints()
         {
             var server = _currentServer;
-            if (server is { IsSubscriberConnected: false })
+            if (server is not null && !IsLiveOn(server))
             {
                 _currentServer = null;
             }
@@ -296,6 +488,15 @@ public partial class ConnectionMultiplexer
             _currentServer = null;
             var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = subscriber.multiplexer.SelectServer(message);
+
+            // the message is still BUILT, because it is what routes: SelectServer reads the command, the
+            // flags and the channel off it, and routing a subscription must not drift between the two
+            if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Subscribe, flags, selected) is { } sent)
+            {
+                WaitUnlessDeclined(subscriber, sent, flags);
+                return 1;
+            }
+
             _ = subscriber.ExecuteSync(message, Processor, selected);
             return 1;
         }
@@ -310,8 +511,15 @@ public partial class ConnectionMultiplexer
                 // "is this the correct server?", but we can ask "is it suitable?", based on the slot
                 if (!subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(_currentServer, channel))
                 {
-                    var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags | CommandFlags.FireAndForget, internalCall);
-                    subscriber.multiplexer.ExecuteSyncImpl(message, Processor, current);
+                    // key-routed, so TrySendViaNewCore declines it; written as one call anyway so this
+                    // reads the same as every other send site
+                    var fireAndForget = flags | CommandFlags.FireAndForget;
+                    if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Unsubscribe, fireAndForget, current) is null)
+                    {
+                        var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, fireAndForget, internalCall);
+                        subscriber.multiplexer.ExecuteSyncImpl(message, Processor, current);
+                    }
+
                     _currentServer = null; // pre-emptively disconnect - F+F
                 }
             }
@@ -331,6 +539,13 @@ public partial class ConnectionMultiplexer
             _currentServer = null;
             var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             server ??= subscriber.multiplexer.SelectServer(message);
+
+            if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Subscribe, flags, server) is { } sent)
+            {
+                await sent.ForAwait();
+                return 1;
+            }
+
             await subscriber.ExecuteAsync(message, Processor, server).ForAwait();
             return 1;
         }
@@ -367,6 +582,9 @@ public partial class ConnectionMultiplexer
                && server.IsSubscriberConnected;
 
         internal override bool NamesEndpoint(EndPoint endpoint) => _servers.ContainsKey(endpoint);
+
+        /// <inheritdoc/>
+        private protected override bool IsPlaced => !_servers.IsEmpty;
 
         internal override void AddEndpoint(ServerEndPoint server)
         {

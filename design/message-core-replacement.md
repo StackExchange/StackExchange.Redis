@@ -2230,44 +2230,66 @@ Each step is independently shippable and leaves the tree green.
     127.0.0.1:7001`. Closing that needs the send to report where it FINISHED rather than where it was
     aimed, which is the same capability `IdentifyEndpointAsync` wants.
 
-  **Attempted a second time, with the ownership field, and stopped one layer further in.** Worth
-  recording what that bought and where it stopped, because the next attempt should start from here rather
-  than from the beginning.
+  **Landed on the third attempt**, and the two that failed first are why it is worth reading the pieces
+  rather than just the diff. The single-node subscription now sends on this core, with five parts that
+  each exist because a test proved they had to.
 
-  Built and verified working: a `_onNewCore` flag on `Subscription` set by whoever actually sent the
-  (un)subscribe, with `IsConnectedAny`/`IsConnectedTo`/`RemoveDisconnectedEndpoints` asking the owning
-  core and `TrackSubscriptionsProcessor` claiming ownership BACK when a bridge establishes one (a
-  subscription can move between cores, so "who holds it" has to be re-recorded, not assumed); a
-  re-subscribe triggered when THIS core's subscription socket establishes, which nothing else was going to
-  do - the shipped core re-subscribes from its own subscription bridge coming up, so a socket this core
-  brought back had no equivalent trigger; and the `WouldSubscribeOnItsOwnSocket` rule tightened to
-  **negotiated** RESP2 rather than "not known to be RESP3", which is what finally made
-  `Resp3DowngradeTests` pass - unknown had been treated as "probably RESP2" and so accepted exactly the
-  subscriptions a later downgrade could re-home.
+  1. **Ownership.** `Subscription._onNewCore`, set by whoever actually sent the (un)subscribe, with
+     `IsConnectedAny`/`IsConnectedTo`/`RemoveDisconnectedEndpoints` asking the owning core through
+     `IsLiveOn`, and the shipped processor clearing it again when a bridge establishes one - a
+     subscription MOVES between cores when a downgrade re-homes it, so "who holds it" is re-recorded
+     rather than assumed. Without this, liveness is answered by the wrong core: a subscription reads as
+     live because a connection it is not on happens to be up, and then nothing ever re-subscribes it.
 
-  That got the whole pub/sub, handshake, cluster-sharded, config and default-options set to two failures,
-  and both are one thing, now diagnosed rather than left open: **an `UNSUBSCRIBE` on a connection holding
-  no subscriptions gets no reply from the in-process test server.** `RedisClient.Unsubscribe` starts with
-  `var subs = SubscriptionsIfAny; if (subs is null) return;`, and `SubscriptionsIfAny` answers null for a
-  client with zero subscriptions - so the confirmation is never sent and the command waits for ever
-  (`qs: 1, rs: ReadAsync`). A real server answers with a count regardless, which is why nobody had hit
-  it.
+     **Sticky**, because whether this core would take a FRESH subscription changes over time - it depends
+     on the negotiated protocol, which is unknown at first - so deciding per call let one core subscribe
+     and the other unsubscribe, leaving the channel subscribed on a connection nobody was tracking.
+     `Issue1101Tests.ExecuteWithUnsubscribe*` reads that as "expected 0 subscribers, found 1" after
+     unsubscribing everything. So a subscription already placed decides where the next command for it
+     goes, in either direction; only an unplaced one is free to be placed.
+  2. **Recorded at SEND time for a subscribe, not on completion.** A caller who declines the outcome -
+     fire-and-forget - then pings the subscriber to flush it, and the ping has to find this core holding
+     the subscription or it goes out on the other one's socket and flushes nothing
+     (`PubSubTests.TestBasicPubSubFireAndForget`). Where it turns out wrong, the next
+     `EnsureSubscriptions` corrects it, because `IsLiveOn` then answers false. An UNSUBSCRIBE still
+     forgets the endpoint only once confirmed: until then deliveries can still arrive.
+  3. **Re-subscribe when THIS core's subscription socket establishes.** The shipped core re-subscribes
+     when its own subscription bridge comes up; a socket this core brought back had no equivalent
+     trigger, so the subscriptions stayed off until something unrelated happened to ask -
+     `Resp3DowngradeTests` showed it as `PUBLISH => :0` with the `SUBSCRIBE` arriving afterwards.
+  4. **Only a socket whose choice cannot change underneath it**, which is `WouldSubscribeOnItsOwnSocket`:
+     this endpoint already has a subscription socket, or its protocol has been NEGOTIATED as RESP2. An
+     unknown protocol says no. Sharing the ordinary connection is right under RESP3 and is also where
+     issue #3154 lives - this core picks the socket when a send is COMPOSED, so a subscribe composed
+     while RESP3 was expected and written after a reconnect negotiated RESP2 lands on the ordinary
+     connection and puts it into subscriber mode. Treating unknown as "probably RESP2" accepts exactly
+     those.
+  5. **The ping goes where this client's subscriptions are**, not merely on a subscription-shaped socket
+     (`ConnectionMultiplexer.NewCoreHoldsSubscriptionsOn`). The fallback probe for a server that will not
+     answer `PING` in subscriber mode is an unsubscribe from something nobody subscribed to, which is a
+     round trip only where a subscription exists.
 
-  Both failures are that: `DefaultOptionsTests.VanillaResp2ConnectsWithSeparatePubSubConnection` sends one
-  directly, and `InProcPubSubTests.TestPatternPubSub` sends one as the DEGRADED ping - `PING` is not
-  answered on a subscriber connection by every server, so the fallback probe is "unsubscribe from
-  something nobody subscribed to", which is a round trip only where a subscription already exists. The
-  shipped path survives because its ping travels on the subscription BRIDGE, which does hold the test's
-  subscription; this core's ping went to a socket that held none.
+  **Declined, and staying on the shipped path:** channels that can be REDIRECTED. A sharded or key-routed
+  subscribe sent to the wrong node answers `-MOVED` and then lives on the node it was redirected TO, so
+  the server chosen before the send is the wrong answer and recording it is worse than not knowing
+  (`ClusterShardedTests.SubscribeToWrongServerAsync`: `Expected: 127.0.0.1:7000, Actual: 127.0.0.1:7001`).
+  Closing that needs the send to report where it FINISHED rather than where it was aimed - the same
+  capability `IdentifyEndpointAsync` wants, so those two move together. Also declined: no server selected
+  is "ours, nothing to do yet" rather than "not ours", because falling through there let the BRIDGE
+  subscribe and then this core subscribe as well - two subscribers on one channel, every message
+  delivered twice (`Resp3HandshakeTests`, as `PUBLISH => :2`).
 
-  **So the subscriber ping has to travel on the connection that holds THIS CLIENT's subscriptions**, not
-  merely on a subscription-shaped one - and the ownership field is what makes that answerable. That is
-  the first piece of the next attempt, and it closes the loop: `Ping` was already known to be
-  inseparable, and this is the precise sense in which it is.
+  **Three fixes came out of it that stand on their own.** `SubscriptionEndpoint` trusted an ASSUMPTION
+  about RESP3 and had to be made to require a negotiated one - subscribing is sticky, so guessing wrong
+  poisons the ordinary connection rather than costing a socket (46 failures, reported as `ERR only
+  [P|S][UN]SUBSCRIBE / PING / QUIT allowed in this context (got: 'PUBLISH')`). `RespEndpointExecutor`
+  did not refuse a command the command-map had disabled at all, where the shipped pipeline refuses while
+  rendering. And the in-process test server diverged from a real one: `RedisClient.Unsubscribe` returned
+  early when the client held no subscriptions, so an `UNSUBSCRIBE` there was never confirmed and the
+  degraded ping waited for ever - a real server answers with a count regardless.
 
-  **What is left of D2.5**, then: the single-node routing - the ownership field, the establish-time
-  re-subscribe, the negotiated-RESP2 rule and a ping routed by ownership, all understood and quick to
-  rebuild - then `MultiNodeSubscription`, and `IdentifyEndpointAsync`.
+  **What is left of D2.5**: `MultiNodeSubscription` (the keyspace shape, routed to several nodes at once),
+  the redirect-capable channels, and `IdentifyEndpointAsync`.
 
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.

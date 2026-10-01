@@ -314,16 +314,30 @@ public partial class RedisClient
         return affected.Count;
     }
 
+    /// <summary>Remove a subscription if it is there, and confirm either way.</summary>
+    /// <param name="channel">The channel to stop receiving.</param>
+    /// <remarks>
+    /// <b>The confirmation is sent even when there was nothing to remove</b>, because a real server
+    /// answers an <c>UNSUBSCRIBE</c> with a count whether or not the channel was subscribed - and a
+    /// client is entitled to treat it as a round trip. The fallback the subscriber's <c>Ping</c> uses is
+    /// exactly that: unsubscribe from something nobody subscribed to, on a server that will not answer
+    /// <c>PING</c> in subscriber mode. This used to return early when the client held no subscriptions at
+    /// all, so such a ping was never answered - a divergence from the real thing that only shows up as a
+    /// timeout, and only for whoever sends it on a connection with nothing on it.
+    /// </remarks>
     internal void Unsubscribe(RedisChannel channel)
     {
         var subs = SubscriptionsIfAny;
-        if (subs is null) return;
-        int count;
-        ref int field = ref GetCountField(channel);
-        lock (subs)
+        int count = 0;
+        if (subs is not null)
         {
-            count = subs.Remove(channel) ? --field : field;
+            ref int field = ref GetCountField(channel);
+            lock (subs)
+            {
+                count = subs.Remove(channel) ? --field : field;
+            }
         }
+
         SendSubUnsubMessage(
             channel.IsSharded ? "sunsubscribe"
             : channel.IsPattern ? "punsubscribe"
