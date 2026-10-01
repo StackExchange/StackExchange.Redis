@@ -244,7 +244,8 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(0, self.ShardedSubscriptionCount);
         Assert.Equal(protocol, self.Protocol);
 
-        var expectedCount = (protocol is RedisProtocol.Resp3 ? 1 : 2) + OtherCoreSockets(conn, server.EndPoint);
+        var expectedCount = (protocol is RedisProtocol.Resp3 || ConnectionMultiplexer.NewCoreEngine ? 1 : 2)
+            + OtherCoreSockets(conn, server.EndPoint);
         Assert.Equal(expectedCount, serverObj.ClientCount);
         Assert.Equal(expectedCount, namedClients.Length);
 
@@ -270,13 +271,21 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var clients = server.ClientList();
         var namedClients = clients.Where(x => x.Name == conn.ClientName).ToArray();
 
-        var expectedCount = 2 + OtherCoreSockets(conn, server.EndPoint);
+        // Two sockets on THIS core, unless the subscription leg is the other core's - under the engine
+        // flag this endpoint has no subscription bridge at all, and the socket carrying the subscription
+        // is counted by OtherCoreSockets instead. Either way the total the SERVER sees is the same.
+        var ownsSubscriptionLeg = !ConnectionMultiplexer.NewCoreEngine;
+        var expectedCount = (ownsSubscriptionLeg ? 2 : 1) + OtherCoreSockets(conn, server.EndPoint);
         Assert.Equal(RedisProtocol.Resp2, server.Protocol);
         Assert.Equal(expectedCount, serverObj.ClientCount);
         Assert.NotNull(interactiveId);
         Assert.NotNull(subscriptionId);
-        Assert.NotEqual(interactiveId, subscriptionId);
         Assert.Equal(expectedCount, namedClients.Length);
+
+        // ...and only where this core owns both legs are they distinct connections; with no subscription
+        // bridge the lookup answers with the interactive one, which is the honest answer rather than a
+        // missing one, so asking for two ids here would be asking the wrong question.
+        if (ownsSubscriptionLeg) Assert.NotEqual(interactiveId, subscriptionId);
 
         var interactive = Assert.Single(clients, x => x.Id == interactiveId);
         Assert.Equal(ClientType.Normal, interactive.ClientType);

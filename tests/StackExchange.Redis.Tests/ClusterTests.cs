@@ -58,7 +58,10 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                Assert.Equal(TestContext.Current.IsResp3() ? 0 : 1, counters.Subscription.SocketCount);
+                // no subscription socket on THIS core where one connection carries everything: under
+                // RESP3, and under the engine flag at any protocol
+                var sharesOneConnection = TestContext.Current.IsResp3() || ConnectionMultiplexer.NewCoreEngine;
+                Assert.Equal(sharesOneConnection ? 0 : 1, counters.Subscription.SocketCount);
             }
         }
     }

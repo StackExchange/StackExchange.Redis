@@ -248,10 +248,10 @@ public partial class ConnectionMultiplexer
         /// nothing to do yet" rather than "not ours": falling through there let the BRIDGE subscribe and
         /// then this core subscribe as well, which the server reports as two subscribers and which
         /// delivers everything twice (<c>Resp3HandshakeTests</c>, as <c>PUBLISH => :2</c>).
+        /// </para>
         /// <para>
         /// There was a third - a subscription that would SHARE the ordinary connection - and what it
         /// cost to retire it is written out at the point it used to sit.
-        /// </para>
         /// </para>
         /// <para>
         /// <b>The bookkeeping is the caller's rather than inferred from the reply.</b> The shipped path

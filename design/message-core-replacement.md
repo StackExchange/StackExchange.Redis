@@ -3090,3 +3090,43 @@ socket that is not the one carrying ordinary commands.
 **Next**, and now unblocked: stop activating the subscription bridge under the engine flag, then stop
 constructing it. Measured at 63 failures when attempted naively before any of the above; worth
 re-measuring from here.
+
+### 9e. The subscription bridge is gone (under the flag), and why "stop activating" was the wrong move
+
+**The first shipped `PhysicalBridge` to stop being constructed.** Under the engine flag a
+`ServerEndPoint` no longer has a subscription bridge at any protocol: `UsesSubscriptionBridge` is
+`!KnowOrAssumeResp3() && !NewCoreEngine`, and the four places that would have built one
+(`GetBridge(ConnectionType)`, `GetBridge(Message)`, `GetBridge(RedisCommand)`,
+`TryRerouteToSubscriptionBridge`) all answer with the interactive bridge or decline. The subscription
+leg is this core's: it dials and owns its own socket, and with the share-the-connection decline retired
+(9d) every subscription the client places goes there.
+
+**The attempt before this one was to stop ACTIVATING it, and that is incoherent** - worth writing down
+because it looks like the smaller, safer step and is neither. `IsSelectable` *creates* the bridge it
+asks about (`GetBridge(command, create: true)`) and then requires it to be connected. So a subscription
+bridge that exists and is never activated is permanently unselectable: `SelectServer` returns null for
+every subscription command, `TrySendViaNewCore` reads that as "ours, nothing to do yet" and returns a
+completed task, and the subscribe silently does nothing at all. **70 failures**, nearly every one a
+publish reporting no subscribers. Not needing the bridge and not building it are the same change.
+
+With the lookup redirected instead: **6 failures, five of them the same dual-path artefact** - a test
+counting sockets or asking for two distinct connection ids, each off by exactly the bridge that no
+longer exists. They were already written as "RESP3 shares one connection", so each needed the same
+clause added: *and under the engine flag, at any protocol*. `ClusterTests.ConnectUsesSingleSocket`,
+`ConfigTests.BeforeSocketConnect`, `DedicatedThreadsTests.WithTheFlag_PubSubStaysOnTheThreadPool`
+(whose own remark already said why), and both `DefaultOptionsTests` connection-shape tests.
+
+**The sixth was a real gap**, found by `ConfigTests.ConnectWithSubscribeDisabled`:
+`IsSubscriberConnected` with a disabled `SUBSCRIBE`. The shipped answer is no *by construction* - a
+bridge for a disabled command never connects - so sharing one connection has to say it on purpose, and
+`IsSubscriberConnected` now carries the `SupportsSubscriptions` term on that branch. A latent wrong
+answer that only a configuration nobody had reached yet could see.
+
+`RespNewCoreDiscoveryTests.TheSubscriptionBridgeIsNotConstructed` pins it, and deliberately asks the
+bridge *lookup* rather than a socket count - because an unactivated bridge does not show up as a socket
+either, which is exactly the failure above. It publishes to a real subscription first, so it cannot pass
+by never having asked.
+
+**What this leaves**: the interactive bridge, which is the harder one - the connect wait and the
+`ReconfigureAsync` beliefs both run through it (D2.8), and those have to move together with "stop
+constructing" for the same reason this step did.

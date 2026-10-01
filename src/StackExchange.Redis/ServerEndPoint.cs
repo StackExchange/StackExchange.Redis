@@ -143,7 +143,32 @@ namespace StackExchange.Redis
 
         public bool IsConnecting => interactive?.IsConnecting == true;
         public bool IsConnected => interactive?.IsConnected == true;
-        public bool IsSubscriberConnected => KnowOrAssumeResp3() ? IsConnected : subscription?.IsConnected == true;
+        // ...and where there is no second bridge, SupportsSubscriptions is the term that would otherwise
+        // go missing: a bridge for a disabled SUBSCRIBE never connects, so the shipped answer is no by
+        // construction, where sharing one connection has to say no on purpose.
+        public bool IsSubscriberConnected => UsesSubscriptionBridge
+            ? subscription?.IsConnected == true
+            : IsConnected && (KnowOrAssumeResp3() || SupportsSubscriptions);
+
+        /// <summary>Whether a subscription here belongs on a SECOND bridge of this endpoint's own.</summary>
+        /// <remarks>
+        /// <para>
+        /// Under RESP3 it does not, because one connection does everything. <b>And under the engine flag
+        /// it does not either, whatever the protocol, because the subscription leg is the other core's</b>
+        /// - it dials and owns its own subscription socket, and every subscription this client places
+        /// goes there. A bridge for them would be a socket nothing writes to.
+        /// </para>
+        /// <para>
+        /// This is what lets the bridge stop being CONSTRUCTED rather than merely stop being used, and
+        /// the two cannot be separated: <see cref="IsSelectable"/> creates the bridge it asks about and
+        /// then requires it to be connected, so a subscription bridge that exists and is never activated
+        /// makes every subscription command unselectable - no server is chosen, and the subscribe
+        /// silently does nothing. Measured as 70 failures, nearly all of them a publish reporting no
+        /// subscribers.
+        /// </para>
+        /// </remarks>
+        private bool UsesSubscriptionBridge => !KnowOrAssumeResp3() && !ConnectionMultiplexer.NewCoreEngine;
+
         public bool KnowOrAssumeResp3()
         {
             var protocol = interactive?.Protocol;
@@ -215,7 +240,9 @@ namespace StackExchange.Redis
         }
 
         internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
-        internal State SubscriptionConnectionState => KnowOrAssumeResp3() ? InteractiveConnectionState : subscription?.ConnectionState ?? State.Disconnected;
+        internal State SubscriptionConnectionState => UsesSubscriptionBridge
+            ? subscription?.ConnectionState ?? State.Disconnected
+            : InteractiveConnectionState;
 
         public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0);
 
@@ -442,7 +469,7 @@ namespace StackExchange.Redis
             switch (type)
             {
                 case ConnectionType.Interactive:
-                case ConnectionType.Subscription when KnowOrAssumeResp3():
+                case ConnectionType.Subscription when !UsesSubscriptionBridge:
                     return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
                 case ConnectionType.Subscription:
                     return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
@@ -470,7 +497,7 @@ namespace StackExchange.Redis
                     break;
             }
 
-            return (message.IsForSubscriptionBridge && !KnowOrAssumeResp3())
+            return (message.IsForSubscriptionBridge && UsesSubscriptionBridge)
                 ? subscription ??= CreateBridge(ConnectionType.Subscription, null)
                 : interactive ??= CreateBridge(ConnectionType.Interactive, null);
         }
@@ -483,6 +510,11 @@ namespace StackExchange.Redis
         internal bool TryRerouteToSubscriptionBridge(Message message, PhysicalBridge from)
         {
             if (isDisposed) return false;
+
+            // not under the engine flag: there is no second bridge to move it to, and the connection
+            // this would have moved it off is not one this core writes subscriptions to anyway. The
+            // equivalent move for that core is RespEndpointExecutor.RerouteSubscription.
+            if (ConnectionMultiplexer.NewCoreEngine) return false;
 
             // deliberately not via GetBridge: that consults the same expectation that got us here
             var target = subscription ??= CreateBridge(ConnectionType.Subscription, null);
@@ -503,7 +535,7 @@ namespace StackExchange.Redis
                 case RedisCommand.PUNSUBSCRIBE:
                 case RedisCommand.SSUBSCRIBE:
                 case RedisCommand.SUNSUBSCRIBE:
-                    if (!KnowOrAssumeResp3())
+                    if (UsesSubscriptionBridge)
                     {
                         return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
                     }
