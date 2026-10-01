@@ -220,7 +220,7 @@ public partial class ConnectionMultiplexer
         /// `ClusterTests.ClusterPubSub(withKeyPrefix: true)`. This core's establish-time re-subscribe
         /// feeds the same loop, which is how it reached three nodes rather than two.
         /// </remarks>
-        private protected bool HasSendInFlight => _sendingVia is not null;
+        internal bool HasSendInFlight => _sendingVia is not null;
 
         /// <summary>Whether some connection is already carrying this subscription.</summary>
         /// <remarks>

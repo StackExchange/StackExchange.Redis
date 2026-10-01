@@ -221,7 +221,14 @@ namespace StackExchange.Redis
             endpoint => Executor(database, endpoint),
             OnSlotMoved,
             OnTopologySuspect,
-            channel => SubscribedExecutor(database, channel))
+            channel => SubscribedExecutor(database, channel),
+            // and the socket a redirected SUBSCRIBE belongs on, which is not the ordinary one. Without
+            // this the fallback sends it to the target's ordinary executor, so a sharded subscribe that
+            // follows a -MOVED puts the connection carrying ordinary commands into subscriber mode - and
+            // the next publish to that node is refused with "only (P|S)SUBSCRIBE ... allowed in this
+            // context". `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` reads that error
+            // verbatim; `RespMultiplexerExecutor.TryFollowRedirect` describes the rule it could not apply.
+            SubscriptionEndpoint)
         {
             HeartbeatDriven = true,
         };
@@ -935,7 +942,7 @@ namespace StackExchange.Redis
 
             // deliveries arrive here: on the subscription connection under RESP2, and on this one under
             // RESP3, where a push can land on any connection
-            connection.OnPush = frame => RespPushDispatch.Dispatch(frame, _multiplexer);
+            connection.OnPush = frame => RespPushDispatch.Dispatch(frame, _multiplexer, endpoint);
 
             // A connection that asked for RESP3 and was answered less than that needs a SUBSCRIPTION
             // socket, and needs it now rather than when something next subscribes. The shipped core

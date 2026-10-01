@@ -29,7 +29,11 @@ namespace StackExchange.Redis
         /// <summary>Inspect a frame and say what should happen to it.</summary>
         /// <param name="frame">The complete frame, including its prefix.</param>
         /// <param name="multiplexer">Receives any delivery.</param>
-        internal static RespOutOfBandResult Dispatch(ReadOnlySpan<byte> frame, ConnectionMultiplexer multiplexer)
+        /// <param name="endpoint">Which server this arrived from; needed to act on a stranded subscription.</param>
+        internal static RespOutOfBandResult Dispatch(
+            ReadOnlySpan<byte> frame,
+            ConnectionMultiplexer multiplexer,
+            EndPoint? endpoint = null)
         {
             var reader = new RespReader(frame);
             if (!(reader.SafeTryMoveNext() & reader.IsAggregate & !reader.IsStreaming)) return RespOutOfBandResult.NotRecognized;
@@ -65,20 +69,22 @@ namespace StackExchange.Redis
                     // matching has to complete it. Consuming it here would strand the subscribe call.
                     return RespOutOfBandResult.MatchToCommand;
 
+                case PhysicalConnection.PushKind.SUnsubscribe
+                    when TryResubscribeStranded(reader, multiplexer, endpoint):
+                    // ...and so does a sharded unsubscribe we ASKED for. This is the other one: a slot
+                    // migrating away makes the node drop its shard channels and say so unprompted, and
+                    // with no command of ours to match it to, matching alone left this client believing
+                    // it was still subscribed on a node that had stopped delivering.
+                    //
+                    // The shipped core does this in `PhysicalConnection.Read`, which under the engine
+                    // flag never sees it: deliveries arrive on THIS core's connection. Same decision,
+                    // same routine, same reasoning - including resubscribing via the OUTGOING node,
+                    // which is the only one we know has the new route.
+                    return RespOutOfBandResult.Handled;
+
                 case PhysicalConnection.PushKind.Unsubscribe:
                 case PhysicalConnection.PushKind.PUnsubscribe:
                 case PhysicalConnection.PushKind.SUnsubscribe:
-                    // ...and so do these, but they are ALSO something a server says unprompted, which is
-                    // the case that was going nowhere. When a slot migrates away, the node holding its
-                    // shard channels drops them and says so - there is no command of ours to match that
-                    // to, so matching alone leaves this client still believing it is subscribed on a node
-                    // that has stopped delivering. `ClusterShardedTests.KeepSubscribedThroughSlotMigration`
-                    // asks exactly that question and requires the answer to be "nowhere, or the new node".
-                    //
-                    // Read from a COPY: the reader is handed on to the matching layer, which parses the
-                    // frame from the start, so consuming elements here would corrupt what it sees.
-                    // RespReader is a struct over the same buffer, so a copy reads without disturbing it.
-                    ForgetPlacement(reader, multiplexer, kind);
                     return RespOutOfBandResult.MatchToCommand;
 
                 case PhysicalConnection.PushKind.Invalidate:
@@ -227,29 +233,46 @@ namespace StackExchange.Redis
             multiplexer.ReconfigureIfNeeded(blame, true, "broadcast");
         }
 
-        /// <summary>Stop believing a channel is subscribed anywhere, because the server says it is not.</summary>
+        /// <summary>Act on a sharded unsubscribe the server sent unprompted, because a slot moved.</summary>
         /// <param name="reader">A COPY of the reader, positioned on the push kind.</param>
         /// <param name="multiplexer">Owns the subscription registry.</param>
-        /// <param name="kind">Which unsubscribe this is, which decides how the channel name is shaped.</param>
+        /// <param name="endpoint">Which server sent it - the OUTGOING node of the migration.</param>
+        /// <returns><c>true</c> if this was unsolicited and has been acted on.</returns>
         /// <remarks>
-        /// Clearing is the safe direction, and deliberately not conditional on whether an unsubscribe of
-        /// ours is in flight: a record cleared while a subscribe was landing costs one re-subscribe from
-        /// the next <c>EnsureSubscriptions</c>, where a record KEPT after the server dropped it is a
-        /// subscription the client never notices it has lost.
+        /// <para>
+        /// Read from a COPY of the reader: when this answers false the frame is handed on to the matching
+        /// layer, which parses it from the start, so consuming elements here would corrupt what it sees.
+        /// <c>RespReader</c> is a struct over the same buffer, so a copy reads without disturbing it.
+        /// </para>
+        /// <para>
+        /// <b>"Unsolicited" is the whole distinction, and a send in flight is how it is told.</b> A
+        /// sharded unsubscribe of OUR OWN has one by definition - that is what
+        /// <c>Subscription.HasSendInFlight</c> records - and must be left for matching to complete, or a
+        /// caller who unsubscribed gets resubscribed. The shipped core asks the same question of its own
+        /// outstanding commands (<c>PeekChannelMessage</c>).
+        /// </para>
         /// </remarks>
-        private static void ForgetPlacement(RespReader reader, ConnectionMultiplexer multiplexer, PhysicalConnection.PushKind kind)
+        private static bool TryResubscribeStranded(RespReader reader, ConnectionMultiplexer multiplexer, EndPoint? endpoint)
         {
-            var options = kind switch
+            if (endpoint is null) return false;
+            if (!TryReadChannel(
+                ref reader,
+                multiplexer.ChannelPrefix.AsSpan(),
+                RedisChannel.RedisChannelOptions.Sharded,
+                out var channel))
             {
-                PhysicalConnection.PushKind.SUnsubscribe => RedisChannel.RedisChannelOptions.Sharded,
-                PhysicalConnection.PushKind.PUnsubscribe => RedisChannel.RedisChannelOptions.Pattern,
-                _ => RedisChannel.RedisChannelOptions.None,
-            };
-
-            if (TryReadChannel(ref reader, multiplexer.ChannelPrefix.AsSpan(), options, out var channel))
-            {
-                multiplexer.ForgetSubscriptionPlacement(in channel);
+                return false;
             }
+
+            if (!multiplexer.TryGetSubscription(channel, out var subscription)) return false;
+            if (subscription.HasSendInFlight) return false;
+            if (multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false) is not { } server)
+            {
+                return false;
+            }
+
+            multiplexer.DefaultSubscriber.ResubscribeToServer(subscription, channel, server, cause: "sunsubscribe");
+            return true;
         }
 
         private static bool TryReadChannel(

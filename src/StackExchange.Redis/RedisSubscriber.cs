@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
@@ -90,23 +91,6 @@ namespace StackExchange.Redis
             return false;
         }
 
-        /// <summary>Forget where one channel's subscription is placed, leaving the registration.</summary>
-        /// <param name="channel">The channel the server has said is no longer subscribed.</param>
-        /// <remarks>
-        /// The handlers stay: the caller still wants this channel, so the next
-        /// <see cref="EnsureSubscriptions"/> re-places it. Only the belief about WHERE it currently lives
-        /// is dropped. See <c>RespPushDispatch.ForgetPlacement</c>.
-        /// </remarks>
-        internal void ForgetSubscriptionPlacement(in RedisChannel channel)
-        {
-            if (!channel.IsNullOrEmpty
-                && subscriptions.TryGetValue(channel, out var sub)
-                && sub.GetAnyCurrentServer() is { } server)
-            {
-                sub.TryRemoveEndpoint(server);
-            }
-        }
-
         /// <summary>Forget every subscription recorded against an endpoint, because its socket is new.</summary>
         /// <param name="endpoint">The endpoint whose subscription connection has just been established.</param>
         /// <remarks>
@@ -122,6 +106,15 @@ namespace StackExchange.Redis
         {
             foreach (var pair in subscriptions)
             {
+                // NOT one that is landing right now. A subscribe in flight is very often the reason this
+                // socket is being established at all, and its record is not stale - it is about to be
+                // confirmed. Forgetting it anyway lets the re-ensure below treat the channel as unplaced
+                // and place it somewhere else, which for a key-routed channel means the slot's owner
+                // rather than the server the caller explicitly asked for.
+                // `ClusterShardedTests.SubscribeToWrongServerAsync(sharded: false)` catches exactly that,
+                // intermittently, as the subscription arriving at the right node instead of the chosen one.
+                if (pair.Value.HasSendInFlight) continue;
+
                 if (pair.Value.NamesEndpoint(endpoint)
                     && TryResolveServerEndPoint(endpoint) is { } server)
                 {
@@ -519,6 +512,22 @@ namespace StackExchange.Redis
             {
                 if (serverEndPoint.IsSubscriberConnected)
                 {
+                    // On the core that owns this subscription, and that is not a refinement under the
+                    // engine flag - it is the difference between working and poisoning a connection. The
+                    // shipped send below resolves to the INTERACTIVE bridge once there is no subscription
+                    // bridge, so under RESP2 it would put the connection carrying ordinary commands into
+                    // subscriber mode. Same shape either way: try the simple resubscribe, which follows
+                    // any -MOVED, and fall back to a full reconfigure if it faults.
+                    var viaNewCore = sub.TrySendViaNewCore(
+                        this, channel, SubscriptionAction.Subscribe, CommandFlags.None, serverEndPoint);
+                    if (viaNewCore is not null)
+                    {
+                        _ = viaNewCore.ContinueWith(
+                            t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
+                            TaskContinuationOptions.OnlyOnFaulted);
+                        return;
+                    }
+
                     // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
                     // to full reconfigure; importantly, note that we've already recorded the disconnect
                     var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
