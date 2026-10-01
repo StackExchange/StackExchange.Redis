@@ -1245,11 +1245,7 @@ namespace StackExchange.Redis
                 if (config.Ssl)
                 {
                     log?.LogInformationConfiguringTLS();
-                    var host = config.SslHost;
-                    if (host.IsNullOrWhiteSpace())
-                    {
-                        host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
-                    }
+                    var host = config.ResolveTlsHostName(bridge.ServerEndPoint.EndPoint);
 
                     stream ??= DemandSocketStream(socket);
 

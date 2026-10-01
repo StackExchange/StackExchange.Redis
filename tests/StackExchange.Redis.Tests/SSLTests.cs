@@ -364,7 +364,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
     }
 
     [Fact]
-    public void SSLHostInferredFromEndpoints()
+    public void SSLHostIsOnlyExplicitlyConfigured()
     {
         var options = new ConfigurationOptions
         {
@@ -376,7 +376,9 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
             },
             Ssl = true,
         };
-        Assert.Equal("mycache.rediscache.windows.net", options.SslHost);
+        Assert.Null(options.SslHost);
+        options.SslHost = "override.rediscache.windows.net";
+        Assert.Equal("override.rediscache.windows.net", options.SslHost);
         options = new ConfigurationOptions()
         {
             EndPoints = { { "121.23.23.45", 15000 } },

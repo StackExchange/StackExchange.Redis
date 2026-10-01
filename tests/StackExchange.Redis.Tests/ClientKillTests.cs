@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +20,16 @@ public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
 
         await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(conn.GetEndPoints()[0]);
-        long result = server.ClientKill(id.AsInt64(), ClientType.Normal, null, true);
+
+        // RESP3 has no separate subscription connection, so the interactive connection carries the
+        // configuration-channel subscription - and the server counts a subscribed client as pubsub, not normal.
+        var protocol = TestContext.Current.GetProtocol();
+        var client = server.ClientList().Single(x => x.Id == id.AsInt64());
+        Assert.Equal(protocol, client.Protocol);
+        var expectedType = protocol == RedisProtocol.Resp3 ? ClientType.PubSub : ClientType.Normal;
+        Assert.Equal(expectedType, client.ClientType);
+
+        long result = server.ClientKill(id.AsInt64(), expectedType, null, true);
         Assert.Equal(1, result);
     }
 
