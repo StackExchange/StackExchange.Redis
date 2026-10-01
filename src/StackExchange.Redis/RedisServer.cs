@@ -217,12 +217,33 @@ namespace StackExchange.Redis
             return Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.CLIENT, args);
         }
 
+        /// <summary>CLIENT LIST, per <see cref="IServer.ClientList(CommandFlags)"/>.</summary>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Still building a <c>Message</c>, and the group method that would replace it is written and
+        /// tested</b> - <c>Diagnostics.ClientListArray</c>, pinned in <c>RespSurfaceServerParityTests</c>.
+        /// It is not wired up here because of what it would cost TODAY rather than anything wrong with it:
+        /// this is the first context-surface call three of the <c>DefaultOptionsTests</c> make, so routing
+        /// it to the other core makes that core dial its own socket, and a test that asserts "this server
+        /// has two clients" sees three. The assertion is right about the shipped library and right again
+        /// once the bridges stop dialling; it is only wrong in between.
+        /// </para>
+        /// <para>
+        /// So this one waits for D2.8's "stop constructing bridges" step rather than being ported ahead of
+        /// it, which keeps the two-flag number a usable regression signal. See the design notes: the
+        /// general lesson is that the remaining <see cref="IServer"/> ports are no longer free - any one
+        /// that is the first context call on a connection-counting path costs a socket while two engines
+        /// exist.
+        /// </para>
+        /// </remarks>
         public ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST);
             return ExecuteSync(msg, ClientInfo.Processor, defaultValue: Array.Empty<ClientInfo>());
         }
 
+        /// <inheritdoc cref="ClientList" path="/remarks"/>
         public Task<ClientInfo[]> ClientListAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST);
@@ -334,63 +355,16 @@ namespace StackExchange.Redis
             => Context.Diagnostics.CommandCountAsync(flags).AsTask(asyncState, flags);
 
         public RedisKey[] CommandGetKeys(RedisValue[] command, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command));
-            return ExecuteSync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>());
-        }
+            => Wait(Context.Diagnostics.CommandGetKeysArray(command, flags));
 
         public Task<RedisKey[]> CommandGetKeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command));
-            return ExecuteAsync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>());
-        }
+            => Context.Diagnostics.CommandGetKeysArray(command, flags).AsTask(asyncState, flags);
 
         public string[] CommandList(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetCommandListMessage(moduleName, category, pattern, flags);
-            return ExecuteSync(msg, ResultProcessor.StringArray, defaultValue: Array.Empty<string>());
-        }
+            => Wait(Context.Diagnostics.CommandListArray(moduleName, category, pattern, flags));
 
         public Task<string[]> CommandListAsync(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetCommandListMessage(moduleName, category, pattern, flags);
-            return ExecuteAsync(msg, ResultProcessor.StringArray, defaultValue: Array.Empty<string>());
-        }
-
-        private Message GetCommandListMessage(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
-        {
-            if (moduleName == null && category == null && pattern == null)
-            {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
-            }
-            else if (moduleName != null && category == null && pattern == null)
-            {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, (RedisValue)moduleName));
-            }
-            else if (moduleName == null && category != null && pattern == null)
-            {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, (RedisValue)category));
-            }
-            else if (moduleName == null && category == null && pattern != null)
-            {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, (RedisValue)pattern));
-            }
-            else
-            {
-                throw new ArgumentException("More then one filter is not allowed");
-            }
-        }
-
-        private RedisValue[] AddValueToArray(RedisValue val, RedisValue[] arr)
-        {
-            var result = new RedisValue[arr.Length + 1];
-            var i = 0;
-            result[i++] = val;
-            foreach (var item in arr) result[i++] = item;
-            return result;
-        }
-
-        private RedisValue[] MakeArray(params RedisValue[] redisValues) => redisValues;
+            => Context.Diagnostics.CommandListArray(moduleName, category, pattern, flags).AsTask(asyncState, flags);
 
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
             => Wait(Context.Keyspace.CountAsync(multiplexer.ApplyDefaultDatabase(database), flags));

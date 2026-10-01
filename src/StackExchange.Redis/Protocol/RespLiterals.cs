@@ -298,6 +298,30 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment ResetStat { get; }
 
+        /// <summary>The <c>GETKEYS</c> subcommand of <c>COMMAND</c>; a command and its arguments follow it.</summary>
+        [Resp]
+        internal static partial RespFragment GetKeys { get; }
+
+        /// <summary>The <c>LIST</c> subcommand of <c>COMMAND</c> and <c>CLIENT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment List { get; }
+
+        /// <summary>The <c>FILTERBY</c> operand of <c>COMMAND LIST</c>; a filter kind follows it.</summary>
+        [Resp]
+        internal static partial RespFragment FilterBy { get; }
+
+        /// <summary>The <c>MODULE</c> filter of <c>COMMAND LIST FILTERBY</c>; a module name follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Module { get; }
+
+        /// <summary>The <c>ACLCAT</c> filter of <c>COMMAND LIST FILTERBY</c>; a category follows it.</summary>
+        [Resp]
+        internal static partial RespFragment AclCat { get; }
+
+        /// <summary>The <c>PATTERN</c> filter of <c>COMMAND LIST FILTERBY</c>; a pattern follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Pattern { get; }
+
         /// <summary>The <c>SET</c> subcommand of <c>CONFIG</c>; a setting and a value follow it.</summary>
         [Resp]
         internal static partial RespFragment Set { get; }

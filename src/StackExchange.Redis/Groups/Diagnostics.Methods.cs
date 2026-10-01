@@ -157,6 +157,108 @@ public static partial class Diagnostics
     public static ValueTask<long> CommandCountAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<long>($"{RedisCommand.COMMAND}{RespLiterals.Count}", flags, cancellationToken: cancellationToken);
 
+    /// <summary>CLIENT LIST: every connection this server currently has, including this one.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>In the diagnostic group rather than a <c>Client</c> one</b>, because that is what the question
+    /// is: "what does this server see?". The other <c>CLIENT</c> verbs are a different kind of thing -
+    /// <c>SETNAME</c>/<c>SETINFO</c> and <c>TRACKING</c> are the handshake telling the server about US,
+    /// and <c>KILL</c> is administration - so a group named for the command word would collect things
+    /// that have nothing to do with each other.
+    /// </para>
+    /// <para>
+    /// <inheritdoc cref="CommandGetKeysArray" path="/remarks/node()[1]"/>
+    /// </para>
+    /// </remarks>
+    internal static ValueTask<ClientInfo[]> ClientListArray(
+        this in RespDiagnostics diagnostics,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.CLIENT}{RespLiterals.List}", flags, ClientListHandler.Instance, cancellationToken);
+
+    /// <summary>COMMAND GETKEYS: which of a command's arguments the server considers keys.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="command">The command and its arguments, as they would be sent.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Internal, because <see cref="RedisKey"/><c>[]</c> is the old spelling</b> - as with
+    /// <c>Config.GetArray</c>. The answer is also the server's opinion about a command this client may
+    /// not model at all, which is a surface question worth deciding on its own rather than during a port.
+    /// </remarks>
+    internal static ValueTask<RedisKey[]> CommandGetKeysArray(
+        this in RespDiagnostics diagnostics,
+        ReadOnlySpan<RedisValue> command,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.COMMAND}{RespLiterals.GetKeys}{command}", flags, KeyArrayHandler.Instance, cancellationToken);
+
+    /// <summary>COMMAND LIST: the commands this server knows, optionally filtered.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="moduleName">List only the commands a module added.</param>
+    /// <param name="category">List only the commands in an ACL category.</param>
+    /// <param name="pattern">List only the commands matching a glob.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>At most one filter</b>, because <c>FILTERBY</c> takes one and the server would reject two. The
+    /// shipped surface offers all three as independent optional parameters and throws when more than one
+    /// is given, which this keeps: the signature it has to serve is already public.
+    /// </para>
+    /// <para>
+    /// <inheritdoc cref="CommandGetKeysArray" path="/remarks/node()[1]"/>
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException">More than one filter was given.</exception>
+    internal static ValueTask<string[]> CommandListArray(
+        this in RespDiagnostics diagnostics,
+        RedisValue? moduleName = null,
+        RedisValue? category = null,
+        RedisValue? pattern = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var filters = (moduleName is null ? 0 : 1) + (category is null ? 0 : 1) + (pattern is null ? 0 : 1);
+        if (filters > 1) throw new ArgumentException("More then one filter is not allowed");
+
+        var handler = StringArrayHandler.Instance;
+        if (moduleName is { } module)
+        {
+            return diagnostics.Context.SendAsync(
+                $"{RedisCommand.COMMAND}{RespLiterals.List}{RespLiterals.FilterBy}{RespLiterals.Module}{module}",
+                flags,
+                handler,
+                cancellationToken);
+        }
+
+        if (category is { } acl)
+        {
+            return diagnostics.Context.SendAsync(
+                $"{RedisCommand.COMMAND}{RespLiterals.List}{RespLiterals.FilterBy}{RespLiterals.AclCat}{acl}",
+                flags,
+                handler,
+                cancellationToken);
+        }
+
+        if (pattern is { } glob)
+        {
+            return diagnostics.Context.SendAsync(
+                $"{RedisCommand.COMMAND}{RespLiterals.List}{RespLiterals.FilterBy}{RespLiterals.Pattern}{glob}",
+                flags,
+                handler,
+                cancellationToken);
+        }
+
+        return diagnostics.Context.SendAsync(
+            $"{RedisCommand.COMMAND}{RespLiterals.List}", flags, handler, cancellationToken);
+    }
+
     /// <summary>ECHO: ask the server to say something back, as a round-trip check.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="message">What to send; the same thing comes back.</param>
@@ -345,6 +447,45 @@ public static partial class Diagnostics
 
         public CommandTrace[] Parse(ref RespReader reader)
             => CommandTrace.ParseArray(ref reader) ?? throw new RespException("Unexpected SLOWLOG GET reply.");
+    }
+
+    /// <summary>Reads <c>CLIENT LIST</c>: one text block, one line per client.</summary>
+    /// <remarks>
+    /// <b>The shipped line parser</b>, <c>ClientInfo.TryParse</c>, reused rather than rewritten - the
+    /// format is a space-separated key=value list whose fields vary by server version, and two readers of
+    /// it would be two chances to disagree. Same argument as <c>ParseInfo</c>.
+    /// </remarks>
+    private sealed class ClientListHandler : IRespHandler<ClientInfo[]>
+    {
+        internal static readonly ClientListHandler Instance = new();
+
+        public ClientInfo[] Parse(ref RespReader reader)
+            => reader.Prefix is RespPrefix.BulkString or RespPrefix.VerbatimString
+                && ClientInfo.TryParse(reader.ReadString(), out var clients)
+                    ? clients
+                    : throw new RespException("Unexpected CLIENT LIST reply.");
+    }
+
+    /// <summary>Reads an array of keys, for <c>COMMAND GETKEYS</c>.</summary>
+    private sealed class KeyArrayHandler : IRespHandler<RedisKey[]>
+    {
+        internal static readonly KeyArrayHandler Instance = new();
+
+        public RedisKey[] Parse(ref RespReader reader)
+            => reader.IsAggregate
+                ? reader.ReadPastArray(static (ref RespReader r) => (RedisKey)r.ReadString(), scalar: true) ?? []
+                : throw new RespException("Unexpected COMMAND GETKEYS reply.");
+    }
+
+    /// <summary>Reads an array of strings, for <c>COMMAND LIST</c>.</summary>
+    private sealed class StringArrayHandler : IRespHandler<string[]>
+    {
+        internal static readonly StringArrayHandler Instance = new();
+
+        public string[] Parse(ref RespReader reader)
+            => reader.IsAggregate
+                ? reader.ReadPastArray(static (ref RespReader r) => r.ReadString()!, scalar: true) ?? []
+                : throw new RespException("Unexpected COMMAND LIST reply.");
     }
 
     /// <summary>Reads <c>TIME</c>: unix seconds, then microseconds within that second.</summary>

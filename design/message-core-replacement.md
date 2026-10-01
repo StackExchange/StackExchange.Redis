@@ -2246,15 +2246,35 @@ Each step is independently shippable and leaves the tree green.
   3. **The `IServer` long tail.** `Message.Create` sites, each wanting a group method and a handler.
      Mechanical and wide rather than hard; `INFO` is the worked example, parse-sharing included.
 
-     *Started.* 68 sites at the time of writing, **53** now: `LATENCY RESET`/`HISTORY`/`LATEST`,
-     `MEMORY STATS` and `SLOWLOG GET` moved to `Diagnostics`, which already carried the two `DOCTOR`s,
-     `MEMORY PURGE`, `SLOWLOG RESET` and `LASTSAVE`; `CONFIG GET`/`SET` moved to `Config`, which already
-     carried `REWRITE` and `RESETSTAT`. 26 of the remainder are `SENTINEL`, which stays - see below.
+     *Started.* 68 sites at the time of writing, **47** now. To `Diagnostics`, which already carried the
+     two `DOCTOR`s, `MEMORY PURGE`, `SLOWLOG RESET`, `LASTSAVE`, `COMMAND COUNT`, `ECHO`, `TIME` and
+     `INFO`: `LATENCY RESET`/`HISTORY`/`LATEST`, `MEMORY STATS`, `SLOWLOG GET`, `COMMAND GETKEYS`,
+     `COMMAND LIST` and `CLIENT LIST`. To `Config`, which already carried `REWRITE` and `RESETSTAT`:
+     `CONFIG GET`/`SET`. **26 of the 47 remaining are `SENTINEL`**, which stays - see below - so the real
+     remainder is 21: `SCAN` (5), `CLIENT KILL` (5) and `CLIENT LIST` (2), `SHUTDOWN` (3), `ROLE` (2),
+     `KEYS` (2), `SAVE`/`BGSAVE`/`BGREWRITEAOF` (3), `REPLICAOF`/`SLAVEOF` (2), `CLUSTER NODES`/`SLOTS`
+     (2), and the multiplexer's own plumbing - the tie-breaker `GET`/`DEL` and the reconfigure
+     `PUBLISH`.
 
-     Two judgements worth not re-deriving. `CONFIG GET`'s group method is **internal**, as
+     **And the ports are no longer free, which changes the sequencing.** `CLIENT LIST` is written, tested
+     and *not wired up*: it is the first context-surface call three of the `DefaultOptionsTests` make, so
+     routing it to this core makes this core dial its own socket, and a test asserting "this server has
+     two clients" sees three. That assertion is right about the shipped library and right again once the
+     bridges stop dialling - it is only wrong in between. So the general rule for the rest of the tail is:
+     **any port that is the first context call on a connection-counting path costs a socket while two
+     engines exist**, and should wait for the "stop constructing bridges" step rather than be paid for in
+     a redder tree. A tree that is red for known reasons stops being able to report unknown ones, which
+     was the whole argument for two flags.
+
+     Three judgements worth not re-deriving. The array-returning group methods are **internal**, as
      `Hashes.GetAllArray` is: an array of string pairs is the OLD spelling, and what the new surface
      should offer for `CONFIG GET` is a separate question from getting `IServer` off the `Message` path -
-     answering it by accident during a port would be a public shape chosen for a porting convenience. And
+     answering it by accident during a port would be a public shape chosen for a porting convenience. The
+     same goes for `CommandGetKeysArray`, `CommandListArray` and `ClientListArray`. `CLIENT LIST` is in
+     the diagnostic group rather than a `Client` one, because that is what the question is - "what does
+     this server see?" - whereas the other `CLIENT` verbs are different kinds of thing: `SETNAME`/
+     `SETINFO` and `TRACKING` are the handshake telling the server about US, and `KILL` is
+     administration. A group named for the command word would collect things with nothing in common. And
      `ConfigSet`'s follow-up read is **deliberately left on the shipped path**: the point of that read is
      not its reply but what `ResultProcessor.AutoConfigure` does with it - publish the setting to the
      `ServerEndPoint`, which is how `databases`, `timeout` and `replica-read-only` stay true after a
@@ -2354,6 +2374,14 @@ Each step is independently shippable and leaves the tree green.
 
   Revised sequence, then: (3) the `IServer` tail, (2) subscriptions, then the connect wait and "stop
   constructing bridges for non-sentinel servers" together. (4) sentinel keeps its bridge until last.
+
+  **One amendment after porting the first few**: the tail is no longer uniformly cheap, because a port
+  that is the first context call on a path some test counts connections on costs a socket while both
+  cores exist (`CLIENT LIST` is the worked example - see item (3)). So the tail splits: the items nothing
+  counts sockets on can go now, and the ones that do go *with* the stop-dialling step rather than before
+  it. That makes (2) subscriptions the better next large piece - it is the biggest halving available and
+  independent of all of this - and it means "stop constructing bridges" wants doing sooner than the
+  original ordering implies, not later.
 
 #### Where the engine flag stands
 

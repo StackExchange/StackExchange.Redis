@@ -80,6 +80,11 @@ public class RespSurfaceServerParityTests
     private const string LatestReply = "*1\r\n*4\r\n$7\r\ncommand\r\n:1405067976\r\n:251\r\n:1001\r\n";
     private const string MapReply = "*2\r\n$14\r\npeak.allocated\r\n:1024\r\n";
     private const string PairsReply = "*2\r\n$9\r\nmaxmemory\r\n$1\r\n0\r\n";
+    private const string KeysReply = "*1\r\n$1\r\nk\r\n";
+    private const string ClientListLine =
+        "id=7 addr=127.0.0.1:1234 name=someName age=1 idle=0 flags=N db=0 sub=0 psub=0 multi=-1 cmd=client|list";
+    private static readonly string ClientListReply = $"${ClientListLine.Length}\r\n{ClientListLine}\r\n";
+    private const string StringsReply = "*1\r\n$3\r\nget\r\n";
     private const string SlowLogReply =                 // one entry: id, time, duration, [command, args]
         "*1\r\n*4\r\n:1\r\n:1405067822\r\n:251\r\n*2\r\n$3\r\nget\r\n$1\r\nk\r\n";
 
@@ -181,6 +186,73 @@ public class RespSurfaceServerParityTests
             Assert.Equal(CommandFlags.CommandRetryReadOnly, Message.GetRetryCategory(flags));
             Assert.True((flags & Message.CommandServerSpecific) != 0, sent);
         }
+    }
+
+    [Fact]
+    public void ClientList()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.CLIENT, RedisLiterals.LIST),
+            static ctx => Discard(ctx.Diagnostics.ClientListArray()),
+            ClientListReply);
+
+    [Fact]
+    public async Task TheClientListHandlerReadsItsReply()
+    {
+        var clients = await Context(ClientListReply).Diagnostics.ClientListArray();
+        var client = Assert.Single(clients);
+        Assert.Equal(7L, client.Id);
+        Assert.Equal("someName", client.Name);
+    }
+
+    [Fact]
+    public void CommandGetKeysPutsTheSubcommandFirst()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.COMMAND, new RedisValue[] { RedisLiterals.GETKEYS, "GET", "k" }),
+            static ctx => Discard(ctx.Diagnostics.CommandGetKeysArray(["GET", "k"])),
+            KeysReply);
+
+    [Fact]
+    public void CommandListUnfiltered()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.COMMAND, RedisLiterals.LIST),
+            static ctx => Discard(ctx.Diagnostics.CommandListArray()),
+            StringsReply);
+
+    /// <summary>Each filter spells itself out in full, and only one may be given.</summary>
+    [Fact]
+    public void CommandListFilters()
+    {
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.COMMAND, new RedisValue[] { RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, "mod" }),
+            static ctx => Discard(ctx.Diagnostics.CommandListArray(moduleName: "mod")),
+            StringsReply);
+
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.COMMAND, new RedisValue[] { RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, "read" }),
+            static ctx => Discard(ctx.Diagnostics.CommandListArray(category: "read")),
+            StringsReply);
+
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.COMMAND, new RedisValue[] { RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, "g*" }),
+            static ctx => Discard(ctx.Diagnostics.CommandListArray(pattern: "g*")),
+            StringsReply);
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => Discard(Context(StringsReply).Diagnostics.CommandListArray(moduleName: "mod", category: "read")));
+        Assert.Contains("More then one filter is not allowed", ex.Message);
+    }
+
+    [Fact]
+    public async Task TheCommandHandlersReadTheirReplies()
+    {
+        var keys = await Context(KeysReply).Diagnostics.CommandGetKeysArray(["GET", "k"]);
+        Assert.Equal("k", Assert.Single(keys).ToString());
+
+        var names = await Context(StringsReply).Diagnostics.CommandListArray();
+        Assert.Equal("get", Assert.Single(names));
+
+        Assert.Empty(await Context("*0\r\n").Diagnostics.CommandListArray());
+        Assert.Empty(await Context("*-1\r\n").Diagnostics.CommandGetKeysArray(["GET", "k"]));
     }
 
     [Fact]
