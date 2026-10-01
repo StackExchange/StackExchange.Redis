@@ -244,7 +244,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(0, self.ShardedSubscriptionCount);
         Assert.Equal(protocol, self.Protocol);
 
-        var expectedCount = protocol is RedisProtocol.Resp3 ? 1 : 2;
+        var expectedCount = (protocol is RedisProtocol.Resp3 ? 1 : 2) + OtherCoreSockets(conn, server.EndPoint);
         Assert.Equal(expectedCount, serverObj.ClientCount);
         Assert.Equal(expectedCount, namedClients.Length);
 
@@ -270,12 +270,13 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var clients = server.ClientList();
         var namedClients = clients.Where(x => x.Name == conn.ClientName).ToArray();
 
+        var expectedCount = 2 + OtherCoreSockets(conn, server.EndPoint);
         Assert.Equal(RedisProtocol.Resp2, server.Protocol);
-        Assert.Equal(2, serverObj.ClientCount);
+        Assert.Equal(expectedCount, serverObj.ClientCount);
         Assert.NotNull(interactiveId);
         Assert.NotNull(subscriptionId);
         Assert.NotEqual(interactiveId, subscriptionId);
-        Assert.Equal(2, namedClients.Length);
+        Assert.Equal(expectedCount, namedClients.Length);
 
         var interactive = Assert.Single(clients, x => x.Id == interactiveId);
         var subscription = Assert.Single(clients, x => x.Id == subscriptionId);
@@ -285,6 +286,25 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
 
         await AssertCanPubSubAsync(conn, nameof(VanillaResp2ConnectsWithSeparatePubSubConnection));
     }
+
+    /// <summary>How many sockets the OTHER core holds to this server, which this one also counts.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not a fudge factor - the true count while two cores exist.</b> These tests assert what the
+    /// SERVER can see, and under the engine flag an <see cref="IServer"/> command travels on the new
+    /// core's socket, so the first one dials a second connection to the same endpoint. It is named like
+    /// the others, because the same handshake names it.
+    /// </para>
+    /// <para>
+    /// The shipped number and the one-engine number are the same; it is only the transitional state that
+    /// has the extra socket, so asserting the shipped number through it would assert something untrue of
+    /// the process as it is actually running - and the point of these tests is the <i>shape</i> of the
+    /// connections, which this leaves intact: one interactive under RESP3, plus a subscriber under RESP2,
+    /// per core. Zero when there is no second core.
+    /// </para>
+    /// </remarks>
+    private static int OtherCoreSockets(IConnectionMultiplexer conn, EndPoint endpoint)
+        => TestMultiplexer.Unwrap(conn).NewCoreIfCreated?.ConnectionCount(endpoint) ?? 0;
 
     private static async Task AssertCanPubSubAsync(ConnectionMultiplexer conn, string channelName)
     {

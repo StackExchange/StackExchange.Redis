@@ -427,6 +427,14 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             conn.AddLibraryNameSuffix("bar");
             conn.AddLibraryNameSuffix("foo");
 
+            // The retro-fix is fire-and-forget, so with ONE connection it is simply ordered before the
+            // read that follows it. While both cores exist it is not: the `CLIENT SETINFO` goes out on the
+            // connection being renamed and `CLIENT LIST` goes out on the other core's, and two sockets
+            // have no ordering between them - so the read can overtake the write it is meant to observe.
+            // Polling asserts the same thing without asserting an ordering that is not being offered;
+            // it collapses back to a single read once there is one socket again.
+            await Poll.UntilAsync(() => server.ClientList().Single(x => x.Id == id).LibraryName == "SE.Redis-bar-foo");
+
             libName = (await server.ClientListAsync()).Single(x => x.Id == id).LibraryName;
             Log($"library name: {libName}");
             Assert.Equal("SE.Redis-bar-foo", libName);

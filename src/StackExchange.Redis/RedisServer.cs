@@ -217,38 +217,11 @@ namespace StackExchange.Redis
             return Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.CLIENT, args);
         }
 
-        /// <summary>CLIENT LIST, per <see cref="IServer.ClientList(CommandFlags)"/>.</summary>
-        /// <param name="flags">Command flags.</param>
-        /// <remarks>
-        /// <para>
-        /// <b>Still building a <c>Message</c>, and the group method that would replace it is written and
-        /// tested</b> - <c>Diagnostics.ClientListArray</c>, pinned in <c>RespSurfaceServerParityTests</c>.
-        /// It is not wired up here because of what it would cost TODAY rather than anything wrong with it:
-        /// this is the first context-surface call three of the <c>DefaultOptionsTests</c> make, so routing
-        /// it to the other core makes that core dial its own socket, and a test that asserts "this server
-        /// has two clients" sees three. The assertion is right about the shipped library and right again
-        /// once the bridges stop dialling; it is only wrong in between.
-        /// </para>
-        /// <para>
-        /// So this one waits for D2.8's "stop constructing bridges" step rather than being ported ahead of
-        /// it, which keeps the two-flag number a usable regression signal. See the design notes: the
-        /// general lesson is that the remaining <see cref="IServer"/> ports are no longer free - any one
-        /// that is the first context call on a connection-counting path costs a socket while two engines
-        /// exist.
-        /// </para>
-        /// </remarks>
         public ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST);
-            return ExecuteSync(msg, ClientInfo.Processor, defaultValue: Array.Empty<ClientInfo>());
-        }
+            => Wait(Context.Diagnostics.ClientListArray(flags));
 
-        /// <inheritdoc cref="ClientList" path="/remarks"/>
         public Task<ClientInfo[]> ClientListAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST);
-            return ExecuteAsync(msg, ClientInfo.Processor, defaultValue: Array.Empty<ClientInfo>());
-        }
+            => Context.Diagnostics.ClientListArray(flags).AsTask(asyncState, flags);
 
         public ClusterConfiguration? ClusterNodes(CommandFlags flags = CommandFlags.None)
         {
@@ -442,8 +415,11 @@ namespace StackExchange.Redis
             }
 
             if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
-            Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
-            return CursorEnumerable<RedisKey>.From(this, server, ExecuteAsync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>()), pageOffset);
+
+            // KEYS is the no-SCAN fallback, so it reads every key in one reply and the enumerable just
+            // pages through what arrived. The database is explicit: a server context carries none.
+            var pending = new RespKeys(Context.Raw.WithDatabase(database)).MatchingArray(pattern, flags);
+            return CursorEnumerable<RedisKey>.From(this, server, pending.AsTask(asyncState, flags), pageOffset);
         }
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
@@ -463,29 +439,29 @@ namespace StackExchange.Redis
             await multiplexer.MakePrimaryAsync(server, options, log).ForAwait();
         }
 
+        /// <summary>ROLE, per <see cref="IServer.Role(CommandFlags)"/>.</summary>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <b>The null-suppression preserves shipped behaviour rather than hiding a change.</b> The
+        /// declared return is non-nullable and always could be null in practice: the shipped processor
+        /// answers <c>null</c> for a reply it cannot read - <c>SetResult(message, null!)</c> - and callers
+        /// know it, <c>SentinelBase</c> reaching for <c>Role()?.Value</c>. Substituting
+        /// <c>Role.Null</c> here would honour the signature and change the answer, which is a decision for
+        /// whoever owns the signature, not for a port.
+        /// </remarks>
         public Role Role(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
-            return ExecuteSync(msg, ResultProcessor.Role, defaultValue: Redis.Role.Null);
-        }
+            => Wait(Context.Diagnostics.RoleAsync(flags))!;
 
+        /// <inheritdoc cref="Role" path="/remarks"/>
+        /// <param name="flags">Command flags.</param>
         public Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
-            return ExecuteAsync(msg, ResultProcessor.Role, defaultValue: Redis.Role.Null);
-        }
+            => Context.Diagnostics.RoleAsync(flags).AsTask(asyncState, flags)!;
 
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetSaveMessage(type, flags);
-            ExecuteSync(msg, GetSaveResultProcessor(type));
-        }
+            => Wait(Context.Diagnostics.SaveAsync(type, flags));
 
         public Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetSaveMessage(type, flags);
-            return ExecuteAsync(msg, GetSaveResultProcessor(type));
-        }
+            => Context.Diagnostics.SaveAsync(type, flags).AsTask(asyncState, flags);
 
         public bool ScriptExists(string script, CommandFlags flags = CommandFlags.None)
             => Wait(Context.Scripts.ExistsAsync(ScriptHash.Hash(script), flags));
@@ -549,20 +525,13 @@ namespace StackExchange.Redis
 
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
         {
-            Message msg = shutdownMode switch
-            {
-                ShutdownMode.Default => Message.Create(-1, flags, RedisCommand.SHUTDOWN),
-                ShutdownMode.Always => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.SAVE),
-                ShutdownMode.Never => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE),
-                _ => throw new ArgumentOutOfRangeException(nameof(shutdownMode)),
-            };
             try
             {
-                ExecuteSync(msg, ResultProcessor.DemandOK);
+                Wait(Context.Diagnostics.ShutdownAsync(shutdownMode, flags));
             }
             catch (RedisConnectionException ex) when (ex.FailureType == ConnectionFailureType.SocketClosed || ex.FailureType == ConnectionFailureType.SocketFailure)
             {
-                // that's fine
+                // that's fine: a server that obeyed has no socket left to answer on
                 return;
             }
         }
@@ -821,26 +790,6 @@ namespace StackExchange.Redis
                     break;
             }
         }
-
-        private static Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None) => type switch
-        {
-            SaveType.BackgroundRewriteAppendOnlyFile => Message.Create(-1, flags, RedisCommand.BGREWRITEAOF),
-            SaveType.BackgroundSave => Message.Create(-1, flags, RedisCommand.BGSAVE),
-#pragma warning disable CS0618 // Type or member is obsolete
-            SaveType.ForegroundSave => Message.Create(-1, flags, RedisCommand.SAVE),
-#pragma warning restore CS0618
-            _ => throw new ArgumentOutOfRangeException(nameof(type)),
-        };
-
-        private static ResultProcessor<bool> GetSaveResultProcessor(SaveType type) => type switch
-        {
-            SaveType.BackgroundRewriteAppendOnlyFile => ResultProcessor.BackgroundSaveAOFStarted,
-            SaveType.BackgroundSave => ResultProcessor.BackgroundSaveStarted,
-#pragma warning disable CS0618 // Type or member is obsolete
-            SaveType.ForegroundSave => ResultProcessor.DemandOK,
-#pragma warning restore CS0618
-            _ => throw new ArgumentOutOfRangeException(nameof(type)),
-        };
 
         private static class ScriptHash
         {

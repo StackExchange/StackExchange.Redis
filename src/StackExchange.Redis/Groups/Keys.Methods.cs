@@ -265,6 +265,26 @@ public static partial class Keys
             : keys.Context.SendAsync<long>(
                 $"{RedisCommand.TOUCH}{targets}", flags.NeverCached(), cancellationToken: cancellationToken);
 
+    /// <summary>KEYS: every key matching a pattern, in one reply.</summary>
+    /// <param name="keys">The key command group.</param>
+    /// <param name="pattern">The glob to match.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>The fallback for a server with no <c>SCAN</c></b>, which is the only reason to send it: it
+    /// returns the whole keyspace in one reply and blocks the server while it does. <c>IServer.Keys</c>
+    /// prefers <c>SCAN</c> and reaches this only when the server cannot.
+    /// </para>
+    /// <para>
+    /// <b>Internal, and an array</b>, for the reason <see cref="RespHandlers.KeyArray"/> gives: this
+    /// serves the shape <see cref="IServer"/> promises. A pattern-matching read on the new surface wants
+    /// to be the cursor-paged one, not this.
+    /// </para>
+    /// </remarks>
+    internal static ValueTask<RedisKey[]> MatchingArray(this in RespKeys keys, RedisValue pattern, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => keys.Context.SendAsync($"{RedisCommand.KEYS}{pattern}", flags, RespHandlers.KeyArray, cancellationToken);
+
     /// <summary>RANDOMKEY.</summary>
     /// <param name="keys">The key command group.</param>
     /// <param name="flags">Command flags.</param>

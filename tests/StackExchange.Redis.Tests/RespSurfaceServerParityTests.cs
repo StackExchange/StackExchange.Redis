@@ -30,14 +30,31 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespSurfaceServerParityTests
 {
-    private sealed class FakeExecutor(string reply) : RespExecutorBase
+    private sealed class FakeExecutor(string reply, int database = -1) : RespExecutorBase
     {
         public List<string> Sent { get; } = [];
 
         /// <summary>The flags each request carried, which is where the retry category lives.</summary>
         public List<CommandFlags> Flags { get; } = [];
 
-        public override int Database => -1;
+        private int _database = database;
+
+        public override int Database => _database;
+
+        /// <summary>Re-pointable, and the SAME instance, because the test reads what it recorded.</summary>
+        /// <param name="database">The database to answer for.</param>
+        /// <remarks>
+        /// A real executor that cannot move refuses, so that a command cannot run against the wrong
+        /// database; this one has no database and no socket, so moving it is free. Returning <c>this</c>
+        /// rather than a copy matters: the context keeps whatever comes back, and a copy would record the
+        /// send somewhere the test is not looking. Needed because <c>KEYS</c> is one of the few
+        /// <see cref="IServer"/> members that takes a database.
+        /// </remarks>
+        internal override RespExecutorBase WithDatabase(int database)
+        {
+            _database = database;
+            return this;
+        }
 
         public override RespPayload Send(in RespRequest request)
         {
@@ -81,6 +98,7 @@ public class RespSurfaceServerParityTests
     private const string MapReply = "*2\r\n$14\r\npeak.allocated\r\n:1024\r\n";
     private const string PairsReply = "*2\r\n$9\r\nmaxmemory\r\n$1\r\n0\r\n";
     private const string KeysReply = "*1\r\n$1\r\nk\r\n";
+    private const string RoleReply = "*3\r\n$6\r\nmaster\r\n:3129659\r\n*0\r\n";
     private const string ClientListLine =
         "id=7 addr=127.0.0.1:1234 name=someName age=1 idle=0 flags=N db=0 sub=0 psub=0 multi=-1 cmd=client|list";
     private static readonly string ClientListReply = $"${ClientListLine.Length}\r\n{ClientListLine}\r\n";
@@ -186,6 +204,110 @@ public class RespSurfaceServerParityTests
             Assert.Equal(CommandFlags.CommandRetryReadOnly, Message.GetRetryCategory(flags));
             Assert.True((flags & Message.CommandServerSpecific) != 0, sent);
         }
+    }
+
+    [Fact]
+    public void Role()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.ROLE),
+            static ctx => Discard(ctx.Diagnostics.RoleAsync()),
+            RoleReply);
+
+    /// <summary>A reply this cannot model answers null, as the shipped processor does.</summary>
+    [Theory]
+    [InlineData("*-1\r\n")]
+    [InlineData("_\r\n")]
+    [InlineData("*0\r\n")]
+    [InlineData("+nonsense\r\n")]
+    public async Task AnUnreadableRoleReplyIsNull(string reply)
+        => Assert.Null(await Context(reply).Diagnostics.RoleAsync());
+
+    [Fact]
+    public async Task TheRoleHandlerReadsItsReply()
+    {
+        var role = await Context(RoleReply).Diagnostics.RoleAsync();
+        var primary = Assert.IsType<Role.Master>(role);
+        Assert.Equal("master", primary.Value);
+        Assert.Equal(3129659L, primary.ReplicationOffset);
+        Assert.Empty(primary.Replicas);
+    }
+
+    /// <summary>Each save type is its own command, and the background two check what came back.</summary>
+    [Fact]
+    public void Save()
+    {
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.BGREWRITEAOF),
+            static ctx => ctx.Diagnostics.SaveAsync(SaveType.BackgroundRewriteAppendOnlyFile),
+            "+Background append only file rewriting started\r\n");
+
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.BGSAVE),
+            static ctx => ctx.Diagnostics.SaveAsync(SaveType.BackgroundSave),
+            "+Background saving started\r\n");
+
+#pragma warning disable CS0618 // SAVE is obsolete; IServer still offers it
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.SAVE),
+            static ctx => ctx.Diagnostics.SaveAsync(SaveType.ForegroundSave),
+            "+OK\r\n");
+#pragma warning restore CS0618
+    }
+
+    /// <summary>
+    /// A background save that did not say it had started is a failure, not a silent success.
+    /// </summary>
+    /// <remarks>
+    /// The whole reason these two have a handler rather than ignoring the reply: "+OK" would mean the
+    /// server answered something other than what <c>BGSAVE</c> answers, and reporting that as a save in
+    /// progress is the one outcome worth catching.
+    /// </remarks>
+    [Fact]
+    public async Task ABackgroundSaveThatDidNotStartThrows()
+    {
+        await Assert.ThrowsAnyAsync<Exception>(
+            async () => await Context("+OK\r\n").Diagnostics.SaveAsync(SaveType.BackgroundSave));
+
+        // ...and a longer reply that begins with the expected text is fine: the server appends detail
+        await Context("+Background saving started by pid 1\r\n").Diagnostics.SaveAsync(SaveType.BackgroundSave);
+    }
+
+    [Fact]
+    public void Shutdown()
+    {
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.SHUTDOWN),
+            static ctx => ctx.Diagnostics.ShutdownAsync(),
+            "+OK\r\n");
+
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.SHUTDOWN, RedisLiterals.SAVE),
+            static ctx => ctx.Diagnostics.ShutdownAsync(ShutdownMode.Always),
+            "+OK\r\n");
+
+        AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE),
+            static ctx => ctx.Diagnostics.ShutdownAsync(ShutdownMode.Never),
+            "+OK\r\n");
+    }
+
+    /// <summary>
+    /// <c>KEYS</c>, which <see cref="IServer"/> only reaches on a server with no <c>SCAN</c>.
+    /// </summary>
+    /// <remarks>
+    /// Worth pinning here precisely because the test topology always has <c>SCAN</c>, so nothing else in
+    /// the suite sends this: a port whose only route is the one nobody exercises is a port nobody has
+    /// checked.
+    /// </remarks>
+    [Fact]
+    public async Task Keys()
+    {
+        Assert.Equal(
+            Classic(Message.Create(4, CommandFlags.None, RedisCommand.KEYS, (RedisValue)"a*")),
+            Modern(static ctx => Discard(new RespKeys(ctx.Raw.WithDatabase(4)).MatchingArray("a*")), KeysReply));
+
+        var keys = await new RespKeys(new RespContext().WithExecutor(new FakeExecutor(KeysReply))).MatchingArray("*");
+        Assert.Equal("k", Assert.Single(keys).ToString());
     }
 
     [Fact]

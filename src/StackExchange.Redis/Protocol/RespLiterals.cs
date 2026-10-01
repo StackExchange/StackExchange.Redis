@@ -298,6 +298,14 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment ResetStat { get; }
 
+        /// <summary>The <c>SAVE</c> operand of <c>SHUTDOWN</c>: persist before stopping.</summary>
+        [Resp]
+        internal static partial RespFragment Save { get; }
+
+        /// <summary>The <c>NOSAVE</c> operand of <c>SHUTDOWN</c>: stop without persisting.</summary>
+        [Resp]
+        internal static partial RespFragment NoSave { get; }
+
         /// <summary>The <c>GETKEYS</c> subcommand of <c>COMMAND</c>; a command and its arguments follow it.</summary>
         [Resp]
         internal static partial RespFragment GetKeys { get; }

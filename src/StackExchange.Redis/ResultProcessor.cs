@@ -1498,6 +1498,36 @@ namespace StackExchange.Redis
             internal static readonly HashImportProcessor Instance = new();
         }
 
+        /// <summary>Whether this scalar reply says what was expected, exactly or as a prefix.</summary>
+        /// <param name="reader">Positioned on the reply.</param>
+        /// <param name="expected">The text the server should have said.</param>
+        /// <param name="startsWith">Whether a longer reply beginning with it counts.</param>
+        /// <remarks>
+        /// <b>Internal and static so both cores check it the same way.</b> "Did the server agree?" is a
+        /// yes/no about bytes, and two implementations of it would be two chances to accept something the
+        /// other rejects - which for <c>BGSAVE</c> is the difference between "started" and silence. The
+        /// shipped processor below and the context surface's handlers are callers of this one check.
+        /// </remarks>
+        internal static bool ScalarSays(ref RespReader reader, in AsciiHash expected, bool startsWith)
+        {
+            if (!reader.IsScalar) return false;
+
+            var expectedLength = expected.Length;
+            // For exact match, length must be exact
+            if (startsWith)
+            {
+                if (reader.ScalarLength() < expectedLength) return false;
+            }
+            else
+            {
+                if (!reader.ScalarLengthIs(expectedLength)) return false;
+            }
+
+            var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[expected.BufferLength]);
+            if (startsWith) bytes = bytes.Slice(0, expectedLength);
+            return expected.IsCS(bytes);
+        }
+
         private sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
             private readonly AsciiHash _expected;
@@ -1511,22 +1541,7 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (!reader.IsScalar) return false;
-
-                var expectedLength = _expected.Length;
-                // For exact match, length must be exact
-                if (_startsWith)
-                {
-                    if (reader.ScalarLength() < expectedLength) return false;
-                }
-                else
-                {
-                    if (!reader.ScalarLengthIs(expectedLength)) return false;
-                }
-
-                var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[_expected.BufferLength]);
-                if (_startsWith) bytes = bytes.Slice(0, expectedLength);
-                if (_expected.IsCS(bytes))
+                if (ScalarSays(ref reader, in _expected, _startsWith))
                 {
                     SetResult(message, true);
                     return true;
@@ -2092,40 +2107,51 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>Read a <c>ROLE</c> reply; null when the server described one this cannot model.</summary>
+        /// <param name="reader">Positioned on the reply.</param>
+        /// <remarks>
+        /// <b>Internal and static so both cores read it the same way</b>, as the latency and slow-log
+        /// walks are: the shipped processor below and the context surface's handler are two callers of
+        /// this one function. A null reply, a non-aggregate, an empty one or a non-scalar first element
+        /// all answer null, which is the shipped behaviour - <c>ROLE</c> is how a client asks what a
+        /// server IS, and inventing an answer for an unreadable reply would be worse than none.
+        /// </remarks>
+        internal static Role? ParseRole(ref RespReader reader)
+        {
+            // Null, non-aggregate, empty, or non-scalar first element returns null Role
+            if (!(reader.IsAggregate && !reader.IsNull && reader.TryMoveNext() && reader.IsScalar))
+            {
+                return null;
+            }
+
+            RoleType roleType;
+            unsafe
+            {
+                if (!reader.TryParseScalar(&RoleTypeMetadata.TryParse, out roleType))
+                {
+                    roleType = RoleType.Unknown;
+                }
+            }
+
+            return roleType switch
+            {
+                RoleType.Master => RoleProcessor.ParsePrimary(ref reader),
+                RoleType.Slave => RoleProcessor.ParseReplica(ref reader, "slave"),
+                RoleType.Replica => RoleProcessor.ParseReplica(ref reader, "replica"),
+                RoleType.Sentinel => RoleProcessor.ParseSentinel(ref reader),
+                _ => new Role.Unknown(reader.ReadString()!),
+            };
+        }
+
         private sealed class RoleProcessor : ResultProcessor<Role>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Null, non-aggregate, empty, or non-scalar first element returns null Role
-                if (!(reader.IsAggregate && !reader.IsNull && reader.TryMoveNext() && reader.IsScalar))
-                {
-                    SetResult(message, null!);
-                    return true;
-                }
-
-                RoleType roleType;
-                unsafe
-                {
-                    if (!reader.TryParseScalar(&RoleTypeMetadata.TryParse, out roleType))
-                    {
-                        roleType = RoleType.Unknown;
-                    }
-                }
-
-                var role = roleType switch
-                {
-                    RoleType.Master => ParsePrimary(ref reader),
-                    RoleType.Slave => ParseReplica(ref reader, "slave"),
-                    RoleType.Replica => ParseReplica(ref reader, "replica"),
-                    RoleType.Sentinel => ParseSentinel(ref reader),
-                    _ => new Role.Unknown(reader.ReadString()!),
-                };
-
-                SetResult(message, role!);
+                SetResult(message, ParseRole(ref reader)!);
                 return true;
             }
 
-            private static Role? ParsePrimary(ref RespReader reader)
+            internal static Role? ParsePrimary(ref RespReader reader)
             {
                 // Expect: offset (int64), replicas (array)
                 if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var offset)))
@@ -2193,7 +2219,7 @@ namespace StackExchange.Redis
                 return true;
             }
 
-            private static Role? ParseReplica(ref RespReader reader, string role)
+            internal static Role? ParseReplica(ref RespReader reader, string role)
             {
                 // Expect: masterIp, masterPort, state, offset
 
@@ -2246,7 +2272,7 @@ namespace StackExchange.Redis
                 return new Role.Replica(role, primaryIp, (int)primaryPort, replicationState, replicationOffset);
             }
 
-            private static Role? ParseSentinel(ref RespReader reader)
+            internal static Role? ParseSentinel(ref RespReader reader)
             {
                 // Expect: array of master names
                 if (!(reader.TryMoveNext() && reader.IsAggregate))

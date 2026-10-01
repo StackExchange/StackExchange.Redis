@@ -501,6 +501,24 @@ namespace StackExchange.Redis
         /// <summary>How many sockets exist purely for deliveries; zero unless something subscribed.</summary>
         internal int SubscriptionConnectionCount => _subscriptions.Count;
 
+        /// <summary>How many sockets this core currently holds to one endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// <b>For the tests that count what a SERVER can see.</b> While both cores exist, a command that
+        /// travels on this core goes out on a socket the shipped bridges know nothing about, so a test
+        /// asserting "this server has N clients" has to add this core's. The shipped answer and the
+        /// one-engine answer are the same number; only the transitional state has the extra socket, and
+        /// asserting the shipped number through it would be asserting something untrue of the process as
+        /// it is actually running.
+        /// </remarks>
+        internal int ConnectionCount(EndPoint endpoint)
+        {
+            var count = 0;
+            if (_endpoints.TryGetValue(endpoint, out var interactive) && interactive.IsConnectedNow) count++;
+            if (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.IsConnectedNow) count++;
+            return count;
+        }
+
         /// <summary>The ordinary connection for an endpoint, for tests that compare the two.</summary>
         /// <param name="endpoint">The endpoint.</param>
         internal RespEndpointExecutor InteractiveEndpoint(EndPoint endpoint) => Endpoint(endpoint);

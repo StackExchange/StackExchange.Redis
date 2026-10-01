@@ -2246,25 +2246,37 @@ Each step is independently shippable and leaves the tree green.
   3. **The `IServer` long tail.** `Message.Create` sites, each wanting a group method and a handler.
      Mechanical and wide rather than hard; `INFO` is the worked example, parse-sharing included.
 
-     *Started.* 68 sites at the time of writing, **47** now. To `Diagnostics`, which already carried the
+     *Started.* 68 sites at the time of writing, **36** now. To `Diagnostics`, which already carried the
      two `DOCTOR`s, `MEMORY PURGE`, `SLOWLOG RESET`, `LASTSAVE`, `COMMAND COUNT`, `ECHO`, `TIME` and
      `INFO`: `LATENCY RESET`/`HISTORY`/`LATEST`, `MEMORY STATS`, `SLOWLOG GET`, `COMMAND GETKEYS`,
-     `COMMAND LIST` and `CLIENT LIST`. To `Config`, which already carried `REWRITE` and `RESETSTAT`:
-     `CONFIG GET`/`SET`. **26 of the 47 remaining are `SENTINEL`**, which stays - see below - so the real
-     remainder is 21: `SCAN` (5), `CLIENT KILL` (5) and `CLIENT LIST` (2), `SHUTDOWN` (3), `ROLE` (2),
-     `KEYS` (2), `SAVE`/`BGSAVE`/`BGREWRITEAOF` (3), `REPLICAOF`/`SLAVEOF` (2), `CLUSTER NODES`/`SLOTS`
-     (2), and the multiplexer's own plumbing - the tie-breaker `GET`/`DEL` and the reconfigure
-     `PUBLISH`.
+     `COMMAND LIST`, `CLIENT LIST`, `ROLE`, the `SAVE`/`BGSAVE`/`BGREWRITEAOF` family, and `SHUTDOWN`. To
+     `Config`, which already carried `REWRITE` and `RESETSTAT`: `CONFIG GET`/`SET`. To `Keys`: the
+     no-`SCAN` `KEYS` fallback. **26 of the 36 remaining are `SENTINEL`**, which stays - see below - so
+     the real remainder is 10: `SCAN` (5), `CLIENT KILL` (5 - its filter wants modelling rather than
+     forwarding a token list), `REPLICAOF`/`SLAVEOF` (2), `CLUSTER NODES`/`SLOTS` (2), and the
+     multiplexer's own plumbing - the tie-breaker `GET`/`DEL` and the reconfigure `PUBLISH`.
 
-     **And the ports are no longer free, which changes the sequencing.** `CLIENT LIST` is written, tested
-     and *not wired up*: it is the first context-surface call three of the `DefaultOptionsTests` make, so
-     routing it to this core makes this core dial its own socket, and a test asserting "this server has
-     two clients" sees three. That assertion is right about the shipped library and right again once the
-     bridges stop dialling - it is only wrong in between. So the general rule for the rest of the tail is:
-     **any port that is the first context call on a connection-counting path costs a socket while two
-     engines exist**, and should wait for the "stop constructing bridges" step rather than be paid for in
-     a redder tree. A tree that is red for known reasons stops being able to report unknown ones, which
-     was the whole argument for two flags.
+     Two handlers now live in `RespHandlers` rather than beside their callers - `KeyArray` and
+     `StringArray` - because `KEYS`, `COMMAND GETKEYS`, `COMMAND LIST` and the `SCAN` pages all want one,
+     and three copies of "array of scalars, nil reads as empty" is three chances for one to disagree. The
+     checks they wrap are shipped ones too: `ResultProcessor.ScalarSays` is what decides whether a
+     `BGSAVE` said it had started, shared with the processor that used to own it.
+
+     **The ports cost sockets, and the tests absorb that rather than the ports waiting for it.** `CLIENT
+     LIST` is the worked example: it is the first context-surface call three of the `DefaultOptionsTests`
+     make, so routing it to this core makes this core dial its own socket, and a test asserting "this
+     server has two clients" sees three. Holding the port was the wrong answer - the direction is
+     removing the `Message` machinery, and an artefact that exists *only* because two paths exist is not
+     a reason to keep one of them. So the tests say what is true of the process as it is actually
+     running: `OtherCoreSockets` adds this core's connections to the expected count, and goes to zero on
+     its own when there is no second core. The connection SHAPE - one interactive, plus a subscriber under
+     RESP2, per core - is still what is asserted.
+
+     The other shape this takes is **ordering**, and `ConfigTests.ClientLibraryName` is that one: the
+     library-name retro-fix is fire-and-forget on the connection being renamed, and `CLIENT LIST` now
+     reads on the other core's, so the read can overtake the write it is meant to observe. One socket
+     orders them; two do not. The test polls instead of asserting an ordering nothing is offering, and
+     collapses back to a single read when there is one socket again.
 
      Three judgements worth not re-deriving. The array-returning group methods are **internal**, as
      `Hashes.GetAllArray` is: an array of string pairs is the OLD spelling, and what the new surface
@@ -2375,13 +2387,14 @@ Each step is independently shippable and leaves the tree green.
   Revised sequence, then: (3) the `IServer` tail, (2) subscriptions, then the connect wait and "stop
   constructing bridges for non-sentinel servers" together. (4) sentinel keeps its bridge until last.
 
-  **One amendment after porting the first few**: the tail is no longer uniformly cheap, because a port
-  that is the first context call on a path some test counts connections on costs a socket while both
-  cores exist (`CLIENT LIST` is the worked example - see item (3)). So the tail splits: the items nothing
-  counts sockets on can go now, and the ones that do go *with* the stop-dialling step rather than before
-  it. That makes (2) subscriptions the better next large piece - it is the biggest halving available and
-  independent of all of this - and it means "stop constructing bridges" wants doing sooner than the
-  original ordering implies, not later.
+  **One amendment after porting most of it**: a port that is the first context call on a path some test
+  counts connections on costs a socket while both cores exist, and an ordering guarantee that one socket
+  provides and two do not (`CLIENT LIST` is the worked example - see item (3)). Those are artefacts of
+  having two paths, so they are absorbed in the tests rather than allowed to hold a port back; the
+  direction is removing the `Message` machinery, not protecting the transitional state. What it does say
+  is that "stop constructing bridges" wants doing sooner than the original ordering implies, because
+  every one of these artefacts disappears the moment it lands - and that (2) subscriptions is the better
+  next large piece, being the biggest halving available and independent of all of this.
 
 #### Where the engine flag stands
 

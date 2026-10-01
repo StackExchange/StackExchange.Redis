@@ -157,6 +157,102 @@ public static partial class Diagnostics
     public static ValueTask<long> CommandCountAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<long>($"{RedisCommand.COMMAND}{RespLiterals.Count}", flags, cancellationToken: cancellationToken);
 
+    /// <summary>SHUTDOWN: ask the server to stop, with or without saving first.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="mode">Whether to save, not save, or leave it to the server's configuration.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>A command whose success looks like a failure</b>: a server that obeys stops, so the socket
+    /// closes and there is no <c>+OK</c> to read. The caller of this still sees that as a connection
+    /// fault - swallowing it here would hide a <c>SHUTDOWN</c> that was refused, which is the one outcome
+    /// worth knowing about - so the decision stays with
+    /// <see cref="IServer.Shutdown(ShutdownMode, CommandFlags)"/>, which knows it asked.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="mode"/> is not a known mode.</exception>
+    internal static ValueTask ShutdownAsync(
+        this in RespDiagnostics diagnostics,
+        ShutdownMode mode = ShutdownMode.Default,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => mode switch
+        {
+            ShutdownMode.Default => diagnostics.Context.SendAsync(
+                $"{RedisCommand.SHUTDOWN}", flags, cancellationToken: cancellationToken),
+            ShutdownMode.Always => diagnostics.Context.SendAsync(
+                $"{RedisCommand.SHUTDOWN}{RespLiterals.Save}", flags, cancellationToken: cancellationToken),
+            ShutdownMode.Never => diagnostics.Context.SendAsync(
+                $"{RedisCommand.SHUTDOWN}{RespLiterals.NoSave}", flags, cancellationToken: cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+        };
+
+    /// <summary>BGREWRITEAOF, BGSAVE or SAVE: ask the server to persist its dataset.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="type">Which kind of save to ask for.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Three commands rather than one with a mode</b>, because that is what the server has, and the
+    /// two background ones answer a status line rather than <c>+OK</c> - which is checked rather than
+    /// ignored: "background saving started" is the difference between a save that is happening and a
+    /// server that said something else entirely. <c>ScalarSays</c> is the shipped check, shared.
+    /// </para>
+    /// <para>
+    /// <b>The caller gets no value back</b>, matching <see cref="IServer.Save(SaveType, CommandFlags)"/>:
+    /// the only interesting outcome is "the server did not agree", and that arrives as an exception.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="type"/> is not a known save type.</exception>
+    internal static ValueTask SaveAsync(
+        this in RespDiagnostics diagnostics,
+        SaveType type,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => type switch
+        {
+            SaveType.BackgroundRewriteAppendOnlyFile => Discard(diagnostics.Context.SendAsync(
+                $"{RedisCommand.BGREWRITEAOF}", flags, SaveStartedHandler.Aof, cancellationToken)),
+            SaveType.BackgroundSave => Discard(diagnostics.Context.SendAsync(
+                $"{RedisCommand.BGSAVE}", flags, SaveStartedHandler.Rdb, cancellationToken)),
+#pragma warning disable CS0618 // SAVE is obsolete; IServer still offers it, so this still has to send it
+            SaveType.ForegroundSave => diagnostics.Context.SendAsync(
+                $"{RedisCommand.SAVE}", flags, cancellationToken: cancellationToken),
+#pragma warning restore CS0618
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
+        };
+
+    /// <summary>Await a typed send for its side effect, discarding the value.</summary>
+    /// <param name="pending">The send.</param>
+    private static async ValueTask Discard(ValueTask<bool> pending) => _ = await pending.ConfigureAwait(false);
+
+    /// <summary>ROLE: what this server is, and who is on the other side of the relationship.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Null when the reply could not be read</b>, which is the shipped behaviour and the right one:
+    /// <c>ROLE</c> is how a client asks what a server IS, and inventing an answer for an unreadable reply
+    /// would be worse than admitting there isn't one.
+    /// </para>
+    /// <para>
+    /// <b>Not the same question as the handshake's <c>ROLE</c></b>, which this core already asks. That one
+    /// wants a routing fact - primary or replica, and which peers - and keeps it in the topology; this
+    /// hands the caller the whole modelled reply, replication offsets included. One command, two
+    /// consumers with different appetites.
+    /// </para>
+    /// <para>
+    /// <inheritdoc cref="CommandGetKeysArray" path="/remarks/node()[1]"/>
+    /// </para>
+    /// </remarks>
+    internal static ValueTask<Role?> RoleAsync(
+        this in RespDiagnostics diagnostics,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.ROLE}", flags, RoleHandler.Instance, cancellationToken);
+
     /// <summary>CLIENT LIST: every connection this server currently has, including this one.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
@@ -196,7 +292,7 @@ public static partial class Diagnostics
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
-            $"{RedisCommand.COMMAND}{RespLiterals.GetKeys}{command}", flags, KeyArrayHandler.Instance, cancellationToken);
+            $"{RedisCommand.COMMAND}{RespLiterals.GetKeys}{command}", flags, RespHandlers.KeyArray, cancellationToken);
 
     /// <summary>COMMAND LIST: the commands this server knows, optionally filtered.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
@@ -227,7 +323,7 @@ public static partial class Diagnostics
         var filters = (moduleName is null ? 0 : 1) + (category is null ? 0 : 1) + (pattern is null ? 0 : 1);
         if (filters > 1) throw new ArgumentException("More then one filter is not allowed");
 
-        var handler = StringArrayHandler.Instance;
+        var handler = RespHandlers.StringArray;
         if (moduleName is { } module)
         {
             return diagnostics.Context.SendAsync(
@@ -449,6 +545,45 @@ public static partial class Diagnostics
             => CommandTrace.ParseArray(ref reader) ?? throw new RespException("Unexpected SLOWLOG GET reply.");
     }
 
+    /// <summary>Checks that a background save said it had started.</summary>
+    /// <remarks>
+    /// <b>A prefix match, not an equality one</b>, because the server appends its own detail after
+    /// "Background saving started" and has changed what it appends. The check itself is
+    /// <c>ResultProcessor.ScalarSays</c>, shared with the shipped processors so the two cores cannot
+    /// disagree about whether a server agreed.
+    /// </remarks>
+    private sealed class SaveStartedHandler : IRespHandler<bool>
+    {
+        /// <summary>A <c>BGSAVE</c> reply.</summary>
+        internal static readonly SaveStartedHandler Rdb = new(aof: false);
+
+        /// <summary>A <c>BGREWRITEAOF</c> reply.</summary>
+        internal static readonly SaveStartedHandler Aof = new(aof: true);
+
+        private readonly bool _aof;
+
+        private SaveStartedHandler(bool aof) => _aof = aof;
+
+        public bool Parse(ref RespReader reader)
+        {
+            var expected = _aof
+                ? ResultProcessor.Literals.background_aof_rewriting_started.Hash
+                : ResultProcessor.Literals.background_saving_started.Hash;
+
+            return ResultProcessor.ScalarSays(ref reader, in expected, startsWith: true)
+                ? true
+                : throw new RespException("The server did not report that a background save had started.");
+        }
+    }
+
+    /// <summary>Reads <c>ROLE</c>; see <see cref="ResultProcessor.ParseRole"/>.</summary>
+    private sealed class RoleHandler : IRespHandler<Role?>
+    {
+        internal static readonly RoleHandler Instance = new();
+
+        public Role? Parse(ref RespReader reader) => ResultProcessor.ParseRole(ref reader);
+    }
+
     /// <summary>Reads <c>CLIENT LIST</c>: one text block, one line per client.</summary>
     /// <remarks>
     /// <b>The shipped line parser</b>, <c>ClientInfo.TryParse</c>, reused rather than rewritten - the
@@ -464,28 +599,6 @@ public static partial class Diagnostics
                 && ClientInfo.TryParse(reader.ReadString(), out var clients)
                     ? clients
                     : throw new RespException("Unexpected CLIENT LIST reply.");
-    }
-
-    /// <summary>Reads an array of keys, for <c>COMMAND GETKEYS</c>.</summary>
-    private sealed class KeyArrayHandler : IRespHandler<RedisKey[]>
-    {
-        internal static readonly KeyArrayHandler Instance = new();
-
-        public RedisKey[] Parse(ref RespReader reader)
-            => reader.IsAggregate
-                ? reader.ReadPastArray(static (ref RespReader r) => (RedisKey)r.ReadString(), scalar: true) ?? []
-                : throw new RespException("Unexpected COMMAND GETKEYS reply.");
-    }
-
-    /// <summary>Reads an array of strings, for <c>COMMAND LIST</c>.</summary>
-    private sealed class StringArrayHandler : IRespHandler<string[]>
-    {
-        internal static readonly StringArrayHandler Instance = new();
-
-        public string[] Parse(ref RespReader reader)
-            => reader.IsAggregate
-                ? reader.ReadPastArray(static (ref RespReader r) => r.ReadString()!, scalar: true) ?? []
-                : throw new RespException("Unexpected COMMAND LIST reply.");
     }
 
     /// <summary>Reads <c>TIME</c>: unix seconds, then microseconds within that second.</summary>

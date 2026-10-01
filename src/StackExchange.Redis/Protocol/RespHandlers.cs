@@ -54,6 +54,20 @@ namespace StackExchange.Redis.Protocol
         /// <summary>Reads a bulk string reply as a <see cref="string"/>; null stays null.</summary>
         public static IRespHandler<string?> String { get; } = DefaultHandlers.Instance;
 
+        /// <summary>Reads an array of scalars as <see cref="RedisKey"/>s; a nil array reads as empty.</summary>
+        /// <remarks>
+        /// <b>Internal, for the same reason <see cref="Values"/> is</b>: the array is the shape the
+        /// <see cref="IServer"/> and <see cref="IDatabase"/> signatures promise, and those are not going
+        /// anywhere. Here rather than privately beside each caller because <c>KEYS</c>,
+        /// <c>COMMAND GETKEYS</c> and the <c>SCAN</c> pages all want it, and three copies of one walk is
+        /// three chances for one of them to disagree about a nil reply.
+        /// </remarks>
+        internal static IRespHandler<RedisKey[]> KeyArray { get; } = new KeyArrayHandler();
+
+        /// <summary>Reads an array of scalars as <see cref="string"/>s; a nil array reads as empty.</summary>
+        /// <remarks><inheritdoc cref="KeyArray" path="/remarks"/></remarks>
+        internal static IRespHandler<string[]> StringArray { get; } = new StringArrayHandler();
+
         /// <summary>Reads a bulk string reply as a <see cref="Lease{T}"/>; null stays null.</summary>
         /// <remarks>
         /// The lease always <b>copies</b> here, where the same read against a live reply may instead point
@@ -177,6 +191,24 @@ namespace StackExchange.Redis.Protocol
         /// aggregate free" is the wrong shape by exactly the amount those two differ.
         /// </para>
         /// </remarks>
+        /// <summary>Reads an array of scalars as keys; see <see cref="KeyArray"/>.</summary>
+        private sealed class KeyArrayHandler : IRespHandler<RedisKey[]>
+        {
+            public RedisKey[] Parse(ref RespReader reader)
+                => reader.IsAggregate
+                    ? reader.ReadPastArray(static (ref RespReader r) => (RedisKey)r.ReadString(), scalar: true) ?? []
+                    : reader.IsNull ? [] : throw new RespException("Expected an array of keys.");
+        }
+
+        /// <summary>Reads an array of scalars as strings; see <see cref="StringArray"/>.</summary>
+        private sealed class StringArrayHandler : IRespHandler<string[]>
+        {
+            public string[] Parse(ref RespReader reader)
+                => reader.IsAggregate
+                    ? reader.ReadPastArray(static (ref RespReader r) => r.ReadString()!, scalar: true) ?? []
+                    : reader.IsNull ? [] : throw new RespException("Expected an array of strings.");
+        }
+
         internal static class Elements
         {
             /// <summary>An integer element.</summary>
