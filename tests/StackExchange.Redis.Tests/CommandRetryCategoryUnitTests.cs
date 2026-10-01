@@ -365,8 +365,8 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
 
         // CLUSTER/SLOWLOG default to server-admin, but these subcommands only read
         AssertCategory(ReadOnly, RedisServer.GetClusterNodesMessage(CommandFlags.None), "CLUSTER NODES");
-        AssertCategory(ReadOnly, RedisServer.GetSlowlogGetMessage(0, CommandFlags.None), "SLOWLOG GET");
-        AssertCategory(ReadOnly, RedisServer.GetSlowlogGetMessage(25, CommandFlags.None), "SLOWLOG GET count");
+        // SLOWLOG GET has moved to the context surface and no longer builds a Message, so its category is
+        // asserted on the request the group method issues; see RespSurfaceDiagnosticsParityTests.
 
         // CONFIG defaults to server-admin; CONFIG GET is safe metadata (as the docs already claimed)
         AssertCategory(Connection, RedisServer.GetConfigGetMessage(default, CommandFlags.None), "CONFIG GET");
@@ -375,7 +375,6 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
         foreach (var msg in new[]
         {
             RedisServer.GetClusterNodesMessage(CommandFlags.None),
-            RedisServer.GetSlowlogGetMessage(0, CommandFlags.None),
             RedisServer.GetConfigGetMessage(default, CommandFlags.None),
         })
         {

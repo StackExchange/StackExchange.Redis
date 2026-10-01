@@ -70,39 +70,49 @@ namespace StackExchange.Redis
             return BaseUrl + encoded0;
         }
 
+        /// <summary>Read a <c>SLOWLOG GET</c> reply; null when any element did not parse.</summary>
+        /// <param name="reader">Positioned on the reply.</param>
+        /// <remarks>
+        /// <b>Internal and static so both cores read it the same way</b>, as the latency entries are:
+        /// the shipped processor below and the context surface's handler are two callers of this one
+        /// walk. Null rather than throwing for a bad element, because that is what the shipped processor
+        /// needed in order to report an unexpected response for the whole reply rather than for one entry.
+        /// </remarks>
+        internal static CommandTrace[]? ParseArray(ref RespReader reader)
+        {
+            // see: SLOWLOG GET
+            if (!reader.IsAggregate) return null;
+
+            var arr = reader.ReadPastArray(ParseOne, scalar: false)!;
+            return arr.AnyNull() ? null : arr;
+
+            static CommandTrace ParseOne(ref RespReader reader)
+            {
+                CommandTrace result = null!;
+                if (reader.IsAggregate)
+                {
+                    long uniqueId = 0, time = 0, duration = 0;
+                    if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out uniqueId)
+                        && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out time)
+                        && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out duration)
+                        && reader.TryMoveNext() && reader.IsAggregate)
+                    {
+                        var values = reader.ReadPastRedisValues() ?? [];
+                        result = new CommandTrace(uniqueId, time, duration, values);
+                    }
+                }
+                return result;
+            }
+        }
+
         private sealed class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // see: SLOWLOG GET
-                if (reader.IsAggregate)
-                {
-                    var arr = reader.ReadPastArray(ParseOne, scalar: false)!;
-                    if (arr.AnyNull()) return false;
+                if (ParseArray(ref reader) is not { } arr) return false;
 
-                    SetResult(message, arr);
-                    return true;
-                }
-
-                return false;
-
-                static CommandTrace ParseOne(ref RespReader reader)
-                {
-                    CommandTrace result = null!;
-                    if (reader.IsAggregate)
-                    {
-                        long uniqueId = 0, time = 0, duration = 0;
-                        if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out uniqueId)
-                            && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out time)
-                            && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out duration)
-                            && reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var values = reader.ReadPastRedisValues() ?? [];
-                            result = new CommandTrace(uniqueId, time, duration, values);
-                        }
-                    }
-                    return result;
-                }
+                SetResult(message, arr);
+                return true;
             }
         }
     }

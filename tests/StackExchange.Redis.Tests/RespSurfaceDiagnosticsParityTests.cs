@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -34,11 +34,15 @@ public class RespSurfaceDiagnosticsParityTests
     {
         public List<string> Sent { get; } = [];
 
+        /// <summary>The flags each request carried, which is where the retry category lives.</summary>
+        public List<CommandFlags> Flags { get; } = [];
+
         public override int Database => -1;
 
         public override RespPayload Send(in RespRequest request)
         {
             Sent.Add(Text(request.Span));
+            Flags.Add(request.Flags);
             return RespPayload.Create(Encoding.UTF8.GetBytes(reply));
         }
 
@@ -75,6 +79,8 @@ public class RespSurfaceDiagnosticsParityTests
     private const string HistoryReply = "*2\r\n*2\r\n:1405067822\r\n:251\r\n*2\r\n:1405067941\r\n:1001\r\n";
     private const string LatestReply = "*1\r\n*4\r\n$7\r\ncommand\r\n:1405067976\r\n:251\r\n:1001\r\n";
     private const string MapReply = "*2\r\n$14\r\npeak.allocated\r\n:1024\r\n";
+    private const string SlowLogReply =                 // one entry: id, time, duration, [command, args]
+        "*1\r\n*4\r\n:1\r\n:1405067822\r\n:251\r\n*2\r\n$3\r\nget\r\n$1\r\nk\r\n";
 
     [Fact]
     public void LatencyResetWithNoEventNamesResetsEverything()
@@ -118,6 +124,63 @@ public class RespSurfaceDiagnosticsParityTests
             Message.Create(-1, CommandFlags.None, RedisCommand.MEMORY, RedisLiterals.STATS),
             static ctx => Discard(ctx.Diagnostics.MemoryStatsAsync()),
             MapReply);
+
+    /// <summary>A non-positive count omits the argument rather than sending zero.</summary>
+    [Fact]
+    public void SlowLogGetWithNoCountAsksForWhateverTheServerVolunteers()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.SLOWLOG, RedisLiterals.GET),
+            static ctx => Discard(ctx.Diagnostics.SlowLogAsync()),
+            SlowLogReply);
+
+    [Fact]
+    public void SlowLogGetCarriesItsCount()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.SLOWLOG, RedisLiterals.GET, 25),
+            static ctx => Discard(ctx.Diagnostics.SlowLogAsync(25)),
+            SlowLogReply);
+
+    [Fact]
+    public async Task TheSlowLogHandlerReadsItsReply()
+    {
+        var entries = await Context(SlowLogReply).Diagnostics.SlowLogAsync();
+        var entry = Assert.Single(entries);
+        Assert.Equal(1L, entry.UniqueId);
+        Assert.Equal(251, entry.Duration.Ticks / 10); // SLOWLOG reports microseconds, and a tick is 100ns
+        Assert.Equal("get", entry.Arguments[0].ToString());
+    }
+
+    /// <summary>
+    /// Each of these is a read whose answer belongs to the node that was asked, and says so.
+    /// </summary>
+    /// <remarks>
+    /// <b>This assertion moved here from <c>CommandRetryCategoryUnitTests</c></b>, which could only reach
+    /// it through a <c>Message</c> builder. <c>CLIENT</c>/<c>CLUSTER</c>/<c>CONFIG</c>/<c>MEMORY</c>/
+    /// <c>LATENCY</c>/<c>SLOWLOG</c> are each one <see cref="RedisCommand"/> spanning very different
+    /// verbs, so the whole-command default has to assume the most side-effecting one; a sub-command that
+    /// only reads has to say so, or a retry that is safe will not be attempted - and the node-scoped bit
+    /// has to survive, or the retry goes to a server that was never asked.
+    /// </remarks>
+    [Fact]
+    public async Task TheseReadsAreNodeLocal()
+    {
+        await AssertNodeLocalRead(static ctx => Discard(ctx.Diagnostics.SlowLogAsync()), SlowLogReply);
+        await AssertNodeLocalRead(static ctx => Discard(ctx.Diagnostics.SlowLogAsync(25)), SlowLogReply);
+        await AssertNodeLocalRead(static ctx => Discard(ctx.Diagnostics.LatencyHistoryAsync("command")), HistoryReply);
+        await AssertNodeLocalRead(static ctx => Discard(ctx.Diagnostics.LatencyLatestAsync()), LatestReply);
+        await AssertNodeLocalRead(static ctx => Discard(ctx.Diagnostics.MemoryStatsAsync()), MapReply);
+
+        static async Task AssertNodeLocalRead(Func<RespServerContext, ValueTask> send, string reply)
+        {
+            var executor = new FakeExecutor(reply);
+            await send(new RespServerContext(new RespContext().WithExecutor(executor)));
+
+            var flags = Assert.Single(executor.Flags);
+            var sent = Assert.Single(executor.Sent);
+            Assert.Equal(CommandFlags.CommandRetryReadOnly, Message.GetRetryCategory(flags));
+            Assert.True((flags & Message.CommandServerSpecific) != 0, sent);
+        }
+    }
 
     /// <summary>The replies the handlers read, which the parity assertions above do not look at.</summary>
     /// <remarks>

@@ -588,21 +588,11 @@ namespace StackExchange.Redis
 
         public CommandTrace[] SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSlowlogGetMessage(count, flags);
-
-            return ExecuteSync(msg, CommandTrace.Processor, defaultValue: Array.Empty<CommandTrace>());
+            return Wait(Context.Diagnostics.SlowLogAsync(count, flags));
         }
 
         public Task<CommandTrace[]> SlowlogGetAsync(int count = 0, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetSlowlogGetMessage(count, flags);
-
-            return ExecuteAsync(msg, CommandTrace.Processor, defaultValue: Array.Empty<CommandTrace>());
-        }
-
-        internal static Message GetSlowlogGetMessage(int count, CommandFlags flags) => count > 0
-            ? Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SLOWLOG, RedisLiterals.GET, count)
-            : Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SLOWLOG, RedisLiterals.GET);
+            => Context.Diagnostics.SlowLogAsync(count, flags).AsTask(asyncState, flags);
 
         public void SlowlogReset(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Diagnostics.ResetSlowLogAsync(flags));

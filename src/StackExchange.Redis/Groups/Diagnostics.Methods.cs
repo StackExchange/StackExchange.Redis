@@ -184,6 +184,33 @@ public static partial class Diagnostics
     public static ValueTask ResetSlowLogAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync($"{RedisCommand.SLOWLOG}{RespLiterals.Reset}", flags, cancellationToken: cancellationToken);
 
+    /// <summary>SLOWLOG GET: the commands the server recorded as slow, newest first.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="count">How many entries to ask for; the server's own default when not positive.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>A non-positive <paramref name="count"/> omits the argument</b> rather than sending zero, which
+    /// is the shipped behaviour and is not the same thing: <c>SLOWLOG GET 0</c> asks for no entries,
+    /// where <c>SLOWLOG GET</c> asks for as many as the server volunteers.
+    /// </remarks>
+    public static ValueTask<CommandTrace[]> SlowLogAsync(
+        this in RespDiagnostics diagnostics,
+        int count = 0,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => count > 0
+            ? diagnostics.Context.SendAsync(
+                $"{RedisCommand.SLOWLOG}{RespLiterals.Get}{count}",
+                flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+                SlowLogHandler.Instance,
+                cancellationToken)
+            : diagnostics.Context.SendAsync(
+                $"{RedisCommand.SLOWLOG}{RespLiterals.Get}",
+                flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+                SlowLogHandler.Instance,
+                cancellationToken);
+
     /// <summary>INFO: everything the server will say about itself, verbatim.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="section">One section, or every section when omitted.</param>
@@ -309,6 +336,15 @@ public static partial class Diagnostics
                     ? parsed : throw new RespException("Unexpected LATENCY LATEST element."),
                 scalar: false) ?? [];
         }
+    }
+
+    /// <summary>Reads <c>SLOWLOG GET</c>; see <see cref="CommandTrace.ParseArray"/>.</summary>
+    private sealed class SlowLogHandler : IRespHandler<CommandTrace[]>
+    {
+        internal static readonly SlowLogHandler Instance = new();
+
+        public CommandTrace[] Parse(ref RespReader reader)
+            => CommandTrace.ParseArray(ref reader) ?? throw new RespException("Unexpected SLOWLOG GET reply.");
     }
 
     /// <summary>Reads <c>TIME</c>: unix seconds, then microseconds within that second.</summary>

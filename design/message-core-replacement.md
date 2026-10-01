@@ -2246,9 +2246,10 @@ Each step is independently shippable and leaves the tree green.
   3. **The `IServer` long tail.** `Message.Create` sites, each wanting a group method and a handler.
      Mechanical and wide rather than hard; `INFO` is the worked example, parse-sharing included.
 
-     *Started.* 68 sites at the time of writing, **59** now: `LATENCY RESET`/`HISTORY`/`LATEST` and
-     `MEMORY STATS` moved to `Diagnostics`, which already carried the two `DOCTOR`s and `MEMORY PURGE`.
-     26 of the remainder are `SENTINEL`, which stays - see below.
+     *Started.* 68 sites at the time of writing, **57** now: `LATENCY RESET`/`HISTORY`/`LATEST`,
+     `MEMORY STATS` and `SLOWLOG GET` moved to `Diagnostics`, which already carried the two `DOCTOR`s,
+     `MEMORY PURGE`, `SLOWLOG RESET` and `LASTSAVE`. 26 of the remainder are `SENTINEL`, which stays -
+     see below.
 
      Two things worth copying into the next batch. The element parses are **shared, not rewritten**:
      `LatencyHistoryEntry.TryParseEntry` and its sibling are now internal statics called by both the
@@ -2258,7 +2259,11 @@ Each step is independently shippable and leaves the tree green.
      quietly reset the wrong set. So `RespSurfaceDiagnosticsParityTests` keeps the shipped
      `Message.Create` calls - driven for real through `MessageWriter` - as the expected bytes, which is
      what the stream and key parity suites already do and is the only assertion that cannot be satisfied
-     by misreading the code being replaced.
+     by misreading the code being replaced. The **retry category** goes in the same place, for the same
+     reason: `CommandRetryCategoryUnitTests` could only reach it through a `Message` builder, and
+     `RespRequest.Flags` carries it, so a ported command's category is asserted on the request the group
+     method issues. Keeping a `Message` builder alive for a test to look at would be the alternative, and
+     a worse one.
 
   4. **Sentinel** (D2.7), which is 462 of the inventory's messages and has its own connection model.
 
