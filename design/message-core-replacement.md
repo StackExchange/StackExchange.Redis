@@ -2605,13 +2605,25 @@ config-channel counterpart (reproduces with that disabled), so the trigger is #3
 sets `IsReplica` from the applied topology - and on this branch that setter publishes the role and asks
 for a reconfigure, so topology applies now cascade where they did not.
 
-The shape that fits: a non-sharded `PUBLISH` in a cluster is broadcast to every node, so **two of our
-connections subscribed on two different nodes** both receive it while the publishing node counts only
-its own. That means a subscription record moved endpoints while the old socket stayed subscribed - and
-the shipped path never had to handle it, because its `RemoveDisconnectedEndpoints` only clears a record
-whose socket is already gone, whereas `IsLiveOn` can answer false for a socket that is still alive.
-`RemoveIncorrectRouting` does exactly the needed unsubscribe-before-replace, but only for key-routed
-channels; this one is not key-routed. Not yet confirmed by instrumentation, which is the next step.
+**Instrumented rather than guessed at, and the answer was one window.** Tracing both delivery entry
+points showed every delivery arriving on THIS core - no bridge deliveries at all - and tracing the
+out-of-band path by socket showed subscription sockets at **all three cluster nodes** receiving. A
+non-sharded `PUBLISH` in a cluster is broadcast to every node, so each of those delivers while the
+publishing node counts only its own subscriber: hence twenty deliveries, ten publishes, and a reported
+count of one.
+
+The cause is the in-flight window that D2.5 created on purpose. The endpoint is recorded only on
+CONFIRMATION, so that a subscribe which never landed stays retryable - but `EnsureSubscribedToServer`
+guards with `if (IsConnectedAny()) return 0`, and during that window the answer is "not live". Every
+ensure arriving in it starts ANOTHER subscribe, and for an unrouted channel `SelectServer` deliberately
+spreads, so each lands on a different node. This core's establish-time re-subscribe then feeds the loop,
+which is how it reached three nodes rather than two. The merge did not cause it: the role repair simply
+made topology applies cascade into reconfigures, which is what opened the window often enough to see.
+
+Fixed by making the guard read `IsConnectedAny() || HasSendInFlight`: "not live yet" and "nobody is
+doing anything about it" are different questions, and the same conflation - in the other direction - is
+what the ownership field had to split earlier. `ClusterPubSub` is clean across three consecutive runs of
+the cluster, pub/sub, keyspace and Issue1101 families.
 
 #### Where the engine flag stands
 

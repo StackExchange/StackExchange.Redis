@@ -196,6 +196,21 @@ public partial class ConnectionMultiplexer
         internal bool IsHeldByNewCoreOn(EndPoint endpoint)
             => _onNewCore && (NamesEndpoint(endpoint) || Equals(_sendingVia?.EndPoint, endpoint));
 
+        /// <summary>Whether a (un)subscribe for this subscription is on the wire right now.</summary>
+        /// <remarks>
+        /// <b>"Not live yet" and "nobody is doing anything about it" are different, and conflating them
+        /// multiplies subscriptions.</b> The endpoint is recorded only on confirmation - deliberately, so
+        /// that an unlanded subscribe stays retryable - which leaves a window where `IsConnectedAny` says
+        /// no while a subscribe is already in flight. Every `EnsureSubscribedToServer` arriving in that
+        /// window starts ANOTHER one, and for an unrouted channel `SelectServer` spreads them across
+        /// nodes, so the client ends up subscribed on several at once. In a cluster a non-sharded
+        /// `PUBLISH` is broadcast to every node, so each of those delivers: ten publishes, twenty
+        /// deliveries, and the publishing node still reporting one subscriber -
+        /// `ClusterTests.ClusterPubSub(withKeyPrefix: true)`. This core's establish-time re-subscribe
+        /// feeds the same loop, which is how it reached three nodes rather than two.
+        /// </remarks>
+        private protected bool HasSendInFlight => _sendingVia is not null;
+
         /// <summary>Whether some connection is already carrying this subscription.</summary>
         /// <remarks>
         /// Asked so that ownership can be STICKY: a subscription already placed keeps going to the core
@@ -543,7 +558,7 @@ public partial class ConnectionMultiplexer
             bool internalCall)
         {
             RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
-            if (IsConnectedAny()) return 0;
+            if (IsConnectedAny() || HasSendInFlight) return 0;
 
             // we're not appropriately connected, so blank it out for eligible reconnection
             _currentServer = null;
@@ -592,7 +607,7 @@ public partial class ConnectionMultiplexer
             ServerEndPoint? server = null)
         {
             RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
-            if (IsConnectedAny()) return 0;
+            if (IsConnectedAny() || HasSendInFlight) return 0;
 
             // we're not appropriately connected, so blank it out for eligible reconnection
             _currentServer = null;
