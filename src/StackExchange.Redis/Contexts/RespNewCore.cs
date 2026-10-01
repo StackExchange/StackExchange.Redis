@@ -797,7 +797,18 @@ namespace StackExchange.Redis
             // socket; this core handshakes one too and learns the same facts from it. Publishing them is
             // what lets that other handshake eventually not happen - and in the meantime it corrects the
             // case where this core knows something first, because it dialled first.
-            if (connection.Server is { } modelled) Publish(modelled, in result);
+            if (connection.Server is { } modelled)
+            {
+                Publish(modelled, in result);
+
+                // ...and the server-wide settings nothing has described yet, which is the next slice of the
+                // same move. Interactive only: a subscription connection is not where a client asks
+                // questions, and the answers are server-wide so one connection asking is enough.
+                if (!subscription)
+                {
+                    await RespHandshake.DiscoverServerConfigAsync(context, modelled).ConfigureAwait(false);
+                }
+            }
 
             // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
             // thing marking it as one is that this connection subscribes. Set it nowhere else: on an

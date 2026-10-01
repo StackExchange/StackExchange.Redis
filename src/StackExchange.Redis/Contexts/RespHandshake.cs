@@ -325,6 +325,98 @@ namespace StackExchange.Redis
             return new RespHandshakeResult(protocol, serverType, version, knowServerType);
         }
 
+        /// <summary>Read the server-wide settings the client models, for a server nothing has described yet.</summary>
+        /// <param name="context">A context over the connection to ask on.</param>
+        /// <param name="server">The modelled server to tell.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Discovery, moved one step at a time.</b> These are facts the client holds about a SERVER -
+        /// how many databases it has, whether its replicas refuse writes - and today they are read by the
+        /// shipped bridge's handshake, which is one of the reasons that bridge must connect at all. Reading
+        /// them here is part of removing that reason; see design notes D2.8.
+        /// </para>
+        /// <para>
+        /// <b>Only when nothing has described this server yet</b>, which <c>Databases == 0</c> says exactly:
+        /// it is the "not discovered" value <c>ServerEndPoint</c> starts at, and both settings are
+        /// discovered together on the shipped path. Asking unconditionally would put two round trips on
+        /// every connection this core dials, which on a large cluster is precisely the cost the lazy design
+        /// exists to avoid - and they are server-wide answers, so asking twice learns nothing. The effect is
+        /// self-adjusting: while the other core still discovers, this does nothing; when it stops, this is
+        /// what knows.
+        /// </para>
+        /// <para>
+        /// <b>Not subject to admin mode</b>, because it runs during the dial on a context over the bare
+        /// connection, and the admin check lives on the endpoint executor. That is the same exemption the
+        /// shipped handshake gets from <c>SetInternalCall</c>, and for the same reason: <c>CONFIG</c> is
+        /// restricted because a CALLER should not reconfigure a server by accident, not because the client
+        /// may not know how many databases it has.
+        /// </para>
+        /// </remarks>
+        internal static async Task DiscoverServerConfigAsync(RespDatabaseContext context, ServerEndPoint server)
+        {
+            if (server.Databases > 0) return;
+            if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG)) return;
+
+            // the spelling follows the server's own vocabulary, which changed: "replica" from 5.0, "slave"
+            // before it. The shipped handshake picks by the same predicate.
+            var readOnlyKey = server.GetFeatures().ReplicaCommands ? "replica-read-only" : "slave-read-only";
+
+            if (await ReadSettingAsync(context, "databases").ConfigureAwait(false) is { } databases
+                && int.TryParse(databases, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
+                && count > 0)
+            {
+                server.Databases = count;
+            }
+
+            if (await ReadSettingAsync(context, readOnlyKey).ConfigureAwait(false) is { } readOnly)
+            {
+                server.ReplicaReadOnly = !string.Equals(readOnly, "no", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>One setting from <c>CONFIG GET</c>, or null when the server declined to say.</summary>
+        /// <param name="context">A context over the connection to ask on.</param>
+        /// <param name="setting">The setting's name.</param>
+        /// <remarks>
+        /// A declined <c>CONFIG</c> is ordinary - it is restricted on plenty of managed deployments - so
+        /// this answers null rather than failing the connection over a fact the client has a default for.
+        /// </remarks>
+        private static async Task<string?> ReadSettingAsync(RespDatabaseContext context, string setting)
+        {
+            try
+            {
+                return await context.SendAsync(
+                    $"{RedisCommand.CONFIG}{RespLiterals.Get}{setting.AsRedisValue()}",
+                    handler: ConfigSettingHandler.Instance).ConfigureAwait(false);
+            }
+            catch (RedisServerException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Reads the value of a single-setting <c>CONFIG GET</c>.</summary>
+        /// <remarks>
+        /// <b>One reader for both protocols.</b> RESP3 answers a map and RESP2 a flat array, which differ
+        /// in their header and not in their contents - name then value - so walking the elements rather
+        /// than asserting a shape handles both. An empty reply means the server has no such setting, which
+        /// is not an error.
+        /// </remarks>
+        private sealed class ConfigSettingHandler : IRespHandler<string?>
+        {
+            internal static readonly ConfigSettingHandler Instance = new();
+
+            public string? Parse(ref RespReader reader)
+            {
+                if (!reader.IsAggregate) return null;
+
+                // name, then value; anything else is a server that answered a different question
+                return reader.TryMoveNext() && reader.IsScalar && reader.TryMoveNext() && reader.IsScalar
+                    ? reader.ReadString()
+                    : null;
+            }
+        }
+
         /// <summary>Tell the server who is calling: the client's name, and the library and version.</summary>
         /// <param name="context">The connection being brought up.</param>
         /// <param name="clientName">The connection name, already sanitised, or empty for none.</param>

@@ -2212,10 +2212,31 @@ Each step is independently shippable and leaves the tree green.
      *Started.* This core handshakes its own socket and learns the same facts; it now PUBLISHES them -
      version and server type - to the modelled `ServerEndPoint`, and `ServerEndPoint.Protocol` answers from
      this core when the bridge has no answer. Roles and selectability already flowed the other way, which
-     is the shape: one fact, discovered once, told to whoever needs it. What is still missing is
-     `databases` (this core's handshake does not read `CONFIG GET databases`), `run-id`, `connection-id`,
-     and - the real work - `ReconfigureAsync` itself routing its probes through this core rather than
-     through a bridge.
+     is the shape: one fact, discovered once, told to whoever needs it.
+
+     `databases` and `replica-read-only` followed, in `RespHandshake.DiscoverServerConfigAsync`: two
+     `CONFIG GET` reads on an interactive dial, published to the modelled `ServerEndPoint`. Three things
+     about it are deliberate.
+
+     - **Only when nothing has described the server yet**, which `Databases == 0` says exactly - it is the
+       value a `ServerEndPoint` starts at, and both settings are discovered together on the shipped path.
+       Asking unconditionally would put two round trips on every dial, which on a large cluster is per node
+       and is the cost the lazy design exists to avoid; and they are server-wide answers, so asking twice
+       learns nothing. The effect is self-adjusting: while the shipped handshake still discovers, this does
+       nothing; when it stops, this is what knows.
+     - **Not subject to admin mode**, because it runs during the dial on a context over the bare
+       connection and the admin check lives on `RespEndpointExecutor`. That is the same exemption the
+       shipped handshake gets from `SetInternalCall`, and for the same reason: `CONFIG` is restricted so a
+       CALLER cannot reconfigure a server by accident, not because the client may not know its shape.
+     - **A declined `CONFIG` answers null rather than failing the dial.** It is restricted on plenty of
+       managed deployments, and the client has a default for every one of these facts.
+
+     `RespNewCoreDiscoveryTests` pins both halves - what is learned, and that a described server is not
+     asked again - by clearing the beliefs first, because the shipped handshake has already run by the time
+     a test can look and asserting on the values as found would pass whoever learned them.
+
+     What is still missing is `run-id`, `connection-id`, and - the real work - `ReconfigureAsync` itself
+     routing its probes through this core rather than through a bridge.
 
   2. **Subscriptions** (D2.5's remainder). The shipped SUBSCRIPTION bridge is a whole second socket per
      endpoint and nothing else uses it, so this is the clearest halving available: `Subscription`,
@@ -2234,13 +2255,31 @@ Each step is independently shippable and leaves the tree green.
 
 #### Where the engine flag stands
 
-**Two stable failures, down from 33.** Three consecutive runs gave 3, 5 and 2; the third was exactly the
-pair below, and everything else was a different member each time.
+**Two stable failures, down from 33** - and **both flags together is the measurement**, which is worth
+stating first because measuring the engine flag alone wastes a day.
 
 - `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases` x2 - 9b-ix: not answerable while both cores
   consult one policy object. Assertable at D2.8.
 
-The default suite is 11,172/0 and RESPite 1,947/0 throughout.
+11,179 pass, 219 skip. The default suite is 11,177/0 and RESPite 1,947/0 throughout.
+
+**The engine flag on its own is a configuration nobody will ever ship, and its failures are artefacts of
+that.** Measured: 9 stable failures with `SEREDIS_NEW_CORE_ENGINE` alone, and **all nine pass with
+`SEREDIS_NEW_DATABASE_SURFACE` as well**. The mechanism is one thing in every case - the surface flag
+decides what carries an `IDatabase` command and the engine flag decides what carries a context one, so
+with only the engine flag an `IDatabase` write goes out on the shipped bridge's socket while `IServer` and
+the caching surface go out on this core's. A test whose mover and whose oracle are then on different
+sockets fails for a reason that has nothing to do with either core being wrong:
+
+- `ServerExecuteDatabaseTests` x3 - moves the selection with `IDatabase` and reads it back with
+  `IServer.Execute("CLIENT", "INFO")`. Different sockets, so `db=0` where the test wants `db=18`.
+- `RespInProcTrackingTests` x3 and `RespCacheInvalidationTests` x2 - the invalidation arrives for the
+  connection that registered interest, and the write that should invalidate is on the other one.
+- `MultiMessageInTransactionTests.TheFrameSurfacesComposedPairIsRefused` - the transaction and the
+  script are on different cores.
+
+So the two-flag number is the one to drive to zero, and a failure seen under the engine flag alone should
+be re-run with both before it is believed.
 
 **Two of the things that used to rotate turned out not to be flaky at all**, which is worth recording
 because "flaky" was the wrong diagnosis twice in a row:
