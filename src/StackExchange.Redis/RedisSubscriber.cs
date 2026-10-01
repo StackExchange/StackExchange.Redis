@@ -199,6 +199,8 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
             msg.SetInternalCall();
+            if (TryIdentifyViaNewCore(msg, channel, flags) is { } pending) return pending.GetAwaiter().GetResult();
+
             return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
         }
 
@@ -206,7 +208,47 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
             msg.SetInternalCall();
+            if (TryIdentifyViaNewCore(msg, channel, flags) is { } pending) return pending;
+
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
+        }
+
+        /// <summary>
+        /// Ask a server about a channel and answer which server that was; null when this core is not
+        /// carrying it.
+        /// </summary>
+        /// <param name="routing">The message that would have been sent, used to choose the server.</param>
+        /// <param name="channel">The channel to ask about.</param>
+        /// <param name="flags">The caller's flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The answer is the server that was ASKED, which is the same thing the shipped path reports
+        /// by a longer route.</b> <c>ResultProcessor.ConnectionIdentity</c> ignores the payload entirely
+        /// and reads the endpoint off the connection the reply arrived on - and that connection is
+        /// whichever one routing chose. Here the choice is made before the send, so it is already known;
+        /// the round trip is what makes it an observation rather than a guess, and it still happens.
+        /// </para>
+        /// <para>
+        /// <b>Safe to answer from the pre-chosen server because <c>PUBSUB NUMSUB</c> cannot be
+        /// redirected</b>, being keyless and node-local - which is exactly what made the SUBSCRIBE case
+        /// hard and this one easy. A sharded channel does not change that: the shipped path asks
+        /// <c>NUMSUB</c> regardless of the channel's kind, so this does too.
+        /// </para>
+        /// </remarks>
+        private Task<EndPoint?>? TryIdentifyViaNewCore(Message routing, in RedisChannel channel, CommandFlags flags)
+        {
+            if (!ConnectionMultiplexer.NewCoreEngine) return null;
+            if (multiplexer.SelectServer(routing) is not { } server) return null;
+
+            var endpoint = server.EndPoint;
+            var context = new RespPubSub((RespContext)multiplexer.NewCore.ServerContext(endpoint));
+            return Answer(context.SubscriberCountAsync(channel, flags), endpoint);
+
+            static async Task<EndPoint?> Answer(ValueTask<long> pending, EndPoint endpoint)
+            {
+                _ = await pending.ConfigureAwait(false);
+                return endpoint;
+            }
         }
 
         /// <summary>

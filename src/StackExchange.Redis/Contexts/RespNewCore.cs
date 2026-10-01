@@ -516,7 +516,14 @@ namespace StackExchange.Redis
         {
             if (!channel.IsKeyRouted && !channel.IsSharded) return null;
 
-            var slot = ServerSelectionStrategy.GetClusterSlot((byte[])channel!);
+            // ServerSelectionStrategy.HashSlot, not a hand-rolled slot of the channel's own bytes, and the
+            // difference is the CHANNEL PREFIX: the server routes by the name it receives, which is the
+            // prefixed one, so a slot taken from the caller's unprefixed name names a different node
+            // whenever a prefix is configured. It also honours IgnoreChannelPrefix, which is the one case
+            // where the two are deliberately the same. ClusterTests.ClusterPubSub(withKeyPrefix: true) is
+            // what disagreeing looks like: the subscription lands on one node and is recorded against
+            // another.
+            var slot = _multiplexer.ServerSelectionStrategy.HashSlot(channel);
             return slot == ServerSelectionStrategy.NoSlot ? null : EndpointForSlot(slot, command, flags);
         }
 

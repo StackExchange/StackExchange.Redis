@@ -2318,10 +2318,24 @@ Each step is independently shippable and leaves the tree green.
   than trusting the record, so the cost was redundant `SUBSCRIBE`s on reconfigure rather than a lost
   subscription. Corrected with the negation it was missing.
 
-  **What is left of D2.5**: `IdentifyEndpointAsync`, which reads the identity of the connection its
-  `PUBSUB NUMSUB` went out on. The slot trick above does not serve it - the question is asked of an
-  arbitrary channel, not a routed one - so it is the one member that genuinely wants the send to report
-  where it finished.
+  **`IdentifyEndpointAsync` closed it, and did not want the reporting channel either.** The shipped
+  version reads the endpoint off the connection its `PUBSUB NUMSUB` reply arrived on, which is whichever
+  one routing chose - so choosing before the send and answering that is the same fact by a shorter route.
+  Safe because `PUBSUB NUMSUB` is keyless and node-local and therefore cannot be redirected, which is
+  exactly what made the SUBSCRIBE case hard and this one easy. The round trip still happens: it is what
+  makes the answer an observation rather than a guess.
+
+  **And it found a defect in the slot resolution from the previous step.**
+  `EndpointForChannel` computed the slot from the channel's own bytes, where the server routes by the name
+  it RECEIVES - the prefixed one. So with a channel prefix configured, a subscription landed on one node
+  and was recorded against another; `ClusterTests.ClusterPubSub(withKeyPrefix: true)` is what that looks
+  like, and it only showed up once `IdentifyEndpoint` moved and the two stopped agreeing by accident.
+  It now asks `ServerSelectionStrategy.HashSlot(in RedisChannel)`, which already handles the prefix and
+  `IgnoreChannelPrefix` - borrowed rather than re-derived, which is the rule that should have been
+  followed the first time.
+
+  **D2.5 is done**: publish, subscribe and unsubscribe for every channel shape, the ping, the
+  re-subscribe, and the endpoint identity all travel on this core under the flag.
 
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
