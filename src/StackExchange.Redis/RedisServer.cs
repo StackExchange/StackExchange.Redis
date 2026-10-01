@@ -550,17 +550,24 @@ namespace StackExchange.Redis
         public Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None)
             => Context.Diagnostics.ResetSlowLogAsync(flags).AsTask(asyncState, flags);
 
+        /// <summary>GET against a named database on this server.</summary>
+        /// <param name="db">The database to read from.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="flags">Command flags.</param>
+        /// <remarks>
+        /// <b>The database is explicit because a server context carries none</b> - that is the whole point
+        /// of one - so this is the ordinary string read through a context moved to the database the caller
+        /// named, which is also what makes the <c>SELECT</c> happen where it should.
+        /// </remarks>
         public RedisValue StringGet(int db, RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(db, flags, RedisCommand.GET, key);
-            return ExecuteSync(msg, ResultProcessor.RedisValue);
-        }
+            => Wait(new RespStrings(Context.Raw.WithDatabase(db)).GetAsync(key, flags));
 
+        /// <inheritdoc cref="StringGet" />
+        /// <param name="db">The database to read from.</param>
+        /// <param name="key">The key to read.</param>
+        /// <param name="flags">Command flags.</param>
         public Task<RedisValue> StringGetAsync(int db, RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(db, flags, RedisCommand.GET, key);
-            return ExecuteAsync(msg, ResultProcessor.RedisValue);
-        }
+            => new RespStrings(Context.Raw.WithDatabase(db)).GetAsync(key, flags).AsTask(asyncState, flags);
 
         public RedisChannel[] SubscriptionChannels(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None)
             => Wait(Context.PubSub.ChannelsAsync(pattern, flags));
@@ -1120,9 +1127,6 @@ namespace StackExchange.Redis
 
         public void MemoryPurge(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Diagnostics.MemoryPurgeAsync(flags));
-
-        internal static Message GetMemoryPurgeMessage(CommandFlags flags)
-            => Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.MEMORY, RedisLiterals.PURGE);
 
         public Task<string?> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None)
             => Context.Diagnostics.MemoryAllocatorStatsAsync(flags).AsTask(asyncState, flags);

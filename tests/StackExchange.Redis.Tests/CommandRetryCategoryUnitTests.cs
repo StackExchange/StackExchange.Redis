@@ -355,12 +355,9 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     [Fact]
     public void ServerSubCommands_AreCategorizedBySubCommand()
     {
-        const CommandFlags ServerAdmin = CommandFlags.CommandRetryServerAdmin;
-
-        // MEMORY defaults to read-only, so PURGE was previously treated as a harmless read
-        var purge = RedisServer.GetMemoryPurgeMessage(CommandFlags.None);
-        AssertCategory(ServerAdmin, purge, "MEMORY PURGE");
-        Assert.True((purge.Flags & Message.CommandServerSpecific) != 0, "MEMORY PURGE is node-scoped");
+        // MEMORY PURGE has moved to the context surface and no longer builds a Message; its category -
+        // server-admin, where bare MEMORY defaults to read-only - is asserted on the request the group
+        // method issues, in RespSurfaceServerParityTests.MemoryPurgeIsAdministrative.
 
         // CLUSTER/SLOWLOG default to server-admin, but these subcommands only read
         AssertCategory(ReadOnly, RedisServer.GetClusterNodesMessage(CommandFlags.None), "CLUSTER NODES");
@@ -377,11 +374,6 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
         {
             Assert.True((msg.Flags & Message.CommandServerSpecific) != 0, $"{msg.CommandAndKey} should be node-scoped");
         }
-
-        // and the caller still wins on the ladder, without losing the node-scoped bit
-        var overridden = RedisServer.GetMemoryPurgeMessage(CallerOverride);
-        AssertCategory(CallerOverride, overridden, "MEMORY PURGE, caller override");
-        Assert.True((overridden.Flags & Message.CommandServerSpecific) != 0, "override must not clear server-specific");
     }
 
     [Fact]

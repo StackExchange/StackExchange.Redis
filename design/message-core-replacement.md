@@ -2366,15 +2366,22 @@ Each step is independently shippable and leaves the tree green.
   3. **The `IServer` long tail.** `Message.Create` sites, each wanting a group method and a handler.
      Mechanical and wide rather than hard; `INFO` is the worked example, parse-sharing included.
 
-     *Started.* 68 sites at the time of writing, **36** now. To `Diagnostics`, which already carried the
+     *Started.* 68 sites at the time of writing, **33** now. To `Diagnostics`, which already carried the
      two `DOCTOR`s, `MEMORY PURGE`, `SLOWLOG RESET`, `LASTSAVE`, `COMMAND COUNT`, `ECHO`, `TIME` and
      `INFO`: `LATENCY RESET`/`HISTORY`/`LATEST`, `MEMORY STATS`, `SLOWLOG GET`, `COMMAND GETKEYS`,
      `COMMAND LIST`, `CLIENT LIST`, `ROLE`, the `SAVE`/`BGSAVE`/`BGREWRITEAOF` family, and `SHUTDOWN`. To
      `Config`, which already carried `REWRITE` and `RESETSTAT`: `CONFIG GET`/`SET`. To `Keys`: the
-     no-`SCAN` `KEYS` fallback. **26 of the 36 remaining are `SENTINEL`**, which stays - see below - so
-     the real remainder is 10: `SCAN` (5), `CLIENT KILL` (5 - its filter wants modelling rather than
-     forwarding a token list), `REPLICAOF`/`SLAVEOF` (2), `CLUSTER NODES`/`SLOTS` (2), and the
-     multiplexer's own plumbing - the tie-breaker `GET`/`DEL` and the reconfigure `PUBLISH`.
+     no-`SCAN` `KEYS` fallback. To `Strings`: the database-scoped `GET`. **26 of the 33 remaining are
+     `SENTINEL`**, which stays - see below - so the real remainder is 7: `SCAN` (5 spellings of one
+     cursor page), `CLIENT KILL` (its filter wants modelling rather than forwarding a token list), the
+     `CLUSTER NODES`/`SLOTS` call sites (the builders themselves stay, because `AutoConfigureAsync` and
+     the multiplexer use them), `REPLICAOF`/`SLAVEOF`, and the multiplexer's own plumbing - the
+     tie-breaker `GET`/`DEL` and the reconfigure `PUBLISH`, which travel as part of `MakePrimaryAsync`'s
+     ordered sequence rather than as `IServer` members.
+
+     `GetMemoryPurgeMessage` is **deleted** rather than ported: nothing in `src/` used it any more, so it
+     was production code kept alive for a test to look at. Its assertions moved onto the request the group
+     method issues, which is where the other ported categories already are.
 
      Two handlers now live in `RespHandlers` rather than beside their callers - `KeyArray` and
      `StringArray` - because `KEYS`, `COMMAND GETKEYS`, `COMMAND LIST` and the `SCAN` pages all want one,

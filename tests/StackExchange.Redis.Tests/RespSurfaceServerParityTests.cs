@@ -373,6 +373,64 @@ public class RespSurfaceServerParityTests
         Assert.Equal(0, await new RespPubSub(new RespContext().WithExecutor(new FakeExecutor(UnsubscribeReply))).UnsubscribeAsync(channel));
     }
 
+    /// <summary>
+    /// <see cref="IServer"/>'s database-scoped <c>GET</c>, which takes its database explicitly.
+    /// </summary>
+    /// <remarks>
+    /// <b>Pinned because nothing else sends it.</b> Every <c>StringGet</c> in the suite is the
+    /// <see cref="IDatabase"/> one; this overload exists so a caller holding an <see cref="IServer"/> can
+    /// read from a named database on that node, and a port of it would otherwise ship unexercised. The
+    /// database is on the context rather than the command, which is what makes the <c>SELECT</c> happen
+    /// where it should.
+    /// </remarks>
+    [Fact]
+    public async Task ServerScopedStringGet()
+    {
+        RedisKey key = "k";
+        Assert.Equal(
+            Classic(Message.Create(4, CommandFlags.None, RedisCommand.GET, key)),
+            Modern(static ctx => Discard(new RespStrings(ctx.Raw.WithDatabase(4)).GetAsync("k")), "$1\r\nv\r\n"));
+
+        var value = await new RespStrings(new RespContext().WithExecutor(new FakeExecutor("$1\r\nv\r\n")))
+            .GetAsync(key);
+        Assert.Equal("v", value);
+    }
+
+    /// <summary>
+    /// <c>MEMORY PURGE</c> is an administrative action on the node asked, where bare <c>MEMORY</c>
+    /// defaults to read-only.
+    /// </summary>
+    /// <remarks>
+    /// <b>Moved here from <c>CommandRetryCategoryUnitTests</c></b>, which could only reach it through a
+    /// <c>Message</c> builder that nothing else used any more - production code kept alive for a test to
+    /// look at. The category matters: <c>MEMORY</c> as a whole reads, so <c>PURGE</c> was once treated as
+    /// a harmless read and retried as one, and the node-scoped bit has to survive or the retry goes to a
+    /// server that was never asked.
+    /// </remarks>
+    [Fact]
+    public async Task MemoryPurgeIsAdministrative()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        await new RespServerContext(new RespContext().WithExecutor(executor)).Diagnostics.MemoryPurgeAsync();
+
+        var flags = Assert.Single(executor.Flags);
+        Assert.Equal(CommandFlags.CommandRetryServerAdmin, Message.GetRetryCategory(flags));
+        Assert.True((flags & Message.CommandServerSpecific) != 0, "the effect belongs to the node asked");
+    }
+
+    /// <summary>And a caller's own category still wins, without losing the node-scoped bit.</summary>
+    [Fact]
+    public async Task ACallerOverridesTheCategoryWithoutLosingNodeScope()
+    {
+        var executor = new FakeExecutor("+OK\r\n");
+        await new RespServerContext(new RespContext().WithExecutor(executor))
+            .Diagnostics.MemoryPurgeAsync(CommandFlags.CommandRetryAlways);
+
+        var flags = Assert.Single(executor.Flags);
+        Assert.Equal(CommandFlags.CommandRetryAlways, Message.GetRetryCategory(flags));
+        Assert.True((flags & Message.CommandServerSpecific) != 0, "override must not clear server-specific");
+    }
+
     [Fact]
     public void ClientList()
         => AssertSame(
