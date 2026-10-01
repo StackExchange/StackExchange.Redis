@@ -2283,6 +2283,33 @@ Each step is independently shippable and leaves the tree green.
   `Discover` default costs) would count twice. So that trio and "stop constructing bridges" are one step,
   and it is the next one.
 
+  **And the bridge cannot stop being dialled while anything still sends a `Message` through it**, which is
+  what items (3) and (4) are: 76 `Message.Create` sites on `IServer` and 462 on sentinel. Porting them
+  one at a time is the obvious reading of the plan and it is probably the wrong one, because there is a
+  lever.
+
+  **A `Message` can already be rendered without a `PhysicalConnection.`** `MessageWriter` has a
+  `(channelPrefix, map, IBufferWriter<byte>)` constructor and detects a `RespFrameWriter`, so
+  `Message.WriteTo(in MessageWriter)` renders a frame this core can send. What is left coupled is the
+  REPLY: `SetResultCore(PhysicalConnection connection, Message, ref RespReader)`.
+
+  Measured, because the number decides the strategy: **92 `SetResultCore` overrides, of which 26 touch
+  `connection` at all** - 19 in `ResultProcessor.cs` and the rest one apiece. And what those 26 want is a
+  short, flat list of connection facts: `OnDetailLog`, `BridgeCouldBeNull` (for the `ServerEndPoint`),
+  `RecordConnectionFailed`, `SetProtocol`, `ConnectionId`, `SubscriptionCount`, `Protocol`,
+  `MultiDatabasesOverride`. This core's connection knows every one of them.
+
+  So the lever is an interface over those eight members, implemented by `PhysicalConnection` and by
+  `RespClientConnection`, with `SetResultCore` taking it instead of the concrete type. 66 overrides change
+  only a parameter type; 26 need looking at. That is one wide mechanical change against 538 hand-ports,
+  and it makes EVERY remaining `Message` site work through this core at once - which is what lets the
+  interactive bridge stop being dialled without `IServer` and sentinel having to be rewritten first.
+
+  Revised sequence, then: the reply interface, then the Message executor over this core, then the connect
+  wait and "stop constructing bridges" together, then (2) subscriptions. (3) and (4) stop being
+  prerequisites and become cleanup - still worth doing, because a group method beats a `Message`, but no
+  longer in the way.
+
 #### Where the engine flag stands
 
 **Two stable failures, down from 33** - and **both flags together is the measurement**, which is worth
