@@ -251,11 +251,39 @@ namespace StackExchange.Redis
             var configured = IsAwaited ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds;
             var timeout = server.GetEffectiveTimeoutMilliseconds(configured);
 
-            return ExceptionFactory.Timeout(
-                multiplexer,
-                $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)",
-                this,
-                server);
+            return ExceptionFactory.Timeout(multiplexer, DescribeTimeout(elapsed, timeout), this, server);
+        }
+
+        /// <summary>How the timeout report opens: what moved on the connection while this waited.</summary>
+        /// <param name="elapsed">How long the command was outstanding, in milliseconds.</param>
+        /// <param name="timeout">The timeout that applied, in milliseconds.</param>
+        /// <remarks>
+        /// <b>The deltas are the first question anybody asks of a timeout</b>, and this core was not
+        /// answering it. "Nothing arrived on this connection while we waited" and "plenty arrived and none
+        /// of it was ours" are different faults with different causes - a stalled socket against a
+        /// desynchronised reader - and without the numbers the two are indistinguishable from the outside.
+        /// The shipped core reports them from <c>Message.TryGetPhysicalState</c>; here they come from the
+        /// counters the connection stamped on the operation when it took it, which is exactly what
+        /// <c>OnEnqueued</c> exists for.
+        /// <para>
+        /// Worded as the shipped core words it, so that the two read alike: a reader who has been pasting
+        /// <c>outbound=/inbound=</c> into issues for years should not have to learn a second format.
+        /// </para>
+        /// </remarks>
+        private string DescribeTimeout(int elapsed, int timeout)
+        {
+            if (Diagnostics.EnqueuedTo is RespConnection connection && Diagnostics.QueuedStampSent >= 0)
+            {
+                var sent = connection.BytesSent - Diagnostics.QueuedStampSent;
+                var received = connection.BytesReceived - Diagnostics.QueuedStampReceived;
+                if (sent >= 0 && received >= 0)
+                {
+                    return $"Timeout awaiting response (outbound={sent >> 10}KiB, inbound={received >> 10}KiB, "
+                        + $"{elapsed}ms elapsed, timeout is {timeout}ms)";
+                }
+            }
+
+            return $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)";
         }
 
         /// <summary>Which announced disruption, if any, a fault on this command should be blamed on.</summary>

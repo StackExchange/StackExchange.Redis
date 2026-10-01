@@ -2537,9 +2537,19 @@ desynchronised one. What is known:
 - The visible failures are always *other* tests - whatever was queued behind it - so the test that
   wedged it is not identifiable from the output.
 
-Worth instrumenting deliberately rather than waiting for a third sighting: the useful evidence would be
-the connection's own state at the moment `PendingCount` starts growing without bound, and whether
-`Drain` has stopped being called or has stopped consuming.
+**One piece of that instrumentation is now permanent**, and it was a parity gap anyway: a timeout from
+this core reports what MOVED on the connection while the command waited -
+`outbound=0KiB, inbound=0KiB, 1954ms elapsed, timeout is 1000ms`, worded as the shipped core words it.
+That single pair of numbers separates the two candidate faults: `inbound=0KiB` says the socket delivered
+nothing, and a large `inbound` says bytes arrived and none of them were matched - a stalled read against
+a desynchronised one. The counters come from the stamps the connection puts on the operation when it
+takes it, which is what `OnEnqueued` exists for, so nothing is paid until something times out.
+
+`MaintenanceRelaxationEvidenceTests.ATimeoutInsideAWindowSaysWhichEventCausedIt` pins it, and was
+checked both ways.
+
+Still wanted for a third sighting: the connection's own state at the moment `PendingCount` starts growing
+without bound, and whether `Drain` has stopped being called or has stopped consuming.
 
 ### 9c. What this buys beyond tidiness
 
