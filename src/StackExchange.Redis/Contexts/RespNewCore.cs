@@ -792,6 +792,13 @@ namespace StackExchange.Redis
             // identity changes underneath. Borrowed rather than reimplemented while both cores exist.
             connection.Server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
 
+            // ...and told what this handshake just learned, which is the direction of travel for D2.8.
+            // Today the client's beliefs about a server come from the SHIPPED bridge handshaking its own
+            // socket; this core handshakes one too and learns the same facts from it. Publishing them is
+            // what lets that other handshake eventually not happen - and in the meantime it corrects the
+            // case where this core knows something first, because it dialled first.
+            if (connection.Server is { } modelled) Publish(modelled, in result);
+
             // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
             // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
             // interactive connection it would start eating replies. Read from what the handshake NEGOTIATED
@@ -1145,6 +1152,43 @@ namespace StackExchange.Redis
         /// <param name="selectable">Whether it may be chosen.</param>
         /// <remarks>See <c>RespTopology.IsSelectable</c> for why this is pushed rather than discovered.</remarks>
         internal void OnSelectable(EndPoint endpoint, bool selectable) => _topology.OnSelectable(endpoint, selectable);
+
+        /// <summary>Tell the client what this core's own handshake observed about a server.</summary>
+        /// <param name="server">The modelled server.</param>
+        /// <param name="result">What the handshake settled.</param>
+        /// <remarks>
+        /// <b>Only what was actually determined.</b> <c>ServerType</c> has no "unknown" value, so a
+        /// handshake that could not tell reports <c>Standalone</c> - see
+        /// <see cref="RespHandshakeResult.KnowsServerType"/> - and publishing that would demote a cluster
+        /// on the strength of a question nobody answered.
+        /// <para>
+        /// <b>And never a demotion of a SENTINEL or a proxy.</b> Those are decided by configuration and
+        /// discovery rather than read off a connection: when <c>HELLO</c> is unavailable the fallback is
+        /// <c>CLUSTER INFO</c>, which can only distinguish cluster from not-cluster, so it would report a
+        /// sentinel as standalone. The guard is not defensive tidiness - it is the difference between
+        /// correcting a belief and overwriting one held for a better reason.
+        /// </para>
+        /// </remarks>
+        private static void Publish(ServerEndPoint server, in RespHandshakeResult result)
+        {
+            if (result.Version is { } version) server.Version = version;
+
+            if (result.KnowsServerType
+                && server.ServerType is not (ServerType.Sentinel or ServerType.Twemproxy))
+            {
+                server.ServerType = result.ServerType;
+            }
+        }
+
+        /// <summary>What protocol this core's connection to an endpoint settled on, if it has one.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// Asked by <c>ServerEndPoint.Protocol</c>, which otherwise answers from the shipped bridge alone -
+        /// and under the engine flag that bridge may never have handshaken, so it reports nothing about a
+        /// server this core has been talking RESP3 to all along.
+        /// </remarks>
+        internal RedisProtocol? ObservedProtocol(EndPoint endpoint)
+            => endpoint is not null && _protocols.TryGetValue(endpoint, out var protocol) ? protocol : null;
 
         /// <summary>Told what role an endpoint turned out to play.</summary>
         /// <param name="endpoint">The endpoint.</param>

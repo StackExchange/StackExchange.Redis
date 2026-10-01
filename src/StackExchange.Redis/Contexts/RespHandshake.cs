@@ -13,8 +13,19 @@ namespace StackExchange.Redis
     /// <param name="protocol">The protocol the connection ended up speaking.</param>
     /// <param name="serverType">What the server turned out to be.</param>
     /// <param name="version">The server version, when HELLO reported one.</param>
-    internal readonly struct RespHandshakeResult(RedisProtocol protocol, ServerType serverType, Version? version = null)
+    /// <param name="knowsServerType">Whether the server type was determined rather than defaulted.</param>
+    internal readonly struct RespHandshakeResult(
+        RedisProtocol protocol, ServerType serverType, Version? version = null, bool knowsServerType = false)
     {
+        /// <summary>Whether <see cref="ServerType"/> was actually determined, rather than defaulted.</summary>
+        /// <remarks>
+        /// <b>The difference matters to whoever is told.</b> <see cref="ServerType"/> has no "not yet
+        /// known" value, so an undetermined handshake reports <c>Standalone</c> - and a caller publishing
+        /// that as a fact would demote a cluster, or a sentinel, to standalone on the strength of a
+        /// question nobody answered.
+        /// </remarks>
+        internal bool KnowsServerType { get; } = knowsServerType;
+
         /// <summary>The server version, when <c>HELLO</c> reported one.</summary>
         /// <remarks>
         /// Read from the same reply that settles the protocol, so it costs nothing extra - and it is what
@@ -311,7 +322,7 @@ namespace StackExchange.Redis
                 await context.SendAsync($"{RedisCommand.SELECT}{database}").ConfigureAwait(false);
             }
 
-            return new RespHandshakeResult(protocol, serverType, version);
+            return new RespHandshakeResult(protocol, serverType, version, knowServerType);
         }
 
         /// <summary>Tell the server who is calling: the client's name, and the library and version.</summary>

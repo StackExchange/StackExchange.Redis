@@ -2195,6 +2195,43 @@ Each step is independently shippable and leaves the tree green.
 - **D2.8 - Stop constructing bridges under the flag**, then delete `PhysicalBridge` and
   `PhysicalConnection` when the flag becomes the only behaviour.
 
+  **This is the goal, and everything else is now waiting on it**: the `ReconnectRetryPolicy` pair (9b-ix),
+  D2.3's mode default and the 28 connection-count failures `Discover` costs, and every remaining
+  two-socket artefact. So it is worth stating what actually holds the bridges up, because it is not the
+  thing the `Message` inventory counts.
+
+  **Four dependencies, not one.**
+
+  1. **Discovery.** `ConnectionMultiplexer.ReconfigureAsync` establishes every `ServerEndPoint`'s beliefs -
+     server type, version, databases, replica-ness, protocol, run-id, connection-id - by handshaking the
+     SHIPPED bridge and reading `ECHO`/`INFO`/`CLUSTER`/`CONFIG` through it. None of that traffic appears
+     in the inventory, because it goes out through `WriteDirectOrQueueFireAndForgetAsync` rather than
+     `CheckMessage`. This is the one that matters: until the client's beliefs can come from somewhere else,
+     the shipped bridge must connect, and so must exist.
+
+     *Started.* This core handshakes its own socket and learns the same facts; it now PUBLISHES them -
+     version and server type - to the modelled `ServerEndPoint`, and `ServerEndPoint.Protocol` answers from
+     this core when the bridge has no answer. Roles and selectability already flowed the other way, which
+     is the shape: one fact, discovered once, told to whoever needs it. What is still missing is
+     `databases` (this core's handshake does not read `CONFIG GET databases`), `run-id`, `connection-id`,
+     and - the real work - `ReconfigureAsync` itself routing its probes through this core rather than
+     through a bridge.
+
+  2. **Subscriptions** (D2.5's remainder). The shipped SUBSCRIPTION bridge is a whole second socket per
+     endpoint and nothing else uses it, so this is the clearest halving available: `Subscription`,
+     `EnsureSubscribedToServer`, the resubscribe-on-reconnect path, `Ping` and `IdentifyEndpointAsync` all
+     move together.
+
+  3. **The `IServer` long tail.** 76 `Message.Create` sites, each wanting a group method and a handler.
+     Mechanical and wide rather than hard; `INFO` is the worked example, parse-sharing included.
+
+  4. **Sentinel** (D2.7), which is 462 of the inventory's messages and has its own connection model.
+
+  **How to sequence it.** (1) is the gate - nothing else removes a bridge on its own, because a bridge that
+  exists for discovery is a bridge that connects. (2) is the biggest visible win and is independent of (1).
+  (3) and (4) can proceed in parallel with either. The measurement that says (1) is done is the one D2.3
+  used: turn the shipped handshake off under the flag and categorise what breaks.
+
 #### Where the engine flag stands
 
 **Two stable failures, down from 33.** Three consecutive runs gave 3, 5 and 2; the third was exactly the

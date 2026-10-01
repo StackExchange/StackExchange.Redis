@@ -268,7 +268,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// If we have a connection (interactive), report the protocol being used.
         /// </summary>
-        public RedisProtocol? Protocol => interactive?.Protocol;
+        /// <summary>What this server is being spoken to in, as far as any connection to it has settled.</summary>
+        /// <remarks>
+        /// <b>Either core's connection answers.</b> The shipped bridge is asked first because its answer is
+        /// the one every existing caller has been reading; under the engine flag it may never have
+        /// handshaken at all, and then the question is about a connection this core owns. Reporting
+        /// <c>null</c> for a server that has been answering RESP3 since the first command is a diagnostic
+        /// that is wrong exactly when somebody is trying to find out what the protocol is.
+        /// </remarks>
+        public RedisProtocol? Protocol
+            => interactive?.Protocol ?? Multiplexer?.NewCoreIfCreated?.ObservedProtocol(EndPoint);
 
         public int WriteEverySeconds
         {
