@@ -28,6 +28,60 @@ public static partial class Diagnostics
         => diagnostics.Context.SendAsync<string?>(
             $"{RedisCommand.LATENCY}{RespLiterals.Doctor}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), cancellationToken: cancellationToken);
 
+    /// <summary>LATENCY RESET: forget the recorded spikes, for some events or for all of them.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="eventNames">The events to forget; every event when empty.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>The empty case is a different command, not a degenerate one.</b> <c>LATENCY RESET</c> with no
+    /// event names resets everything, so it cannot be short-circuited to zero the way an empty
+    /// <c>SADD</c> can - and it is the overwhelmingly common call. Answers how many event time-series
+    /// were reset.
+    /// </remarks>
+    public static ValueTask<long> LatencyResetAsync(
+        this in RespDiagnostics diagnostics,
+        ReadOnlySpan<RedisValue> eventNames = default,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => eventNames.IsEmpty
+            ? diagnostics.Context.SendAsync<long>(
+                $"{RedisCommand.LATENCY}{RespLiterals.Reset}", flags, cancellationToken: cancellationToken)
+            : diagnostics.Context.SendAsync<long>(
+                $"{RedisCommand.LATENCY}{RespLiterals.Reset}{eventNames}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>LATENCY HISTORY: every recorded spike for one event, oldest first.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="eventName">The event to report on.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks><inheritdoc cref="LatencyDoctorAsync" path="/remarks"/></remarks>
+    public static ValueTask<LatencyHistoryEntry[]> LatencyHistoryAsync(
+        this in RespDiagnostics diagnostics,
+        RedisValue eventName,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.LATENCY}{RespLiterals.History}{eventName}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+            LatencyHandler.History,
+            cancellationToken);
+
+    /// <summary>LATENCY LATEST: the most recent spike for each event, with that event's worst.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks><inheritdoc cref="LatencyDoctorAsync" path="/remarks"/></remarks>
+    public static ValueTask<LatencyLatestEntry[]> LatencyLatestAsync(
+        this in RespDiagnostics diagnostics,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.LATENCY}{RespLiterals.Latest}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+            LatencyHandler.Latest,
+            cancellationToken);
+
     /// <summary>MEMORY DOCTOR: the server's own prose report on its memory use.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
@@ -52,6 +106,26 @@ public static partial class Diagnostics
     public static ValueTask MemoryPurgeAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
             $"{RedisCommand.MEMORY}{RespLiterals.Purge}", flags.WithRetryCategory(RespServerRetry.NodeLocalAdmin), cancellationToken: cancellationToken);
+
+    /// <summary>MEMORY STATS: the allocator's report, as the nested reply the server sends.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Handed back as a <see cref="RedisResult"/> rather than modelled</b>, which is what the shipped
+    /// surface does and is right here: the reply is an open-ended, version-dependent key/value tree whose
+    /// contents change between server releases, so a type for it would be a type that goes stale. The
+    /// caller indexes what it recognises.
+    /// </remarks>
+    public static ValueTask<RedisResult> MemoryStatsAsync(
+        this in RespDiagnostics diagnostics,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.MEMORY}{RespLiterals.Stats}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+            RedisResultHandler.Instance,
+            cancellationToken);
 
     /// <summary>LASTSAVE: when the last successful save of the dataset finished.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
@@ -197,6 +271,43 @@ public static partial class Diagnostics
         {
             if (!reader.IsScalar) throw new RespException("Unexpected INFO reply.");
             return ParseInfo(reader.IsNull ? null : reader.ReadString());
+        }
+    }
+
+    /// <summary>Reads the two <c>LATENCY</c> array shapes, each as the array the older surface promises.</summary>
+    /// <remarks>
+    /// One instance, two explicit implementations, as the stream group's handler does: the two parses
+    /// differ only in return type, which C# cannot overload on. The element walks are the <b>shipped</b>
+    /// ones - <see cref="LatencyHistoryEntry.TryParseEntry"/> and
+    /// <see cref="LatencyLatestEntry.TryParseEntry"/> - so there is one reading of a server's latency
+    /// report rather than one per core.
+    /// </remarks>
+    private sealed class LatencyHandler : IRespHandler<LatencyHistoryEntry[]>, IRespHandler<LatencyLatestEntry[]>
+    {
+        private static readonly LatencyHandler Instance = new();
+
+        /// <summary>A <c>LATENCY HISTORY</c> reply.</summary>
+        internal static IRespHandler<LatencyHistoryEntry[]> History => Instance;
+
+        /// <summary>A <c>LATENCY LATEST</c> reply.</summary>
+        internal static IRespHandler<LatencyLatestEntry[]> Latest => Instance;
+
+        LatencyHistoryEntry[] IRespHandler<LatencyHistoryEntry[]>.Parse(ref RespReader reader)
+        {
+            if (!reader.IsAggregate) throw new RespException("Unexpected LATENCY HISTORY reply.");
+            return reader.ReadPastArray(
+                static (ref RespReader r) => LatencyHistoryEntry.TryParseEntry(ref r, out var parsed)
+                    ? parsed : throw new RespException("Unexpected LATENCY HISTORY element."),
+                scalar: false) ?? [];
+        }
+
+        LatencyLatestEntry[] IRespHandler<LatencyLatestEntry[]>.Parse(ref RespReader reader)
+        {
+            if (!reader.IsAggregate) throw new RespException("Unexpected LATENCY LATEST reply.");
+            return reader.ReadPastArray(
+                static (ref RespReader r) => LatencyLatestEntry.TryParseEntry(ref r, out var parsed)
+                    ? parsed : throw new RespException("Unexpected LATENCY LATEST element."),
+                scalar: false) ?? [];
         }
     }
 

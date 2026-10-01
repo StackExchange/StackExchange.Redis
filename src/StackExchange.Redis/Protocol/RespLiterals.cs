@@ -298,6 +298,18 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment ResetStat { get; }
 
+        /// <summary>The <c>HISTORY</c> subcommand of <c>LATENCY</c>; an event name follows it.</summary>
+        [Resp]
+        internal static partial RespFragment History { get; }
+
+        /// <summary>The <c>LATEST</c> subcommand of <c>LATENCY</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Latest { get; }
+
+        /// <summary>The <c>STATS</c> subcommand of <c>MEMORY</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Stats { get; }
+
         /// <summary>The <c>PURGE</c> subcommand of <c>MEMORY</c>.</summary>
         [Resp]
         internal static partial RespFragment Purge { get; }

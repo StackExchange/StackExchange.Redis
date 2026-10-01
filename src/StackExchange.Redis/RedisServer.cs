@@ -1155,58 +1155,39 @@ namespace StackExchange.Redis
         public string LatencyDoctor(CommandFlags flags = CommandFlags.None)
             => Wait(OrEmpty(Context.Diagnostics.LatencyDoctorAsync(flags)));
 
-        private static Message LatencyResetCommand(string[]? eventNames, CommandFlags flags)
+        /// <summary>The event names as the span the command group takes.</summary>
+        /// <param name="eventNames">The caller's names; null or empty means every event.</param>
+        /// <remarks>
+        /// One allocation on an administrative command that resets a server's latency history, which is
+        /// not a path anybody pipelines. The shipped spelling built a <c>RedisValue[]</c> here too, with
+        /// the subcommand prepended into it; the group owns the subcommand now.
+        /// </remarks>
+        private static RedisValue[] LatencyEventNames(string[]? eventNames)
         {
-            if (eventNames == null) eventNames = Array.Empty<string>();
-            switch (eventNames.Length)
-            {
-                case 0:
-                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET);
-                case 1:
-                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET, eventNames[0].AsRedisValue());
-                default:
-                    var arr = new RedisValue[eventNames.Length + 1];
-                    arr[0] = RedisLiterals.RESET;
-                    for (int i = 0; i < eventNames.Length; i++)
-                        arr[i + 1] = eventNames[i].AsRedisValue();
-                    return Message.Create(-1, flags, RedisCommand.LATENCY, arr);
-            }
+            if (eventNames is null || eventNames.Length == 0) return Array.Empty<RedisValue>();
+
+            var arr = new RedisValue[eventNames.Length];
+            for (int i = 0; i < arr.Length; i++) arr[i] = eventNames[i].AsRedisValue();
+            return arr;
         }
+
         public Task<long> LatencyResetAsync(string[]? eventNames = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = LatencyResetCommand(eventNames, flags);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
+            => Context.Diagnostics.LatencyResetAsync(LatencyEventNames(eventNames), flags).AsTask(asyncState, flags);
 
         public long LatencyReset(string[]? eventNames = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = LatencyResetCommand(eventNames, flags);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
+            => Wait(Context.Diagnostics.LatencyResetAsync(LatencyEventNames(eventNames), flags));
 
         public Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.LATENCY, RedisLiterals.HISTORY, eventName.AsRedisValue());
-            return ExecuteAsync(msg, LatencyHistoryEntry.ToArray, defaultValue: Array.Empty<LatencyHistoryEntry>());
-        }
+            => Context.Diagnostics.LatencyHistoryAsync(eventName.AsRedisValue(), flags).AsTask(asyncState, flags);
 
         public LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.LATENCY, RedisLiterals.HISTORY, eventName.AsRedisValue());
-            return ExecuteSync(msg, LatencyHistoryEntry.ToArray, defaultValue: Array.Empty<LatencyHistoryEntry>());
-        }
+            => Wait(Context.Diagnostics.LatencyHistoryAsync(eventName.AsRedisValue(), flags));
 
         public Task<LatencyLatestEntry[]> LatencyLatestAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.LATENCY, RedisLiterals.LATEST);
-            return ExecuteAsync(msg, LatencyLatestEntry.ToArray, defaultValue: Array.Empty<LatencyLatestEntry>());
-        }
+            => Context.Diagnostics.LatencyLatestAsync(flags).AsTask(asyncState, flags);
 
         public LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.LATENCY, RedisLiterals.LATEST);
-            return ExecuteSync(msg, LatencyLatestEntry.ToArray, defaultValue: Array.Empty<LatencyLatestEntry>());
-        }
+            => Wait(Context.Diagnostics.LatencyLatestAsync(flags));
 
         public Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None)
             => OrEmpty(Context.Diagnostics.MemoryDoctorAsync(flags)).AsTask(asyncState, flags);
@@ -1230,15 +1211,9 @@ namespace StackExchange.Redis
             => Wait(Context.Diagnostics.MemoryAllocatorStatsAsync(flags));
 
         public Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.MEMORY, RedisLiterals.STATS);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullArray);
-        }
+            => Context.Diagnostics.MemoryStatsAsync(flags).AsTask(asyncState, flags);
 
         public RedisResult MemoryStats(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.MEMORY, RedisLiterals.STATS);
-            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullArray);
-        }
+            => Wait(Context.Diagnostics.MemoryStatsAsync(flags));
     }
 }

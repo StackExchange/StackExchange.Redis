@@ -2243,8 +2243,22 @@ Each step is independently shippable and leaves the tree green.
      `EnsureSubscribedToServer`, the resubscribe-on-reconnect path, `Ping` and `IdentifyEndpointAsync` all
      move together.
 
-  3. **The `IServer` long tail.** 76 `Message.Create` sites, each wanting a group method and a handler.
+  3. **The `IServer` long tail.** `Message.Create` sites, each wanting a group method and a handler.
      Mechanical and wide rather than hard; `INFO` is the worked example, parse-sharing included.
+
+     *Started.* 68 sites at the time of writing, **59** now: `LATENCY RESET`/`HISTORY`/`LATEST` and
+     `MEMORY STATS` moved to `Diagnostics`, which already carried the two `DOCTOR`s and `MEMORY PURGE`.
+     26 of the remainder are `SENTINEL`, which stays - see below.
+
+     Two things worth copying into the next batch. The element parses are **shared, not rewritten**:
+     `LatencyHistoryEntry.TryParseEntry` and its sibling are now internal statics called by both the
+     shipped `ArrayResultProcessor` and the new handler, so a server's own account of its latency cannot
+     depend on which core asked - the same argument as `Diagnostics.ParseInfo`. And the risk in a port of
+     this shape is the **wire form**, not the result: a `LATENCY RESET` that dropped an event name would
+     quietly reset the wrong set. So `RespSurfaceDiagnosticsParityTests` keeps the shipped
+     `Message.Create` calls - driven for real through `MessageWriter` - as the expected bytes, which is
+     what the stream and key parity suites already do and is the only assertion that cannot be satisfied
+     by misreading the code being replaced.
 
   4. **Sentinel** (D2.7), which is 462 of the inventory's messages and has its own connection model.
 

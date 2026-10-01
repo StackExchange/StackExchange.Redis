@@ -10,25 +10,32 @@ public readonly struct LatencyLatestEntry
 {
     internal static readonly ResultProcessor<LatencyLatestEntry[]> ToArray = new Processor();
 
+    /// <summary>One <c>LATENCY LATEST</c> element: the event, its last spike, and its worst.</summary>
+    /// <param name="reader">Positioned on the element.</param>
+    /// <param name="parsed">The entry.</param>
+    /// <remarks><inheritdoc cref="LatencyHistoryEntry.TryParseEntry" path="/remarks"/></remarks>
+    internal static bool TryParseEntry(ref RespReader reader, out LatencyLatestEntry parsed)
+    {
+        if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
+        {
+            var eventName = reader.ReadString()!;
+
+            if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var timestamp)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var duration)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var maxDuration))
+            {
+                parsed = new LatencyLatestEntry(eventName, timestamp, duration, maxDuration);
+                return true;
+            }
+        }
+        parsed = default;
+        return false;
+    }
+
     private sealed class Processor : ArrayResultProcessor<LatencyLatestEntry>
     {
         protected override bool TryParse(ref RespReader reader, out LatencyLatestEntry parsed)
-        {
-            if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
-            {
-                var eventName = reader.ReadString()!;
-
-                if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var timestamp)
-                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var duration)
-                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var maxDuration))
-                {
-                    parsed = new LatencyLatestEntry(eventName, timestamp, duration, maxDuration);
-                    return true;
-                }
-            }
-            parsed = default;
-            return false;
-        }
+            => TryParseEntry(ref reader, out parsed);
     }
 
     /// <summary>
