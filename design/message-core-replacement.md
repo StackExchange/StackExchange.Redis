@@ -2337,6 +2337,29 @@ Each step is independently shippable and leaves the tree green.
   **D2.5 is done**: publish, subscribe and unsubscribe for every channel shape, the ping, the
   re-subscribe, and the endpoint identity all travel on this core under the flag.
 
+  **So the obvious next move is to stop CONSTRUCTING the subscription bridge - and that was tried, and
+  measured, and is not a one-liner.** Not activating it under the flag, plus relaxing the
+  "fully established" gate so a connect does not wait for a leg nobody dials, gives **63 failures**
+  across the pub/sub, handshake, cluster and config families. The mechanism is a chain, and it is worth
+  having written down:
+
+  - The subscribe path has a DECLINE for a subscription that would share the ordinary connection, which
+    exists because this core picks its socket when a send is composed and a later downgrade can move it
+    (issue #3154). That decline was safe only because the shipped bridge was there to take those
+    subscriptions.
+  - Remove the bridge and the decline has nowhere to drain: the fall-through becomes a subscribe that goes
+    nowhere at all, which `ClusterTests.ClusterPubSub` reports as an empty subscribed endpoint.
+  - Remove the decline as well, so this core takes every subscription, and the shared-socket path becomes
+    live for the first time - which is where the other 63 come from.
+
+  The pieces to close it already exist and are the ones D2.5 built: `SubscriptionEndpoint` shares only on
+  KNOWN RESP3, `IsSubscriptionConnected` stops answering yes for a shared socket once the negotiated
+  protocol drops, and the establish-time `EnsureSubscriptions` then re-places the subscription on a
+  dedicated one. What has not been done is making that chain actually hold for a subscription composed
+  before a downgrade and written after it - the narrow window #3154 names - and 63 failures is the
+  measurement of how much of the suite depends on getting it right rather than nearly right. **That is
+  the next piece of work, and it is the gate on halving the socket count.**
+
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
 - **D2.7 - Maintenance and sentinel.**
