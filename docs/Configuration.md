@@ -266,6 +266,13 @@ Both options can be customized or disabled (set to `""`), via the `.Configuratio
 
 These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to primary/replica changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
 
+The configuration channel is subscribed to on every server connection, under both RESP2 and RESP3. Like any other pub/sub channel, it has the `ChannelPrefix` (if one is configured) applied - both when subscribing to it and when the library publishes to it - so a client with `channelPrefix=app1-` listens on `app1-__Booksleeve_MasterChanged`. Two consequences follow:
+
+- If you announce a change yourself rather than through the library (for example `PUBLISH app1-__Booksleeve_MasterChanged "*"` from `redis-cli`), publish to the *prefixed* name, once for each distinct prefix in use; clients with a different prefix will not hear it. A publish to the unprefixed name is only heard by clients that have no prefix.
+- If you use ACLs that restrict channels, the user needs access to the *prefixed* channel (for example `&app1-__Booksleeve_MasterChanged`), in addition to any channels the application itself uses.
+
+The configuration channel is a convenience for prompt notification. Where the server can report the change itself (for example the `-MOVED` responses from a redis cluster), the library will refresh without it.
+
 ## Refreshing the topology after repeated connect failures
 
 An endpoint that refuses every connection is evidence that what the client believes about the deployment may
